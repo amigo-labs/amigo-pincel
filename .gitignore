@@ -1,0 +1,29 @@
+# Rust
+/target
+**/*.rs.bk
+Cargo.lock.bak
+
+# WASM build output
+/crates/pincel-wasm/pkg
+
+# Node / UI
+/ui/node_modules
+/ui/.svelte-kit
+/ui/build
+/ui/dist
+/ui/.vite
+node_modules
+
+# Tauri
+/src-tauri/target
+/src-tauri/gen
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea
+.vscode
+!.vscode/settings.json
+!.vscode/extensions.json
