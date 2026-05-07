@@ -21,31 +21,66 @@ _Last updated: 2026-05-07_
   - `error::DocumentError` (`InvalidDimensions`, `DuplicateId`, `UnknownId`)
 - Fluent `SpriteBuilder` that validates canvas dimensions and id uniqueness
 - 20 unit tests cover construction, defaults, and validation
-- `cargo check`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
-  are all green
+
+### M2 — `pincel-core` commands + undo ✅
+
+- `document::CelMap` — `(LayerId, FrameIndex) → Cel` storage (BTreeMap-backed),
+  used by commands and (later) by `compose()`
+- `command::Command` trait with `apply` / `revert` / default `merge`
+- `command::AnyCommand` enum dispatching to concrete commands without dyn
+- `command::Bus` — linear undo / redo stack with configurable cap
+  (default 100, see spec §6.2). `execute` clears redo, attempts a merge with
+  the stack top, then pushes; oldest entries drop when the cap is exceeded
+- `command::CommandError` (`MissingCel`, `NotAnImageCel`, `PixelOutOfBounds`,
+  `UnsupportedColorMode`, `DuplicateLayerId`, `FrameIndexOutOfRange`)
+- Three commands per spec §6 / CLAUDE.md M2:
+  - `SetPixel` — RGBA-only single-pixel write, sprite-coord input,
+    captures the prior color for revert
+  - `AddLayer::on_top` / `AddLayer::at` — z-order insertion, rejects
+    duplicate ids
+  - `AddFrame::append` — append-only for M2 (mid-list insertion would
+    require remapping cel `FrameIndex` keys; deferred)
+- 17 new unit tests (now 37 unit total) plus a `tests/command_bus.rs`
+  integration suite with 6 cases: undo restores state, redo replays,
+  execute clears redo, add-layer / add-frame round trips, and history-cap
+  trimming
+
+### Build status
+
+`cargo check`, `cargo test` (37 unit + 6 integration), `cargo clippy
+--all-targets -- -D warnings`, and `cargo fmt --check` are all green on
+the `claude/continue-from-status-lRO2f` branch.
 
 ## Next concrete task
 
-**M2 — `pincel-core` commands + undo** (`docs/specs/pincel.md` §6, CLAUDE.md §4 M2)
+**M3 — `pincel-core` `compose()`, image layers only**
+(`docs/specs/pincel.md` §4, CLAUDE.md §4 M3)
 
-- Add `command::Command` trait (`apply` / `revert` / optional merge logic)
-- Implement a small `command::Bus` that holds the undo and redo stacks
-- Implement three commands: `SetPixel`, `AddLayer`, `AddFrame`
-- Tests: apply / revert round-trip preserves state; redo after undo replays
+- `render` module with `compose(&Sprite, &CelMap, &ComposeRequest) -> ComposeResult`
+- RGBA-only path (palette lookup deferred until indexed mode lands)
+- No tilemaps, no slices, no overlays — those arrive with M8 / M9
+- Snapshot test: a hand-built sprite produces the expected RGBA bytes
 
-Estimated size: M (3–6 files, ≤400 lines, multiple commits). Plan as:
+Estimated size: M (3–5 files, ≤400 lines, multiple commits). Plan as:
 
-1. `command` module skeleton (Command trait, Bus, error variants)
-2. `SetPixel` command + tests
-3. `AddLayer` and `AddFrame` commands + tests
+1. `render` module skeleton: `ComposeRequest`, `ComposeResult`,
+   `LayerFilter`, `Overlays`, `OnionSkin` stubs
+2. `compose()` pass over visible image cels with `Normal` blend, no zoom,
+   no overlays — get a known fixture green
+3. Apply per-cel opacity, layer opacity, and the remaining `BlendMode`
+   variants required by Aseprite parity
+4. Integer zoom (nearest-neighbor upscale)
 
 ## Open questions
 
-- Whether `Command::apply` should mutate `Sprite` directly or return a new
-  `Sprite` (copy-on-write). The spec says "mutate the document," so plan to
-  use `&mut Sprite` for apply/revert. Confirm before locking in.
-- Cel storage: spec §3.2 says cels are keyed by `(LayerId, FrameIndex)`. Not
-  yet on `Sprite`; defer until commands need it (M2 `SetPixel` will force it).
-- Whether to allocate ids inside the document (auto-incrementing counter) or
-  to require callers to supply them. Currently callers supply; revisit when
-  `AddLayer` lands.
+- `AddFrame` in M2 is append-only. Mid-list insertion needs a
+  `FrameIndex` remap on the cel map (and on `Tag`/`Slice` references).
+  Postpone until a tool actually needs it; revisit when `compose()` and
+  the Pencil tool start exercising frame navigation.
+- `SetPixel` only supports RGBA color mode. Indexed-mode painting will
+  need a separate command (or a payload enum) once the Indexed compose
+  path lands in M3.
+- Whether commands should auto-create cels when targeting an empty
+  `(layer, frame)` slot. Current behavior: error out with `MissingCel`.
+  Defer; the Pencil tool in M6 will be the first caller that has an
+  opinion.
