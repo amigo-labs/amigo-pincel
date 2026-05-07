@@ -2,8 +2,9 @@
 //!
 //! M3 implements the minimum useful path: visible image layers in z-order
 //! with the `Normal` blend mode, RGBA color mode only. Tilemap and group
-//! layers, indexed color, non-Normal blend modes, overlays, and onion skin
-//! all return [`RenderError`] for now.
+//! layers, indexed color, non-Normal blend modes, linked cels, onion skin,
+//! and overlays all return [`RenderError`] for now. The `dirty_hint` field
+//! on the request is accepted and currently ignored.
 
 use thiserror::Error;
 
@@ -13,7 +14,7 @@ use crate::document::{
 };
 use crate::geometry::Rect;
 
-use super::request::{ComposeRequest, ComposeResult, LayerFilter};
+use super::request::{ComposeRequest, ComposeResult, LayerFilter, Overlays};
 
 /// Maximum supported zoom factor (per spec §4.1).
 const MAX_ZOOM: u32 = 64;
@@ -44,6 +45,44 @@ pub enum RenderError {
     /// A layer's blend mode is not yet implemented.
     #[error("unsupported blend mode {mode:?} on layer {layer:?}")]
     UnsupportedBlendMode { layer: LayerId, mode: BlendMode },
+
+    /// A linked cel was encountered. Linked cels share data with another
+    /// frame's cel; M3 does not follow links — the loader (M4) is the layer
+    /// that resolves linkage.
+    #[error("linked cel on layer {layer:?} frame {frame:?} is not yet supported")]
+    LinkedCelUnsupported { layer: LayerId, frame: FrameIndex },
+
+    /// A cel's pixel buffer uses a color mode that doesn't match the
+    /// sprite's color mode.
+    #[error(
+        "cel buffer color mode {mode:?} on layer {layer:?} frame {frame:?} \
+         doesn't match sprite color mode"
+    )]
+    CelColorModeMismatch {
+        layer: LayerId,
+        frame: FrameIndex,
+        mode: ColorMode,
+    },
+
+    /// A cel's pixel buffer dimensions don't match its byte length.
+    #[error("malformed cel buffer on layer {layer:?} frame {frame:?}")]
+    MalformedCelBuffer { layer: LayerId, frame: FrameIndex },
+
+    /// A cel's payload type is incompatible with its layer's kind (for
+    /// example, tilemap data on an image layer). Indicates a corrupt
+    /// document.
+    #[error("cel type does not match layer kind on layer {layer:?} frame {frame:?}")]
+    CelTypeMismatch { layer: LayerId, frame: FrameIndex },
+
+    /// The request asked for an onion-skin overlay; M3 does not render
+    /// onion skin yet.
+    #[error("onion skin is not yet supported")]
+    OnionSkinUnsupported,
+
+    /// The request asked for one or more decoration overlays; M3 does not
+    /// render overlays yet.
+    #[error("overlays are not yet supported")]
+    OverlaysUnsupported,
 }
 
 /// Compose a frame of `sprite` into an RGBA8 pixel buffer. See spec §4.
@@ -62,6 +101,12 @@ pub fn compose(
     }
     if request.viewport.is_empty() {
         return Err(RenderError::EmptyViewport);
+    }
+    if request.onion_skin.is_some() {
+        return Err(RenderError::OnionSkinUnsupported);
+    }
+    if request.overlays != Overlays::default() {
+        return Err(RenderError::OverlaysUnsupported);
     }
     if (request.frame.0 as usize) >= sprite.frames.len() {
         return Err(RenderError::UnknownFrame {
@@ -93,10 +138,33 @@ pub fn compose(
         };
         let pixels = match &cel.data {
             CelData::Image(buffer) => buffer,
-            // Tilemap layers were rejected above, so this is a Linked cel.
-            // M3 does not chase linkage; treat it as transparent.
-            CelData::Tilemap { .. } | CelData::Linked(_) => continue,
+            CelData::Linked(_) => {
+                return Err(RenderError::LinkedCelUnsupported {
+                    layer: layer.id,
+                    frame: request.frame,
+                });
+            }
+            CelData::Tilemap { .. } => {
+                // Image layer with tilemap-shaped cel data — invariant violation.
+                return Err(RenderError::CelTypeMismatch {
+                    layer: layer.id,
+                    frame: request.frame,
+                });
+            }
         };
+        if pixels.color_mode != sprite.color_mode {
+            return Err(RenderError::CelColorModeMismatch {
+                layer: layer.id,
+                frame: request.frame,
+                mode: pixels.color_mode,
+            });
+        }
+        if !pixels.is_well_formed() {
+            return Err(RenderError::MalformedCelBuffer {
+                layer: layer.id,
+                frame: request.frame,
+            });
+        }
         composite_image_cel(
             &mut buffer,
             vp,
@@ -653,5 +721,126 @@ mod tests {
         let r = compose(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (64, 64));
         assert_eq!(r.pixels.len(), 64 * 64 * 4);
+    }
+
+    #[test]
+    fn rejects_linked_cel() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Linked(FrameIndex::new(0)),
+        });
+        assert_eq!(
+            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            RenderError::LinkedCelUnsupported {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_cel_with_wrong_color_mode() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let mut cels = CelMap::new();
+        // 1×1 indexed buffer (1 byte) on an RGBA sprite.
+        let bogus = PixelBuffer::empty(
+            1,
+            1,
+            ColorMode::Indexed {
+                transparent_index: 0,
+            },
+        );
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), bogus));
+        assert_eq!(
+            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            RenderError::CelColorModeMismatch {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+                mode: ColorMode::Indexed {
+                    transparent_index: 0,
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_cel_buffer() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let mut cels = CelMap::new();
+        // Claim 2×2 RGBA (16 bytes) but only ship 4. is_well_formed returns false.
+        let mangled = PixelBuffer {
+            width: 2,
+            height: 2,
+            color_mode: ColorMode::Rgba,
+            data: vec![0, 0, 0, 255],
+        };
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), mangled));
+        assert_eq!(
+            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            RenderError::MalformedCelBuffer {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_tilemap_data_on_image_layer() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Tilemap {
+                grid_w: 1,
+                grid_h: 1,
+                tiles: vec![crate::document::TileRef::EMPTY],
+            },
+        });
+        assert_eq!(
+            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            RenderError::CelTypeMismatch {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+            }
+        );
+    }
+
+    #[test]
+    fn rejects_onion_skin_request() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let cels = CelMap::new();
+        let req = ComposeRequest {
+            onion_skin: Some(super::super::OnionSkin::default()),
+            ..full_req(1, 1)
+        };
+        assert_eq!(
+            compose(&sprite, &cels, &req).unwrap_err(),
+            RenderError::OnionSkinUnsupported
+        );
+    }
+
+    #[test]
+    fn rejects_overlays_request() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let cels = CelMap::new();
+        let req = ComposeRequest {
+            overlays: Overlays {
+                grid: true,
+                ..Overlays::default()
+            },
+            ..full_req(1, 1)
+        };
+        assert_eq!(
+            compose(&sprite, &cels, &req).unwrap_err(),
+            RenderError::OverlaysUnsupported
+        );
     }
 }
