@@ -43,9 +43,6 @@ impl Command for AddFrame {
         let Some(index) = self.inserted_index.take() else {
             return;
         };
-        // Append-only commands always sit at the end. If they don't, the
-        // bus has been driven incorrectly (e.g. another command was undone
-        // out of order), so report it via the recorded index.
         if index >= doc.frames.len() {
             return;
         }

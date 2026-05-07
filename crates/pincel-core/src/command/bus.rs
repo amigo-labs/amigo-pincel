@@ -1,5 +1,7 @@
 //! Command bus: linear undo / redo stack. See `docs/specs/pincel.md` §6.2.
 
+use std::collections::VecDeque;
+
 use crate::document::{CelMap, Sprite};
 
 use super::AnyCommand;
@@ -16,7 +18,7 @@ pub const DEFAULT_HISTORY_CAP: usize = 100;
 /// the oldest entry is dropped.
 #[derive(Debug)]
 pub struct Bus {
-    undo: Vec<AnyCommand>,
+    undo: VecDeque<AnyCommand>,
     redo: Vec<AnyCommand>,
     cap: usize,
 }
@@ -30,7 +32,7 @@ impl Bus {
     /// Create a bus with the given undo cap. A cap of `0` disables history.
     pub fn with_capacity(cap: usize) -> Self {
         Self {
-            undo: Vec::new(),
+            undo: VecDeque::new(),
             redo: Vec::new(),
             cap,
         }
@@ -51,22 +53,22 @@ impl Bus {
             return Ok(());
         }
 
-        if let Some(top) = self.undo.last_mut() {
+        if let Some(top) = self.undo.back_mut() {
             if top.merge(&cmd) {
                 return Ok(());
             }
         }
 
-        self.undo.push(cmd);
+        self.undo.push_back(cmd);
         if self.undo.len() > self.cap {
-            self.undo.remove(0);
+            self.undo.pop_front();
         }
         Ok(())
     }
 
     /// Revert the most recent command. Returns `true` if a command was undone.
     pub fn undo(&mut self, doc: &mut Sprite, cels: &mut CelMap) -> bool {
-        let Some(mut cmd) = self.undo.pop() else {
+        let Some(mut cmd) = self.undo.pop_back() else {
             return false;
         };
         cmd.revert(doc, cels);
@@ -81,7 +83,7 @@ impl Bus {
             return Ok(false);
         };
         cmd.apply(doc, cels)?;
-        self.undo.push(cmd);
+        self.undo.push_back(cmd);
         Ok(true)
     }
 

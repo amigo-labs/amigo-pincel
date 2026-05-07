@@ -32,8 +32,4 @@ pub enum CommandError {
     /// A layer with the same id already exists.
     #[error("layer id {0} already exists")]
     DuplicateLayerId(u32),
-
-    /// The frame index requested for revert is not in range.
-    #[error("frame index {0} is out of range")]
-    FrameIndexOutOfRange(u32),
 }
