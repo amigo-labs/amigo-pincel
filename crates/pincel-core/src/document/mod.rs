@@ -2,6 +2,7 @@
 //! sprite. See `docs/specs/pincel.md` §3.
 
 mod cel;
+mod cel_map;
 mod color;
 mod color_mode;
 mod frame;
@@ -12,6 +13,7 @@ mod tag;
 mod tileset;
 
 pub use cel::{Cel, CelData, PixelBuffer, TileRef};
+pub use cel_map::{CelKey, CelMap};
 pub use color::Rgba;
 pub use color_mode::ColorMode;
 pub use frame::{Frame, FrameIndex};
