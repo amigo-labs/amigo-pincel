@@ -107,12 +107,54 @@ pub fn compose(
         );
     }
 
+    let pixels = if request.zoom == 1 {
+        buffer
+    } else {
+        upscale_nearest(&buffer, vp.width, vp.height, request.zoom)
+    };
+
     Ok(ComposeResult {
-        pixels: buffer,
-        width: vp.width,
-        height: vp.height,
+        pixels,
+        width: vp.width * request.zoom,
+        height: vp.height * request.zoom,
         generation: 0,
     })
+}
+
+/// Nearest-neighbor integer upscale of an RGBA8 image. See spec §4.1: the
+/// composer produces the exact pixel grid the UI displays so the GPU just
+/// blits and we avoid subpixel sampling artifacts.
+fn upscale_nearest(src: &[u8], w: u32, h: u32, zoom: u32) -> Vec<u8> {
+    let zoom_us = zoom as usize;
+    let w_us = w as usize;
+    let h_us = h as usize;
+    let zw = w_us * zoom_us;
+    let mut out = vec![0u8; zw * h_us * zoom_us * 4];
+
+    for y in 0..h_us {
+        // Build the first replicated row for this source row, then memcpy
+        // it `zoom - 1` times to fill the remaining vertical replicas.
+        let src_row_start = y * w_us * 4;
+        let dst_first_row_start = y * zoom_us * zw * 4;
+        for x in 0..w_us {
+            let s = src_row_start + x * 4;
+            let pixel = &src[s..s + 4];
+            let dst_x = dst_first_row_start + x * zoom_us * 4;
+            for zx in 0..zoom_us {
+                let d = dst_x + zx * 4;
+                out[d..d + 4].copy_from_slice(pixel);
+            }
+        }
+        let row_bytes = zw * 4;
+        let (head, tail) = out.split_at_mut(dst_first_row_start + row_bytes);
+        let row = &head[dst_first_row_start..dst_first_row_start + row_bytes];
+        for zy in 1..zoom_us {
+            let dst_offset = (zy - 1) * row_bytes;
+            tail[dst_offset..dst_offset + row_bytes].copy_from_slice(row);
+        }
+    }
+
+    out
 }
 
 fn layer_included(layer: &Layer, filter: &LayerFilter) -> bool {
@@ -544,5 +586,72 @@ mod tests {
         };
         let r = compose(&sprite, &cels, &req).unwrap();
         assert_eq!(r.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn zoom_duplicates_pixels_horizontally_and_vertically() {
+        let sprite = one_layer_sprite(2, 1, 1);
+        let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
+        buf.data[..4].copy_from_slice(&[255, 0, 0, 255]);
+        buf.data[4..].copy_from_slice(&[0, 0, 255, 255]);
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), buf));
+
+        let req = ComposeRequest {
+            zoom: 2,
+            ..ComposeRequest::full(FrameIndex::new(0), 2, 1)
+        };
+        let r = compose(&sprite, &cels, &req).unwrap();
+        assert_eq!((r.width, r.height), (4, 2));
+        // Row 0: R R B B
+        let row0: Vec<u8> = [
+            [255, 0, 0, 255],
+            [255, 0, 0, 255],
+            [0, 0, 255, 255],
+            [0, 0, 255, 255],
+        ]
+        .concat();
+        assert_eq!(&r.pixels[0..16], row0.as_slice());
+        // Row 1 is a copy of row 0 (vertical replication).
+        assert_eq!(&r.pixels[16..32], row0.as_slice());
+    }
+
+    #[test]
+    fn zoom_3_produces_9x_pixel_count() {
+        let sprite = one_layer_sprite(2, 2, 1);
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(0),
+            solid(2, 2, [50, 60, 70, 255]),
+        ));
+        let req = ComposeRequest {
+            zoom: 3,
+            ..ComposeRequest::full(FrameIndex::new(0), 2, 2)
+        };
+        let r = compose(&sprite, &cels, &req).unwrap();
+        assert_eq!((r.width, r.height), (6, 6));
+        assert_eq!(r.pixels.len(), 6 * 6 * 4);
+        for px in r.pixels.chunks_exact(4) {
+            assert_eq!(px, &[50, 60, 70, 255]);
+        }
+    }
+
+    #[test]
+    fn zoom_at_max_factor_succeeds() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(0),
+            solid(1, 1, [1, 2, 3, 255]),
+        ));
+        let req = ComposeRequest {
+            zoom: 64,
+            ..ComposeRequest::full(FrameIndex::new(0), 1, 1)
+        };
+        let r = compose(&sprite, &cels, &req).unwrap();
+        assert_eq!((r.width, r.height), (64, 64));
+        assert_eq!(r.pixels.len(), 64 * 64 * 4);
     }
 }
