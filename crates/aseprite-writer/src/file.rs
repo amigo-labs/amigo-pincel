@@ -24,14 +24,17 @@ pub struct AseFile {
     pub frames: Vec<Frame>,
 }
 
-/// 128-byte file header. Matches `aseprite-loader::binary::header::Header`.
+/// 128-byte file header. Matches `aseprite-loader::binary::header::Header`,
+/// minus the loader's `frames` field — the writer always derives the
+/// frame count from `AseFile::frames.len()` instead of trusting a
+/// caller-supplied value, so exposing a redundant field on the public
+/// API would only invite mistakes.
 ///
-/// `file_size` is **computed at write time** and ignored on input — pass
-/// `0` (or anything else) when constructing for write. The deprecated
-/// `speed` field is preserved for round-trip parity.
+/// `file_size` is **computed at write time** and not stored on this
+/// struct. The deprecated `speed` field is preserved for round-trip
+/// parity.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Header {
-    pub frames: u16,
     pub width: u16,
     pub height: u16,
     pub color_depth: ColorDepth,
@@ -55,7 +58,6 @@ impl Header {
     /// All other fields default to Aseprite's "no extra info" values.
     pub fn new(width: u16, height: u16, color_depth: ColorDepth) -> Self {
         Self {
-            frames: 0,
             width,
             height,
             color_depth,

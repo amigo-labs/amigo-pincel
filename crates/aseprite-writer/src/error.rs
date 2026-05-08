@@ -8,10 +8,6 @@ pub enum WriteError {
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Header `frames` field disagrees with `frames.len()`.
-    #[error("header.frames ({header}) does not match frames.len() ({actual})")]
-    FrameCountMismatch { header: u16, actual: usize },
-
     /// A counted field would overflow its on-disk u16/u32 width.
     #[error("{what} count {count} exceeds maximum {max}")]
     TooMany {

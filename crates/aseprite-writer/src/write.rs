@@ -45,17 +45,16 @@ pub fn write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError> {
         })?;
 
     let frame_blocks = encode_frames(file)?;
-    let total_size: u32 = frame_blocks
+    let total_u64: u64 = frame_blocks
         .iter()
         .map(|f| f.len() as u64)
         .sum::<u64>()
-        .saturating_add(HEADER_SIZE as u64)
-        .try_into()
-        .map_err(|_| WriteError::TooMany {
-            what: "file bytes",
-            count: u64::MAX,
-            max: u32::MAX as u64,
-        })?;
+        .saturating_add(HEADER_SIZE as u64);
+    let total_size: u32 = total_u64.try_into().map_err(|_| WriteError::TooMany {
+        what: "file bytes",
+        count: total_u64,
+        max: u32::MAX as u64,
+    })?;
 
     write_header(out, &file.header, frame_count, total_size)?;
     for block in &frame_blocks {
