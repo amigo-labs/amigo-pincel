@@ -14,9 +14,11 @@ mod bytes;
 mod error;
 mod file;
 mod types;
+mod write;
 
 pub use error::WriteError;
 pub use file::{AseFile, Frame, Header, LayerChunk, PaletteChunk, PaletteEntry, Tag};
 pub use types::{
     AnimationDirection, BlendMode, Color, ColorDepth, LayerFlags, LayerType, PaletteEntryFlags,
 };
+pub use write::write;
