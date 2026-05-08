@@ -8,6 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aseprite-loader = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]
