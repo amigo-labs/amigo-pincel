@@ -113,6 +113,7 @@ name = "pincel-core"
 version = "0.1.0"
 dependencies = [
  "aseprite-loader",
+ "aseprite-writer",
  "thiserror",
 ]
 

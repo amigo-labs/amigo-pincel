@@ -10,6 +10,7 @@ rust-version = "1.85"
 
 [workspace.dependencies]
 aseprite-loader = "0.4.2"
+aseprite-writer = { version = "0.1.0", path = "crates/aseprite-writer" }
 flate2 = "1"
 thiserror = "2"
 

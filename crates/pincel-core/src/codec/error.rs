@@ -53,4 +53,141 @@ pub enum CodecError {
     /// Building the [`crate::Sprite`] model rejected the adapter output.
     #[error(transparent)]
     Document(#[from] DocumentError),
+
+    /// A field on the document does not fit into its on-disk slot
+    /// (canvas dimensions / cel position / cel dimensions / linked frame
+    /// index / tag frame range / layer count / layer depth).
+    #[error("{what} value {value} does not fit on disk")]
+    OutOfRange {
+        /// Short human-readable description, e.g. `"canvas width"`.
+        what: &'static str,
+        /// Numeric value that exceeded the on-disk slot. Signed so that
+        /// negative cel positions surface verbatim.
+        value: i64,
+    },
+
+    /// A linked cel points at a frame index past `Sprite::frames`.
+    #[error("linked cel target frame {index} is past sprite.frames")]
+    LinkedFrameNotFound {
+        /// Frame index referenced by the linked cel.
+        index: u32,
+    },
+
+    /// A layer's `parent` references a [`crate::LayerId`] that isn't
+    /// present in `Sprite::layers`.
+    #[error("layer parent {id} not found in sprite.layers")]
+    LayerParentNotFound {
+        /// Numeric value of the missing parent's [`crate::LayerId`].
+        id: u32,
+    },
+
+    /// The layer parent graph contains a cycle reachable from the named
+    /// layer id.
+    #[error("layer parent graph contains a cycle at layer id {id}")]
+    LayerCycle {
+        /// Numeric value of a [`crate::LayerId`] inside the cycle.
+        id: u32,
+    },
+
+    /// A cel references a [`crate::LayerId`] that isn't present in
+    /// `Sprite::layers`.
+    #[error("cel references unknown layer id {id}")]
+    CelLayerNotFound {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        id: u32,
+    },
+
+    /// A cel's frame index is past `Sprite::frames`.
+    #[error("cel frame index {index} is past sprite.frames")]
+    CelFrameNotFound {
+        /// Frame index that did not match any frame in `Sprite::frames`.
+        index: u32,
+    },
+
+    /// `aseprite-writer` rejected the staged file. Pre-validation in the
+    /// adapter catches the structural mistakes; this variant carries
+    /// errors that the writer itself raises (e.g. zlib I/O failures).
+    #[error(transparent)]
+    Write(#[from] aseprite_writer::WriteError),
+
+    /// A layer's parent is not a [`crate::LayerKind::Group`]. Aseprite
+    /// only nests layers under groups, so the round-trip through
+    /// [`super::aseprite_read`] would lose the parent link otherwise.
+    #[error("layer {child} has parent {parent} which is not a group layer")]
+    LayerParentNotGroup {
+        /// Layer whose `parent` references a non-group.
+        child: u32,
+        /// Parent layer that should have been a group.
+        parent: u32,
+    },
+
+    /// The layer order in `Sprite::layers` cannot be flattened into
+    /// Aseprite's `child_level` encoding without changing the parent
+    /// links. The reader reconstructs parents from a stack of group
+    /// layers walked in order; if the parent appears after the child or
+    /// is shadowed by a sibling group at the same depth, the round-trip
+    /// would silently produce a different document.
+    #[error(
+        "layer {child} parent {expected:?} would be reconstructed as {reconstructed:?} after a write→read round-trip"
+    )]
+    LayerOrderingInconsistent {
+        /// Layer whose reconstructed parent does not match its actual parent.
+        child: u32,
+        /// Numeric value of the layer's actual `parent`, if any.
+        expected: Option<u32>,
+        /// Numeric value of the parent the reader would reconstruct, if any.
+        reconstructed: Option<u32>,
+    },
+
+    /// An image cel's [`crate::PixelBuffer::color_mode`] does not match
+    /// the sprite's color mode. The on-disk header dictates the
+    /// bytes-per-pixel for every cel, so a mismatched buffer would emit
+    /// bytes the reader cannot interpret.
+    #[error("image cel buffer for layer {layer} frame {frame} is not RGBA")]
+    CelImageNotRgba {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index of the cel.
+        frame: u32,
+    },
+
+    /// An image cel's [`crate::PixelBuffer`] has a `data` length that
+    /// disagrees with `width * height * bytes_per_pixel`.
+    #[error("image cel buffer for layer {layer} frame {frame} is malformed")]
+    CelImageBufferMalformed {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index of the cel.
+        frame: u32,
+    },
+
+    /// A linked cel points at a `(layer, frame)` slot that has no cel.
+    /// `aseprite-loader` rejects linked cels whose target is missing,
+    /// so the produced file would fail to load.
+    #[error(
+        "linked cel for layer {layer} frame {from_frame} targets frame {target} which has no cel"
+    )]
+    LinkedCelTargetMissing {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index that owns the linked cel.
+        from_frame: u32,
+        /// Frame index the linked cel points at.
+        target: u32,
+    },
+
+    /// A linked cel points at a `(layer, frame)` slot whose cel is not
+    /// itself an image cel (chained links and tilemap targets are not
+    /// representable in the on-disk format).
+    #[error(
+        "linked cel for layer {layer} frame {from_frame} targets frame {target} which is not an image cel"
+    )]
+    LinkedCelTargetNotImage {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index that owns the linked cel.
+        from_frame: u32,
+        /// Frame index the linked cel points at.
+        target: u32,
+    },
 }

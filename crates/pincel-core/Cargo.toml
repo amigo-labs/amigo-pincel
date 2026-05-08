@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 aseprite-loader = { workspace = true }
+aseprite-writer = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]
