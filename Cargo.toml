@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/pincel-core"]
+members = ["crates/aseprite-writer", "crates/pincel-core"]
 resolver = "3"
 
 [workspace.package]

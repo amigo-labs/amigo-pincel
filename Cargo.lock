@@ -23,6 +23,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aseprite-writer"
+version = "0.1.0"
+dependencies = [
+ "aseprite-loader",
+ "thiserror",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
