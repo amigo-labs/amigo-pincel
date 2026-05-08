@@ -81,14 +81,18 @@ fn build_layers(layers: &[Layer]) -> Result<Vec<LayerChunk>, CodecError> {
     for layer in layers {
         by_id.insert(layer.id, layer);
     }
+    validate_parent_kinds(layers, &by_id)?;
+    let depths = compute_depths(layers, &by_id)?;
+    validate_layer_order(layers, &depths)?;
+
     let mut out = Vec::with_capacity(layers.len());
-    for layer in layers {
-        out.push(map_layer(layer, &by_id)?);
+    for (layer, child_level) in layers.iter().zip(depths) {
+        out.push(map_layer(layer, child_level)?);
     }
     Ok(out)
 }
 
-fn map_layer(layer: &Layer, by_id: &BTreeMap<LayerId, &Layer>) -> Result<LayerChunk, CodecError> {
+fn map_layer(layer: &Layer, child_level: u16) -> Result<LayerChunk, CodecError> {
     let layer_type = match &layer.kind {
         LayerKind::Image => LayerType::Normal,
         LayerKind::Group => LayerType::Group,
@@ -101,7 +105,6 @@ fn map_layer(layer: &Layer, by_id: &BTreeMap<LayerId, &Layer>) -> Result<LayerCh
     if layer.editable {
         flags |= LayerFlags::EDITABLE;
     }
-    let child_level = compute_child_level(layer, by_id)?;
     Ok(LayerChunk {
         flags,
         layer_type,
@@ -111,6 +114,40 @@ fn map_layer(layer: &Layer, by_id: &BTreeMap<LayerId, &Layer>) -> Result<LayerCh
         name: layer.name.clone(),
         tileset_index: None,
     })
+}
+
+/// Verify that every layer with a `parent` points at a [`LayerKind::Group`].
+/// Aseprite only nests under groups, so this is the structural minimum for
+/// a lossless round-trip via [`super::aseprite_read`].
+fn validate_parent_kinds(
+    layers: &[Layer],
+    by_id: &BTreeMap<LayerId, &Layer>,
+) -> Result<(), CodecError> {
+    for layer in layers {
+        if let Some(parent_id) = layer.parent {
+            let parent = by_id
+                .get(&parent_id)
+                .copied()
+                .ok_or(CodecError::LayerParentNotFound { id: parent_id.0 })?;
+            if !matches!(parent.kind, LayerKind::Group) {
+                return Err(CodecError::LayerParentNotGroup {
+                    child: layer.id.0,
+                    parent: parent_id.0,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn compute_depths(
+    layers: &[Layer],
+    by_id: &BTreeMap<LayerId, &Layer>,
+) -> Result<Vec<u16>, CodecError> {
+    layers
+        .iter()
+        .map(|l| compute_child_level(l, by_id))
+        .collect()
 }
 
 /// Walk a layer's parent chain to the root, counting hops. Detects
@@ -137,6 +174,39 @@ fn compute_child_level(
             .ok_or(CodecError::LayerParentNotFound { id: parent_id.0 })?;
     }
     Ok(depth)
+}
+
+/// Simulate the read adapter's parent reconstruction (a stack of group
+/// layers walked in order) on the about-to-be-emitted child_level
+/// sequence and reject any layer whose parent would change after a
+/// write→read round-trip. This catches the cases where the parent
+/// appears after the child in `sprite.layers`, where a sibling group at
+/// the same depth shadows the intended parent, or where the parent is
+/// reachable via the parent chain but not via Aseprite's stack walk.
+fn validate_layer_order(layers: &[Layer], depths: &[u16]) -> Result<(), CodecError> {
+    let mut stack: Vec<LayerId> = Vec::new();
+    for (layer, &depth) in layers.iter().zip(depths) {
+        let depth_usize = usize::from(depth);
+        if depth_usize < stack.len() {
+            stack.truncate(depth_usize);
+        }
+        let reconstructed = if depth == 0 {
+            None
+        } else {
+            stack.get(depth_usize - 1).copied()
+        };
+        if reconstructed != layer.parent {
+            return Err(CodecError::LayerOrderingInconsistent {
+                child: layer.id.0,
+                expected: layer.parent.map(|p| p.0),
+                reconstructed: reconstructed.map(|p| p.0),
+            });
+        }
+        if matches!(layer.kind, LayerKind::Group) {
+            stack.push(layer.id);
+        }
+    }
+    Ok(())
 }
 
 fn map_blend_mode(mode: BlendMode) -> AseBlendMode {
@@ -227,7 +297,7 @@ fn build_frames(sprite: &Sprite, cels: &CelMap) -> Result<Vec<AseFrame>, CodecEr
         let frame = frames
             .get_mut(frame_idx as usize)
             .ok_or(CodecError::CelFrameNotFound { index: frame_idx })?;
-        let chunk = build_cel_chunk(cel, &id_to_index, sprite.frames.len())?;
+        let chunk = build_cel_chunk(cel, &id_to_index, sprite, cels)?;
         frame.cels.push(chunk);
     }
     Ok(frames)
@@ -248,7 +318,8 @@ fn build_layer_index_map(layers: &[Layer]) -> Result<BTreeMap<LayerId, u16>, Cod
 fn build_cel_chunk(
     cel: &Cel,
     id_to_index: &BTreeMap<LayerId, u16>,
-    frame_count: usize,
+    sprite: &Sprite,
+    cels: &CelMap,
 ) -> Result<CelChunk, CodecError> {
     let layer_index = id_to_index
         .get(&cel.layer)
@@ -264,6 +335,21 @@ fn build_cel_chunk(
     })?;
     let content = match &cel.data {
         CelData::Image(buf) => {
+            // M5 is RGBA-only at the sprite level; an indexed/grayscale
+            // PixelBuffer would be written into a header that says 4
+            // bytes per pixel and produce a corrupt file.
+            if buf.color_mode != ColorMode::Rgba {
+                return Err(CodecError::CelImageNotRgba {
+                    layer: cel.layer.0,
+                    frame: cel.frame.0,
+                });
+            }
+            if !buf.is_well_formed() {
+                return Err(CodecError::CelImageBufferMalformed {
+                    layer: cel.layer.0,
+                    frame: cel.frame.0,
+                });
+            }
             let width = u16::try_from(buf.width).map_err(|_| CodecError::OutOfRange {
                 what: "cel width",
                 value: i64::from(buf.width),
@@ -279,8 +365,26 @@ fn build_cel_chunk(
             }
         }
         CelData::Linked(frame) => {
-            if (frame.0 as usize) >= frame_count {
+            if (frame.0 as usize) >= sprite.frames.len() {
                 return Err(CodecError::LinkedFrameNotFound { index: frame.0 });
+            }
+            // `aseprite-loader` requires the link target to be a real
+            // image cel on the same layer; chained links and missing
+            // targets surface as `Parse` errors there. Validate up
+            // front so the failure mode is structured.
+            let target = cels
+                .get(cel.layer, *frame)
+                .ok_or(CodecError::LinkedCelTargetMissing {
+                    layer: cel.layer.0,
+                    from_frame: cel.frame.0,
+                    target: frame.0,
+                })?;
+            if !matches!(target.data, CelData::Image(_)) {
+                return Err(CodecError::LinkedCelTargetNotImage {
+                    layer: cel.layer.0,
+                    from_frame: cel.frame.0,
+                    target: frame.0,
+                });
             }
             let frame_position = u16::try_from(frame.0).map_err(|_| CodecError::OutOfRange {
                 what: "linked frame index",
@@ -452,9 +556,11 @@ mod tests {
 
     #[test]
     fn write_detects_layer_parent_cycle() {
-        // a -> b -> a: cycle through `parent`.
-        let mut a = Layer::image(LayerId::new(0), "a");
-        let mut b = Layer::image(LayerId::new(1), "b");
+        // a -> b -> a: cycle through `parent`. Both must be groups so
+        // we exercise the cycle-detection path inside `compute_child_level`
+        // rather than the "parent not a group" pre-check.
+        let mut a = Layer::group(LayerId::new(0), "a");
+        let mut b = Layer::group(LayerId::new(1), "b");
         a.parent = Some(LayerId::new(1));
         b.parent = Some(LayerId::new(0));
         let sprite = Sprite::builder(2, 2)
@@ -477,6 +583,212 @@ mod tests {
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
         assert!(matches!(err, CodecError::LayerParentNotFound { id: 42 }));
+    }
+
+    #[test]
+    fn write_rejects_layer_parent_that_is_not_a_group() {
+        // The reader only pushes Group layers onto its parent stack, so a
+        // child whose parent is an image layer would round-trip with the
+        // wrong parent (or `None`).
+        let bg = Layer::image(LayerId::new(0), "bg");
+        let mut child = Layer::image(LayerId::new(1), "child");
+        child.parent = Some(LayerId::new(0));
+        let sprite = Sprite::builder(2, 2)
+            .add_layer(bg)
+            .add_layer(child)
+            .build()
+            .unwrap();
+        let cels = CelMap::new();
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::LayerParentNotGroup {
+                child: 1,
+                parent: 0,
+            }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_layer_whose_parent_appears_after_it() {
+        // [child(parent=g), g] — the reader walks layers in order with a
+        // group stack; `g` isn't pushed until after `child` is processed,
+        // so reconstructed parent would be `None`, not `g`.
+        let mut child = Layer::image(LayerId::new(0), "child");
+        child.parent = Some(LayerId::new(1));
+        let group = Layer::group(LayerId::new(1), "g");
+        let sprite = Sprite::builder(2, 2)
+            .add_layer(child)
+            .add_layer(group)
+            .build()
+            .unwrap();
+        let cels = CelMap::new();
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::LayerOrderingInconsistent {
+                child: 0,
+                expected: Some(1),
+                reconstructed: None,
+            }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_layer_whose_parent_is_shadowed_by_sibling_group() {
+        // [g_a, g_b, child(parent=g_a)] — both groups are at depth 0.
+        // The reader's stack at child's processing has g_b at depth 0
+        // (g_a was popped/replaced), so reconstructed parent would be
+        // g_b, not g_a.
+        let g_a = Layer::group(LayerId::new(0), "g_a");
+        let g_b = Layer::group(LayerId::new(1), "g_b");
+        let mut child = Layer::image(LayerId::new(2), "child");
+        child.parent = Some(LayerId::new(0));
+        let sprite = Sprite::builder(2, 2)
+            .add_layer(g_a)
+            .add_layer(g_b)
+            .add_layer(child)
+            .build()
+            .unwrap();
+        let cels = CelMap::new();
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::LayerOrderingInconsistent {
+                child: 2,
+                expected: Some(0),
+                reconstructed: Some(1),
+            }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_image_cel_with_indexed_buffer() {
+        let sprite = rgba_sprite(
+            vec![Layer::image(LayerId::new(0), "L0")],
+            vec![Frame::new(100)],
+        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Image(PixelBuffer::empty(
+                1,
+                1,
+                ColorMode::Indexed {
+                    transparent_index: 0,
+                },
+            )),
+        });
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::CelImageNotRgba { layer: 0, frame: 0 }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_image_cel_with_malformed_buffer() {
+        let sprite = rgba_sprite(
+            vec![Layer::image(LayerId::new(0), "L0")],
+            vec![Frame::new(100)],
+        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            // 2x2 RGBA expects 16 bytes; supply 8.
+            data: CelData::Image(PixelBuffer {
+                width: 2,
+                height: 2,
+                color_mode: ColorMode::Rgba,
+                data: vec![0; 8],
+            }),
+        });
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::CelImageBufferMalformed { layer: 0, frame: 0 }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_linked_cel_with_missing_target() {
+        let sprite = rgba_sprite(
+            vec![Layer::image(LayerId::new(0), "L0")],
+            vec![Frame::new(100), Frame::new(100)],
+        );
+        let mut cels = CelMap::new();
+        // Frame 0 has no cel for layer 0; frame 1 links to it.
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(1),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Linked(FrameIndex::new(0)),
+        });
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::LinkedCelTargetMissing {
+                layer: 0,
+                from_frame: 1,
+                target: 0,
+            }
+        ));
+    }
+
+    #[test]
+    fn write_rejects_chained_linked_cel() {
+        // f0 = linked(f2) — illegal: linked target must itself be image.
+        let sprite = rgba_sprite(
+            vec![Layer::image(LayerId::new(0), "L0")],
+            vec![Frame::new(100), Frame::new(100), Frame::new(100)],
+        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(2),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Image(PixelBuffer::empty(1, 1, ColorMode::Rgba)),
+        });
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(1),
+            position: (0, 0),
+            opacity: 255,
+            // points at frame 0 — but frame 0 has nothing yet.
+            // Make it a chain: link from frame 0 to frame 1.
+            data: CelData::Linked(FrameIndex::new(2)),
+        });
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Linked(FrameIndex::new(1)),
+        });
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::LinkedCelTargetNotImage {
+                layer: 0,
+                from_frame: 0,
+                target: 1,
+            }
+        ));
     }
 
     #[test]
