@@ -53,4 +53,60 @@ pub enum CodecError {
     /// Building the [`crate::Sprite`] model rejected the adapter output.
     #[error(transparent)]
     Document(#[from] DocumentError),
+
+    /// A field on the document does not fit into its on-disk slot
+    /// (canvas dimensions / cel position / cel dimensions / linked frame
+    /// index / tag frame range / layer count / layer depth).
+    #[error("{what} value {value} does not fit on disk")]
+    OutOfRange {
+        /// Short human-readable description, e.g. `"canvas width"`.
+        what: &'static str,
+        /// Numeric value that exceeded the on-disk slot. Signed so that
+        /// negative cel positions surface verbatim.
+        value: i64,
+    },
+
+    /// A linked cel points at a frame index past `Sprite::frames`.
+    #[error("linked cel target frame {index} is past sprite.frames")]
+    LinkedFrameNotFound {
+        /// Frame index referenced by the linked cel.
+        index: u32,
+    },
+
+    /// A layer's `parent` references a [`crate::LayerId`] that isn't
+    /// present in `Sprite::layers`.
+    #[error("layer parent {id} not found in sprite.layers")]
+    LayerParentNotFound {
+        /// Numeric value of the missing parent's [`crate::LayerId`].
+        id: u32,
+    },
+
+    /// The layer parent graph contains a cycle reachable from the named
+    /// layer id.
+    #[error("layer parent graph contains a cycle at layer id {id}")]
+    LayerCycle {
+        /// Numeric value of a [`crate::LayerId`] inside the cycle.
+        id: u32,
+    },
+
+    /// A cel references a [`crate::LayerId`] that isn't present in
+    /// `Sprite::layers`.
+    #[error("cel references unknown layer id {id}")]
+    CelLayerNotFound {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        id: u32,
+    },
+
+    /// A cel's frame index is past `Sprite::frames`.
+    #[error("cel frame index {index} is past sprite.frames")]
+    CelFrameNotFound {
+        /// Frame index that did not match any frame in `Sprite::frames`.
+        index: u32,
+    },
+
+    /// `aseprite-writer` rejected the staged file. Pre-validation in the
+    /// adapter catches the structural mistakes; this variant carries
+    /// errors that the writer itself raises (e.g. zlib I/O failures).
+    #[error(transparent)]
+    Write(#[from] aseprite_writer::WriteError),
 }
