@@ -12,9 +12,12 @@
 
 use std::io::Write;
 
+use flate2::Compression;
+use flate2::write::ZlibEncoder;
+
 use crate::bytes::{write_byte, write_dword, write_short, write_string, write_word, write_zeros};
 use crate::error::WriteError;
-use crate::file::{AseFile, Frame, Header, LayerChunk, PaletteChunk, Tag};
+use crate::file::{AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, Tag};
 use crate::types::{LayerType, PaletteEntryFlags};
 
 const HEADER_MAGIC: u16 = 0xA5E0;
@@ -24,8 +27,12 @@ const FRAME_HEADER_SIZE: usize = 16;
 const CHUNK_HEADER_SIZE: usize = 6; // dword size + word type
 
 const CHUNK_TYPE_LAYER: u16 = 0x2004;
+const CHUNK_TYPE_CEL: u16 = 0x2005;
 const CHUNK_TYPE_TAGS: u16 = 0x2018;
 const CHUNK_TYPE_PALETTE: u16 = 0x2019;
+
+const CEL_TYPE_LINKED: u16 = 1;
+const CEL_TYPE_COMPRESSED_IMAGE: u16 = 2;
 
 /// Write `file` to `out` in the Aseprite v1.3 format.
 ///
@@ -64,6 +71,7 @@ pub fn write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError> {
 }
 
 fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
+    let bytes_per_pixel = file.header.color_depth.bytes_per_pixel();
     let mut blocks = Vec::with_capacity(file.frames.len());
     for (idx, frame) in file.frames.iter().enumerate() {
         let mut chunks: Vec<Vec<u8>> = Vec::new();
@@ -84,9 +92,51 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 })?);
             }
         }
+        for cel in &frame.cels {
+            validate_cel(cel, file, bytes_per_pixel)?;
+            chunks.push(encode_chunk(CHUNK_TYPE_CEL, |buf| {
+                write_cel_body(buf, cel)
+            })?);
+        }
         blocks.push(encode_frame(frame, &chunks)?);
     }
     Ok(blocks)
+}
+
+fn validate_cel(cel: &CelChunk, file: &AseFile, bytes_per_pixel: u8) -> Result<(), WriteError> {
+    if (cel.layer_index as usize) >= file.layers.len() {
+        return Err(WriteError::CelLayerIndexOutOfRange {
+            layer_index: cel.layer_index,
+            layers: file.layers.len(),
+        });
+    }
+    match &cel.content {
+        CelContent::Image {
+            width,
+            height,
+            data,
+        } => {
+            let expected = (*width as usize) * (*height as usize) * (bytes_per_pixel as usize);
+            if data.len() != expected {
+                return Err(WriteError::CelImageSizeMismatch {
+                    width: *width,
+                    height: *height,
+                    bytes_per_pixel,
+                    expected,
+                    actual: data.len(),
+                });
+            }
+        }
+        CelContent::Linked { frame_position } => {
+            if (*frame_position as usize) >= file.frames.len() {
+                return Err(WriteError::CelLinkedFrameOutOfRange {
+                    frame_position: *frame_position,
+                    frames: file.frames.len(),
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 fn write_header<W: Write>(
@@ -229,6 +279,38 @@ fn write_palette_body<W: Write>(w: &mut W, palette: &PaletteChunk) -> Result<(),
     Ok(())
 }
 
+fn write_cel_body<W: Write>(w: &mut W, cel: &CelChunk) -> Result<(), WriteError> {
+    write_word(w, cel.layer_index)?;
+    write_short(w, cel.x)?;
+    write_short(w, cel.y)?;
+    write_byte(w, cel.opacity)?;
+    let cel_type = match &cel.content {
+        CelContent::Image { .. } => CEL_TYPE_COMPRESSED_IMAGE,
+        CelContent::Linked { .. } => CEL_TYPE_LINKED,
+    };
+    write_word(w, cel_type)?;
+    write_short(w, cel.z_index)?;
+    write_zeros(w, 5)?;
+    match &cel.content {
+        CelContent::Image {
+            width,
+            height,
+            data,
+        } => {
+            write_word(w, *width)?;
+            write_word(w, *height)?;
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(data)?;
+            let compressed = encoder.finish()?;
+            w.write_all(&compressed)?;
+        }
+        CelContent::Linked { frame_position } => {
+            write_word(w, *frame_position)?;
+        }
+    }
+    Ok(())
+}
+
 fn write_tags_body<W: Write>(w: &mut W, tags: &[Tag]) -> Result<(), WriteError> {
     let count: u16 = tags.len().try_into().map_err(|_| WriteError::TooMany {
         what: "tags",
@@ -341,5 +423,165 @@ mod tests {
         }];
         let err = write_tags_body(&mut buf, &tags).unwrap_err();
         assert!(matches!(err, WriteError::InvalidTagRange { .. }));
+    }
+
+    fn rgba_layer(name: &str) -> LayerChunk {
+        LayerChunk {
+            flags: crate::types::LayerFlags::VISIBLE,
+            layer_type: LayerType::Normal,
+            child_level: 0,
+            blend_mode: crate::types::BlendMode::Normal,
+            opacity: 255,
+            name: name.into(),
+            tileset_index: None,
+        }
+    }
+
+    #[test]
+    fn cel_image_size_mismatch_is_rejected() {
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: vec![rgba_layer("L0")],
+            palette: None,
+            tags: Vec::new(),
+            frames: vec![Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 0,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    z_index: 0,
+                    content: CelContent::Image {
+                        width: 2,
+                        height: 2,
+                        // 2x2 RGBA = 16 bytes; supply 8.
+                        data: vec![0; 8],
+                    },
+                }],
+            }],
+        };
+        let mut buf = Vec::new();
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            WriteError::CelImageSizeMismatch {
+                width: 2,
+                height: 2,
+                bytes_per_pixel: 4,
+                expected: 16,
+                actual: 8,
+            }
+        ));
+    }
+
+    #[test]
+    fn cel_layer_index_out_of_range_is_rejected() {
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: vec![rgba_layer("L0")],
+            palette: None,
+            tags: Vec::new(),
+            frames: vec![Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 5,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    z_index: 0,
+                    content: CelContent::Image {
+                        width: 1,
+                        height: 1,
+                        data: vec![0, 0, 0, 0],
+                    },
+                }],
+            }],
+        };
+        let mut buf = Vec::new();
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            WriteError::CelLayerIndexOutOfRange {
+                layer_index: 5,
+                layers: 1,
+            }
+        ));
+    }
+
+    #[test]
+    fn linked_cel_frame_out_of_range_is_rejected() {
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: vec![rgba_layer("L0")],
+            palette: None,
+            tags: Vec::new(),
+            frames: vec![Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 0,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    z_index: 0,
+                    content: CelContent::Linked { frame_position: 7 },
+                }],
+            }],
+        };
+        let mut buf = Vec::new();
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(
+            err,
+            WriteError::CelLinkedFrameOutOfRange {
+                frame_position: 7,
+                frames: 1,
+            }
+        ));
+    }
+
+    #[test]
+    fn cel_chunk_envelope_starts_with_cel_type() {
+        // Single 1x1 RGBA cel; verify the chunk envelope and the on-disk
+        // header byte layout (layer_index, x, y, opacity, cel_type).
+        let file = AseFile {
+            header: Header::new(1, 1, ColorDepth::Rgba),
+            layers: vec![rgba_layer("L0")],
+            palette: None,
+            tags: Vec::new(),
+            frames: vec![Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 0,
+                    x: -3,
+                    y: 7,
+                    opacity: 200,
+                    z_index: 0,
+                    content: CelContent::Image {
+                        width: 1,
+                        height: 1,
+                        data: vec![0xAA, 0xBB, 0xCC, 0xFF],
+                    },
+                }],
+            }],
+        };
+        let mut buf = Vec::new();
+        write(&file, &mut buf).unwrap();
+        // Cel chunk type = 0x2005, little-endian.
+        let cel_type_bytes = CHUNK_TYPE_CEL.to_le_bytes();
+        let needle_pos = buf
+            .windows(2)
+            .position(|w| w == cel_type_bytes)
+            .expect("cel chunk type appears in output");
+        // The 6-byte chunk header is followed by layer_index (word),
+        // x (short), y (short), opacity (byte), cel_type (word).
+        let body = needle_pos + 2;
+        assert_eq!(&buf[body..body + 2], &0u16.to_le_bytes()); // layer_index
+        assert_eq!(&buf[body + 2..body + 4], &(-3i16).to_le_bytes()); // x
+        assert_eq!(&buf[body + 4..body + 6], &7i16.to_le_bytes()); // y
+        assert_eq!(buf[body + 6], 200); // opacity
+        assert_eq!(
+            &buf[body + 7..body + 9],
+            &CEL_TYPE_COMPRESSED_IMAGE.to_le_bytes()
+        );
     }
 }

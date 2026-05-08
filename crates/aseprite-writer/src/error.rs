@@ -35,4 +35,24 @@ pub enum WriteError {
     /// Tag `to_frame` is before `from_frame`.
     #[error("tag '{name}' has from_frame={from} > to_frame={to}")]
     InvalidTagRange { name: String, from: u16, to: u16 },
+
+    /// Cel image pixel buffer length does not match `width * height * bpp/8`.
+    #[error(
+        "cel image data length {actual} does not match {width}x{height}x{bytes_per_pixel} bytes ({expected} expected)"
+    )]
+    CelImageSizeMismatch {
+        width: u16,
+        height: u16,
+        bytes_per_pixel: u8,
+        expected: usize,
+        actual: usize,
+    },
+
+    /// Cel `layer_index` references a layer that does not exist in `AseFile::layers`.
+    #[error("cel layer_index {layer_index} >= layer count {layers}")]
+    CelLayerIndexOutOfRange { layer_index: u16, layers: usize },
+
+    /// Linked cel `frame_position` references a frame outside the file.
+    #[error("linked cel frame_position {frame_position} >= frame count {frames}")]
+    CelLinkedFrameOutOfRange { frame_position: u16, frames: usize },
 }
