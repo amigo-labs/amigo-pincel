@@ -4,12 +4,14 @@
 //! pixel-art editor. No platform dependencies, no file I/O. See
 //! `docs/specs/pincel.md` for the design specification.
 
+pub mod codec;
 pub mod command;
 pub mod document;
 pub mod error;
 pub mod geometry;
 pub mod render;
 
+pub use codec::{AsepriteReadOutput, CodecError, read_aseprite};
 pub use command::{AddFrame, AddLayer, AnyCommand, Bus, Command, CommandError, SetPixel};
 
 pub use document::{
