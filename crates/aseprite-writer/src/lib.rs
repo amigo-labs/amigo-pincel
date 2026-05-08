@@ -9,3 +9,14 @@
 //!
 //! Crate is being implemented incrementally. See `STATUS.md` at the
 //! workspace root for the current milestone.
+
+mod bytes;
+mod error;
+mod file;
+mod types;
+
+pub use error::WriteError;
+pub use file::{AseFile, Frame, Header, LayerChunk, PaletteChunk, PaletteEntry, Tag};
+pub use types::{
+    AnimationDirection, BlendMode, Color, ColorDepth, LayerFlags, LayerType, PaletteEntryFlags,
+};
