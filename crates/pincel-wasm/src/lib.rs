@@ -7,9 +7,10 @@
 //! (`Pincel.create`, `openFile`, `saveAseprite`, `on('change' | 'save')`).
 //!
 //! Phase 1 / CLAUDE.md M6 lands the surface incrementally. This skeleton
-//! covers `Document::new`, opening / saving Aseprite byte buffers, and
-//! basic dimension getters. `applyTool`, `compose`, and event drains
-//! follow in subsequent M6 sub-tasks.
+//! covers `Document::new`, opening / saving Aseprite byte buffers, the
+//! full-canvas `Document::compose` entry point, and basic dimension
+//! getters. `applyTool` and event drains follow in subsequent M6
+//! sub-tasks.
 //!
 //! Errors cross the boundary as `Result<_, String>`; `wasm-bindgen` maps
 //! `String` Errs to a thrown JS exception. This keeps the surface
@@ -17,7 +18,8 @@
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
 use pincel_core::{
-    AsepriteReadOutput, CelMap, ColorMode, Frame, Sprite, read_aseprite, write_aseprite,
+    AsepriteReadOutput, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Sprite, compose,
+    read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -106,6 +108,68 @@ impl Document {
     pub fn frame_count(&self) -> u32 {
         self.sprite.frames.len() as u32
     }
+
+    /// Composite the requested frame at the given integer zoom over the
+    /// full sprite canvas, with the default `Visible` layer filter and
+    /// no overlays / onion skin.
+    ///
+    /// Mirrors `pincel_core::compose` with [`ComposeRequest::full`] —
+    /// viewport, layer-filter, onion-skin, and overlay knobs land in a
+    /// follow-up sub-task once the UI surfaces a need.
+    ///
+    /// `frame` is a 0-based frame index. `zoom` must be `1..=64`.
+    /// Output dimensions are `width * zoom` × `height * zoom` and the
+    /// pixel buffer is row-major non-premultiplied RGBA8.
+    pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
+        let mut request = ComposeRequest::full(
+            FrameIndex::new(frame),
+            self.sprite.width,
+            self.sprite.height,
+        );
+        request.zoom = zoom;
+        let result = compose(&self.sprite, &self.cels, &request)
+            .map_err(|e| format!("failed to compose: {e}"))?;
+        Ok(ComposeFrame {
+            width: result.width,
+            height: result.height,
+            pixels: result.pixels,
+        })
+    }
+}
+
+/// A single composited frame returned to JS.
+///
+/// `pixels` is `width * height * 4` non-premultiplied RGBA8 bytes in
+/// row-major order. Today the `pixels` getter copies the buffer into a
+/// fresh `Uint8Array`; spec §9.3 calls for a zero-copy
+/// `Uint8ClampedArray` view of WASM memory, which lands once the
+/// `js-sys` integration is wired up (M6 follow-up).
+#[wasm_bindgen]
+pub struct ComposeFrame {
+    width: u32,
+    height: u32,
+    pixels: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ComposeFrame {
+    /// Output buffer width in pixels (`viewport.width * zoom`).
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    /// Output buffer height in pixels (`viewport.height * zoom`).
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// Fresh `Uint8Array` copy of the RGBA8 pixel buffer.
+    #[wasm_bindgen(getter)]
+    pub fn pixels(&self) -> Box<[u8]> {
+        self.pixels.clone().into_boxed_slice()
+    }
 }
 
 #[cfg(test)]
@@ -150,5 +214,43 @@ mod tests {
             Ok(_) => panic!("garbage bytes should not parse as a valid Aseprite file"),
         };
         assert!(!err.is_empty());
+    }
+
+    #[test]
+    fn compose_zero_layer_document_yields_transparent_canvas() {
+        let doc = Document::new(4, 3).expect("dims");
+        let frame = doc.compose(0, 1).expect("compose ok");
+        assert_eq!(frame.width(), 4);
+        assert_eq!(frame.height(), 3);
+        let pixels = frame.pixels();
+        assert_eq!(pixels.len(), 4 * 3 * 4);
+        assert!(pixels.iter().all(|&b| b == 0));
+    }
+
+    #[test]
+    fn compose_honors_integer_zoom() {
+        let doc = Document::new(2, 2).expect("dims");
+        let frame = doc.compose(0, 4).expect("compose ok");
+        assert_eq!(frame.width(), 8);
+        assert_eq!(frame.height(), 8);
+        assert_eq!(frame.pixels().len(), 8 * 8 * 4);
+    }
+
+    #[test]
+    fn compose_rejects_unknown_frame() {
+        let doc = Document::new(2, 2).expect("dims");
+        assert!(doc.compose(7, 1).is_err());
+    }
+
+    #[test]
+    fn compose_rejects_zoom_zero() {
+        let doc = Document::new(2, 2).expect("dims");
+        assert!(doc.compose(0, 0).is_err());
+    }
+
+    #[test]
+    fn compose_rejects_zoom_above_max() {
+        let doc = Document::new(2, 2).expect("dims");
+        assert!(doc.compose(0, 65).is_err());
     }
 }
