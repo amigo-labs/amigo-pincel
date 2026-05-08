@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-08_ (M5 `pincel-core::codec::write_aseprite`)
+_Last updated: 2026-05-08_ (M6.1 `pincel-wasm` crate skeleton)
 
 ## Completed
 
@@ -236,15 +236,83 @@ _Last updated: 2026-05-08_ (M5 `pincel-core::codec::write_aseprite`)
   linked cel — are dropped because they duplicated unit-test coverage
   in `codec::aseprite_read` and the loader's own parse path.
 
+### M6 — `pincel-wasm` skeleton (M6.1) ✅
+
+- New workspace member `crates/pincel-wasm` (`cdylib + rlib`,
+  edition 2024, workspace lints incl. `unsafe_code = "deny"`).
+  `pincel-core` now also lives in `[workspace.dependencies]` so the
+  wasm crate can pick it up via `workspace = true`.
+- `wasm-bindgen = "0.2"` added to workspace deps. No
+  `getrandom` / `console_error_panic_hook` yet — defer until a
+  non-deterministic feature lands. `wasm-pack` itself is a build-time
+  CLI, not a Cargo dep.
+- New `pincel-wasm::Document` type (the only public class in the
+  crate today). Owns a `pincel_core::Sprite` + `CelMap` pair.
+  Boundary contract follows spec §9.3 / §17.5; this is the M6
+  starter slice of the surface.
+- Methods exposed (M6.1 scope):
+  - `Document::new(width, height) -> Result<Document, String>` —
+    `#[wasm_bindgen(constructor)]`. RGBA-only, seeds a single
+    100 ms frame so the empty document round-trips through the
+    Aseprite codec.
+  - `Document::open_aseprite(bytes) -> Result<Document, String>` —
+    `js_name = openAseprite`. Thin wrap around
+    `pincel_core::read_aseprite`.
+  - `Document::save_aseprite() -> Result<Box<[u8]>, String>` —
+    `js_name = saveAseprite`. Thin wrap around
+    `pincel_core::write_aseprite`; returns a freshly-allocated
+    `Uint8Array` on the JS side.
+  - Getters: `width`, `height`, `layerCount`, `frameCount`.
+- Errors cross the boundary as `Result<_, String>` rather than
+  `Result<_, JsError>`. `JsError::new` panics on non-`wasm32-unknown-
+  unknown` targets ("cannot call wasm-bindgen imported functions on
+  non-wasm targets"), and the host-target unit tests need the error
+  paths to be reachable. wasm-bindgen converts `String` Errs into a
+  thrown JS exception, so the JS surface is unchanged.
+- 5 unit tests in `pincel-wasm`: constructor success, two
+  zero-dimension rejections, save→open round-trip on a fresh
+  document, and a garbage-bytes rejection.
+
 ### Build status
 
-`cargo check`, `cargo test --workspace` (84 pincel-core unit + 19
-aseprite-writer unit + 6 command + 3 render + 5 codec round-trip + 8
-aseprite-writer roundtrip), `cargo clippy --workspace --all-targets --
--D warnings`, and `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-SXH5I` branch.
+`cargo check --workspace`, `cargo test --workspace` (84 pincel-core
+unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
+round-trip + 8 aseprite-writer roundtrip + 5 pincel-wasm unit),
+`cargo clippy --workspace --all-targets -- -D warnings`, and
+`cargo fmt --all --check` are all green on the
+`claude/continue-from-status-dJv5F` branch.
 
-## Next concrete task
+## M6 task breakdown
+
+CLAUDE.md M6 ("`pincel-wasm` + minimal Svelte UI") is L-sized so it
+ships as a sequence of S/M tasks:
+
+- [x] **M6.1** — `pincel-wasm` crate skeleton: `Document::new`,
+  `openAseprite`, `saveAseprite`, basic getters. (this commit)
+- [ ] **M6.2** — `Document::compose`: expose `pincel_core::compose`
+  through a JS-friendly request struct, return RGBA pixels as a
+  zero-copy `Uint8ClampedArray` view of WASM memory.
+- [ ] **M6.3** — `Document::applyTool` with a Pencil implementation
+  routed through `pincel_core::SetPixel` + the command bus.
+  Includes default-layer / default-cel bootstrap so a freshly-
+  created document has a paintable target.
+- [ ] **M6.4** — `Document::drainEvents` skeleton (event enum +
+  ring buffer, no producers wired yet beyond `dirty-rect` from
+  M6.3 paints).
+- [ ] **M6.5** — Svelte 5 + Vite scaffold under `ui/` with Tailwind
+  4 set up. wasm-pack build script. Empty canvas page.
+- [ ] **M6.6** — Wire `pincel-wasm` package into the UI: open file
+  via `<input type=file>`, paint with Pencil on the canvas, save via
+  download anchor. Single-tool MVP.
+- [ ] **M6.7** — End-to-end demo: open hand-crafted fixture, paint,
+  save, reopen the saved file in upstream Aseprite to confirm
+  validity. Capture screenshots / clip in the PR.
+
+Stopping points (per CLAUDE.md §3.3) between each sub-task: every
+new public API surface, every dep added to `Cargo.toml` /
+`package.json`.
+
+## Deferred items
 
 **M5 follow-ups beyond CLAUDE.md M5 scope but in spec §8.3.**
 Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`, compatibility),
@@ -294,3 +362,13 @@ Plan when a fixture surfaces the need:
 - Indexed-mode `compose` will need palette lookup; the palette type is
   already in the document model. Add when M3 image-only is no longer
   enough (likely alongside an indexed `SetPixel`).
+- `pincel-wasm` returns `Result<_, String>` to keep the surface
+  testable on the host target (where `JsError::new` panics). Migrate
+  to `JsError` (or a typed `JsValue` payload) once a `wasm-pack
+  test --node` job lands and exercises the wasm-only error paths.
+- `Document::new` seeds a single 100 ms frame. Spec §3.3 implies
+  every editable document carries ≥1 frame, but the model itself
+  does not require it; `aseprite-writer` happily emits a 0-frame
+  file that `aseprite-loader` then refuses to parse. Decide whether
+  to enforce ≥1 frame in `SpriteBuilder::build`, or leave it as a
+  "valid Pincel document, invalid Aseprite file" affordance.
