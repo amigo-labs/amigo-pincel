@@ -111,22 +111,68 @@ _Last updated: 2026-05-08_
   integration tests (single layer/frame round-trip, multi-layer with
   blend mode + offset, bogus blend-mode rejection)
 
+### M5 — `aseprite-writer` crate (partial) 🚧
+
+- New workspace member `crates/aseprite-writer`. Standalone, no
+  `pincel-core` dependency. MIT/Apache dual license with the
+  Aseprite trademark disclaimer in `README.md`.
+- Owning data model that mirrors `aseprite-loader::binary::file::File`:
+  `AseFile { header, layers, palette, tags, frames }`, `Header`,
+  `Frame`, `LayerChunk`, `PaletteChunk`, `PaletteEntry`, `Tag`. Field
+  names match the loader so reader output can be re-emitted without
+  translation. Cel data deferred to the next M5 sub-task.
+- Enum types with on-disk-matching discriminants: `BlendMode` (0..=18),
+  `LayerType` (Normal/Group/Tilemap), `ColorDepth` (Rgba/Grayscale/
+  Indexed), `AnimationDirection`, `LayerFlags`, `PaletteEntryFlags`.
+- Little-endian byte writers in `bytes.rs` mirroring loader's scalar
+  parsers (`write_byte`, `write_word`, `write_short`, `write_dword`,
+  `write_string`, `write_zeros`).
+- Top-level `pub fn write<W: Write>(file: &AseFile, out: &mut W) ->
+  Result<(), WriteError>`. Stages the body in memory to fill in the
+  header `file_size` and the per-frame size fields, then streams the
+  full buffer to `out`.
+- Implemented chunks (CLAUDE.md M5 list): Header (128 bytes),
+  Layer (`0x2004`), Palette (`0x2019`), Tags (`0x2018`). Layout
+  convention: layer/palette/tags chunks are emitted into frame 0,
+  matching Aseprite's own output.
+- `WriteError` (`thiserror`): `Io`, `FrameCountMismatch`, `TooMany`,
+  `StringTooLong`, `MissingTilesetIndex`, `EmptyPalette`,
+  `PaletteRangeOverflow`, `InvalidTagRange`.
+- 15 unit tests + 5 round-trip integration tests (`tests/roundtrip.rs`)
+  that build an `AseFile`, write it, parse with `aseprite-loader`, and
+  assert structural equality. Coverage: empty RGBA sprite, three-layer
+  blend-mode preservation, palette via `parse_raw_file` (RGBA palette
+  is dropped by the high-level loader API), tags with all three
+  directions, and end-to-end (header, layer, palette, tags, multiple
+  frames) including a `header.file_size == bytes.len()` check.
+
 ### Build status
 
-`cargo check`, `cargo test --workspace` (70 unit + 6 command + 3 render +
-3 aseprite_read integration), `cargo clippy --workspace --all-targets --
--D warnings`, and `cargo fmt --check` are all green on the
-`claude/continue-from-status-c7HfR` branch.
+`cargo check`, `cargo test --workspace` (85 unit + 6 command + 3 render
++ 6 aseprite_read + 5 roundtrip integration), `cargo clippy --workspace
+--all-targets -- -D warnings`, and `cargo fmt --check` are all green on
+the `claude/continue-from-status-fqnyi` branch.
 
 ## Next concrete task
 
-**M5 — `aseprite-writer` crate.** Spec §8, CLAUDE.md §4 M5. Standalone
-crate (no `pincel-core` dep), MIT/Apache, mirrors `aseprite-loader`'s
-data model. Phase 1 chunks: Layer (0x2004), Cel (0x2005, image only),
-Palette (0x2019), Tags (0x2018). Round-trip test: read fixture → write
-→ read → assert equal. Once it lands, the byte-level fixture builder
-in `tests/aseprite_read.rs` should be retired and the codec layer
-glued to `aseprite-writer` for write support.
+**M5 — Cel chunk (`0x2005`) and zlib compression.** Add
+`flate2 = "1"` to the workspace deps (spec §8.3 explicitly authorizes
+it). Define `CelChunk { layer_index, x, y, opacity, z_index, content }`
+and `CelContent::Image { width, height, data }` /
+`CelContent::LinkedCel { frame_position }` mirroring the loader.
+Implement Cel Type 2 (Compressed Image) write with zlib of raw RGBA
+pixels and Cel Type 1 (Linked Cel) write. Add the cels into per-frame
+chunk emission (today only frame 0 carries chunks; cels go in their
+own frame). Round-trip tests: single image cel, linked cel, multi-cel
+across layers and frames. Once green, retire the byte-level fixture
+builder in `crates/pincel-core/tests/aseprite_read.rs` and glue the
+`pincel-core::codec` write side to `aseprite-writer`.
+
+**M5 follow-ups beyond CLAUDE.md M5 scope but in spec §8.3.**
+Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`, compatibility),
+External Files (`0x2008`), User Data (`0x2020`), Slice (`0x2022`),
+Tileset (`0x2023`). Land these alongside the milestones that need
+them (M8 tilemaps, M9 slices).
 
 **M3 follow-up — additional `BlendMode` variants in `compose()`**
 (`docs/specs/pincel.md` §4.2). Still deferred: only `Normal` is
