@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-07_
+_Last updated: 2026-05-08_
 
 ## Completed
 
@@ -72,22 +72,66 @@ _Last updated: 2026-05-07_
   integration suite with 3 cases (two-layer offset, viewport+zoom,
   per-frame cel selection)
 
+### M4 — `aseprite-loader` integration (read) ✅
+
+- New workspace dep `aseprite-loader = "0.4.2"` (MIT OR Apache-2.0,
+  matches spec §7.1) wired through `pincel-core::Cargo.toml`
+- New `pincel-core::codec` module:
+  - `read_aseprite(bytes) → Result<AsepriteReadOutput, CodecError>`
+    where `AsepriteReadOutput { sprite, cels }` (cels live outside
+    `Sprite` per the §3 model)
+  - `CodecError` (`thiserror`) covers `Parse`, `UnsupportedColorMode`,
+    `UnsupportedLayerKind`, `UnsupportedBlendMode`, `UnsupportedCelKind`,
+    `LayerIndexOutOfRange`, `Image`, and a transparent `From<DocumentError>`
+- Adapter rules (M4 scope):
+  - `ColorDepth::Rgba` only — indexed / grayscale / unknown raise
+    `UnsupportedColorMode`
+  - Layer iteration uses the **low-level** `file.layers` so cel
+    `layer_index` stays correct in the presence of any future tilemap
+    layers; `LayerType::{Tilemap,Unknown}` raise
+    `UnsupportedLayerKind`. Image and group survive.
+  - Per-layer flags map: `VISIBLE`, `EDITABLE`. `LayerId` assigned by
+    layer position (loader has no IDs of its own).
+  - All 19 known `BlendMode` variants forwarded; `BlendMode::Unknown`
+    raises `UnsupportedBlendMode`
+  - `AnimationDirection::{Forward,Reverse,PingPong,PingPongReverse}`
+    map directly; future variants fall back to `Forward` (M5 writer
+    will preserve unknown tags as opaque chunks)
+  - Cels: `CelContent::Image` decoded to RGBA8 via
+    `AsepriteFile::load_image`; `CelContent::LinkedCel` preserved as
+    `CelData::Linked` for lossless round-trip; `CompressedTilemap` and
+    `Unknown` raise `UnsupportedCelKind`
+  - Slice chunks dropped (M9 will round-trip)
+- Hand-crafted fixture builder lives **only in tests**
+  (`crates/pincel-core/tests/aseprite_read.rs`) — emits uncompressed
+  RGBA `.aseprite` byte streams just large enough to exercise the M4
+  surface. Will be retired once `aseprite-writer` (M5) is real.
+- 4 new unit tests in `codec::aseprite_read` (empty input, color-mode
+  rejection, blend-mode round trip, tag-direction mapping) plus 3
+  integration tests (single layer/frame round-trip, multi-layer with
+  blend mode + offset, bogus blend-mode rejection)
+
 ### Build status
 
-`cargo check`, `cargo test` (60 unit + 6 + 3 integration), `cargo clippy
---all-targets -- -D warnings`, and `cargo fmt --check` are all green on
-the `claude/continue-from-status-lr9pG` branch.
+`cargo check`, `cargo test --workspace` (70 unit + 6 command + 3 render +
+3 aseprite_read integration), `cargo clippy --workspace --all-targets --
+-D warnings`, and `cargo fmt --check` are all green on the
+`claude/continue-from-status-c7HfR` branch.
 
 ## Next concrete task
 
-**M3 follow-up — additional `BlendMode` variants in `compose()`**
-(`docs/specs/pincel.md` §4.2)
+**M5 — `aseprite-writer` crate.** Spec §8, CLAUDE.md §4 M5. Standalone
+crate (no `pincel-core` dep), MIT/Apache, mirrors `aseprite-loader`'s
+data model. Phase 1 chunks: Layer (0x2004), Cel (0x2005, image only),
+Palette (0x2019), Tags (0x2018). Round-trip test: read fixture → write
+→ read → assert equal. Once it lands, the byte-level fixture builder
+in `tests/aseprite_read.rs` should be retired and the codec layer
+glued to `aseprite-writer` for write support.
 
-Aseprite ships 19 blend modes (`Normal` … `Divide`). `compose()` currently
-only implements `Normal`. The remaining 18 are needed for full read/write
-parity with `.aseprite` files but are not blocking M4–M7 (loader/writer
-tooling and Pencil-only UI both stay on `Normal`). Plan as one M-sized
-task once a fixture surfaces the need:
+**M3 follow-up — additional `BlendMode` variants in `compose()`**
+(`docs/specs/pincel.md` §4.2). Still deferred: only `Normal` is
+implemented; 18 more for full read/write parity. Not blocking M5–M7.
+Plan when a fixture surfaces the need:
 
 1. Decide the canonical reference (Aseprite's `doc/blend_funcs.cpp` is
    the source of truth — link in module docs).
@@ -95,17 +139,20 @@ task once a fixture surfaces the need:
    instead of per blend mode.
 3. Snapshot tests against fixtures created in Aseprite.
 
-Until then, `RenderError::UnsupportedBlendMode` keeps non-`Normal`
-modes loud rather than silently wrong.
-
-**Recommended next milestone: M4 — `aseprite-loader` integration (read).**
-Spec §7.1, CLAUDE.md §4 M4. Add the loader as a workspace dependency,
-build an adapter from its output to `pincel-core::Sprite`, and round-trip
-a hand-crafted fixture. Tilemap and slice chunks can be preserved opaquely
-at first.
-
 ## Open questions
 
+- M4 drops slice chunks on read. Spec §7.1 says unsupported chunks should
+  be "preserved as opaque blobs and round-tripped on save"; that wiring
+  needs an `unknown_chunks: Vec<RawChunk>` carrier on `Sprite` (and on
+  `Layer` / `Cel` for chunk-attached user data). Defer to M9 alongside
+  full slice support.
+- The hand-crafted fixture builder in `tests/aseprite_read.rs` overlaps
+  the future `aseprite-writer`. M5 should replace it; today's tests
+  exist precisely because the writer is not yet on disk.
+- `LayerId`s today are assigned by source-file position. That is stable
+  across read-only sessions but conflicts with the spec's "stable id"
+  promise once the user reorders layers. Revisit once a reorder command
+  lands (post-M2 follow-up — not on the current critical path).
 - `AddFrame` in M2 is append-only. Mid-list insertion needs a
   `FrameIndex` remap on the cel map (and on `Tag`/`Slice` references).
   Postpone until a tool actually needs it; revisit when the Pencil tool

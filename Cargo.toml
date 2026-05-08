@@ -9,6 +9,7 @@ repository = "https://github.com/amigo-labs/amigo-pincel"
 rust-version = "1.85"
 
 [workspace.dependencies]
+aseprite-loader = "0.4.2"
 thiserror = "2"
 
 [workspace.lints.rust]
