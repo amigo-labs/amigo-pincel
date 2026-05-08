@@ -116,7 +116,16 @@ fn validate_cel(cel: &CelChunk, file: &AseFile, bytes_per_pixel: u8) -> Result<(
             height,
             data,
         } => {
-            let expected = (*width as usize) * (*height as usize) * (bytes_per_pixel as usize);
+            // Use checked arithmetic so a 32-bit `usize` doesn't silently
+            // wrap on a 65535x65535 cel.
+            let expected = (*width as usize)
+                .checked_mul(*height as usize)
+                .and_then(|n| n.checked_mul(bytes_per_pixel as usize))
+                .ok_or(WriteError::TooMany {
+                    what: "cel image bytes",
+                    count: u64::from(*width) * u64::from(*height) * u64::from(bytes_per_pixel),
+                    max: usize::MAX as u64,
+                })?;
             if data.len() != expected {
                 return Err(WriteError::CelImageSizeMismatch {
                     width: *width,
@@ -540,9 +549,16 @@ mod tests {
     }
 
     #[test]
-    fn cel_chunk_envelope_starts_with_cel_type() {
-        // Single 1x1 RGBA cel; verify the chunk envelope and the on-disk
-        // header byte layout (layer_index, x, y, opacity, cel_type).
+    fn cel_chunk_envelope_carries_header_fields() {
+        // Single 1x1 RGBA cel; verify the on-disk header byte layout
+        // (layer_index, x, y, opacity, cel_type) by parsing the output
+        // back through aseprite-loader's raw chunk parser. Scanning the
+        // raw byte buffer for 0x2005 would be flaky because that
+        // sequence can appear inside zlib-compressed pixel data.
+        use aseprite_loader::binary::chunk::Chunk;
+        use aseprite_loader::binary::chunks::cel::CelContent as LoaderCelContent;
+        use aseprite_loader::binary::raw_file::parse_raw_file;
+
         let file = AseFile {
             header: Header::new(1, 1, ColorDepth::Rgba),
             layers: vec![rgba_layer("L0")],
@@ -566,22 +582,20 @@ mod tests {
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
-        // Cel chunk type = 0x2005, little-endian.
-        let cel_type_bytes = CHUNK_TYPE_CEL.to_le_bytes();
-        let needle_pos = buf
-            .windows(2)
-            .position(|w| w == cel_type_bytes)
-            .expect("cel chunk type appears in output");
-        // The 6-byte chunk header is followed by layer_index (word),
-        // x (short), y (short), opacity (byte), cel_type (word).
-        let body = needle_pos + 2;
-        assert_eq!(&buf[body..body + 2], &0u16.to_le_bytes()); // layer_index
-        assert_eq!(&buf[body + 2..body + 4], &(-3i16).to_le_bytes()); // x
-        assert_eq!(&buf[body + 4..body + 6], &7i16.to_le_bytes()); // y
-        assert_eq!(buf[body + 6], 200); // opacity
-        assert_eq!(
-            &buf[body + 7..body + 9],
-            &CEL_TYPE_COMPRESSED_IMAGE.to_le_bytes()
-        );
+
+        let raw = parse_raw_file(&buf).expect("raw parse");
+        let cel = raw.frames[0]
+            .chunks
+            .iter()
+            .find_map(|c| match c {
+                Chunk::Cel(cel) => Some(cel),
+                _ => None,
+            })
+            .expect("cel chunk emitted into frame 0");
+        assert_eq!(cel.layer_index, 0);
+        assert_eq!(cel.x, -3);
+        assert_eq!(cel.y, 7);
+        assert_eq!(cel.opacity, 200);
+        assert!(matches!(&cel.content, LoaderCelContent::Image(img) if img.compressed));
     }
 }

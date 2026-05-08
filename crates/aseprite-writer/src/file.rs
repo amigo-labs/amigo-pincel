@@ -117,11 +117,14 @@ pub struct CelChunk {
 /// at another frame that owns the cel for this layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CelContent {
-    /// RGBA8 image, written as Cel Type 2 (Compressed Image).
+    /// Image cel, written as Cel Type 2 (Compressed Image).
     ///
-    /// `data` is the uncompressed pixel buffer. For RGBA color depth it
-    /// is `width * height * 4` bytes; the writer compresses it with zlib
-    /// before emission.
+    /// `data` is the uncompressed pixel buffer in the file's color
+    /// depth: `width * height * bytes_per_pixel` bytes, where
+    /// `bytes_per_pixel` is 4 for RGBA, 2 for grayscale, and 1 for
+    /// indexed (see [`crate::types::ColorDepth::bytes_per_pixel`]).
+    /// The writer compresses it with zlib before emission and rejects
+    /// buffers whose length does not match the expected size.
     Image {
         width: u16,
         height: u16,
