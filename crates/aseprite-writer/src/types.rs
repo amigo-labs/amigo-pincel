@@ -45,6 +45,15 @@ impl ColorDepth {
             Self::Indexed => 8,
         }
     }
+
+    /// Bytes per pixel for cel image-data sizing.
+    pub const fn bytes_per_pixel(self) -> u8 {
+        match self {
+            Self::Rgba => 4,
+            Self::Grayscale => 2,
+            Self::Indexed => 1,
+        }
+    }
 }
 
 /// Layer compositing mode.

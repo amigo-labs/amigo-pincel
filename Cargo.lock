@@ -27,6 +27,7 @@ name = "aseprite-writer"
 version = "0.1.0"
 dependencies = [
  "aseprite-loader",
+ "flate2",
  "thiserror",
 ]
 

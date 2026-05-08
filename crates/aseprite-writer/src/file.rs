@@ -77,20 +77,62 @@ impl Header {
 
 /// Animation frame envelope. Matches `aseprite-loader::binary::frame::Frame`.
 ///
-/// `duration` is in milliseconds. Per-frame chunks (cels) live in this
-/// struct in future milestones; for M5 the field is empty.
+/// `duration` is in milliseconds. `cels` carries the per-frame cel chunks
+/// emitted into this frame's chunk list.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Frame {
     pub duration: u16,
-    // Cels deferred to a later milestone (M5 adds image cels).
+    pub cels: Vec<CelChunk>,
 }
 
 impl Frame {
     pub fn new(duration_ms: u16) -> Self {
         Self {
             duration: duration_ms,
+            cels: Vec::new(),
         }
     }
+}
+
+/// Cel chunk (`0x2005`). Mirrors
+/// `aseprite-loader::binary::chunks::cel::CelChunk`, with owned content.
+///
+/// `layer_index` is the zero-based position of the layer in
+/// [`AseFile::layers`]. `(x, y)` is the top-left of the cel image in
+/// sprite-space; negative values are valid.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CelChunk {
+    pub layer_index: u16,
+    pub x: i16,
+    pub y: i16,
+    pub opacity: u8,
+    pub z_index: i16,
+    pub content: CelContent,
+}
+
+/// Variant of cel data inside a [`CelChunk`].
+///
+/// `Image` becomes Cel Type 2 (Compressed Image) on disk; pixel data is
+/// zlib-compressed. `Linked` becomes Cel Type 1 (Linked Cel) and points
+/// at another frame that owns the cel for this layer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CelContent {
+    /// Image cel, written as Cel Type 2 (Compressed Image).
+    ///
+    /// `data` is the uncompressed pixel buffer in the file's color
+    /// depth: `width * height * bytes_per_pixel` bytes, where
+    /// `bytes_per_pixel` is 4 for RGBA, 2 for grayscale, and 1 for
+    /// indexed (see [`crate::types::ColorDepth::bytes_per_pixel`]).
+    /// The writer compresses it with zlib before emission and rejects
+    /// buffers whose length does not match the expected size.
+    Image {
+        width: u16,
+        height: u16,
+        data: Vec<u8>,
+    },
+    /// Cel Type 1 — points at the cel in `frame_position` for the same
+    /// layer index.
+    Linked { frame_position: u16 },
 }
 
 /// Layer chunk. Matches `aseprite-loader::binary::chunks::layer::LayerChunk`.
