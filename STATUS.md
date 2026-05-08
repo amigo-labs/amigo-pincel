@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-08_
+_Last updated: 2026-05-08_ (M5 `pincel-core::codec::write_aseprite`)
 
 ## Completed
 
@@ -102,16 +102,17 @@ _Last updated: 2026-05-08_
     `CelData::Linked` for lossless round-trip; `CompressedTilemap` and
     `Unknown` raise `UnsupportedCelKind`
   - Slice chunks dropped (M9 will round-trip)
-- Hand-crafted fixture builder lives **only in tests**
-  (`crates/pincel-core/tests/aseprite_read.rs`) — emits uncompressed
-  RGBA `.aseprite` byte streams just large enough to exercise the M4
-  surface. Will be retired once `aseprite-writer` (M5) is real.
-- 4 new unit tests in `codec::aseprite_read` (empty input, color-mode
-  rejection, blend-mode round trip, tag-direction mapping) plus 3
-  integration tests (single layer/frame round-trip, multi-layer with
-  blend mode + offset, bogus blend-mode rejection)
+- Originally tested via a hand-crafted byte-level fixture builder in
+  `crates/pincel-core/tests/aseprite_read.rs`. Retired in M5 once the
+  `aseprite-writer` adapter could drive integration tests; integration
+  coverage now lives in `tests/aseprite_codec.rs` and routes through
+  the writer (see the M5 entry below).
+- 4 unit tests in `codec::aseprite_read` (empty input, color-mode
+  rejection, blend-mode round trip, tag-direction mapping) survive in
+  the read module; one was removed alongside the byte-level fixture
+  builder.
 
-### M5 — `aseprite-writer` crate (cel chunks) 🚧
+### M5 — `aseprite-writer` crate (cel chunks) ✅
 
 - New workspace member `crates/aseprite-writer`. Standalone, no
   `pincel-core` dependency. MIT/Apache dual license with the
@@ -173,28 +174,77 @@ _Last updated: 2026-05-08_
   linked cel pointing back at frame 0, multi-cel across two layers and
   two frames (with one slot left empty so the loader yields `None`).
 
+### M5 — `pincel-core::codec::aseprite_write` adapter ✅
+
+- `aseprite-writer` added as a workspace dep and a `pincel-core`
+  dependency (path-resolved through the workspace member, no external
+  fetch).
+- New module `pincel-core::codec::aseprite_write` plus
+  `pub fn write_aseprite<W: Write>(&Sprite, &CelMap, &mut W) ->
+  Result<(), CodecError>`. Re-exported from `lib.rs` next to
+  `read_aseprite`.
+- Translation rules (M5 scope, mirrors M4 reader):
+  - `ColorMode::Rgba` only — indexed / grayscale raise
+    `UnsupportedColorMode`.
+  - `LayerKind::Image` → `LayerType::Normal`, `LayerKind::Group` →
+    `LayerType::Group`. `LayerKind::Tilemap` raises
+    `UnsupportedLayerKind { kind: 2 }`.
+  - Layer flags map back from `visible` / `editable` booleans; per-
+    layer `opacity` and `blend_mode` are forwarded one-to-one. `parent`
+    is converted into Aseprite's flat `child_level` field via an
+    iterative parent-chain walk that detects cycles
+    (`LayerCycle { id }`) and missing parents
+    (`LayerParentNotFound { id }`).
+  - `BlendMode` uses an explicit per-variant match (the enum is closed
+    on both sides, so no fallback is needed).
+  - Palette: empty palettes produce no chunk; non-empty palettes emit a
+    `PaletteChunk { first_color: 0, entries }` carrying `(color, name)`
+    pairs as `Aseprite` palette entries.
+  - Tags: per-tag `from`/`to` u32 frame indices `try_into` u16; `repeat`
+    forwards directly; `color` keeps RGB and drops alpha (the on-disk
+    format only carries 3 bytes).
+  - Cels: `CelMap` is bucketed by `FrameIndex` into per-frame chunk
+    vectors. `CelData::Image` becomes `CelContent::Image`,
+    `CelData::Linked(frame)` becomes `CelContent::Linked` after a
+    bounds check against `Sprite::frames.len()`. `CelData::Tilemap`
+    raises `UnsupportedCelKind { kind: 3 }`.
+  - Cel position `(i32, i32)` and pixel-buffer dimensions `(u32, u32)`
+    are pre-validated against the on-disk `i16`/`u16` slots; overflow
+    raises a structured `CodecError::OutOfRange { what, value }`.
+  - Cels referencing a `LayerId` outside `Sprite::layers` raise
+    `CelLayerNotFound { id }`; cels with a `frame` past
+    `Sprite::frames` raise `CelFrameNotFound { index }`. The writer's
+    own post-validation surfaces transparently as
+    `CodecError::Write(WriteError)`.
+  - Tilesets and slices on the document are silently dropped, matching
+    the reader (M9 will round-trip slices).
+- `CodecError` gained: `OutOfRange { what, value }`,
+  `LinkedFrameNotFound { index }`, `LayerParentNotFound { id }`,
+  `LayerCycle { id }`, `CelLayerNotFound { id }`,
+  `CelFrameNotFound { index }`, and a transparent
+  `Write(#[from] aseprite_writer::WriteError)`.
+- 14 new unit tests cover every error variant the adapter raises plus
+  a write→read smoke test for the happy RGBA-image path.
+- The hand-crafted byte-level fixture builder
+  (`crates/pincel-core/tests/aseprite_read.rs`) is retired; the
+  replacement
+  `crates/pincel-core/tests/aseprite_codec.rs` builds Pincel
+  documents and asserts the writer→reader round-trip preserves them
+  (5 cases: single-layer pixel content, multi-layer blend mode +
+  visibility + offset, group hierarchy, linked cel, tags). Tests that
+  needed to read malformed bytes — bogus blend mode, out-of-range
+  linked cel — are dropped because they duplicated unit-test coverage
+  in `codec::aseprite_read` and the loader's own parse path.
+
 ### Build status
 
-`cargo check`, `cargo test --workspace` (89 unit + 6 command + 3 render
-+ 6 aseprite_read + 8 roundtrip integration), `cargo clippy --workspace
---all-targets -- -D warnings`, and `cargo fmt --check` are all green on
-the `claude/continue-from-status-bOUQU` branch.
+`cargo check`, `cargo test --workspace` (84 pincel-core unit + 19
+aseprite-writer unit + 6 command + 3 render + 5 codec round-trip + 8
+aseprite-writer roundtrip), `cargo clippy --workspace --all-targets --
+-D warnings`, and `cargo fmt --all --check` are all green on the
+`claude/continue-from-status-SXH5I` branch.
 
 ## Next concrete task
-
-**M5 — `pincel-core::codec::aseprite_write` adapter.** Add a
-`pincel-core` dev / non-dev dependency on `aseprite-writer` (workspace
-member, no external lookup needed) and write
-`codec::write_aseprite(&Sprite, &CelMap, &mut impl Write) ->
-Result<(), CodecError>`. The adapter mirrors `read_aseprite`'s
-inverse: walk `Sprite::layers` in z-order to emit `LayerChunk`s, walk
-`Sprite::frames` to build `Frame { duration, cels }` from `CelMap`,
-encode each `CelData::Image` as `CelContent::Image` and
-`CelData::Linked` as `CelContent::Linked`. RGBA-only for now (mirror
-the M3/M4 scope); indexed / grayscale raise `UnsupportedColorMode`.
-Once green, retire the hand-crafted byte-level fixture builder in
-`crates/pincel-core/tests/aseprite_read.rs` — its tests should drive
-through the adapter pair (`write_aseprite` then `read_aseprite`).
 
 **M5 follow-ups beyond CLAUDE.md M5 scope but in spec §8.3.**
 Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`, compatibility),
@@ -220,9 +270,6 @@ Plan when a fixture surfaces the need:
   needs an `unknown_chunks: Vec<RawChunk>` carrier on `Sprite` (and on
   `Layer` / `Cel` for chunk-attached user data). Defer to M9 alongside
   full slice support.
-- The hand-crafted fixture builder in `tests/aseprite_read.rs` overlaps
-  the future `aseprite-writer`. M5 should replace it; today's tests
-  exist precisely because the writer is not yet on disk.
 - `LayerId`s today are assigned by source-file position. That is stable
   across read-only sessions but conflicts with the spec's "stable id"
   promise once the user reorders layers. Revisit once a reorder command
