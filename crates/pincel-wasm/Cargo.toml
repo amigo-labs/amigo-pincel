@@ -1,0 +1,18 @@
+[package]
+name = "pincel-wasm"
+version = "0.1.0"
+description = "WebAssembly bindings for the Pincel core (wasm-bindgen / wasm-pack target)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pincel-core = { workspace = true }
+wasm-bindgen = { workspace = true }
+
+[lints]
+workspace = true
