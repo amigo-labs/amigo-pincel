@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-08_ (M6.2 `Document::compose` entry point)
+_Last updated: 2026-05-08_ (M6.3 `Document::applyTool` Pencil)
 
 ## Completed
 
@@ -307,14 +307,44 @@ _Last updated: 2026-05-08_ (M6.2 `Document::compose` entry point)
   1× zoom, integer-zoom output dimensions at 4×, plus three error
   paths (unknown frame, zoom 0, zoom 65).
 
+### M6 — `Document::applyTool` Pencil + bootstrap (M6.3) ✅
+
+- `Document::new` now bootstraps a default image layer
+  (`LayerId(0)`, `"Layer 1"`) and a transparent
+  canvas-sized image cel at frame 0 so a freshly-created
+  document is paintable without explicit layer / cel
+  creation. `open_aseprite` is unchanged (it preserves
+  whatever the file carries).
+- New `bus: pincel_core::Bus` field on `Document` tracks
+  command history. `Document::applyTool(tool_id, x, y,
+  color)` routes a `SetPixel` through the bus when
+  `tool_id == "pencil"`; unknown tools yield
+  `Err("unknown tool: <id>")`. Errors from the underlying
+  command (out-of-bounds pixel, missing cel, ...) surface
+  with a `"failed to apply pencil"` prefix.
+- `color` is packed as `0xRRGGBBAA` (red high byte, alpha
+  low byte) — single positional arg keeps the JS surface
+  ergonomic (`doc.applyTool('pencil', x, y, 0xff0000ff)`)
+  and avoids `clippy::too_many_arguments`. The richer
+  `{ button, mods, phase, brushSize }` options struct
+  from spec §9.3 lands when the second tool ships in M7.
+- The active layer / frame is implicit (layer 0, frame 0)
+  for now. Active-target state lands when the UI surfaces
+  layer / frame selection in M6.6.
+- 4 new unit tests (14 total in `pincel-wasm`): pencil
+  writes a pixel that surfaces through `compose`, two
+  paints leave the bus at `undo_depth == 2` and undo
+  restores the second pixel, unknown tool ids reject, and
+  out-of-bounds coordinates reject.
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (84 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 10 pincel-wasm unit),
+round-trip + 8 aseprite-writer roundtrip + 14 pincel-wasm unit),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-dJv5F` branch.
+`claude/continue-from-status-Zp7f2` branch.
 
 ## M6 task breakdown
 
@@ -327,13 +357,14 @@ ships as a sequence of S/M tasks:
   struct (`width`, `height`, `pixels`). Today the buffer is
   copied into a fresh `Uint8Array`; zero-copy `Uint8ClampedArray`
   views of WASM memory are deferred until `js-sys` is wired up.
-- [ ] **M6.3** — `Document::applyTool` with a Pencil implementation
+- [x] **M6.3** — `Document::applyTool` with a Pencil implementation
   routed through `pincel_core::SetPixel` + the command bus.
   Includes default-layer / default-cel bootstrap so a freshly-
   created document has a paintable target.
 - [ ] **M6.4** — `Document::drainEvents` skeleton (event enum +
   ring buffer, no producers wired yet beyond `dirty-rect` from
-  M6.3 paints).
+  M6.3 paints) + JS-facing `undo` / `redo` / `undoDepth` so the
+  bus seeded in M6.3 is reachable from JS.
 - [ ] **M6.5** — Svelte 5 + Vite scaffold under `ui/` with Tailwind
   4 set up. wasm-pack build script. Empty canvas page.
 - [ ] **M6.6** — Wire `pincel-wasm` package into the UI: open file

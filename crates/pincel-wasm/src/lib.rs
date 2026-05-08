@@ -6,11 +6,12 @@
 //! `drainEvents`) and the public-package surface in §17.5
 //! (`Pincel.create`, `openFile`, `saveAseprite`, `on('change' | 'save')`).
 //!
-//! Phase 1 / CLAUDE.md M6 lands the surface incrementally. This skeleton
-//! covers `Document::new`, opening / saving Aseprite byte buffers, the
-//! full-canvas `Document::compose` entry point, and basic dimension
-//! getters. `applyTool` and event drains follow in subsequent M6
-//! sub-tasks.
+//! Phase 1 / CLAUDE.md M6 lands the surface incrementally. The current
+//! cut covers `Document::new` (with a default-layer / cel bootstrap),
+//! opening / saving Aseprite byte buffers, full-canvas
+//! `Document::compose`, basic dimension getters, and `applyTool` with
+//! a Pencil routed through the command bus. `drainEvents` lands in
+//! M6.4.
 //!
 //! Errors cross the boundary as `Result<_, String>`; `wasm-bindgen` maps
 //! `String` Errs to a thrown JS exception. This keeps the surface
@@ -18,10 +19,14 @@
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
 use pincel_core::{
-    AsepriteReadOutput, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Sprite, compose,
-    read_aseprite, write_aseprite,
+    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Layer,
+    LayerId, LayerKind, PixelBuffer, Rgba, SetPixel, Sprite, compose, read_aseprite,
+    write_aseprite,
 };
 use wasm_bindgen::prelude::*;
+
+/// Identifier of the default layer that [`Document::new`] seeds.
+const DEFAULT_LAYER_ID: LayerId = LayerId::new(0);
 
 /// Owned Pincel document — the [`Sprite`] plus its detached cel store —
 /// exposed as a JS class.
@@ -33,15 +38,18 @@ use wasm_bindgen::prelude::*;
 pub struct Document {
     sprite: Sprite,
     cels: CelMap,
+    bus: Bus,
 }
 
 #[wasm_bindgen]
 impl Document {
     /// Create an empty RGBA document with the given canvas dimensions.
     ///
-    /// The fresh document has no layers and a single 100 ms frame so the
-    /// round-trip through `aseprite-writer` / `aseprite-loader`
-    /// produces a parseable file.
+    /// The fresh document is bootstrapped so it is paintable out of the
+    /// box: one image layer named `"Layer 1"` (id `0`) and one
+    /// transparent image cel sized to the canvas at frame `0`. The
+    /// single 100 ms frame makes the round-trip through
+    /// `aseprite-writer` / `aseprite-loader` produce a parseable file.
     ///
     /// Returns `Err(String)` when the sprite builder rejects the input
     /// — today the only failure mode is a zero `width` or `height`. The
@@ -51,12 +59,20 @@ impl Document {
     pub fn new(width: u32, height: u32) -> Result<Document, String> {
         let sprite = Sprite::builder(width, height)
             .color_mode(ColorMode::Rgba)
+            .add_layer(Layer::image(DEFAULT_LAYER_ID, "Layer 1"))
             .add_frame(Frame::new(100))
             .build()
             .map_err(|e| format!("failed to build sprite: {e}"))?;
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            PixelBuffer::empty(width, height, ColorMode::Rgba),
+        ));
         Ok(Self {
             sprite,
-            cels: CelMap::new(),
+            cels,
+            bus: Bus::new(),
         })
     }
 
@@ -68,7 +84,11 @@ impl Document {
     pub fn open_aseprite(bytes: &[u8]) -> Result<Document, String> {
         let AsepriteReadOutput { sprite, cels } =
             read_aseprite(bytes).map_err(|e| format!("failed to open Aseprite: {e}"))?;
-        Ok(Self { sprite, cels })
+        Ok(Self {
+            sprite,
+            cels,
+            bus: Bus::new(),
+        })
     }
 
     /// Serialize this document to an Aseprite v1.3 byte vector.
@@ -135,6 +155,49 @@ impl Document {
             pixels: result.pixels,
         })
     }
+
+    /// Apply a tool action at sprite coordinates `(x, y)` with the
+    /// given non-premultiplied RGBA color, routed through the command
+    /// bus.
+    ///
+    /// `color` is `0xRRGGBBAA` (red in the high byte, alpha in the
+    /// low byte). Currently only `tool_id == "pencil"` is supported.
+    /// The Pencil emits a [`SetPixel`] on the active layer / frame:
+    /// today the active layer is the lowest-z `LayerKind::Image`
+    /// layer (the bootstrapped `"Layer 1"` for fresh documents) and
+    /// the active frame is `0`. Group / tilemap layers in an opened
+    /// document are skipped so the user never paints into a layer
+    /// that cannot accept pixels. Errors propagate from the
+    /// underlying command (out-of-bounds pixel, missing cel, …).
+    ///
+    /// Spec §9.3 calls for a richer options struct (`button`, `mods`,
+    /// `phase`, brush size). Positional args today; an options struct
+    /// lands when the second tool ships in M7.
+    #[wasm_bindgen(js_name = applyTool)]
+    pub fn apply_tool(&mut self, tool_id: &str, x: i32, y: i32, color: u32) -> Result<(), String> {
+        if tool_id != "pencil" {
+            return Err(format!("unknown tool: {tool_id}"));
+        }
+        let layer = self
+            .sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
+            .id;
+        let frame = FrameIndex::new(0);
+        let rgba = Rgba {
+            r: ((color >> 24) & 0xff) as u8,
+            g: ((color >> 16) & 0xff) as u8,
+            b: ((color >> 8) & 0xff) as u8,
+            a: (color & 0xff) as u8,
+        };
+        let cmd = SetPixel::new(layer, frame, x, y, rgba);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to apply pencil: {e}"))?;
+        Ok(())
+    }
 }
 
 /// A single composited frame returned to JS.
@@ -177,11 +240,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_creates_empty_rgba_document_with_one_frame() {
+    fn new_bootstraps_one_layer_one_frame() {
         let doc = Document::new(64, 48).expect("non-zero dims build");
         assert_eq!(doc.width(), 64);
         assert_eq!(doc.height(), 48);
-        assert_eq!(doc.layer_count(), 0);
+        assert_eq!(doc.layer_count(), 1);
         assert_eq!(doc.frame_count(), 1);
     }
 
@@ -202,7 +265,7 @@ mod tests {
         let reopened = Document::open_aseprite(&bytes).expect("open ok");
         assert_eq!(reopened.width(), 8);
         assert_eq!(reopened.height(), 8);
-        assert_eq!(reopened.layer_count(), 0);
+        assert_eq!(reopened.layer_count(), 1);
         assert_eq!(reopened.frame_count(), 1);
     }
 
@@ -217,7 +280,7 @@ mod tests {
     }
 
     #[test]
-    fn compose_zero_layer_document_yields_transparent_canvas() {
+    fn compose_fresh_document_yields_transparent_canvas() {
         let doc = Document::new(4, 3).expect("dims");
         let frame = doc.compose(0, 1).expect("compose ok");
         assert_eq!(frame.width(), 4);
@@ -252,5 +315,90 @@ mod tests {
     fn compose_rejects_zoom_above_max() {
         let doc = Document::new(2, 2).expect("dims");
         assert!(doc.compose(0, 65).is_err());
+    }
+
+    fn pixel_at(pixels: &[u8], width: u32, x: u32, y: u32) -> [u8; 4] {
+        let off = ((y * width + x) * 4) as usize;
+        [
+            pixels[off],
+            pixels[off + 1],
+            pixels[off + 2],
+            pixels[off + 3],
+        ]
+    }
+
+    #[test]
+    fn apply_tool_pencil_writes_pixel_into_default_cel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 1, 2, 0xff0000ff)
+            .expect("pencil ok");
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 1, 2), [255, 0, 0, 255]);
+        assert_eq!(doc.bus.undo_depth(), 1);
+    }
+
+    #[test]
+    fn apply_tool_pencil_runs_through_bus_for_undo() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0x0a141eff)
+            .expect("pencil ok");
+        doc.apply_tool("pencil", 1, 0, 0x28323cff)
+            .expect("pencil ok");
+        assert_eq!(doc.bus.undo_depth(), 2);
+        assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn apply_tool_rejects_unknown_tool() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        let err = doc.apply_tool("paintbrush", 0, 0, 0x000000ff).unwrap_err();
+        assert!(err.contains("paintbrush"));
+    }
+
+    #[test]
+    fn apply_tool_pencil_rejects_out_of_bounds_pixel() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(doc.apply_tool("pencil", 10, 10, 0x000000ff).is_err());
+    }
+
+    #[test]
+    fn apply_tool_pencil_skips_group_layer_to_find_paintable_image() {
+        use pincel_core::CelData;
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite
+            .layers
+            .insert(0, Layer::group(LayerId::new(99), "folder"));
+        doc.apply_tool("pencil", 1, 1, 0xff7f00ff)
+            .expect("paints into the image layer behind the group");
+        // Compose would reject the group layer (M3 image-only), so read
+        // the bootstrapped image cel directly to confirm the paint
+        // landed on the right layer.
+        let cel = doc
+            .cels
+            .get(DEFAULT_LAYER_ID, FrameIndex::new(0))
+            .expect("default cel still present");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("expected image cel");
+        };
+        let off = ((buf.width + 1) * 4) as usize;
+        assert_eq!(&buf.data[off..off + 4], &[255, 127, 0, 255]);
+    }
+
+    #[test]
+    fn apply_tool_pencil_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(7), "folder"));
+        let err = doc
+            .apply_tool("pencil", 0, 0, 0x000000ff)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
     }
 }
