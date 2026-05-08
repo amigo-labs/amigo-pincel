@@ -41,15 +41,17 @@ impl Document {
     /// round-trip through `aseprite-writer` / `aseprite-loader`
     /// produces a parseable file.
     ///
-    /// Errors when either dimension is zero
-    /// (`pincel_core::DocumentError::InvalidDimensions`).
+    /// Returns `Err(String)` when the sprite builder rejects the input
+    /// — today the only failure mode is a zero `width` or `height`. The
+    /// error string comes from `pincel_core`'s `Display` impl and is
+    /// not part of the public JS contract.
     #[wasm_bindgen(constructor)]
     pub fn new(width: u32, height: u32) -> Result<Document, String> {
         let sprite = Sprite::builder(width, height)
             .color_mode(ColorMode::Rgba)
-            .add_frame(Frame::default())
+            .add_frame(Frame::new(100))
             .build()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("failed to build sprite: {e}"))?;
         Ok(Self {
             sprite,
             cels: CelMap::new(),
@@ -63,7 +65,7 @@ impl Document {
     #[wasm_bindgen(js_name = openAseprite)]
     pub fn open_aseprite(bytes: &[u8]) -> Result<Document, String> {
         let AsepriteReadOutput { sprite, cels } =
-            read_aseprite(bytes).map_err(|e| e.to_string())?;
+            read_aseprite(bytes).map_err(|e| format!("failed to open Aseprite: {e}"))?;
         Ok(Self { sprite, cels })
     }
 
@@ -76,7 +78,8 @@ impl Document {
     #[wasm_bindgen(js_name = saveAseprite)]
     pub fn save_aseprite(&self) -> Result<Box<[u8]>, String> {
         let mut buf = Vec::new();
-        write_aseprite(&self.sprite, &self.cels, &mut buf).map_err(|e| e.to_string())?;
+        write_aseprite(&self.sprite, &self.cels, &mut buf)
+            .map_err(|e| format!("failed to save Aseprite: {e}"))?;
         Ok(buf.into_boxed_slice())
     }
 
