@@ -11,9 +11,9 @@ pub enum CodecError {
     #[error("aseprite parse failed: {0}")]
     Parse(String),
 
-    /// The file uses a color depth Pincel cannot yet ingest. M4 only handles
-    /// RGBA; indexed and grayscale come with `M3`-followup / later milestones.
-    #[error("unsupported aseprite color mode (M4 only handles RGBA)")]
+    /// The file uses a color depth Pincel does not yet ingest. The current
+    /// adapter handles RGBA only; indexed and grayscale are deferred.
+    #[error("unsupported aseprite color mode (only RGBA is currently supported)")]
     UnsupportedColorMode,
 
     /// The file contains a layer kind we do not yet round-trip (tilemap layers

@@ -19,7 +19,8 @@ use aseprite_loader::binary::chunks::cel::CelContent;
 use aseprite_loader::binary::chunks::layer::{LayerFlags, LayerType};
 use aseprite_loader::binary::chunks::tags::AnimationDirection;
 use aseprite_loader::binary::color_depth::ColorDepth;
-use aseprite_loader::loader::AsepriteFile;
+use aseprite_loader::binary::image::Image as AseImage;
+use aseprite_loader::loader::{AsepriteFile, decompress};
 
 use super::error::CodecError;
 use crate::document::{
@@ -47,8 +48,26 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
     let color_mode = map_color_mode(ase.file.header.color_depth)?;
 
     let mut layers = Vec::with_capacity(ase.file.layers.len());
+    // `parent_stack[d]` is the most recently opened group at depth `d`. When a
+    // layer at depth `d` arrives, its parent is `parent_stack[d - 1]`; deeper
+    // entries from prior siblings are dropped before we (re)open this depth.
+    let mut parent_stack: Vec<LayerId> = Vec::new();
     for (index, layer_chunk) in ase.file.layers.iter().enumerate() {
-        layers.push(map_layer(index, layer_chunk)?);
+        let depth = usize::from(layer_chunk.child_level);
+        let parent = if depth == 0 {
+            None
+        } else {
+            parent_stack.get(depth - 1).copied()
+        };
+        let mut layer = map_layer(index, layer_chunk)?;
+        layer.parent = parent;
+        if depth < parent_stack.len() {
+            parent_stack.truncate(depth);
+        }
+        if matches!(layer.kind, LayerKind::Group) {
+            parent_stack.push(layer.id);
+        }
+        layers.push(layer);
     }
 
     let mut frames = Vec::with_capacity(ase.file.frames.len());
@@ -198,26 +217,12 @@ fn build_cels(
             let frame_idx = FrameIndex::new(frame_index as u32);
 
             let data = match &cel_chunk.content {
-                CelContent::Image(image) => {
-                    let width = u32::from(image.width);
-                    let height = u32::from(image.height);
-                    let frame_cel = ase.frames[frame_index]
-                        .cels
-                        .iter()
-                        .find(|fc| fc.layer_index == layer_index)
-                        .ok_or(CodecError::LayerIndexOutOfRange { index: layer_index })?;
-                    let bytes_per_pixel = color_mode.bytes_per_pixel();
-                    let mut data =
-                        vec![0u8; (width as usize) * (height as usize) * bytes_per_pixel];
-                    ase.load_image(frame_cel.image_index, &mut data)
-                        .map_err(|e| CodecError::Image(e.to_string()))?;
-                    CelData::Image(PixelBuffer {
-                        width,
-                        height,
-                        color_mode,
-                        data,
-                    })
-                }
+                CelContent::Image(image) => CelData::Image(decode_image(image, color_mode)?),
+                // `aseprite-loader` validates linked-cel targets against its
+                // image map during `AsepriteFile::load`; an out-of-range
+                // `frame_position` (or one whose target frame has no image cel
+                // on the same layer) surfaces as a `Parse` error there. The
+                // adapter therefore trusts the in-range invariant here.
                 CelContent::LinkedCel { frame_position } => {
                     CelData::Linked(FrameIndex::new(u32::from(*frame_position)))
                 }
@@ -239,6 +244,40 @@ fn build_cels(
         }
     }
     Ok(map)
+}
+
+/// Decode a low-level `aseprite-loader` image straight from its `CelContent`
+/// payload, decompressing inline when the cel was zlib-encoded. Avoids the
+/// detour through `AsepriteFile::load_image` (which requires correlating the
+/// low-level cel chunk with the high-level frame table — a mapping that is
+/// awkward to bounds-check and historically caused a misleading
+/// "layer index out of range" error on lookup mismatch).
+fn decode_image(image: &AseImage<'_>, color_mode: ColorMode) -> Result<PixelBuffer, CodecError> {
+    // M4 is RGBA-only; the RGBA branch is the only one map_color_mode allows
+    // through, so we don't need to dispatch on color mode here.
+    debug_assert_eq!(color_mode, ColorMode::Rgba);
+    let width = u32::from(image.width);
+    let height = u32::from(image.height);
+    let target_size = (width as usize) * (height as usize) * color_mode.bytes_per_pixel();
+    let mut data = vec![0u8; target_size];
+    if image.compressed {
+        decompress(image.data, &mut data).map_err(|e| CodecError::Image(format!("{e:?}")))?;
+    } else {
+        if image.data.len() < target_size {
+            return Err(CodecError::Image(format!(
+                "raw cel pixel payload {} bytes < expected {} bytes",
+                image.data.len(),
+                target_size
+            )));
+        }
+        data.copy_from_slice(&image.data[..target_size]);
+    }
+    Ok(PixelBuffer {
+        width,
+        height,
+        color_mode,
+        data,
+    })
 }
 
 #[cfg(test)]

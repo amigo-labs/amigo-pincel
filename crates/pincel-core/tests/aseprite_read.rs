@@ -31,6 +31,35 @@ struct FixtureLayer {
     visible: bool,
     opacity: u8,
     blend_mode: u16,
+    /// 0 = Normal, 1 = Group, 2 = Tilemap. Defaults to Normal.
+    layer_type: u16,
+    /// Indentation depth used by Aseprite to encode group nesting.
+    child_level: u16,
+}
+
+impl FixtureLayer {
+    fn image(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            visible: true,
+            opacity: 255,
+            blend_mode: 0,
+            layer_type: 0,
+            child_level: 0,
+        }
+    }
+
+    fn group(name: &str) -> Self {
+        Self {
+            layer_type: 1,
+            ..Self::image(name)
+        }
+    }
+
+    fn at_depth(mut self, depth: u16) -> Self {
+        self.child_level = depth;
+        self
+    }
 }
 
 struct FixtureFrame {
@@ -38,15 +67,24 @@ struct FixtureFrame {
     cels: Vec<FixtureCel>,
 }
 
-struct FixtureCel {
-    layer_index: u16,
-    x: i16,
-    y: i16,
-    opacity: u8,
-    width: u16,
-    height: u16,
-    /// Raw RGBA8 row-major pixels, length must equal `width * height * 4`.
-    pixels: Vec<u8>,
+enum FixtureCel {
+    Image {
+        layer_index: u16,
+        x: i16,
+        y: i16,
+        opacity: u8,
+        width: u16,
+        height: u16,
+        /// Raw RGBA8 row-major pixels, length must equal `width * height * 4`.
+        pixels: Vec<u8>,
+    },
+    Linked {
+        layer_index: u16,
+        x: i16,
+        y: i16,
+        opacity: u8,
+        frame_position: u16,
+    },
 }
 
 impl FixtureBuilder {
@@ -171,8 +209,8 @@ fn encode_layer_chunk(layer: &FixtureLayer) -> Vec<u8> {
     }
     flags |= 0x0002; // editable
     out.extend_from_slice(&flags.to_le_bytes());
-    out.extend_from_slice(&0u16.to_le_bytes()); // type: normal
-    out.extend_from_slice(&0u16.to_le_bytes()); // child level
+    out.extend_from_slice(&layer.layer_type.to_le_bytes());
+    out.extend_from_slice(&layer.child_level.to_le_bytes());
     out.extend_from_slice(&0u16.to_le_bytes()); // deprecated default w
     out.extend_from_slice(&0u16.to_le_bytes()); // deprecated default h
     out.extend_from_slice(&layer.blend_mode.to_le_bytes());
@@ -187,31 +225,65 @@ fn encode_layer_chunk(layer: &FixtureLayer) -> Vec<u8> {
 }
 
 fn encode_cel_chunk(cel: &FixtureCel) -> Vec<u8> {
-    assert_eq!(
-        cel.pixels.len(),
-        usize::from(cel.width) * usize::from(cel.height) * 4,
-        "fixture cel pixel buffer must be RGBA8 row-major"
-    );
-    // body: layer_idx(2)+x(2)+y(2)+opacity(1)+cel_type(2)+z(2)+reserved(5)+w(2)+h(2)+pixels
-    let body_len = 20 + cel.pixels.len();
-    let chunk_size = 4u32 + 2 + body_len as u32;
-
-    let mut out = Vec::with_capacity(chunk_size as usize);
-    out.extend_from_slice(&chunk_size.to_le_bytes());
-    out.extend_from_slice(&CHUNK_TYPE_CEL.to_le_bytes());
-    out.extend_from_slice(&cel.layer_index.to_le_bytes());
-    out.extend_from_slice(&cel.x.to_le_bytes());
-    out.extend_from_slice(&cel.y.to_le_bytes());
-    out.push(cel.opacity);
-    out.extend_from_slice(&0u16.to_le_bytes()); // cel type: 0 = raw image
-    out.extend_from_slice(&0i16.to_le_bytes()); // z-index
-    out.extend_from_slice(&[0u8; 5]); // reserved
-    out.extend_from_slice(&cel.width.to_le_bytes());
-    out.extend_from_slice(&cel.height.to_le_bytes());
-    out.extend_from_slice(&cel.pixels);
-
-    debug_assert_eq!(out.len() as u32, chunk_size);
-    out
+    match cel {
+        FixtureCel::Image {
+            layer_index,
+            x,
+            y,
+            opacity,
+            width,
+            height,
+            pixels,
+        } => {
+            assert_eq!(
+                pixels.len(),
+                usize::from(*width) * usize::from(*height) * 4,
+                "fixture cel pixel buffer must be RGBA8 row-major"
+            );
+            // body: layer_idx(2)+x(2)+y(2)+opacity(1)+cel_type(2)+z(2)+reserved(5)+w(2)+h(2)+pixels
+            let body_len = 20 + pixels.len();
+            let chunk_size = 4u32 + 2 + body_len as u32;
+            let mut out = Vec::with_capacity(chunk_size as usize);
+            out.extend_from_slice(&chunk_size.to_le_bytes());
+            out.extend_from_slice(&CHUNK_TYPE_CEL.to_le_bytes());
+            out.extend_from_slice(&layer_index.to_le_bytes());
+            out.extend_from_slice(&x.to_le_bytes());
+            out.extend_from_slice(&y.to_le_bytes());
+            out.push(*opacity);
+            out.extend_from_slice(&0u16.to_le_bytes()); // cel type: 0 = raw image
+            out.extend_from_slice(&0i16.to_le_bytes()); // z-index
+            out.extend_from_slice(&[0u8; 5]); // reserved
+            out.extend_from_slice(&width.to_le_bytes());
+            out.extend_from_slice(&height.to_le_bytes());
+            out.extend_from_slice(pixels);
+            debug_assert_eq!(out.len() as u32, chunk_size);
+            out
+        }
+        FixtureCel::Linked {
+            layer_index,
+            x,
+            y,
+            opacity,
+            frame_position,
+        } => {
+            // body: layer_idx(2)+x(2)+y(2)+opacity(1)+cel_type(2)+z(2)+reserved(5)+frame_pos(2)
+            let body_len = 18;
+            let chunk_size = 4u32 + 2 + body_len as u32;
+            let mut out = Vec::with_capacity(chunk_size as usize);
+            out.extend_from_slice(&chunk_size.to_le_bytes());
+            out.extend_from_slice(&CHUNK_TYPE_CEL.to_le_bytes());
+            out.extend_from_slice(&layer_index.to_le_bytes());
+            out.extend_from_slice(&x.to_le_bytes());
+            out.extend_from_slice(&y.to_le_bytes());
+            out.push(*opacity);
+            out.extend_from_slice(&1u16.to_le_bytes()); // cel type: 1 = linked
+            out.extend_from_slice(&0i16.to_le_bytes()); // z-index
+            out.extend_from_slice(&[0u8; 5]); // reserved
+            out.extend_from_slice(&frame_position.to_le_bytes());
+            debug_assert_eq!(out.len() as u32, chunk_size);
+            out
+        }
+    }
 }
 
 fn rgba(r: u8, g: u8, b: u8, a: u8) -> [u8; 4] {
@@ -232,14 +304,12 @@ fn handcrafted_single_layer_single_frame_round_trip() {
     ]);
     let bytes = FixtureBuilder::new(2, 2)
         .layer(FixtureLayer {
-            name: "Background".to_string(),
-            visible: true,
             opacity: 200,
-            blend_mode: 0,
+            ..FixtureLayer::image("Background")
         })
         .frame(FixtureFrame {
             duration_ms: 120,
-            cels: vec![FixtureCel {
+            cels: vec![FixtureCel::Image {
                 layer_index: 0,
                 x: 0,
                 y: 0,
@@ -289,22 +359,17 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
     let bg = flat_pixels(&[rgba(10, 20, 30, 255); 4]);
     let fg = flat_pixels(&[rgba(200, 100, 50, 128)]);
     let bytes = FixtureBuilder::new(4, 4)
+        .layer(FixtureLayer::image("bg"))
         .layer(FixtureLayer {
-            name: "bg".to_string(),
-            visible: true,
-            opacity: 255,
-            blend_mode: 0, // Normal
-        })
-        .layer(FixtureLayer {
-            name: "fx".to_string(),
             visible: false,
             opacity: 180,
             blend_mode: 1, // Multiply
+            ..FixtureLayer::image("fx")
         })
         .frame(FixtureFrame {
             duration_ms: 100,
             cels: vec![
-                FixtureCel {
+                FixtureCel::Image {
                     layer_index: 0,
                     x: 0,
                     y: 0,
@@ -313,7 +378,7 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
                     height: 2,
                     pixels: bg,
                 },
-                FixtureCel {
+                FixtureCel::Image {
                     layer_index: 1,
                     x: 1,
                     y: 2,
@@ -348,14 +413,12 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
 fn unsupported_blend_mode_is_rejected() {
     let bytes = FixtureBuilder::new(1, 1)
         .layer(FixtureLayer {
-            name: "x".to_string(),
-            visible: true,
-            opacity: 255,
             blend_mode: 0x1337, // bogus
+            ..FixtureLayer::image("x")
         })
         .frame(FixtureFrame {
             duration_ms: 16,
-            cels: vec![FixtureCel {
+            cels: vec![FixtureCel::Image {
                 layer_index: 0,
                 x: 0,
                 y: 0,
@@ -370,5 +433,147 @@ fn unsupported_blend_mode_is_rejected() {
     assert!(
         format!("{err:?}").contains("UnsupportedBlendMode"),
         "expected blend-mode error, got {err:?}"
+    );
+}
+
+#[test]
+fn group_hierarchy_is_reconstructed_from_child_level() {
+    // Layer order in Aseprite is bottom-up; the child_level field encodes
+    // group depth. We exercise:
+    //   group "outer"        depth 0
+    //     image "child_a"    depth 1   parent = outer
+    //     group "inner"      depth 1   parent = outer
+    //       image "child_b"  depth 2   parent = inner
+    //   image "sibling"      depth 0   parent = None
+    let bytes = FixtureBuilder::new(2, 2)
+        .layer(FixtureLayer::group("outer"))
+        .layer(FixtureLayer::image("child_a").at_depth(1))
+        .layer(FixtureLayer::group("inner").at_depth(1))
+        .layer(FixtureLayer::image("child_b").at_depth(2))
+        .layer(FixtureLayer::image("sibling"))
+        .frame(FixtureFrame {
+            duration_ms: 100,
+            cels: vec![
+                FixtureCel::Image {
+                    layer_index: 1,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    width: 2,
+                    height: 2,
+                    pixels: flat_pixels(&[rgba(0, 0, 0, 255); 4]),
+                },
+                FixtureCel::Image {
+                    layer_index: 3,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    width: 2,
+                    height: 2,
+                    pixels: flat_pixels(&[rgba(255, 255, 255, 255); 4]),
+                },
+                FixtureCel::Image {
+                    layer_index: 4,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    width: 2,
+                    height: 2,
+                    pixels: flat_pixels(&[rgba(127, 127, 127, 255); 4]),
+                },
+            ],
+        })
+        .build();
+
+    let AsepriteReadOutput { sprite, .. } =
+        read_aseprite(&bytes).expect("nested-group fixture should parse");
+
+    assert_eq!(sprite.layers.len(), 5);
+    assert_eq!(sprite.layers[0].kind, LayerKind::Group);
+    assert_eq!(sprite.layers[0].parent, None);
+    assert_eq!(sprite.layers[1].parent, Some(LayerId::new(0)));
+    assert_eq!(sprite.layers[2].kind, LayerKind::Group);
+    assert_eq!(sprite.layers[2].parent, Some(LayerId::new(0)));
+    assert_eq!(sprite.layers[3].parent, Some(LayerId::new(2)));
+    assert_eq!(
+        sprite.layers[4].parent, None,
+        "depth-0 sibling after a nested group should have no parent"
+    );
+}
+
+#[test]
+fn linked_cel_pointing_past_frame_count_is_rejected_by_loader() {
+    // The aseprite-loader validates linked cels via its internal image map
+    // before the adapter sees them; this fixture exercises that boundary so
+    // that "out-of-range link → user-visible error" stays a pinned guarantee.
+    let bytes = FixtureBuilder::new(2, 2)
+        .layer(FixtureLayer::image("only"))
+        .frame(FixtureFrame {
+            duration_ms: 100,
+            cels: vec![FixtureCel::Image {
+                layer_index: 0,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                width: 2,
+                height: 2,
+                pixels: flat_pixels(&[rgba(0, 0, 0, 255); 4]),
+            }],
+        })
+        .frame(FixtureFrame {
+            duration_ms: 100,
+            cels: vec![FixtureCel::Linked {
+                layer_index: 0,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                frame_position: 5,
+            }],
+        })
+        .build();
+    let err = read_aseprite(&bytes).expect_err("out-of-range linked frame should fail");
+    assert!(
+        matches!(err, pincel_core::CodecError::Parse(_)),
+        "expected loader-level Parse error, got {err:?}"
+    );
+}
+
+#[test]
+fn linked_cel_within_range_is_preserved() {
+    let bytes = FixtureBuilder::new(2, 2)
+        .layer(FixtureLayer::image("only"))
+        .frame(FixtureFrame {
+            duration_ms: 100,
+            cels: vec![FixtureCel::Image {
+                layer_index: 0,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                width: 2,
+                height: 2,
+                pixels: flat_pixels(&[rgba(0, 0, 0, 255); 4]),
+            }],
+        })
+        .frame(FixtureFrame {
+            duration_ms: 100,
+            cels: vec![FixtureCel::Linked {
+                layer_index: 0,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                frame_position: 0,
+            }],
+        })
+        .build();
+
+    let AsepriteReadOutput { cels, .. } =
+        read_aseprite(&bytes).expect("linked-cel fixture should parse");
+    let linked = cels
+        .get(LayerId::new(0), FrameIndex::new(1))
+        .expect("frame 1 should hold a linked cel");
+    assert!(
+        matches!(linked.data, CelData::Linked(idx) if idx == FrameIndex::new(0)),
+        "expected CelData::Linked(0), got {:?}",
+        linked.data
     );
 }
