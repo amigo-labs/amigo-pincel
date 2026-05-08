@@ -20,7 +20,8 @@
 
 use pincel_core::{
     AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Layer,
-    LayerId, PixelBuffer, Rgba, SetPixel, Sprite, compose, read_aseprite, write_aseprite,
+    LayerId, LayerKind, PixelBuffer, Rgba, SetPixel, Sprite, compose, read_aseprite,
+    write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -161,10 +162,13 @@ impl Document {
     ///
     /// `color` is `0xRRGGBBAA` (red in the high byte, alpha in the
     /// low byte). Currently only `tool_id == "pencil"` is supported.
-    /// The Pencil emits a [`SetPixel`] on the active layer / frame
-    /// (today: layer `0`, frame `0` — the bootstrapped pair from
-    /// [`Document::new`]). Errors propagate from the underlying
-    /// command (out-of-bounds pixel, missing cel, …).
+    /// The Pencil emits a [`SetPixel`] on the active layer / frame:
+    /// today the active layer is the lowest-z `LayerKind::Image`
+    /// layer (the bootstrapped `"Layer 1"` for fresh documents) and
+    /// the active frame is `0`. Group / tilemap layers in an opened
+    /// document are skipped so the user never paints into a layer
+    /// that cannot accept pixels. Errors propagate from the
+    /// underlying command (out-of-bounds pixel, missing cel, …).
     ///
     /// Spec §9.3 calls for a richer options struct (`button`, `mods`,
     /// `phase`, brush size). Positional args today; an options struct
@@ -177,8 +181,9 @@ impl Document {
         let layer = self
             .sprite
             .layers
-            .first()
-            .ok_or_else(|| "document has no paintable layer".to_string())?
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
             .id;
         let frame = FrameIndex::new(0);
         let rgba = Rgba {
@@ -312,6 +317,16 @@ mod tests {
         assert!(doc.compose(0, 65).is_err());
     }
 
+    fn pixel_at(pixels: &[u8], width: u32, x: u32, y: u32) -> [u8; 4] {
+        let off = ((y * width + x) * 4) as usize;
+        [
+            pixels[off],
+            pixels[off + 1],
+            pixels[off + 2],
+            pixels[off + 3],
+        ]
+    }
+
     #[test]
     fn apply_tool_pencil_writes_pixel_into_default_cel() {
         let mut doc = Document::new(4, 4).expect("dims");
@@ -319,8 +334,7 @@ mod tests {
             .expect("pencil ok");
         let frame = doc.compose(0, 1).expect("compose ok");
         let pixels = frame.pixels();
-        let off = ((2 * 4) + 1) * 4;
-        assert_eq!(&pixels[off..off + 4], &[255, 0, 0, 255]);
+        assert_eq!(pixel_at(&pixels, 4, 1, 2), [255, 0, 0, 255]);
         assert_eq!(doc.bus.undo_depth(), 1);
     }
 
@@ -335,9 +349,8 @@ mod tests {
         assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
         let frame = doc.compose(0, 1).expect("compose ok");
         let pixels = frame.pixels();
-        let off1 = 4 * 4;
-        assert_eq!(&pixels[off1..off1 + 4], &[0, 0, 0, 0]);
-        assert_eq!(&pixels[..4], &[10, 20, 30, 255]);
+        assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
     }
 
     #[test]
@@ -351,5 +364,41 @@ mod tests {
     fn apply_tool_pencil_rejects_out_of_bounds_pixel() {
         let mut doc = Document::new(2, 2).expect("dims");
         assert!(doc.apply_tool("pencil", 10, 10, 0x000000ff).is_err());
+    }
+
+    #[test]
+    fn apply_tool_pencil_skips_group_layer_to_find_paintable_image() {
+        use pincel_core::CelData;
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite
+            .layers
+            .insert(0, Layer::group(LayerId::new(99), "folder"));
+        doc.apply_tool("pencil", 1, 1, 0xff7f00ff)
+            .expect("paints into the image layer behind the group");
+        // Compose would reject the group layer (M3 image-only), so read
+        // the bootstrapped image cel directly to confirm the paint
+        // landed on the right layer.
+        let cel = doc
+            .cels
+            .get(DEFAULT_LAYER_ID, FrameIndex::new(0))
+            .expect("default cel still present");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("expected image cel");
+        };
+        let off = ((buf.width + 1) * 4) as usize;
+        assert_eq!(&buf.data[off..off + 4], &[255, 127, 0, 255]);
+    }
+
+    #[test]
+    fn apply_tool_pencil_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(7), "folder"));
+        let err = doc
+            .apply_tool("pencil", 0, 0, 0x000000ff)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
     }
 }
