@@ -7,14 +7,16 @@
 
 use aseprite_loader::binary::blend_mode::BlendMode as LoaderBlendMode;
 use aseprite_loader::binary::chunk::Chunk;
+use aseprite_loader::binary::chunks::cel::CelContent as LoaderCelContent;
 use aseprite_loader::binary::chunks::layer::LayerType as LoaderLayerType;
 use aseprite_loader::binary::chunks::tags::AnimationDirection as LoaderDirection;
 use aseprite_loader::binary::color_depth::ColorDepth as LoaderColorDepth;
 use aseprite_loader::binary::file::parse_file;
 use aseprite_loader::binary::raw_file::parse_raw_file;
+use aseprite_loader::loader::decompress;
 use aseprite_writer::{
-    AnimationDirection, AseFile, BlendMode, Color, ColorDepth, Frame, Header, LayerChunk,
-    LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, write,
+    AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, Frame, Header,
+    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, write,
 };
 
 fn write_to_vec(file: &AseFile) -> Vec<u8> {
@@ -221,6 +223,218 @@ fn tags_roundtrip_with_directions() {
         parsed.tags[2].animation_direction,
         LoaderDirection::Reverse
     ));
+}
+
+fn rgba_layer(name: &str) -> LayerChunk {
+    LayerChunk {
+        flags: LayerFlags::VISIBLE,
+        layer_type: LayerType::Normal,
+        child_level: 0,
+        blend_mode: BlendMode::Normal,
+        opacity: 255,
+        name: name.into(),
+        tileset_index: None,
+    }
+}
+
+fn checker_rgba(width: u16, height: u16) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(usize::from(width) * usize::from(height) * 4);
+    for y in 0..height {
+        for x in 0..width {
+            let on = (x ^ y) & 1 == 0;
+            let (r, g, b, a) = if on {
+                (255, 0, 128, 255)
+            } else {
+                (0, 64, 200, 200)
+            };
+            buf.extend_from_slice(&[r, g, b, a]);
+        }
+    }
+    buf
+}
+
+#[test]
+fn single_image_cel_roundtrips_with_pixels() {
+    let pixels = checker_rgba(4, 4);
+    let file = AseFile {
+        header: Header::new(8, 8, ColorDepth::Rgba),
+        layers: vec![rgba_layer("L0")],
+        palette: None,
+        tags: Vec::new(),
+        frames: vec![Frame {
+            duration: 100,
+            cels: vec![CelChunk {
+                layer_index: 0,
+                x: 2,
+                y: 1,
+                opacity: 200,
+                z_index: 0,
+                content: CelContent::Image {
+                    width: 4,
+                    height: 4,
+                    data: pixels.clone(),
+                },
+            }],
+        }],
+    };
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("loader parses our output");
+
+    assert_eq!(parsed.frames.len(), 1);
+    assert_eq!(parsed.layers.len(), 1);
+    let cel = parsed.frames[0].cels[0]
+        .as_ref()
+        .expect("cel slot is populated for layer 0");
+    assert_eq!(cel.x, 2);
+    assert_eq!(cel.y, 1);
+    assert_eq!(cel.opacity, 200);
+    let image = match &cel.content {
+        LoaderCelContent::Image(img) => img,
+        other => panic!("expected Image cel content, got {other:?}"),
+    };
+    assert_eq!(image.width, 4);
+    assert_eq!(image.height, 4);
+    assert!(image.compressed);
+
+    let mut decoded = vec![0u8; pixels.len()];
+    decompress(image.data, &mut decoded).expect("zlib decompresses");
+    assert_eq!(decoded, pixels);
+}
+
+#[test]
+fn linked_cel_roundtrips_pointing_at_source_frame() {
+    let pixels = checker_rgba(2, 2);
+    let file = AseFile {
+        header: Header::new(4, 4, ColorDepth::Rgba),
+        layers: vec![rgba_layer("L0")],
+        palette: None,
+        tags: Vec::new(),
+        frames: vec![
+            Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 0,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    z_index: 0,
+                    content: CelContent::Image {
+                        width: 2,
+                        height: 2,
+                        data: pixels.clone(),
+                    },
+                }],
+            },
+            Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 0,
+                    x: 0,
+                    y: 0,
+                    opacity: 255,
+                    z_index: 0,
+                    content: CelContent::Linked { frame_position: 0 },
+                }],
+            },
+        ],
+    };
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("loader parses our output");
+
+    assert_eq!(parsed.frames.len(), 2);
+    let f0 = parsed.frames[0].cels[0].as_ref().unwrap();
+    assert!(matches!(&f0.content, LoaderCelContent::Image(_)));
+    let f1 = parsed.frames[1].cels[0].as_ref().unwrap();
+    match &f1.content {
+        LoaderCelContent::LinkedCel { frame_position } => assert_eq!(*frame_position, 0),
+        other => panic!("expected LinkedCel content, got {other:?}"),
+    }
+}
+
+#[test]
+fn multi_cel_across_layers_and_frames_roundtrips() {
+    let red = vec![255, 0, 0, 255]; // 1x1 RGBA
+    let green = vec![0, 255, 0, 255];
+    let blue = vec![0, 0, 255, 255];
+
+    let file = AseFile {
+        header: Header::new(4, 4, ColorDepth::Rgba),
+        layers: vec![rgba_layer("Bottom"), rgba_layer("Top")],
+        palette: None,
+        tags: Vec::new(),
+        frames: vec![
+            Frame {
+                duration: 100,
+                cels: vec![
+                    CelChunk {
+                        layer_index: 0,
+                        x: 0,
+                        y: 0,
+                        opacity: 255,
+                        z_index: 0,
+                        content: CelContent::Image {
+                            width: 1,
+                            height: 1,
+                            data: red.clone(),
+                        },
+                    },
+                    CelChunk {
+                        layer_index: 1,
+                        x: 1,
+                        y: 1,
+                        opacity: 255,
+                        z_index: 0,
+                        content: CelContent::Image {
+                            width: 1,
+                            height: 1,
+                            data: green.clone(),
+                        },
+                    },
+                ],
+            },
+            Frame {
+                duration: 100,
+                cels: vec![CelChunk {
+                    layer_index: 1,
+                    x: 2,
+                    y: 2,
+                    opacity: 128,
+                    z_index: 0,
+                    content: CelContent::Image {
+                        width: 1,
+                        height: 1,
+                        data: blue.clone(),
+                    },
+                }],
+            },
+        ],
+    };
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("loader parses our output");
+
+    assert_eq!(parsed.layers.len(), 2);
+    assert_eq!(parsed.frames.len(), 2);
+
+    // Frame 0: both layers populated.
+    let f0_l0 = parsed.frames[0].cels[0].as_ref().unwrap();
+    let f0_l1 = parsed.frames[0].cels[1].as_ref().unwrap();
+    assert_eq!((f0_l0.x, f0_l0.y), (0, 0));
+    assert_eq!((f0_l1.x, f0_l1.y), (1, 1));
+
+    // Frame 1: only layer 1 populated.
+    assert!(parsed.frames[1].cels[0].is_none());
+    let f1_l1 = parsed.frames[1].cels[1].as_ref().unwrap();
+    assert_eq!(f1_l1.opacity, 128);
+    assert_eq!((f1_l1.x, f1_l1.y), (2, 2));
+
+    // Spot-check pixel data on one cel.
+    if let LoaderCelContent::Image(img) = &f0_l0.content {
+        let mut decoded = vec![0u8; 4];
+        decompress(img.data, &mut decoded).unwrap();
+        assert_eq!(decoded, red);
+    } else {
+        panic!("expected image cel for f0_l0");
+    }
 }
 
 #[test]
