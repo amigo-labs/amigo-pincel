@@ -8,6 +8,7 @@ pub mod command;
 pub mod document;
 pub mod error;
 pub mod geometry;
+pub mod render;
 
 pub use command::{AddFrame, AddLayer, AnyCommand, Bus, Command, CommandError, SetPixel};
 
@@ -18,3 +19,6 @@ pub use document::{
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect};
+pub use render::{
+    ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays, RenderError, compose,
+};
