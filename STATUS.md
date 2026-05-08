@@ -111,7 +111,7 @@ _Last updated: 2026-05-08_
   integration tests (single layer/frame round-trip, multi-layer with
   blend mode + offset, bogus blend-mode rejection)
 
-### M5 — `aseprite-writer` crate (partial) 🚧
+### M5 — `aseprite-writer` crate (cel chunks) 🚧
 
 - New workspace member `crates/aseprite-writer`. Standalone, no
   `pincel-core` dependency. MIT/Apache dual license with the
@@ -138,35 +138,63 @@ _Last updated: 2026-05-08_
 - `WriteError` (`thiserror`): `Io`, `FrameCountMismatch`, `TooMany`,
   `StringTooLong`, `MissingTilesetIndex`, `EmptyPalette`,
   `PaletteRangeOverflow`, `InvalidTagRange`.
-- 15 unit tests + 5 round-trip integration tests (`tests/roundtrip.rs`)
+- 19 unit tests + 8 round-trip integration tests (`tests/roundtrip.rs`)
   that build an `AseFile`, write it, parse with `aseprite-loader`, and
   assert structural equality. Coverage: empty RGBA sprite, three-layer
   blend-mode preservation, palette via `parse_raw_file` (RGBA palette
   is dropped by the high-level loader API), tags with all three
-  directions, and end-to-end (header, layer, palette, tags, multiple
-  frames) including a `header.file_size == bytes.len()` check.
+  directions, end-to-end (header, layer, palette, tags, multiple
+  frames) including a `header.file_size == bytes.len()` check, and the
+  cel-chunk coverage below.
+
+### M5 sub-task — Cel chunk (`0x2005`) + zlib ✅
+
+- `flate2 = "1"` added to workspace deps (spec §8.3 explicitly authorizes
+  it for cel pixel data) and to `aseprite-writer/Cargo.toml`.
+- `CelChunk { layer_index, x, y, opacity, z_index, content }` exposed
+  from `lib.rs`. `CelContent::Image { width, height, data }` (Cel Type
+  2, Compressed Image) and `CelContent::Linked { frame_position }`
+  (Cel Type 1) cover the chunk variants used today.
+- `Frame { duration, cels }` — per-frame chunk vector. Cels are
+  emitted into the frame they belong to (no duplication into frame 0).
+- Wire-format layout matches the spec / `aseprite-loader` parser:
+  WORD layer_index, SHORT x, SHORT y, BYTE opacity, WORD cel_type,
+  SHORT z_index, 5 reserved bytes, then the variant body. Compressed
+  Image bodies prepend WORD width / WORD height before zlib-compressed
+  pixel bytes (`flate2::write::ZlibEncoder`, default compression).
+  Linked Cel bodies are a single WORD frame_position.
+- New `ColorDepth::bytes_per_pixel()` helper (4 / 2 / 1) feeds the cel
+  size validation.
+- `WriteError` gains `CelImageSizeMismatch`, `CelLayerIndexOutOfRange`,
+  and `CelLinkedFrameOutOfRange` so callers catch obviously-wrong cels
+  before bytes hit the wire.
+- 4 new unit tests + 3 new round-trip integration tests:
+  single image cel with pixel-content assertion (zlib-decompressed),
+  linked cel pointing back at frame 0, multi-cel across two layers and
+  two frames (with one slot left empty so the loader yields `None`).
 
 ### Build status
 
-`cargo check`, `cargo test --workspace` (85 unit + 6 command + 3 render
-+ 6 aseprite_read + 5 roundtrip integration), `cargo clippy --workspace
+`cargo check`, `cargo test --workspace` (89 unit + 6 command + 3 render
++ 6 aseprite_read + 8 roundtrip integration), `cargo clippy --workspace
 --all-targets -- -D warnings`, and `cargo fmt --check` are all green on
-the `claude/continue-from-status-fqnyi` branch.
+the `claude/continue-from-status-bOUQU` branch.
 
 ## Next concrete task
 
-**M5 — Cel chunk (`0x2005`) and zlib compression.** Add
-`flate2 = "1"` to the workspace deps (spec §8.3 explicitly authorizes
-it). Define `CelChunk { layer_index, x, y, opacity, z_index, content }`
-and `CelContent::Image { width, height, data }` /
-`CelContent::LinkedCel { frame_position }` mirroring the loader.
-Implement Cel Type 2 (Compressed Image) write with zlib of raw RGBA
-pixels and Cel Type 1 (Linked Cel) write. Add the cels into per-frame
-chunk emission (today only frame 0 carries chunks; cels go in their
-own frame). Round-trip tests: single image cel, linked cel, multi-cel
-across layers and frames. Once green, retire the byte-level fixture
-builder in `crates/pincel-core/tests/aseprite_read.rs` and glue the
-`pincel-core::codec` write side to `aseprite-writer`.
+**M5 — `pincel-core::codec::aseprite_write` adapter.** Add a
+`pincel-core` dev / non-dev dependency on `aseprite-writer` (workspace
+member, no external lookup needed) and write
+`codec::write_aseprite(&Sprite, &CelMap, &mut impl Write) ->
+Result<(), CodecError>`. The adapter mirrors `read_aseprite`'s
+inverse: walk `Sprite::layers` in z-order to emit `LayerChunk`s, walk
+`Sprite::frames` to build `Frame { duration, cels }` from `CelMap`,
+encode each `CelData::Image` as `CelContent::Image` and
+`CelData::Linked` as `CelContent::Linked`. RGBA-only for now (mirror
+the M3/M4 scope); indexed / grayscale raise `UnsupportedColorMode`.
+Once green, retire the hand-crafted byte-level fixture builder in
+`crates/pincel-core/tests/aseprite_read.rs` — its tests should drive
+through the adapter pair (`write_aseprite` then `read_aseprite`).
 
 **M5 follow-ups beyond CLAUDE.md M5 scope but in spec §8.3.**
 Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`, compatibility),
