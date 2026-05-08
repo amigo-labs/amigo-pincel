@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-08_ (M6.1 `pincel-wasm` crate skeleton)
+_Last updated: 2026-05-08_ (M6.2 `Document::compose` entry point)
 
 ## Completed
 
@@ -272,12 +272,46 @@ _Last updated: 2026-05-08_ (M6.1 `pincel-wasm` crate skeleton)
 - 5 unit tests in `pincel-wasm`: constructor success, two
   zero-dimension rejections, save→open round-trip on a fresh
   document, and a garbage-bytes rejection.
+- Copilot review on PR #8 picked up:
+  - Replaced `Frame::default()` with `Frame::new(100)` so the
+    documented "100 ms first frame" invariant lives at the call
+    site rather than depending on `Frame::default` staying at
+    100 ms.
+  - Rewrote the `Document::new` error doc to describe the failure
+    condition (zero width / height) instead of naming a
+    `pincel_core` internal variant; the `Err(String)` body is
+    surfaced from `Display`, not part of the JS contract.
+  - Added "failed to build sprite" / "failed to open Aseprite" /
+    "failed to save Aseprite" prefixes on every `map_err`, so a
+    thrown JS exception identifies which step failed.
+
+### M6 — `Document::compose` (M6.2) ✅
+
+- New `pincel_core::compose` re-export plumbed through to JS as
+  `Document.compose(frame, zoom)`.
+- Surface kept narrow for the M6.2 slice: full-canvas viewport,
+  default `LayerFilter::Visible`, no overlays / onion skin,
+  no `dirty_hint`. Viewport / filter / overlay knobs land in a
+  follow-up sub-task once the UI surfaces a need.
+- Companion struct `ComposeFrame { width, height, pixels }` with
+  three `#[wasm_bindgen(getter)]` accessors. The `pixels` getter
+  returns a fresh `Box<[u8]>` (materialized as `Uint8Array` on the
+  JS side); spec §9.3 calls for a zero-copy `Uint8ClampedArray`
+  view of WASM memory, which lands once `js-sys` is wired up
+  (M6 follow-up).
+- `frame: u32` → `FrameIndex::new`, `zoom: u32` clamped by
+  `pincel_core::compose` itself (`InvalidZoom` for `0` or
+  `> MAX_ZOOM`). `RenderError` surfaces with a "failed to compose"
+  prefix.
+- 5 new unit tests (10 total): zero-layer transparent output at
+  1× zoom, integer-zoom output dimensions at 4×, plus three error
+  paths (unknown frame, zoom 0, zoom 65).
 
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (84 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 5 pincel-wasm unit),
+round-trip + 8 aseprite-writer roundtrip + 10 pincel-wasm unit),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
 `claude/continue-from-status-dJv5F` branch.
@@ -288,10 +322,11 @@ CLAUDE.md M6 ("`pincel-wasm` + minimal Svelte UI") is L-sized so it
 ships as a sequence of S/M tasks:
 
 - [x] **M6.1** — `pincel-wasm` crate skeleton: `Document::new`,
-  `openAseprite`, `saveAseprite`, basic getters. (this commit)
-- [ ] **M6.2** — `Document::compose`: expose `pincel_core::compose`
-  through a JS-friendly request struct, return RGBA pixels as a
-  zero-copy `Uint8ClampedArray` view of WASM memory.
+  `openAseprite`, `saveAseprite`, basic getters.
+- [x] **M6.2** — `Document::compose` returning a `ComposeFrame`
+  struct (`width`, `height`, `pixels`). Today the buffer is
+  copied into a fresh `Uint8Array`; zero-copy `Uint8ClampedArray`
+  views of WASM memory are deferred until `js-sys` is wired up.
 - [ ] **M6.3** — `Document::applyTool` with a Pencil implementation
   routed through `pincel_core::SetPixel` + the command bus.
   Includes default-layer / default-cel bootstrap so a freshly-
