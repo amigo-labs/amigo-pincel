@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M7.3: Line tool — `DrawLine` command, `Document::applyLine`, UI Bresenham preview overlay)
+_Last updated: 2026-05-10_ (M7.4: Rectangle tool — `DrawRectangle { fill }` command, `Document::applyRectangle`, UI outline + filled rect preview overlay with Shift-to-square)
 
 ## Completed
 
@@ -635,15 +635,74 @@ _Last updated: 2026-05-10_ (M7.3: Line tool — `DrawLine` command, `Document::a
   as the Rust `DrawLine`, so the in-flight preview is pixel-exact
   with what `applyLine` will commit.
 
+### M7 — Rectangle tool (M7.4) ✅
+
+- New `pincel_core::DrawRectangle` command (`crates/pincel-core/src/
+  command/draw_rectangle.rs`). Rasterizes an axis-aligned rectangle
+  between two sprite-space corners — outline if `fill == false`, filled
+  if `fill == true`. The outline walks the four edges with corner
+  deduplication; the fill walks the interior rect. Both paths capture
+  per-modified-pixel prior RGBA for revert. Endpoint order is
+  irrelevant; the rasterizer normalizes to `(min_x, min_y, max_x,
+  max_y)` before iterating. Pixels outside the target cel are skipped
+  silently per the natural drawing-tool clipping semantics; the
+  iteration is clipped to the cel bounds up front so even
+  `(i32::MIN, i32::MIN)` → `(i32::MAX, i32::MAX)` corners stay
+  bounded in memory. Errors mirror `DrawLine` (`MissingCel`,
+  `NotAnImageCel`, `UnsupportedColorMode`). No `merge`: each rect is
+  its own command, one press-drag-release per undo step. Constructor
+  takes corners as `(i32, i32)` tuples so the 6-arg signature
+  satisfies `clippy::too_many_arguments` (adding a `fill` flag to a
+  4-scalar-coords signature would have crossed the 7-arg limit).
+- `AnyCommand::DrawRectangle` variant + `From<DrawRectangle>` impl plumb
+  the command through the bus. Re-exported from `pincel_core::lib.rs`
+  alongside `SetPixel` / `DrawLine`.
+- `pincel-wasm::Document::apply_rectangle(x0, y0, x1, y1, color, fill)`
+  (`js_name = applyRectangle`). Packed `0xRRGGBBAA` color, targets the
+  same active layer / frame as the pencil (lowest-z `LayerKind::Image`,
+  frame 0). Emits a single `dirty-rect` event covering the rectangle's
+  axis-aligned bounding box (always positive `width` / `height`,
+  endpoint order doesn't matter). Reuses the bbox helper from M7.3,
+  which was renamed `line_bbox → endpoint_bbox` to reflect its new
+  dual purpose (line segments and rectangles share the same 2-point
+  bbox math).
+- 18 new `pincel-core` unit tests (122 total): outline / fill apply +
+  revert + reversed-endpoint equivalence + single-pixel + 1-D
+  degenerate outline + cel-bounds clipping (entire rect outside,
+  partial overlap) + offset-cel local coords + missing-cel error +
+  no-merge + extreme-endpoint clipping (both modes). 7 new
+  `pincel-wasm` unit tests (51 total): outline / fill writes, undo bus
+  integration, bbox dirty-rect (forward and reversed endpoints),
+  missing image layer error, single-pixel outline.
+- UI gains **Rect** and **Rect Fill** toolbar buttons alongside
+  Pencil / Eraser / Eyedropper / Line. The `Tool` union widens to
+  include `'rectangle'` and `'rectangle-fill'`. The Line tool's
+  press / drag / release plumbing is generalized into a shared
+  drag-shape pipeline (`isDragShapeTool`, `dragStart`,
+  `dragPreview`, `dragTool`, `dragShift`) so the same press / move /
+  release handlers drive Line, Rect, and Rect Fill. The new
+  `paintRectanglePreview(canvas, x0, y0, x1, y1, color, fill)` helper
+  in `lib/render/canvas2d.ts` overlays the in-flight rectangle on
+  top of the freshly-blitted composed frame; the helper mirrors the
+  Rust rasterizer's outline / fill semantics pixel-for-pixel.
+- Shift-to-square is a pure UI affordance: while a Rect / Rect Fill
+  drag is in flight, the `constrainedEndpoint()` helper transforms
+  the live endpoint so `|dx| == |dy|` (extending the smaller axis to
+  match the larger). The Rust command takes raw corners — the
+  modifier is applied on `pointermove` / `pointerup` before the
+  endpoint is handed to `doc.applyRectangle`. The Line tool does not
+  apply the constraint, matching the Aseprite-style "rectangle Shift
+  = square, line Shift = TBD" mapping in spec §5.2.
+
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (104 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (122 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 43 pincel-wasm unit + 2
+round-trip + 8 aseprite-writer roundtrip + 51 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-work-GX1SI` branch. `pnpm install`,
+`claude/continue-work-HCFP0` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -668,8 +727,12 @@ behavior.
   `DrawLine` command storing per-pixel deltas; UI Bresenham preview
   overlay while dragging via a `paintLinePreview` helper that mirrors
   the Rust rasterizer pixel-for-pixel.
-- [ ] **M7.4** — Rectangle (outline + filled). New
-  `DrawRectangle { fill }` command; Shift constrains to square.
+- [x] **M7.4** — Rectangle (outline + filled). New
+  `DrawRectangle { fill }` command stores per-pixel deltas for revert
+  with cel-bounds clipping up front (so extreme corners stay bounded
+  in memory); UI ships Rect + Rect Fill buttons sharing a generalized
+  drag-shape pipeline with Line, and Shift-to-square is applied as a
+  pure UI endpoint transform via `constrainedEndpoint()`.
 - [ ] **M7.5** — Ellipse (outline + filled). Midpoint algorithm;
   Shift constrains to circle.
 - [ ] **M7.6** — Bucket. Contiguous flood-fill, tolerance 0 in MVP

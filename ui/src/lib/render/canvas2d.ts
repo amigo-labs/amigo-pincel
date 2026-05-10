@@ -60,6 +60,71 @@ export function paintLinePreview(
   }
 }
 
+/**
+ * Overlay an axis-aligned rectangle (outline or filled) on top of the
+ * current canvas contents. Coordinates are in the canvas's pixel space
+ * (i.e. sprite coords for the M6 single-frame, 1× compose path).
+ *
+ * Endpoint order is irrelevant — the helper normalizes to min / max
+ * corners before rasterizing, matching the Rust `DrawRectangle`
+ * behavior so the preview is pixel-exact with what `applyRectangle`
+ * commits on release.
+ */
+export function paintRectanglePreview(
+  canvas: HTMLCanvasElement,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  color: string,
+  fill: boolean,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.fillStyle = color;
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  // Pointer-capture drags can place the live endpoint far outside the
+  // canvas. Clip the iteration ranges to the canvas up front and emit
+  // each edge / fill as a single span `fillRect` so the preview stays
+  // O(1) regardless of how far the cursor strays.
+  const loX = Math.max(minX, 0);
+  const hiX = Math.min(maxX, canvas.width - 1);
+  const xInView = loX <= hiX;
+  if (fill) {
+    const loY = Math.max(minY, 0);
+    const hiY = Math.min(maxY, canvas.height - 1);
+    if (xInView && loY <= hiY) {
+      ctx.fillRect(loX, loY, hiX - loX + 1, hiY - loY + 1);
+    }
+    return;
+  }
+  const topInView = xInView && minY >= 0 && minY < canvas.height;
+  const bottomDistinct = maxY > minY;
+  const bottomInView =
+    bottomDistinct && xInView && maxY >= 0 && maxY < canvas.height;
+  if (topInView) {
+    ctx.fillRect(loX, minY, hiX - loX + 1, 1);
+  }
+  if (bottomInView) {
+    ctx.fillRect(loX, maxY, hiX - loX + 1, 1);
+  }
+  if (bottomDistinct && maxY > minY + 1) {
+    const sideLoY = Math.max(minY + 1, 0);
+    const sideHiY = Math.min(maxY - 1, canvas.height - 1);
+    if (sideLoY <= sideHiY) {
+      if (minX >= 0 && minX < canvas.width) {
+        ctx.fillRect(minX, sideLoY, 1, sideHiY - sideLoY + 1);
+      }
+      if (maxX > minX && maxX >= 0 && maxX < canvas.width) {
+        ctx.fillRect(maxX, sideLoY, 1, sideHiY - sideLoY + 1);
+      }
+    }
+  }
+}
+
 function* bresenham(
   x0: number,
   y0: number,

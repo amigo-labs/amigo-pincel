@@ -25,9 +25,9 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawLine, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel, Sprite, compose, read_aseprite,
-    write_aseprite,
+    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawLine, DrawRectangle,
+    Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel, Sprite,
+    compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -266,7 +266,59 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply line: {e}"))?;
-        let bbox = line_bbox(x0, y0, x1, y1);
+        let bbox = endpoint_bbox(x0, y0, x1, y1);
+        self.events.push(Event::dirty_rect(
+            layer.0, frame.0, bbox.0, bbox.1, bbox.2, bbox.3,
+        ));
+        Ok(())
+    }
+
+    /// Rasterize an axis-aligned rectangle between sprite-space corners
+    /// `(x0, y0)` and `(x1, y1)` with the given non-premultiplied RGBA
+    /// color, routed through the command bus as a single
+    /// [`DrawRectangle`](pincel_core::DrawRectangle).
+    ///
+    /// `fill == false` writes the 1-pixel border; `fill == true` writes
+    /// every pixel in the interior (border included). `color` is packed
+    /// as `0xRRGGBBAA` (matching [`Self::apply_tool`]). The command
+    /// targets the same active layer / frame as the pencil — today the
+    /// lowest-z `LayerKind::Image` layer and frame `0`. Pixels outside
+    /// the target cel are skipped silently per the natural drawing-tool
+    /// clipping semantics; only a missing image layer surfaces as an
+    /// error here. Endpoint order does not matter — the underlying
+    /// command normalizes to min / max corners before rasterizing.
+    ///
+    /// The emitted `dirty-rect` event covers the rectangle's
+    /// axis-aligned bounding box in sprite space.
+    #[wasm_bindgen(js_name = applyRectangle)]
+    pub fn apply_rectangle(
+        &mut self,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: u32,
+        fill: bool,
+    ) -> Result<(), String> {
+        let rgba = Rgba {
+            r: ((color >> 24) & 0xff) as u8,
+            g: ((color >> 16) & 0xff) as u8,
+            b: ((color >> 8) & 0xff) as u8,
+            a: (color & 0xff) as u8,
+        };
+        let layer = self
+            .sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
+            .id;
+        let frame = FrameIndex::new(0);
+        let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to apply rectangle: {e}"))?;
+        let bbox = endpoint_bbox(x0, y0, x1, y1);
         self.events.push(Event::dirty_rect(
             layer.0, frame.0, bbox.0, bbox.1, bbox.2, bbox.3,
         ));
@@ -363,13 +415,14 @@ impl Document {
     }
 }
 
-/// Axis-aligned bounding box of a line segment in sprite coordinates.
-/// Returns `(x, y, width, height)` with `width >= 1` and `height >= 1`.
+/// Axis-aligned bounding box of two sprite-space points (a line segment
+/// or rectangle defined by opposite corners). Returns
+/// `(x, y, width, height)` with `width >= 1` and `height >= 1`.
 ///
 /// For endpoint pairs whose span exceeds `u32::MAX` (e.g. `i32::MIN` to
 /// `i32::MAX`), the width / height are saturated to `u32::MAX` so the
 /// emitted event still satisfies the documented `>= 1` invariant.
-fn line_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
+fn endpoint_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
     let min_x = x0.min(x1);
     let min_y = y0.min(y1);
     let max_x = x0.max(x1);
@@ -813,22 +866,126 @@ mod tests {
     }
 
     #[test]
-    fn line_bbox_is_positive_for_any_endpoint_order() {
-        assert_eq!(line_bbox(0, 0, 3, 5), (0, 0, 4, 6));
-        assert_eq!(line_bbox(3, 5, 0, 0), (0, 0, 4, 6));
-        assert_eq!(line_bbox(2, 2, 2, 2), (2, 2, 1, 1));
-        assert_eq!(line_bbox(-3, -2, 1, 2), (-3, -2, 5, 5));
+    fn endpoint_bbox_is_positive_for_any_endpoint_order() {
+        assert_eq!(endpoint_bbox(0, 0, 3, 5), (0, 0, 4, 6));
+        assert_eq!(endpoint_bbox(3, 5, 0, 0), (0, 0, 4, 6));
+        assert_eq!(endpoint_bbox(2, 2, 2, 2), (2, 2, 1, 1));
+        assert_eq!(endpoint_bbox(-3, -2, 1, 2), (-3, -2, 5, 5));
     }
 
     #[test]
-    fn line_bbox_saturates_at_u32_max_for_extreme_endpoints() {
+    fn endpoint_bbox_saturates_at_u32_max_for_extreme_endpoints() {
         // Span of `i32::MAX - i32::MIN + 1 == 2^32` overflows `u32`; the
         // saturating cast clamps to `u32::MAX` so the dirty-rect event
         // still satisfies the `width >= 1` / `height >= 1` invariant.
-        let (x, y, w, h) = line_bbox(i32::MIN, i32::MIN, i32::MAX, i32::MAX);
+        let (x, y, w, h) = endpoint_bbox(i32::MIN, i32::MIN, i32::MAX, i32::MAX);
         assert_eq!(x, i32::MIN);
         assert_eq!(y, i32::MIN);
         assert_eq!(w, u32::MAX);
         assert_eq!(h, u32::MAX);
+    }
+
+    #[test]
+    fn apply_rectangle_outline_writes_only_the_border() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(1, 1, 4, 4, 0x335577ff, false)
+            .expect("rect ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        // Border pixels.
+        for x in 1..=4u32 {
+            assert_eq!(pixel_at(&pixels, 8, x, 1), [0x33, 0x55, 0x77, 0xff]);
+            assert_eq!(pixel_at(&pixels, 8, x, 4), [0x33, 0x55, 0x77, 0xff]);
+        }
+        for y in 2..=3u32 {
+            assert_eq!(pixel_at(&pixels, 8, 1, y), [0x33, 0x55, 0x77, 0xff]);
+            assert_eq!(pixel_at(&pixels, 8, 4, y), [0x33, 0x55, 0x77, 0xff]);
+        }
+        // Interior stays transparent.
+        for y in 2..=3u32 {
+            for x in 2..=3u32 {
+                assert_eq!(pixel_at(&pixels, 8, x, y), [0, 0, 0, 0]);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_rectangle_fill_writes_every_pixel_in_the_bbox() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(1, 1, 3, 3, 0xff0080ff, true)
+            .expect("rect ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 1..=3u32 {
+            for x in 1..=3u32 {
+                assert_eq!(pixel_at(&pixels, 8, x, y), [0xff, 0x00, 0x80, 0xff]);
+            }
+        }
+        assert_eq!(pixel_at(&pixels, 8, 0, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 8, 4, 4), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn apply_rectangle_joins_the_undo_bus() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(0, 0, 7, 7, 0x112233ff, true)
+            .expect("rect ok");
+        assert_eq!(doc.undo_depth(), 1);
+        assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..8u32 {
+            for x in 0..8u32 {
+                assert_eq!(pixel_at(&pixels, 8, x, y), [0, 0, 0, 0]);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_rectangle_emits_bounding_box_dirty_rect() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        doc.apply_rectangle(2, 5, 7, 9, 0x00ff00ff, false)
+            .expect("rect ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.kind(), "dirty-rect");
+        assert_eq!(ev.x(), 2);
+        assert_eq!(ev.y(), 5);
+        assert_eq!(ev.width(), 6);
+        assert_eq!(ev.height(), 5);
+    }
+
+    #[test]
+    fn apply_rectangle_reversed_endpoints_have_positive_bbox() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(6, 6, 1, 1, 0x000000ff, true)
+            .expect("rect ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.x(), 1);
+        assert_eq!(ev.y(), 1);
+        assert_eq!(ev.width(), 6);
+        assert_eq!(ev.height(), 6);
+    }
+
+    #[test]
+    fn apply_rectangle_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(3), "folder"));
+        let err = doc
+            .apply_rectangle(0, 0, 1, 1, 0x000000ff, false)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
+    }
+
+    #[test]
+    fn apply_rectangle_single_pixel_writes_one_pixel_when_outline() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_rectangle(2, 1, 2, 1, 0xabcd01ff, false)
+            .expect("rect ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 1), [0xab, 0xcd, 0x01, 0xff]);
     }
 }
