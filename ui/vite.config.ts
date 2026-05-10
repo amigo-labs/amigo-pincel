@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [svelte(), tailwindcss()],
   server: {
     fs: {
-      allow: ['..', '../crates/pincel-wasm/pkg'],
+      allow: ['../crates/pincel-wasm/pkg'],
     },
   },
 });

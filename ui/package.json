@@ -10,7 +10,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --out-dir pkg"
+    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg",
+    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg"
   },
   "dependencies": {},
   "devDependencies": {

@@ -409,12 +409,14 @@ _Last updated: 2026-05-10_ (M6.5 Svelte 5 + Vite + Tailwind 4 scaffold)
     produces `pincel_wasm.{js,d.ts}` plus the wasm binary in
     `crates/pincel-wasm/pkg/`. The actual `import` from `ui/` lands
     in M6.6.
-- `crates/pincel-wasm/Cargo.toml` opts out of `wasm-opt` via
-  `[package.metadata.wasm-pack.profile.{release,dev}]` so the build
-  works in environments without the bundled binaryen downloader's
-  network path. Re-enable post-deploy if a release build needs the
-  size win — the Phase 1 wasm bundle is a few hundred KB and the
-  optimization is not on the critical path. (Open question below.)
+- `crates/pincel-wasm/Cargo.toml` opts out of `wasm-opt` for the
+  `dev` wasm-pack profile only
+  (`[package.metadata.wasm-pack.profile.dev]`); release stays
+  optimized so CI / deploy can pick up the size win. The local
+  `pnpm wasm:build` script uses `--dev` for fast iteration in
+  environments without `wasm-opt`; `pnpm wasm:build:release`
+  triggers the optimized variant for release builds. (Open
+  question below.)
 - Empty canvas page (`ui/src/App.svelte`): a 64×64 `<canvas>` shown
   at 8× via CSS with `image-rendering: pixelated`, framed by a
   header / footer shell that previews the spec §9.2 layout. The
@@ -553,11 +555,14 @@ Plan when a fixture surfaces the need:
   file that `aseprite-loader` then refuses to parse. Decide whether
   to enforce ≥1 frame in `SpriteBuilder::build`, or leave it as a
   "valid Pincel document, invalid Aseprite file" affordance.
-- `wasm-opt` is disabled in `pincel-wasm/Cargo.toml` (M6.5). The
-  bundled `wasm-pack` downloader fails to fetch the `binaryen`
+- `wasm-opt` is disabled for the `dev` wasm-pack profile in
+  `pincel-wasm/Cargo.toml` (M6.5, narrowed after PR #11 review).
+  The bundled `wasm-pack` downloader fails to fetch the `binaryen`
   release tarball in the dev environment even when GitHub itself
-  is reachable. Re-enable in CI once a deploy story exists, or pin
-  a system `wasm-opt` and point `wasm-pack` at it via
-  `WASM_OPT_PATH`. Either way the size win (~30 % typical) is not
-  on the Phase 1 critical path; the wasm bundle is a few hundred
-  KB unoptimized.
+  is reachable. The `release` profile keeps `wasm-opt` enabled so
+  CI / deploy can pick up the size win once those workflows exist;
+  contributors building locally use `pnpm wasm:build` (`--dev`)
+  for fast iteration and `pnpm wasm:build:release` only when they
+  have a working `wasm-opt`. Pin a system `wasm-opt` and point
+  `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy
+  story lands.
