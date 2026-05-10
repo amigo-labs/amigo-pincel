@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M6.5 Svelte 5 + Vite + Tailwind 4 scaffold)
+_Last updated: 2026-05-10_ (M6.6 UI wired to pincel-wasm: open / paint / save MVP)
 
 ## Completed
 
@@ -438,6 +438,70 @@ _Last updated: 2026-05-10_ (M6.5 Svelte 5 + Vite + Tailwind 4 scaffold)
   `cargo test --workspace`, `cargo clippy --workspace --all-targets
   -- -D warnings`, and `cargo fmt --all --check` remain green.
 
+### M6 — UI wired to `pincel-wasm` (M6.6) ✅
+
+- `ui/package.json` gains a single runtime dep,
+  `"pincel-wasm": "link:../crates/pincel-wasm/pkg"`. pnpm creates a
+  symlink into `ui/node_modules/pincel-wasm/` pointing at the
+  wasm-pack output, which keeps the import surface clean
+  (`from 'pincel-wasm'`) and avoids relative-path noise in source
+  files. The pkg directory is gitignored (M6.5 carry-over); a
+  clean checkout runs `pnpm wasm:build` before `pnpm install` /
+  `pnpm dev` / `pnpm build`. CI orchestration lands later.
+- New `ui/src/lib/core/index.ts` adapter (per CLAUDE.md §5.4 —
+  "UI never imports `pincel-wasm` directly"):
+  - `loadCore()` — idempotent wasm initializer. Internally calls
+    `__wbg_init({ module_or_path })` exactly once, caching the
+    resulting `Promise<void>`. The `?url` import of
+    `pincel_wasm_bg.wasm` is the canonical Vite asset-URL form;
+    it survives the production bundler unchanged and dropped the
+    inline `new URL(…, import.meta.url)` fallback the wasm-pack
+    JS would otherwise rely on.
+  - Re-exports `Document`, `type ComposeFrame`, `type PincelEvent`
+    (`Event` is renamed at the boundary to avoid colliding with
+    DOM `Event`).
+- New `ui/src/lib/render/canvas2d.ts`:
+  - `blitFrame(canvas, frame)` resizes the backing store to the
+    frame dimensions and writes a single `putImageData` with a
+    fresh `Uint8ClampedArray` view of the wasm-side RGBA8 bytes.
+    The CSS dimensions stay fixed at 512×512 with
+    `image-rendering: pixelated`, so a 64×64 sprite renders as an
+    8× crisp blit and other canvas sizes scale to fit the same
+    box. The WebGPU renderer per spec §9.2 is M12.
+- Rewritten `ui/src/App.svelte` (single component, Svelte 5
+  runes — `$state` for reactive fields, no stores yet):
+  - Toolbar: **New** (64×64 blank doc), **Open…** (`<input
+    type=file accept=".aseprite,.ase">` triggered by a hidden
+    input + button), **Save** (`saveAseprite` → `Blob` →
+    download-anchor click → `URL.revokeObjectURL`), **Undo**,
+    **Redo**, color picker (`<input type=color>` → packed
+    `0xRRGGBBAA` with alpha `0xff`).
+  - Canvas: 512×512 CSS, pointer-capture-based pencil drag
+    (`pointerdown` → `setPointerCapture` + paint, `pointermove`
+    paints while painting flag is set, `pointerup` /
+    `pointercancel` release). Sprite-space coordinates derived
+    from `getBoundingClientRect()` + `canvas.width / rect.width`
+    scaling, `Math.floor`-snapped. Out-of-bounds drags are
+    swallowed — the wasm `applyTool` raises on
+    `PixelOutOfBounds`, the UI doesn't surface it.
+  - RAF loop drains `Document.drainEvents()` once per frame;
+    any non-empty drain marks the canvas dirty, which triggers a
+    full `compose(0, 1)` + `blitFrame`. The per-frame coalescing
+    means a 60 fps pencil drag emits one paint per RAF tick
+    regardless of how many `applyTool` calls landed in between.
+    Per-event ring-buffer entries are freed after draining (the
+    `compose` follow-up frees its own).
+  - Status bar surfaces the active operation (`ready`, `opened
+    foo.aseprite · 32×32`, `saved 1234 bytes`, …) plus
+    `width×height` / `undo N / redo N`.
+- Verified: `pnpm install`, `pnpm wasm:build` (1.4 MB dev wasm,
+  367 kB gzipped), `pnpm check` (0 errors / 0 warnings across
+  384 files), `pnpm lint`, `pnpm build` (47 KB JS / 9 KB CSS, the
+  wasm asset is the dominant payload). `cargo check --workspace`
+  and `cargo fmt --all --check` still green; no Rust source
+  changed. End-to-end paint round-trip not yet exercised in a
+  real browser — that's the M6.7 demo.
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (91 pincel-core
@@ -445,7 +509,7 @@ unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
 round-trip + 8 aseprite-writer roundtrip + 27 pincel-wasm unit),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-v1sgw` branch. `pnpm install`,
+`claude/continue-from-status-f4mEq` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -472,7 +536,7 @@ ships as a sequence of S/M tasks:
   4 set up. `pnpm wasm:build` script invokes `wasm-pack build
   --target web` and produces `crates/pincel-wasm/pkg/`. Empty
   canvas page (8×-zoomed 64×64 Canvas2D placeholder).
-- [ ] **M6.6** — Wire `pincel-wasm` package into the UI: open file
+- [x] **M6.6** — Wire `pincel-wasm` package into the UI: open file
   via `<input type=file>`, paint with Pencil on the canvas, save via
   download anchor. Single-tool MVP.
 - [ ] **M6.7** — End-to-end demo: open hand-crafted fixture, paint,
@@ -555,6 +619,17 @@ Plan when a fixture surfaces the need:
   file that `aseprite-loader` then refuses to parse. Decide whether
   to enforce ≥1 frame in `SpriteBuilder::build`, or leave it as a
   "valid Pincel document, invalid Aseprite file" affordance.
+- M6.6 ships with a fixed 512×512 CSS canvas: opening a non-square
+  or non-64-multiple sprite stretches each pixel to fit, which is
+  visually wrong outside 64×64. A zoom / fit-to-window control
+  ships with the M7 tool expansion (zoom is already part of the
+  `Document.compose` API; the missing piece is a UI surface).
+- `pincel-wasm` is linked via pnpm's `link:` protocol, which
+  expects the `crates/pincel-wasm/pkg/` directory to exist at
+  install time. The pkg/ directory is gitignored, so a clean
+  checkout has to run `pnpm wasm:build` before `pnpm install`.
+  CI / contributor docs should encode that order; a `prepare`
+  hook is one option once the deploy story is fleshed out.
 - `wasm-opt` is disabled for the `dev` wasm-pack profile in
   `pincel-wasm/Cargo.toml` (M6.5, narrowed after PR #11 review).
   The bundled `wasm-pack` downloader fails to fetch the `binaryen`
