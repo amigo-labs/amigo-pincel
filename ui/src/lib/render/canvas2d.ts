@@ -86,23 +86,40 @@ export function paintRectanglePreview(
   const maxX = Math.max(x0, x1);
   const minY = Math.min(y0, y1);
   const maxY = Math.max(y0, y1);
-  const paint = (x: number, y: number) => {
-    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
-    ctx.fillRect(x, y, 1, 1);
-  };
+  // Pointer-capture drags can place the live endpoint far outside the
+  // canvas. Clip the iteration ranges to the canvas up front and emit
+  // each edge / fill as a single span `fillRect` so the preview stays
+  // O(1) regardless of how far the cursor strays.
+  const loX = Math.max(minX, 0);
+  const hiX = Math.min(maxX, canvas.width - 1);
+  const xInView = loX <= hiX;
   if (fill) {
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) paint(x, y);
+    const loY = Math.max(minY, 0);
+    const hiY = Math.min(maxY, canvas.height - 1);
+    if (xInView && loY <= hiY) {
+      ctx.fillRect(loX, loY, hiX - loX + 1, hiY - loY + 1);
     }
     return;
   }
-  for (let x = minX; x <= maxX; x++) paint(x, minY);
-  if (maxY > minY) {
-    for (let x = minX; x <= maxX; x++) paint(x, maxY);
-    if (maxY > minY + 1) {
-      for (let y = minY + 1; y < maxY; y++) {
-        paint(minX, y);
-        if (maxX > minX) paint(maxX, y);
+  const topInView = xInView && minY >= 0 && minY < canvas.height;
+  const bottomDistinct = maxY > minY;
+  const bottomInView =
+    bottomDistinct && xInView && maxY >= 0 && maxY < canvas.height;
+  if (topInView) {
+    ctx.fillRect(loX, minY, hiX - loX + 1, 1);
+  }
+  if (bottomInView) {
+    ctx.fillRect(loX, maxY, hiX - loX + 1, 1);
+  }
+  if (bottomDistinct && maxY > minY + 1) {
+    const sideLoY = Math.max(minY + 1, 0);
+    const sideHiY = Math.min(maxY - 1, canvas.height - 1);
+    if (sideLoY <= sideHiY) {
+      if (minX >= 0 && minX < canvas.width) {
+        ctx.fillRect(minX, sideLoY, 1, sideHiY - sideLoY + 1);
+      }
+      if (maxX > minX && maxX >= 0 && maxX < canvas.width) {
+        ctx.fillRect(maxX, sideLoY, 1, sideHiY - sideLoY + 1);
       }
     }
   }
