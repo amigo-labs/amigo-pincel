@@ -126,6 +126,17 @@ export function paintRectanglePreview(
 }
 
 /**
+ * Largest bbox dimension (max - min, in canvas pixels) along either
+ * axis that this preview will attempt to rasterize. Matches
+ * `pincel_core::DrawEllipse::MAX_AXIS_SPAN`; beyond this the
+ * perimeter walk of the midpoint algorithm dominates the frame
+ * budget. Pointer-captured drags can deliver coordinates arbitrarily
+ * far outside the canvas, so the cap bounds preview work the same
+ * way the Rust command bounds apply.
+ */
+const MAX_AXIS_SPAN = 1 << 20;
+
+/**
  * Overlay the ellipse inscribed in the bbox of two sprite-space corners
  * (outline or filled) on top of the current canvas contents.
  * Coordinates are in canvas pixel space (i.e. sprite coords for the M6
@@ -134,7 +145,11 @@ export function paintRectanglePreview(
  * Mirrors `pincel_core::DrawEllipse` (Alois Zingl's integer midpoint
  * algorithm) so the preview matches the pixels `applyEllipse` commits
  * on release. Degenerate (zero-width / zero-height) bboxes collapse to
- * a single-axis line; out-of-canvas pixels are skipped.
+ * a single-axis line; out-of-canvas pixels are skipped. Bboxes whose
+ * axis span exceeds `MAX_AXIS_SPAN` are short-circuited to a no-op so
+ * a far-out drag cannot hang the UI on the perimeter walk — this
+ * matches the Rust command's behavior, so the preview agrees with the
+ * eventual commit (nothing drawn).
  */
 export function paintEllipsePreview(
   canvas: HTMLCanvasElement,
@@ -152,6 +167,26 @@ export function paintEllipsePreview(
   const maxX = Math.max(x0, x1);
   const minY = Math.min(y0, y1);
   const maxY = Math.max(y0, y1);
+  if (maxX - minX > MAX_AXIS_SPAN || maxY - minY > MAX_AXIS_SPAN) return;
+  // Degenerate-axis bboxes collapse to a single-axis line in both
+  // outline and fill modes (matches `pincel_core::DrawEllipse`).
+  // Clip the iteration range to the canvas before painting so a
+  // 1 M-pixel drag past the canvas doesn't run a 1 M-iteration
+  // `fillRect` loop — the in-canvas span is one `fillRect`.
+  if (minX === maxX) {
+    if (minX < 0 || minX >= canvas.width) return;
+    const loY = Math.max(minY, 0);
+    const hiY = Math.min(maxY, canvas.height - 1);
+    if (loY <= hiY) ctx.fillRect(minX, loY, 1, hiY - loY + 1);
+    return;
+  }
+  if (minY === maxY) {
+    if (minY < 0 || minY >= canvas.height) return;
+    const loX = Math.max(minX, 0);
+    const hiX = Math.min(maxX, canvas.width - 1);
+    if (loX <= hiX) ctx.fillRect(loX, minY, hiX - loX + 1, 1);
+    return;
+  }
   if (fill) {
     // Per-row x extents over the bbox's y range, restricted to canvas
     // rows so a far-out drag does not allocate per-pixel-row.
