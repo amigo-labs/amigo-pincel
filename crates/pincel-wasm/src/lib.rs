@@ -26,7 +26,7 @@ pub use events::Event;
 use events::EventQueue;
 use pincel_core::{
     AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, PixelBuffer, Rgba, SetPixel, Sprite, compose, read_aseprite,
+    LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel, Sprite, compose, read_aseprite,
     write_aseprite,
 };
 use wasm_bindgen::prelude::*;
@@ -221,6 +221,39 @@ impl Document {
         self.events
             .push(Event::dirty_rect(layer.0, frame.0, x, y, 1, 1));
         Ok(())
+    }
+
+    /// Sample the composited color at sprite coordinates `(x, y)` on the
+    /// given frame. Returns the packed non-premultiplied RGBA8 value as
+    /// `0xRRGGBBAA` (matching [`Self::apply_tool`]).
+    ///
+    /// Implements spec §5.2 — "Eyedropper: Sets foreground color from
+    /// canvas pixel". The sample comes from `compose()` with the default
+    /// `Visible` layer filter, so what the user sees is what they pick:
+    /// hidden layers do not contribute, and transparent pixels yield
+    /// `0x00000000`. Coordinates outside the sprite canvas are not
+    /// rejected — they fall outside every cel's intersection and yield
+    /// transparent, matching the natural read-only semantics.
+    ///
+    /// Errors propagate from `compose()`: unknown frame index,
+    /// unsupported color mode (indexed / grayscale), etc.
+    #[wasm_bindgen(js_name = pickColor)]
+    pub fn pick_color(&self, frame: u32, x: i32, y: i32) -> Result<u32, String> {
+        let mut request = ComposeRequest::full(
+            FrameIndex::new(frame),
+            self.sprite.width,
+            self.sprite.height,
+        );
+        request.viewport = Rect::new(x, y, 1, 1);
+        let result = compose(&self.sprite, &self.cels, &request)
+            .map_err(|e| format!("failed to pick color: {e}"))?;
+        debug_assert_eq!(result.pixels.len(), 4);
+        Ok(u32::from_be_bytes([
+            result.pixels[0],
+            result.pixels[1],
+            result.pixels[2],
+            result.pixels[3],
+        ]))
     }
 
     /// Revert the most recent command. Returns `true` if a command was
@@ -490,6 +523,47 @@ mod tests {
     fn apply_tool_eraser_rejects_out_of_bounds_pixel() {
         let mut doc = Document::new(2, 2).expect("dims");
         assert!(doc.apply_tool("eraser", 10, 10, 0x00000000).is_err());
+    }
+
+    #[test]
+    fn pick_color_returns_painted_pixel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 2, 1, 0x80aaffff)
+            .expect("pencil ok");
+        let color = doc.pick_color(0, 2, 1).expect("pick ok");
+        assert_eq!(color, 0x80aaffff);
+    }
+
+    #[test]
+    fn pick_color_returns_zero_on_transparent_pixel() {
+        let doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.pick_color(0, 0, 0).expect("pick ok"), 0);
+    }
+
+    #[test]
+    fn pick_color_outside_canvas_returns_transparent() {
+        // Out-of-canvas reads are well-defined per spec §4.1 (cels
+        // clipped to the viewport intersection); the eyedropper
+        // surfaces that as transparent rather than an error.
+        let doc = Document::new(2, 2).expect("dims");
+        assert_eq!(doc.pick_color(0, -5, -5).expect("pick ok"), 0);
+        assert_eq!(doc.pick_color(0, 99, 99).expect("pick ok"), 0);
+    }
+
+    #[test]
+    fn pick_color_rejects_unknown_frame() {
+        let doc = Document::new(2, 2).expect("dims");
+        assert!(doc.pick_color(7, 0, 0).is_err());
+    }
+
+    #[test]
+    fn pick_color_does_not_disturb_command_bus() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0x123456ff)
+            .expect("pencil ok");
+        let depth_before = doc.bus.undo_depth();
+        let _ = doc.pick_color(0, 0, 0).expect("pick ok");
+        assert_eq!(doc.bus.undo_depth(), depth_before);
     }
 
     #[test]
