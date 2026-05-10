@@ -60,6 +60,54 @@ export function paintLinePreview(
   }
 }
 
+/**
+ * Overlay an axis-aligned rectangle (outline or filled) on top of the
+ * current canvas contents. Coordinates are in the canvas's pixel space
+ * (i.e. sprite coords for the M6 single-frame, 1× compose path).
+ *
+ * Endpoint order is irrelevant — the helper normalizes to min / max
+ * corners before rasterizing, matching the Rust `DrawRectangle`
+ * behavior so the preview is pixel-exact with what `applyRectangle`
+ * commits on release.
+ */
+export function paintRectanglePreview(
+  canvas: HTMLCanvasElement,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  color: string,
+  fill: boolean,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.fillStyle = color;
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const paint = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+    ctx.fillRect(x, y, 1, 1);
+  };
+  if (fill) {
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) paint(x, y);
+    }
+    return;
+  }
+  for (let x = minX; x <= maxX; x++) paint(x, minY);
+  if (maxY > minY) {
+    for (let x = minX; x <= maxX; x++) paint(x, maxY);
+    if (maxY > minY + 1) {
+      for (let y = minY + 1; y < maxY; y++) {
+        paint(minX, y);
+        if (maxX > minX) paint(maxX, y);
+      }
+    }
+  }
+}
+
 function* bresenham(
   x0: number,
   y0: number,

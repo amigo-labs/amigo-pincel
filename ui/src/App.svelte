@@ -1,13 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
-  import { blitFrame, paintLinePreview } from './lib/render/canvas2d';
+  import { blitFrame, paintLinePreview, paintRectanglePreview } from './lib/render/canvas2d';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
   // holds an opaque handle, paints with `applyTool`, and re-renders by
   // calling `compose()` and blitting the resulting `ComposeFrame`.
-  type Tool = 'pencil' | 'eraser' | 'eyedropper' | 'line';
+  type Tool =
+    | 'pencil'
+    | 'eraser'
+    | 'eyedropper'
+    | 'line'
+    | 'rectangle'
+    | 'rectangle-fill';
+
+  // Tools that use the press / drag / release pipeline (a start point
+  // captured on `pointerdown`, a live endpoint tracked on
+  // `pointermove`, committed on `pointerup`).
+  function isDragShapeTool(t: Tool): boolean {
+    return t === 'line' || t === 'rectangle' || t === 'rectangle-fill';
+  }
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let doc = $state<Document | null>(null);
@@ -22,10 +35,19 @@
   let dirty = false;
   let rafHandle: number | null = null;
   let fileInput: HTMLInputElement | null = null;
-  // Press / current point of an in-flight Line drag. `null` outside a
-  // drag. `linePreview` is the live endpoint; both are sprite-space.
-  let lineStart: { x: number; y: number } | null = null;
-  let linePreview: { x: number; y: number } | null = null;
+  // Press / current point of an in-flight drag-shape tool (Line,
+  // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
+  // is the live endpoint; both are sprite-space. `dragTool` snapshots
+  // the active tool at press-time so a mid-drag toolbar change does
+  // not flip the in-flight shape kind.
+  let dragStart: { x: number; y: number } | null = null;
+  let dragPreview: { x: number; y: number } | null = null;
+  let dragTool: Tool | null = null;
+  // Whether Shift was held during the most recent pointer event in an
+  // in-flight Rectangle drag. The Rust command takes raw corners — the
+  // square constraint is purely a UI affordance applied to the live
+  // endpoint before committing.
+  let dragShift = false;
 
   function syncMeta() {
     if (!doc) return;
@@ -40,23 +62,59 @@
     const frame = doc.compose(0, 1);
     try {
       blitFrame(canvas, frame);
-      if (lineStart && linePreview) {
-        // Overlay the in-flight Line preview after the blit. The next
-        // recompose clears it; on release we commit through
-        // `Document.applyLine` and the composed cel surfaces the same
-        // pixels naturally.
-        paintLinePreview(
-          canvas,
-          lineStart.x,
-          lineStart.y,
-          linePreview.x,
-          linePreview.y,
-          color,
-        );
+      if (dragStart && dragPreview && dragTool) {
+        // Overlay the in-flight drag-shape preview after the blit. The
+        // next recompose clears it; on release we commit through the
+        // appropriate wasm method and the composed cel surfaces the
+        // same pixels naturally.
+        const end = constrainedEndpoint();
+        if (dragTool === 'line') {
+          paintLinePreview(canvas, dragStart.x, dragStart.y, end.x, end.y, color);
+        } else if (dragTool === 'rectangle') {
+          paintRectanglePreview(
+            canvas,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            color,
+            false,
+          );
+        } else if (dragTool === 'rectangle-fill') {
+          paintRectanglePreview(
+            canvas,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            color,
+            true,
+          );
+        }
       }
     } finally {
       frame.free();
     }
+  }
+
+  // Sprite-space endpoint for the in-flight drag, after applying any
+  // active modifier constraint (Shift = square for Rectangle).
+  function constrainedEndpoint(): { x: number; y: number } {
+    if (!dragStart || !dragPreview) {
+      return { x: 0, y: 0 };
+    }
+    if (
+      dragShift &&
+      (dragTool === 'rectangle' || dragTool === 'rectangle-fill')
+    ) {
+      const dx = dragPreview.x - dragStart.x;
+      const dy = dragPreview.y - dragStart.y;
+      const side = Math.max(Math.abs(dx), Math.abs(dy));
+      const sx = dx < 0 ? -1 : 1;
+      const sy = dy < 0 ? -1 : 1;
+      return { x: dragStart.x + side * sx, y: dragStart.y + side * sy };
+    }
+    return dragPreview;
   }
 
   // `<input type="color">` reports `#RRGGBB`. The wasm `applyTool`
@@ -87,12 +145,11 @@
 
   function paintAt(e: PointerEvent) {
     if (!doc) return;
-    // The Line tool has its own press / drag / release pipeline above
-    // (`lineStart` + `linePreview` → `doc.applyLine` on release). The
-    // wasm `applyTool` surface does not accept a `'line'` tool_id, so a
-    // mid-drag tool switch (e.g. the user picks Line while still
-    // dragging a Pencil stroke) must not route a stroke through here.
-    if (tool === 'line') return;
+    // Drag-shape tools (Line, Rectangle, …) have their own press /
+    // drag / release pipeline below and commit on `pointerup`. The
+    // wasm `applyTool` surface only accepts per-pixel tools, so a
+    // mid-drag tool switch must not route a stroke through here.
+    if (isDragShapeTool(tool)) return;
     const point = spriteCoord(e);
     if (!point) return;
     if (tool === 'eyedropper') {
@@ -128,11 +185,13 @@
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
-    if (tool === 'line') {
+    if (isDragShapeTool(tool)) {
       const point = spriteCoord(e);
       if (!point) return;
-      lineStart = point;
-      linePreview = point;
+      dragStart = point;
+      dragPreview = point;
+      dragTool = tool;
+      dragShift = e.shiftKey;
       dirty = true;
       return;
     }
@@ -141,10 +200,11 @@
   }
 
   function onPointerMove(e: PointerEvent) {
-    if (lineStart) {
+    if (dragStart) {
       const point = spriteCoord(e);
       if (!point) return;
-      linePreview = point;
+      dragPreview = point;
+      dragShift = e.shiftKey;
       dirty = true;
       return;
     }
@@ -156,22 +216,27 @@
     if (canvas?.hasPointerCapture(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
     }
-    if (lineStart && linePreview && doc) {
+    if (dragStart && dragPreview && dragTool && doc) {
+      dragShift = e.shiftKey;
+      const end = constrainedEndpoint();
+      const packed = packColor(color);
       try {
-        doc.applyLine(
-          lineStart.x,
-          lineStart.y,
-          linePreview.x,
-          linePreview.y,
-          packColor(color),
-        );
+        if (dragTool === 'line') {
+          doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
+        } else if (dragTool === 'rectangle') {
+          doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, false);
+        } else if (dragTool === 'rectangle-fill') {
+          doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, true);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error('applyLine failed', err);
-        status = `line failed: ${msg}`;
+        console.error(`${dragTool} failed`, err);
+        status = `${dragTool} failed: ${msg}`;
       }
-      lineStart = null;
-      linePreview = null;
+      dragStart = null;
+      dragPreview = null;
+      dragTool = null;
+      dragShift = false;
       dirty = true;
       syncMeta();
       return;
@@ -343,6 +408,22 @@
         onclick={() => (tool = 'line')}
       >
         Line
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'rectangle'}
+        aria-pressed={tool === 'rectangle'}
+        onclick={() => (tool = 'rectangle')}
+      >
+        Rect
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'rectangle-fill'}
+        aria-pressed={tool === 'rectangle-fill'}
+        onclick={() => (tool = 'rectangle-fill')}
+      >
+        Rect Fill
       </button>
     </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
