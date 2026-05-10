@@ -142,34 +142,76 @@ fn local_coords(sprite_x: i32, sprite_y: i32, position: (i32, i32)) -> Option<(u
     Some((lx as u32, ly as u32))
 }
 
-/// Bresenham's line algorithm. Returns the integer pixel coordinates the
-/// rasterized line covers, inclusive of both endpoints. Equal endpoints
-/// yield a single pixel.
-fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> Vec<(i32, i32)> {
+/// Bresenham's line algorithm as a lazy iterator. Yields the integer pixel
+/// coordinates the rasterized line covers, inclusive of both endpoints.
+/// Equal endpoints yield a single pixel.
+///
+/// All internal math is done in `i64` so the iterator is well-defined for
+/// any `i32` endpoint pair, including the `i32::MIN` / `i32::MAX` extremes
+/// where the naive `(x1 - x0).abs()` would overflow. The emitted
+/// coordinates stay within the closed interval `[min(x0, x1), max(x0, x1)]`
+/// (and similarly for `y`), so each step casts back to `i32` safely.
+#[must_use]
+pub(crate) struct BresenhamIter {
+    x: i64,
+    y: i64,
+    x1: i64,
+    y1: i64,
+    sx: i64,
+    sy: i64,
+    dx: i64,
+    dy: i64,
+    err: i64,
+    done: bool,
+}
+
+impl Iterator for BresenhamIter {
+    type Item = (i32, i32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let out = (self.x as i32, self.y as i32);
+        if self.x == self.x1 && self.y == self.y1 {
+            self.done = true;
+        } else {
+            let e2 = 2 * self.err;
+            if e2 >= self.dy {
+                self.err += self.dy;
+                self.x += self.sx;
+            }
+            if e2 <= self.dx {
+                self.err += self.dx;
+                self.y += self.sy;
+            }
+        }
+        Some(out)
+    }
+}
+
+fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> BresenhamIter {
+    let x0 = i64::from(x0);
+    let y0 = i64::from(y0);
+    let x1 = i64::from(x1);
+    let y1 = i64::from(y1);
     let dx = (x1 - x0).abs();
     let dy = -(y1 - y0).abs();
+    let err = dx + dy;
     let sx = if x0 < x1 { 1 } else { -1 };
     let sy = if y0 < y1 { 1 } else { -1 };
-    let mut err = dx + dy;
-    let mut x = x0;
-    let mut y = y0;
-    let mut points = Vec::new();
-    loop {
-        points.push((x, y));
-        if x == x1 && y == y1 {
-            break;
-        }
-        let e2 = 2 * err;
-        if e2 >= dy {
-            err += dy;
-            x += sx;
-        }
-        if e2 <= dx {
-            err += dx;
-            y += sy;
-        }
+    BresenhamIter {
+        x: x0,
+        y: y0,
+        x1,
+        y1,
+        sx,
+        sy,
+        dx,
+        dy,
+        err,
+        done: false,
     }
-    points
 }
 
 #[cfg(test)]
@@ -210,32 +252,51 @@ mod tests {
 
     #[test]
     fn bresenham_horizontal_line_covers_each_x() {
-        let pts = bresenham(0, 3, 4, 3);
+        let pts: Vec<_> = bresenham(0, 3, 4, 3).collect();
         assert_eq!(pts, vec![(0, 3), (1, 3), (2, 3), (3, 3), (4, 3)]);
     }
 
     #[test]
     fn bresenham_vertical_line_covers_each_y() {
-        let pts = bresenham(2, 1, 2, 5);
+        let pts: Vec<_> = bresenham(2, 1, 2, 5).collect();
         assert_eq!(pts, vec![(2, 1), (2, 2), (2, 3), (2, 4), (2, 5)]);
     }
 
     #[test]
     fn bresenham_perfect_diagonal_covers_each_step() {
-        let pts = bresenham(0, 0, 3, 3);
+        let pts: Vec<_> = bresenham(0, 0, 3, 3).collect();
         assert_eq!(pts, vec![(0, 0), (1, 1), (2, 2), (3, 3)]);
     }
 
     #[test]
     fn bresenham_reverse_diagonal_is_symmetric() {
-        let pts = bresenham(3, 3, 0, 0);
+        let pts: Vec<_> = bresenham(3, 3, 0, 0).collect();
         assert_eq!(pts, vec![(3, 3), (2, 2), (1, 1), (0, 0)]);
     }
 
     #[test]
     fn bresenham_same_endpoint_yields_single_pixel() {
-        let pts = bresenham(2, 2, 2, 2);
+        let pts: Vec<_> = bresenham(2, 2, 2, 2).collect();
         assert_eq!(pts, vec![(2, 2)]);
+    }
+
+    #[test]
+    fn bresenham_handles_full_i32_range_without_overflow() {
+        // `(x1 - x0).abs()` on `i32` would overflow at these endpoints
+        // (panic in debug, wrap in release). The i64-internal iterator
+        // stays well-defined and advances by ±1 each step.
+        let mut iter = bresenham(i32::MIN, 0, i32::MAX, 0);
+        assert_eq!(iter.next(), Some((i32::MIN, 0)));
+        assert_eq!(iter.next(), Some((i32::MIN + 1, 0)));
+        assert_eq!(iter.next(), Some((i32::MIN + 2, 0)));
+    }
+
+    #[test]
+    fn bresenham_handles_i32_min_endpoint() {
+        // `(x1 - x0).abs()` at `i32::MIN` panics on i32 because
+        // `i32::MIN.abs()` is undefined. Promotion to i64 sidesteps it.
+        let pts: Vec<_> = bresenham(i32::MIN, 0, i32::MIN, 0).collect();
+        assert_eq!(pts, vec![(i32::MIN, 0)]);
     }
 
     #[test]
