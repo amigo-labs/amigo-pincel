@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M6.4 `Document::drainEvents` + undo / redo)
+_Last updated: 2026-05-10_ (M6.5 Svelte 5 + Vite + Tailwind 4 scaffold)
 
 ## Completed
 
@@ -381,6 +381,61 @@ _Last updated: 2026-05-10_ (M6.4 `Document::drainEvents` + undo / redo)
   undo / redo round-trip emits `dirty-canvas` and tracks
   depth, undo / redo on an empty stack are no-ops.
 
+### M6 — Svelte 5 + Vite + Tailwind 4 scaffold (M6.5) ✅
+
+- New `ui/` workspace member managed by `pnpm` (no SvelteKit; plain
+  Svelte 5 + Vite per spec §9.1). `node_modules/`, `dist/`,
+  `.svelte-kit/`, and `pkg/` are already gitignored at repo root.
+- Versions pinned in `ui/package.json` (caret ranges, resolved by
+  `pnpm-lock.yaml`):
+  - `svelte 5.55`, `@sveltejs/vite-plugin-svelte 5.1`
+  - `vite 6.4`
+  - `tailwindcss 4.3` + `@tailwindcss/vite 4.3` (no PostCSS config —
+    Tailwind 4 ships its own pipeline through the Vite plugin)
+  - `typescript 5.9` (strict, `noUncheckedIndexedAccess`,
+    `exactOptionalPropertyTypes`, `verbatimModuleSyntax`,
+    `noEmit`)
+  - `eslint 9.39` flat config + `typescript-eslint 8.59` +
+    `eslint-plugin-svelte 3.17` + `svelte-eslint-parser 1.6`
+  - `svelte-check 4.4` for `pnpm check`
+  - `prettier 3.8` + `prettier-plugin-svelte 3.5`
+- npm scripts (`ui/package.json`):
+  - `dev` / `build` / `preview` — Vite
+  - `check` — `svelte-check`
+  - `lint` — `eslint .`
+  - `format` — `prettier --write .`
+  - `wasm:build` — `wasm-pack build ../crates/pincel-wasm --target
+    web --out-dir pkg`. Verified end-to-end in this session;
+    produces `pincel_wasm.{js,d.ts}` plus the wasm binary in
+    `crates/pincel-wasm/pkg/`. The actual `import` from `ui/` lands
+    in M6.6.
+- `crates/pincel-wasm/Cargo.toml` opts out of `wasm-opt` via
+  `[package.metadata.wasm-pack.profile.{release,dev}]` so the build
+  works in environments without the bundled binaryen downloader's
+  network path. Re-enable post-deploy if a release build needs the
+  size win — the Phase 1 wasm bundle is a few hundred KB and the
+  optimization is not on the critical path. (Open question below.)
+- Empty canvas page (`ui/src/App.svelte`): a 64×64 `<canvas>` shown
+  at 8× via CSS with `image-rendering: pixelated`, framed by a
+  header / footer shell that previews the spec §9.2 layout. The
+  effect runs a single Canvas2D `fillRect` to make the canvas
+  visible — no wasm interaction yet (M6.6 wires `Document.compose`).
+- `ui/src/main.ts` mounts `App` on `#app` via Svelte 5
+  `mount()`. `app.css` declares Tailwind via the v4 `@import
+  'tailwindcss'` directive plus an `@layer base` block that fills
+  body / html / #app to full height and sets the dark default.
+- `ui/eslint.config.js` is a flat config wiring `@eslint/js`,
+  `typescript-eslint` (recommended), and
+  `eslint-plugin-svelte` (recommended) with the Svelte parser
+  delegating to `ts.parser`. `dist/`, `node_modules/`, `pkg/`, and
+  `.svelte-kit/` are ignored.
+- Verified: `pnpm install` (clean), `pnpm check` (0 errors / 0
+  warnings across 381 files), `pnpm lint` (clean), `pnpm build`
+  (8 KB CSS / 28 KB JS gzipped to 2.3 KB / 11 KB), `pnpm wasm:build`
+  (publishes a `pkg/` directory). `cargo check --workspace`,
+  `cargo test --workspace`, `cargo clippy --workspace --all-targets
+  -- -D warnings`, and `cargo fmt --all --check` remain green.
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (91 pincel-core
@@ -388,7 +443,9 @@ unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
 round-trip + 8 aseprite-writer roundtrip + 27 pincel-wasm unit),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-wcM2P` branch.
+`claude/continue-from-status-v1sgw` branch. `pnpm install`,
+`pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
+pass under `ui/`.
 
 ## M6 task breakdown
 
@@ -409,8 +466,10 @@ ships as a sequence of S/M tasks:
   ring buffer, dirty-rect from M6.3 paints + full-canvas dirty
   on undo / redo) + JS-facing `undo` / `redo` / `undoDepth` /
   `redoDepth`.
-- [ ] **M6.5** — Svelte 5 + Vite scaffold under `ui/` with Tailwind
-  4 set up. wasm-pack build script. Empty canvas page.
+- [x] **M6.5** — Svelte 5 + Vite scaffold under `ui/` with Tailwind
+  4 set up. `pnpm wasm:build` script invokes `wasm-pack build
+  --target web` and produces `crates/pincel-wasm/pkg/`. Empty
+  canvas page (8×-zoomed 64×64 Canvas2D placeholder).
 - [ ] **M6.6** — Wire `pincel-wasm` package into the UI: open file
   via `<input type=file>`, paint with Pencil on the canvas, save via
   download anchor. Single-tool MVP.
@@ -494,3 +553,11 @@ Plan when a fixture surfaces the need:
   file that `aseprite-loader` then refuses to parse. Decide whether
   to enforce ≥1 frame in `SpriteBuilder::build`, or leave it as a
   "valid Pincel document, invalid Aseprite file" affordance.
+- `wasm-opt` is disabled in `pincel-wasm/Cargo.toml` (M6.5). The
+  bundled `wasm-pack` downloader fails to fetch the `binaryen`
+  release tarball in the dev environment even when GitHub itself
+  is reachable. Re-enable in CI once a deploy story exists, or pin
+  a system `wasm-opt` and point `wasm-pack` at it via
+  `WASM_OPT_PATH`. Either way the size win (~30 % typical) is not
+  on the Phase 1 critical path; the wasm bundle is a few hundred
+  KB unoptimized.
