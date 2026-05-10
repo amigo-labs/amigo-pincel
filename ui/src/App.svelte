@@ -7,9 +7,12 @@
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
   // holds an opaque handle, paints with `applyTool`, and re-renders by
   // calling `compose()` and blitting the resulting `ComposeFrame`.
+  type Tool = 'pencil' | 'eraser';
+
   let canvas = $state<HTMLCanvasElement | null>(null);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
+  let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
   let canvasW = $state(64);
@@ -60,7 +63,9 @@
     const point = spriteCoord(e);
     if (!point) return;
     try {
-      doc.applyTool('pencil', point.x, point.y, packColor(color));
+      // The wasm eraser ignores the `color` arg, but we still pass
+      // the packed foreground so the JS surface stays uniform.
+      doc.applyTool(tool, point.x, point.y, packColor(color));
     } catch (err) {
       // Drags that leave the canvas raise PixelOutOfBounds; that is
       // expected and silenced. Anything else (missing layer, unknown
@@ -224,6 +229,24 @@
       class="hidden"
       onchange={openFile}
     />
+    <span class="ml-2 flex items-center gap-1" role="group" aria-label="Active tool">
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'pencil'}
+        aria-pressed={tool === 'pencil'}
+        onclick={() => (tool = 'pencil')}
+      >
+        Pencil
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'eraser'}
+        aria-pressed={tool === 'eraser'}
+        onclick={() => (tool = 'eraser')}
+      >
+        Eraser
+      </button>
+    </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
       <span>Color</span>
       <input
@@ -278,5 +301,9 @@
   .toolbar-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .toolbar-btn-active {
+    background-color: rgb(64 64 64);
+    border-color: rgb(115 115 115);
   }
 </style>
