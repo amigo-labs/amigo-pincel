@@ -7,7 +7,7 @@
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
   // holds an opaque handle, paints with `applyTool`, and re-renders by
   // calling `compose()` and blitting the resulting `ComposeFrame`.
-  type Tool = 'pencil' | 'eraser';
+  type Tool = 'pencil' | 'eraser' | 'eyedropper';
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let doc = $state<Document | null>(null);
@@ -49,6 +49,15 @@
     return ((rgb << 8) | 0xff) >>> 0;
   }
 
+  // Convert a packed `0xRRGGBBAA` back to the `#RRGGBB` form the color
+  // input expects. Alpha is intentionally dropped — the input has no
+  // alpha control yet, and `pickColor` callers that need it can read
+  // the raw u32 themselves.
+  function unpackColor(rgba: number): string {
+    const rgb = (rgba >>> 8) & 0xffffff;
+    return '#' + rgb.toString(16).padStart(6, '0');
+  }
+
   function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -62,6 +71,20 @@
     if (!doc) return;
     const point = spriteCoord(e);
     if (!point) return;
+    if (tool === 'eyedropper') {
+      // The eyedropper is read-only: sample the composed pixel and
+      // bind it to the foreground color picker. Drags keep sampling
+      // so the user can scrub for the exact pixel they want.
+      try {
+        const picked = doc.pickColor(0, point.x, point.y);
+        color = unpackColor(picked);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('pickColor failed', err);
+        status = `pick failed: ${msg}`;
+      }
+      return;
+    }
     try {
       // The wasm eraser ignores the `color` arg, but we still pass
       // the packed foreground so the JS surface stays uniform.
@@ -245,6 +268,14 @@
         onclick={() => (tool = 'eraser')}
       >
         Eraser
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'eyedropper'}
+        aria-pressed={tool === 'eyedropper'}
+        onclick={() => (tool = 'eyedropper')}
+      >
+        Eyedropper
       </button>
     </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
