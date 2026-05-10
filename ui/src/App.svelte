@@ -1,20 +1,210 @@
 <script lang="ts">
-  let canvas = $state<HTMLCanvasElement | null>(null);
+  import { onMount } from 'svelte';
+  import { Document, loadCore } from './lib/core';
+  import { blitFrame } from './lib/render/canvas2d';
 
-  $effect(() => {
-    const el = canvas;
-    if (!el) return;
-    const ctx = el.getContext('2d');
-    if (!ctx) return;
-    ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = '#1f2937';
-    ctx.fillRect(0, 0, el.width, el.height);
+  // The wasm `Document` is the source of truth for sprite state
+  // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
+  // holds an opaque handle, paints with `applyTool`, and re-renders by
+  // calling `compose()` and blitting the resulting `ComposeFrame`.
+  let canvas = $state<HTMLCanvasElement | null>(null);
+  let doc = $state<Document | null>(null);
+  let color = $state('#f87171');
+  let undoDepth = $state(0);
+  let redoDepth = $state(0);
+  let canvasW = $state(64);
+  let canvasH = $state(64);
+  let status = $state('initializing…');
+  let painting = false;
+  let dirty = false;
+  let rafHandle: number | null = null;
+  let fileInput: HTMLInputElement | null = null;
+
+  function syncMeta() {
+    if (!doc) return;
+    undoDepth = doc.undoDepth;
+    redoDepth = doc.redoDepth;
+    canvasW = doc.width;
+    canvasH = doc.height;
+  }
+
+  function recompose() {
+    if (!doc || !canvas) return;
+    const frame = doc.compose(0, 1);
+    try {
+      blitFrame(canvas, frame);
+    } finally {
+      frame.free();
+    }
+  }
+
+  // `<input type="color">` reports `#RRGGBB`. The wasm `applyTool`
+  // expects a packed `0xRRGGBBAA`; alpha is fixed at fully opaque
+  // until the UI grows an alpha control.
+  function packColor(hex: string): number {
+    const rgb = Number.parseInt(hex.slice(1), 16);
+    return ((rgb << 8) | 0xff) >>> 0;
+  }
+
+  function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    const x = Math.floor(((e.clientX - rect.left) * canvas.width) / rect.width);
+    const y = Math.floor(((e.clientY - rect.top) * canvas.height) / rect.height);
+    return { x, y };
+  }
+
+  function paintAt(e: PointerEvent) {
+    if (!doc) return;
+    const point = spriteCoord(e);
+    if (!point) return;
+    try {
+      doc.applyTool('pencil', point.x, point.y, packColor(color));
+    } catch {
+      // out-of-bounds drag etc. — silently ignore for the MVP. The
+      // tool error path is exercised by `pincel-wasm` unit tests.
+    }
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    if (e.button !== 0) return;
+    canvas?.setPointerCapture(e.pointerId);
+    painting = true;
+    paintAt(e);
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!painting) return;
+    paintAt(e);
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    if (canvas?.hasPointerCapture(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId);
+    }
+    painting = false;
+  }
+
+  function newDoc() {
+    doc = new Document(64, 64);
+    dirty = true;
+    syncMeta();
+    status = 'new 64×64 document';
+  }
+
+  async function openFile(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      doc = Document.openAseprite(bytes);
+      dirty = true;
+      syncMeta();
+      status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `open failed: ${msg}`;
+    } finally {
+      input.value = '';
+    }
+  }
+
+  function save() {
+    if (!doc) return;
+    try {
+      const bytes = doc.saveAseprite();
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: 'application/octet-stream',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pincel.aseprite';
+      a.click();
+      URL.revokeObjectURL(url);
+      status = `saved ${bytes.length} bytes`;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `save failed: ${msg}`;
+    }
+  }
+
+  function undo() {
+    if (doc?.undo()) {
+      dirty = true;
+      syncMeta();
+    }
+  }
+
+  function redo() {
+    if (!doc) return;
+    try {
+      if (doc.redo()) {
+        dirty = true;
+        syncMeta();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `redo failed: ${msg}`;
+    }
+  }
+
+  function tick() {
+    if (doc) {
+      const events = doc.drainEvents();
+      if (events.length > 0) dirty = true;
+      for (const ev of events) ev.free();
+      if (dirty) {
+        dirty = false;
+        recompose();
+        syncMeta();
+      }
+    }
+    rafHandle = requestAnimationFrame(tick);
+  }
+
+  onMount(() => {
+    let cancelled = false;
+    void loadCore().then(() => {
+      if (cancelled) return;
+      doc = new Document(64, 64);
+      syncMeta();
+      dirty = true;
+      status = 'ready';
+      rafHandle = requestAnimationFrame(tick);
+    });
+    return () => {
+      cancelled = true;
+      if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+    };
   });
 </script>
 
-<main class="flex h-full flex-col">
-  <header class="border-b border-neutral-800 px-4 py-2 text-sm font-semibold tracking-wide">
-    Pincel
+<main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
+  <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
+    <span class="mr-2 font-semibold tracking-wide">Pincel</span>
+    <button class="toolbar-btn" onclick={newDoc}>New</button>
+    <button class="toolbar-btn" onclick={() => fileInput?.click()}>Open…</button>
+    <button class="toolbar-btn" onclick={save} disabled={!doc}>Save</button>
+    <input
+      bind:this={fileInput}
+      type="file"
+      accept=".aseprite,.ase"
+      class="hidden"
+      onchange={openFile}
+    />
+    <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
+      <span>Color</span>
+      <input
+        type="color"
+        bind:value={color}
+        class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+      />
+    </label>
+    <button class="toolbar-btn ml-2" onclick={undo} disabled={undoDepth === 0}>Undo</button>
+    <button class="toolbar-btn" onclick={redo} disabled={redoDepth === 0}>Redo</button>
   </header>
 
   <section class="flex flex-1 items-center justify-center overflow-hidden p-6">
@@ -22,18 +212,42 @@
       bind:this={canvas}
       width="64"
       height="64"
-      class="canvas-pixelated h-[512px] w-[512px] border border-neutral-700 bg-neutral-900 shadow-lg"
+      class="canvas-pixelated h-[512px] w-[512px] touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
       aria-label="Pincel canvas"
+      onpointerdown={onPointerDown}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerUp}
     ></canvas>
   </section>
 
-  <footer class="border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
-    Phase 1 · M6.5 scaffold
+  <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
+    <span>{status}</span>
+    {#if doc}
+      <span>·</span>
+      <span>{canvasW}×{canvasH}</span>
+      <span>·</span>
+      <span>undo {undoDepth} / redo {redoDepth}</span>
+    {/if}
   </footer>
 </main>
 
 <style>
   .canvas-pixelated {
     image-rendering: pixelated;
+  }
+
+  .toolbar-btn {
+    border-radius: 0.25rem;
+    border: 1px solid rgb(64 64 64);
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+  }
+  .toolbar-btn:hover:not(:disabled) {
+    background-color: rgb(38 38 38);
+  }
+  .toolbar-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
