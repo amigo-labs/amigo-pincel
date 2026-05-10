@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M7.1: Eraser tool routed through SetPixel(transparent) + UI tool selector)
+_Last updated: 2026-05-10_ (M7.2: Eyedropper tool — `Document::pickColor` + UI tool selector binding)
 
 ## Completed
 
@@ -556,11 +556,42 @@ _Last updated: 2026-05-10_ (M7.1: Eraser tool routed through SetPixel(transparen
   current tool to `doc.applyTool` and the pointer-event pipeline
   is otherwise unchanged.
 
+### M7 — Eyedropper tool (M7.2) ✅
+
+- New `pincel-wasm::Document::pick_color(frame, x, y) → u32`
+  (`js_name = pickColor`). Returns the packed non-premultiplied
+  `0xRRGGBBAA` value at the requested sprite coordinate, sampled
+  through `pincel_core::compose` with a 1×1 viewport at `(x, y)`,
+  the default `Visible` layer filter, and no overlays. The 1×1
+  viewport is the natural way to keep the existing M3 compose
+  pipeline (with all its blend / layer-filter semantics) as the
+  single source of truth — what the user sees is what they pick.
+- Read-only by design: no command emitted, no event enqueued, no
+  bus interaction. Out-of-canvas coordinates are not rejected; they
+  fall outside every cel's intersection and yield transparent
+  (`0x00000000`), matching the spec §4.1 "cels clipped to the
+  viewport intersection" semantics. Errors propagate from
+  `compose()` (unknown frame, unsupported color mode, …).
+- 5 new unit tests (36 wasm unit total): pick of a painted pixel
+  returns the painted color, pick of a transparent pixel returns
+  `0`, out-of-canvas reads (negative and far-positive) return
+  transparent, unknown-frame is rejected, pick does not disturb the
+  command bus depth.
+- UI gains an Eyedropper toolbar button alongside Pencil / Eraser
+  (same `aria-pressed` + `.toolbar-btn-active` pattern). `Tool`
+  union widened to `'pencil' | 'eraser' | 'eyedropper'`. `paintAt`
+  dispatches on the active tool: eyedropper samples via
+  `pickColor` and rebinds the foreground color input through a
+  new `unpackColor(0xRRGGBBAA) → "#RRGGBB"` helper. Alpha is
+  dropped at the UI surface for now — the color input has no
+  alpha control yet. Drags keep sampling so the user can scrub for
+  the pixel they want.
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (91 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 31 pincel-wasm unit + 2
+round-trip + 8 aseprite-writer roundtrip + 36 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
@@ -580,10 +611,11 @@ behavior.
 - [x] **M7.1** — Eraser. `SetPixel(transparent)` routed through the
   existing command bus; UI toolbar gains a Pencil / Eraser tool
   group.
-- [ ] **M7.2** — Eyedropper. Read-only sampling of the composed
-  canvas at sprite coords; new `Document::pickColor(x, y, frame) →
-  u32` method, no command emitted. UI button + foreground-color
-  binding.
+- [x] **M7.2** — Eyedropper. Read-only sampling of the composed
+  canvas at sprite coords through a 1×1 `compose()` viewport. New
+  `Document::pickColor(frame, x, y) → u32` method, no command
+  emitted. UI button + foreground-color binding (alpha dropped at
+  the surface until the input grows alpha support).
 - [ ] **M7.3** — Line. Bresenham line between press and release;
   new `DrawLine` command storing the pixel-delta dirty rect; UI
   preview overlay while dragging.
