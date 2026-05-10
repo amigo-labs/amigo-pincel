@@ -120,34 +120,55 @@ impl Command for DrawRectangle {
             });
         };
 
+        let edge_lo_x = min_x.max(cel_min_x);
+        let edge_hi_x = max_x.min(cel_max_x);
+        let x_in_view = edge_lo_x <= edge_hi_x;
         if self.fill {
-            let lo_x = min_x.max(cel_min_x);
-            let hi_x = max_x.min(cel_max_x);
             let lo_y = min_y.max(cel_min_y);
             let hi_y = max_y.min(cel_max_y);
-            if lo_x <= hi_x && lo_y <= hi_y {
+            if x_in_view && lo_y <= hi_y {
                 for sy in lo_y..=hi_y {
-                    for sx in lo_x..=hi_x {
+                    for sx in edge_lo_x..=edge_hi_x {
                         write_pixel(sx, sy, &mut prior);
                     }
                 }
             }
         } else {
-            // Outline: walk the four edges, deduplicating corners by
-            // restricting the side edges to the interior rows. Each
-            // edge clips to the cel's bbox before iterating.
-            for sx in min_x..=max_x {
-                write_pixel(sx, min_y, &mut prior);
+            // Outline: walk the four edges with their iteration ranges
+            // clipped to the cel bbox so extreme endpoint pairs (e.g.
+            // `i32::MIN`→`i32::MAX`) don't trigger a multi-billion-step
+            // loop even when every pixel would be a no-op.
+            let top_in_view = x_in_view && min_y >= cel_min_y && min_y <= cel_max_y;
+            let bottom_distinct = max_y > min_y;
+            let bottom_in_view =
+                bottom_distinct && x_in_view && max_y >= cel_min_y && max_y <= cel_max_y;
+            if top_in_view {
+                for sx in edge_lo_x..=edge_hi_x {
+                    write_pixel(sx, min_y, &mut prior);
+                }
             }
-            if max_y > min_y {
-                for sx in min_x..=max_x {
+            if bottom_in_view {
+                for sx in edge_lo_x..=edge_hi_x {
                     write_pixel(sx, max_y, &mut prior);
                 }
-                if max_y > min_y + 1 {
-                    for sy in (min_y + 1)..max_y {
-                        write_pixel(min_x, sy, &mut prior);
-                        if max_x > min_x {
-                            write_pixel(max_x, sy, &mut prior);
+            }
+            // Side edges between the corner rows. `bottom_distinct`
+            // implies `min_y < max_y <= i32::MAX`, so `min_y + 1` and
+            // `max_y - 1` never overflow under the short-circuit.
+            if bottom_distinct && max_y > min_y + 1 {
+                let side_lo_y = (min_y + 1).max(cel_min_y);
+                let side_hi_y = (max_y - 1).min(cel_max_y);
+                if side_lo_y <= side_hi_y {
+                    let left_in = min_x >= cel_min_x && min_x <= cel_max_x;
+                    let right_in = max_x > min_x && max_x >= cel_min_x && max_x <= cel_max_x;
+                    if left_in || right_in {
+                        for sy in side_lo_y..=side_hi_y {
+                            if left_in {
+                                write_pixel(min_x, sy, &mut prior);
+                            }
+                            if right_in {
+                                write_pixel(max_x, sy, &mut prior);
+                            }
                         }
                     }
                 }
