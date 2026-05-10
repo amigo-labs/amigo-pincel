@@ -365,13 +365,17 @@ impl Document {
 
 /// Axis-aligned bounding box of a line segment in sprite coordinates.
 /// Returns `(x, y, width, height)` with `width >= 1` and `height >= 1`.
+///
+/// For endpoint pairs whose span exceeds `u32::MAX` (e.g. `i32::MIN` to
+/// `i32::MAX`), the width / height are saturated to `u32::MAX` so the
+/// emitted event still satisfies the documented `>= 1` invariant.
 fn line_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
     let min_x = x0.min(x1);
     let min_y = y0.min(y1);
     let max_x = x0.max(x1);
     let max_y = y0.max(y1);
-    let w = (i64::from(max_x) - i64::from(min_x) + 1) as u32;
-    let h = (i64::from(max_y) - i64::from(min_y) + 1) as u32;
+    let w = u32::try_from(i64::from(max_x) - i64::from(min_x) + 1).unwrap_or(u32::MAX);
+    let h = u32::try_from(i64::from(max_y) - i64::from(min_y) + 1).unwrap_or(u32::MAX);
     (min_x, min_y, w, h)
 }
 
@@ -814,5 +818,17 @@ mod tests {
         assert_eq!(line_bbox(3, 5, 0, 0), (0, 0, 4, 6));
         assert_eq!(line_bbox(2, 2, 2, 2), (2, 2, 1, 1));
         assert_eq!(line_bbox(-3, -2, 1, 2), (-3, -2, 5, 5));
+    }
+
+    #[test]
+    fn line_bbox_saturates_at_u32_max_for_extreme_endpoints() {
+        // Span of `i32::MAX - i32::MIN + 1 == 2^32` overflows `u32`; the
+        // saturating cast clamps to `u32::MAX` so the dirty-rect event
+        // still satisfies the `width >= 1` / `height >= 1` invariant.
+        let (x, y, w, h) = line_bbox(i32::MIN, i32::MIN, i32::MAX, i32::MAX);
+        assert_eq!(x, i32::MIN);
+        assert_eq!(y, i32::MIN);
+        assert_eq!(w, u32::MAX);
+        assert_eq!(h, u32::MAX);
     }
 }
