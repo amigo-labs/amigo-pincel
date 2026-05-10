@@ -4,6 +4,7 @@ mod add_frame;
 mod add_layer;
 mod bus;
 mod draw_line;
+mod draw_rectangle;
 mod error;
 mod set_pixel;
 
@@ -11,6 +12,7 @@ pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
 pub use draw_line::DrawLine;
+pub use draw_rectangle::DrawRectangle;
 pub use error::CommandError;
 pub use set_pixel::SetPixel;
 
@@ -47,6 +49,7 @@ pub trait Command {
 pub enum AnyCommand {
     SetPixel(SetPixel),
     DrawLine(DrawLine),
+    DrawRectangle(DrawRectangle),
     AddLayer(AddLayer),
     AddFrame(AddFrame),
 }
@@ -60,6 +63,7 @@ impl AnyCommand {
         match self {
             Self::SetPixel(c) => c.apply(doc, cels),
             Self::DrawLine(c) => c.apply(doc, cels),
+            Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
         }
@@ -69,6 +73,7 @@ impl AnyCommand {
         match self {
             Self::SetPixel(c) => c.revert(doc, cels),
             Self::DrawLine(c) => c.revert(doc, cels),
+            Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
         }
@@ -78,6 +83,7 @@ impl AnyCommand {
         match (self, next) {
             (Self::SetPixel(a), Self::SetPixel(b)) => a.merge(b),
             (Self::DrawLine(a), Self::DrawLine(b)) => a.merge(b),
+            (Self::DrawRectangle(a), Self::DrawRectangle(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             _ => false,
@@ -94,6 +100,12 @@ impl From<SetPixel> for AnyCommand {
 impl From<DrawLine> for AnyCommand {
     fn from(c: DrawLine) -> Self {
         Self::DrawLine(c)
+    }
+}
+
+impl From<DrawRectangle> for AnyCommand {
+    fn from(c: DrawRectangle) -> Self {
+        Self::DrawRectangle(c)
     }
 }
 
