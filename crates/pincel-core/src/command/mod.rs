@@ -3,12 +3,14 @@
 mod add_frame;
 mod add_layer;
 mod bus;
+mod draw_line;
 mod error;
 mod set_pixel;
 
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
+pub use draw_line::DrawLine;
 pub use error::CommandError;
 pub use set_pixel::SetPixel;
 
@@ -44,6 +46,7 @@ pub trait Command {
 #[derive(Debug)]
 pub enum AnyCommand {
     SetPixel(SetPixel),
+    DrawLine(DrawLine),
     AddLayer(AddLayer),
     AddFrame(AddFrame),
 }
@@ -56,6 +59,7 @@ impl AnyCommand {
     ) -> Result<(), CommandError> {
         match self {
             Self::SetPixel(c) => c.apply(doc, cels),
+            Self::DrawLine(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
         }
@@ -64,6 +68,7 @@ impl AnyCommand {
     pub(crate) fn revert(&mut self, doc: &mut Sprite, cels: &mut CelMap) {
         match self {
             Self::SetPixel(c) => c.revert(doc, cels),
+            Self::DrawLine(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
         }
@@ -72,6 +77,7 @@ impl AnyCommand {
     pub(crate) fn merge(&mut self, next: &Self) -> bool {
         match (self, next) {
             (Self::SetPixel(a), Self::SetPixel(b)) => a.merge(b),
+            (Self::DrawLine(a), Self::DrawLine(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             _ => false,
@@ -82,6 +88,12 @@ impl AnyCommand {
 impl From<SetPixel> for AnyCommand {
     fn from(c: SetPixel) -> Self {
         Self::SetPixel(c)
+    }
+}
+
+impl From<DrawLine> for AnyCommand {
+    fn from(c: DrawLine) -> Self {
+        Self::DrawLine(c)
     }
 }
 
