@@ -213,13 +213,14 @@ impl Document {
     /// Revert the most recent command. Returns `true` if a command was
     /// undone, `false` when the undo stack was empty.
     ///
-    /// On a successful undo a `dirty-rect` event covering the full
-    /// canvas is enqueued so the UI re-renders. Per-command dirty-rect
-    /// tracking lands in M12 (perf pass).
+    /// On a successful undo a `dirty-canvas` event is enqueued so the
+    /// UI re-renders. The WASM layer cannot yet attribute the reverted
+    /// change to a single cel — per-command dirty rects land in M12
+    /// (perf pass).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
         if undone {
-            self.push_full_dirty();
+            self.events.push(Event::dirty_canvas());
         }
         undone
     }
@@ -227,13 +228,16 @@ impl Document {
     /// Re-apply the most recently undone command. Returns `true` if a
     /// command was redone. Errors propagate from the underlying
     /// command (e.g. a redo whose target cel was deleted).
+    ///
+    /// On a successful redo a `dirty-canvas` event is enqueued, same
+    /// rationale as [`Document::undo`].
     pub fn redo(&mut self) -> Result<bool, String> {
         let redone = self
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
         if redone {
-            self.push_full_dirty();
+            self.events.push(Event::dirty_canvas());
         }
         Ok(redone)
     }
@@ -260,19 +264,6 @@ impl Document {
     #[wasm_bindgen(js_name = drainEvents)]
     pub fn drain_events(&mut self) -> Vec<Event> {
         self.events.drain()
-    }
-}
-
-impl Document {
-    fn push_full_dirty(&mut self) {
-        self.events.push(Event::dirty_rect(
-            0,
-            0,
-            0,
-            0,
-            self.sprite.width,
-            self.sprite.height,
-        ));
     }
 }
 
@@ -510,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn undo_redo_emit_full_canvas_dirty_rects_and_track_depth() {
+    fn undo_redo_emit_dirty_canvas_and_track_depth() {
         let mut doc = Document::new(4, 3).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x123456ff)
             .expect("pencil ok");
@@ -525,17 +516,14 @@ mod tests {
         assert_eq!(doc.redo_depth(), 1);
         let after_undo = doc.drain_events();
         assert_eq!(after_undo.len(), 1);
-        assert_eq!(after_undo[0].kind(), "dirty-rect");
-        assert_eq!(after_undo[0].width(), 4);
-        assert_eq!(after_undo[0].height(), 3);
+        assert_eq!(after_undo[0].kind(), "dirty-canvas");
 
         assert!(doc.redo().expect("redo ok"));
         assert_eq!(doc.undo_depth(), 1);
         assert_eq!(doc.redo_depth(), 0);
         let after_redo = doc.drain_events();
         assert_eq!(after_redo.len(), 1);
-        assert_eq!(after_redo[0].width(), 4);
-        assert_eq!(after_redo[0].height(), 3);
+        assert_eq!(after_redo[0].kind(), "dirty-canvas");
     }
 
     #[test]

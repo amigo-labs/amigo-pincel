@@ -21,19 +21,28 @@ use wasm_bindgen::prelude::*;
 /// the cap is exceeded.
 pub(crate) const DEFAULT_EVENT_CAP: usize = 1024;
 
-/// Discriminant for [`Event`]. Today only one variant ships; new
-/// kinds are appended without renumbering so the JS-side `kind`
-/// strings stay stable across versions.
+/// Discriminant for [`Event`]. Today two variants ship; new kinds are
+/// appended without renumbering so the JS-side `kind` strings stay
+/// stable across versions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EventKind {
-    /// A region of a cel changed and should be re-rendered.
+    /// A region of a single cel changed and should be re-rendered.
+    /// `layer`, `frame`, `x`, `y`, `width`, `height` describe the
+    /// region in sprite space.
     DirtyRect,
+    /// The entire canvas should be re-rendered (e.g. an undo /redo
+    /// reverted a command and the WASM layer cannot yet attribute
+    /// the change to a single cel). `layer`, `frame`, `x`, `y`,
+    /// `width`, `height` are unspecified — consumers must not key
+    /// off them.
+    DirtyCanvas,
 }
 
 impl EventKind {
     fn as_str(self) -> &'static str {
         match self {
             EventKind::DirtyRect => "dirty-rect",
+            EventKind::DirtyCanvas => "dirty-canvas",
         }
     }
 }
@@ -46,6 +55,10 @@ impl EventKind {
 ///
 /// * `dirty-rect` — `layer`, `frame`, `x`, `y`, `width`, `height`
 ///   describe the changed region. Coordinates are in sprite space.
+/// * `dirty-canvas` — the whole canvas should be re-rendered. All
+///   numeric fields are `0` and have no meaning; consumers must not
+///   key off them. Emitted by undo / redo until per-command dirty
+///   tracking lands in M12.
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub struct Event {
@@ -124,6 +137,19 @@ impl Event {
             height,
         }
     }
+
+    /// Build a `dirty-canvas` event signalling a full re-render.
+    pub(crate) fn dirty_canvas() -> Self {
+        Self {
+            kind: EventKind::DirtyCanvas,
+            layer: 0,
+            frame: 0,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+        }
+    }
 }
 
 /// Drop-oldest ring buffer that backs [`Document::drain_events`].
@@ -173,6 +199,16 @@ mod tests {
     fn dirty_rect_kind_string_matches_spec() {
         let ev = Event::dirty_rect(0, 0, 0, 0, 1, 1);
         assert_eq!(ev.kind(), "dirty-rect");
+    }
+
+    #[test]
+    fn dirty_canvas_kind_string_matches_spec() {
+        let ev = Event::dirty_canvas();
+        assert_eq!(ev.kind(), "dirty-canvas");
+        assert_eq!(ev.layer(), 0);
+        assert_eq!(ev.frame(), 0);
+        assert_eq!(ev.width(), 0);
+        assert_eq!(ev.height(), 0);
     }
 
     #[test]
