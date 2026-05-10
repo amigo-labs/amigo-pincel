@@ -25,9 +25,9 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawLine, DrawRectangle,
-    Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel, Sprite,
-    compose, read_aseprite, write_aseprite,
+    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
+    DrawRectangle, Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel,
+    Sprite, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -318,6 +318,57 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply rectangle: {e}"))?;
+        let bbox = endpoint_bbox(x0, y0, x1, y1);
+        self.events.push(Event::dirty_rect(
+            layer.0, frame.0, bbox.0, bbox.1, bbox.2, bbox.3,
+        ));
+        Ok(())
+    }
+
+    /// Rasterize the ellipse inscribed in the bbox of sprite-space
+    /// corners `(x0, y0)` and `(x1, y1)` with the given non-premultiplied
+    /// RGBA color, routed through the command bus as a single
+    /// [`DrawEllipse`](pincel_core::DrawEllipse).
+    ///
+    /// `fill == false` walks the rim; `fill == true` emits the full
+    /// disk (rim + interior). `color` is packed as `0xRRGGBBAA`
+    /// (matching [`Self::apply_tool`]). The command targets the same
+    /// active layer / frame as the pencil — today the lowest-z
+    /// `LayerKind::Image` layer and frame `0`. Pixels outside the
+    /// target cel are skipped silently per the natural drawing-tool
+    /// clipping semantics; only a missing image layer surfaces as an
+    /// error here. Endpoint order does not matter — the underlying
+    /// command normalizes to min / max corners before rasterizing.
+    ///
+    /// The emitted `dirty-rect` event covers the bbox in sprite space.
+    #[wasm_bindgen(js_name = applyEllipse)]
+    pub fn apply_ellipse(
+        &mut self,
+        x0: i32,
+        y0: i32,
+        x1: i32,
+        y1: i32,
+        color: u32,
+        fill: bool,
+    ) -> Result<(), String> {
+        let rgba = Rgba {
+            r: ((color >> 24) & 0xff) as u8,
+            g: ((color >> 16) & 0xff) as u8,
+            b: ((color >> 8) & 0xff) as u8,
+            a: (color & 0xff) as u8,
+        };
+        let layer = self
+            .sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
+            .id;
+        let frame = FrameIndex::new(0);
+        let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to apply ellipse: {e}"))?;
         let bbox = endpoint_bbox(x0, y0, x1, y1);
         self.events.push(Event::dirty_rect(
             layer.0, frame.0, bbox.0, bbox.1, bbox.2, bbox.3,
