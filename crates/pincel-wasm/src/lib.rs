@@ -170,8 +170,15 @@ impl Document {
     /// bus.
     ///
     /// `color` is `0xRRGGBBAA` (red in the high byte, alpha in the
-    /// low byte). Currently only `tool_id == "pencil"` is supported.
-    /// The Pencil emits a [`SetPixel`] on the active layer / frame:
+    /// low byte). Supported `tool_id`s:
+    ///
+    /// - `"pencil"` — writes `color` to the target pixel.
+    /// - `"eraser"` — writes fully transparent RGBA(0,0,0,0) to the
+    ///   target pixel; the `color` argument is ignored (spec §5.2:
+    ///   "Clears to transparent (RGBA) or transparent-index
+    ///   (Indexed)").
+    ///
+    /// Both tools emit a [`SetPixel`] on the active layer / frame:
     /// today the active layer is the lowest-z `LayerKind::Image`
     /// layer (the bootstrapped `"Layer 1"` for fresh documents) and
     /// the active frame is `0`. Group / tilemap layers in an opened
@@ -181,12 +188,24 @@ impl Document {
     ///
     /// Spec §9.3 calls for a richer options struct (`button`, `mods`,
     /// `phase`, brush size). Positional args today; an options struct
-    /// lands when the second tool ships in M7.
+    /// lands when more tools ship.
     #[wasm_bindgen(js_name = applyTool)]
     pub fn apply_tool(&mut self, tool_id: &str, x: i32, y: i32, color: u32) -> Result<(), String> {
-        if tool_id != "pencil" {
-            return Err(format!("unknown tool: {tool_id}"));
-        }
+        let rgba = match tool_id {
+            "pencil" => Rgba {
+                r: ((color >> 24) & 0xff) as u8,
+                g: ((color >> 16) & 0xff) as u8,
+                b: ((color >> 8) & 0xff) as u8,
+                a: (color & 0xff) as u8,
+            },
+            "eraser" => Rgba {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 0,
+            },
+            _ => return Err(format!("unknown tool: {tool_id}")),
+        };
         let layer = self
             .sprite
             .layers
@@ -195,16 +214,10 @@ impl Document {
             .ok_or_else(|| "document has no paintable image layer".to_string())?
             .id;
         let frame = FrameIndex::new(0);
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
-            .map_err(|e| format!("failed to apply pencil: {e}"))?;
+            .map_err(|e| format!("failed to apply {tool_id}: {e}"))?;
         self.events
             .push(Event::dirty_rect(layer.0, frame.0, x, y, 1, 1));
         Ok(())
@@ -431,6 +444,52 @@ mod tests {
     fn apply_tool_pencil_rejects_out_of_bounds_pixel() {
         let mut doc = Document::new(2, 2).expect("dims");
         assert!(doc.apply_tool("pencil", 10, 10, 0x000000ff).is_err());
+    }
+
+    #[test]
+    fn apply_tool_eraser_clears_a_previously_painted_pixel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 2, 1, 0xff0000ff)
+            .expect("pencil ok");
+        doc.apply_tool("eraser", 2, 1, 0x00000000)
+            .expect("eraser ok");
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 1), [0, 0, 0, 0]);
+        // The eraser is its own command, so it joins the bus.
+        assert_eq!(doc.bus.undo_depth(), 2);
+    }
+
+    #[test]
+    fn apply_tool_eraser_ignores_the_color_argument() {
+        // The eraser always writes transparent regardless of `color`,
+        // so a non-zero color argument must not surface in the cel.
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.apply_tool("eraser", 0, 0, 0xff00ffff)
+            .expect("eraser ok");
+        let frame = doc.compose(0, 1).expect("compose ok");
+        assert_eq!(pixel_at(&frame.pixels(), 2, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn apply_tool_eraser_emits_dirty_rect() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("eraser", 1, 2, 0x00000000)
+            .expect("eraser ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.kind(), "dirty-rect");
+        assert_eq!(ev.x(), 1);
+        assert_eq!(ev.y(), 2);
+        assert_eq!(ev.width(), 1);
+        assert_eq!(ev.height(), 1);
+    }
+
+    #[test]
+    fn apply_tool_eraser_rejects_out_of_bounds_pixel() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(doc.apply_tool("eraser", 10, 10, 0x00000000).is_err());
     }
 
     #[test]
