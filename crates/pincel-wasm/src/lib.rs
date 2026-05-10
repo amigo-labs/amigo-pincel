@@ -9,15 +9,21 @@
 //! Phase 1 / CLAUDE.md M6 lands the surface incrementally. The current
 //! cut covers `Document::new` (with a default-layer / cel bootstrap),
 //! opening / saving Aseprite byte buffers, full-canvas
-//! `Document::compose`, basic dimension getters, and `applyTool` with
-//! a Pencil routed through the command bus. `drainEvents` lands in
-//! M6.4.
+//! `Document::compose`, basic dimension getters, `applyTool` with a
+//! Pencil routed through the command bus, JS-facing `undo` / `redo` /
+//! `undoDepth` / `redoDepth`, and `drainEvents` driven by a bounded
+//! ring buffer (M6.4).
 //!
 //! Errors cross the boundary as `Result<_, String>`; `wasm-bindgen` maps
 //! `String` Errs to a thrown JS exception. This keeps the surface
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod events;
+
+pub use events::Event;
+
+use events::EventQueue;
 use pincel_core::{
     AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, Frame, FrameIndex, Layer,
     LayerId, LayerKind, PixelBuffer, Rgba, SetPixel, Sprite, compose, read_aseprite,
@@ -39,6 +45,7 @@ pub struct Document {
     sprite: Sprite,
     cels: CelMap,
     bus: Bus,
+    events: EventQueue,
 }
 
 #[wasm_bindgen]
@@ -73,6 +80,7 @@ impl Document {
             sprite,
             cels,
             bus: Bus::new(),
+            events: EventQueue::new(),
         })
     }
 
@@ -88,6 +96,7 @@ impl Document {
             sprite,
             cels,
             bus: Bus::new(),
+            events: EventQueue::new(),
         })
     }
 
@@ -196,7 +205,74 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply pencil: {e}"))?;
+        self.events
+            .push(Event::dirty_rect(layer.0, frame.0, x, y, 1, 1));
         Ok(())
+    }
+
+    /// Revert the most recent command. Returns `true` if a command was
+    /// undone, `false` when the undo stack was empty.
+    ///
+    /// On a successful undo a `dirty-rect` event covering the full
+    /// canvas is enqueued so the UI re-renders. Per-command dirty-rect
+    /// tracking lands in M12 (perf pass).
+    pub fn undo(&mut self) -> bool {
+        let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
+        if undone {
+            self.push_full_dirty();
+        }
+        undone
+    }
+
+    /// Re-apply the most recently undone command. Returns `true` if a
+    /// command was redone. Errors propagate from the underlying
+    /// command (e.g. a redo whose target cel was deleted).
+    pub fn redo(&mut self) -> Result<bool, String> {
+        let redone = self
+            .bus
+            .redo(&mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to redo: {e}"))?;
+        if redone {
+            self.push_full_dirty();
+        }
+        Ok(redone)
+    }
+
+    /// Number of commands available to undo.
+    #[wasm_bindgen(getter, js_name = undoDepth)]
+    pub fn undo_depth(&self) -> u32 {
+        self.bus.undo_depth() as u32
+    }
+
+    /// Number of commands available to redo.
+    #[wasm_bindgen(getter, js_name = redoDepth)]
+    pub fn redo_depth(&self) -> u32 {
+        self.bus.redo_depth() as u32
+    }
+
+    /// Drain queued events and return them in FIFO order. The internal
+    /// buffer is cleared on every call.
+    ///
+    /// The UI is expected to call this once per RAF tick (spec §9.3).
+    /// The buffer is bounded with drop-oldest semantics; a UI that
+    /// stops draining (e.g. a backgrounded tab) cannot grow it without
+    /// limit.
+    #[wasm_bindgen(js_name = drainEvents)]
+    pub fn drain_events(&mut self) -> Vec<Event> {
+        self.events.drain()
+    }
+}
+
+impl Document {
+    fn push_full_dirty(&mut self) {
+        self.events.push(Event::dirty_rect(
+            0,
+            0,
+            0,
+            0,
+            self.sprite.width,
+            self.sprite.height,
+        ));
     }
 }
 
@@ -400,5 +476,79 @@ mod tests {
             .apply_tool("pencil", 0, 0, 0x000000ff)
             .expect_err("group-only doc has nothing to paint");
         assert!(err.contains("no paintable image layer"));
+    }
+
+    #[test]
+    fn drain_events_is_empty_on_a_fresh_document() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.drain_events().is_empty());
+    }
+
+    #[test]
+    fn apply_tool_pencil_emits_dirty_rect_for_painted_pixel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 1, 2, 0xff0000ff)
+            .expect("pencil ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.kind(), "dirty-rect");
+        assert_eq!(ev.layer(), 0);
+        assert_eq!(ev.frame(), 0);
+        assert_eq!(ev.x(), 1);
+        assert_eq!(ev.y(), 2);
+        assert_eq!(ev.width(), 1);
+        assert_eq!(ev.height(), 1);
+        assert!(doc.drain_events().is_empty());
+    }
+
+    #[test]
+    fn apply_tool_failure_does_not_emit_an_event() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(doc.apply_tool("pencil", 10, 10, 0x000000ff).is_err());
+        assert!(doc.drain_events().is_empty());
+    }
+
+    #[test]
+    fn undo_redo_emit_full_canvas_dirty_rects_and_track_depth() {
+        let mut doc = Document::new(4, 3).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0x123456ff)
+            .expect("pencil ok");
+        // Drain the paint event so the undo / redo events are isolated.
+        let _ = doc.drain_events();
+
+        assert_eq!(doc.undo_depth(), 1);
+        assert_eq!(doc.redo_depth(), 0);
+
+        assert!(doc.undo());
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(doc.redo_depth(), 1);
+        let after_undo = doc.drain_events();
+        assert_eq!(after_undo.len(), 1);
+        assert_eq!(after_undo[0].kind(), "dirty-rect");
+        assert_eq!(after_undo[0].width(), 4);
+        assert_eq!(after_undo[0].height(), 3);
+
+        assert!(doc.redo().expect("redo ok"));
+        assert_eq!(doc.undo_depth(), 1);
+        assert_eq!(doc.redo_depth(), 0);
+        let after_redo = doc.drain_events();
+        assert_eq!(after_redo.len(), 1);
+        assert_eq!(after_redo[0].width(), 4);
+        assert_eq!(after_redo[0].height(), 3);
+    }
+
+    #[test]
+    fn undo_on_empty_stack_returns_false_and_emits_nothing() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(!doc.undo());
+        assert!(doc.drain_events().is_empty());
+    }
+
+    #[test]
+    fn redo_on_empty_stack_returns_false_and_emits_nothing() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(!doc.redo().expect("empty redo is ok"));
+        assert!(doc.drain_events().is_empty());
     }
 }
