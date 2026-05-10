@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-08_ (M6.3 `Document::applyTool` Pencil)
+_Last updated: 2026-05-10_ (M6.4 `Document::drainEvents` + undo / redo)
 
 ## Completed
 
@@ -337,14 +337,55 @@ _Last updated: 2026-05-08_ (M6.3 `Document::applyTool` Pencil)
   restores the second pixel, unknown tool ids reject, and
   out-of-bounds coordinates reject.
 
+### M6 — `Document::drainEvents` + undo / redo (M6.4) ✅
+
+- New `pincel_wasm::events` module: `Event` (wasm-bindgen
+  exported, uniform shape with a `kind` getter) and a private
+  `EventQueue` ring buffer (`VecDeque`-backed, drop-oldest, cap
+  `1024`). Today the only `kind` shipped is `"dirty-rect"`;
+  future kinds (`layer-changed`, `palette-changed`,
+  `undo-pushed`, …) append to the same struct without changing
+  the JS wire shape.
+- `Event` exposes seven getters: `kind` (string), `layer`,
+  `frame` (`u32`), `x`, `y` (`i32`), `width`, `height` (`u32`).
+  Fields not relevant to a given kind are zeroed; today all
+  events are dirty rects so every field is meaningful.
+- `Document` gained an `events: EventQueue` field plumbed
+  through `Document::new` and `Document::open_aseprite`.
+- `Document::applyTool` pencil now enqueues a 1×1
+  `dirty-rect` event after a successful paint (post-
+  `Bus::execute`, so failed paints leave the queue alone).
+  Coordinates are sprite-space and `layer` / `frame` reflect
+  the paint target. Per-stroke merging (one dirty rect per
+  drag instead of per pixel) is deferred until the UI surfaces
+  pointer-event sequences in M6.6.
+- New JS-facing methods on `Document`:
+  - `undo() -> bool` — returns `true` when a command was
+    undone. Pushes a full-canvas `dirty-rect` event so the UI
+    re-renders without per-command tracking. Per-command dirty
+    rects land in M12.
+  - `redo() -> Result<bool, String>` — same shape, surfaces
+    the underlying command error with a `"failed to redo"`
+    prefix.
+  - `undoDepth` / `redoDepth` getters (`u32`) backed by
+    `Bus::undo_depth` / `Bus::redo_depth`.
+  - `drainEvents() -> Vec<Event>` — returns the queue contents
+    in FIFO order and clears the buffer. Verified to compile
+    against `wasm-bindgen` 0.2.121 with no extra deps.
+- 6 new unit tests in `pincel-wasm` plus 4 events-module
+  tests (26 wasm unit total): empty drain on fresh doc,
+  pencil emits a 1×1 dirty rect, failed paint emits nothing,
+  undo / redo round-trip emits full-canvas dirty rects and
+  tracks depth, undo / redo on an empty stack are no-ops.
+
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (84 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (91 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 14 pincel-wasm unit),
+round-trip + 8 aseprite-writer roundtrip + 26 pincel-wasm unit),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-Zp7f2` branch.
+`claude/continue-from-status-wcM2P` branch.
 
 ## M6 task breakdown
 
@@ -361,10 +402,10 @@ ships as a sequence of S/M tasks:
   routed through `pincel_core::SetPixel` + the command bus.
   Includes default-layer / default-cel bootstrap so a freshly-
   created document has a paintable target.
-- [ ] **M6.4** — `Document::drainEvents` skeleton (event enum +
-  ring buffer, no producers wired yet beyond `dirty-rect` from
-  M6.3 paints) + JS-facing `undo` / `redo` / `undoDepth` so the
-  bus seeded in M6.3 is reachable from JS.
+- [x] **M6.4** — `Document::drainEvents` skeleton (event enum +
+  ring buffer, dirty-rect from M6.3 paints + full-canvas dirty
+  on undo / redo) + JS-facing `undo` / `redo` / `undoDepth` /
+  `redoDepth`.
 - [ ] **M6.5** — Svelte 5 + Vite scaffold under `ui/` with Tailwind
   4 set up. wasm-pack build script. Empty canvas page.
 - [ ] **M6.6** — Wire `pincel-wasm` package into the UI: open file
@@ -432,6 +473,16 @@ Plan when a fixture surfaces the need:
   testable on the host target (where `JsError::new` panics). Migrate
   to `JsError` (or a typed `JsValue` payload) once a `wasm-pack
   test --node` job lands and exercises the wasm-only error paths.
+- `Document::undo` / `Document::redo` emit a single full-canvas
+  `dirty-rect` event because commands do not yet carry their own
+  dirty region. Per-command dirty-rect tracking is M12 (perf pass);
+  until then full-canvas re-render is acceptable for the canvas
+  sizes Phase 1 targets (≤ 512×512).
+- The `dirty-rect` event queue is bounded at 1024 entries with
+  drop-oldest semantics. A pencil that paints one pixel per RAF
+  tick can stall ~17 s before any event is dropped. Coalescing a
+  pointer drag into a single dirty rect lands when the UI wires
+  `applyTool` to pointer events in M6.6.
 - `Document::new` seeds a single 100 ms frame. Spec §3.3 implies
   every editable document carries ≥1 frame, but the model itself
   does not require it; `aseprite-writer` happily emits a 0-frame
