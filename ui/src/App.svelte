@@ -87,6 +87,12 @@
 
   function paintAt(e: PointerEvent) {
     if (!doc) return;
+    // The Line tool has its own press / drag / release pipeline above
+    // (`lineStart` + `linePreview` → `doc.applyLine` on release). The
+    // wasm `applyTool` surface does not accept a `'line'` tool_id, so a
+    // mid-drag tool switch (e.g. the user picks Line while still
+    // dragging a Pencil stroke) must not route a stroke through here.
+    if (tool === 'line') return;
     const point = spriteCoord(e);
     if (!point) return;
     if (tool === 'eyedropper') {
