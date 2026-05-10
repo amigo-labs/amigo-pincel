@@ -12,7 +12,7 @@ pub mod geometry;
 pub mod render;
 
 pub use codec::{AsepriteReadOutput, CodecError, read_aseprite, write_aseprite};
-pub use command::{AddFrame, AddLayer, AnyCommand, Bus, Command, CommandError, SetPixel};
+pub use command::{AddFrame, AddLayer, AnyCommand, Bus, Command, CommandError, DrawLine, SetPixel};
 
 pub use document::{
     BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId,

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M7.2: Eyedropper tool — `Document::pickColor` + UI tool selector binding)
+_Last updated: 2026-05-10_ (M7.3: Line tool — `DrawLine` command, `Document::applyLine`, UI Bresenham preview overlay)
 
 ## Completed
 
@@ -588,15 +588,62 @@ _Last updated: 2026-05-10_ (M7.2: Eyedropper tool — `Document::pickColor` + UI
   alpha control yet. Drags keep sampling so the user can scrub for
   the pixel they want.
 
+### M7 — Line tool (M7.3) ✅
+
+- New `pincel_core::DrawLine` command (`crates/pincel-core/src/command/
+  draw_line.rs`). Rasterizes a 1-pixel-wide Bresenham line between two
+  sprite-space endpoints into the target image cel, records each
+  modified pixel's prior RGBA for revert, and skips pixels outside the
+  cel's pixel buffer silently. The shared `bresenham(x0, y0, x1, y1)
+  → Vec<(i32, i32)>` helper is internal to the command for now; if
+  outline-rectangle / ellipse tools want to share it, lift to
+  `geometry` when M7.4 / M7.5 land. Errors mirror `SetPixel`
+  (`MissingCel`, `NotAnImageCel`, `UnsupportedColorMode`). No
+  `merge`: each line is its own command, one press-drag-release per
+  undo step.
+- `AnyCommand::DrawLine` variant + `From<DrawLine>` impl plumb the
+  command through the bus. Re-exported from `pincel_core::lib.rs`
+  alongside `SetPixel`.
+- `pincel-wasm::Document::apply_line(x0, y0, x1, y1, color)`
+  (`js_name = applyLine`). Packed `0xRRGGBBAA` color, targets the
+  same active layer / frame as the pencil (lowest-z `LayerKind::Image`,
+  frame 0). Emits a single `dirty-rect` event covering the line's
+  axis-aligned bounding box (always positive `width` / `height`,
+  endpoint order doesn't matter). A new `line_bbox` helper isolates
+  the bounding-box math so it's testable on its own. `applyLine` is
+  not exposed through `applyTool` because that surface is
+  `(x, y, color)` only — a multi-coord tool needs its own entry
+  point until the spec-§9.3 options struct lands.
+- 13 new `pincel-core` unit tests (104 total): Bresenham helper
+  covers horizontal / vertical / diagonal / reverse / single-pixel
+  cases; `DrawLine` apply / revert / round-trip cases plus
+  out-of-cel clipping, offset-cel local-coord translation,
+  missing-cel error, no-merge.
+- 7 new `pincel-wasm` unit tests (43 total): line writes pixels,
+  joins the bus + undo restores transparency, dirty-rect bbox is
+  correct in both endpoint orders, errors when no image layer
+  exists, single-pixel line, `line_bbox` helper exhaustive.
+- UI gains a Line toolbar button alongside Pencil / Eraser /
+  Eyedropper. `Tool` union widened to include `'line'`. New press /
+  drag / release pipeline on the canvas: `pointerdown` records the
+  start, `pointermove` updates the live endpoint, `pointerup`
+  commits via `doc.applyLine`. During the drag, `recompose` calls a
+  new `paintLinePreview(canvas, x0, y0, x1, y1, color)` helper in
+  `lib/render/canvas2d.ts` that overlays a Bresenham preview on top
+  of the freshly-blitted composed frame using `ctx.fillRect(x, y,
+  1, 1)` per rasterized pixel. The preview uses the same algorithm
+  as the Rust `DrawLine`, so the in-flight preview is pixel-exact
+  with what `applyLine` will commit.
+
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (91 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (104 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 36 pincel-wasm unit + 2
+round-trip + 8 aseprite-writer roundtrip + 43 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-W0Ofh` branch. `pnpm install`,
+`claude/continue-work-GX1SI` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -617,9 +664,10 @@ behavior.
   `Document::pickColor(frame, x, y) → u32` method, no command
   emitted. UI button + foreground-color binding (alpha dropped at
   the surface until the input grows alpha support).
-- [ ] **M7.3** — Line. Bresenham line between press and release;
-  new `DrawLine` command storing the pixel-delta dirty rect; UI
-  preview overlay while dragging.
+- [x] **M7.3** — Line. Bresenham line between press and release; new
+  `DrawLine` command storing per-pixel deltas; UI Bresenham preview
+  overlay while dragging via a `paintLinePreview` helper that mirrors
+  the Rust rasterizer pixel-for-pixel.
 - [ ] **M7.4** — Rectangle (outline + filled). New
   `DrawRectangle { fill }` command; Shift constrains to square.
 - [ ] **M7.5** — Ellipse (outline + filled). Midpoint algorithm;

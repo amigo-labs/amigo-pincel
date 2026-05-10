@@ -32,3 +32,58 @@ export function blitFrame(canvas: HTMLCanvasElement, frame: ComposeFrame): void 
   const image = new ImageData(clamped, width, height);
   ctx.putImageData(image, 0, 0);
 }
+
+/**
+ * Overlay a 1-pixel-wide Bresenham line on top of the current canvas
+ * contents. Coordinates are in the canvas's pixel space (i.e. sprite
+ * coords for the M6 single-frame, 1× compose path).
+ *
+ * Used by the Line tool to preview the rasterized pixel set during a
+ * press-drag before `Document.applyLine` commits the actual command on
+ * release. The preview matches the committed pixels exactly because it
+ * uses the same Bresenham algorithm as `pincel_core::DrawLine`.
+ */
+export function paintLinePreview(
+  canvas: HTMLCanvasElement,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  color: string,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.fillStyle = color;
+  for (const [x, y] of bresenham(x0, y0, x1, y1)) {
+    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) continue;
+    ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+function* bresenham(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): IterableIterator<[number, number]> {
+  const dx = Math.abs(x1 - x0);
+  const dy = -Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  let x = x0;
+  let y = y0;
+  for (;;) {
+    yield [x, y];
+    if (x === x1 && y === y1) return;
+    const e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
