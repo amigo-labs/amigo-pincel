@@ -61,9 +61,15 @@
     if (!point) return;
     try {
       doc.applyTool('pencil', point.x, point.y, packColor(color));
-    } catch {
-      // out-of-bounds drag etc. — silently ignore for the MVP. The
-      // tool error path is exercised by `pincel-wasm` unit tests.
+    } catch (err) {
+      // Drags that leave the canvas raise PixelOutOfBounds; that is
+      // expected and silenced. Anything else (missing layer, unknown
+      // tool, …) is a real failure: surface it in the status bar
+      // and log so it doesn't disappear.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('pixel out of bounds')) return;
+      console.error('applyTool failed', err);
+      status = `paint failed: ${msg}`;
     }
   }
 
@@ -86,7 +92,18 @@
     painting = false;
   }
 
+  // wasm-bindgen classes own Rust-side allocations; freeing the prior
+  // `Document` before replacing it avoids leaking memory across
+  // repeated New / Open operations. Safe to call when `doc` is null.
+  function disposeDoc() {
+    if (doc) {
+      doc.free();
+      doc = null;
+    }
+  }
+
   function newDoc() {
+    disposeDoc();
     doc = new Document(64, 64);
     dirty = true;
     syncMeta();
@@ -99,7 +116,9 @@
     if (!file) return;
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      doc = Document.openAseprite(bytes);
+      const next = Document.openAseprite(bytes);
+      disposeDoc();
+      doc = next;
       dirty = true;
       syncMeta();
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
@@ -123,7 +142,9 @@
       a.href = url;
       a.download = 'pincel.aseprite';
       a.click();
-      URL.revokeObjectURL(url);
+      // Defer the revoke: some browsers cancel the download if the
+      // blob URL is revoked synchronously after `.click()`.
+      setTimeout(() => URL.revokeObjectURL(url), 0);
       status = `saved ${bytes.length} bytes`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -167,17 +188,25 @@
 
   onMount(() => {
     let cancelled = false;
-    void loadCore().then(() => {
-      if (cancelled) return;
-      doc = new Document(64, 64);
-      syncMeta();
-      dirty = true;
-      status = 'ready';
-      rafHandle = requestAnimationFrame(tick);
-    });
+    loadCore()
+      .then(() => {
+        if (cancelled) return;
+        doc = new Document(64, 64);
+        syncMeta();
+        dirty = true;
+        status = 'ready';
+        rafHandle = requestAnimationFrame(tick);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('loadCore failed', err);
+        status = `wasm init failed: ${msg}`;
+      });
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+      disposeDoc();
     };
   });
 </script>
