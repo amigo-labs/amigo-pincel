@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M6.7 prep: paint→save→open round-trip pinned via pincel-wasm integration test)
+_Last updated: 2026-05-10_ (M7.2: Eyedropper tool — `Document::pickColor` + UI tool selector binding)
 
 ## Completed
 
@@ -528,17 +528,114 @@ _Last updated: 2026-05-10_ (M6.7 prep: paint→save→open round-trip pinned via
   dev-deps. Adds 2 to the pincel-wasm test count (27 unit + 2
   integration, 29 total).
 
+### M7 — Eraser tool (M7.1) ✅
+
+- `pincel-wasm::Document::apply_tool` now accepts `tool_id ==
+  "eraser"` and routes it through the same `SetPixel` command as
+  the Pencil, with the color hard-coded to `Rgba { 0, 0, 0, 0 }`
+  (spec §5.2 — "Clears to transparent (RGBA) or transparent-index
+  (Indexed)"). The `color` argument is documented as ignored for
+  the eraser so the JS surface stays a single positional-arg
+  signature for every Phase-1 image tool. Dirty-rect events,
+  layer / frame targeting, and out-of-bounds handling are
+  identical to Pencil; the only behavioral difference is the
+  written pixel value.
+- The error prefix in `applyTool` was generalized from
+  `"failed to apply pencil"` to `"failed to apply {tool_id}"`
+  so the JS-side `console.error` / status-bar message identifies
+  the active tool. No tests asserted on the old prefix.
+- 4 new unit tests (31 wasm unit total): eraser clears a
+  previously painted pixel (and joins the bus → undo depth 2),
+  eraser ignores the color arg, eraser emits a 1×1 dirty rect,
+  eraser rejects out-of-bounds pixels.
+- UI gains a Pencil / Eraser tool group in the toolbar
+  (`role="group" aria-label="Active tool"`, `aria-pressed` mirrors
+  selection, `.toolbar-btn-active` style class for the active
+  button). `tool` is a Svelte 5 rune-backed `$state` of a `Tool`
+  string union (initially `'pencil' | 'eraser'`; M7.2 widened it
+  to include `'eyedropper'`) defaulting to `'pencil'`. `paintAt`
+  forwards the current tool to `doc.applyTool` and the
+  pointer-event pipeline is otherwise unchanged.
+
+### M7 — Eyedropper tool (M7.2) ✅
+
+- New `pincel-wasm::Document::pick_color(frame, x, y) → u32`
+  (`js_name = pickColor`). Returns the packed non-premultiplied
+  `0xRRGGBBAA` value at the requested sprite coordinate, sampled
+  through `pincel_core::compose` with a 1×1 viewport at `(x, y)`,
+  the default `Visible` layer filter, and no overlays. The 1×1
+  viewport is the natural way to keep the existing M3 compose
+  pipeline (with all its blend / layer-filter semantics) as the
+  single source of truth — what the user sees is what they pick.
+- Read-only by design: no command emitted, no event enqueued, no
+  bus interaction. Out-of-canvas coordinates are not rejected; they
+  fall outside every cel's intersection and yield transparent
+  (`0x00000000`), matching the spec §4.1 "cels clipped to the
+  viewport intersection" semantics. Errors propagate from
+  `compose()` (unknown frame, unsupported color mode, …).
+- 5 new unit tests (36 wasm unit total): pick of a painted pixel
+  returns the painted color, pick of a transparent pixel returns
+  `0`, out-of-canvas reads (negative and far-positive) return
+  transparent, unknown-frame is rejected, pick does not disturb the
+  command bus depth.
+- UI gains an Eyedropper toolbar button alongside Pencil / Eraser
+  (same `aria-pressed` + `.toolbar-btn-active` pattern). `Tool`
+  union widened to `'pencil' | 'eraser' | 'eyedropper'`. `paintAt`
+  dispatches on the active tool: eyedropper samples via
+  `pickColor` and rebinds the foreground color input through a
+  new `unpackColor(0xRRGGBBAA) → "#RRGGBB"` helper. Alpha is
+  dropped at the UI surface for now — the color input has no
+  alpha control yet. Drags keep sampling so the user can scrub for
+  the pixel they want.
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (91 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 27 pincel-wasm unit + 2
+round-trip + 8 aseprite-writer roundtrip + 36 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-cQNBN` branch. `pnpm install`,
+`claude/continue-from-status-W0Ofh` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
+
+## M7 task breakdown
+
+CLAUDE.md M7 ("Tools expansion") is L-sized so it ships as a
+sequence of S/M tasks, one tool per task. Each tool gets its own
+`tool_id` slot in `Document::apply_tool` (or a follow-up
+single-call API for tools whose semantics need a press / release
+pair), a UI button in the toolbar, and a set of tests pinning the
+behavior.
+
+- [x] **M7.1** — Eraser. `SetPixel(transparent)` routed through the
+  existing command bus; UI toolbar gains a Pencil / Eraser tool
+  group.
+- [x] **M7.2** — Eyedropper. Read-only sampling of the composed
+  canvas at sprite coords through a 1×1 `compose()` viewport. New
+  `Document::pickColor(frame, x, y) → u32` method, no command
+  emitted. UI button + foreground-color binding (alpha dropped at
+  the surface until the input grows alpha support).
+- [ ] **M7.3** — Line. Bresenham line between press and release;
+  new `DrawLine` command storing the pixel-delta dirty rect; UI
+  preview overlay while dragging.
+- [ ] **M7.4** — Rectangle (outline + filled). New
+  `DrawRectangle { fill }` command; Shift constrains to square.
+- [ ] **M7.5** — Ellipse (outline + filled). Midpoint algorithm;
+  Shift constrains to circle.
+- [ ] **M7.6** — Bucket. Contiguous flood-fill, tolerance 0 in MVP
+  (spec §5.2); new `FillRegion` command storing the affected pixel
+  set.
+- [ ] **M7.7** — Move. Pans the canvas viewport (no command);
+  selection content move (depends on M7.8).
+- [ ] **M7.8** — Selection (rect marquee). Selection model on the
+  document plus a marching-ants overlay (Overlays scaffold already
+  exists in `pincel_core::render`).
+
+Stopping points (per CLAUDE.md §3.3) between each sub-task: every
+new public API surface, every dep added to `Cargo.toml` /
+`package.json`, every new command type.
 
 ## M6 task breakdown
 
