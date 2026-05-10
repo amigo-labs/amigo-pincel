@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M7.4: Rectangle tool — `DrawRectangle { fill }` command, `Document::applyRectangle`, UI outline + filled rect preview overlay with Shift-to-square)
+_Last updated: 2026-05-10_ (M7.5: Ellipse tool — `DrawEllipse { fill }` command with the Zingl midpoint algorithm, `Document::applyEllipse`, UI outline + filled ellipse preview overlay with Shift-to-circle)
 
 ## Completed
 
@@ -635,6 +635,60 @@ _Last updated: 2026-05-10_ (M7.4: Rectangle tool — `DrawRectangle { fill }` co
   as the Rust `DrawLine`, so the in-flight preview is pixel-exact
   with what `applyLine` will commit.
 
+### M7 — Ellipse tool (M7.5) ✅
+
+- New `pincel_core::DrawEllipse` command (`crates/pincel-core/src/
+  command/draw_ellipse.rs`). Rasterizes the ellipse inscribed in the
+  axis-aligned bbox of two sprite-space corners — outline if `fill
+  == false`, filled disk if `fill == true`. Uses Alois Zingl's
+  integer midpoint algorithm ("A Rasterizing Algorithm for Drawing
+  Curves") with i64 internal math. The outline plots each rim pixel
+  through a `HashSet` dedupe so the four-quadrant emission and the
+  tail loop's tip pixels don't double-record a `PriorPixel` and
+  break revert. The fill collects per-row x extents (a Vec sized to
+  the cel height, so out-of-cel rows allocate nothing) and emits
+  contiguous horizontal spans. Degenerate (`a == 0` / `b == 0`)
+  bboxes fall back to a single-axis line — the Zingl algorithm
+  assumes both axes ≥ 1 and otherwise leaves the tip pixels
+  unplotted. Pathological bboxes (axis span > 2^20) short-circuit
+  to a no-op so the perimeter walk terminates within a frame and
+  the algorithm's `a*b*b` products stay in i64. Errors mirror
+  `DrawLine` / `DrawRectangle` (`MissingCel`, `NotAnImageCel`,
+  `UnsupportedColorMode`). No `merge`: each ellipse is its own
+  command, one press-drag-release per undo step. Constructor takes
+  corners as `(i32, i32)` tuples to satisfy
+  `clippy::too_many_arguments`.
+- `AnyCommand::DrawEllipse` variant + `From<DrawEllipse>` impl plumb
+  the command through the bus. Re-exported from `pincel_core::lib.rs`
+  alongside `SetPixel` / `DrawLine` / `DrawRectangle`.
+- `pincel-wasm::Document::apply_ellipse(x0, y0, x1, y1, color, fill)`
+  (`js_name = applyEllipse`). Packed `0xRRGGBBAA` color, targets the
+  same active layer / frame as the pencil (lowest-z `LayerKind::
+  Image`, frame 0). Emits a single `dirty-rect` event covering the
+  ellipse's bbox; reuses the `endpoint_bbox` helper introduced for
+  Line / Rect.
+- 17 new `pincel-core` unit tests (139 total): normalize, single-
+  pixel, zero-width / zero-height degenerate lines, outline
+  symmetry about the bbox center, outline touches the four axis
+  extremes, fill includes the center, fill rows are contiguous,
+  reversed endpoints equivalence, outline / fill revert, cel-bounds
+  clipping, bbox-entirely-outside no-op, pathological-bbox short-
+  circuit, offset cel local coords, missing-cel error, no-merge.
+- UI gains **Ellipse** and **Ellipse Fill** toolbar buttons. The
+  `Tool` union widens to include `'ellipse'` and `'ellipse-fill'`;
+  `isDragShapeTool` extends accordingly so the same press / move /
+  release pipeline drives Line, Rect, and Ellipse. The new
+  `paintEllipsePreview(canvas, x0, y0, x1, y1, color, fill)` helper
+  in `lib/render/canvas2d.ts` mirrors the Rust rasterizer's midpoint
+  algorithm pixel-for-pixel; for fill it uses a `Float64Array` row-
+  extent buffer keyed by the clipped canvas y range so far-out
+  drags stay O(perimeter + visible rows).
+- Shift-to-circle reuses `constrainedEndpoint()` — a square bbox
+  inscribes a circle, so the existing `|dx| == |dy|` constraint
+  serves Ellipse / Ellipse Fill the same way it serves Rect / Rect
+  Fill. The Rust command takes raw corners; the modifier is applied
+  in JS before the endpoint reaches `doc.applyEllipse`.
+
 ### M7 — Rectangle tool (M7.4) ✅
 
 - New `pincel_core::DrawRectangle` command (`crates/pincel-core/src/
@@ -696,13 +750,13 @@ _Last updated: 2026-05-10_ (M7.4: Rectangle tool — `DrawRectangle { fill }` co
 
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (122 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (139 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
 round-trip + 8 aseprite-writer roundtrip + 51 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-work-HCFP0` branch. `pnpm install`,
+`claude/continue-work-ZLvvG` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -733,8 +787,15 @@ behavior.
   in memory); UI ships Rect + Rect Fill buttons sharing a generalized
   drag-shape pipeline with Line, and Shift-to-square is applied as a
   pure UI endpoint transform via `constrainedEndpoint()`.
-- [ ] **M7.5** — Ellipse (outline + filled). Midpoint algorithm;
-  Shift constrains to circle.
+- [x] **M7.5** — Ellipse (outline + filled). New
+  `DrawEllipse { fill }` command uses Zingl's integer midpoint
+  algorithm with i64 internal math; outline dedupes per-pixel writes
+  through a HashSet so revert restores correctly, fill collects
+  per-row x extents to emit horizontal spans, and pathological
+  bboxes short-circuit at `> 2^20` axis span. UI ships Ellipse +
+  Ellipse Fill buttons on the existing drag-shape pipeline; Shift-
+  to-circle is the same `|dx| == |dy|` constraint that already gave
+  Rect its square mode (a square bbox inscribes a circle).
 - [ ] **M7.6** — Bucket. Contiguous flood-fill, tolerance 0 in MVP
   (spec §5.2); new `FillRegion` command storing the affected pixel
   set.
