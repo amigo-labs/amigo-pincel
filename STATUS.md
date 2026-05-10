@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M6.6 UI wired to pincel-wasm: open / paint / save MVP)
+_Last updated: 2026-05-10_ (M6.7 prep: paint→save→open round-trip pinned via pincel-wasm integration test)
 
 ## Completed
 
@@ -502,14 +502,41 @@ _Last updated: 2026-05-10_ (M6.6 UI wired to pincel-wasm: open / paint / save MV
   changed. End-to-end paint round-trip not yet exercised in a
   real browser — that's the M6.7 demo.
 
+### M6 — paint → save → open round-trip integration test (M6.7 prep) ✅
+
+- New integration test file
+  `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`. Exercises
+  the full wasm surface end-to-end without a browser, pinning the
+  byte-level promise the M6.7 demo relies on. The remaining
+  human-driven steps (run the dev server, paint visually, reopen
+  the saved file in upstream Aseprite, capture screenshots) are
+  unchanged and still required to mark M6.7 done.
+- Two cases:
+  - `paint_save_open_roundtrip_preserves_pixels`: paints three
+    distinct colors at three corners on an 8×8 doc, calls
+    `saveAseprite`, parses the bytes back via `openAseprite`,
+    asserts `width` / `height` / layer + frame counts, then
+    composes frame 0 at zoom 1× and asserts the painted pixels are
+    present and unpainted ones stay fully transparent.
+  - `paint_save_open_roundtrip_preserves_undo_target_state`:
+    confirms the reopened doc starts with a fresh undo / redo
+    stack (the file format does not carry one) and that a
+    follow-up `apply_tool` paints on top of the persisted
+    pixels — i.e. the reopened doc is a fully editable session,
+    not a read-only view.
+- Picked up trivially by `cargo test --workspace`; no extra
+  dev-deps. Adds 2 to the pincel-wasm test count (27 unit + 2
+  integration, 29 total).
+
 ### Build status
 
 `cargo check --workspace`, `cargo test --workspace` (91 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 27 pincel-wasm unit),
+round-trip + 8 aseprite-writer roundtrip + 27 pincel-wasm unit + 2
+pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-f4mEq` branch. `pnpm install`,
+`claude/continue-from-status-cQNBN` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -541,7 +568,11 @@ ships as a sequence of S/M tasks:
   download anchor. Single-tool MVP.
 - [ ] **M6.7** — End-to-end demo: open hand-crafted fixture, paint,
   save, reopen the saved file in upstream Aseprite to confirm
-  validity. Capture screenshots / clip in the PR.
+  validity. Capture screenshots / clip in the PR. Programmatic
+  paint→save→open→compose round-trip is now pinned by
+  `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`; the
+  remaining work is the human-driven browser + upstream-Aseprite
+  verification.
 
 Stopping points (per CLAUDE.md §3.3) between each sub-task: every
 new public API surface, every dep added to `Cargo.toml` /
