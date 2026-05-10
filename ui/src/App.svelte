@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
-  import { blitFrame } from './lib/render/canvas2d';
+  import { blitFrame, paintLinePreview } from './lib/render/canvas2d';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
   // holds an opaque handle, paints with `applyTool`, and re-renders by
   // calling `compose()` and blitting the resulting `ComposeFrame`.
-  type Tool = 'pencil' | 'eraser' | 'eyedropper';
+  type Tool = 'pencil' | 'eraser' | 'eyedropper' | 'line';
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let doc = $state<Document | null>(null);
@@ -22,6 +22,10 @@
   let dirty = false;
   let rafHandle: number | null = null;
   let fileInput: HTMLInputElement | null = null;
+  // Press / current point of an in-flight Line drag. `null` outside a
+  // drag. `linePreview` is the live endpoint; both are sprite-space.
+  let lineStart: { x: number; y: number } | null = null;
+  let linePreview: { x: number; y: number } | null = null;
 
   function syncMeta() {
     if (!doc) return;
@@ -36,6 +40,20 @@
     const frame = doc.compose(0, 1);
     try {
       blitFrame(canvas, frame);
+      if (lineStart && linePreview) {
+        // Overlay the in-flight Line preview after the blit. The next
+        // recompose clears it; on release we commit through
+        // `Document.applyLine` and the composed cel surfaces the same
+        // pixels naturally.
+        paintLinePreview(
+          canvas,
+          lineStart.x,
+          lineStart.y,
+          linePreview.x,
+          linePreview.y,
+          color,
+        );
+      }
     } finally {
       frame.free();
     }
@@ -104,11 +122,26 @@
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
+    if (tool === 'line') {
+      const point = spriteCoord(e);
+      if (!point) return;
+      lineStart = point;
+      linePreview = point;
+      dirty = true;
+      return;
+    }
     painting = true;
     paintAt(e);
   }
 
   function onPointerMove(e: PointerEvent) {
+    if (lineStart) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      linePreview = point;
+      dirty = true;
+      return;
+    }
     if (!painting) return;
     paintAt(e);
   }
@@ -116,6 +149,26 @@
   function onPointerUp(e: PointerEvent) {
     if (canvas?.hasPointerCapture(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
+    }
+    if (lineStart && linePreview && doc) {
+      try {
+        doc.applyLine(
+          lineStart.x,
+          lineStart.y,
+          linePreview.x,
+          linePreview.y,
+          packColor(color),
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('applyLine failed', err);
+        status = `line failed: ${msg}`;
+      }
+      lineStart = null;
+      linePreview = null;
+      dirty = true;
+      syncMeta();
+      return;
     }
     painting = false;
   }
@@ -276,6 +329,14 @@
         onclick={() => (tool = 'eyedropper')}
       >
         Eyedropper
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'line'}
+        aria-pressed={tool === 'line'}
+        onclick={() => (tool = 'line')}
+      >
+        Line
       </button>
     </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
