@@ -551,10 +551,11 @@ _Last updated: 2026-05-10_ (M7.2: Eyedropper tool — `Document::pickColor` + UI
 - UI gains a Pencil / Eraser tool group in the toolbar
   (`role="group" aria-label="Active tool"`, `aria-pressed` mirrors
   selection, `.toolbar-btn-active` style class for the active
-  button). `tool` is a Svelte 5 rune-backed `$state<'pencil' |
-  'eraser'>` defaulting to `'pencil'`. `paintAt` forwards the
-  current tool to `doc.applyTool` and the pointer-event pipeline
-  is otherwise unchanged.
+  button). `tool` is a Svelte 5 rune-backed `$state` of a `Tool`
+  string union (initially `'pencil' | 'eraser'`; M7.2 widened it
+  to include `'eyedropper'`) defaulting to `'pencil'`. `paintAt`
+  forwards the current tool to `doc.applyTool` and the
+  pointer-event pipeline is otherwise unchanged.
 
 ### M7 — Eyedropper tool (M7.2) ✅
 
