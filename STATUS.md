@@ -525,8 +525,8 @@ _Last updated: 2026-05-10_ (M6.7 prep: paint→save→open round-trip pinned via
     pixels — i.e. the reopened doc is a fully editable session,
     not a read-only view.
 - Picked up trivially by `cargo test --workspace`; no extra
-  dev-deps. Adds 2 to the pincel-wasm test count (29 unit + 2
-  integration).
+  dev-deps. Adds 2 to the pincel-wasm test count (27 unit + 2
+  integration, 29 total).
 
 ### Build status
 
