@@ -1039,4 +1039,104 @@ mod tests {
         let pixels = doc.compose(0, 1).expect("compose ok").pixels();
         assert_eq!(pixel_at(&pixels, 4, 2, 1), [0xab, 0xcd, 0x01, 0xff]);
     }
+
+    #[test]
+    fn apply_ellipse_outline_writes_pixels_on_the_rim() {
+        let mut doc = Document::new(11, 11).expect("dims");
+        doc.apply_ellipse(0, 0, 10, 10, 0x335577ff, false)
+            .expect("ellipse ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        // The 11×11 bbox inscribes a circle whose rim hits the four
+        // axis-aligned extremes exactly.
+        assert_eq!(pixel_at(&pixels, 11, 5, 0), [0x33, 0x55, 0x77, 0xff]);
+        assert_eq!(pixel_at(&pixels, 11, 5, 10), [0x33, 0x55, 0x77, 0xff]);
+        assert_eq!(pixel_at(&pixels, 11, 0, 5), [0x33, 0x55, 0x77, 0xff]);
+        assert_eq!(pixel_at(&pixels, 11, 10, 5), [0x33, 0x55, 0x77, 0xff]);
+        // Center is interior, not on the rim.
+        assert_eq!(pixel_at(&pixels, 11, 5, 5), [0, 0, 0, 0]);
+        // Bbox corners lie outside an inscribed circle.
+        assert_eq!(pixel_at(&pixels, 11, 0, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 11, 10, 10), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn apply_ellipse_fill_writes_the_center_and_the_rim() {
+        let mut doc = Document::new(11, 11).expect("dims");
+        doc.apply_ellipse(0, 0, 10, 10, 0xff0080ff, true)
+            .expect("ellipse ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        // Center and axis extremes are filled.
+        assert_eq!(pixel_at(&pixels, 11, 5, 5), [0xff, 0x00, 0x80, 0xff]);
+        assert_eq!(pixel_at(&pixels, 11, 5, 0), [0xff, 0x00, 0x80, 0xff]);
+        assert_eq!(pixel_at(&pixels, 11, 0, 5), [0xff, 0x00, 0x80, 0xff]);
+        // Bbox corners stay transparent — they sit outside the circle.
+        assert_eq!(pixel_at(&pixels, 11, 0, 0), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 11, 10, 10), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn apply_ellipse_joins_the_undo_bus() {
+        let mut doc = Document::new(11, 11).expect("dims");
+        doc.apply_ellipse(0, 0, 10, 10, 0x112233ff, true)
+            .expect("ellipse ok");
+        assert_eq!(doc.undo_depth(), 1);
+        assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..11u32 {
+            for x in 0..11u32 {
+                assert_eq!(pixel_at(&pixels, 11, x, y), [0, 0, 0, 0]);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_ellipse_emits_bounding_box_dirty_rect() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        doc.apply_ellipse(2, 5, 7, 9, 0x00ff00ff, false)
+            .expect("ellipse ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.kind(), "dirty-rect");
+        assert_eq!(ev.x(), 2);
+        assert_eq!(ev.y(), 5);
+        assert_eq!(ev.width(), 6);
+        assert_eq!(ev.height(), 5);
+    }
+
+    #[test]
+    fn apply_ellipse_reversed_endpoints_have_positive_bbox() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_ellipse(6, 6, 1, 1, 0x000000ff, true)
+            .expect("ellipse ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        let ev = events[0];
+        assert_eq!(ev.x(), 1);
+        assert_eq!(ev.y(), 1);
+        assert_eq!(ev.width(), 6);
+        assert_eq!(ev.height(), 6);
+    }
+
+    #[test]
+    fn apply_ellipse_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(3), "folder"));
+        let err = doc
+            .apply_ellipse(0, 0, 1, 1, 0x000000ff, false)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
+    }
+
+    #[test]
+    fn apply_ellipse_single_pixel_writes_one_pixel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_ellipse(2, 1, 2, 1, 0xabcd01ff, false)
+            .expect("ellipse ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 1), [0xab, 0xcd, 0x01, 0xff]);
+    }
 }
