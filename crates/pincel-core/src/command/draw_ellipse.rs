@@ -138,12 +138,6 @@ impl Command for DrawEllipse {
         }
 
         let mut prior: Vec<PriorPixel> = Vec::new();
-        // The midpoint algorithm plots the four quadrant corners every
-        // iteration and the tail loop re-visits the axis tips, so the
-        // same (lx, ly) often appears twice. Recording a "prior" on the
-        // second visit would capture the just-written color and revert
-        // would fail to restore the original pixel. `seen` deduplicates.
-        let mut seen: HashSet<(u32, u32)> = HashSet::new();
 
         if self.fill {
             // Two passes: first collect the x extent of the rim for
@@ -165,6 +159,10 @@ impl Command for DrawEllipse {
                     row_max[row] = sx;
                 }
             });
+            // Spans within a row are contiguous and rows don't repeat,
+            // so each (lx, ly) is visited exactly once — no dedupe set
+            // needed. Skipping it avoids per-pixel hashing for filled
+            // ellipses on large canvases.
             for row in 0..cel_h as usize {
                 let lx = row_min[row];
                 let rx = row_max[row];
@@ -178,10 +176,9 @@ impl Command for DrawEllipse {
                 }
                 let sy = cel_min_y + row as i64;
                 for sx in lx_clip..=rx_clip {
-                    write_pixel(
+                    write_pixel_unique(
                         buffer,
                         &mut prior,
-                        &mut seen,
                         (cel_min_x, cel_min_y),
                         sx,
                         sy,
@@ -190,11 +187,18 @@ impl Command for DrawEllipse {
                 }
             }
         } else {
+            // The midpoint algorithm plots the four quadrant corners
+            // every iteration and the tail loop re-visits the axis
+            // tips, so the same (lx, ly) often appears twice. Recording
+            // a "prior" on the second visit would capture the just-
+            // written color and revert would fail to restore the
+            // original pixel. `seen` deduplicates.
+            let mut seen: HashSet<(u32, u32)> = HashSet::new();
             run_midpoint_ellipse(min_x, min_y, max_x, max_y, |sx, sy| {
                 if sx < cel_min_x || sx > cel_max_x || sy < cel_min_y || sy > cel_max_y {
                     return;
                 }
-                write_pixel(
+                write_pixel_dedup(
                     buffer,
                     &mut prior,
                     &mut seen,
@@ -240,10 +244,12 @@ fn normalize(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, i32, i32) {
     (x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1))
 }
 
-fn write_pixel(
+/// Write one pixel and append its prior color to `prior`. Caller
+/// guarantees `(sx, sy)` is not a repeat — outline-style emitters that
+/// may revisit the same pixel must use [`write_pixel_dedup`] instead.
+fn write_pixel_unique(
     buffer: &mut PixelBuffer,
     prior: &mut Vec<PriorPixel>,
-    seen: &mut HashSet<(u32, u32)>,
     cel_origin: (i64, i64),
     sx: i64,
     sy: i64,
@@ -252,9 +258,6 @@ fn write_pixel(
     let lx = (sx - cel_origin.0) as u32;
     let ly = (sy - cel_origin.1) as u32;
     if lx >= buffer.width || ly >= buffer.height {
-        return;
-    }
-    if !seen.insert((lx, ly)) {
         return;
     }
     let offset = ((ly * buffer.width + lx) * 4) as usize;
@@ -273,6 +276,29 @@ fn write_pixel(
         local_y: ly,
         prior: before,
     });
+}
+
+/// Like [`write_pixel_unique`] but consults `seen` first so a re-visit
+/// to the same `(lx, ly)` doesn't overwrite the recorded prior color
+/// with the just-written one.
+fn write_pixel_dedup(
+    buffer: &mut PixelBuffer,
+    prior: &mut Vec<PriorPixel>,
+    seen: &mut HashSet<(u32, u32)>,
+    cel_origin: (i64, i64),
+    sx: i64,
+    sy: i64,
+    color: Rgba,
+) {
+    let lx = (sx - cel_origin.0) as u32;
+    let ly = (sy - cel_origin.1) as u32;
+    if lx >= buffer.width || ly >= buffer.height {
+        return;
+    }
+    if !seen.insert((lx, ly)) {
+        return;
+    }
+    write_pixel_unique(buffer, prior, cel_origin, sx, sy, color);
 }
 
 /// Rasterize the rim of the ellipse inscribed in the bbox
