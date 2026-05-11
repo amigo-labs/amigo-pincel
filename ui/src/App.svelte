@@ -16,6 +16,7 @@
     | 'pencil'
     | 'eraser'
     | 'eyedropper'
+    | 'bucket'
     | 'line'
     | 'rectangle'
     | 'rectangle-fill'
@@ -232,8 +233,28 @@
       dirty = true;
       return;
     }
+    if (tool === 'bucket') {
+      // Bucket commits once per click; entering painting mode would have
+      // `pointermove` re-fire `applyBucket` and push a no-op fill onto
+      // the bus on every pixel of the drag.
+      commitBucket(e);
+      return;
+    }
     painting = true;
     paintAt(e);
+  }
+
+  function commitBucket(e: PointerEvent) {
+    if (!doc) return;
+    const point = spriteCoord(e);
+    if (!point) return;
+    try {
+      doc.applyBucket(point.x, point.y, packColor(color));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('applyBucket failed', err);
+      status = `bucket failed: ${msg}`;
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -441,6 +462,14 @@
         onclick={() => (tool = 'eyedropper')}
       >
         Eyedropper
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'bucket'}
+        aria-pressed={tool === 'bucket'}
+        onclick={() => (tool = 'bucket')}
+      >
+        Bucket
       </button>
       <button
         class="toolbar-btn"
