@@ -1,8 +1,61 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.8b: `pincel-wasm` selection surface — `setSelection` / `clearSelection` + `hasSelection` / `selectionX` / `selectionY` / `selectionWidth` / `selectionHeight` getters, plus a new `selection-changed` event. UI slice (M7.8c) follows.)
+_Last updated: 2026-05-11_ (Website: Cloudflare Pages deploy is wired end-to-end — see "Website — Cloudflare Pages deploy" below. Editor work still ahead at M7.8c.)
 
 ## Completed
+
+### Website — Cloudflare Pages deploy ✅
+
+Marketing site (`website/`) is now in a deployable state per
+`docs/specs/website-spec.md` §6.
+
+- **Static-adapter bug fixed.** `svelte.config.js` no longer sets
+  `fallback: 'index.html'`, which was clobbering the prerendered home
+  page (`/`) at build time. The previous `build/index.html` was the
+  empty SPA shell; it now contains the actual hero + feature grid +
+  comparison table + CTA, prerendered.
+- **Cloudflare Pages config:**
+  - `website/wrangler.toml` — project name `pincel-website`,
+    `pages_build_output_dir = "./build"`, compatibility_date pinned.
+  - `website/static/_headers` — long cache on hashed
+    `_app/immutable/*`, short cache on HTML, baseline security
+    headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+    Permissions-Policy).
+  - `website/static/404.html` — self-contained styled 404 page that
+    Cloudflare Pages auto-serves for unknown paths (the SvelteKit
+    chrome would require JS hydration; this works without).
+- **SEO correctness.** `SeoHead.svelte`, `sitemap.xml`, and `robots.txt`
+  now derive absolute URLs from `$lib/config.ts` (`siteUrl`) instead of
+  SvelteKit's `http://sveltekit-prerender/` placeholder. Canonical and
+  OG URLs in the built HTML now read `https://pincel.app/<route>`.
+- **CI / deploy workflow.** `.github/workflows/deploy-website.yml`:
+  - Triggers on pushes to `main` (production) and PRs (preview), both
+    scoped to `website/**` paths.
+  - Runs `pnpm check` (svelte-check), `pnpm lint` (eslint), `pnpm
+    build`, then `wrangler pages deploy build`.
+  - Requires repo secrets `CLOUDFLARE_API_TOKEN` and
+    `CLOUDFLARE_ACCOUNT_ID`. README documents both.
+- **Lint cleanup.** Added missing `@eslint/js` dep, configured the TS
+  parser for `*.svelte.ts` files, added keys to all `{#each}` blocks,
+  removed an unused `pixelSize` derived, and disabled
+  `svelte/no-navigation-without-resolve` (overkill for a prerendered
+  marketing site with hardcoded paths). `pnpm lint` is now clean.
+- **Build budget.** Per spec §6.3 (≤200 KB compressed for marketing
+  HTML+CSS+JS, excluding `/app`): current per-page compressed payloads
+  measured at ~10 KB HTML + ~57 KB shared `_app` assets. Well under
+  budget.
+
+What still needs human action before production traffic flows:
+
+1. Configure GitHub repo secrets `CLOUDFLARE_API_TOKEN` (Pages: Edit)
+   and `CLOUDFLARE_ACCOUNT_ID`.
+2. Create the `pincel-website` Pages project in the Cloudflare
+   dashboard (or let the first `wrangler pages deploy` create it).
+3. Decide the production domain (spec §14 Q1) and update
+   `website/src/lib/config.ts::siteUrl` if it differs from
+   `https://pincel.app`.
+
+### M1 — `pincel-core` skeleton ✅
 
 ### M1 — `pincel-core` skeleton ✅
 

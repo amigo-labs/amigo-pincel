@@ -54,16 +54,47 @@ Built today:
 
 - `/`, `/features`, `/embed`, `/about`, `/app` (placeholder)
 - PICO-8 design tokens, pixel-art components, CRT toggle
-- SEO meta, sitemap, robots, favicon
+- SEO meta with absolute canonical/OG URLs, sitemap, robots, favicon
+- Styled `404.html` served by Cloudflare Pages for unknown paths
 - Custom pixel-art icons (hand-coded SVG grids; final set will be drawn in Pincel itself)
 - Honest comparison table, feature grid, hero scene with torch flicker
+- Cloudflare Pages deploy pipeline (see below)
 
 Deferred to follow-up work:
 
 - Hand-drawn-in-Pincel icon set replacing the SVG placeholders
-- Hand-drawn Open Graph images per page (currently relies on `/og/default.png` once added)
+- Hand-drawn Open Graph images per page (currently relies on `/og/default.svg`)
 - Real screenshots in `/features` (currently shows placeholder frames)
 - Live embed demo on `/embed` (currently shows placeholder)
 - Editor mount on `/app` (waits on `@amigo-labs/pincel` publish)
 - Service worker for the marketing site
 - `/changelog`, `/docs`, `/showcase` (Phase 2/3)
+
+## Cloudflare Pages deploy
+
+The site deploys to Cloudflare Pages (project: `pincel-website`). Configuration:
+
+- `wrangler.toml` — project name + `pages_build_output_dir = "./build"`
+- `static/_headers` — long cache on hashed `_app/immutable/*`, short cache on HTML,
+  baseline security headers
+- `static/404.html` — Cloudflare Pages auto-serves this for unknown routes
+- `.github/workflows/deploy-website.yml` — runs `pnpm check && pnpm lint && pnpm build`
+  on every push/PR that touches `website/`, then `wrangler pages deploy build` for
+  production (push to `main`) and preview (PRs)
+
+Required GitHub repository secrets:
+
+| Secret                  | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Pages: Edit permission                   |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account hosting the project   |
+
+Manual deploy (from `website/`):
+
+```bash
+pnpm build
+pnpm dlx wrangler pages deploy build --project-name=pincel-website
+```
+
+Production origin is set in `src/lib/config.ts` (currently `https://pincel.app`).
+Update there if the domain decision in spec §6.1 lands on a different value.
