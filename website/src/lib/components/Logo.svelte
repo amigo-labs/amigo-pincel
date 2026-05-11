@@ -16,11 +16,11 @@
     class="pixelated mark"
     shape-rendering="crispEdges"
   >
-    <!-- Brush stroke motif in brand-primary on a dark square -->
+    <!-- Brush stroke motif in brand-primary (PICO-8 blue, see spec §5.2) on a dark square -->
     <rect x="0" y="0" width="16" height="16" fill="#0d0d12" />
     <rect x="1" y="1" width="14" height="14" fill="#1a1a23" />
     <!-- Diagonal pink brush stroke -->
-    <g fill="#ff77a8">
+    <g fill="#29adff">
       <rect x="11" y="2" width="2" height="2" />
       <rect x="10" y="3" width="3" height="2" />
       <rect x="9" y="4" width="3" height="2" />
@@ -33,7 +33,7 @@
       <rect x="2" y="11" width="3" height="2" />
     </g>
     <!-- Drip -->
-    <rect x="2" y="13" width="1" height="1" fill="#ff77a8" />
+    <rect x="2" y="13" width="1" height="1" fill="#29adff" />
     <!-- Highlight -->
     <rect x="12" y="3" width="1" height="1" fill="#ffec27" />
   </svg>

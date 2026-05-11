@@ -347,8 +347,7 @@ fg-secondary     #c2c3c7   (pico-8 light grey)
 fg-muted         #83769c   (pico-8 lavender)
 
 ─── Brand & Accents ───
-brand-primary    #ff77a8   (pico-8 pink — Pincel's hero color, ties to "pincel" / brush)
-brand-secondary  #29adff   (pico-8 blue)
+brand-primary    #29adff   (pico-8 blue — Pincel's hero color; see §12 2026-05-11 decision)
 accent-warn      #ffa300   (pico-8 orange)
 accent-error     #ff004d   (pico-8 red)
 accent-success   #00e436   (pico-8 green)
@@ -613,6 +612,7 @@ No machine translation. Every translation is reviewed by a native speaker.
 | 2026-05-07 | English-only at launch; German Phase 2 | Audience is English-speaking primarily; German is the natural second locale via amigo-labs context |
 | 2026-05-07 | Honest comparison table including where Aseprite wins | Trust-building with the skeptical audience; "we beat them at everything" tables are widely distrusted |
 | 2026-05-07 | `/app` is a separate Vite entry, isolated bundle | Marketing site stays fast; editor route doesn't drag down the home page |
+| 2026-05-11 | `brand-primary` is PICO-8 blue (#29adff), not PICO-8 pink (#ff77a8); `brand-secondary` retired | Owner preference. Blue keeps the PICO-8 identity, gives strong contrast on the dark base, and avoids overlap with the pink-saturated pixel-art tooling space (Aseprite, Piskel branding). `brand-secondary` was unused — single brand accent simplifies the token set. |
 
 ---
 

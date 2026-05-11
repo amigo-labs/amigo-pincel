@@ -12,8 +12,11 @@
   const torchFlameA = '#ffa300';
   const torchFlameB = '#ffec27';
   const torchFlameC = '#ff004d';
-  const sprite = '#ff77a8';
-  const spriteShadow = '#7e2553';
+  // Character uses the new brand-primary blue (see spec §5.2 + §12 2026-05-11).
+  // Shadow is PICO-8 dark blue, giving a two-tone monochrome body that reads
+  // against both the wall (#5f574f) and the floor (#83769c).
+  const sprite = '#29adff';
+  const spriteShadow = '#1d2b53';
   const spriteEye = '#fff1e8';
 </script>
 
