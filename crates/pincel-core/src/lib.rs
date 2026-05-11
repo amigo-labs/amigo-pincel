@@ -14,7 +14,7 @@ pub mod render;
 pub use codec::{AsepriteReadOutput, CodecError, read_aseprite, write_aseprite};
 pub use command::{
     AddFrame, AddLayer, AnyCommand, Bus, Command, CommandError, DrawEllipse, DrawLine,
-    DrawRectangle, SetPixel,
+    DrawRectangle, FillRegion, SetPixel,
 };
 
 pub use document::{
