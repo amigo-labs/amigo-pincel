@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-10_ (M7.5: Ellipse tool — `DrawEllipse { fill }` command with the Zingl midpoint algorithm, `Document::applyEllipse`, UI outline + filled ellipse preview overlay with Shift-to-circle)
+_Last updated: 2026-05-11_ (M7.6: Bucket tool — `FillRegion` command with 4-connected BFS flood-fill at tolerance 0, `Document::applyBucket`, UI single-click commit)
 
 ## Completed
 
@@ -689,6 +689,52 @@ _Last updated: 2026-05-10_ (M7.5: Ellipse tool — `DrawEllipse { fill }` comman
   Fill. The Rust command takes raw corners; the modifier is applied
   in JS before the endpoint reaches `doc.applyEllipse`.
 
+### M7 — Bucket tool (M7.6) ✅
+
+- New `pincel_core::FillRegion` command (`crates/pincel-core/src/
+  command/fill_region.rs`). Flood-fills the 4-connected region of
+  pixels that match the seed pixel's exact RGBA (tolerance 0 per spec
+  §5.2 MVP) and replaces them with the new color. Traversal is a
+  queue-based BFS over the cel-local buffer with a `Vec<bool>` visited
+  bitmap; worst-case work is `O(width * height)` and each pixel is
+  enqueued at most once. Seed-color equals new-color is treated as a
+  no-op (otherwise the queue would re-match every neighbor and the
+  cel pixels never observably change anyway). Seeds whose sprite
+  coordinates translate to a negative or out-of-buffer local position
+  are also no-ops — natural drawing-tool clipping. Errors mirror the
+  other image commands (`MissingCel`, `NotAnImageCel`,
+  `UnsupportedColorMode`). No `merge`: each bucket-fill is its own
+  command. The struct exposes `filled_count()` so tests can assert
+  exact-size flood regions without re-walking the buffer.
+- `AnyCommand::FillRegion` variant + `From<FillRegion>` impl plumb the
+  command through the bus. Re-exported from `pincel_core::lib.rs`.
+- `pincel-wasm::Document::apply_bucket(x, y, color)`
+  (`js_name = applyBucket`). Packed `0xRRGGBBAA` color, targets the
+  same active layer / frame as the pencil (lowest-z `LayerKind::
+  Image`, frame 0). Emits a `dirty-canvas` event since the fill can
+  affect any subset of the cel; the UI's RAF coalescer turns that
+  into a single recompose. The wasm method joins the bus even on
+  no-op fills (out-of-canvas seed, seed-color equals new-color) for
+  undo symmetry with the other paint tools.
+- 11 new `pincel-core` unit tests (150 total): blank-canvas full
+  flood, color-boundary clipping (vertical line splits the canvas),
+  4-connected-not-8 (a diagonal blue line confines a fill to a
+  triangle), seed-equals-target no-op, revert restores every filled
+  pixel, out-of-cel and negative-local seed no-ops, offset-cel local
+  coords, missing-cel error, enclosed-region containment (a red
+  frame stops the fill from leaking out), no-merge. 6 new
+  `pincel-wasm` unit tests (64 total): blank-canvas fill, line-
+  boundary stop, dirty-canvas event, bus integration, group-only
+  layer error, out-of-canvas no-op-but-joins-bus.
+- UI gains a **Bucket** toolbar button between Eyedropper and Line.
+  The `Tool` union widens to include `'bucket'`. `onPointerDown`
+  detects bucket and commits a single `doc.applyBucket(x, y, color)`
+  via a new `commitBucket` helper without entering painting mode —
+  drag-induced `pointermove`s do not fire the fill again (which
+  would push redundant no-op fills onto the bus). The Bucket is not
+  a drag-shape tool so the existing Line / Rect / Ellipse preview
+  pipeline is untouched.
+
 ### M7 — Rectangle tool (M7.4) ✅
 
 - New `pincel_core::DrawRectangle` command (`crates/pincel-core/src/
@@ -750,13 +796,13 @@ _Last updated: 2026-05-10_ (M7.5: Ellipse tool — `DrawEllipse { fill }` comman
 
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (139 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (150 pincel-core
 unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 51 pincel-wasm unit + 2
+round-trip + 8 aseprite-writer roundtrip + 64 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-work-ZLvvG` branch. `pnpm install`,
+`claude/continue-from-status-Vcv5l` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -796,9 +842,10 @@ behavior.
   Ellipse Fill buttons on the existing drag-shape pipeline; Shift-
   to-circle is the same `|dx| == |dy|` constraint that already gave
   Rect its square mode (a square bbox inscribes a circle).
-- [ ] **M7.6** — Bucket. Contiguous flood-fill, tolerance 0 in MVP
-  (spec §5.2); new `FillRegion` command storing the affected pixel
-  set.
+- [x] **M7.6** — Bucket. Contiguous 4-connected flood-fill at
+  tolerance 0 via a new `FillRegion` command (BFS over a visited
+  bitmap, prior-pixel list for revert). UI ships a single-click
+  Bucket button; the drag-shape pipeline is untouched.
 - [ ] **M7.7** — Move. Pans the canvas viewport (no command);
   selection content move (depends on M7.8).
 - [ ] **M7.8** — Selection (rect marquee). Selection model on the

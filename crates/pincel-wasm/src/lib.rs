@@ -26,8 +26,8 @@ pub use events::Event;
 use events::EventQueue;
 use pincel_core::{
     AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
-    DrawRectangle, Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect, Rgba, SetPixel,
-    Sprite, compose, read_aseprite, write_aseprite,
+    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect,
+    Rgba, SetPixel, Sprite, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -373,6 +373,47 @@ impl Document {
         self.events.push(Event::dirty_rect(
             layer.0, frame.0, bbox.0, bbox.1, bbox.2, bbox.3,
         ));
+        Ok(())
+    }
+
+    /// Flood-fill the contiguous region of pixels matching the seed pixel
+    /// at sprite-space `(x, y)` with the given non-premultiplied RGBA
+    /// color, routed through the command bus as a single
+    /// [`FillRegion`](pincel_core::FillRegion).
+    ///
+    /// The fill is 4-connected with tolerance 0 — only pixels that match
+    /// the seed's exact RGBA are replaced. `color` is packed as
+    /// `0xRRGGBBAA` (matching [`Self::apply_tool`]). The command targets
+    /// the same active layer / frame as the pencil — today the lowest-z
+    /// `LayerKind::Image` layer and frame `0`. Painting the seed color
+    /// over itself, or seeding outside the target cel, leaves the pixel
+    /// buffer unchanged but the command still joins the bus and emits
+    /// `dirty-canvas` for undo-symmetry with the other paint tools.
+    ///
+    /// The emitted `dirty-canvas` event reflects that a bucket fill can
+    /// affect any subset of the cel — the UI's RAF loop coalesces the
+    /// event into a single recompose.
+    #[wasm_bindgen(js_name = applyBucket)]
+    pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
+        let rgba = Rgba {
+            r: ((color >> 24) & 0xff) as u8,
+            g: ((color >> 16) & 0xff) as u8,
+            b: ((color >> 8) & 0xff) as u8,
+            a: (color & 0xff) as u8,
+        };
+        let layer = self
+            .sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
+            .id;
+        let frame = FrameIndex::new(0);
+        let cmd = FillRegion::new(layer, frame, x, y, rgba);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to apply bucket: {e}"))?;
+        self.events.push(Event::dirty_canvas());
         Ok(())
     }
 
@@ -1138,5 +1179,90 @@ mod tests {
             .expect("ellipse ok");
         let pixels = doc.compose(0, 1).expect("compose ok").pixels();
         assert_eq!(pixel_at(&pixels, 4, 2, 1), [0xab, 0xcd, 0x01, 0xff]);
+    }
+
+    #[test]
+    fn apply_bucket_fills_a_blank_canvas() {
+        let mut doc = Document::new(4, 3).expect("dims");
+        doc.apply_bucket(0, 0, 0x336699ff).expect("bucket ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..3u32 {
+            for x in 0..4u32 {
+                assert_eq!(pixel_at(&pixels, 4, x, y), [0x33, 0x66, 0x99, 0xff]);
+            }
+        }
+        assert_eq!(doc.undo_depth(), 1);
+    }
+
+    #[test]
+    fn apply_bucket_stops_at_color_boundaries() {
+        // Paint a vertical line down column 2 first, then bucket-fill from
+        // the left half. The right half (including the line) stays
+        // unchanged.
+        let mut doc = Document::new(4, 3).expect("dims");
+        for y in 0..3i32 {
+            doc.apply_tool("pencil", 2, y, 0x0000ffff)
+                .expect("pencil ok");
+        }
+        doc.apply_bucket(0, 0, 0xff0000ff).expect("bucket ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..3u32 {
+            assert_eq!(pixel_at(&pixels, 4, 0, y), [0xff, 0x00, 0x00, 0xff]);
+            assert_eq!(pixel_at(&pixels, 4, 1, y), [0xff, 0x00, 0x00, 0xff]);
+            assert_eq!(pixel_at(&pixels, 4, 2, y), [0x00, 0x00, 0xff, 0xff]);
+            assert_eq!(pixel_at(&pixels, 4, 3, y), [0, 0, 0, 0]);
+        }
+    }
+
+    #[test]
+    fn apply_bucket_emits_dirty_canvas_event() {
+        let mut doc = Document::new(4, 3).expect("dims");
+        doc.apply_bucket(0, 0, 0x336699ff).expect("bucket ok");
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind(), "dirty-canvas");
+    }
+
+    #[test]
+    fn apply_bucket_joins_the_undo_bus() {
+        let mut doc = Document::new(4, 3).expect("dims");
+        doc.apply_bucket(0, 0, 0x336699ff).expect("bucket ok");
+        assert_eq!(doc.undo_depth(), 1);
+        assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..3u32 {
+            for x in 0..4u32 {
+                assert_eq!(pixel_at(&pixels, 4, x, y), [0, 0, 0, 0]);
+            }
+        }
+    }
+
+    #[test]
+    fn apply_bucket_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(3), "folder"));
+        let err = doc
+            .apply_bucket(0, 0, 0x000000ff)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
+    }
+
+    #[test]
+    fn apply_bucket_outside_canvas_is_a_noop_paint_but_joins_bus() {
+        // Out-of-canvas seeds do not raise (matching pickColor's natural
+        // semantics) — the underlying FillRegion treats them as no-op.
+        // The command still joins the bus for undo symmetry.
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.apply_bucket(10, 10, 0xff0000ff).expect("bucket ok");
+        assert_eq!(doc.undo_depth(), 1);
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        for y in 0..2u32 {
+            for x in 0..2u32 {
+                assert_eq!(pixel_at(&pixels, 2, x, y), [0, 0, 0, 0]);
+            }
+        }
     }
 }
