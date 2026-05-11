@@ -1,5 +1,9 @@
-# Cloudflare Pages response headers.
-# Format: https://developers.cloudflare.com/pages/configuration/headers/
+# Cloudflare response headers for the static build output.
+#
+# Format is the Cloudflare Pages `_headers` syntax (one rule per route block),
+# which Cloudflare Workers Static Assets also honors when placed in the
+# directory referenced by `[assets].directory` in the root wrangler.toml.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
 
 # SvelteKit emits hashed asset URLs under /_app/immutable/. Safe to cache forever.
 /_app/immutable/*

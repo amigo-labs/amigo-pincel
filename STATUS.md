@@ -56,8 +56,6 @@ What still needs human action before production traffic flows:
 
 ### M1 — `pincel-core` skeleton ✅
 
-### M1 — `pincel-core` skeleton ✅
-
 - Cargo workspace at repo root (edition 2024, shared lints, `unsafe_code = deny`)
 - Crate `crates/pincel-core` with no platform dependencies
 - Document model per `docs/specs/pincel.md` §3:

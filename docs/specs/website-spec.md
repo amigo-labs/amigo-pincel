@@ -453,7 +453,7 @@ This is a deliberate choice: every icon on the site is dogfood proof.
 - **Build:** Vite
 - **Styling:** Tailwind 4 with custom theme matching the design tokens above
 - **Components:** shadcn-svelte where needed; custom-built for anything pixel-themed
-- **Hosting:** Cloudflare Pages (static, free tier, fast). Alternative: GitHub Pages if zero-vendor-lock is preferred.
+- **Hosting:** Cloudflare static edge (the repo's existing project uses Workers Builds with `[assets]`; see §12 2026-05-11). Alternative: GitHub Pages if zero-vendor-lock is preferred.
 - **Domain:** `pincel.app` if available, else `pincel.amigo-labs.dev`. (Decision deferred; check DNS.)
 
 ### 6.2 Build & Deploy
@@ -461,7 +461,7 @@ This is a deliberate choice: every icon on the site is dogfood proof.
 - Static site generation. No SSR runtime.
 - All pages prerendered at build time.
 - The `/app` route is a separate Vite entry; its bundle is fully isolated from the marketing pages so the marketing site loads fast and the editor doesn't contaminate it.
-- Deploys triggered from `main` branch via GitHub Actions to Cloudflare Pages.
+- Deploys are triggered by Cloudflare's Workers Builds Git integration on every push and PR (no GitHub Actions on the deploy side; see §12 2026-05-11).
 - Preview deploys for every PR.
 
 ### 6.3 Performance Budgets
@@ -613,6 +613,7 @@ No machine translation. Every translation is reviewed by a native speaker.
 | 2026-05-07 | Honest comparison table including where Aseprite wins | Trust-building with the skeptical audience; "we beat them at everything" tables are widely distrusted |
 | 2026-05-07 | `/app` is a separate Vite entry, isolated bundle | Marketing site stays fast; editor route doesn't drag down the home page |
 | 2026-05-11 | `brand-primary` is PICO-8 blue (#29adff), not PICO-8 pink (#ff77a8); `brand-secondary` retired | Owner preference. Blue keeps the PICO-8 identity, gives strong contrast on the dark base, and avoids overlap with the pink-saturated pixel-art tooling space (Aseprite, Piskel branding). `brand-secondary` was unused — single brand accent simplifies the token set. |
+| 2026-05-11 | Deploy via Cloudflare Workers Builds Git integration (project `amigo-pincel`), not Cloudflare Pages with a GitHub Actions workflow | The repo was already wired to a Workers project in the dashboard. Workers Static Assets serves prerendered SvelteKit output identically to Pages for our use case, honors the same `_headers` / `_redirects` / `404.html` conventions, and avoids running two deploy pipelines against the same project. A root-level `wrangler.toml` (`[build]` + `[assets]`) handles the build server-side; no GitHub Actions deploy workflow is involved. |
 
 ---
 

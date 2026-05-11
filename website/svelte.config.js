@@ -6,8 +6,9 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     // All routes are prerendered (see +layout.ts). The static adapter writes the
-    // build/ directory that Cloudflare Pages serves directly. We don't set a SPA
-    // fallback here because that would overwrite the prerendered build/index.html.
+    // build/ directory that Cloudflare Workers Builds picks up via the
+    // root wrangler.toml's [assets] block. We don't set a SPA fallback here
+    // because that would overwrite the prerendered build/index.html.
     adapter: adapter({
       pages: 'build',
       assets: 'build',

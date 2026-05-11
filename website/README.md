@@ -55,10 +55,10 @@ Built today:
 - `/`, `/features`, `/embed`, `/about`, `/app` (placeholder)
 - PICO-8 design tokens, pixel-art components, CRT toggle
 - SEO meta with absolute canonical/OG URLs, sitemap, robots, favicon
-- Styled `404.html` served by Cloudflare Pages for unknown paths
+- Styled `404.html` served by Cloudflare for unknown paths
 - Custom pixel-art icons (hand-coded SVG grids; final set will be drawn in Pincel itself)
 - Honest comparison table, feature grid, hero scene with torch flicker
-- Cloudflare Pages deploy pipeline (see below)
+- Cloudflare Workers Builds deploy pipeline (see below)
 
 Deferred to follow-up work:
 
