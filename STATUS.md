@@ -1,6 +1,8 @@
 # Status
 
-_Last updated: 2026-05-11_ (M8.2: tilemap `compose()` path — replaces the old `UnsupportedLayerKind` error for `LayerKind::Tilemap` with a tileset-lookup + grid-rasterize path that honors `TileRef::flip_x` / `flip_y` / `rotate_90`. Tile id `0` is the Aseprite empty / transparent tile and is skipped without consulting the tileset. New `RenderError` variants cover the structured failure modes: `TilesetNotFound`, `TileIdOutOfRange`, `TileSizeMismatch`, `NonSquareRotateUnsupported`. Order of transformations applied is rotate → flip_x → flip_y, with the inverse used per output pixel; `rotate_90` on a non-square tileset is rejected (Phase 2). Group layers still raise `UnsupportedLayerKind`. 10 new snapshot tests pin the contract.)
+_Last updated: 2026-05-11_ (M8.3: tilemap commands — new `AddTileset` and `PlaceTile` commands on the pincel-core bus. `AddTileset` appends a `Tileset` to `Sprite::tilesets`, rejects duplicate ids, and pops back on revert. `PlaceTile` replaces a single `TileRef` at a `(grid_x, grid_y)` cell in a `CelData::Tilemap` cel, captures the prior `TileRef` for revert, and rejects out-of-grid coords / non-tilemap cels / missing cels with structured errors. Both join `AnyCommand` and the undo bus, with `From` impls and `lib.rs` re-exports. 3 new `CommandError` variants: `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`. 10 new pincel-core unit tests.)
+
+_Previously (2026-05-11)_: M8.2: tilemap `compose()` path — replaces the old `UnsupportedLayerKind` error for `LayerKind::Tilemap` with a tileset-lookup + grid-rasterize path that honors `TileRef::flip_x` / `flip_y` / `rotate_90`. Tile id `0` is the Aseprite empty / transparent tile and is skipped without consulting the tileset. New `RenderError` variants cover the structured failure modes: `TilesetNotFound`, `TileIdOutOfRange`, `TileSizeMismatch`, `NonSquareRotateUnsupported`. Order of transformations applied is rotate → flip_x → flip_y, with the inverse used per output pixel; `rotate_90` on a non-square tileset is rejected (Phase 2). Group layers still raise `UnsupportedLayerKind`. 10 new snapshot tests pin the contract.)
 
 _Previously (2026-05-11)_: M8.1: Tileset / tilemap accessor groundwork on `pincel-core` — `Sprite::layer{,_mut}` and `Sprite::tileset{,_mut}` lookup-by-id helpers, a `Tileset::new(id, name, tile_size)` convenience constructor with Aseprite-default `base_index = 1` plus `Tileset::tile_count` / `Tileset::tile(id)` read helpers, and a `Cel::tilemap(layer, frame, grid_w, grid_h)` constructor that seeds an all-`TileRef::EMPTY` grid. Pure additions; no behavior change to any existing call site. Lays the API floor for M8.2 (compose for tilemaps) and M8.3 (tileset / tilemap commands).)
 
@@ -576,6 +578,41 @@ _Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `Move
   scope for this slice per CLAUDE.md §9 ("Touching X and Y in the
   same commit"); fix as a standalone fmt-cleanup commit.
 
+### M8 — `AddTileset` + `PlaceTile` commands (M8.3) ✅
+
+- Two new bus commands plumbed through `AnyCommand` with `From`
+  impls and `pincel_core::lib.rs` re-exports. Both follow the
+  existing apply / revert pattern: take ownership of a payload on
+  construction, capture inverse state on `apply`, restore it on
+  `revert`. Neither merges (`merge` returns `false`).
+- `AddTileset::new(tileset)` appends to `Sprite::tilesets`,
+  rejects duplicate ids with `CommandError::DuplicateTilesetId`,
+  and pops the inserted tileset back on revert. Append-only —
+  tileset z-order is irrelevant since lookup is by id.
+- `PlaceTile::new(layer, frame, grid_x, grid_y, tile)` replaces a
+  single `TileRef` at the targeted cell in a `CelData::Tilemap`
+  cel. Errors:
+  - `MissingCel` — no cel at `(layer, frame)`.
+  - `NotATilemapCel` — cel is image or linked.
+  - `TileCoordOutOfBounds` — `(grid_x, grid_y)` outside the cel's
+    `(grid_w, grid_h)`.
+  - Prior `TileRef` captured for revert. The revert path
+    defensively re-checks the cel kind and grid bounds so a
+    concurrent structural change between apply and revert can
+    only no-op, not panic.
+- 3 new `CommandError` variants: `DuplicateTilesetId(u32)`,
+  `NotATilemapCel { layer, frame }`, `TileCoordOutOfBounds { x,
+  y, grid_w, grid_h }`.
+- 10 new pincel-core unit tests (195 unit total): AddTileset
+  apply/revert/duplicate-id/round-trip (4), PlaceTile
+  apply/revert/missing-cel/not-a-tilemap-cel/out-of-bounds/no-
+  merge (6).
+- Verified: `cargo check --workspace`, `cargo test --workspace`
+  (195 pincel-core unit + 19 aseprite-writer + 8 roundtrip + 5
+  codec + 6 command-bus + 3 render-compose + 80 pincel-wasm unit
+  + 2 paint-save-open), `cargo clippy --workspace --all-targets
+  -- -D warnings`, `cargo fmt -p pincel-core` all green.
+
 ### M8 — `compose()` supports tilemap layers (M8.2) ✅
 
 - Replaces the M3 "tilemap layers raise `UnsupportedLayerKind`"
@@ -1019,7 +1056,7 @@ _Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `Move
 
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (185 pincel-core
+`cargo check --workspace`, `cargo test --workspace` (195 pincel-core
 unit + 19 aseprite-writer unit + 6 command-bus + 3 render-compose + 5
 codec + 8 aseprite-writer roundtrip + 80 pincel-wasm unit + 2 pincel-
 wasm paint-save-open-roundtrip integration), `cargo clippy --workspace
@@ -1053,10 +1090,12 @@ operates on them (compose, codecs, commands, wasm surface, UI).
   `TileSizeMismatch`, `NonSquareRotateUnsupported`. Tile id `0` is
   the Aseprite empty / transparent tile and is skipped without
   consulting the tileset.
-- [ ] **M8.3** — `pincel-core` commands for tilemap editing.
-  `AddTileset` (push onto `Sprite::tilesets`, reject duplicate
-  ids), `PlaceTile` (replace a single `TileRef` in a `Tilemap`
-  cel, prior `TileRef` captured for revert). Both join the bus.
+- [x] **M8.3** — `pincel-core` commands for tilemap editing.
+  `AddTileset` appends to `Sprite::tilesets` (reject duplicate
+  ids); `PlaceTile` replaces a single `TileRef` at a grid cell of
+  a tilemap cel (prior `TileRef` captured for revert). Both join
+  `AnyCommand` and the bus. 3 new `CommandError` variants:
+  `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`.
 - [ ] **M8.4** — `pincel-core::codec::aseprite_read` hydrates
   tilesets and tilemap cels. `LayerType::Tilemap` and
   `CelContent::CompressedTilemap` currently raise
