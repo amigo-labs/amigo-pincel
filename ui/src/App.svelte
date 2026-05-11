@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
+  import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import {
     blitFrame,
     paintEllipsePreview,
@@ -120,6 +121,12 @@
   // overlay redraws once per phase step; intermediate ticks skip the
   // recompose so an idle selection costs near-zero CPU.
   const MARCH_FRAMES_PER_STEP = 7;
+  // Bumped whenever the wasm side may have mutated the tileset list
+  // (new / open document, undo, redo, or a panel-initiated addTileset).
+  // The Tileset Panel reads it as a reactivity tripwire — the wasm
+  // getters it polls are opaque to Svelte's reactive graph, so it needs
+  // an explicit "something changed" signal to re-derive its list.
+  let tilesetRev = $state(0);
 
   function syncMeta() {
     if (!doc) return;
@@ -556,6 +563,7 @@
     dirty = true;
     syncMeta();
     syncSelection();
+    tilesetRev += 1;
     status = 'new 64×64 document';
   }
 
@@ -571,6 +579,7 @@
       dirty = true;
       syncMeta();
       syncSelection();
+      tilesetRev += 1;
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -606,6 +615,7 @@
     if (doc?.undo()) {
       dirty = true;
       syncMeta();
+      tilesetRev += 1;
     }
   }
 
@@ -615,6 +625,7 @@
       if (doc.redo()) {
         dirty = true;
         syncMeta();
+        tilesetRev += 1;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -876,28 +887,31 @@
     <button class="toolbar-btn" onclick={redo} disabled={redoDepth === 0}>Redo</button>
   </header>
 
-  <section class="flex flex-1 items-center justify-center overflow-hidden">
-    <canvas
-      bind:this={canvas}
-      class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
-      style:width="{canvasW * zoom}px"
-      style:height="{canvasH * zoom}px"
-      style:transform="translate({panX}px, {panY}px)"
-      style:cursor={panning
-        ? 'grabbing'
-        : moveSelStart
-          ? 'move'
-          : tool === 'move' && selection && !spaceDown
+  <section class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 items-center justify-center overflow-hidden">
+      <canvas
+        bind:this={canvas}
+        class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
+        style:width="{canvasW * zoom}px"
+        style:height="{canvasH * zoom}px"
+        style:transform="translate({panX}px, {panY}px)"
+        style:cursor={panning
+          ? 'grabbing'
+          : moveSelStart
             ? 'move'
-            : tool === 'move' || spaceDown
-              ? 'grab'
-              : 'crosshair'}
-      aria-label="Pincel canvas"
-      onpointerdown={onPointerDown}
-      onpointermove={onPointerMove}
-      onpointerup={onPointerUp}
-      onpointercancel={onPointerUp}
-    ></canvas>
+            : tool === 'move' && selection && !spaceDown
+              ? 'move'
+              : tool === 'move' || spaceDown
+                ? 'grab'
+                : 'crosshair'}
+        aria-label="Pincel canvas"
+        onpointerdown={onPointerDown}
+        onpointermove={onPointerMove}
+        onpointerup={onPointerUp}
+        onpointercancel={onPointerUp}
+      ></canvas>
+    </div>
+    <TilesetPanel {doc} rev={tilesetRev} onChange={() => (tilesetRev += 1)} />
   </section>
 
   <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
