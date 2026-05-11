@@ -26,8 +26,8 @@ pub use events::Event;
 use events::EventQueue;
 use pincel_core::{
     AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
-    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Rect,
-    Rgba, SetPixel, Sprite, compose, read_aseprite, write_aseprite,
+    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveSelectionContent,
+    PixelBuffer, Rect, Rgba, SetPixel, Sprite, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -572,6 +572,50 @@ impl Document {
     #[wasm_bindgen(getter, js_name = selectionHeight)]
     pub fn selection_height(&self) -> u32 {
         self.sprite.selection.map_or(0, |r| r.height)
+    }
+
+    /// Translate the pixels inside the active marquee selection by
+    /// sprite-space `(delta_x, delta_y)`. Routed through the command
+    /// bus as a single
+    /// [`MoveSelectionContent`](pincel_core::MoveSelectionContent) so
+    /// undo / redo restore both pixels and the selection rect.
+    ///
+    /// The command targets the same active layer / frame as the other
+    /// paint surfaces — today the lowest-z `LayerKind::Image` layer and
+    /// frame `0`. Source pixels are cleared to transparent, copied to
+    /// the translated cel-local position (pixels whose destination
+    /// falls outside the cel buffer are dropped — Phase 1 does not
+    /// auto-grow), and `Sprite::selection` is updated to the
+    /// translated rect.
+    ///
+    /// Emits both a `dirty-canvas` event (the move can affect any
+    /// subset of the cel) and a `selection-changed` event with the
+    /// translated rect so the UI repaints the marching ants at the
+    /// new position. A `(0, 0)` delta is accepted and joins the
+    /// undo bus so the UI can commit a no-move drag uniformly.
+    /// Errors propagate from the command bus — missing selection,
+    /// missing image layer, unsupported color mode, etc.
+    #[wasm_bindgen(js_name = applyMoveSelection)]
+    pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
+        let layer = self
+            .sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .ok_or_else(|| "document has no paintable image layer".to_string())?
+            .id;
+        let frame = FrameIndex::new(0);
+        let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move selection: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        let event = match self.sprite.selection {
+            Some(r) => Event::selection_changed(r.x, r.y, r.width, r.height),
+            None => Event::selection_changed(0, 0, 0, 0),
+        };
+        self.events.push(event);
+        Ok(())
     }
 }
 
@@ -1435,5 +1479,85 @@ mod tests {
         assert_eq!(doc.selection_y(), -2);
         assert_eq!(doc.selection_width(), 100);
         assert_eq!(doc.selection_height(), 100);
+    }
+
+    #[test]
+    fn apply_move_selection_translates_pixels_and_selection() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xff0000ff).expect("pencil ok");
+        doc.set_selection(1, 1, 1, 1);
+        let _ = doc.drain_events();
+        doc.apply_move_selection(3, 2).expect("move ok");
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        assert_eq!(pixel_at(&pixels, 8, 1, 1), [0, 0, 0, 0]);
+        assert_eq!(pixel_at(&pixels, 8, 4, 3), [0xff, 0, 0, 0xff]);
+        assert_eq!(doc.selection_x(), 4);
+        assert_eq!(doc.selection_y(), 3);
+    }
+
+    #[test]
+    fn apply_move_selection_emits_dirty_canvas_and_selection_events() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(2, 2, 2, 2);
+        let _ = doc.drain_events();
+        doc.apply_move_selection(1, 0).expect("move ok");
+        let events = doc.drain_events();
+        let kinds: Vec<String> = events.iter().map(|e| e.kind()).collect();
+        assert!(kinds.iter().any(|k| k == "dirty-canvas"));
+        assert!(kinds.iter().any(|k| k == "selection-changed"));
+    }
+
+    #[test]
+    fn apply_move_selection_without_selection_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let err = doc
+            .apply_move_selection(1, 1)
+            .expect_err("no selection should error");
+        assert!(err.contains("no active selection"));
+    }
+
+    #[test]
+    fn apply_move_selection_joins_the_undo_bus() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xff0000ff).expect("pencil ok");
+        doc.set_selection(1, 1, 1, 1);
+        doc.apply_move_selection(2, 0).expect("move ok");
+        assert_eq!(doc.undo_depth(), 2);
+        assert!(doc.bus.undo(&mut doc.sprite, &mut doc.cels));
+        // Selection rect is restored (selection IS undoable through this
+        // command — the command stores prior_selection in its state).
+        assert_eq!(doc.selection_x(), 1);
+        assert_eq!(doc.selection_y(), 1);
+        let pixels = doc.compose(0, 1).expect("compose ok").pixels();
+        assert_eq!(pixel_at(&pixels, 8, 1, 1), [0xff, 0, 0, 0xff]);
+        assert_eq!(pixel_at(&pixels, 8, 3, 1), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn apply_move_selection_zero_delta_still_joins_bus() {
+        // A (0, 0) drag is a valid commit — it still pushes a command
+        // onto the bus and emits a selection-changed event so the UI
+        // path is uniform with non-zero deltas.
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(2, 2, 1, 1);
+        let _ = doc.drain_events();
+        doc.apply_move_selection(0, 0).expect("move ok");
+        assert_eq!(doc.undo_depth(), 1);
+        assert_eq!(doc.selection_x(), 2);
+        assert_eq!(doc.selection_y(), 2);
+    }
+
+    #[test]
+    fn apply_move_selection_errors_when_no_image_layer_exists() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.set_selection(0, 0, 2, 2);
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(3), "folder"));
+        let err = doc
+            .apply_move_selection(1, 0)
+            .expect_err("group-only doc has nothing to paint");
+        assert!(err.contains("no paintable image layer"));
     }
 }
