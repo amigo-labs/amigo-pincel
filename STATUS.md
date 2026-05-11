@@ -590,11 +590,15 @@ Closes the chain from M8.3 (commands) through M8.5 (codec) to the
 UI boundary. The `pincel-wasm` crate now exposes the tilemap
 document API to JS via `wasm-bindgen`.
 
-- `Document.addTileset(name, tileW, tileH) -> u32` — assigns the
-  smallest unused id (`max(existing) + 1`, or `0` when none),
-  constructs a `Tileset::new`, and routes through the `AddTileset`
-  command so the insert joins the undo bus. Rejects zero tile
-  size up front.
+- `Document.addTileset(name, tileW, tileH) -> u32` — assigns
+  `max(existing) + 1` (or `0` when none) so ids are monotonic
+  across calls. Does *not* gap-fill freed ids — undoing an
+  `addTileset` removes the most recent id and the next call would
+  re-use it, which is fine for the bus's linear history. Routes
+  through the `AddTileset` command so the insert joins the undo
+  bus. Rejects zero tile size up front and explicitly detects
+  id-space exhaustion (`u32::MAX` already in use) before
+  executing.
 - `Document.placeTile(layer, frame, gridX, gridY, tileId)` —
   routes through the `PlaceTile` command. Flip / rotate flags are
   intentionally not yet surfaced (the M8.7 UI can wire them up

@@ -688,15 +688,16 @@ impl Document {
 
     /// Add a new tileset to the document. The id is chosen as
     /// `max(existing ids) + 1` (or `0` when no tilesets exist) so it is
-    /// stable across runs and unique. Returns the assigned id.
+    /// stable across runs and monotonic. Returns the assigned id.
     ///
     /// Routes through the [`AddTileset`] command so the operation joins
     /// the undo / redo bus. Tile-image content starts empty (Aseprite
     /// convention: tile id `0` is the implicit empty tile); per-tile
     /// edits land alongside the Tileset Editor in M8.7.
     ///
-    /// Errors when `tile_w` or `tile_h` is zero, or when the command
-    /// bus rejects the insert.
+    /// Errors when `tile_w` or `tile_h` is zero, when the existing id
+    /// space is exhausted (an existing tileset already uses `u32::MAX`),
+    /// or when the command bus rejects the insert.
     #[wasm_bindgen(js_name = addTileset)]
     pub fn add_tileset(&mut self, name: &str, tile_w: u32, tile_h: u32) -> Result<u32, String> {
         if tile_w == 0 || tile_h == 0 {
@@ -704,14 +705,15 @@ impl Document {
                 "tile size must be non-zero (got {tile_w}x{tile_h})"
             ));
         }
-        let new_id = self
-            .sprite
-            .tilesets
-            .iter()
-            .map(|t| t.id.0)
-            .max()
-            .map(|m| m.saturating_add(1))
-            .unwrap_or(0);
+        let new_id = match self.sprite.tilesets.iter().map(|t| t.id.0).max() {
+            None => 0,
+            // Detect id-space exhaustion explicitly so the caller sees a
+            // clear error rather than a generic duplicate-id from the
+            // command bus (`saturating_add(1)` on `u32::MAX` would
+            // otherwise collide with the existing tileset).
+            Some(u32::MAX) => return Err("tileset id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
         let tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
         let cmd = AddTileset::new(tileset);
         self.bus
@@ -1792,6 +1794,23 @@ mod tests {
         assert!(doc.undo_depth() >= 1);
         assert!(doc.undo());
         assert_eq!(doc.tileset_count(), 0);
+    }
+
+    #[test]
+    fn add_tileset_rejects_exhausted_id_space() {
+        // Inject a tileset with id `u32::MAX` directly so the next
+        // `add_tileset` call has nowhere to go. The detection runs
+        // before the command bus executes, so the call surfaces a
+        // clearer error than a generic duplicate-id collision.
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite
+            .tilesets
+            .push(Tileset::new(TilesetId::new(u32::MAX), "max", (1, 1)));
+        let err = doc.add_tileset("overflow", 1, 1).unwrap_err();
+        assert!(
+            err.contains("id space exhausted"),
+            "expected exhaustion error, got: {err}"
+        );
     }
 
     #[test]

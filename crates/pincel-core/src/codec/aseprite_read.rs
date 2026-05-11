@@ -15,8 +15,11 @@
 //! - **Slice chunks are dropped.** M9 will round-trip them.
 //! - **Linked cels are preserved** as [`CelData::Linked`] — round-trip via the
 //!   M5 writer remains lossless.
-//! - **External-file tilesets are not yet supported.** A tileset that omits
-//!   the inline `TILES` flag raises [`CodecError::TilesetUnsupported`].
+//! - **External-file tilesets are not yet supported.** A tileset whose
+//!   `EXTERNAL_FILE` flag is set without `TILES` raises
+//!   [`CodecError::TilesetUnsupported`]. A tileset that omits *both* flags
+//!   is preserved as a zero-tile tileset so the layer's `tileset_index`
+//!   still resolves.
 
 use aseprite_loader::binary::blend_mode::BlendMode as AseBlendMode;
 use aseprite_loader::binary::chunk::Chunk;

@@ -298,8 +298,27 @@ fn map_tileset(tileset: &Tileset) -> Result<AseTilesetChunk, CodecError> {
         value: i64::from(tileset.base_index),
     })?;
 
-    let bytes_per_tile = (tile_width as usize) * (tile_height as usize) * 4;
-    let mut tile_pixels = Vec::with_capacity(bytes_per_tile * tileset.tiles.len());
+    // Compute per-tile and total byte counts with `checked_mul` so a
+    // pathologically large `tile_size` / tile count cannot overflow
+    // `usize` and panic the allocator (notably on wasm32, where
+    // `usize == u32` and `u16::MAX * u16::MAX * 4` already overflows).
+    let bytes_per_tile = (tile_width as usize)
+        .checked_mul(tile_height as usize)
+        .and_then(|n| n.checked_mul(4))
+        .ok_or(CodecError::OutOfRange {
+            what: "tileset bytes-per-tile",
+            value: i64::from(tile_width) * i64::from(tile_height) * 4,
+        })?;
+    let total_bytes =
+        bytes_per_tile
+            .checked_mul(tileset.tiles.len())
+            .ok_or(CodecError::OutOfRange {
+                what: "tileset total bytes",
+                value: i64::try_from(bytes_per_tile)
+                    .unwrap_or(i64::MAX)
+                    .saturating_mul(tileset.tiles.len() as i64),
+            })?;
+    let mut tile_pixels = Vec::with_capacity(total_bytes);
     for (tile_index, tile) in tileset.tiles.iter().enumerate() {
         if tile.pixels.color_mode != ColorMode::Rgba {
             return Err(CodecError::TilesetTileNotRgba {

@@ -412,7 +412,16 @@ fn write_cel_body<W: Write>(w: &mut W, cel: &CelChunk) -> Result<(), WriteError>
             write_dword(w, *bitmask_x_flip)?;
             write_dword(w, *bitmask_diagonal_flip)?;
             write_zeros(w, 10)?; // reserved
-            let mut raw = Vec::with_capacity(tiles.len() * 4);
+            // `tiles.len() == width * height` is enforced upstream by
+            // `validate_cel`, but the per-byte product can still
+            // overflow `usize` on 32-bit targets (notably wasm32) where
+            // `u16::MAX * u16::MAX` already exceeds `usize::MAX / 4`.
+            let raw_byte_len = tiles.len().checked_mul(4).ok_or(WriteError::TooMany {
+                what: "tilemap raw bytes",
+                count: (tiles.len() as u64).saturating_mul(4),
+                max: usize::MAX as u64,
+            })?;
+            let mut raw = Vec::with_capacity(raw_byte_len);
             for entry in tiles {
                 raw.extend_from_slice(&entry.to_le_bytes());
             }
