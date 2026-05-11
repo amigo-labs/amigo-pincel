@@ -108,6 +108,24 @@ impl Cel {
             data: CelData::Image(buffer),
         }
     }
+
+    /// Cel containing a `grid_w × grid_h` tilemap of `TileRef::EMPTY`s at the
+    /// sprite origin. Aseprite convention: tile id `0` is the empty /
+    /// transparent tile (see [`TileRef::EMPTY`]).
+    pub fn tilemap(layer: LayerId, frame: FrameIndex, grid_w: u32, grid_h: u32) -> Self {
+        let tile_count = (grid_w as usize) * (grid_h as usize);
+        Self {
+            layer,
+            frame,
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Tilemap {
+                grid_w,
+                grid_h,
+                tiles: vec![TileRef::EMPTY; tile_count],
+            },
+        }
+    }
 }
 
 #[cfg(test)]
@@ -146,5 +164,41 @@ mod tests {
         assert_eq!(c.position, (0, 0));
         assert_eq!(c.opacity, 255);
         assert!(matches!(c.data, CelData::Image(_)));
+    }
+
+    #[test]
+    fn cel_tilemap_fills_grid_with_empty_tiles() {
+        let c = Cel::tilemap(LayerId::new(0), FrameIndex::new(0), 4, 3);
+        assert_eq!(c.position, (0, 0));
+        assert_eq!(c.opacity, 255);
+        match c.data {
+            CelData::Tilemap {
+                grid_w,
+                grid_h,
+                tiles,
+            } => {
+                assert_eq!(grid_w, 4);
+                assert_eq!(grid_h, 3);
+                assert_eq!(tiles.len(), 12);
+                assert!(tiles.iter().all(|t| *t == TileRef::EMPTY));
+            }
+            _ => panic!("expected tilemap cel"),
+        }
+    }
+
+    #[test]
+    fn cel_tilemap_supports_zero_sized_grid() {
+        let c = Cel::tilemap(LayerId::new(0), FrameIndex::new(0), 0, 0);
+        match c.data {
+            CelData::Tilemap {
+                grid_w,
+                grid_h,
+                tiles,
+            } => {
+                assert_eq!((grid_w, grid_h), (0, 0));
+                assert!(tiles.is_empty());
+            }
+            _ => panic!("expected tilemap cel"),
+        }
     }
 }

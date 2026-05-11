@@ -1,6 +1,12 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.7b: Move tool selection-content drag — new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
+_Last updated: 2026-05-11_ (M8.3: tilemap commands — new `AddTileset` and `PlaceTile` commands on the pincel-core bus. `AddTileset` appends a `Tileset` to `Sprite::tilesets`, rejects duplicate ids, and pops back on revert. `PlaceTile` replaces a single `TileRef` at a `(grid_x, grid_y)` cell in a `CelData::Tilemap` cel, captures the prior `TileRef` for revert, and rejects out-of-grid coords / non-tilemap cels / missing cels with structured errors. Both join `AnyCommand` and the undo bus, with `From` impls and `lib.rs` re-exports. 3 new `CommandError` variants: `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`. 10 new pincel-core unit tests.)
+
+_Previously (2026-05-11)_: M8.2: tilemap `compose()` path — replaces the old `UnsupportedLayerKind` error for `LayerKind::Tilemap` with a tileset-lookup + grid-rasterize path that honors `TileRef::flip_x` / `flip_y` / `rotate_90`. Tile id `0` is the Aseprite empty / transparent tile and is skipped without consulting the tileset. New `RenderError` variants cover the structured failure modes: `TilesetNotFound`, `TileIdOutOfRange`, `TileSizeMismatch`, `NonSquareRotateUnsupported`. Order of transformations applied is rotate → flip_x → flip_y, with the inverse used per output pixel; `rotate_90` on a non-square tileset is rejected (Phase 2). Group layers still raise `UnsupportedLayerKind`. 10 new snapshot tests pin the contract.)
+
+_Previously (2026-05-11)_: M8.1: Tileset / tilemap accessor groundwork on `pincel-core` — `Sprite::layer{,_mut}` and `Sprite::tileset{,_mut}` lookup-by-id helpers, a `Tileset::new(id, name, tile_size)` convenience constructor with Aseprite-default `base_index = 1` plus `Tileset::tile_count` / `Tileset::tile(id)` read helpers, and a `Cel::tilemap(layer, frame, grid_w, grid_h)` constructor that seeds an all-`TileRef::EMPTY` grid. Pure additions; no behavior change to any existing call site. Lays the API floor for M8.2 (compose for tilemaps) and M8.3 (tileset / tilemap commands).)
+
+_Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
 
 ## Completed
 
@@ -528,6 +534,136 @@ _Last updated: 2026-05-11_ (M7.7b: Move tool selection-content drag — new `Mov
   dev-deps. Adds 2 to the pincel-wasm test count (27 unit + 2
   integration, 29 total).
 
+### M8 — Tileset / tilemap accessor groundwork (M8.1) ✅
+
+- Pure-additive groundwork on `pincel-core` for the M8 milestone.
+  No behavior change to any existing call site: the new methods sit
+  alongside the existing `pub` fields and constructors and don't
+  remove or rename anything. New public API surface, so this is a
+  natural stopping point per CLAUDE.md §3.3.
+- `Sprite` gains four lookup helpers:
+  - `Sprite::layer(LayerId) -> Option<&Layer>`
+  - `Sprite::layer_mut(LayerId) -> Option<&mut Layer>`
+  - `Sprite::tileset(TilesetId) -> Option<&Tileset>`
+  - `Sprite::tileset_mut(TilesetId) -> Option<&mut Tileset>`
+  Linear scans over `Sprite::layers` / `Sprite::tilesets`. Phase 1
+  documents are small enough that a `BTreeMap`-backed index would
+  be premature; revisit when a profile demands it.
+- `Tileset` gains a `new(id, name, tile_size)` constructor that
+  defaults `base_index = 1` (Aseprite convention — tile id `0` is
+  the empty / transparent tile, `base_index` is the display offset
+  for non-empty tiles) and leaves `tiles` empty and `external_file`
+  `None`. Plus `Tileset::tile_count() -> usize` and
+  `Tileset::tile(tile_id: u32) -> Option<&TileImage>` read helpers
+  for the compose path (M8.2) and the Tileset Panel (M8.7).
+- `Cel::tilemap(layer, frame, grid_w, grid_h)` constructor that
+  seeds a `grid_w * grid_h` `Vec<TileRef>` of `TileRef::EMPTY`s at
+  the sprite origin with full opacity, matching `Cel::image`'s
+  defaults. Handles the zero-sized-grid corner case (empty
+  `tiles` vec) without special casing.
+- 8 new pincel-core unit tests (175 unit total): tileset
+  constructor defaults, tile-id-past-end returns `None`, cel
+  tilemap fills grid with `EMPTY`s, cel tilemap zero-sized grid,
+  Sprite layer / tileset lookup match by id with `None` for
+  unknown ids, Sprite layer_mut lets callers rename, Sprite
+  tileset_mut lets callers push tiles.
+- Verified: `cargo check -p pincel-core`,
+  `cargo test --workspace` (19 aseprite-writer unit + 8 roundtrip
+  + 175 pincel-core unit + 5 codec + 6 command-bus + 3
+  render-compose + 80 pincel-wasm unit + 2 paint-save-open-
+  roundtrip), `cargo clippy --workspace --all-targets -- -D
+  warnings`, and `cargo fmt -p pincel-core` all green.
+  `cargo fmt --all --check` has pre-existing drift in
+  `crates/pincel-wasm/src/lib.rs` from prior commits — out of
+  scope for this slice per CLAUDE.md §9 ("Touching X and Y in the
+  same commit"); fix as a standalone fmt-cleanup commit.
+
+### M8 — `AddTileset` + `PlaceTile` commands (M8.3) ✅
+
+- Two new bus commands plumbed through `AnyCommand` with `From`
+  impls and `pincel_core::lib.rs` re-exports. Both follow the
+  existing apply / revert pattern: take ownership of a payload on
+  construction, capture inverse state on `apply`, restore it on
+  `revert`. Neither merges (`merge` returns `false`).
+- `AddTileset::new(tileset)` appends to `Sprite::tilesets`,
+  rejects duplicate ids with `CommandError::DuplicateTilesetId`,
+  and pops the inserted tileset back on revert. Append-only —
+  tileset z-order is irrelevant since lookup is by id.
+- `PlaceTile::new(layer, frame, grid_x, grid_y, tile)` replaces a
+  single `TileRef` at the targeted cell in a `CelData::Tilemap`
+  cel. Errors:
+  - `MissingCel` — no cel at `(layer, frame)`.
+  - `NotATilemapCel` — cel is image or linked.
+  - `TileCoordOutOfBounds` — `(grid_x, grid_y)` outside the cel's
+    `(grid_w, grid_h)`.
+  - Prior `TileRef` captured for revert. The revert path
+    defensively re-checks the cel kind and grid bounds so a
+    concurrent structural change between apply and revert can
+    only no-op, not panic.
+- 3 new `CommandError` variants: `DuplicateTilesetId(u32)`,
+  `NotATilemapCel { layer, frame }`, `TileCoordOutOfBounds { x,
+  y, grid_w, grid_h }`.
+- 10 new pincel-core unit tests (195 unit total): AddTileset
+  apply/revert/duplicate-id/round-trip (4), PlaceTile
+  apply/revert/missing-cel/not-a-tilemap-cel/out-of-bounds/no-
+  merge (6).
+- Verified: `cargo check --workspace`, `cargo test --workspace`
+  (195 pincel-core unit + 19 aseprite-writer + 8 roundtrip + 5
+  codec + 6 command-bus + 3 render-compose + 80 pincel-wasm unit
+  + 2 paint-save-open), `cargo clippy --workspace --all-targets
+  -- -D warnings`, `cargo fmt -p pincel-core` all green.
+
+### M8 — `compose()` supports tilemap layers (M8.2) ✅
+
+- Replaces the M3 "tilemap layers raise `UnsupportedLayerKind`"
+  stub with a real tilemap rasterizer. Group layers are still
+  rejected with `UnsupportedLayerKind` (deferred — folding child
+  layers into a temporary buffer is a separate piece of work).
+- The layer-iteration loop now matches `(layer.kind, cel.data)`
+  pairs explicitly:
+  - `(Image, Image)` → existing `composite_image_cel` path.
+  - `(Tilemap, Tilemap)` → new `composite_tilemap_cel` path.
+  - `(Image, Tilemap)` / `(Tilemap, Image)` → `CelTypeMismatch`
+    (corrupt-document signal).
+  - `(_, Linked)` → `LinkedCelUnsupported` (unchanged from M3).
+- New `composite_tilemap_cel(dst, viewport, cel_pos, grid_w,
+  grid_h, tiles, tileset, ...)` walks the grid in row-major order.
+  Tile id `0` is the Aseprite empty / transparent tile and is
+  skipped without consulting the tileset (so an entirely-empty
+  tilemap composes without needing a tileset entry for tile 0).
+  Per non-empty cell it validates the tile (color mode against
+  the sprite, dimensions against the tileset's declared
+  `tile_size`, buffer well-formedness) and forwards to
+  `composite_transformed_tile`.
+- New `composite_transformed_tile` blits a single tile into the
+  viewport with optional `flip_x` / `flip_y` / `rotate_90`. The
+  forward transform order is rotate → flip_x → flip_y; the
+  inverse is applied per output pixel (undo flip_y → undo flip_x
+  → undo rotate). Reuses `blend_normal_into` so per-cel and
+  per-layer opacity stay consistent with the image path.
+- `rotate_90` on a non-square tileset is rejected with
+  `NonSquareRotateUnsupported` (Phase 2; non-square rotation
+  changes the rendered footprint to `(tile_h × tile_w)` and the
+  grid math needs more thought).
+- New `RenderError` variants:
+  - `TilesetNotFound { layer, tileset }`
+  - `TileIdOutOfRange { layer, frame, tile_id }`
+  - `TileSizeMismatch { layer, tileset, tile_id }`
+  - `NonSquareRotateUnsupported { layer, tileset, tile_size }`
+- 10 new pincel-core snapshot tests (185 unit total): grid-
+  position blit, flip_x mirror, flip_y mirror, rotate_90 CW (with
+  a 2×2 four-color tile), missing tileset, dangling tile id,
+  image cel on tilemap layer, rotate_90 on non-square, empty-tile
+  short-circuit (no tileset lookup), cel-position offsets tile
+  placement. The pre-existing `rejects_tilemap_layer` test was
+  rewritten as `rejects_group_layer` (tilemap is no longer
+  rejected; group still is).
+- Verified: `cargo test --workspace` (185 pincel-core unit + 19
+  aseprite-writer + 8 roundtrip + 5 codec + 6 command-bus + 3
+  render-compose + 80 pincel-wasm unit + 2 paint-save-open),
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo fmt -p pincel-core` all green.
+
 ### M7 — Eraser tool (M7.1) ✅
 
 - `pincel-wasm::Document::apply_tool` now accepts `tool_id ==
@@ -920,15 +1056,80 @@ _Last updated: 2026-05-11_ (M7.7b: Move tool selection-content drag — new `Mov
 
 ### Build status
 
-`cargo check --workspace`, `cargo test --workspace` (150 pincel-core
-unit + 19 aseprite-writer unit + 6 command + 3 render + 5 codec
-round-trip + 8 aseprite-writer roundtrip + 64 pincel-wasm unit + 2
-pincel-wasm paint-save-open-roundtrip integration),
-`cargo clippy --workspace --all-targets -- -D warnings`, and
-`cargo fmt --all --check` are all green on the
-`claude/continue-work-f6nLq` branch. `pnpm install`,
-`pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
-pass under `ui/`.
+`cargo check --workspace`, `cargo test --workspace` (195 pincel-core
+unit + 19 aseprite-writer unit + 6 command-bus + 3 render-compose + 5
+codec + 8 aseprite-writer roundtrip + 80 pincel-wasm unit + 2 pincel-
+wasm paint-save-open-roundtrip integration), `cargo clippy --workspace
+--all-targets -- -D warnings`, and `cargo fmt -p pincel-core` are all
+green on the `claude/continue-status-docs-BDyKz` branch. `pnpm
+install`, `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:
+build` all pass under `ui/`. `cargo fmt --all --check` has pre-
+existing drift in `crates/pincel-wasm/src/lib.rs` from prior commits
+to clean up in a standalone fmt-only commit (out of scope for the
+M8.1 slice per CLAUDE.md §9).
+
+## M8 task breakdown
+
+CLAUDE.md M8 ("Tilemap support") is L-sized so it ships as a
+sequence of S/M tasks. The document-model types (`Tileset`,
+`TileImage`, `TileRef`, `LayerKind::Tilemap`, `CelData::Tilemap`)
+are already defined from M1; the M8 work is everything that
+operates on them (compose, codecs, commands, wasm surface, UI).
+
+- [x] **M8.1** — Tileset / tilemap accessor groundwork on
+  `pincel-core`: `Sprite::layer{,_mut}` / `Sprite::tileset{,_mut}`
+  lookup helpers, `Tileset::new` constructor + `tile_count` /
+  `tile(id)` read helpers, `Cel::tilemap(layer, frame, grid_w,
+  grid_h)` constructor. Pure additions.
+- [x] **M8.2** — `compose()` supports `LayerKind::Tilemap`.
+  Replaces the M3 `UnsupportedLayerKind` stub for tilemap layers
+  with a tileset-lookup + grid-rasterize path that honors
+  `TileRef::flip_x` / `flip_y` / `rotate_90` (the latter requires
+  a square tileset; non-square rotation deferred to Phase 2). New
+  `RenderError` variants: `TilesetNotFound`, `TileIdOutOfRange`,
+  `TileSizeMismatch`, `NonSquareRotateUnsupported`. Tile id `0` is
+  the Aseprite empty / transparent tile and is skipped without
+  consulting the tileset.
+- [x] **M8.3** — `pincel-core` commands for tilemap editing.
+  `AddTileset` appends to `Sprite::tilesets` (reject duplicate
+  ids); `PlaceTile` replaces a single `TileRef` at a grid cell of
+  a tilemap cel (prior `TileRef` captured for revert). Both join
+  `AnyCommand` and the bus. 3 new `CommandError` variants:
+  `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`.
+- [ ] **M8.4** — `pincel-core::codec::aseprite_read` hydrates
+  tilesets and tilemap cels. `LayerType::Tilemap` and
+  `CelContent::CompressedTilemap` currently raise
+  `UnsupportedLayerKind` / `UnsupportedCelKind`; route them
+  through `aseprite-loader`'s tileset chunk (`0x2023`) and cel
+  type 3 instead. Round-trip test against a hand-built fixture.
+- [ ] **M8.5** — `aseprite-writer` writes Tileset (`0x2023`) and
+  Tilemap Cel (Cel Type 3). New `TilesetChunk` and
+  `CelContent::Tilemap` variants. `pincel-core::codec::
+  aseprite_write` adapter routes `Tileset` + `CelData::Tilemap`
+  through. Round-trip via `aseprite-loader`.
+- [ ] **M8.6** — `pincel-wasm` surface for tilemap.
+  `Document.addTileset(name, tileW, tileH) -> tilesetId`,
+  `Document.placeTile(x, y, tileId)` (with flip / rotate flags
+  added later if the UI surfaces them), tileset getters
+  (`tilesetCount`, `tileset(id)`, `tileSize`, ...). New dirty-rect
+  event variant if needed, or piggyback on `dirty-canvas`.
+- [ ] **M8.7** — UI: Tileset Panel (palette of tile thumbnails),
+  Tilemap Stamp tool (place selected tile at the hovered grid
+  cell), Tileset Editor sub-mode (when active layer is a Tilemap,
+  clicking a tile in the panel enters edit mode for that tile and
+  the image tools operate on the tile's `PixelBuffer`).
+  Per-tile-edit propagation to all `TileRef`s of that tile id is
+  automatic since the tile is a single source of truth in
+  `Tileset::tiles`.
+
+Auto-tile mode (Aseprite's "paint on tilemap layer = auto reuse /
+create tiles") stays Phase 2 per spec §5.3 and `docs/specs/pincel.md`
+§13.2.
+
+Stopping points (per CLAUDE.md §3.3) between each sub-task: every
+new public API surface, every new command type, every Cargo.toml
+change. M8.4 and M8.5 each cross a codec boundary and ship with
+their own round-trip fixture before merging.
 
 ## M7 task breakdown
 
