@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M8.6: pincel-wasm tilemap surface — `Document.addTileset(name, tileW, tileH) -> tilesetId` (assigns `max(existing) + 1`, routes through the `AddTileset` command so it joins the undo bus), `Document.placeTile(layer, frame, gridX, gridY, tileId)` (routes through `PlaceTile`, emits a `dirty-rect` event sized to the parent layer's `tile_size`), and a set of read-only getters: `tilesetCount`, `tilesetIdAt(index)`, `tilesetName(id)`, `tilesetTileWidth(id)`, `tilesetTileHeight(id)`, `tilesetTileCount(id)`. Flip / rotate flags on placeTile are intentionally not yet surfaced — the UI can wire them once M8.7 needs them. 9 new pincel-wasm unit tests pin id assignment, undo-bus join, getter round-trip, dirty-rect emission shape, and the non-tilemap-layer / out-of-grid rejection paths. **M8.1–M8.6 complete**; M8.7 (Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode) is L-sized per CLAUDE.md §3.2 and deferred to follow-up sessions — it needs to split into ~3-4 M-sized commits and adds new wasm surface (`tilePixels`, `paintTilePixel`) for per-tile editing.)
+_Last updated: 2026-05-11_ (M8.6: pincel-wasm tilemap surface — `Document.addTileset(name, tileW, tileH) -> tilesetId` (assigns `max(existing) + 1`, routes through the `AddTileset` command so it joins the undo bus), `Document.placeTile(layer, frame, gridX, gridY, tileId)` (routes through `PlaceTile`, emits a `dirty-rect` event sized to the parent layer's `tile_size`), and a set of read-only getters: `tilesetCount`, `tilesetIdAt(index)`, `tilesetName(id)`, `tilesetTileWidth(id)`, `tilesetTileHeight(id)`, `tilesetTileCount(id)`. Flip / rotate flags on placeTile are intentionally not yet surfaced — the UI can wire them once M8.7 needs them. 9 new pincel-wasm unit tests pin id assignment, undo-bus join, getter round-trip, dirty-rect emission shape, and the non-tilemap-layer / out-of-grid rejection paths. **M8.1–M8.6 complete**; M8.7 (Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode) is L-sized per CLAUDE.md §3.2 and deferred to follow-up sessions — it needs to split into ~3-4 M-sized commits and adds new wasm surface (`tilePixels`, `paintTilePixel`) for per-tile editing. The marketing-site Cloudflare Workers Builds deploy that landed on main alongside this work is preserved under "Website — Cloudflare Workers Builds deploy" below.)
 
 _Previously (2026-05-11)_: M8.5: tilemap write path — closes the M8 read/write loop. `aseprite-writer` gains a `TilesetChunk` struct emitted into the first frame (alongside layers / palette / tags) and a `CelContent::Tilemap` variant emitted as Cel Type 3 with canonical 32-bit bitmasks (`tile_id = 0x1FFF_FFFF`, `y_flip = 0x2000_0000`, `x_flip = 0x4000_0000`, `diagonal = 0x8000_0000`; on-disk dword order matches `aseprite-loader` 0.4.2's parse order). Inline `TILES` data is zlib-compressed; external-file tilesets are intentionally not surfaced. Three new `WriteError` variants for structural rejections: `TilemapBitsPerTileUnsupported`, `TilemapTileCountMismatch`, `TilesetPixelsSizeMismatch`. Two writer round-trip tests assert chunk-level + bitmask + decoded byte fidelity. On the `pincel-core` side, `aseprite_write` now routes `LayerKind::Tilemap` as `LayerType::Tilemap { tileset_index }`, packs each `TileRef` into a raw `u32` via `encode_tile_ref`, and emits `Sprite::tilesets` via `build_tilesets` (per-tile RGBA + dimension validation; external-file tilesets rejected). Four new `CodecError` variants: `CelTilemapTileCountMismatch`, `TilesetTileDimensionMismatch`, `TilesetTileNotRgba`, `UnsupportedTilesetExternalFile`. Two new pincel-core integration tests in `tests/aseprite_codec.rs` round-trip a sprite with one image + one tilemap layer, a two-tile tileset, and a 2×2 cel with `flip_x` / `flip_y` (plus a smaller test for `rotate_90`) via `write_aseprite` → `read_aseprite`. End-to-end tilemap round-trip is now lossless within Pincel's tilemap surface.)
 
@@ -777,6 +777,56 @@ and M8.5b (pincel-core adapter) commits.
   paint-save-open), `cargo clippy --workspace --all-targets -- -D
   warnings`, `cargo fmt -p pincel-core` all green on the
   `claude/continue-from-status-Kf18N` branch.
+
+### Website — Cloudflare Workers Builds deploy ✅
+
+Marketing site (`website/`) is now deployable via the Cloudflare
+Workers Builds Git integration that the repo is already wired to
+(project: `amigo-pincel`). Cloudflare clones the repo on every push
+and PR, runs the build, and serves the static output — no GitHub
+Actions deploy workflow is involved.
+
+- **Static-adapter bug fixed.** `svelte.config.js` no longer sets
+  `fallback: 'index.html'`, which was clobbering the prerendered home
+  page (`/`) at build time. The previous `build/index.html` was the
+  empty SPA shell; it now contains the actual hero + feature grid +
+  comparison table + CTA, prerendered.
+- **Cloudflare config at repo root:** `wrangler.toml` declares
+  `name = "amigo-pincel"`, a `[build]` command that enables corepack
+  and runs `pnpm install --frozen-lockfile && pnpm build` inside
+  `website/`, and an `[assets]` block pointing at `website/build` with
+  `not_found_handling = "404-page"` so Cloudflare serves our styled
+  404 for unknown routes.
+- **Cache + 404 in the build output:**
+  - `website/static/_headers` — long cache on hashed
+    `_app/immutable/*`, short cache on HTML, baseline security
+    headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+    Permissions-Policy).
+  - `website/static/404.html` — self-contained styled 404 that doesn't
+    depend on SvelteKit hydration; works for users without JS.
+- **SEO correctness.** `SeoHead.svelte`, `sitemap.xml`, and `robots.txt`
+  now derive absolute URLs from `$lib/config.ts` (`siteUrl`) instead of
+  SvelteKit's `http://sveltekit-prerender/` placeholder. Canonical and
+  OG URLs in the built HTML now read `https://pincel.app/<route>`.
+- **Lint cleanup.** Added missing `@eslint/js` dep, configured the TS
+  parser for `*.svelte.ts` files, added keys to all `{#each}` blocks,
+  removed an unused `pixelSize` derived, and disabled
+  `svelte/no-navigation-without-resolve` (overkill for a prerendered
+  marketing site with hardcoded paths). `pnpm lint` is now clean.
+- **Build budget.** Per spec §6.3 (≤200 KB compressed for marketing
+  HTML+CSS+JS, excluding `/app`): current per-page compressed payloads
+  measured at ~10 KB HTML + ~57 KB shared `_app` assets. Well under
+  budget.
+
+What still needs human action before production traffic flows:
+
+1. Confirm the existing Cloudflare `amigo-pincel` project's Workers
+   Builds settings don't override the `wrangler.toml` build command
+   (or set them to match: build command from `wrangler.toml`, root
+   directory `/`).
+2. Decide the production domain (spec §14 Q1) and update
+   `website/src/lib/config.ts::siteUrl` if it differs from
+   `https://pincel.app`.
 
 ### M8 — `AddTileset` + `PlaceTile` commands (M8.3) ✅
 
