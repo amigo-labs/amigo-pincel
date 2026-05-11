@@ -49,8 +49,13 @@ impl Tileset {
         }
     }
 
-    /// Number of tile images stored in this tileset, including tile id `0`
-    /// (the Aseprite empty / transparent tile convention).
+    /// Number of tile images explicitly stored in [`Tileset::tiles`]. By
+    /// Aseprite convention tile id `0` is the empty / transparent tile and
+    /// is normally *not* stored — `compose()` and the codecs short-circuit
+    /// id `0` without consulting the tileset. `Tileset::new` therefore
+    /// starts with `tile_count() == 0`; tile 0 is implicit. A file loaded
+    /// from disk may include an explicit tile-0 entry, in which case it is
+    /// counted here.
     pub fn tile_count(&self) -> usize {
         self.tiles.len()
     }

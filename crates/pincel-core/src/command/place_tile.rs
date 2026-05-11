@@ -63,7 +63,20 @@ impl Command for PlaceTile {
                 grid_h: *grid_h,
             });
         }
-        let index = (self.grid_y * *grid_w + self.grid_x) as usize;
+        // Compute in `usize` so the multiply can't overflow on a 64-bit
+        // target even for absurdly large grids. The post-bounds-check
+        // length validation guarantees indexing is in range.
+        let expected_len = (*grid_w as usize) * (*grid_h as usize);
+        if tiles.len() != expected_len {
+            return Err(CommandError::MalformedTilemapCel {
+                layer: self.layer,
+                frame: self.frame,
+                grid_w: *grid_w,
+                grid_h: *grid_h,
+                tiles_len: tiles.len(),
+            });
+        }
+        let index = (self.grid_y as usize) * (*grid_w as usize) + (self.grid_x as usize);
         self.previous = Some(tiles[index]);
         tiles[index] = self.new_tile;
         Ok(())
@@ -87,7 +100,11 @@ impl Command for PlaceTile {
         if self.grid_x >= *grid_w || self.grid_y >= *grid_h {
             return;
         }
-        let index = (self.grid_y * *grid_w + self.grid_x) as usize;
+        let expected_len = (*grid_w as usize) * (*grid_h as usize);
+        if tiles.len() != expected_len {
+            return;
+        }
+        let index = (self.grid_y as usize) * (*grid_w as usize) + (self.grid_x as usize);
         tiles[index] = prior;
     }
 }
@@ -195,6 +212,28 @@ mod tests {
                 y: 0,
                 grid_w: 2,
                 grid_h: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn malformed_tilemap_cel_is_rejected() {
+        // Manually corrupt the cel so `tiles.len() != grid_w * grid_h`.
+        let (mut sprite, mut cels) = fixture(2, 2);
+        if let Some(cel) = cels.get_mut(LayerId::new(1), FrameIndex::new(0))
+            && let CelData::Tilemap { tiles, .. } = &mut cel.data
+        {
+            tiles.pop();
+        }
+        let mut cmd = PlaceTile::new(LayerId::new(1), FrameIndex::new(0), 0, 0, TileRef::new(1));
+        assert_eq!(
+            cmd.apply(&mut sprite, &mut cels),
+            Err(CommandError::MalformedTilemapCel {
+                layer: LayerId::new(1),
+                frame: FrameIndex::new(0),
+                grid_w: 2,
+                grid_h: 2,
+                tiles_len: 3,
             })
         );
     }

@@ -379,9 +379,19 @@ fn composite_tilemap_cel(
     if tile_w == 0 || tile_h == 0 {
         return Ok(());
     }
+    // Compute the expected tile-vector length in `usize` so the multiply
+    // can't overflow on a 64-bit target. Reject corrupt cels rather than
+    // index into a wrongly-sized buffer.
+    let expected_len = (grid_w as usize) * (grid_h as usize);
+    if tiles.len() != expected_len {
+        return Err(RenderError::MalformedCelBuffer {
+            layer: layer_id,
+            frame,
+        });
+    }
     for j in 0..grid_h {
         for i in 0..grid_w {
-            let tile_ref = tiles[(j * grid_w + i) as usize];
+            let tile_ref = tiles[(j as usize) * (grid_w as usize) + (i as usize)];
             if tile_ref.tile_id == 0 {
                 // Aseprite empty-tile convention.
                 continue;
@@ -1170,6 +1180,38 @@ mod tests {
         ));
         let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
         assert!(r.pixels.iter().all(|&v| v == 0));
+    }
+
+    #[test]
+    fn tilemap_malformed_cel_buffer_errors() {
+        // Build a tilemap cel whose `tiles` length is inconsistent with the
+        // declared `grid_w * grid_h` (3 entries declared, 2 actually
+        // present). compose() must refuse rather than panic-index.
+        let sprite = Sprite::builder(4, 4)
+            .add_layer(Layer::tilemap(LayerId::new(0), "tm", TilesetId::new(0)))
+            .add_frame(Frame::default())
+            .add_tileset(two_tile_tileset(0, 2, [10, 20, 30, 255]))
+            .build()
+            .unwrap();
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Tilemap {
+                grid_w: 2,
+                grid_h: 2,
+                tiles: vec![TileRef::EMPTY, TileRef::EMPTY], // missing two
+            },
+        });
+        assert_eq!(
+            compose(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            RenderError::MalformedCelBuffer {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+            }
+        );
     }
 
     #[test]

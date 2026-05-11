@@ -51,6 +51,21 @@ pub enum CommandError {
         grid_h: u32,
     },
 
+    /// A tilemap cel's `tiles` vector length doesn't equal
+    /// `grid_w * grid_h`. Indicates a corrupt document; safer to refuse
+    /// the edit than to write into an inconsistently-sized buffer.
+    #[error(
+        "tilemap cel on layer {layer:?} frame {frame:?} is malformed: \
+         tiles_len={tiles_len} but grid is {grid_w}x{grid_h}"
+    )]
+    MalformedTilemapCel {
+        layer: LayerId,
+        frame: FrameIndex,
+        grid_w: u32,
+        grid_h: u32,
+        tiles_len: usize,
+    },
+
     /// A selection-scoped command was issued with no active selection
     /// on the sprite. Emitted by `MoveSelectionContent` when there is
     /// nothing to move; the caller (typically the Move tool drag in
