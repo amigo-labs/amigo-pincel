@@ -55,4 +55,34 @@ pub enum WriteError {
     /// Linked cel `frame_position` references a frame outside the file.
     #[error("linked cel frame_position {frame_position} >= frame count {frames}")]
     CelLinkedFrameOutOfRange { frame_position: u16, frames: usize },
+
+    /// Cel Type 3 (Compressed Tilemap) requires `bits_per_tile = 32` per
+    /// the Aseprite v1.3 spec.
+    #[error("tilemap cel uses unsupported bits_per_tile {bits} (must be 32)")]
+    TilemapBitsPerTileUnsupported { bits: u16 },
+
+    /// Tilemap cel `tiles.len()` did not equal `width * height`.
+    #[error(
+        "tilemap cel tiles length {actual} does not match {width}x{height} grid ({expected} expected)"
+    )]
+    TilemapTileCountMismatch {
+        width: u16,
+        height: u16,
+        expected: usize,
+        actual: usize,
+    },
+
+    /// Tileset chunk's `tile_pixels.len()` did not equal
+    /// `tile_w * tile_h * number_of_tiles * 4`.
+    #[error(
+        "tileset {id} tile_pixels length {actual} does not match {tile_w}x{tile_h}x{tiles}x4 ({expected} expected)"
+    )]
+    TilesetPixelsSizeMismatch {
+        id: u32,
+        tile_w: u16,
+        tile_h: u16,
+        tiles: u32,
+        expected: usize,
+        actual: usize,
+    },
 }

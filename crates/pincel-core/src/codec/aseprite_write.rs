@@ -60,6 +60,7 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
         layers,
         palette,
         tags,
+        tilesets: Vec::new(),
         frames,
     })
 }

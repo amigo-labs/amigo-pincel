@@ -16,7 +16,7 @@ use aseprite_loader::binary::raw_file::parse_raw_file;
 use aseprite_loader::loader::decompress;
 use aseprite_writer::{
     AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, Frame, Header,
-    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, write,
+    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, TilesetChunk, write,
 };
 
 fn write_to_vec(file: &AseFile) -> Vec<u8> {
@@ -32,6 +32,7 @@ fn empty_rgba_sprite_roundtrips_through_loader() {
         layers: Vec::new(),
         palette: None,
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![Frame::new(100)],
     };
     let bytes = write_to_vec(&file);
@@ -84,6 +85,7 @@ fn three_layers_with_blend_modes_roundtrip() {
         layers,
         palette: None,
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![Frame::new(80)],
     };
 
@@ -134,6 +136,7 @@ fn palette_roundtrips_via_raw_file() {
         layers: Vec::new(),
         palette: Some(palette),
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![Frame::new(100)],
     };
 
@@ -195,6 +198,7 @@ fn tags_roundtrip_with_directions() {
         layers: Vec::new(),
         palette: None,
         tags,
+        tilesets: Vec::new(),
         frames: (0..7).map(|_| Frame::new(50)).collect(),
     };
 
@@ -261,6 +265,7 @@ fn single_image_cel_roundtrips_with_pixels() {
         layers: vec![rgba_layer("L0")],
         palette: None,
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![Frame {
             duration: 100,
             cels: vec![CelChunk {
@@ -309,6 +314,7 @@ fn linked_cel_roundtrips_pointing_at_source_frame() {
         layers: vec![rgba_layer("L0")],
         palette: None,
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![
             Frame {
                 duration: 100,
@@ -362,6 +368,7 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
         layers: vec![rgba_layer("Bottom"), rgba_layer("Top")],
         palette: None,
         tags: Vec::new(),
+        tilesets: Vec::new(),
         frames: vec![
             Frame {
                 duration: 100,
@@ -471,6 +478,7 @@ fn full_file_with_layers_palette_tags_roundtrips() {
             color: [0, 0, 0],
             name: "all".into(),
         }],
+        tilesets: Vec::new(),
         frames: vec![Frame::new(100), Frame::new(150)],
     };
 
@@ -488,4 +496,157 @@ fn full_file_with_layers_palette_tags_roundtrips() {
     // file_size in the header should match buffer length exactly.
     let raw = parse_raw_file(&bytes).expect("raw parse");
     assert_eq!(raw.header.file_size as usize, bytes.len());
+}
+
+// ---- M8.5: tileset + tilemap cel round-trips ---------------------------
+
+const TILE_ID_MASK: u32 = 0x1fff_ffff;
+const Y_FLIP_MASK: u32 = 0x2000_0000;
+const X_FLIP_MASK: u32 = 0x4000_0000;
+const DIAG_FLIP_MASK: u32 = 0x8000_0000;
+
+/// Build an [`AseFile`] with one image layer, one tilemap layer, one
+/// inline tileset, and one tilemap cel. Reused by the two round-trip
+/// tests below.
+fn build_tilemap_file() -> AseFile {
+    // 2x2 RGBA tiles: tile 0 transparent, tile 1 four red pixels.
+    let tile0 = vec![0u8; 2 * 2 * 4];
+    let tile1: Vec<u8> = (0..4).flat_map(|_| [255, 0, 0, 255]).collect();
+    let mut tile_pixels = Vec::with_capacity(tile0.len() + tile1.len());
+    tile_pixels.extend_from_slice(&tile0);
+    tile_pixels.extend_from_slice(&tile1);
+
+    AseFile {
+        header: Header::new(8, 8, ColorDepth::Rgba),
+        layers: vec![
+            LayerChunk {
+                flags: LayerFlags::VISIBLE | LayerFlags::EDITABLE,
+                layer_type: LayerType::Normal,
+                child_level: 0,
+                blend_mode: BlendMode::Normal,
+                opacity: 255,
+                name: "img".into(),
+                tileset_index: None,
+            },
+            LayerChunk {
+                flags: LayerFlags::VISIBLE | LayerFlags::EDITABLE,
+                layer_type: LayerType::Tilemap,
+                child_level: 0,
+                blend_mode: BlendMode::Normal,
+                opacity: 200,
+                name: "tiles".into(),
+                tileset_index: Some(0),
+            },
+        ],
+        palette: None,
+        tags: Vec::new(),
+        tilesets: vec![TilesetChunk {
+            id: 0,
+            number_of_tiles: 2,
+            tile_width: 2,
+            tile_height: 2,
+            base_index: 1,
+            name: "ts".into(),
+            tile_pixels,
+        }],
+        frames: vec![Frame {
+            duration: 100,
+            cels: vec![CelChunk {
+                layer_index: 1,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                z_index: 0,
+                content: CelContent::Tilemap {
+                    width: 2,
+                    height: 2,
+                    bits_per_tile: 32,
+                    bitmask_tile_id: TILE_ID_MASK,
+                    bitmask_x_flip: X_FLIP_MASK,
+                    bitmask_y_flip: Y_FLIP_MASK,
+                    bitmask_diagonal_flip: DIAG_FLIP_MASK,
+                    tiles: vec![0, 1, 1 | X_FLIP_MASK, Y_FLIP_MASK],
+                },
+            }],
+        }],
+    }
+}
+
+#[test]
+fn tileset_chunk_roundtrips_through_loader() {
+    let bytes = write_to_vec(&build_tilemap_file());
+
+    // The high-level `parse_file` discards `Chunk::Tileset` entries
+    // (see aseprite-loader 0.4.2 file.rs); use the raw parser to
+    // pick the tileset chunk out by hand.
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let mut tileset = None;
+    for frame in &raw.frames {
+        for chunk in &frame.chunks {
+            if let Chunk::Tileset(ts) = chunk {
+                tileset = Some(ts);
+            }
+        }
+    }
+    let tileset = tileset.expect("emitted tileset chunk is recovered by aseprite-loader");
+    assert_eq!(tileset.id, 0);
+    assert_eq!(tileset.number_of_tiles, 2);
+    assert_eq!(tileset.width, 2);
+    assert_eq!(tileset.height, 2);
+    assert_eq!(tileset.base_index, 1);
+    assert_eq!(tileset.name, "ts");
+
+    let tiles_block = tileset.tiles.as_ref().expect("inline tile data is emitted");
+    let mut decoded = vec![0u8; 2 * 2 * 2 * 4];
+    decompress(tiles_block.data, &mut decoded).expect("tile zlib data decompresses");
+    // Tile 0 is all-zero (transparent placeholder).
+    assert!(decoded[..16].iter().all(|&b| b == 0));
+    // Tile 1 is four red pixels.
+    assert_eq!(decoded[16..], [255, 0, 0, 255].repeat(4));
+}
+
+#[test]
+fn tilemap_cel_roundtrips_through_loader() {
+    let bytes = write_to_vec(&build_tilemap_file());
+
+    let parsed = parse_file(&bytes).expect("loader parses our output");
+    assert_eq!(parsed.layers.len(), 2);
+    assert_eq!(parsed.layers[1].layer_type, LoaderLayerType::Tilemap);
+    assert_eq!(parsed.layers[1].tileset_index, Some(0));
+    assert_eq!(parsed.layers[1].opacity, 200);
+    let cel = parsed.frames[0].cels[1]
+        .as_ref()
+        .expect("tilemap cel present on layer 1 / frame 0");
+    let LoaderCelContent::CompressedTilemap {
+        width,
+        height,
+        bits_per_tile,
+        bitmask_tile_id,
+        bitmask_x_flip,
+        bitmask_y_flip,
+        bitmask_diagonal_flip,
+        data,
+    } = &cel.content
+    else {
+        panic!("expected CompressedTilemap, got {:?}", cel.content);
+    };
+    assert_eq!(*width, 2);
+    assert_eq!(*height, 2);
+    assert_eq!(*bits_per_tile, 32);
+    assert_eq!(*bitmask_tile_id, TILE_ID_MASK);
+    assert_eq!(*bitmask_x_flip, X_FLIP_MASK);
+    assert_eq!(*bitmask_y_flip, Y_FLIP_MASK);
+    assert_eq!(*bitmask_diagonal_flip, DIAG_FLIP_MASK);
+
+    let mut buf = vec![0u8; 4 * 4];
+    decompress(data, &mut buf).expect("tilemap zlib data decompresses");
+    let mut iter = buf.chunks_exact(4);
+    let read = |it: &mut std::slice::ChunksExact<'_, u8>| {
+        let c = it.next().unwrap();
+        u32::from_le_bytes([c[0], c[1], c[2], c[3]])
+    };
+    assert_eq!(read(&mut iter), 0);
+    assert_eq!(read(&mut iter), 1);
+    assert_eq!(read(&mut iter), 1 | X_FLIP_MASK);
+    assert_eq!(read(&mut iter), Y_FLIP_MASK);
 }

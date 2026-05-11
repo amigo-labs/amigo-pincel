@@ -17,7 +17,9 @@ use flate2::write::ZlibEncoder;
 
 use crate::bytes::{write_byte, write_dword, write_short, write_string, write_word, write_zeros};
 use crate::error::WriteError;
-use crate::file::{AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, Tag};
+use crate::file::{
+    AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, Tag, TilesetChunk,
+};
 use crate::types::{LayerType, PaletteEntryFlags};
 
 const HEADER_MAGIC: u16 = 0xA5E0;
@@ -30,9 +32,18 @@ const CHUNK_TYPE_LAYER: u16 = 0x2004;
 const CHUNK_TYPE_CEL: u16 = 0x2005;
 const CHUNK_TYPE_TAGS: u16 = 0x2018;
 const CHUNK_TYPE_PALETTE: u16 = 0x2019;
+const CHUNK_TYPE_TILESET: u16 = 0x2023;
 
 const CEL_TYPE_LINKED: u16 = 1;
 const CEL_TYPE_COMPRESSED_IMAGE: u16 = 2;
+const CEL_TYPE_COMPRESSED_TILEMAP: u16 = 3;
+
+/// `TilesetFlags::TILES` bit — set when `tile_pixels` is emitted inline.
+const TILESET_FLAG_TILES: u32 = 0x2;
+/// `TilesetFlags::TILE_0_EMPTY` bit — Aseprite convention: tile id 0 is
+/// the empty / transparent tile. Pincel preserves the convention so the
+/// writer always sets it.
+const TILESET_FLAG_TILE_0_EMPTY: u32 = 0x4;
 
 /// Write `file` to `out` in the Aseprite v1.3 format.
 ///
@@ -91,6 +102,12 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                     write_tags_body(buf, &file.tags)
                 })?);
             }
+            for tileset in &file.tilesets {
+                validate_tileset(tileset)?;
+                chunks.push(encode_chunk(CHUNK_TYPE_TILESET, |buf| {
+                    write_tileset_body(buf, tileset)
+                })?);
+            }
         }
         for cel in &frame.cels {
             validate_cel(cel, file, bytes_per_pixel)?;
@@ -144,6 +161,61 @@ fn validate_cel(cel: &CelChunk, file: &AseFile, bytes_per_pixel: u8) -> Result<(
                 });
             }
         }
+        CelContent::Tilemap {
+            width,
+            height,
+            bits_per_tile,
+            tiles,
+            ..
+        } => {
+            if *bits_per_tile != 32 {
+                return Err(WriteError::TilemapBitsPerTileUnsupported {
+                    bits: *bits_per_tile,
+                });
+            }
+            let expected =
+                (*width as usize)
+                    .checked_mul(*height as usize)
+                    .ok_or(WriteError::TooMany {
+                        what: "tilemap tile count",
+                        count: u64::from(*width) * u64::from(*height),
+                        max: usize::MAX as u64,
+                    })?;
+            if tiles.len() != expected {
+                return Err(WriteError::TilemapTileCountMismatch {
+                    width: *width,
+                    height: *height,
+                    expected,
+                    actual: tiles.len(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_tileset(tileset: &TilesetChunk) -> Result<(), WriteError> {
+    let expected = (tileset.tile_width as usize)
+        .checked_mul(tileset.tile_height as usize)
+        .and_then(|n| n.checked_mul(tileset.number_of_tiles as usize))
+        .and_then(|n| n.checked_mul(4))
+        .ok_or(WriteError::TooMany {
+            what: "tileset tile-image bytes",
+            count: u64::from(tileset.tile_width)
+                * u64::from(tileset.tile_height)
+                * u64::from(tileset.number_of_tiles)
+                * 4,
+            max: usize::MAX as u64,
+        })?;
+    if tileset.tile_pixels.len() != expected {
+        return Err(WriteError::TilesetPixelsSizeMismatch {
+            id: tileset.id,
+            tile_w: tileset.tile_width,
+            tile_h: tileset.tile_height,
+            tiles: tileset.number_of_tiles,
+            expected,
+            actual: tileset.tile_pixels.len(),
+        });
     }
     Ok(())
 }
@@ -296,6 +368,7 @@ fn write_cel_body<W: Write>(w: &mut W, cel: &CelChunk) -> Result<(), WriteError>
     let cel_type = match &cel.content {
         CelContent::Image { .. } => CEL_TYPE_COMPRESSED_IMAGE,
         CelContent::Linked { .. } => CEL_TYPE_LINKED,
+        CelContent::Tilemap { .. } => CEL_TYPE_COMPRESSED_TILEMAP,
     };
     write_word(w, cel_type)?;
     write_short(w, cel.z_index)?;
@@ -316,7 +389,71 @@ fn write_cel_body<W: Write>(w: &mut W, cel: &CelChunk) -> Result<(), WriteError>
         CelContent::Linked { frame_position } => {
             write_word(w, *frame_position)?;
         }
+        CelContent::Tilemap {
+            width,
+            height,
+            bits_per_tile,
+            bitmask_tile_id,
+            bitmask_x_flip,
+            bitmask_y_flip,
+            bitmask_diagonal_flip,
+            tiles,
+        } => {
+            write_word(w, *width)?;
+            write_word(w, *height)?;
+            write_word(w, *bits_per_tile)?;
+            write_dword(w, *bitmask_tile_id)?;
+            // On-disk bitmask order matches `aseprite-loader`'s parse
+            // order (`y_flip` precedes `x_flip`). The Aseprite spec text
+            // labels the second / third dwords differently, but the
+            // loader 0.4.2 source is authoritative for round-trip
+            // compatibility — see the M8.4 read path's discussion.
+            write_dword(w, *bitmask_y_flip)?;
+            write_dword(w, *bitmask_x_flip)?;
+            write_dword(w, *bitmask_diagonal_flip)?;
+            write_zeros(w, 10)?; // reserved
+            let mut raw = Vec::with_capacity(tiles.len() * 4);
+            for entry in tiles {
+                raw.extend_from_slice(&entry.to_le_bytes());
+            }
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(&raw)?;
+            let compressed = encoder.finish()?;
+            w.write_all(&compressed)?;
+        }
     }
+    Ok(())
+}
+
+/// Emit a Tileset chunk body (`0x2023`).
+///
+/// Phase 1 supports inline tile data only: the `TILES` and
+/// `TILE_0_EMPTY` flags are both set, and `tileset.tile_pixels` is
+/// zlib-compressed and appended after a `DWORD compressed_size`. The
+/// `EXTERNAL_FILE` flag is never emitted (the writer has no public
+/// surface for it).
+fn write_tileset_body<W: Write>(w: &mut W, tileset: &TilesetChunk) -> Result<(), WriteError> {
+    write_dword(w, tileset.id)?;
+    write_dword(w, TILESET_FLAG_TILES | TILESET_FLAG_TILE_0_EMPTY)?;
+    write_dword(w, tileset.number_of_tiles)?;
+    write_word(w, tileset.tile_width)?;
+    write_word(w, tileset.tile_height)?;
+    write_short(w, tileset.base_index)?;
+    write_zeros(w, 14)?; // reserved
+    write_string(w, &tileset.name)?;
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&tileset.tile_pixels)?;
+    let compressed = encoder.finish()?;
+    let compressed_size: u32 = compressed
+        .len()
+        .try_into()
+        .map_err(|_| WriteError::TooMany {
+            what: "tileset compressed tile bytes",
+            count: compressed.len() as u64,
+            max: u32::MAX as u64,
+        })?;
+    write_dword(w, compressed_size)?;
+    w.write_all(&compressed)?;
     Ok(())
 }
 
@@ -363,6 +500,7 @@ mod tests {
             layers: Vec::new(),
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: vec![Frame::new(100)],
         };
         let mut buf = Vec::new();
@@ -382,6 +520,7 @@ mod tests {
             layers: Vec::new(),
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: Vec::with_capacity(u16::MAX as usize + 1),
         };
         for _ in 0..(u16::MAX as usize + 1) {
@@ -453,6 +592,7 @@ mod tests {
             layers: vec![rgba_layer("L0")],
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -491,6 +631,7 @@ mod tests {
             layers: vec![rgba_layer("L0")],
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -525,6 +666,7 @@ mod tests {
             layers: vec![rgba_layer("L0")],
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -564,6 +706,7 @@ mod tests {
             layers: vec![rgba_layer("L0")],
             palette: None,
             tags: Vec::new(),
+            tilesets: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
