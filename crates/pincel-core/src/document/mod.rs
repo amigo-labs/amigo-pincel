@@ -92,6 +92,26 @@ impl Sprite {
     pub fn has_selection(&self) -> bool {
         self.selection.is_some_and(|r| !r.is_empty())
     }
+
+    /// Look up a layer by id. Returns `None` if no layer has the given id.
+    pub fn layer(&self, id: LayerId) -> Option<&Layer> {
+        self.layers.iter().find(|l| l.id == id)
+    }
+
+    /// Mutable layer lookup by id.
+    pub fn layer_mut(&mut self, id: LayerId) -> Option<&mut Layer> {
+        self.layers.iter_mut().find(|l| l.id == id)
+    }
+
+    /// Look up a tileset by id. Returns `None` if no tileset has the given id.
+    pub fn tileset(&self, id: TilesetId) -> Option<&Tileset> {
+        self.tilesets.iter().find(|t| t.id == id)
+    }
+
+    /// Mutable tileset lookup by id.
+    pub fn tileset_mut(&mut self, id: TilesetId) -> Option<&mut Tileset> {
+        self.tilesets.iter_mut().find(|t| t.id == id)
+    }
 }
 
 /// Fluent builder for [`Sprite`]. Validates non-zero canvas dimensions and
@@ -355,6 +375,66 @@ mod tests {
         let mut s = Sprite::builder(8, 8).build().expect("sprite should build");
         s.set_selection(Rect::new(-4, -3, 100, 100));
         assert_eq!(s.selection, Some(Rect::new(-4, -3, 100, 100)));
+    }
+
+    #[test]
+    fn layer_lookup_returns_matching_layer() {
+        let s = Sprite::builder(8, 8)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_layer(Layer::image(LayerId::new(7), "fg"))
+            .build()
+            .expect("sprite should build");
+        assert_eq!(
+            s.layer(LayerId::new(0)).map(|l| l.name.as_str()),
+            Some("bg")
+        );
+        assert_eq!(
+            s.layer(LayerId::new(7)).map(|l| l.name.as_str()),
+            Some("fg")
+        );
+        assert!(s.layer(LayerId::new(99)).is_none());
+    }
+
+    #[test]
+    fn layer_mut_lets_callers_rename() {
+        let mut s = Sprite::builder(8, 8)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .build()
+            .expect("sprite should build");
+        s.layer_mut(LayerId::new(0)).expect("present").name = "main".into();
+        assert_eq!(s.layers[0].name, "main");
+    }
+
+    #[test]
+    fn tileset_lookup_returns_matching_tileset() {
+        let s = Sprite::builder(16, 16)
+            .add_tileset(Tileset::new(TilesetId::new(0), "ground", (8, 8)))
+            .add_tileset(Tileset::new(TilesetId::new(5), "decor", (16, 16)))
+            .build()
+            .expect("sprite should build");
+        assert_eq!(
+            s.tileset(TilesetId::new(0)).map(|t| t.name.as_str()),
+            Some("ground")
+        );
+        assert_eq!(
+            s.tileset(TilesetId::new(5)).map(|t| t.tile_size),
+            Some((16, 16))
+        );
+        assert!(s.tileset(TilesetId::new(99)).is_none());
+    }
+
+    #[test]
+    fn tileset_mut_lets_callers_push_tiles() {
+        use crate::document::color_mode::ColorMode;
+        let mut s = Sprite::builder(8, 8)
+            .add_tileset(Tileset::new(TilesetId::new(0), "t", (8, 8)))
+            .build()
+            .expect("sprite should build");
+        let t = s.tileset_mut(TilesetId::new(0)).expect("present");
+        t.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(8, 8, ColorMode::Rgba),
+        });
+        assert_eq!(s.tilesets[0].tile_count(), 1);
     }
 
     #[test]

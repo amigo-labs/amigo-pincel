@@ -33,6 +33,39 @@ pub enum CommandError {
     #[error("layer id {0} already exists")]
     DuplicateLayerId(u32),
 
+    /// A tileset with the same id already exists.
+    #[error("tileset id {0} already exists")]
+    DuplicateTilesetId(u32),
+
+    /// The cel for `(layer, frame)` is not a tilemap cel (e.g. image or
+    /// linked). Emitted by `PlaceTile`.
+    #[error("cel for layer {layer:?} frame {frame:?} is not a tilemap cel")]
+    NotATilemapCel { layer: LayerId, frame: FrameIndex },
+
+    /// Grid coordinates fall outside the tilemap cel's grid.
+    #[error("tile coord ({x}, {y}) is out of bounds for tilemap grid {grid_w}x{grid_h}")]
+    TileCoordOutOfBounds {
+        x: u32,
+        y: u32,
+        grid_w: u32,
+        grid_h: u32,
+    },
+
+    /// A tilemap cel's `tiles` vector length doesn't equal
+    /// `grid_w * grid_h`. Indicates a corrupt document; safer to refuse
+    /// the edit than to write into an inconsistently-sized buffer.
+    #[error(
+        "tilemap cel on layer {layer:?} frame {frame:?} is malformed: \
+         tiles_len={tiles_len} but grid is {grid_w}x{grid_h}"
+    )]
+    MalformedTilemapCel {
+        layer: LayerId,
+        frame: FrameIndex,
+        grid_w: u32,
+        grid_h: u32,
+        tiles_len: usize,
+    },
+
     /// A selection-scoped command was issued with no active selection
     /// on the sprite. Emitted by `MoveSelectionContent` when there is
     /// nothing to move; the caller (typically the Move tool drag in
