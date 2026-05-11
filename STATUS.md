@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.8b: `pincel-wasm` selection surface — `setSelection` / `clearSelection` + `hasSelection` / `selectionX` / `selectionY` / `selectionWidth` / `selectionHeight` getters, plus a new `selection-changed` event. UI slice (M7.8c) follows.)
+_Last updated: 2026-05-11_ (M7.7b: Move tool selection-content drag — new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
 
 ## Completed
 
@@ -976,8 +976,24 @@ behavior.
   via CSS (the wasm `compose` zoom arg stays at 1×); pan offsets
   apply as `transform: translate(...)` on the canvas. The selection-
   content-move half of M7.7 waits for M7.8.
-- [ ] **M7.7b** — Move tool selection-content drag. Depends on M7.8
-  (the selection model that defines what gets moved).
+- [x] **M7.7b** — Move tool selection-content drag. New
+  `MoveSelectionContent` core command captures the selection rect at
+  `apply` time, intersects it with the active cel's pixel buffer,
+  copies the pixels to the translated cel-local position (pixels
+  whose destination falls outside the cel buffer are dropped — Phase
+  1 does not auto-grow), clears the source area to transparent, and
+  updates `Sprite::selection` to the translated rect. `revert`
+  restores both source and destination pixels (deduped by `(x, y)`)
+  plus the prior selection. New `CommandError::NoSelection` covers
+  the "Move with no selection" error path. Exposed to JS as
+  `Document.applyMoveSelection(dx, dy)`; emits a `dirty-canvas`
+  event (move can affect any subset of the cel) and a
+  `selection-changed` event so the UI repaints the marching ants at
+  the new position. UI Move tool now splits on `hasSelection`: with
+  a selection, press-drag-release commits a content move and shows
+  a ghost marquee at the translated position during the drag;
+  without one, the Move tool falls back to M7.7a viewport pan.
+  Space-drag still pans regardless of the selection state.
 - [x] **M7.8a** — `pincel-core` selection model: `selection:
   Option<Rect>` on `Sprite` + `set_selection` / `clear_selection` /
   `has_selection` helpers. Empty rects clear instead of storing a
@@ -989,10 +1005,23 @@ behavior.
   UI can repaint the marching-ants overlay. Selection state is
   intentionally not on the undo stack in this slice (pinned by a
   regression test).
-- [ ] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
-  New toolbar button, marquee press-drag-release pipeline reusing
-  the drag-shape infrastructure, animated dashed-rectangle overlay
-  in `lib/render/canvas2d.ts`.
+- [x] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
+  `Tool` union grows a `'selection-rect'` variant; toolbar gains a
+  "Select" button. The shape is in `isDragShapeTool` so the
+  existing press-drag-release pipeline captures both endpoints and
+  the per-pixel paint path no-ops. Release computes the inclusive-
+  corner rect and forwards it to `Document.setSelection`; a click
+  with no movement clears via `Document.clearSelection` (matches
+  Aseprite's "click to deselect"). The marching-ants renderer
+  (`paintSelectionMarquee` in `lib/render/canvas2d.ts`) draws a
+  1-pixel-wide alternating black/white border around the marquee
+  perimeter with a `phase` argument that shifts the dashes
+  clockwise. The UI tick advances `marchPhase` mod 4 once every 7
+  RAF frames while a selection is active (or a marquee drag is
+  in-flight), so the ants crawl at ~8.5 Hz and idle to zero work
+  otherwise. Selection state is mirrored locally from the
+  `selection-changed` event ring; the wasm side stays the source
+  of truth.
 
 Stopping points (per CLAUDE.md §3.3) between each sub-task: every
 new public API surface, every dep added to `Cargo.toml` /

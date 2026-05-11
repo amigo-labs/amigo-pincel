@@ -285,6 +285,64 @@ function midpointEllipse(
   }
 }
 
+/**
+ * Overlay a marching-ants marquee on top of the current canvas
+ * contents. Coordinates are in canvas pixel space (i.e. sprite coords
+ * for the M6 single-frame, 1× compose path), matching the convention
+ * used by [`paintRectanglePreview`] and friends.
+ *
+ * The marquee is a 1-pixel-wide rectangular outline whose perimeter
+ * pixels alternate black and white in a fixed 4-step pattern. `phase`
+ * (taken modulo 4) shifts the pattern along the perimeter so a
+ * monotonically-advancing `phase` produces the classic "marching ants"
+ * animation. The walk order — top-left → right along the top edge,
+ * down the right edge, left along the bottom edge, up the left edge —
+ * keeps the dashes traveling clockwise.
+ *
+ * Pixels outside the canvas (e.g. when the selection extends past the
+ * sprite bounds) are clipped silently. Degenerate (`width === 0` or
+ * `height === 0`) marquees no-op — the wasm boundary already collapses
+ * empty selections to "no selection".
+ */
+export function paintSelectionMarquee(
+  canvas: HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  phase: number,
+): void {
+  if (width <= 0 || height <= 0) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const maxX = x + width - 1;
+  const maxY = y + height - 1;
+  const phaseN = ((phase % 4) + 4) % 4;
+  const plot = (px: number, py: number, i: number) => {
+    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return;
+    const slot = (i + phaseN) & 0x3;
+    ctx.fillStyle = slot < 2 ? '#ffffff' : '#000000';
+    ctx.fillRect(px, py, 1, 1);
+  };
+  let i = 0;
+  if (height === 1) {
+    for (let px = x; px <= maxX; px++) plot(px, y, i++);
+    return;
+  }
+  if (width === 1) {
+    for (let py = y; py <= maxY; py++) plot(x, py, i++);
+    return;
+  }
+  // Top edge: left → right.
+  for (let px = x; px <= maxX; px++) plot(px, y, i++);
+  // Right edge: top+1 → bottom.
+  for (let py = y + 1; py <= maxY; py++) plot(maxX, py, i++);
+  // Bottom edge: right-1 → left.
+  for (let px = maxX - 1; px >= x; px--) plot(px, maxY, i++);
+  // Left edge: bottom-1 → top+1.
+  for (let py = maxY - 1; py >= y + 1; py--) plot(x, py, i++);
+}
+
 function* bresenham(
   x0: number,
   y0: number,

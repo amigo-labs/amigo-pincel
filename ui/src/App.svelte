@@ -6,6 +6,7 @@
     paintEllipsePreview,
     paintLinePreview,
     paintRectanglePreview,
+    paintSelectionMarquee,
   } from './lib/render/canvas2d';
 
   // The wasm `Document` is the source of truth for sprite state
@@ -22,18 +23,23 @@
     | 'rectangle-fill'
     | 'ellipse'
     | 'ellipse-fill'
+    | 'selection-rect'
     | 'move';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
-  // `pointermove`, committed on `pointerup`).
+  // `pointermove`, committed on `pointerup`). The Selection (Rect)
+  // tool shares the same shape so a Shift constraint / mid-drag
+  // pre-empt can be added uniformly; its release path commits via
+  // `setSelection` / `clearSelection` rather than the paint commands.
   function isDragShapeTool(t: Tool): boolean {
     return (
       t === 'line' ||
       t === 'rectangle' ||
       t === 'rectangle-fill' ||
       t === 'ellipse' ||
-      t === 'ellipse-fill'
+      t === 'ellipse-fill' ||
+      t === 'selection-rect'
     );
   }
 
@@ -84,10 +90,36 @@
   let panning = $state(false);
   let panStartClient: { x: number; y: number } | null = null;
   let panStartOffset: { x: number; y: number } | null = null;
+  // In-flight Move-tool selection-content drag. Press point and live
+  // pointer point are in sprite coords; the delta drives a ghost
+  // marquee at the translated location during the drag, and is
+  // committed via `applyMoveSelection(dx, dy)` on release. `null`
+  // outside a drag. `$state` because the cursor binding switches to
+  // a "move" icon while a content drag is in flight.
+  let moveSelStart = $state<{ x: number; y: number } | null>(null);
+  let moveSelPreview = $state<{ x: number; y: number } | null>(null);
   // Whether the space key is currently held. Triggers temporary
   // pan-on-drag regardless of the active tool (spec §5.2 — Move tool
   // "Pans canvas with space-drag").
   let spaceDown = $state(false);
+  // Local mirror of the wasm `Sprite::selection`, updated whenever a
+  // `selection-changed` event drains (or on doc replacement). `null`
+  // when no selection is active. The marching-ants overlay reads this
+  // each recompose; the wasm side stays the source of truth.
+  let selection = $state<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  );
+  // Phase counter for the marching-ants animation: increments mod 4
+  // every `MARCH_FRAMES_PER_STEP` RAF ticks while a selection is
+  // active, producing the classic clockwise crawl. Frozen at the
+  // current value when the selection is cleared so the next selection
+  // starts wherever the previous one left off (visually consistent).
+  let marchPhase = $state(0);
+  let marchTicks = 0;
+  // ~60 / 7 ≈ 8.5 Hz, matching Aseprite's marquee crawl rate. The
+  // overlay redraws once per phase step; intermediate ticks skip the
+  // recompose so an idle selection costs near-zero CPU.
+  const MARCH_FRAMES_PER_STEP = 7;
 
   function syncMeta() {
     if (!doc) return;
@@ -95,6 +127,24 @@
     redoDepth = doc.redoDepth;
     canvasW = doc.width;
     canvasH = doc.height;
+  }
+
+  // Re-read the selection rect from the wasm side. Called after any
+  // event drain that may have included a `selection-changed`, and on
+  // doc replacement (new / open) so the overlay reflects the loaded
+  // sprite (always `None` today — Aseprite files do not persist
+  // selection, M7.8a follow-up).
+  function syncSelection() {
+    if (!doc || !doc.hasSelection) {
+      selection = null;
+      return;
+    }
+    selection = {
+      x: doc.selectionX,
+      y: doc.selectionY,
+      w: doc.selectionWidth,
+      h: doc.selectionHeight,
+    };
   }
 
   function recompose() {
@@ -149,6 +199,51 @@
             end.y,
             color,
             true,
+          );
+        } else if (dragTool === 'selection-rect') {
+          // Inclusive-corner marquee preview: matches the rect that
+          // `commitSelection` will hand to `setSelection` on release
+          // (so the user sees the exact pixels that will be inside the
+          // committed selection).
+          const minX = Math.min(dragStart.x, end.x);
+          const maxX = Math.max(dragStart.x, end.x);
+          const minY = Math.min(dragStart.y, end.y);
+          const maxY = Math.max(dragStart.y, end.y);
+          paintSelectionMarquee(
+            canvas,
+            minX,
+            minY,
+            maxX - minX + 1,
+            maxY - minY + 1,
+            marchPhase,
+          );
+        }
+      } else if (selection) {
+        // No marquee drag in flight. If a Move-tool selection drag is
+        // active, paint a ghost marquee at the translated position so
+        // the user sees where the selection will land (the pixels
+        // themselves snap into place on release — the live drag
+        // doesn't bother rasterizing them). Otherwise paint the
+        // committed marquee at its stored sprite-space position.
+        if (moveSelStart && moveSelPreview) {
+          const dx = moveSelPreview.x - moveSelStart.x;
+          const dy = moveSelPreview.y - moveSelStart.y;
+          paintSelectionMarquee(
+            canvas,
+            selection.x + dx,
+            selection.y + dy,
+            selection.w,
+            selection.h,
+            marchPhase,
+          );
+        } else {
+          paintSelectionMarquee(
+            canvas,
+            selection.x,
+            selection.y,
+            selection.w,
+            selection.h,
+            marchPhase,
           );
         }
       }
@@ -276,10 +371,28 @@
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
-    // Move tool press and space-drag both activate a pan drag. The
-    // active-tool check stays first so the Move tool works even when
-    // space happens to be down at press time.
-    if (tool === 'move' || spaceDown) {
+    // Space-drag always pans, regardless of the active tool (spec §5.2
+    // — Move tool "Pans canvas with space-drag"). Move-tool press
+    // splits on whether a selection is active: with one, drag the
+    // selection content (M7.7b); without one, fall back to viewport
+    // pan (M7.7a). spaceDown wins so the user can always pan even
+    // when the Move tool would otherwise translate the marquee.
+    if (spaceDown) {
+      panning = true;
+      panStartClient = { x: e.clientX, y: e.clientY };
+      panStartOffset = { x: panX, y: panY };
+      return;
+    }
+    if (tool === 'move') {
+      if (selection) {
+        const point = spriteCoord(e);
+        if (point) {
+          moveSelStart = point;
+          moveSelPreview = point;
+          dirty = true;
+        }
+        return;
+      }
       panning = true;
       panStartClient = { x: e.clientX, y: e.clientY };
       panStartOffset = { x: panX, y: panY };
@@ -319,10 +432,38 @@
     }
   }
 
+  // Commit a selection marquee from the two corner points of the
+  // press / drag / release gesture. A no-move click (start === end)
+  // clears the selection, matching Aseprite's "click outside to
+  // deselect" UX; otherwise the rect is normalized to min / max
+  // corners (inclusive) and forwarded to `setSelection`. Sprite-bounds
+  // clipping is intentionally not applied here — the wasm side stores
+  // the raw rect and the marching-ants overlay's per-pixel clip keeps
+  // off-canvas extents from leaking visually.
+  function commitSelection(x0: number, y0: number, x1: number, y1: number) {
+    if (!doc) return;
+    if (x0 === x1 && y0 === y1) {
+      doc.clearSelection();
+      return;
+    }
+    const minX = Math.min(x0, x1);
+    const minY = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    doc.setSelection(minX, minY, w, h);
+  }
+
   function onPointerMove(e: PointerEvent) {
     if (panning && panStartClient && panStartOffset) {
       panX = panStartOffset.x + (e.clientX - panStartClient.x);
       panY = panStartOffset.y + (e.clientY - panStartClient.y);
+      return;
+    }
+    if (moveSelStart) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      moveSelPreview = point;
+      dirty = true;
       return;
     }
     if (dragStart) {
@@ -347,6 +488,24 @@
       panStartOffset = null;
       return;
     }
+    if (moveSelStart && moveSelPreview && doc) {
+      const dx = moveSelPreview.x - moveSelStart.x;
+      const dy = moveSelPreview.y - moveSelStart.y;
+      if (dx !== 0 || dy !== 0) {
+        try {
+          doc.applyMoveSelection(dx, dy);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('applyMoveSelection failed', err);
+          status = `move failed: ${msg}`;
+        }
+      }
+      moveSelStart = null;
+      moveSelPreview = null;
+      dirty = true;
+      syncMeta();
+      return;
+    }
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
@@ -362,6 +521,8 @@
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, false);
         } else if (dragTool === 'ellipse-fill') {
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
+        } else if (dragTool === 'selection-rect') {
+          commitSelection(dragStart.x, dragStart.y, end.x, end.y);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -394,6 +555,7 @@
     doc = new Document(64, 64);
     dirty = true;
     syncMeta();
+    syncSelection();
     status = 'new 64×64 document';
   }
 
@@ -408,6 +570,7 @@
       doc = next;
       dirty = true;
       syncMeta();
+      syncSelection();
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -462,8 +625,32 @@
   function tick() {
     if (doc) {
       const events = doc.drainEvents();
+      let selectionTouched = false;
       if (events.length > 0) dirty = true;
-      for (const ev of events) ev.free();
+      for (const ev of events) {
+        if (ev.kind === 'selection-changed') selectionTouched = true;
+        ev.free();
+      }
+      if (selectionTouched) syncSelection();
+      // Drive the marching-ants animation: when a selection is
+      // active, advance `marchPhase` once every
+      // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the
+      // overlay redraws. With no selection the counters reset and the
+      // recompose path stays idle.
+      if (
+        selection ||
+        (dragStart && dragTool === 'selection-rect') ||
+        moveSelStart
+      ) {
+        marchTicks += 1;
+        if (marchTicks >= MARCH_FRAMES_PER_STEP) {
+          marchTicks = 0;
+          marchPhase = (marchPhase + 1) & 0x3;
+          dirty = true;
+        }
+      } else {
+        marchTicks = 0;
+      }
       if (dirty) {
         dirty = false;
         recompose();
@@ -510,6 +697,8 @@
     panning = false;
     panStartClient = null;
     panStartOffset = null;
+    moveSelStart = null;
+    moveSelPreview = null;
   }
 
   function onVisibilityChange() {
@@ -523,6 +712,7 @@
         if (cancelled) return;
         doc = new Document(64, 64);
         syncMeta();
+        syncSelection();
         dirty = true;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
@@ -637,6 +827,14 @@
       </button>
       <button
         class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-rect'}
+        aria-pressed={tool === 'selection-rect'}
+        onclick={() => (tool = 'selection-rect')}
+      >
+        Select
+      </button>
+      <button
+        class="toolbar-btn"
         class:toolbar-btn-active={tool === 'move'}
         aria-pressed={tool === 'move'}
         onclick={() => (tool = 'move')}
@@ -687,9 +885,13 @@
       style:transform="translate({panX}px, {panY}px)"
       style:cursor={panning
         ? 'grabbing'
-        : tool === 'move' || spaceDown
-          ? 'grab'
-          : 'crosshair'}
+        : moveSelStart
+          ? 'move'
+          : tool === 'move' && selection && !spaceDown
+            ? 'move'
+            : tool === 'move' || spaceDown
+              ? 'grab'
+              : 'crosshair'}
       aria-label="Pincel canvas"
       onpointerdown={onPointerDown}
       onpointermove={onPointerMove}

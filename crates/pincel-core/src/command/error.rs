@@ -32,4 +32,11 @@ pub enum CommandError {
     /// A layer with the same id already exists.
     #[error("layer id {0} already exists")]
     DuplicateLayerId(u32),
+
+    /// A selection-scoped command was issued with no active selection
+    /// on the sprite. Emitted by `MoveSelectionContent` when there is
+    /// nothing to move; the caller (typically the Move tool drag in
+    /// the UI) should fall back to a pan / no-op instead.
+    #[error("no active selection")]
+    NoSelection,
 }
