@@ -190,4 +190,107 @@ pub enum CodecError {
         /// Frame index the linked cel points at.
         target: u32,
     },
+
+    /// A tilemap layer's `tileset_index` was missing from the layer chunk.
+    /// Aseprite always emits this field for `LayerType::Tilemap`, so a
+    /// missing value indicates a malformed or truncated file.
+    #[error("tilemap layer {name:?} is missing its tileset index")]
+    TilemapLayerMissingTilesetIndex {
+        /// Layer name as encoded in the source file.
+        name: String,
+    },
+
+    /// A tilemap cel uses a `bits_per_tile` value other than 32. The
+    /// Aseprite v1.3 spec currently fixes this at 32 bits per tile;
+    /// anything else is rejected so that the bitmask layout is well-defined.
+    #[error("tilemap cel uses unsupported bits_per_tile {bits}")]
+    TilemapBitsPerTileUnsupported {
+        /// Bits-per-tile value reported by the cel chunk.
+        bits: u16,
+    },
+
+    /// A tilemap cel's compressed payload did not decompress to the
+    /// expected `width * height * bits_per_tile / 8` bytes.
+    #[error("tilemap cel decode failed: {0}")]
+    TilemapDecode(String),
+
+    /// A tileset chunk uses a feature Pincel does not yet ingest. Phase 1
+    /// supports inline tile data only; external-file tilesets are deferred.
+    #[error("tileset {id} uses an unsupported feature: {what}")]
+    TilesetUnsupported {
+        /// Numeric tileset id from the chunk.
+        id: u32,
+        /// Short human-readable description of the rejected feature.
+        what: &'static str,
+    },
+
+    /// A tileset chunk's compressed tile-image payload did not decompress
+    /// to the expected `tile_w * tile_h * number_of_tiles * 4` bytes.
+    #[error("tileset {id} tile-image decode failed: {message}")]
+    TilesetDecode {
+        /// Numeric tileset id from the chunk.
+        id: u32,
+        /// Underlying decode error message.
+        message: String,
+    },
+
+    /// A `CelData::Tilemap` cel has `tiles.len()` that does not match
+    /// `grid_w * grid_h`. The document model enforces this on
+    /// construction, so seeing it here means a caller hand-built a
+    /// malformed cel.
+    #[error(
+        "tilemap cel for layer {layer} frame {frame} has {actual} tiles for a {expected}-tile grid"
+    )]
+    CelTilemapTileCountMismatch {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index of the cel.
+        frame: u32,
+        /// Expected `grid_w * grid_h`.
+        expected: usize,
+        /// Actual `tiles.len()`.
+        actual: usize,
+    },
+
+    /// A `TileImage` inside a [`crate::Tileset`] has dimensions that
+    /// don't match the tileset's `tile_size`, or uses a non-RGBA color
+    /// mode. The on-disk tile-image block is one contiguous buffer of
+    /// `tile_w * tile_h * number_of_tiles * 4` bytes, so per-tile
+    /// dimension drift would produce a corrupt file.
+    #[error(
+        "tileset {tileset} tile {tile} dimensions {actual_w}x{actual_h} do not match tileset tile_size {expected_w}x{expected_h}"
+    )]
+    TilesetTileDimensionMismatch {
+        /// Numeric tileset id.
+        tileset: u32,
+        /// 0-based tile index inside the tileset.
+        tile: u32,
+        /// Tileset's declared tile width.
+        expected_w: u32,
+        /// Tileset's declared tile height.
+        expected_h: u32,
+        /// Actual tile width.
+        actual_w: u32,
+        /// Actual tile height.
+        actual_h: u32,
+    },
+
+    /// A [`crate::TileImage`] uses a [`crate::ColorMode`] other than
+    /// RGBA. The writer is RGBA-only at the sprite level.
+    #[error("tileset {tileset} tile {tile} is not RGBA")]
+    TilesetTileNotRgba {
+        /// Numeric tileset id.
+        tileset: u32,
+        /// 0-based tile index inside the tileset.
+        tile: u32,
+    },
+
+    /// A [`crate::Tileset`] has a non-empty `external_file`. Phase 1
+    /// does not yet round-trip external-file tilesets (the read path
+    /// rejects them too).
+    #[error("tileset {tileset} references an external file (not supported)")]
+    UnsupportedTilesetExternalFile {
+        /// Numeric tileset id.
+        tileset: u32,
+    },
 }

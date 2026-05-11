@@ -25,9 +25,10 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
-    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveSelectionContent,
-    PixelBuffer, Rect, Rgba, SetPixel, Sprite, compose, read_aseprite, write_aseprite,
+    AddTileset, AsepriteReadOutput, Bus, Cel, CelMap, ColorMode, ComposeRequest, DrawEllipse,
+    DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
+    MoveSelectionContent, PixelBuffer, PlaceTile, Rect, Rgba, SetPixel, Sprite, TileRef, Tileset,
+    TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -616,6 +617,180 @@ impl Document {
         };
         self.events.push(event);
         Ok(())
+    }
+
+    // ---- M8.6: tilemap surface ----------------------------------------
+
+    /// Number of tilesets in the document.
+    #[wasm_bindgen(getter, js_name = tilesetCount)]
+    pub fn tileset_count(&self) -> u32 {
+        self.sprite.tilesets.len() as u32
+    }
+
+    /// Numeric id of the tileset at the given position in
+    /// `Sprite::tilesets` (`0..tilesetCount`). Tileset ids are assigned
+    /// by [`Document::add_tileset`] and survive the codec round-trip, so
+    /// they may be non-contiguous after an `openAseprite`.
+    ///
+    /// Errors when `index` is out of range.
+    #[wasm_bindgen(js_name = tilesetIdAt)]
+    pub fn tileset_id_at(&self, index: u32) -> Result<u32, String> {
+        self.sprite
+            .tilesets
+            .get(index as usize)
+            .map(|t| t.id.0)
+            .ok_or_else(|| format!("tileset index {index} out of range"))
+    }
+
+    /// Tile width of the named tileset, or `0` if `tileset_id` is
+    /// unknown.
+    #[wasm_bindgen(js_name = tilesetTileWidth)]
+    pub fn tileset_tile_width(&self, tileset_id: u32) -> u32 {
+        self.sprite
+            .tileset(TilesetId::new(tileset_id))
+            .map(|t| t.tile_size.0)
+            .unwrap_or(0)
+    }
+
+    /// Tile height of the named tileset, or `0` if `tileset_id` is
+    /// unknown.
+    #[wasm_bindgen(js_name = tilesetTileHeight)]
+    pub fn tileset_tile_height(&self, tileset_id: u32) -> u32 {
+        self.sprite
+            .tileset(TilesetId::new(tileset_id))
+            .map(|t| t.tile_size.1)
+            .unwrap_or(0)
+    }
+
+    /// Number of tile images stored in the named tileset. By Aseprite
+    /// convention tile id `0` is the empty / transparent tile and is
+    /// usually not stored, so a freshly created tileset starts at `0`.
+    /// Returns `0` if `tileset_id` is unknown.
+    #[wasm_bindgen(js_name = tilesetTileCount)]
+    pub fn tileset_tile_count(&self, tileset_id: u32) -> u32 {
+        self.sprite
+            .tileset(TilesetId::new(tileset_id))
+            .map(|t| t.tile_count() as u32)
+            .unwrap_or(0)
+    }
+
+    /// Tileset display name. Returns an empty string when `tileset_id`
+    /// is unknown — JS code should pair this with a
+    /// [`Document::tileset_tile_width`] / `tileset_tile_height` lookup
+    /// that returns `0` to detect missing tilesets.
+    #[wasm_bindgen(js_name = tilesetName)]
+    pub fn tileset_name(&self, tileset_id: u32) -> String {
+        self.sprite
+            .tileset(TilesetId::new(tileset_id))
+            .map(|t| t.name.clone())
+            .unwrap_or_default()
+    }
+
+    /// Add a new tileset to the document. The id is chosen as
+    /// `max(existing ids) + 1` (or `0` when no tilesets exist) so it is
+    /// stable across runs and monotonic. Returns the assigned id.
+    ///
+    /// Routes through the [`AddTileset`] command so the operation joins
+    /// the undo / redo bus. Tile-image content starts empty (Aseprite
+    /// convention: tile id `0` is the implicit empty tile); per-tile
+    /// edits land alongside the Tileset Editor in M8.7.
+    ///
+    /// Errors when `tile_w` or `tile_h` is zero, when the existing id
+    /// space is exhausted (an existing tileset already uses `u32::MAX`),
+    /// or when the command bus rejects the insert.
+    #[wasm_bindgen(js_name = addTileset)]
+    pub fn add_tileset(&mut self, name: &str, tile_w: u32, tile_h: u32) -> Result<u32, String> {
+        if tile_w == 0 || tile_h == 0 {
+            return Err(format!(
+                "tile size must be non-zero (got {tile_w}x{tile_h})"
+            ));
+        }
+        let new_id = match self.sprite.tilesets.iter().map(|t| t.id.0).max() {
+            None => 0,
+            // Detect id-space exhaustion explicitly so the caller sees a
+            // clear error rather than a generic duplicate-id from the
+            // command bus (`saturating_add(1)` on `u32::MAX` would
+            // otherwise collide with the existing tileset).
+            Some(u32::MAX) => return Err("tileset id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
+        let tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
+        let cmd = AddTileset::new(tileset);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add tileset: {e}"))?;
+        Ok(new_id)
+    }
+
+    /// Place tile `tile_id` at grid cell `(grid_x, grid_y)` of the
+    /// tilemap cel on `(layer, frame)`.
+    ///
+    /// Flip / rotate flags are not yet surfaced; tiles are placed in
+    /// canonical orientation. The UI can wire them up once M8.7 needs
+    /// them.
+    ///
+    /// Emits a `dirty-rect` event covering the single grid cell in
+    /// sprite space so the renderer can repaint just the affected
+    /// tile rather than the full canvas. Errors propagate from the
+    /// underlying [`PlaceTile`] command (missing cel, non-tilemap cel,
+    /// out-of-bounds grid coords).
+    #[wasm_bindgen(js_name = placeTile)]
+    pub fn place_tile(
+        &mut self,
+        layer: u32,
+        frame: u32,
+        grid_x: u32,
+        grid_y: u32,
+        tile_id: u32,
+    ) -> Result<(), String> {
+        let layer_id = LayerId::new(layer);
+        let frame_idx = FrameIndex::new(frame);
+        // Resolve the parent layer's tile size before mutating so the
+        // dirty-rect we emit always reflects the on-disk geometry, not
+        // a post-mutation fiction.
+        let tile_size = self.resolve_tile_size(layer_id)?;
+        let cmd = PlaceTile::new(layer_id, frame_idx, grid_x, grid_y, TileRef::new(tile_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to place tile: {e}"))?;
+        let dirty_x = (grid_x as i64) * i64::from(tile_size.0);
+        let dirty_y = (grid_y as i64) * i64::from(tile_size.1);
+        // Clamp to i32 — sprite-space coordinates are i32 in the event
+        // schema. An overflow here only happens for astronomically
+        // large grids that can't be rendered anyway.
+        let dirty_x = i32::try_from(dirty_x).unwrap_or(i32::MAX);
+        let dirty_y = i32::try_from(dirty_y).unwrap_or(i32::MAX);
+        self.events.push(Event::dirty_rect(
+            layer,
+            frame,
+            dirty_x,
+            dirty_y,
+            tile_size.0,
+            tile_size.1,
+        ));
+        Ok(())
+    }
+
+    /// Look up the `tile_size` of the tileset bound to `layer`. Used
+    /// by [`Document::place_tile`] to size the emitted dirty-rect.
+    fn resolve_tile_size(&self, layer: LayerId) -> Result<(u32, u32), String> {
+        let layer_ref = self
+            .sprite
+            .layer(layer)
+            .ok_or_else(|| format!("unknown layer id {layer:?}"))?;
+        let tileset_id = match layer_ref.kind {
+            LayerKind::Tilemap { tileset_id } => tileset_id,
+            _ => return Err(format!("layer {} is not a tilemap layer", layer.0)),
+        };
+        self.sprite
+            .tileset(tileset_id)
+            .map(|t| t.tile_size)
+            .ok_or_else(|| {
+                format!(
+                    "layer {} references unknown tileset {}",
+                    layer.0, tileset_id.0
+                )
+            })
     }
 }
 
@@ -1484,7 +1659,8 @@ mod tests {
     #[test]
     fn apply_move_selection_translates_pixels_and_selection() {
         let mut doc = Document::new(8, 8).expect("dims");
-        doc.apply_tool("pencil", 1, 1, 0xff0000ff).expect("pencil ok");
+        doc.apply_tool("pencil", 1, 1, 0xff0000ff)
+            .expect("pencil ok");
         doc.set_selection(1, 1, 1, 1);
         let _ = doc.drain_events();
         doc.apply_move_selection(3, 2).expect("move ok");
@@ -1519,7 +1695,8 @@ mod tests {
     #[test]
     fn apply_move_selection_joins_the_undo_bus() {
         let mut doc = Document::new(8, 8).expect("dims");
-        doc.apply_tool("pencil", 1, 1, 0xff0000ff).expect("pencil ok");
+        doc.apply_tool("pencil", 1, 1, 0xff0000ff)
+            .expect("pencil ok");
         doc.set_selection(1, 1, 1, 1);
         doc.apply_move_selection(2, 0).expect("move ok");
         assert_eq!(doc.undo_depth(), 2);
@@ -1559,5 +1736,167 @@ mod tests {
             .apply_move_selection(1, 0)
             .expect_err("group-only doc has nothing to paint");
         assert!(err.contains("no paintable image layer"));
+    }
+
+    // ---- M8.6: tilemap surface tests ----------------------------------
+
+    use pincel_core::{Cel, CelData, FrameIndex, Layer, LayerId, TileRef, TilesetId};
+
+    fn doc_with_tilemap_layer() -> (Document, LayerId, FrameIndex) {
+        // 8x8 canvas with a 2x2 tilemap layer (layer id 1) bound to a
+        // freshly-added tileset. The tile size matches the M8.5 round-
+        // trip fixtures so dirty rects line up at (0,0) - (2,2).
+        let mut doc = Document::new(8, 8).expect("dims");
+        let ts_id = doc.add_tileset("ts", 2, 2).expect("addTileset");
+        let layer_id = LayerId::new(1);
+        let layer = Layer::tilemap(layer_id, "tiles", TilesetId::new(ts_id));
+        doc.sprite.layers.push(layer);
+        let frame = FrameIndex::new(0);
+        doc.cels.insert(Cel {
+            layer: layer_id,
+            frame,
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Tilemap {
+                grid_w: 2,
+                grid_h: 2,
+                tiles: vec![TileRef::EMPTY; 4],
+            },
+        });
+        // Drain the events the bootstrap produced so the per-test
+        // assertions can match the per-method emissions exactly.
+        let _ = doc.drain_events();
+        (doc, layer_id, frame)
+    }
+
+    #[test]
+    fn add_tileset_returns_zero_for_first_tileset_and_increments() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.tileset_count(), 0);
+        let first = doc.add_tileset("a", 8, 8).expect("addTileset a");
+        assert_eq!(first, 0);
+        let second = doc.add_tileset("b", 16, 16).expect("addTileset b");
+        assert_eq!(second, 1);
+        assert_eq!(doc.tileset_count(), 2);
+    }
+
+    #[test]
+    fn add_tileset_rejects_zero_tile_size() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let err = doc.add_tileset("zero", 0, 8).unwrap_err();
+        assert!(err.contains("tile size"));
+    }
+
+    #[test]
+    fn add_tileset_joins_undo_bus() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.add_tileset("x", 8, 8).expect("addTileset");
+        assert!(doc.undo_depth() >= 1);
+        assert!(doc.undo());
+        assert_eq!(doc.tileset_count(), 0);
+    }
+
+    #[test]
+    fn add_tileset_rejects_exhausted_id_space() {
+        // Inject a tileset with id `u32::MAX` directly so the next
+        // `add_tileset` call has nowhere to go. The detection runs
+        // before the command bus executes, so the call surfaces a
+        // clearer error than a generic duplicate-id collision.
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite
+            .tilesets
+            .push(Tileset::new(TilesetId::new(u32::MAX), "max", (1, 1)));
+        let err = doc.add_tileset("overflow", 1, 1).unwrap_err();
+        assert!(
+            err.contains("id space exhausted"),
+            "expected exhaustion error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn tileset_getters_round_trip_dimensions_and_name() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let id = doc.add_tileset("ground", 16, 16).expect("addTileset");
+        assert_eq!(doc.tileset_count(), 1);
+        assert_eq!(doc.tileset_id_at(0).unwrap(), id);
+        assert_eq!(doc.tileset_name(id), "ground");
+        assert_eq!(doc.tileset_tile_width(id), 16);
+        assert_eq!(doc.tileset_tile_height(id), 16);
+        assert_eq!(doc.tileset_tile_count(id), 0);
+    }
+
+    #[test]
+    fn tileset_getters_return_defaults_for_unknown_id() {
+        let doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.tileset_tile_width(99), 0);
+        assert_eq!(doc.tileset_tile_height(99), 0);
+        assert_eq!(doc.tileset_tile_count(99), 0);
+        assert_eq!(doc.tileset_name(99), "");
+        assert!(doc.tileset_id_at(0).is_err());
+    }
+
+    #[test]
+    fn place_tile_routes_through_command_bus_and_emits_dirty_rect() {
+        let (mut doc, layer_id, frame_idx) = doc_with_tilemap_layer();
+        doc.place_tile(layer_id.0, frame_idx.0, 1, 0, 1)
+            .expect("placeTile");
+        // Cel updated.
+        let cel = doc
+            .cels
+            .get(layer_id, frame_idx)
+            .expect("tilemap cel present");
+        let CelData::Tilemap { tiles, .. } = &cel.data else {
+            panic!("expected tilemap cel");
+        };
+        assert_eq!(tiles[1].tile_id, 1);
+        // Dirty-rect covers the single cell at (1,0) * (2,2) = (2,0,2,2).
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1, "expected exactly one dirty event");
+        assert_eq!(events[0].kind(), "dirty-rect");
+        assert_eq!(events[0].layer(), layer_id.0);
+        assert_eq!(events[0].frame(), frame_idx.0);
+        assert_eq!(events[0].x(), 2);
+        assert_eq!(events[0].y(), 0);
+        assert_eq!(events[0].width(), 2);
+        assert_eq!(events[0].height(), 2);
+    }
+
+    #[test]
+    fn place_tile_joins_undo_bus() {
+        let (mut doc, layer_id, frame_idx) = doc_with_tilemap_layer();
+        let depth_before = doc.undo_depth();
+        doc.place_tile(layer_id.0, frame_idx.0, 0, 0, 1)
+            .expect("placeTile");
+        assert_eq!(doc.undo_depth(), depth_before + 1);
+        assert!(doc.undo());
+        let cel = doc.cels.get(layer_id, frame_idx).unwrap();
+        let CelData::Tilemap { tiles, .. } = &cel.data else {
+            panic!("expected tilemap cel");
+        };
+        // Undo restored the prior TileRef::EMPTY.
+        assert_eq!(tiles[0].tile_id, 0);
+    }
+
+    #[test]
+    fn place_tile_rejects_non_tilemap_layer() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        // Layer 0 is the bootstrap image layer.
+        let err = doc.place_tile(0, 0, 0, 0, 1).unwrap_err();
+        assert!(
+            err.contains("not a tilemap layer"),
+            "expected layer-kind error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn place_tile_rejects_out_of_grid_coords() {
+        let (mut doc, layer_id, frame_idx) = doc_with_tilemap_layer();
+        let err = doc
+            .place_tile(layer_id.0, frame_idx.0, 5, 5, 1)
+            .unwrap_err();
+        assert!(
+            err.contains("place tile") || err.contains("coord") || err.contains("bounds"),
+            "expected coord-bounds error, got: {err}"
+        );
     }
 }

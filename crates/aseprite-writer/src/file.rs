@@ -21,6 +21,7 @@ pub struct AseFile {
     pub layers: Vec<LayerChunk>,
     pub palette: Option<PaletteChunk>,
     pub tags: Vec<Tag>,
+    pub tilesets: Vec<TilesetChunk>,
     pub frames: Vec<Frame>,
 }
 
@@ -114,7 +115,8 @@ pub struct CelChunk {
 ///
 /// `Image` becomes Cel Type 2 (Compressed Image) on disk; pixel data is
 /// zlib-compressed. `Linked` becomes Cel Type 1 (Linked Cel) and points
-/// at another frame that owns the cel for this layer.
+/// at another frame that owns the cel for this layer. `Tilemap` becomes
+/// Cel Type 3 (Compressed Tilemap).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CelContent {
     /// Image cel, written as Cel Type 2 (Compressed Image).
@@ -133,6 +135,28 @@ pub enum CelContent {
     /// Cel Type 1 — points at the cel in `frame_position` for the same
     /// layer index.
     Linked { frame_position: u16 },
+    /// Cel Type 3 (Compressed Tilemap). `tiles` is a row-major list of
+    /// 32-bit raw tile entries; each entry already packs the tile id and
+    /// any flip / rotate bits per the supplied bitmasks. Field names and
+    /// layout mirror
+    /// `aseprite-loader::binary::chunks::cel::CelContent::CompressedTilemap`
+    /// so the writer can re-emit reader output without translation.
+    ///
+    /// `width` and `height` are the grid dimensions in **tiles**, not
+    /// pixels. `bits_per_tile` is fixed at 32 in Aseprite v1.3 and the
+    /// writer rejects anything else.
+    Tilemap {
+        width: u16,
+        height: u16,
+        bits_per_tile: u16,
+        bitmask_tile_id: u32,
+        bitmask_x_flip: u32,
+        bitmask_y_flip: u32,
+        bitmask_diagonal_flip: u32,
+        /// Row-major `width * height` tile entries. Each `u32` is the
+        /// raw little-endian DWORD that will be emitted on disk.
+        tiles: Vec<u32>,
+    },
 }
 
 /// Layer chunk. Matches `aseprite-loader::binary::chunks::layer::LayerChunk`.
@@ -186,4 +210,30 @@ pub struct Tag {
     /// Deprecated label color. Preserved for round-trip parity.
     pub color: [u8; 3],
     pub name: String,
+}
+
+/// Tileset chunk (`0x2023`). Matches
+/// `aseprite-loader::binary::chunks::tileset::TilesetChunk` minus the
+/// borrowing.
+///
+/// The writer emits the chunk in the **first frame**, alongside layer
+/// chunks. Phase 1 supports inline `TILES` data only: pass an RGBA8
+/// buffer of `tile_w * tile_h * number_of_tiles * 4` bytes via
+/// [`TilesetChunk::tile_pixels`]; the writer zlib-compresses it before
+/// emission. The on-disk `TILES` flag is set automatically.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TilesetChunk {
+    pub id: u32,
+    pub number_of_tiles: u32,
+    pub tile_width: u16,
+    pub tile_height: u16,
+    /// Display base index. Typically `1` (tile `0` = empty); set to `0`
+    /// for zero-based indexing. Stored as `SHORT` on disk.
+    pub base_index: i16,
+    pub name: String,
+    /// Uncompressed tile-image data: `tile_w * tile_h * number_of_tiles * 4`
+    /// RGBA8 bytes, tiles stacked vertically. The writer zlib-compresses
+    /// this before emission and rejects buffers whose length does not
+    /// match the expected size.
+    pub tile_pixels: Vec<u8>,
 }
