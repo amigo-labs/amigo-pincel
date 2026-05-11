@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.8b: `pincel-wasm` selection surface — `setSelection` / `clearSelection` + `hasSelection` / `selectionX` / `selectionY` / `selectionWidth` / `selectionHeight` getters, plus a new `selection-changed` event. UI slice (M7.8c) follows.)
+_Last updated: 2026-05-11_ (M7.8c: UI Selection (Rect) tool — toolbar button, marquee press-drag-release pipeline reusing the drag-shape infrastructure, and a marching-ants overlay in `lib/render/canvas2d.ts` driven by the wasm `selection-changed` event ring. Marquee animation runs at ~8.5 Hz (1 phase / 7 RAF ticks) while a selection is active, and the ants idle to zero CPU otherwise.)
 
 ## Completed
 
@@ -989,10 +989,23 @@ behavior.
   UI can repaint the marching-ants overlay. Selection state is
   intentionally not on the undo stack in this slice (pinned by a
   regression test).
-- [ ] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
-  New toolbar button, marquee press-drag-release pipeline reusing
-  the drag-shape infrastructure, animated dashed-rectangle overlay
-  in `lib/render/canvas2d.ts`.
+- [x] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
+  `Tool` union grows a `'selection-rect'` variant; toolbar gains a
+  "Select" button. The shape is in `isDragShapeTool` so the
+  existing press-drag-release pipeline captures both endpoints and
+  the per-pixel paint path no-ops. Release computes the inclusive-
+  corner rect and forwards it to `Document.setSelection`; a click
+  with no movement clears via `Document.clearSelection` (matches
+  Aseprite's "click to deselect"). The marching-ants renderer
+  (`paintSelectionMarquee` in `lib/render/canvas2d.ts`) draws a
+  1-pixel-wide alternating black/white border around the marquee
+  perimeter with a `phase` argument that shifts the dashes
+  clockwise. The UI tick advances `marchPhase` mod 4 once every 7
+  RAF frames while a selection is active (or a marquee drag is
+  in-flight), so the ants crawl at ~8.5 Hz and idle to zero work
+  otherwise. Selection state is mirrored locally from the
+  `selection-changed` event ring; the wasm side stays the source
+  of truth.
 
 Stopping points (per CLAUDE.md §3.3) between each sub-task: every
 new public API surface, every dep added to `Cargo.toml` /

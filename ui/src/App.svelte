@@ -6,6 +6,7 @@
     paintEllipsePreview,
     paintLinePreview,
     paintRectanglePreview,
+    paintSelectionMarquee,
   } from './lib/render/canvas2d';
 
   // The wasm `Document` is the source of truth for sprite state
@@ -22,18 +23,23 @@
     | 'rectangle-fill'
     | 'ellipse'
     | 'ellipse-fill'
+    | 'selection-rect'
     | 'move';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
-  // `pointermove`, committed on `pointerup`).
+  // `pointermove`, committed on `pointerup`). The Selection (Rect)
+  // tool shares the same shape so a Shift constraint / mid-drag
+  // pre-empt can be added uniformly; its release path commits via
+  // `setSelection` / `clearSelection` rather than the paint commands.
   function isDragShapeTool(t: Tool): boolean {
     return (
       t === 'line' ||
       t === 'rectangle' ||
       t === 'rectangle-fill' ||
       t === 'ellipse' ||
-      t === 'ellipse-fill'
+      t === 'ellipse-fill' ||
+      t === 'selection-rect'
     );
   }
 
@@ -88,6 +94,24 @@
   // pan-on-drag regardless of the active tool (spec §5.2 — Move tool
   // "Pans canvas with space-drag").
   let spaceDown = $state(false);
+  // Local mirror of the wasm `Sprite::selection`, updated whenever a
+  // `selection-changed` event drains (or on doc replacement). `null`
+  // when no selection is active. The marching-ants overlay reads this
+  // each recompose; the wasm side stays the source of truth.
+  let selection = $state<{ x: number; y: number; w: number; h: number } | null>(
+    null,
+  );
+  // Phase counter for the marching-ants animation: increments mod 4
+  // every `MARCH_FRAMES_PER_STEP` RAF ticks while a selection is
+  // active, producing the classic clockwise crawl. Frozen at the
+  // current value when the selection is cleared so the next selection
+  // starts wherever the previous one left off (visually consistent).
+  let marchPhase = $state(0);
+  let marchTicks = 0;
+  // ~60 / 7 ≈ 8.5 Hz, matching Aseprite's marquee crawl rate. The
+  // overlay redraws once per phase step; intermediate ticks skip the
+  // recompose so an idle selection costs near-zero CPU.
+  const MARCH_FRAMES_PER_STEP = 7;
 
   function syncMeta() {
     if (!doc) return;
@@ -95,6 +119,24 @@
     redoDepth = doc.redoDepth;
     canvasW = doc.width;
     canvasH = doc.height;
+  }
+
+  // Re-read the selection rect from the wasm side. Called after any
+  // event drain that may have included a `selection-changed`, and on
+  // doc replacement (new / open) so the overlay reflects the loaded
+  // sprite (always `None` today — Aseprite files do not persist
+  // selection, M7.8a follow-up).
+  function syncSelection() {
+    if (!doc || !doc.hasSelection) {
+      selection = null;
+      return;
+    }
+    selection = {
+      x: doc.selectionX,
+      y: doc.selectionY,
+      w: doc.selectionWidth,
+      h: doc.selectionHeight,
+    };
   }
 
   function recompose() {
@@ -150,7 +192,35 @@
             color,
             true,
           );
+        } else if (dragTool === 'selection-rect') {
+          // Inclusive-corner marquee preview: matches the rect that
+          // `commitSelection` will hand to `setSelection` on release
+          // (so the user sees the exact pixels that will be inside the
+          // committed selection).
+          const minX = Math.min(dragStart.x, end.x);
+          const maxX = Math.max(dragStart.x, end.x);
+          const minY = Math.min(dragStart.y, end.y);
+          const maxY = Math.max(dragStart.y, end.y);
+          paintSelectionMarquee(
+            canvas,
+            minX,
+            minY,
+            maxX - minX + 1,
+            maxY - minY + 1,
+            marchPhase,
+          );
         }
+      } else if (selection) {
+        // No in-flight drag: paint the committed marquee. Drawn after
+        // the blit so the ants ride on top of any composed pixels.
+        paintSelectionMarquee(
+          canvas,
+          selection.x,
+          selection.y,
+          selection.w,
+          selection.h,
+          marchPhase,
+        );
       }
     } finally {
       frame.free();
@@ -319,6 +389,27 @@
     }
   }
 
+  // Commit a selection marquee from the two corner points of the
+  // press / drag / release gesture. A no-move click (start === end)
+  // clears the selection, matching Aseprite's "click outside to
+  // deselect" UX; otherwise the rect is normalized to min / max
+  // corners (inclusive) and forwarded to `setSelection`. Sprite-bounds
+  // clipping is intentionally not applied here — the wasm side stores
+  // the raw rect and the marching-ants overlay's per-pixel clip keeps
+  // off-canvas extents from leaking visually.
+  function commitSelection(x0: number, y0: number, x1: number, y1: number) {
+    if (!doc) return;
+    if (x0 === x1 && y0 === y1) {
+      doc.clearSelection();
+      return;
+    }
+    const minX = Math.min(x0, x1);
+    const minY = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    doc.setSelection(minX, minY, w, h);
+  }
+
   function onPointerMove(e: PointerEvent) {
     if (panning && panStartClient && panStartOffset) {
       panX = panStartOffset.x + (e.clientX - panStartClient.x);
@@ -362,6 +453,8 @@
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, false);
         } else if (dragTool === 'ellipse-fill') {
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
+        } else if (dragTool === 'selection-rect') {
+          commitSelection(dragStart.x, dragStart.y, end.x, end.y);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -394,6 +487,7 @@
     doc = new Document(64, 64);
     dirty = true;
     syncMeta();
+    syncSelection();
     status = 'new 64×64 document';
   }
 
@@ -408,6 +502,7 @@
       doc = next;
       dirty = true;
       syncMeta();
+      syncSelection();
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -462,8 +557,28 @@
   function tick() {
     if (doc) {
       const events = doc.drainEvents();
+      let selectionTouched = false;
       if (events.length > 0) dirty = true;
-      for (const ev of events) ev.free();
+      for (const ev of events) {
+        if (ev.kind === 'selection-changed') selectionTouched = true;
+        ev.free();
+      }
+      if (selectionTouched) syncSelection();
+      // Drive the marching-ants animation: when a selection is
+      // active, advance `marchPhase` once every
+      // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the
+      // overlay redraws. With no selection the counters reset and the
+      // recompose path stays idle.
+      if (selection || (dragStart && dragTool === 'selection-rect')) {
+        marchTicks += 1;
+        if (marchTicks >= MARCH_FRAMES_PER_STEP) {
+          marchTicks = 0;
+          marchPhase = (marchPhase + 1) & 0x3;
+          dirty = true;
+        }
+      } else {
+        marchTicks = 0;
+      }
       if (dirty) {
         dirty = false;
         recompose();
@@ -523,6 +638,7 @@
         if (cancelled) return;
         doc = new Document(64, 64);
         syncMeta();
+        syncSelection();
         dirty = true;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
@@ -634,6 +750,14 @@
         onclick={() => (tool = 'ellipse-fill')}
       >
         Ellipse Fill
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-rect'}
+        aria-pressed={tool === 'selection-rect'}
+        onclick={() => (tool = 'selection-rect')}
+      >
+        Select
       </button>
       <button
         class="toolbar-btn"
