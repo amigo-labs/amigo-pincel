@@ -70,31 +70,26 @@ Deferred to follow-up work:
 - Service worker for the marketing site
 - `/changelog`, `/docs`, `/showcase` (Phase 2/3)
 
-## Cloudflare Pages deploy
+## Cloudflare deploy
 
-The site deploys to Cloudflare Pages (project: `pincel-website`). Configuration:
+The site deploys to Cloudflare via the **Workers Builds Git integration**
+(project: `amigo-pincel`). The repo is already connected in the Cloudflare
+dashboard; every push and PR triggers a build there directly. No GitHub
+Actions workflow is involved on the deploy side — Cloudflare clones the
+repo, runs the build, and serves the result.
 
-- `wrangler.toml` — project name + `pages_build_output_dir = "./build"`
-- `static/_headers` — long cache on hashed `_app/immutable/*`, short cache on HTML,
-  baseline security headers
-- `static/404.html` — Cloudflare Pages auto-serves this for unknown routes
-- `.github/workflows/deploy-website.yml` — runs `pnpm check && pnpm lint && pnpm build`
-  on every push/PR that touches `website/`, then `wrangler pages deploy build` for
-  production (push to `main`) and preview (PRs)
+Configuration that makes the build work:
 
-Required GitHub repository secrets:
+- `../wrangler.toml` (repo root) — Cloudflare reads this. It declares the
+  `[build]` command that builds this directory, and an `[assets]` block
+  pointing at `website/build` with `not_found_handling = "404-page"` so
+  unknown routes hit our styled `static/404.html`.
+- `static/_headers` — long cache on hashed `_app/immutable/*`, short cache
+  on HTML, baseline security headers (X-Content-Type-Options,
+  X-Frame-Options, Referrer-Policy, Permissions-Policy).
+- `static/404.html` — self-contained styled 404 served by Cloudflare for
+  unknown paths (works without JS).
 
-| Secret                  | Purpose                                  |
-| ----------------------- | ---------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`  | Pages: Edit permission                   |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account hosting the project   |
-
-Manual deploy (from `website/`):
-
-```bash
-pnpm build
-pnpm dlx wrangler pages deploy build --project-name=pincel-website
-```
-
-Production origin is set in `src/lib/config.ts` (currently `https://pincel.app`).
-Update there if the domain decision in spec §6.1 lands on a different value.
+Production origin is set in `src/lib/config.ts` (currently
+`https://pincel.app`). Update there if the domain decision in
+`docs/specs/website-spec.md` §6.1 lands on a different value.

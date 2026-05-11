@@ -4,37 +4,36 @@ _Last updated: 2026-05-11_ (Website: Cloudflare Pages deploy is wired end-to-end
 
 ## Completed
 
-### Website — Cloudflare Pages deploy ✅
+### Website — Cloudflare Workers Builds deploy ✅
 
-Marketing site (`website/`) is now in a deployable state per
-`docs/specs/website-spec.md` §6.
+Marketing site (`website/`) is now deployable via the Cloudflare
+Workers Builds Git integration that the repo is already wired to
+(project: `amigo-pincel`). Cloudflare clones the repo on every push
+and PR, runs the build, and serves the static output — no GitHub
+Actions deploy workflow is involved.
 
 - **Static-adapter bug fixed.** `svelte.config.js` no longer sets
   `fallback: 'index.html'`, which was clobbering the prerendered home
   page (`/`) at build time. The previous `build/index.html` was the
   empty SPA shell; it now contains the actual hero + feature grid +
   comparison table + CTA, prerendered.
-- **Cloudflare Pages config:**
-  - `website/wrangler.toml` — project name `pincel-website`,
-    `pages_build_output_dir = "./build"`, compatibility_date pinned.
+- **Cloudflare config at repo root:** `wrangler.toml` declares
+  `name = "amigo-pincel"`, a `[build]` command that enables corepack
+  and runs `pnpm install --frozen-lockfile && pnpm build` inside
+  `website/`, and an `[assets]` block pointing at `website/build` with
+  `not_found_handling = "404-page"` so Cloudflare serves our styled
+  404 for unknown routes.
+- **Cache + 404 in the build output:**
   - `website/static/_headers` — long cache on hashed
     `_app/immutable/*`, short cache on HTML, baseline security
     headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
     Permissions-Policy).
-  - `website/static/404.html` — self-contained styled 404 page that
-    Cloudflare Pages auto-serves for unknown paths (the SvelteKit
-    chrome would require JS hydration; this works without).
+  - `website/static/404.html` — self-contained styled 404 that doesn't
+    depend on SvelteKit hydration; works for users without JS.
 - **SEO correctness.** `SeoHead.svelte`, `sitemap.xml`, and `robots.txt`
   now derive absolute URLs from `$lib/config.ts` (`siteUrl`) instead of
   SvelteKit's `http://sveltekit-prerender/` placeholder. Canonical and
   OG URLs in the built HTML now read `https://pincel.app/<route>`.
-- **CI / deploy workflow.** `.github/workflows/deploy-website.yml`:
-  - Triggers on pushes to `main` (production) and PRs (preview), both
-    scoped to `website/**` paths.
-  - Runs `pnpm check` (svelte-check), `pnpm lint` (eslint), `pnpm
-    build`, then `wrangler pages deploy build`.
-  - Requires repo secrets `CLOUDFLARE_API_TOKEN` and
-    `CLOUDFLARE_ACCOUNT_ID`. README documents both.
 - **Lint cleanup.** Added missing `@eslint/js` dep, configured the TS
   parser for `*.svelte.ts` files, added keys to all `{#each}` blocks,
   removed an unused `pixelSize` derived, and disabled
@@ -47,11 +46,11 @@ Marketing site (`website/`) is now in a deployable state per
 
 What still needs human action before production traffic flows:
 
-1. Configure GitHub repo secrets `CLOUDFLARE_API_TOKEN` (Pages: Edit)
-   and `CLOUDFLARE_ACCOUNT_ID`.
-2. Create the `pincel-website` Pages project in the Cloudflare
-   dashboard (or let the first `wrangler pages deploy` create it).
-3. Decide the production domain (spec §14 Q1) and update
+1. Confirm the existing Cloudflare `amigo-pincel` project's Workers
+   Builds settings don't override the `wrangler.toml` build command
+   (or set them to match: build command from `wrangler.toml`, root
+   directory `/`).
+2. Decide the production domain (spec §14 Q1) and update
    `website/src/lib/config.ts::siteUrl` if it differs from
    `https://pincel.app`.
 
