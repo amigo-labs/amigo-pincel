@@ -8,8 +8,8 @@
 
 use pincel_core::{
     AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, PixelBuffer, Rgba, Sprite, Tag, TagDirection, read_aseprite,
-    write_aseprite,
+    LayerId, LayerKind, PixelBuffer, Rgba, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
+    TilesetId, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -293,3 +293,146 @@ fn tags_round_trip_with_directions() {
 // against `parse_raw_file`. The high-level `aseprite-loader` API used by
 // `read_aseprite` drops RGBA palettes (see STATUS.md), so a write→read
 // pass through this adapter cannot currently observe them.
+
+#[test]
+fn tilemap_round_trips_layer_tileset_and_cel() {
+    // Two-tile tileset: tile 0 transparent (Aseprite convention), tile 1
+    // four red pixels.
+    let tile0 = TileImage {
+        pixels: PixelBuffer::empty(2, 2, ColorMode::Rgba),
+    };
+    let tile1 = TileImage {
+        pixels: PixelBuffer {
+            width: 2,
+            height: 2,
+            color_mode: ColorMode::Rgba,
+            data: [255, 0, 0, 255].repeat(4),
+        },
+    };
+    let tileset = Tileset {
+        id: TilesetId::new(0),
+        name: "ts".into(),
+        tile_size: (2, 2),
+        tiles: vec![tile0, tile1],
+        base_index: 1,
+        external_file: None,
+    };
+
+    let mut tile_2 = TileRef::new(1);
+    tile_2.flip_x = true;
+    let mut tile_3 = TileRef::new(0);
+    tile_3.flip_y = true;
+    let tilemap_cel_tiles = vec![TileRef::new(0), TileRef::new(1), tile_2, tile_3];
+
+    let sprite = Sprite::builder(8, 8)
+        .add_layer(Layer::image(LayerId::new(0), "img"))
+        .add_layer(Layer::tilemap(LayerId::new(1), "tiles", TilesetId::new(0)))
+        .add_tileset(tileset)
+        .add_frame(Frame::new(100))
+        .build()
+        .unwrap();
+
+    let mut cels = CelMap::new();
+    cels.insert(Cel {
+        layer: LayerId::new(1),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 200,
+        data: CelData::Tilemap {
+            grid_w: 2,
+            grid_h: 2,
+            tiles: tilemap_cel_tiles,
+        },
+    });
+
+    let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
+
+    // Tilemap layer survived with its tileset id.
+    assert_eq!(sprite.layers.len(), 2);
+    assert_eq!(sprite.layers[0].kind, LayerKind::Image);
+    assert_eq!(
+        sprite.layers[1].kind,
+        LayerKind::Tilemap {
+            tileset_id: TilesetId::new(0)
+        },
+    );
+
+    // Tileset round-tripped with both tiles intact.
+    assert_eq!(sprite.tilesets.len(), 1);
+    let ts = &sprite.tilesets[0];
+    assert_eq!(ts.id, TilesetId::new(0));
+    assert_eq!(ts.name, "ts");
+    assert_eq!(ts.tile_size, (2, 2));
+    assert_eq!(ts.base_index, 1);
+    assert_eq!(ts.tile_count(), 2);
+    assert!(ts.tile(0).unwrap().pixels.data.iter().all(|&b| b == 0));
+    assert_eq!(ts.tile(1).unwrap().pixels.data, [255, 0, 0, 255].repeat(4));
+
+    // Tilemap cel round-tripped with per-cell flip flags.
+    let cel = cels
+        .get(LayerId::new(1), FrameIndex::new(0))
+        .expect("tilemap cel present after round-trip");
+    assert_eq!(cel.opacity, 200);
+    let CelData::Tilemap {
+        grid_w,
+        grid_h,
+        tiles,
+    } = &cel.data
+    else {
+        panic!("expected tilemap cel, got {:?}", cel.data);
+    };
+    assert_eq!(*grid_w, 2);
+    assert_eq!(*grid_h, 2);
+    assert_eq!(tiles.len(), 4);
+    assert_eq!(tiles[0].tile_id, 0);
+    assert_eq!(tiles[1].tile_id, 1);
+    assert!(!tiles[1].flip_x && !tiles[1].flip_y);
+    assert_eq!(tiles[2].tile_id, 1);
+    assert!(tiles[2].flip_x);
+    assert!(!tiles[2].flip_y);
+    assert_eq!(tiles[3].tile_id, 0);
+    assert!(!tiles[3].flip_x);
+    assert!(tiles[3].flip_y);
+}
+
+#[test]
+fn tilemap_round_trips_rotate_90_flag() {
+    let tileset = Tileset {
+        id: TilesetId::new(2),
+        name: "ts".into(),
+        tile_size: (4, 4),
+        tiles: vec![TileImage {
+            pixels: PixelBuffer::empty(4, 4, ColorMode::Rgba),
+        }],
+        base_index: 1,
+        external_file: None,
+    };
+    let mut rotated = TileRef::new(0);
+    rotated.rotate_90 = true;
+    let sprite = Sprite::builder(4, 4)
+        .add_layer(Layer::tilemap(LayerId::new(0), "tiles", TilesetId::new(2)))
+        .add_tileset(tileset)
+        .add_frame(Frame::new(100))
+        .build()
+        .unwrap();
+    let mut cels = CelMap::new();
+    cels.insert(Cel {
+        layer: LayerId::new(0),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Tilemap {
+            grid_w: 1,
+            grid_h: 1,
+            tiles: vec![rotated],
+        },
+    });
+    let AsepriteReadOutput { cels, .. } = round_trip(&sprite, &cels);
+    let cel = cels
+        .get(LayerId::new(0), FrameIndex::new(0))
+        .expect("rotated tilemap cel present");
+    let CelData::Tilemap { tiles, .. } = &cel.data else {
+        panic!("expected tilemap cel");
+    };
+    assert!(tiles[0].rotate_90);
+}

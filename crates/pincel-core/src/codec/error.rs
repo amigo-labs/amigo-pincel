@@ -233,4 +233,64 @@ pub enum CodecError {
         /// Underlying decode error message.
         message: String,
     },
+
+    /// A `CelData::Tilemap` cel has `tiles.len()` that does not match
+    /// `grid_w * grid_h`. The document model enforces this on
+    /// construction, so seeing it here means a caller hand-built a
+    /// malformed cel.
+    #[error(
+        "tilemap cel for layer {layer} frame {frame} has {actual} tiles for a {expected}-tile grid"
+    )]
+    CelTilemapTileCountMismatch {
+        /// Numeric value of the cel's [`crate::LayerId`].
+        layer: u32,
+        /// Frame index of the cel.
+        frame: u32,
+        /// Expected `grid_w * grid_h`.
+        expected: usize,
+        /// Actual `tiles.len()`.
+        actual: usize,
+    },
+
+    /// A `TileImage` inside a [`crate::Tileset`] has dimensions that
+    /// don't match the tileset's `tile_size`, or uses a non-RGBA color
+    /// mode. The on-disk tile-image block is one contiguous buffer of
+    /// `tile_w * tile_h * number_of_tiles * 4` bytes, so per-tile
+    /// dimension drift would produce a corrupt file.
+    #[error(
+        "tileset {tileset} tile {tile} dimensions {actual_w}x{actual_h} do not match tileset tile_size {expected_w}x{expected_h}"
+    )]
+    TilesetTileDimensionMismatch {
+        /// Numeric tileset id.
+        tileset: u32,
+        /// 0-based tile index inside the tileset.
+        tile: u32,
+        /// Tileset's declared tile width.
+        expected_w: u32,
+        /// Tileset's declared tile height.
+        expected_h: u32,
+        /// Actual tile width.
+        actual_w: u32,
+        /// Actual tile height.
+        actual_h: u32,
+    },
+
+    /// A [`crate::TileImage`] uses a [`crate::ColorMode`] other than
+    /// RGBA. The writer is RGBA-only at the sprite level.
+    #[error("tileset {tileset} tile {tile} is not RGBA")]
+    TilesetTileNotRgba {
+        /// Numeric tileset id.
+        tileset: u32,
+        /// 0-based tile index inside the tileset.
+        tile: u32,
+    },
+
+    /// A [`crate::Tileset`] has a non-empty `external_file`. Phase 1
+    /// does not yet round-trip external-file tilesets (the read path
+    /// rejects them too).
+    #[error("tileset {tileset} references an external file (not supported)")]
+    UnsupportedTilesetExternalFile {
+        /// Numeric tileset id.
+        tileset: u32,
+    },
 }

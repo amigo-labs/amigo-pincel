@@ -3,16 +3,19 @@
 //! Translates a Pincel [`Sprite`] / [`CelMap`] pair into the byte stream
 //! produced by [`aseprite_writer::write`]. See `docs/specs/pincel.md` §7.1.
 //!
-//! M5 scope (this milestone):
+//! Current scope:
 //!
 //! - **RGBA color mode only.** Indexed / grayscale return
 //!   [`CodecError::UnsupportedColorMode`].
-//! - **Image and group layers only.** Tilemap layers raise
-//!   [`CodecError::UnsupportedLayerKind`].
-//! - **Image and linked cels only.** Tilemap cels raise
-//!   [`CodecError::UnsupportedCelKind`].
-//! - Slices and tilesets on the document are dropped, matching
-//!   [`super::aseprite_read`] (M9 will round-trip slices).
+//! - **Image, group, and tilemap layers.** Tilemap layers carry their
+//!   [`crate::TilesetId`] through into `LayerChunk::tileset_index`.
+//! - **Image, linked, and tilemap cels.** Tilemap cels encode
+//!   [`crate::TileRef`] flags into a 32-bit packed payload per the
+//!   canonical bitmasks below.
+//! - **Tilesets round-trip.** Inline-tile tilesets are emitted as
+//!   `0x2023` chunks; external-file tilesets raise
+//!   [`CodecError::UnsupportedTilesetExternalFile`].
+//! - Slices on the document are dropped (M9 will round-trip them).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -21,13 +24,23 @@ use aseprite_writer::{
     AnimationDirection as AseDirection, AseFile, BlendMode as AseBlendMode, CelChunk, CelContent,
     Color as AseColor, ColorDepth as AseColorDepth, Frame as AseFrame, Header, LayerChunk,
     LayerFlags, LayerType, PaletteChunk, PaletteEntry as AsePaletteEntry, Tag as AseTag,
+    TilesetChunk as AseTilesetChunk,
 };
 
 use super::error::CodecError;
 use crate::document::{
     BlendMode, Cel, CelData, CelMap, ColorMode, Layer, LayerId, LayerKind, Palette, Sprite, Tag,
-    TagDirection,
+    TagDirection, TileRef, Tileset,
 };
+
+/// Canonical 32-bit bitmasks used for Cel Type 3 (Compressed Tilemap)
+/// emission. Match Aseprite's defaults; the M8.4 reader expects the same
+/// layout. The on-disk slot the loader 0.4.2 parses as "y_flip" comes
+/// before "x_flip" — see `aseprite_writer::write_cel_body`.
+const TILE_ID_MASK: u32 = 0x1fff_ffff;
+const Y_FLIP_MASK: u32 = 0x2000_0000;
+const X_FLIP_MASK: u32 = 0x4000_0000;
+const DIAG_FLIP_MASK: u32 = 0x8000_0000;
 
 /// Serialize a Pincel [`Sprite`] / [`CelMap`] pair to the Aseprite v1.3
 /// byte format.
@@ -54,13 +67,14 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
     let layers = build_layers(&sprite.layers)?;
     let palette = build_palette(&sprite.palette);
     let tags = build_tags(&sprite.tags)?;
+    let tilesets = build_tilesets(&sprite.tilesets)?;
     let frames = build_frames(sprite, cels)?;
     Ok(AseFile {
         header,
         layers,
         palette,
         tags,
-        tilesets: Vec::new(),
+        tilesets,
         frames,
     })
 }
@@ -94,10 +108,10 @@ fn build_layers(layers: &[Layer]) -> Result<Vec<LayerChunk>, CodecError> {
 }
 
 fn map_layer(layer: &Layer, child_level: u16) -> Result<LayerChunk, CodecError> {
-    let layer_type = match &layer.kind {
-        LayerKind::Image => LayerType::Normal,
-        LayerKind::Group => LayerType::Group,
-        LayerKind::Tilemap { .. } => return Err(CodecError::UnsupportedLayerKind { kind: 2 }),
+    let (layer_type, tileset_index) = match &layer.kind {
+        LayerKind::Image => (LayerType::Normal, None),
+        LayerKind::Group => (LayerType::Group, None),
+        LayerKind::Tilemap { tileset_id } => (LayerType::Tilemap, Some(tileset_id.0)),
     };
     let mut flags = LayerFlags::empty();
     if layer.visible {
@@ -113,7 +127,7 @@ fn map_layer(layer: &Layer, child_level: u16) -> Result<LayerChunk, CodecError> 
         blend_mode: map_blend_mode(layer.blend_mode),
         opacity: layer.opacity,
         name: layer.name.clone(),
-        tileset_index: None,
+        tileset_index,
     })
 }
 
@@ -256,6 +270,83 @@ fn build_tags(tags: &[Tag]) -> Result<Vec<AseTag>, CodecError> {
     tags.iter().map(map_tag).collect()
 }
 
+fn build_tilesets(tilesets: &[Tileset]) -> Result<Vec<AseTilesetChunk>, CodecError> {
+    tilesets.iter().map(map_tileset).collect()
+}
+
+fn map_tileset(tileset: &Tileset) -> Result<AseTilesetChunk, CodecError> {
+    if tileset.external_file.is_some() {
+        return Err(CodecError::UnsupportedTilesetExternalFile {
+            tileset: tileset.id.0,
+        });
+    }
+    let tile_width = u16::try_from(tileset.tile_size.0).map_err(|_| CodecError::OutOfRange {
+        what: "tileset tile width",
+        value: i64::from(tileset.tile_size.0),
+    })?;
+    let tile_height = u16::try_from(tileset.tile_size.1).map_err(|_| CodecError::OutOfRange {
+        what: "tileset tile height",
+        value: i64::from(tileset.tile_size.1),
+    })?;
+    let number_of_tiles =
+        u32::try_from(tileset.tiles.len()).map_err(|_| CodecError::OutOfRange {
+            what: "tileset tile count",
+            value: tileset.tiles.len() as i64,
+        })?;
+    let base_index = i16::try_from(tileset.base_index).map_err(|_| CodecError::OutOfRange {
+        what: "tileset base index",
+        value: i64::from(tileset.base_index),
+    })?;
+
+    let bytes_per_tile = (tile_width as usize) * (tile_height as usize) * 4;
+    let mut tile_pixels = Vec::with_capacity(bytes_per_tile * tileset.tiles.len());
+    for (tile_index, tile) in tileset.tiles.iter().enumerate() {
+        if tile.pixels.color_mode != ColorMode::Rgba {
+            return Err(CodecError::TilesetTileNotRgba {
+                tileset: tileset.id.0,
+                tile: tile_index as u32,
+            });
+        }
+        if tile.pixels.width != tileset.tile_size.0 || tile.pixels.height != tileset.tile_size.1 {
+            return Err(CodecError::TilesetTileDimensionMismatch {
+                tileset: tileset.id.0,
+                tile: tile_index as u32,
+                expected_w: tileset.tile_size.0,
+                expected_h: tileset.tile_size.1,
+                actual_w: tile.pixels.width,
+                actual_h: tile.pixels.height,
+            });
+        }
+        tile_pixels.extend_from_slice(&tile.pixels.data);
+    }
+
+    Ok(AseTilesetChunk {
+        id: tileset.id.0,
+        number_of_tiles,
+        tile_width,
+        tile_height,
+        base_index,
+        name: tileset.name.clone(),
+        tile_pixels,
+    })
+}
+
+/// Pack a [`TileRef`] into the 32-bit raw entry the writer emits, using
+/// the canonical bitmasks declared at the top of this module.
+fn encode_tile_ref(tile: &TileRef) -> u32 {
+    let mut raw = tile.tile_id & TILE_ID_MASK;
+    if tile.flip_x {
+        raw |= X_FLIP_MASK;
+    }
+    if tile.flip_y {
+        raw |= Y_FLIP_MASK;
+    }
+    if tile.rotate_90 {
+        raw |= DIAG_FLIP_MASK;
+    }
+    raw
+}
+
 fn map_tag(tag: &Tag) -> Result<AseTag, CodecError> {
     let from = u16::try_from(tag.from.0).map_err(|_| CodecError::OutOfRange {
         what: "tag from-frame",
@@ -393,7 +484,44 @@ fn build_cel_chunk(
             })?;
             CelContent::Linked { frame_position }
         }
-        CelData::Tilemap { .. } => return Err(CodecError::UnsupportedCelKind { kind: 3 }),
+        CelData::Tilemap {
+            grid_w,
+            grid_h,
+            tiles,
+        } => {
+            let width = u16::try_from(*grid_w).map_err(|_| CodecError::OutOfRange {
+                what: "tilemap grid width",
+                value: i64::from(*grid_w),
+            })?;
+            let height = u16::try_from(*grid_h).map_err(|_| CodecError::OutOfRange {
+                what: "tilemap grid height",
+                value: i64::from(*grid_h),
+            })?;
+            // Defensive bounds check — `CelData::Tilemap` invariants are
+            // enforced at the document level, but the document is not the
+            // single writer-side source of truth (callers could
+            // construct a malformed cel by hand).
+            let expected = (width as usize) * (height as usize);
+            if tiles.len() != expected {
+                return Err(CodecError::CelTilemapTileCountMismatch {
+                    layer: cel.layer.0,
+                    frame: cel.frame.0,
+                    expected,
+                    actual: tiles.len(),
+                });
+            }
+            let raw_tiles: Vec<u32> = tiles.iter().map(encode_tile_ref).collect();
+            CelContent::Tilemap {
+                width,
+                height,
+                bits_per_tile: 32,
+                bitmask_tile_id: TILE_ID_MASK,
+                bitmask_x_flip: X_FLIP_MASK,
+                bitmask_y_flip: Y_FLIP_MASK,
+                bitmask_diagonal_flip: DIAG_FLIP_MASK,
+                tiles: raw_tiles,
+            }
+        }
     };
     Ok(CelChunk {
         layer_index,
@@ -453,42 +581,102 @@ mod tests {
     }
 
     #[test]
-    fn write_rejects_tilemap_layer() {
+    fn write_emits_tilemap_layer_chunk_with_tileset_index() {
+        // Smoke-test that a tilemap layer no longer trips the writer's
+        // "unsupported" rail. End-to-end round-trip is exercised in
+        // `tests/aseprite_codec.rs`.
         let sprite = Sprite::builder(4, 4)
             .add_layer(Layer::tilemap(
                 LayerId::new(0),
                 "tiles",
-                crate::TilesetId::new(0),
+                crate::TilesetId::new(7),
             ))
+            .add_tileset(crate::Tileset::new(crate::TilesetId::new(7), "ts", (2, 2)))
+            .add_frame(Frame::new(100))
+            .build()
+            .unwrap();
+        let cels = CelMap::new();
+        let mut buf = Vec::new();
+        write_aseprite(&sprite, &cels, &mut buf).expect("writer accepts tilemap layer");
+    }
+
+    #[test]
+    fn write_rejects_external_file_tileset() {
+        let sprite = Sprite::builder(4, 4)
+            .add_tileset(crate::Tileset {
+                id: crate::TilesetId::new(0),
+                name: "external".into(),
+                tile_size: (8, 8),
+                tiles: Vec::new(),
+                base_index: 1,
+                external_file: Some(crate::PathRef("shared.aseprite".into())),
+            })
             .build()
             .unwrap();
         let cels = CelMap::new();
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
-        assert!(matches!(err, CodecError::UnsupportedLayerKind { kind: 2 }));
+        assert!(matches!(
+            err,
+            CodecError::UnsupportedTilesetExternalFile { tileset: 0 }
+        ));
     }
 
     #[test]
-    fn write_rejects_tilemap_cel() {
-        let sprite = rgba_sprite(
-            vec![Layer::image(LayerId::new(0), "L0")],
-            vec![Frame::new(100)],
-        );
-        let mut cels = CelMap::new();
-        cels.insert(Cel {
-            layer: LayerId::new(0),
-            frame: FrameIndex::new(0),
-            position: (0, 0),
-            opacity: 255,
-            data: CelData::Tilemap {
-                grid_w: 1,
-                grid_h: 1,
-                tiles: vec![TileRef::EMPTY],
-            },
-        });
+    fn write_rejects_tileset_tile_with_wrong_dimensions() {
+        let bad_tile = crate::TileImage {
+            pixels: PixelBuffer::empty(4, 4, ColorMode::Rgba),
+        };
+        let sprite = Sprite::builder(8, 8)
+            .add_tileset(crate::Tileset {
+                id: crate::TilesetId::new(0),
+                name: "ts".into(),
+                tile_size: (2, 2),
+                tiles: vec![bad_tile],
+                base_index: 1,
+                external_file: None,
+            })
+            .build()
+            .unwrap();
+        let cels = CelMap::new();
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
-        assert!(matches!(err, CodecError::UnsupportedCelKind { kind: 3 }));
+        assert!(matches!(
+            err,
+            CodecError::TilesetTileDimensionMismatch {
+                tileset: 0,
+                tile: 0,
+                expected_w: 2,
+                expected_h: 2,
+                actual_w: 4,
+                actual_h: 4,
+            }
+        ));
+    }
+
+    #[test]
+    fn encode_tile_ref_packs_id_and_flags() {
+        let mut t = TileRef::new(0x42);
+        assert_eq!(encode_tile_ref(&t), 0x42);
+        t.flip_x = true;
+        assert_eq!(encode_tile_ref(&t), 0x42 | X_FLIP_MASK);
+        t.flip_y = true;
+        assert_eq!(encode_tile_ref(&t), 0x42 | X_FLIP_MASK | Y_FLIP_MASK);
+        t.rotate_90 = true;
+        assert_eq!(
+            encode_tile_ref(&t),
+            0x42 | X_FLIP_MASK | Y_FLIP_MASK | DIAG_FLIP_MASK
+        );
+    }
+
+    #[test]
+    fn encode_tile_ref_masks_oversized_tile_id() {
+        // 32-bit `tile_id` is clipped to the 29-bit `TILE_ID_MASK`.
+        // Bits 29..=31 are reserved for flip / rotate flags.
+        let t = TileRef::new(u32::MAX);
+        let raw = encode_tile_ref(&t);
+        assert_eq!(raw & TILE_ID_MASK, TILE_ID_MASK);
+        assert_eq!(raw & !TILE_ID_MASK, 0);
     }
 
     #[test]
