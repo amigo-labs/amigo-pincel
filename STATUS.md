@@ -1,6 +1,8 @@
 # Status
 
-_Last updated: 2026-05-11_ (M8.4: `pincel_core::codec::aseprite_read` now hydrates tilesets and tilemap cels. The adapter switches from `AsepriteFile::load` to the low-level `parse_file` — the high-level loader rejects Cel Type 3 with `"invalid cel"` — and adds a `parse_raw_file` pass to recover the `Chunk::Tileset` entries that `parse_file` drops. `LayerType::Tilemap` carries `tileset_index` through as `LayerKind::Tilemap { tileset_id }`; `CelContent::CompressedTilemap` zlib-decompresses to a row-major `Vec<TileRef>` with bitmask-decoded `flip_x` / `flip_y` / `rotate_90`; tileset `0x2023` chunks decode inline `TILES` data into per-tile `RGBA8` `PixelBuffer`s. External-file tilesets and `bits_per_tile != 32` are rejected with structured errors. Five new `CodecError` variants: `TilemapLayerMissingTilesetIndex`, `TilemapBitsPerTileUnsupported`, `TilemapDecode`, `TilesetUnsupported`, `TilesetDecode`. 3 new integration tests assemble a hand-built `.aseprite` byte stream (the writer cannot yet emit Cel Type 3 / Tileset chunks — that lands in M8.5) and pin layer kind, inline tile pixels, and bitmask decoding. Website Cloudflare Workers Builds deploy is also wired end-to-end on main — see "Website — Cloudflare Workers Builds deploy" below.)
+_Last updated: 2026-05-11_ (M8.5: tilemap write path — closes the M8 read/write loop. `aseprite-writer` gains a `TilesetChunk` struct emitted into the first frame (alongside layers / palette / tags) and a `CelContent::Tilemap` variant emitted as Cel Type 3 with canonical 32-bit bitmasks (`tile_id = 0x1FFF_FFFF`, `y_flip = 0x2000_0000`, `x_flip = 0x4000_0000`, `diagonal = 0x8000_0000`; on-disk dword order matches `aseprite-loader` 0.4.2's parse order). Inline `TILES` data is zlib-compressed; external-file tilesets are intentionally not surfaced. Three new `WriteError` variants for structural rejections: `TilemapBitsPerTileUnsupported`, `TilemapTileCountMismatch`, `TilesetPixelsSizeMismatch`. Two writer round-trip tests assert chunk-level + bitmask + decoded byte fidelity. On the `pincel-core` side, `aseprite_write` now routes `LayerKind::Tilemap` as `LayerType::Tilemap { tileset_index }`, packs each `TileRef` into a raw `u32` via `encode_tile_ref`, and emits `Sprite::tilesets` via `build_tilesets` (per-tile RGBA + dimension validation; external-file tilesets rejected). Four new `CodecError` variants: `CelTilemapTileCountMismatch`, `TilesetTileDimensionMismatch`, `TilesetTileNotRgba`, `UnsupportedTilesetExternalFile`. Two new pincel-core integration tests in `tests/aseprite_codec.rs` round-trip a sprite with one image + one tilemap layer, a two-tile tileset, and a 2×2 cel with `flip_x` / `flip_y` (plus a smaller test for `rotate_90`) via `write_aseprite` → `read_aseprite`. End-to-end tilemap round-trip is now lossless within Pincel's tilemap surface.)
+
+_Previously (2026-05-11)_: M8.4: `pincel_core::codec::aseprite_read` now hydrates tilesets and tilemap cels. The adapter switches from `AsepriteFile::load` to the low-level `parse_file` — the high-level loader rejects Cel Type 3 with `"invalid cel"` — and adds a `parse_raw_file` pass to recover the `Chunk::Tileset` entries that `parse_file` drops. `LayerType::Tilemap` carries `tileset_index` through as `LayerKind::Tilemap { tileset_id }`; `CelContent::CompressedTilemap` zlib-decompresses to a row-major `Vec<TileRef>` with bitmask-decoded `flip_x` / `flip_y` / `rotate_90`; tileset `0x2023` chunks decode inline `TILES` data into per-tile `RGBA8` `PixelBuffer`s. External-file tilesets and `bits_per_tile != 32` are rejected with structured errors. Five new `CodecError` variants: `TilemapLayerMissingTilesetIndex`, `TilemapBitsPerTileUnsupported`, `TilemapDecode`, `TilesetUnsupported`, `TilesetDecode`. 3 new integration tests assemble a hand-built `.aseprite` byte stream (the writer cannot yet emit Cel Type 3 / Tileset chunks — that lands in M8.5) and pin layer kind, inline tile pixels, and bitmask decoding.)
 
 _Previously (2026-05-11)_: M8.3: tilemap commands — new `AddTileset` and `PlaceTile` commands on the pincel-core bus. `AddTileset` appends a `Tileset` to `Sprite::tilesets`, rejects duplicate ids, and pops back on revert. `PlaceTile` replaces a single `TileRef` at a `(grid_x, grid_y)` cell in a `CelData::Tilemap` cel, captures the prior `TileRef` for revert, and rejects out-of-grid coords / non-tilemap cels / missing cels with structured errors. Both join `AnyCommand` and the undo bus, with `From` impls and `lib.rs` re-exports. 3 new `CommandError` variants: `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`. 10 new pincel-core unit tests.)
 
@@ -11,56 +13,6 @@ _Previously (2026-05-11)_: M8.1: Tileset / tilemap accessor groundwork on `pince
 _Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
 
 ## Completed
-
-### Website — Cloudflare Workers Builds deploy ✅
-
-Marketing site (`website/`) is now deployable via the Cloudflare
-Workers Builds Git integration that the repo is already wired to
-(project: `amigo-pincel`). Cloudflare clones the repo on every push
-and PR, runs the build, and serves the static output — no GitHub
-Actions deploy workflow is involved.
-
-- **Static-adapter bug fixed.** `svelte.config.js` no longer sets
-  `fallback: 'index.html'`, which was clobbering the prerendered home
-  page (`/`) at build time. The previous `build/index.html` was the
-  empty SPA shell; it now contains the actual hero + feature grid +
-  comparison table + CTA, prerendered.
-- **Cloudflare config at repo root:** `wrangler.toml` declares
-  `name = "amigo-pincel"`, a `[build]` command that enables corepack
-  and runs `pnpm install --frozen-lockfile && pnpm build` inside
-  `website/`, and an `[assets]` block pointing at `website/build` with
-  `not_found_handling = "404-page"` so Cloudflare serves our styled
-  404 for unknown routes.
-- **Cache + 404 in the build output:**
-  - `website/static/_headers` — long cache on hashed
-    `_app/immutable/*`, short cache on HTML, baseline security
-    headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
-    Permissions-Policy).
-  - `website/static/404.html` — self-contained styled 404 that doesn't
-    depend on SvelteKit hydration; works for users without JS.
-- **SEO correctness.** `SeoHead.svelte`, `sitemap.xml`, and `robots.txt`
-  now derive absolute URLs from `$lib/config.ts` (`siteUrl`) instead of
-  SvelteKit's `http://sveltekit-prerender/` placeholder. Canonical and
-  OG URLs in the built HTML now read `https://pincel.app/<route>`.
-- **Lint cleanup.** Added missing `@eslint/js` dep, configured the TS
-  parser for `*.svelte.ts` files, added keys to all `{#each}` blocks,
-  removed an unused `pixelSize` derived, and disabled
-  `svelte/no-navigation-without-resolve` (overkill for a prerendered
-  marketing site with hardcoded paths). `pnpm lint` is now clean.
-- **Build budget.** Per spec §6.3 (≤200 KB compressed for marketing
-  HTML+CSS+JS, excluding `/app`): current per-page compressed payloads
-  measured at ~10 KB HTML + ~57 KB shared `_app` assets. Well under
-  budget.
-
-What still needs human action before production traffic flows:
-
-1. Confirm the existing Cloudflare `amigo-pincel` project's Workers
-   Builds settings don't override the `wrangler.toml` build command
-   (or set them to match: build command from `wrangler.toml`, root
-   directory `/`).
-2. Decide the production domain (spec §14 Q1) and update
-   `website/src/lib/config.ts::siteUrl` if it differs from
-   `https://pincel.app`.
 
 ### M1 — `pincel-core` skeleton ✅
 
@@ -629,6 +581,86 @@ What still needs human action before production traffic flows:
   `crates/pincel-wasm/src/lib.rs` from prior commits — out of
   scope for this slice per CLAUDE.md §9 ("Touching X and Y in the
   same commit"); fix as a standalone fmt-cleanup commit.
+
+### M8 — `aseprite-writer` emits tilesets + Cel Type 3 + adapter wiring (M8.5) ✅
+
+End-to-end write→read tilemap round-trip via the M8.5a (writer)
+and M8.5b (pincel-core adapter) commits.
+
+**M8.5a — `aseprite-writer`:**
+
+- `AseFile::tilesets: Vec<TilesetChunk>` emitted into the first
+  frame alongside layer / palette / tags. `TilesetChunk` mirrors
+  the loader's owning equivalent (id, number_of_tiles, tile_w,
+  tile_h, base_index, name, tile_pixels). `write_tileset_body`
+  sets the `TILES | TILE_0_EMPTY` flags and zlib-compresses
+  `tile_pixels` after a `DWORD compressed_size` prefix. External-
+  file tilesets are not exposed on the public surface.
+- `CelContent::Tilemap { width, height, bits_per_tile,
+  bitmask_tile_id, bitmask_x_flip, bitmask_y_flip,
+  bitmask_diagonal_flip, tiles }` — `tiles` is a row-major
+  `Vec<u32>` of pre-packed raw entries. `write_cel_body` emits
+  Cel Type 3 in the on-disk dword order that `aseprite-loader`
+  0.4.2 parses (`tile_id | y_flip | x_flip | diagonal_flip`).
+  `bits_per_tile != 32` is rejected.
+- Three new `WriteError` variants:
+  `TilemapBitsPerTileUnsupported`,
+  `TilemapTileCountMismatch`, `TilesetPixelsSizeMismatch`. The
+  existing `TooMany` catches usize overflow on per-tile / total-
+  bytes products.
+- Two new writer round-trip tests in
+  `crates/aseprite-writer/tests/roundtrip.rs`:
+  `tileset_chunk_roundtrips_through_loader` (parses out the
+  `Chunk::Tileset` via `parse_raw_file` since `parse_file` drops
+  it, then decompresses the inline tile bytes and asserts
+  per-tile pixel content) and
+  `tilemap_cel_roundtrips_through_loader` (parses Cel Type 3 via
+  `parse_file`, asserts bitmasks and decoded tile DWORDs).
+
+**M8.5b — `pincel-core::codec::aseprite_write`:**
+
+- `map_layer` emits `LayerType::Tilemap` with
+  `tileset_index = Some(tileset_id.0)` for `LayerKind::Tilemap`,
+  symmetric with the M8.4 read path.
+- `build_cel_chunk` handles `CelData::Tilemap`: defensive
+  `grid_w * grid_h == tiles.len()` check surfaces as
+  `CodecError::CelTilemapTileCountMismatch`; each `TileRef` is
+  packed via `encode_tile_ref` using canonical bitmasks
+  (`tile_id = 0x1FFF_FFFF`, `y_flip = 0x2000_0000`,
+  `x_flip = 0x4000_0000`, `diagonal = 0x8000_0000`).
+- New `build_tilesets` / `map_tileset` route `Sprite::tilesets`
+  through into `AseFile::tilesets`. Per-tile validation rejects
+  non-RGBA tile buffers and tile-size drift. External-file
+  tilesets are rejected via
+  `CodecError::UnsupportedTilesetExternalFile`.
+- Four new `CodecError` variants:
+  `CelTilemapTileCountMismatch`,
+  `TilesetTileDimensionMismatch`, `TilesetTileNotRgba`,
+  `UnsupportedTilesetExternalFile`.
+- Two prior rejection tests
+  (`write_rejects_tilemap_layer` /
+  `write_rejects_tilemap_cel`) are replaced with positive smoke
+  tests; new `write_rejects_external_file_tileset` and
+  `write_rejects_tileset_tile_with_wrong_dimensions` cover the
+  new rejection rails. Two helper unit tests pin
+  `encode_tile_ref` against the canonical bitmasks (with and
+  without an oversized `tile_id`).
+- Two new pincel-core integration tests in
+  `crates/pincel-core/tests/aseprite_codec.rs`:
+  `tilemap_round_trips_layer_tileset_and_cel` (image + tilemap
+  layer, two-tile tileset, 2x2 cel with `flip_x` / `flip_y` on
+  two cells) and `tilemap_round_trips_rotate_90_flag` (square
+  tileset, `rotate_90` flag). Both flow
+  `write_aseprite` → `read_aseprite` and assert layer kind,
+  tileset contents, and per-cell `TileRef` decoding.
+
+- Verified across the workspace: `cargo check --workspace`,
+  `cargo test --workspace` (200 pincel-core unit + 19 aseprite-
+  writer + 10 roundtrip + 7 codec + 3 codec-tilemap + 6 command-
+  bus + 3 render-compose + 80 pincel-wasm unit + 2 paint-save-
+  open), `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo fmt -p aseprite-writer` / `-p pincel-core` all green on
+  the `claude/continue-from-status-Kf18N` branch.
 
 ### M8 — `aseprite_read` hydrates tilesets and tilemap cels (M8.4) ✅
 
@@ -1225,11 +1257,13 @@ operates on them (compose, codecs, commands, wasm surface, UI).
   into per-tile `RGBA8` `PixelBuffer`s. Hand-built fixture exercises
   layer kind, tile pixels, and bitmask decoding (no writer round-
   trip yet — Cel Type 3 + Tileset emission lands in M8.5).
-- [ ] **M8.5** — `aseprite-writer` writes Tileset (`0x2023`) and
-  Tilemap Cel (Cel Type 3). New `TilesetChunk` and
-  `CelContent::Tilemap` variants. `pincel-core::codec::
-  aseprite_write` adapter routes `Tileset` + `CelData::Tilemap`
-  through. Round-trip via `aseprite-loader`.
+- [x] **M8.5** — `aseprite-writer` writes Tileset (`0x2023`) and
+  Tilemap Cel (Cel Type 3); `pincel-core::codec::aseprite_write`
+  adapter routes `Sprite::tilesets` + `CelData::Tilemap` through.
+  Two writer round-trip tests (via `aseprite-loader`) and two
+  pincel-core end-to-end write→read tests assert layer kind,
+  tileset contents, and per-cell `TileRef` decoding (`flip_x`,
+  `flip_y`, `rotate_90`).
 - [ ] **M8.6** — `pincel-wasm` surface for tilemap.
   `Document.addTileset(name, tileW, tileH) -> tilesetId`,
   `Document.placeTile(x, y, tileId)` (with flip / rotate flags
