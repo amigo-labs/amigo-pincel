@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.7: Move tool viewport pan — Move toolbar button + space-drag pan modifier + zoom controls; UI-only, no wasm changes)
+_Last updated: 2026-05-11_ (M7.8a: Selection model on `Sprite` — `selection: Option<Rect>` field + `set_selection` / `clear_selection` / `has_selection` accessors. `pincel-core` only; wasm + UI slices follow.)
 
 ## Completed
 
@@ -735,6 +735,38 @@ _Last updated: 2026-05-11_ (M7.7: Move tool viewport pan — Move toolbar button
   a drag-shape tool so the existing Line / Rect / Ellipse preview
   pipeline is untouched.
 
+### M7 — Selection model on `Sprite` (M7.8a) ✅
+
+- `pincel-core` only; no commands, no wasm, no UI in this slice. Wires
+  the data model that M7.8b (`pincel-wasm` surface) and M7.8c (marching-
+  ants overlay + Selection tool) build on.
+- New `selection: Option<Rect>` field on `Sprite` (sprite coordinates,
+  may extend past the canvas — clipping is the consumer's job). The
+  builder seeds it to `None`. Spec §5.2 ("Selection (Rect)") is the
+  reference; the marquee overlay flag already exists in `Overlays`
+  from M3.
+- New `Sprite` methods:
+  - `set_selection(rect)` — replaces the active selection. An empty
+    rect (zero width or height) clears instead of storing a
+    degenerate marquee, matching the convention `Rect::is_empty` and
+    the Aseprite "drag a zero-width box = no selection" affordance.
+  - `clear_selection()` — drops the selection.
+  - `has_selection()` — `bool` convenience.
+- Intentionally out of the undo stack for M7.8a — Aseprite tracks
+  selection-as-command, but the rect-marquee MVP doesn't need it and
+  threading selection writes through `Bus` blocks the M7.8c overlay
+  work. Listed in open questions; revisit alongside M7.7b (Move
+  selection content) or when `SelectionTool` lands undo coverage.
+- 6 new unit tests (156 pincel-core unit total): builder default,
+  set stores rect, set replaces existing rect, empty rect clears
+  (both axes), `clear_selection` drops the rect, off-canvas
+  coordinates round-trip without clipping at the model layer.
+- Verified: `cargo check --workspace`, `cargo test --workspace`
+  (156 pincel-core unit + 19 aseprite-writer + 8 roundtrip + 5
+  codec + 6 command-bus + 3 render-compose + 64 pincel-wasm unit +
+  2 paint-save-open), `cargo clippy --workspace --all-targets --
+  -D warnings`, and `cargo fmt --all --check` green.
+
 ### M7 — Move tool viewport pan (M7.7) ✅
 
 - UI-only slice (no wasm changes, no command emitted). Selection-
@@ -906,9 +938,18 @@ behavior.
   content-move half of M7.7 waits for M7.8.
 - [ ] **M7.7b** — Move tool selection-content drag. Depends on M7.8
   (the selection model that defines what gets moved).
-- [ ] **M7.8** — Selection (rect marquee). Selection model on the
-  document plus a marching-ants overlay (Overlays scaffold already
-  exists in `pincel_core::render`).
+- [x] **M7.8a** — `pincel-core` selection model: `selection:
+  Option<Rect>` on `Sprite` + `set_selection` / `clear_selection` /
+  `has_selection` helpers. Empty rects clear instead of storing a
+  degenerate marquee; off-canvas rects round-trip (consumer clips).
+- [ ] **M7.8b** — `pincel-wasm` selection surface: `setSelection(x,
+  y, w, h)`, `clearSelection()`, `selectionBounds()` /
+  `hasSelection` getters. Emits a `selection-changed` event (new
+  `kind`) so the UI can repaint the marching-ants overlay.
+- [ ] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
+  New toolbar button, marquee press-drag-release pipeline reusing
+  the drag-shape infrastructure, animated dashed-rectangle overlay
+  in `lib/render/canvas2d.ts`.
 
 Stopping points (per CLAUDE.md §3.3) between each sub-task: every
 new public API surface, every dep added to `Cargo.toml` /
@@ -1035,6 +1076,12 @@ Plan when a fixture surfaces the need:
   the Move toolbar button only pans the viewport today. The
   selection-content half lands as M7.7b after M7.8 introduces the
   selection model.
+- M7.8a stores `selection` on `Sprite` directly (not through a
+  command). Aseprite tracks selection changes in its undo stack;
+  Pincel currently does not. Revisit when M7.7b ships and the user
+  can drag selection content (because that combination — "select →
+  drag → undo" — needs the selection edges to come back, not just
+  the pixel moves).
 - `pincel-wasm` is linked via pnpm's `link:` protocol, which
   expects the `crates/pincel-wasm/pkg/` directory to exist at
   install time. The pkg/ directory is gitignored, so a clean
