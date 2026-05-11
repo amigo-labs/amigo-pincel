@@ -14,6 +14,12 @@ Cargo.lock.bak
 /ui/.vite
 node_modules
 
+# Website
+/website/node_modules
+/website/.svelte-kit
+/website/build
+/website/.vite
+
 # Tauri
 /src-tauri/target
 /src-tauri/gen
