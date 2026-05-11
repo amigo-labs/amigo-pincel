@@ -252,13 +252,20 @@ fn build_cels(
 
             let data = match &cel_chunk.content {
                 CelContent::Image(image) => CelData::Image(decode_image(image, color_mode)?),
-                // `aseprite-loader` validates linked-cel targets against its
-                // image map during `AsepriteFile::load`; an out-of-range
-                // `frame_position` (or one whose target frame has no image cel
-                // on the same layer) surfaces as a `Parse` error there. The
-                // adapter therefore trusts the in-range invariant here.
+                // `parse_file` only structurally parses chunks; it does
+                // *not* cross-check that a linked cel's `frame_position`
+                // refers to a real frame (the previous high-level
+                // `AsepriteFile::load` did that, but we no longer go
+                // through it — see the comment at the top of
+                // `read_aseprite`). Bounds-check explicitly here so a
+                // malformed file surfaces as a structured error rather
+                // than as a dangling [`CelData::Linked`] reference.
                 CelContent::LinkedCel { frame_position } => {
-                    CelData::Linked(FrameIndex::new(u32::from(*frame_position)))
+                    let target = u32::from(*frame_position);
+                    if (target as usize) >= file.frames.len() {
+                        return Err(CodecError::LinkedFrameNotFound { index: target });
+                    }
+                    CelData::Linked(FrameIndex::new(target))
                 }
                 CelContent::CompressedTilemap {
                     width,
@@ -355,9 +362,12 @@ fn decode_tilemap_cel(
 /// in `aseprite-loader` 0.4.2), so the raw pass is the only path that
 /// surfaces them.
 fn extract_tilesets(bytes: &[u8]) -> Result<Vec<Tileset>, CodecError> {
-    // `AsepriteFile::load` already validated the header upstream; if that
-    // succeeded, `parse_raw_file` is expected to succeed too. Propagate any
-    // error rather than silently dropping tilesets.
+    // `parse_raw_file` independently validates the header magic and frame
+    // envelopes; we run it after `parse_file` succeeded in the caller so
+    // the cost is a second header / chunk walk (no decompression). Any
+    // error here means the byte stream changed between the two passes,
+    // which shouldn't happen for an in-memory slice — propagate it rather
+    // than silently dropping tilesets.
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
     let mut tilesets = Vec::new();
     for frame in &raw.frames {
