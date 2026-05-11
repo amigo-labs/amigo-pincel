@@ -1,6 +1,8 @@
 # Status
 
-_Last updated: 2026-05-11_ (M8.5: tilemap write path — closes the M8 read/write loop. `aseprite-writer` gains a `TilesetChunk` struct emitted into the first frame (alongside layers / palette / tags) and a `CelContent::Tilemap` variant emitted as Cel Type 3 with canonical 32-bit bitmasks (`tile_id = 0x1FFF_FFFF`, `y_flip = 0x2000_0000`, `x_flip = 0x4000_0000`, `diagonal = 0x8000_0000`; on-disk dword order matches `aseprite-loader` 0.4.2's parse order). Inline `TILES` data is zlib-compressed; external-file tilesets are intentionally not surfaced. Three new `WriteError` variants for structural rejections: `TilemapBitsPerTileUnsupported`, `TilemapTileCountMismatch`, `TilesetPixelsSizeMismatch`. Two writer round-trip tests assert chunk-level + bitmask + decoded byte fidelity. On the `pincel-core` side, `aseprite_write` now routes `LayerKind::Tilemap` as `LayerType::Tilemap { tileset_index }`, packs each `TileRef` into a raw `u32` via `encode_tile_ref`, and emits `Sprite::tilesets` via `build_tilesets` (per-tile RGBA + dimension validation; external-file tilesets rejected). Four new `CodecError` variants: `CelTilemapTileCountMismatch`, `TilesetTileDimensionMismatch`, `TilesetTileNotRgba`, `UnsupportedTilesetExternalFile`. Two new pincel-core integration tests in `tests/aseprite_codec.rs` round-trip a sprite with one image + one tilemap layer, a two-tile tileset, and a 2×2 cel with `flip_x` / `flip_y` (plus a smaller test for `rotate_90`) via `write_aseprite` → `read_aseprite`. End-to-end tilemap round-trip is now lossless within Pincel's tilemap surface.)
+_Last updated: 2026-05-11_ (M8.6: pincel-wasm tilemap surface — `Document.addTileset(name, tileW, tileH) -> tilesetId` (assigns `max(existing) + 1`, routes through the `AddTileset` command so it joins the undo bus), `Document.placeTile(layer, frame, gridX, gridY, tileId)` (routes through `PlaceTile`, emits a `dirty-rect` event sized to the parent layer's `tile_size`), and a set of read-only getters: `tilesetCount`, `tilesetIdAt(index)`, `tilesetName(id)`, `tilesetTileWidth(id)`, `tilesetTileHeight(id)`, `tilesetTileCount(id)`. Flip / rotate flags on placeTile are intentionally not yet surfaced — the UI can wire them once M8.7 needs them. 9 new pincel-wasm unit tests pin id assignment, undo-bus join, getter round-trip, dirty-rect emission shape, and the non-tilemap-layer / out-of-grid rejection paths. **M8.1–M8.6 complete**; M8.7 (Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode) is L-sized per CLAUDE.md §3.2 and deferred to follow-up sessions — it needs to split into ~3-4 M-sized commits and adds new wasm surface (`tilePixels`, `paintTilePixel`) for per-tile editing.)
+
+_Previously (2026-05-11)_: M8.5: tilemap write path — closes the M8 read/write loop. `aseprite-writer` gains a `TilesetChunk` struct emitted into the first frame (alongside layers / palette / tags) and a `CelContent::Tilemap` variant emitted as Cel Type 3 with canonical 32-bit bitmasks (`tile_id = 0x1FFF_FFFF`, `y_flip = 0x2000_0000`, `x_flip = 0x4000_0000`, `diagonal = 0x8000_0000`; on-disk dword order matches `aseprite-loader` 0.4.2's parse order). Inline `TILES` data is zlib-compressed; external-file tilesets are intentionally not surfaced. Three new `WriteError` variants for structural rejections: `TilemapBitsPerTileUnsupported`, `TilemapTileCountMismatch`, `TilesetPixelsSizeMismatch`. Two writer round-trip tests assert chunk-level + bitmask + decoded byte fidelity. On the `pincel-core` side, `aseprite_write` now routes `LayerKind::Tilemap` as `LayerType::Tilemap { tileset_index }`, packs each `TileRef` into a raw `u32` via `encode_tile_ref`, and emits `Sprite::tilesets` via `build_tilesets` (per-tile RGBA + dimension validation; external-file tilesets rejected). Four new `CodecError` variants: `CelTilemapTileCountMismatch`, `TilesetTileDimensionMismatch`, `TilesetTileNotRgba`, `UnsupportedTilesetExternalFile`. Two new pincel-core integration tests in `tests/aseprite_codec.rs` round-trip a sprite with one image + one tilemap layer, a two-tile tileset, and a 2×2 cel with `flip_x` / `flip_y` (plus a smaller test for `rotate_90`) via `write_aseprite` → `read_aseprite`. End-to-end tilemap round-trip is now lossless within Pincel's tilemap surface.)
 
 _Previously (2026-05-11)_: M8.4: `pincel_core::codec::aseprite_read` now hydrates tilesets and tilemap cels. The adapter switches from `AsepriteFile::load` to the low-level `parse_file` — the high-level loader rejects Cel Type 3 with `"invalid cel"` — and adds a `parse_raw_file` pass to recover the `Chunk::Tileset` entries that `parse_file` drops. `LayerType::Tilemap` carries `tileset_index` through as `LayerKind::Tilemap { tileset_id }`; `CelContent::CompressedTilemap` zlib-decompresses to a row-major `Vec<TileRef>` with bitmask-decoded `flip_x` / `flip_y` / `rotate_90`; tileset `0x2023` chunks decode inline `TILES` data into per-tile `RGBA8` `PixelBuffer`s. External-file tilesets and `bits_per_tile != 32` are rejected with structured errors. Five new `CodecError` variants: `TilemapLayerMissingTilesetIndex`, `TilemapBitsPerTileUnsupported`, `TilemapDecode`, `TilesetUnsupported`, `TilesetDecode`. 3 new integration tests assemble a hand-built `.aseprite` byte stream (the writer cannot yet emit Cel Type 3 / Tileset chunks — that lands in M8.5) and pin layer kind, inline tile pixels, and bitmask decoding.)
 
@@ -581,6 +583,48 @@ _Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `Move
   `crates/pincel-wasm/src/lib.rs` from prior commits — out of
   scope for this slice per CLAUDE.md §9 ("Touching X and Y in the
   same commit"); fix as a standalone fmt-cleanup commit.
+
+### M8 — `pincel-wasm` tilemap surface for JS (M8.6) ✅
+
+Closes the chain from M8.3 (commands) through M8.5 (codec) to the
+UI boundary. The `pincel-wasm` crate now exposes the tilemap
+document API to JS via `wasm-bindgen`.
+
+- `Document.addTileset(name, tileW, tileH) -> u32` — assigns the
+  smallest unused id (`max(existing) + 1`, or `0` when none),
+  constructs a `Tileset::new`, and routes through the `AddTileset`
+  command so the insert joins the undo bus. Rejects zero tile
+  size up front.
+- `Document.placeTile(layer, frame, gridX, gridY, tileId)` —
+  routes through the `PlaceTile` command. Flip / rotate flags are
+  intentionally not yet surfaced (the M8.7 UI can wire them up
+  later). Emits a `dirty-rect` event sized to the parent layer's
+  `tile_size` so the renderer can repaint just the affected grid
+  cell.
+- Tileset getters: `tilesetCount`, `tilesetIdAt(index)`,
+  `tilesetName(id)`, `tilesetTileWidth(id)`,
+  `tilesetTileHeight(id)`, `tilesetTileCount(id)`. Unknown ids
+  return `0` / `""` rather than throwing, so JS can poll without a
+  try/catch dance.
+- A private `resolve_tile_size(layer_id)` helper walks layer kind
+  → tileset id → `tile_size` and captures the value *before* the
+  command executes, so the emitted dirty rect always reflects on-
+  disk geometry rather than a post-mutation fiction.
+- 9 new pincel-wasm unit tests pin: id assignment (zero for the
+  first tileset, increment thereafter), zero-tile-size rejection,
+  undo-bus join (undo restores `tilesetCount = 0`), getter round-
+  trip, default values for unknown ids, `placeTile` command-bus
+  integration with cel-mutation assertion, dirty-rect emission
+  shape (kind / layer / frame / x / y / width / height), undo
+  restore-prior-`TileRef` symmetry, non-tilemap-layer rejection,
+  and out-of-grid coord rejection.
+- Drive-by: applies `cargo fmt -p pincel-wasm` (the pre-existing
+  move-selection drift noted in STATUS.md from M8.1 lands as a
+  two-line cleanup alongside the new code).
+- Verified: `cargo check --workspace`, `cargo test --workspace`
+  (89 pincel-wasm unit tests now), `cargo clippy --workspace
+  --all-targets -- -D warnings`, `cargo fmt --all --check` all
+  green on the `claude/continue-from-status-Kf18N` branch.
 
 ### M8 — `aseprite-writer` emits tilesets + Cel Type 3 + adapter wiring (M8.5) ✅
 
@@ -1264,12 +1308,14 @@ operates on them (compose, codecs, commands, wasm surface, UI).
   pincel-core end-to-end write→read tests assert layer kind,
   tileset contents, and per-cell `TileRef` decoding (`flip_x`,
   `flip_y`, `rotate_90`).
-- [ ] **M8.6** — `pincel-wasm` surface for tilemap.
+- [x] **M8.6** — `pincel-wasm` surface for tilemap.
   `Document.addTileset(name, tileW, tileH) -> tilesetId`,
-  `Document.placeTile(x, y, tileId)` (with flip / rotate flags
-  added later if the UI surfaces them), tileset getters
-  (`tilesetCount`, `tileset(id)`, `tileSize`, ...). New dirty-rect
-  event variant if needed, or piggyback on `dirty-canvas`.
+  `Document.placeTile(layer, frame, gridX, gridY, tileId)`
+  (no flip / rotate yet; M8.7 will wire them as needed), tileset
+  getters (`tilesetCount`, `tilesetIdAt`, `tilesetName`,
+  `tilesetTileWidth`, `tilesetTileHeight`, `tilesetTileCount`).
+  `placeTile` emits a `dirty-rect` event sized to the parent
+  layer's `tile_size` so only the affected grid cell repaints.
 - [ ] **M8.7** — UI: Tileset Panel (palette of tile thumbnails),
   Tilemap Stamp tool (place selected tile at the hovered grid
   cell), Tileset Editor sub-mode (when active layer is a Tilemap,
@@ -1277,7 +1323,23 @@ operates on them (compose, codecs, commands, wasm surface, UI).
   the image tools operate on the tile's `PixelBuffer`).
   Per-tile-edit propagation to all `TileRef`s of that tile id is
   automatic since the tile is a single source of truth in
-  `Tileset::tiles`.
+  `Tileset::tiles`. **L-sized per CLAUDE.md §3.2** — split into
+  M-sized sub-tasks before starting:
+  - **M8.7a** — Tileset Panel (Svelte component listing existing
+    tilesets, "Add Tileset" inline form). Uses only the M8.6
+    surface; no new wasm.
+  - **M8.7b** — Per-tile thumbnails in the panel. Requires a new
+    wasm method `tilePixels(tilesetId, tileId) -> Uint8Array` (or
+    a single tileset-image buffer) that the panel paints into
+    small Canvas2D tiles.
+  - **M8.7c** — Active-layer concept + "Add Tilemap Layer"
+    wasm method + Tilemap Stamp tool (click-to-place on the
+    active tilemap layer, with a grid overlay during hover).
+  - **M8.7d** — Tileset Editor sub-mode + per-tile paint wasm
+    surface (`paintTilePixel(tilesetId, tileId, x, y, color)`).
+    Routes the existing image tools through the same command
+    bus but targeting the `Tileset::tiles[tile_id].pixels`
+    buffer instead of a `Cel::Image`.
 
 Auto-tile mode (Aseprite's "paint on tilemap layer = auto reuse /
 create tiles") stays Phase 2 per spec §5.3 and `docs/specs/pincel.md`
