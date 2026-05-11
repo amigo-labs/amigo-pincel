@@ -34,3 +34,58 @@ pub struct Tileset {
     pub base_index: i32,
     pub external_file: Option<PathRef>,
 }
+
+impl Tileset {
+    /// Create an empty tileset (no tile images) with Aseprite-default
+    /// `base_index = 1` and no external-file reference.
+    pub fn new(id: TilesetId, name: impl Into<String>, tile_size: (u32, u32)) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            tile_size: (tile_size.0, tile_size.1),
+            tiles: Vec::new(),
+            base_index: 1,
+            external_file: None,
+        }
+    }
+
+    /// Number of tile images stored in this tileset, including tile id `0`
+    /// (the Aseprite empty / transparent tile convention).
+    pub fn tile_count(&self) -> usize {
+        self.tiles.len()
+    }
+
+    /// Look up a tile image by its numeric id. Returns `None` if `tile_id`
+    /// is past the end of [`Tileset::tiles`].
+    pub fn tile(&self, tile_id: u32) -> Option<&TileImage> {
+        self.tiles.get(tile_id as usize)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::color_mode::ColorMode;
+
+    #[test]
+    fn new_seeds_empty_tile_list_and_base_index_one() {
+        let t = Tileset::new(TilesetId::new(2), "ground", (16, 16));
+        assert_eq!(t.id, TilesetId::new(2));
+        assert_eq!(t.name, "ground");
+        assert_eq!(t.tile_size, (16, 16));
+        assert_eq!(t.tile_count(), 0);
+        assert_eq!(t.base_index, 1);
+        assert!(t.external_file.is_none());
+    }
+
+    #[test]
+    fn tile_lookup_returns_none_past_end() {
+        let mut t = Tileset::new(TilesetId::new(0), "t", (8, 8));
+        t.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(8, 8, ColorMode::Rgba),
+        });
+        assert!(t.tile(0).is_some());
+        assert!(t.tile(1).is_none());
+        assert!(t.tile(u32::MAX).is_none());
+    }
+}
