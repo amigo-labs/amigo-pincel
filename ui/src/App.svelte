@@ -1,7 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
-  import { blitFrame, paintLinePreview, paintRectanglePreview } from './lib/render/canvas2d';
+  import {
+    blitFrame,
+    paintEllipsePreview,
+    paintLinePreview,
+    paintRectanglePreview,
+  } from './lib/render/canvas2d';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -13,13 +18,21 @@
     | 'eyedropper'
     | 'line'
     | 'rectangle'
-    | 'rectangle-fill';
+    | 'rectangle-fill'
+    | 'ellipse'
+    | 'ellipse-fill';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
   // `pointermove`, committed on `pointerup`).
   function isDragShapeTool(t: Tool): boolean {
-    return t === 'line' || t === 'rectangle' || t === 'rectangle-fill';
+    return (
+      t === 'line' ||
+      t === 'rectangle' ||
+      t === 'rectangle-fill' ||
+      t === 'ellipse' ||
+      t === 'ellipse-fill'
+    );
   }
 
   let canvas = $state<HTMLCanvasElement | null>(null);
@@ -90,6 +103,26 @@
             color,
             true,
           );
+        } else if (dragTool === 'ellipse') {
+          paintEllipsePreview(
+            canvas,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            color,
+            false,
+          );
+        } else if (dragTool === 'ellipse-fill') {
+          paintEllipsePreview(
+            canvas,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            color,
+            true,
+          );
         }
       }
     } finally {
@@ -98,14 +131,18 @@
   }
 
   // Sprite-space endpoint for the in-flight drag, after applying any
-  // active modifier constraint (Shift = square for Rectangle).
+  // active modifier constraint (Shift = square for Rectangle, circle
+  // for Ellipse — both forms reduce to a square bbox).
   function constrainedEndpoint(): { x: number; y: number } {
     if (!dragStart || !dragPreview) {
       return { x: 0, y: 0 };
     }
     if (
       dragShift &&
-      (dragTool === 'rectangle' || dragTool === 'rectangle-fill')
+      (dragTool === 'rectangle' ||
+        dragTool === 'rectangle-fill' ||
+        dragTool === 'ellipse' ||
+        dragTool === 'ellipse-fill')
     ) {
       const dx = dragPreview.x - dragStart.x;
       const dy = dragPreview.y - dragStart.y;
@@ -227,6 +264,10 @@
           doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, false);
         } else if (dragTool === 'rectangle-fill') {
           doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, true);
+        } else if (dragTool === 'ellipse') {
+          doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, false);
+        } else if (dragTool === 'ellipse-fill') {
+          doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -424,6 +465,22 @@
         onclick={() => (tool = 'rectangle-fill')}
       >
         Rect Fill
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'ellipse'}
+        aria-pressed={tool === 'ellipse'}
+        onclick={() => (tool = 'ellipse')}
+      >
+        Ellipse
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'ellipse-fill'}
+        aria-pressed={tool === 'ellipse-fill'}
+        onclick={() => (tool = 'ellipse-fill')}
+      >
+        Ellipse Fill
       </button>
     </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
