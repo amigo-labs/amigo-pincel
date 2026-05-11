@@ -63,7 +63,7 @@ const bytes = await pincel.saveAseprite();`;
   import { Pincel } from '@amigo-labs/pincel';
   const pincel = await Pincel.create({ width: 32, height: 32 });
   pincel.mount(document.getElementById('editor'));
-<\/script>`}</code></pre>
+</` + `script>`}</code></pre>
       </details>
     </div>
   </section>

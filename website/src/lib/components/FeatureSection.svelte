@@ -25,7 +25,7 @@
     <p>{section.description}</p>
     {#if section.shortcuts}
       <ul class="shortcuts" aria-label="Keyboard shortcuts">
-        {#each section.shortcuts as s}
+        {#each section.shortcuts as s (s.keys)}
           <li><kbd>{s.keys}</kbd> <span>{s.label}</span></li>
         {/each}
       </ul>

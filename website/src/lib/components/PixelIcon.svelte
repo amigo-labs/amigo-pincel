@@ -293,7 +293,6 @@
   };
 
   const grid = $derived(grids[name]);
-  const pixelSize = $derived(size / 16);
 </script>
 
 <svg
@@ -305,8 +304,8 @@
   fill="currentColor"
   shape-rendering="crispEdges"
 >
-  {#each grid as row, y}
-    {#each row.split('') as cell, x}
+  {#each grid as row, y (y)}
+    {#each row.split('') as cell, x (x)}
       {#if cell === '#'}
         <rect x={x} y={y} width="1" height="1" />
       {/if}

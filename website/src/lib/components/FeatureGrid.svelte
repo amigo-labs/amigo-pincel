@@ -61,7 +61,7 @@
 </script>
 
 <div class="grid">
-  {#each tiles as t}
+  {#each tiles as t (t.title)}
     <article class="card-pixel tile">
       <PixelIcon name={t.icon} size={48} class="icon" />
       <h3>{t.title}</h3>
