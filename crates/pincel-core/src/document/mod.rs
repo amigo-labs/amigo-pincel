@@ -26,6 +26,7 @@ pub use tileset::{PathRef, TileImage, Tileset, TilesetId};
 use std::collections::BTreeSet;
 
 use crate::error::DocumentError;
+use crate::geometry::Rect;
 
 /// Free-form metadata associated with a sprite.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -36,7 +37,10 @@ pub struct Metadata {
     pub pixel_ratio: (u8, u8),
 }
 
-/// The Pincel document — isomorphic to the Aseprite v1.3 file format.
+/// The Pincel document. Every persistent field mirrors the Aseprite v1.3 file
+/// format one-to-one. A small amount of transient editor state (e.g.
+/// [`Sprite::selection`]) also lives here for convenience; those fields are
+/// explicitly documented and the codec drops them on save.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Sprite {
     pub width: u32,
@@ -51,12 +55,42 @@ pub struct Sprite {
     pub tags: Vec<Tag>,
     pub slices: Vec<Slice>,
     pub metadata: Metadata,
+    /// Active marquee selection in sprite coordinates, or `None` when nothing
+    /// is selected. **Transient editor state, not part of the file format**
+    /// and not tracked by the undo stack in the M7.8a slice; the rect may
+    /// extend past the canvas and consumers should clip as needed. See spec
+    /// §5.2 (Selection (Rect)).
+    ///
+    /// The intended invariant is that a stored rect is non-empty —
+    /// [`Sprite::set_selection`] enforces this on the write path. Direct
+    /// field assignment can still introduce `Some(empty_rect)`; readers
+    /// should prefer [`Sprite::has_selection`], which treats an empty stored
+    /// rect as "no selection".
+    pub selection: Option<Rect>,
 }
 
 impl Sprite {
     /// Start a builder for a sprite with the given canvas dimensions.
     pub fn builder(width: u32, height: u32) -> SpriteBuilder {
         SpriteBuilder::new(width, height)
+    }
+
+    /// Replace the active marquee selection. An empty `rect` (zero width or
+    /// height) clears the selection instead of storing a degenerate marquee.
+    pub fn set_selection(&mut self, rect: Rect) {
+        self.selection = if rect.is_empty() { None } else { Some(rect) };
+    }
+
+    /// Drop the active marquee selection, if any.
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    /// `true` when a non-empty marquee selection is active. An empty stored
+    /// rect (which [`Sprite::set_selection`] refuses to store, but which
+    /// direct field assignment could introduce) is reported as no selection.
+    pub fn has_selection(&self) -> bool {
+        self.selection.is_some_and(|r| !r.is_empty())
     }
 }
 
@@ -155,6 +189,7 @@ impl SpriteBuilder {
             tags: self.tags,
             slices: self.slices,
             metadata: self.metadata,
+            selection: None,
         })
     }
 }
@@ -242,6 +277,84 @@ mod tests {
                 id: 3
             }
         );
+    }
+
+    #[test]
+    fn builder_starts_without_a_selection() {
+        let s = Sprite::builder(16, 16)
+            .build()
+            .expect("minimal sprite should build");
+        assert_eq!(s.selection, None);
+        assert!(!s.has_selection());
+    }
+
+    #[test]
+    fn set_selection_stores_the_rect() {
+        let mut s = Sprite::builder(32, 32)
+            .build()
+            .expect("sprite should build");
+        s.set_selection(Rect::new(4, 5, 10, 6));
+        assert_eq!(s.selection, Some(Rect::new(4, 5, 10, 6)));
+        assert!(s.has_selection());
+    }
+
+    #[test]
+    fn set_selection_replaces_an_existing_rect() {
+        let mut s = Sprite::builder(32, 32)
+            .build()
+            .expect("sprite should build");
+        s.set_selection(Rect::new(0, 0, 4, 4));
+        s.set_selection(Rect::new(8, 8, 2, 3));
+        assert_eq!(s.selection, Some(Rect::new(8, 8, 2, 3)));
+    }
+
+    #[test]
+    fn set_selection_with_empty_rect_clears() {
+        let mut s = Sprite::builder(32, 32)
+            .build()
+            .expect("sprite should build");
+        s.set_selection(Rect::new(2, 2, 5, 5));
+        s.set_selection(Rect::new(2, 2, 0, 5));
+        assert_eq!(s.selection, None);
+        s.set_selection(Rect::new(2, 2, 5, 5));
+        s.set_selection(Rect::new(2, 2, 5, 0));
+        assert_eq!(s.selection, None);
+        assert!(!s.has_selection());
+    }
+
+    #[test]
+    fn clear_selection_drops_the_rect() {
+        let mut s = Sprite::builder(32, 32)
+            .build()
+            .expect("sprite should build");
+        s.set_selection(Rect::new(1, 1, 2, 2));
+        s.clear_selection();
+        assert_eq!(s.selection, None);
+    }
+
+    #[test]
+    fn has_selection_treats_direct_empty_rect_assignment_as_no_selection() {
+        // `selection` is `pub`, so a caller could bypass `set_selection`'s
+        // empty-clears rule. `has_selection` is documented as defensive
+        // against that, since downstream rendering and selection-aware
+        // commands key off it.
+        let mut s = Sprite::builder(16, 16)
+            .build()
+            .expect("sprite should build");
+        s.selection = Some(Rect::new(2, 2, 0, 5));
+        assert!(!s.has_selection());
+        s.selection = Some(Rect::new(2, 2, 5, 0));
+        assert!(!s.has_selection());
+    }
+
+    #[test]
+    fn selection_rect_may_extend_past_the_canvas() {
+        // The model intentionally does not clip selections to the canvas;
+        // higher layers (writer, render) clip on use. Spec §5.2 leaves this
+        // to the consumer.
+        let mut s = Sprite::builder(8, 8).build().expect("sprite should build");
+        s.set_selection(Rect::new(-4, -3, 100, 100));
+        assert_eq!(s.selection, Some(Rect::new(-4, -3, 100, 100)));
     }
 
     #[test]

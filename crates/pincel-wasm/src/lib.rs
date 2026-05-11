@@ -505,6 +505,74 @@ impl Document {
     pub fn drain_events(&mut self) -> Vec<Event> {
         self.events.drain()
     }
+
+    /// Replace the active marquee selection with the given sprite-space
+    /// rect. An empty rect (`width == 0` or `height == 0`) clears the
+    /// selection instead of storing a degenerate marquee — matches
+    /// [`pincel_core::Sprite::set_selection`] and the Aseprite
+    /// "zero-width drag = no selection" affordance.
+    ///
+    /// Always enqueues a `selection-changed` event, even when the new
+    /// rect matches the previous one — the UI's RAF coalescer collapses
+    /// the duplicate, and the symmetric "every write emits" contract
+    /// matches the other paint methods. Selection state is not part of
+    /// the undo stack in the M7.8 slice (see spec §5.2 / STATUS.md).
+    #[wasm_bindgen(js_name = setSelection)]
+    pub fn set_selection(&mut self, x: i32, y: i32, width: u32, height: u32) {
+        let rect = Rect::new(x, y, width, height);
+        self.sprite.set_selection(rect);
+        let event = match self.sprite.selection {
+            Some(r) => Event::selection_changed(r.x, r.y, r.width, r.height),
+            None => Event::selection_changed(0, 0, 0, 0),
+        };
+        self.events.push(event);
+    }
+
+    /// Drop the active marquee selection. No-op when no selection is
+    /// active; always enqueues a `selection-changed` event with zeroed
+    /// numeric fields so the UI can repaint without per-call state
+    /// tracking.
+    #[wasm_bindgen(js_name = clearSelection)]
+    pub fn clear_selection(&mut self) {
+        self.sprite.clear_selection();
+        self.events.push(Event::selection_changed(0, 0, 0, 0));
+    }
+
+    /// `true` when a non-empty marquee selection is active. See
+    /// [`pincel_core::Sprite::has_selection`].
+    #[wasm_bindgen(getter, js_name = hasSelection)]
+    pub fn has_selection(&self) -> bool {
+        self.sprite.has_selection()
+    }
+
+    /// Sprite-space `x` of the active selection, or `0` when no
+    /// selection is active. Pair with [`Self::has_selection`] to
+    /// distinguish "selection at (0, 0)" from "no selection".
+    #[wasm_bindgen(getter, js_name = selectionX)]
+    pub fn selection_x(&self) -> i32 {
+        self.sprite.selection.map_or(0, |r| r.x)
+    }
+
+    /// Sprite-space `y` of the active selection, or `0` when no
+    /// selection is active.
+    #[wasm_bindgen(getter, js_name = selectionY)]
+    pub fn selection_y(&self) -> i32 {
+        self.sprite.selection.map_or(0, |r| r.y)
+    }
+
+    /// Width of the active selection in pixels, or `0` when no
+    /// selection is active.
+    #[wasm_bindgen(getter, js_name = selectionWidth)]
+    pub fn selection_width(&self) -> u32 {
+        self.sprite.selection.map_or(0, |r| r.width)
+    }
+
+    /// Height of the active selection in pixels, or `0` when no
+    /// selection is active.
+    #[wasm_bindgen(getter, js_name = selectionHeight)]
+    pub fn selection_height(&self) -> u32 {
+        self.sprite.selection.map_or(0, |r| r.height)
+    }
 }
 
 /// Axis-aligned bounding box of two sprite-space points (a line segment
@@ -1264,5 +1332,108 @@ mod tests {
                 assert_eq!(pixel_at(&pixels, 2, x, y), [0, 0, 0, 0]);
             }
         }
+    }
+
+    #[test]
+    fn fresh_document_has_no_selection() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert!(!doc.has_selection());
+        assert_eq!(doc.selection_x(), 0);
+        assert_eq!(doc.selection_y(), 0);
+        assert_eq!(doc.selection_width(), 0);
+        assert_eq!(doc.selection_height(), 0);
+    }
+
+    #[test]
+    fn set_selection_stores_and_exposes_the_rect() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        doc.set_selection(3, 4, 5, 6);
+        assert!(doc.has_selection());
+        assert_eq!(doc.selection_x(), 3);
+        assert_eq!(doc.selection_y(), 4);
+        assert_eq!(doc.selection_width(), 5);
+        assert_eq!(doc.selection_height(), 6);
+    }
+
+    #[test]
+    fn set_selection_emits_selection_changed_with_new_bounds() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(1, 2, 3, 4);
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind(), "selection-changed");
+        assert_eq!(events[0].x(), 1);
+        assert_eq!(events[0].y(), 2);
+        assert_eq!(events[0].width(), 3);
+        assert_eq!(events[0].height(), 4);
+    }
+
+    #[test]
+    fn set_selection_with_empty_rect_clears_and_emits_zeros() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(2, 2, 5, 5);
+        let _ = doc.drain_events();
+        doc.set_selection(2, 2, 0, 5);
+        assert!(!doc.has_selection());
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind(), "selection-changed");
+        assert_eq!(events[0].x(), 0);
+        assert_eq!(events[0].y(), 0);
+        assert_eq!(events[0].width(), 0);
+        assert_eq!(events[0].height(), 0);
+    }
+
+    #[test]
+    fn clear_selection_drops_the_rect_and_emits_zeros() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(0, 0, 4, 4);
+        let _ = doc.drain_events();
+        doc.clear_selection();
+        assert!(!doc.has_selection());
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind(), "selection-changed");
+        assert_eq!(events[0].width(), 0);
+        assert_eq!(events[0].height(), 0);
+    }
+
+    #[test]
+    fn clear_selection_emits_event_even_when_no_prior_selection() {
+        // Matches the apply_bucket-style "every write emits" contract;
+        // the UI's RAF loop coalesces duplicates.
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.clear_selection();
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].kind(), "selection-changed");
+    }
+
+    #[test]
+    fn selection_is_not_undoable_in_the_m7_8_slice() {
+        // Selection state is intentionally outside the undo stack — see
+        // STATUS.md and Sprite::selection docs. A paint between two
+        // selection changes confirms undo only rewinds the paint.
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(1, 1, 4, 4);
+        doc.apply_tool("pencil", 0, 0, 0xff0000ff)
+            .expect("pencil ok");
+        let _ = doc.drain_events();
+        assert!(doc.undo());
+        assert!(doc.has_selection(), "undo should not affect selection");
+        assert_eq!(doc.selection_width(), 4);
+    }
+
+    #[test]
+    fn set_selection_off_canvas_round_trips_through_getters() {
+        // Mirrors the pincel-core behavior: the model does not clip
+        // selections to the canvas; the UI / future commands do.
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_selection(-3, -2, 100, 100);
+        assert!(doc.has_selection());
+        assert_eq!(doc.selection_x(), -3);
+        assert_eq!(doc.selection_y(), -2);
+        assert_eq!(doc.selection_width(), 100);
+        assert_eq!(doc.selection_height(), 100);
     }
 }
