@@ -473,10 +473,13 @@
     rafHandle = requestAnimationFrame(tick);
   }
 
-  // Filter space presses originating in text inputs so the user can
-  // still type space characters into a future filename / search box.
-  // The color input and file input don't accept text; this is a
-  // forward-looking guard.
+  // Filter space presses originating in any form input or
+  // contenteditable element so the user keeps native space-bar behavior
+  // there (typing a literal space in a future search / filename box,
+  // toggling a checkbox, etc.). The current toolbar only exposes a
+  // color input (no text intake) and a hidden file input, but the
+  // guard is forward-looking and conservative — any `<input>`,
+  // `<textarea>`, or contenteditable target opts out.
   function isEditableTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     const tag = target.tagName;
@@ -495,6 +498,22 @@
     if (e.code === 'Space') {
       spaceDown = false;
     }
+  }
+
+  // If the window loses focus (alt-tab, DevTools, OS shortcut) between
+  // a Space keydown and keyup, the keyup never reaches us and
+  // `spaceDown` stays stuck — and any in-flight pan drag would similarly
+  // outlive the gesture. Clear both on blur / hidden so the user
+  // returns to a clean state.
+  function onWindowBlur() {
+    spaceDown = false;
+    panning = false;
+    panStartClient = null;
+    panStartOffset = null;
+  }
+
+  function onVisibilityChange() {
+    if (document.hidden) onWindowBlur();
   }
 
   onMount(() => {
@@ -516,11 +535,15 @@
       });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onWindowBlur);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       disposeDoc();
     };
   });
@@ -662,9 +685,9 @@
       style:width="{canvasW * zoom}px"
       style:height="{canvasH * zoom}px"
       style:transform="translate({panX}px, {panY}px)"
-      style:cursor={panning || spaceDown
+      style:cursor={panning
         ? 'grabbing'
-        : tool === 'move'
+        : tool === 'move' || spaceDown
           ? 'grab'
           : 'crosshair'}
       aria-label="Pincel canvas"
