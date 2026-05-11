@@ -37,7 +37,10 @@ pub struct Metadata {
     pub pixel_ratio: (u8, u8),
 }
 
-/// The Pincel document — isomorphic to the Aseprite v1.3 file format.
+/// The Pincel document. Every persistent field mirrors the Aseprite v1.3 file
+/// format one-to-one. A small amount of transient editor state (e.g.
+/// [`Sprite::selection`]) also lives here for convenience; those fields are
+/// explicitly documented and the codec drops them on save.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Sprite {
     pub width: u32,
@@ -53,10 +56,16 @@ pub struct Sprite {
     pub slices: Vec<Slice>,
     pub metadata: Metadata,
     /// Active marquee selection in sprite coordinates, or `None` when nothing
-    /// is selected. Selection state is not part of the file format and is not
-    /// tracked by the undo stack in the M7.8 slice; the rect may extend past
-    /// the canvas and consumers should clip as needed. See spec §5.2
-    /// (Selection (Rect)).
+    /// is selected. **Transient editor state, not part of the file format**
+    /// and not tracked by the undo stack in the M7.8a slice; the rect may
+    /// extend past the canvas and consumers should clip as needed. See spec
+    /// §5.2 (Selection (Rect)).
+    ///
+    /// The intended invariant is that a stored rect is non-empty —
+    /// [`Sprite::set_selection`] enforces this on the write path. Direct
+    /// field assignment can still introduce `Some(empty_rect)`; readers
+    /// should prefer [`Sprite::has_selection`], which treats an empty stored
+    /// rect as "no selection".
     pub selection: Option<Rect>,
 }
 
@@ -77,9 +86,11 @@ impl Sprite {
         self.selection = None;
     }
 
-    /// `true` when a marquee selection is active.
+    /// `true` when a non-empty marquee selection is active. An empty stored
+    /// rect (which [`Sprite::set_selection`] refuses to store, but which
+    /// direct field assignment could introduce) is reported as no selection.
     pub fn has_selection(&self) -> bool {
-        self.selection.is_some()
+        self.selection.is_some_and(|r| !r.is_empty())
     }
 }
 
@@ -319,6 +330,21 @@ mod tests {
         s.set_selection(Rect::new(1, 1, 2, 2));
         s.clear_selection();
         assert_eq!(s.selection, None);
+    }
+
+    #[test]
+    fn has_selection_treats_direct_empty_rect_assignment_as_no_selection() {
+        // `selection` is `pub`, so a caller could bypass `set_selection`'s
+        // empty-clears rule. `has_selection` is documented as defensive
+        // against that, since downstream rendering and selection-aware
+        // commands key off it.
+        let mut s = Sprite::builder(16, 16)
+            .build()
+            .expect("sprite should build");
+        s.selection = Some(Rect::new(2, 2, 0, 5));
+        assert!(!s.has_selection());
+        s.selection = Some(Rect::new(2, 2, 5, 0));
+        assert!(!s.has_selection());
     }
 
     #[test]
