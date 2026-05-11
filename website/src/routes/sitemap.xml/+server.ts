@@ -1,8 +1,9 @@
 import type { RequestHandler } from './$types';
+import { siteUrl } from '$lib/config';
 
 export const prerender = true;
 
-const BASE = 'https://pincel.app';
+const BASE = siteUrl;
 
 const routes = ['/', '/features', '/embed', '/about'];
 

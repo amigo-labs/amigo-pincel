@@ -24,6 +24,20 @@ export default ts.config(
     },
   },
   {
+    files: ['**/*.svelte.ts', '**/*.svelte.js'],
+    languageOptions: {
+      parser: ts.parser,
+    },
+  },
+  {
+    rules: {
+      // The marketing site uses static href="/path" links throughout. We don't
+      // need SvelteKit's resolve() helper for prerendered marketing pages, and
+      // forcing it everywhere would add noise without value.
+      'svelte/no-navigation-without-resolve': 'off',
+    },
+  },
+  {
     ignores: ['build/', '.svelte-kit/', 'package/', 'node_modules/'],
   },
 );

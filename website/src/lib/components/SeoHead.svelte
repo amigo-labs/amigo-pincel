@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { absoluteUrl, siteUrl } from '$lib/config';
 
   interface Props {
     title: string;
@@ -20,7 +21,12 @@
   }: Props = $props();
 
   const fullTitle = $derived(title.includes('Pincel') ? title : `${title} — Pincel`);
-  const url = $derived(page.url.toString());
+  // page.url uses SvelteKit's prerender placeholder origin at build time, so we
+  // derive canonical URLs from the configured production origin instead.
+  const url = $derived(absoluteUrl(page.url.pathname));
+  const ogImageUrl = $derived(
+    ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}`,
+  );
   const jsonLdString = $derived(jsonLd ? JSON.stringify(jsonLd) : null);
 </script>
 
@@ -34,7 +40,7 @@
 
   <meta property="og:title" content={fullTitle} />
   <meta property="og:description" content={description} />
-  <meta property="og:image" content={ogImage} />
+  <meta property="og:image" content={ogImageUrl} />
   <meta property="og:image:type" content={ogImageType} />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -45,9 +51,10 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={fullTitle} />
   <meta name="twitter:description" content={description} />
-  <meta name="twitter:image" content={ogImage} />
+  <meta name="twitter:image" content={ogImageUrl} />
 
   {#if jsonLdString}
-    {@html `<script type="application/ld+json">${jsonLdString}<\/script>`}
+    <!-- eslint-disable-next-line svelte/no-at-html-tags -- JSON.stringify of a typed literal, no user input -->
+    {@html `<script type="application/ld+json">${jsonLdString}</` + `script>`}
   {/if}
 </svelte:head>

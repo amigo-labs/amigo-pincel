@@ -75,10 +75,10 @@
       </tr>
     </thead>
     <tbody>
-      {#each rows as row}
+      {#each rows as row (row.feature)}
         <tr>
           <th scope="row">{row.feature}</th>
-          {#each [row.pincel, row.aseprite, row.piskel] as cell, i}
+          {#each [row.pincel, row.aseprite, row.piskel] as cell, i (i)}
             <td class:pincel={i === 0}>
               {#if isPlain(cell)}
                 <span class="mark">{cell}</span>

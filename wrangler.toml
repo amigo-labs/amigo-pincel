@@ -1,0 +1,30 @@
+# Cloudflare config for the Pincel marketing site.
+#
+# This file lives at the repo root because Cloudflare's Git integration
+# (Workers Builds) reads wrangler.toml from there. The actual SvelteKit
+# project lives in `website/`; we build it during the Workers Builds step
+# and serve the resulting `website/build/` directory as static assets.
+#
+# Cloudflare project name: `amigo-pincel` (matches the existing project the
+# repository is connected to in the Cloudflare dashboard).
+#
+# This is a static-only site — no Worker entrypoint, no Pages Functions. The
+# SvelteKit static adapter prerenders every route at build time (see
+# website/svelte.config.js and docs/specs/website-spec.md §6.2:
+# "Static site generation. No SSR runtime.").
+
+name = "amigo-pincel"
+compatibility_date = "2026-05-07"
+
+# Workers Builds build step. Cloudflare runs this from the repo root.
+# We enable corepack so `pnpm` is on PATH, install with the frozen lockfile,
+# and run the SvelteKit build which writes to website/build/.
+[build]
+command = "corepack enable && cd website && pnpm install --frozen-lockfile && pnpm build"
+
+# Serve the prerendered build output. `not_found_handling = "404-page"` tells
+# Workers to serve `website/build/404.html` (provided by static/404.html) for
+# any request that doesn't match a prerendered file.
+[assets]
+directory = "./website/build"
+not_found_handling = "404-page"

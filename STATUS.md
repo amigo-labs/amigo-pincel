@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M8.3: tilemap commands — new `AddTileset` and `PlaceTile` commands on the pincel-core bus. `AddTileset` appends a `Tileset` to `Sprite::tilesets`, rejects duplicate ids, and pops back on revert. `PlaceTile` replaces a single `TileRef` at a `(grid_x, grid_y)` cell in a `CelData::Tilemap` cel, captures the prior `TileRef` for revert, and rejects out-of-grid coords / non-tilemap cels / missing cels with structured errors. Both join `AnyCommand` and the undo bus, with `From` impls and `lib.rs` re-exports. 3 new `CommandError` variants: `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`. 10 new pincel-core unit tests.)
+_Last updated: 2026-05-11_ (Website: Cloudflare Workers Builds deploy is wired end-to-end — see "Website — Cloudflare Workers Builds deploy" below. Editor side: M8.3 landed on main — tilemap commands `AddTileset` and `PlaceTile` on the pincel-core bus. `AddTileset` appends a `Tileset` to `Sprite::tilesets`, rejects duplicate ids, and pops back on revert. `PlaceTile` replaces a single `TileRef` at a `(grid_x, grid_y)` cell in a `CelData::Tilemap` cel, captures the prior `TileRef` for revert, and rejects out-of-grid coords / non-tilemap cels / missing cels with structured errors. Both join `AnyCommand` and the undo bus, with `From` impls and `lib.rs` re-exports. 3 new `CommandError` variants: `DuplicateTilesetId`, `NotATilemapCel`, `TileCoordOutOfBounds`. 10 new pincel-core unit tests.)
 
 _Previously (2026-05-11)_: M8.2: tilemap `compose()` path — replaces the old `UnsupportedLayerKind` error for `LayerKind::Tilemap` with a tileset-lookup + grid-rasterize path that honors `TileRef::flip_x` / `flip_y` / `rotate_90`. Tile id `0` is the Aseprite empty / transparent tile and is skipped without consulting the tileset. New `RenderError` variants cover the structured failure modes: `TilesetNotFound`, `TileIdOutOfRange`, `TileSizeMismatch`, `NonSquareRotateUnsupported`. Order of transformations applied is rotate → flip_x → flip_y, with the inverse used per output pixel; `rotate_90` on a non-square tileset is rejected (Phase 2). Group layers still raise `UnsupportedLayerKind`. 10 new snapshot tests pin the contract.)
 
@@ -9,6 +9,56 @@ _Previously (2026-05-11)_: M8.1: Tileset / tilemap accessor groundwork on `pince
 _Previously (2026-05-11)_: M7.7b — Move tool selection-content drag (new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
 
 ## Completed
+
+### Website — Cloudflare Workers Builds deploy ✅
+
+Marketing site (`website/`) is now deployable via the Cloudflare
+Workers Builds Git integration that the repo is already wired to
+(project: `amigo-pincel`). Cloudflare clones the repo on every push
+and PR, runs the build, and serves the static output — no GitHub
+Actions deploy workflow is involved.
+
+- **Static-adapter bug fixed.** `svelte.config.js` no longer sets
+  `fallback: 'index.html'`, which was clobbering the prerendered home
+  page (`/`) at build time. The previous `build/index.html` was the
+  empty SPA shell; it now contains the actual hero + feature grid +
+  comparison table + CTA, prerendered.
+- **Cloudflare config at repo root:** `wrangler.toml` declares
+  `name = "amigo-pincel"`, a `[build]` command that enables corepack
+  and runs `pnpm install --frozen-lockfile && pnpm build` inside
+  `website/`, and an `[assets]` block pointing at `website/build` with
+  `not_found_handling = "404-page"` so Cloudflare serves our styled
+  404 for unknown routes.
+- **Cache + 404 in the build output:**
+  - `website/static/_headers` — long cache on hashed
+    `_app/immutable/*`, short cache on HTML, baseline security
+    headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+    Permissions-Policy).
+  - `website/static/404.html` — self-contained styled 404 that doesn't
+    depend on SvelteKit hydration; works for users without JS.
+- **SEO correctness.** `SeoHead.svelte`, `sitemap.xml`, and `robots.txt`
+  now derive absolute URLs from `$lib/config.ts` (`siteUrl`) instead of
+  SvelteKit's `http://sveltekit-prerender/` placeholder. Canonical and
+  OG URLs in the built HTML now read `https://pincel.app/<route>`.
+- **Lint cleanup.** Added missing `@eslint/js` dep, configured the TS
+  parser for `*.svelte.ts` files, added keys to all `{#each}` blocks,
+  removed an unused `pixelSize` derived, and disabled
+  `svelte/no-navigation-without-resolve` (overkill for a prerendered
+  marketing site with hardcoded paths). `pnpm lint` is now clean.
+- **Build budget.** Per spec §6.3 (≤200 KB compressed for marketing
+  HTML+CSS+JS, excluding `/app`): current per-page compressed payloads
+  measured at ~10 KB HTML + ~57 KB shared `_app` assets. Well under
+  budget.
+
+What still needs human action before production traffic flows:
+
+1. Confirm the existing Cloudflare `amigo-pincel` project's Workers
+   Builds settings don't override the `wrangler.toml` build command
+   (or set them to match: build command from `wrangler.toml`, root
+   directory `/`).
+2. Decide the production domain (spec §14 Q1) and update
+   `website/src/lib/config.ts::siteUrl` if it differs from
+   `https://pincel.app`.
 
 ### M1 — `pincel-core` skeleton ✅
 

@@ -1,0 +1,32 @@
+# Cloudflare response headers for the static build output.
+#
+# Format is the Cloudflare Pages `_headers` syntax (one rule per route block),
+# which Cloudflare Workers Static Assets also honors when placed in the
+# directory referenced by `[assets].directory` in the root wrangler.toml.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+
+# SvelteKit emits hashed asset URLs under /_app/immutable/. Safe to cache forever.
+/_app/immutable/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Long-lived static assets (sprites, OG images, favicon).
+/og/*
+  Cache-Control: public, max-age=86400, must-revalidate
+/sprites/*
+  Cache-Control: public, max-age=86400, must-revalidate
+/favicon.svg
+  Cache-Control: public, max-age=86400, must-revalidate
+
+# HTML revalidates on every request so a deploy is visible immediately.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Baseline security headers across the whole site. The editor at /app embeds via
+# the @amigo-labs/pincel npm package, not via iframe, so DENY is safe.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: interest-cohort=()

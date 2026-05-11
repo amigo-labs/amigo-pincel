@@ -21,7 +21,7 @@
     <Logo />
     <nav aria-label="Primary">
       <ul>
-        {#each navItems as item}
+        {#each navItems as item (item.href)}
           <li>
             <a href={item.href} class:active={isActive(item.href)}>{item.label}</a>
           </li>

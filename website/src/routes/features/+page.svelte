@@ -20,7 +20,7 @@
   </header>
 
   <div class="sections">
-    {#each featureSections as section, i}
+    {#each featureSections as section, i (section.id)}
       <FeatureSection {section} index={i} />
     {/each}
   </div>

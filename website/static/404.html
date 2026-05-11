@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d0d12" />
+    <meta name="robots" content="noindex" />
+    <title>Not found — Pincel</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-base: #0d0d12;
+        --bg-card: #1a1a23;
+        --fg-primary: #fff1e8;
+        --fg-secondary: #c2c3c7;
+        --fg-muted: #83769c;
+        --brand: #29adff;
+        --border: #5f574f;
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg-base);
+        color: var(--fg-primary);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+      main {
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1.5rem;
+        text-align: center;
+      }
+      .code {
+        font-family: 'VT323', ui-monospace, monospace;
+        font-size: clamp(4rem, 16vw, 8rem);
+        line-height: 1;
+        color: var(--brand);
+        margin: 0 0 0.5rem;
+        letter-spacing: 0.05em;
+      }
+      h1 {
+        font-family: 'VT323', ui-monospace, monospace;
+        font-size: clamp(1.5rem, 5vw, 2.5rem);
+        margin: 0 0 1rem;
+        color: var(--fg-primary);
+      }
+      p {
+        max-width: 38rem;
+        margin: 0 0 2rem;
+        color: var(--fg-secondary);
+      }
+      .home {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.25rem;
+        font-weight: 600;
+        font-size: 0.95rem;
+        line-height: 1;
+        border: 2px solid var(--bg-base);
+        background-color: var(--brand);
+        color: var(--bg-base);
+        box-shadow: 4px 4px 0 var(--bg-base), 0 0 0 1px var(--border);
+        text-decoration: none;
+        transition: filter 120ms ease-out, transform 80ms ease-out;
+      }
+      .home:hover {
+        filter: brightness(1.1);
+      }
+      .home:active {
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0 var(--bg-base), 0 0 0 1px var(--border);
+      }
+      .home:focus-visible {
+        outline: 2px solid #ffec27;
+        outline-offset: 2px;
+      }
+      .sub {
+        margin-top: 2rem;
+        font-size: 0.85rem;
+        color: var(--fg-muted);
+      }
+      .sub a {
+        color: var(--fg-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="code" aria-hidden="true">404</p>
+      <h1>This pixel is missing.</h1>
+      <p>
+        The page you're looking for isn't here. Maybe it moved, maybe it never existed. Either way,
+        let's get you back to somewhere useful.
+      </p>
+      <a class="home" href="/">← Back home</a>
+      <p class="sub">
+        Or jump straight to <a href="/app">the editor</a>.
+      </p>
+    </main>
+  </body>
+</html>

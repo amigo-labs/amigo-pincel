@@ -13,9 +13,8 @@
   --color-fg-secondary: #c2c3c7;
   --color-fg-muted: #83769c;
 
-  /* Brand & accents */
-  --color-brand-primary: #ff77a8;
-  --color-brand-secondary: #29adff;
+  /* Brand & accents — see docs/specs/website-spec.md §5.2 + §12 (2026-05-11) */
+  --color-brand-primary: #29adff;
   --color-accent-warn: #ffa300;
   --color-accent-error: #ff004d;
   --color-accent-success: #00e436;

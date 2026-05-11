@@ -9,7 +9,7 @@
 
   <!-- Brush motif -->
   <g transform="translate(80 90)" shape-rendering="crispEdges">
-    <g fill="#ff77a8">
+    <g fill="#29adff">
       <rect x="110" y="20" width="20" height="20"/>
       <rect x="100" y="30" width="30" height="20"/>
       <rect x="90" y="40" width="30" height="20"/>
@@ -21,7 +21,7 @@
       <rect x="30" y="100" width="30" height="20"/>
       <rect x="20" y="110" width="30" height="20"/>
     </g>
-    <rect x="20" y="130" width="10" height="10" fill="#ff77a8"/>
+    <rect x="20" y="130" width="10" height="10" fill="#29adff"/>
     <rect x="120" y="30" width="10" height="10" fill="#ffec27"/>
   </g>
 
