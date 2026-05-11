@@ -90,6 +90,14 @@
   let panning = $state(false);
   let panStartClient: { x: number; y: number } | null = null;
   let panStartOffset: { x: number; y: number } | null = null;
+  // In-flight Move-tool selection-content drag. Press point and live
+  // pointer point are in sprite coords; the delta drives a ghost
+  // marquee at the translated location during the drag, and is
+  // committed via `applyMoveSelection(dx, dy)` on release. `null`
+  // outside a drag. `$state` because the cursor binding switches to
+  // a "move" icon while a content drag is in flight.
+  let moveSelStart = $state<{ x: number; y: number } | null>(null);
+  let moveSelPreview = $state<{ x: number; y: number } | null>(null);
   // Whether the space key is currently held. Triggers temporary
   // pan-on-drag regardless of the active tool (spec §5.2 — Move tool
   // "Pans canvas with space-drag").
@@ -211,16 +219,33 @@
           );
         }
       } else if (selection) {
-        // No in-flight drag: paint the committed marquee. Drawn after
-        // the blit so the ants ride on top of any composed pixels.
-        paintSelectionMarquee(
-          canvas,
-          selection.x,
-          selection.y,
-          selection.w,
-          selection.h,
-          marchPhase,
-        );
+        // No marquee drag in flight. If a Move-tool selection drag is
+        // active, paint a ghost marquee at the translated position so
+        // the user sees where the selection will land (the pixels
+        // themselves snap into place on release — the live drag
+        // doesn't bother rasterizing them). Otherwise paint the
+        // committed marquee at its stored sprite-space position.
+        if (moveSelStart && moveSelPreview) {
+          const dx = moveSelPreview.x - moveSelStart.x;
+          const dy = moveSelPreview.y - moveSelStart.y;
+          paintSelectionMarquee(
+            canvas,
+            selection.x + dx,
+            selection.y + dy,
+            selection.w,
+            selection.h,
+            marchPhase,
+          );
+        } else {
+          paintSelectionMarquee(
+            canvas,
+            selection.x,
+            selection.y,
+            selection.w,
+            selection.h,
+            marchPhase,
+          );
+        }
       }
     } finally {
       frame.free();
@@ -346,10 +371,28 @@
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
-    // Move tool press and space-drag both activate a pan drag. The
-    // active-tool check stays first so the Move tool works even when
-    // space happens to be down at press time.
-    if (tool === 'move' || spaceDown) {
+    // Space-drag always pans, regardless of the active tool (spec §5.2
+    // — Move tool "Pans canvas with space-drag"). Move-tool press
+    // splits on whether a selection is active: with one, drag the
+    // selection content (M7.7b); without one, fall back to viewport
+    // pan (M7.7a). spaceDown wins so the user can always pan even
+    // when the Move tool would otherwise translate the marquee.
+    if (spaceDown) {
+      panning = true;
+      panStartClient = { x: e.clientX, y: e.clientY };
+      panStartOffset = { x: panX, y: panY };
+      return;
+    }
+    if (tool === 'move') {
+      if (selection) {
+        const point = spriteCoord(e);
+        if (point) {
+          moveSelStart = point;
+          moveSelPreview = point;
+          dirty = true;
+        }
+        return;
+      }
       panning = true;
       panStartClient = { x: e.clientX, y: e.clientY };
       panStartOffset = { x: panX, y: panY };
@@ -416,6 +459,13 @@
       panY = panStartOffset.y + (e.clientY - panStartClient.y);
       return;
     }
+    if (moveSelStart) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      moveSelPreview = point;
+      dirty = true;
+      return;
+    }
     if (dragStart) {
       const point = spriteCoord(e);
       if (!point) return;
@@ -436,6 +486,24 @@
       panning = false;
       panStartClient = null;
       panStartOffset = null;
+      return;
+    }
+    if (moveSelStart && moveSelPreview && doc) {
+      const dx = moveSelPreview.x - moveSelStart.x;
+      const dy = moveSelPreview.y - moveSelStart.y;
+      if (dx !== 0 || dy !== 0) {
+        try {
+          doc.applyMoveSelection(dx, dy);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error('applyMoveSelection failed', err);
+          status = `move failed: ${msg}`;
+        }
+      }
+      moveSelStart = null;
+      moveSelPreview = null;
+      dirty = true;
+      syncMeta();
       return;
     }
     if (dragStart && dragPreview && dragTool && doc) {
@@ -569,7 +637,11 @@
       // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the
       // overlay redraws. With no selection the counters reset and the
       // recompose path stays idle.
-      if (selection || (dragStart && dragTool === 'selection-rect')) {
+      if (
+        selection ||
+        (dragStart && dragTool === 'selection-rect') ||
+        moveSelStart
+      ) {
         marchTicks += 1;
         if (marchTicks >= MARCH_FRAMES_PER_STEP) {
           marchTicks = 0;
@@ -625,6 +697,8 @@
     panning = false;
     panStartClient = null;
     panStartOffset = null;
+    moveSelStart = null;
+    moveSelPreview = null;
   }
 
   function onVisibilityChange() {
@@ -811,9 +885,13 @@
       style:transform="translate({panX}px, {panY}px)"
       style:cursor={panning
         ? 'grabbing'
-        : tool === 'move' || spaceDown
-          ? 'grab'
-          : 'crosshair'}
+        : moveSelStart
+          ? 'move'
+          : tool === 'move' && selection && !spaceDown
+            ? 'move'
+            : tool === 'move' || spaceDown
+              ? 'grab'
+              : 'crosshair'}
       aria-label="Pincel canvas"
       onpointerdown={onPointerDown}
       onpointermove={onPointerMove}
