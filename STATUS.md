@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.8c: UI Selection (Rect) tool — toolbar button, marquee press-drag-release pipeline reusing the drag-shape infrastructure, and a marching-ants overlay in `lib/render/canvas2d.ts` driven by the wasm `selection-changed` event ring. Marquee animation runs at ~8.5 Hz (1 phase / 7 RAF ticks) while a selection is active, and the ants idle to zero CPU otherwise.)
+_Last updated: 2026-05-11_ (M7.7b: Move tool selection-content drag — new `MoveSelectionContent` command on the pincel-core bus, a `Document.applyMoveSelection(dx, dy)` wasm surface, and a UI press-drag-release pipeline on the Move tool that translates the selection content with a ghost-marquee preview during drag and commits via `applyMoveSelection` on release. Space-drag still pans, and the Move tool without an active selection still pans, preserving M7.7a behavior. **M7 is now complete** — every tool in CLAUDE.md M7 (Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection (Rect)) has a command, wasm surface, and UI button.)
 
 ## Completed
 
@@ -976,8 +976,24 @@ behavior.
   via CSS (the wasm `compose` zoom arg stays at 1×); pan offsets
   apply as `transform: translate(...)` on the canvas. The selection-
   content-move half of M7.7 waits for M7.8.
-- [ ] **M7.7b** — Move tool selection-content drag. Depends on M7.8
-  (the selection model that defines what gets moved).
+- [x] **M7.7b** — Move tool selection-content drag. New
+  `MoveSelectionContent` core command captures the selection rect at
+  `apply` time, intersects it with the active cel's pixel buffer,
+  copies the pixels to the translated cel-local position (pixels
+  whose destination falls outside the cel buffer are dropped — Phase
+  1 does not auto-grow), clears the source area to transparent, and
+  updates `Sprite::selection` to the translated rect. `revert`
+  restores both source and destination pixels (deduped by `(x, y)`)
+  plus the prior selection. New `CommandError::NoSelection` covers
+  the "Move with no selection" error path. Exposed to JS as
+  `Document.applyMoveSelection(dx, dy)`; emits a `dirty-canvas`
+  event (move can affect any subset of the cel) and a
+  `selection-changed` event so the UI repaints the marching ants at
+  the new position. UI Move tool now splits on `hasSelection`: with
+  a selection, press-drag-release commits a content move and shows
+  a ghost marquee at the translated position during the drag;
+  without one, the Move tool falls back to M7.7a viewport pan.
+  Space-drag still pans regardless of the selection state.
 - [x] **M7.8a** — `pincel-core` selection model: `selection:
   Option<Rect>` on `Sprite` + `set_selection` / `clear_selection` /
   `has_selection` helpers. Empty rects clear instead of storing a
