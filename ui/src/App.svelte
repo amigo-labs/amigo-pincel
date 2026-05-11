@@ -21,7 +21,8 @@
     | 'rectangle'
     | 'rectangle-fill'
     | 'ellipse'
-    | 'ellipse-fill';
+    | 'ellipse-fill'
+    | 'move';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
@@ -35,6 +36,9 @@
       t === 'ellipse-fill'
     );
   }
+
+  const MIN_ZOOM = 1;
+  const MAX_ZOOM = 64;
 
   let canvas = $state<HTMLCanvasElement | null>(null);
   let doc = $state<Document | null>(null);
@@ -62,6 +66,28 @@
   // square constraint is purely a UI affordance applied to the live
   // endpoint before committing.
   let dragShift = false;
+  // Display zoom: integer multiplier from sprite pixels to CSS pixels.
+  // Independent of `pincel_core::compose`'s zoom arg — we still ask
+  // the wasm side for a 1× framebuffer and let `image-rendering:
+  // pixelated` upscale it in CSS. 8× preserves the M6.6 64×64 → 512×512
+  // default look.
+  let zoom = $state(8);
+  // Pan offset (CSS pixels) applied as a `transform: translate(...)`
+  // on the canvas, relative to the flex-centered layout box. Zero
+  // means "centered in the viewport".
+  let panX = $state(0);
+  let panY = $state(0);
+  // In-flight pan drag (Move tool press, or space-drag temporary
+  // override). `panStartClient` is the pointer position at press-time
+  // and `panStartOffset` snapshots `panX` / `panY` so cursor deltas
+  // translate one-to-one into pan deltas.
+  let panning = $state(false);
+  let panStartClient: { x: number; y: number } | null = null;
+  let panStartOffset: { x: number; y: number } | null = null;
+  // Whether the space key is currently held. Triggers temporary
+  // pan-on-drag regardless of the active tool (spec §5.2 — Move tool
+  // "Pans canvas with space-drag").
+  let spaceDown = $state(false);
 
   function syncMeta() {
     if (!doc) return;
@@ -172,6 +198,33 @@
     return '#' + rgb.toString(16).padStart(6, '0');
   }
 
+  // Clamp + apply a new zoom level. Pan offset stays in CSS pixels,
+  // so the canvas's flex-centered position keeps the sprite center
+  // anchored across zoom changes; further pan offsets shift uniformly
+  // from there.
+  function setZoom(next: number) {
+    next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(next)));
+    if (next === zoom) return;
+    zoom = next;
+  }
+
+  function zoomIn() {
+    setZoom(zoom * 2);
+  }
+
+  function zoomOut() {
+    setZoom(zoom >>> 1);
+  }
+
+  // Default view: 8× zoom + zero pan offset. Matches the M6.6 default
+  // look (64×64 canvas at 512×512 CSS) and re-centers the canvas in
+  // the viewport regardless of where it had been dragged.
+  function resetView() {
+    zoom = 8;
+    panX = 0;
+    panY = 0;
+  }
+
   function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -187,7 +240,7 @@
     // drag / release pipeline below and commit on `pointerup`. The
     // wasm `applyTool` surface only accepts per-pixel tools, so a
     // mid-drag tool switch must not route a stroke through here.
-    if (isDragShapeTool(tool)) return;
+    if (isDragShapeTool(tool) || tool === 'move') return;
     const point = spriteCoord(e);
     if (!point) return;
     if (tool === 'eyedropper') {
@@ -223,6 +276,15 @@
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
+    // Move tool press and space-drag both activate a pan drag. The
+    // active-tool check stays first so the Move tool works even when
+    // space happens to be down at press time.
+    if (tool === 'move' || spaceDown) {
+      panning = true;
+      panStartClient = { x: e.clientX, y: e.clientY };
+      panStartOffset = { x: panX, y: panY };
+      return;
+    }
     if (isDragShapeTool(tool)) {
       const point = spriteCoord(e);
       if (!point) return;
@@ -258,6 +320,11 @@
   }
 
   function onPointerMove(e: PointerEvent) {
+    if (panning && panStartClient && panStartOffset) {
+      panX = panStartOffset.x + (e.clientX - panStartClient.x);
+      panY = panStartOffset.y + (e.clientY - panStartClient.y);
+      return;
+    }
     if (dragStart) {
       const point = spriteCoord(e);
       if (!point) return;
@@ -273,6 +340,12 @@
   function onPointerUp(e: PointerEvent) {
     if (canvas?.hasPointerCapture(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
+    }
+    if (panning) {
+      panning = false;
+      panStartClient = null;
+      panStartOffset = null;
+      return;
     }
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
@@ -400,6 +473,49 @@
     rafHandle = requestAnimationFrame(tick);
   }
 
+  // Filter space presses originating in any form input or
+  // contenteditable element so the user keeps native space-bar behavior
+  // there (typing a literal space in a future search / filename box,
+  // toggling a checkbox, etc.). The current toolbar only exposes a
+  // color input (no text intake) and a hidden file input, but the
+  // guard is forward-looking and conservative — any `<input>`,
+  // `<textarea>`, or contenteditable target opts out.
+  function isEditableTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
+  }
+
+  function onKeyDown(e: KeyboardEvent) {
+    if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
+      // Prevent the browser from page-scrolling on space.
+      e.preventDefault();
+      spaceDown = true;
+    }
+  }
+
+  function onKeyUp(e: KeyboardEvent) {
+    if (e.code === 'Space') {
+      spaceDown = false;
+    }
+  }
+
+  // If the window loses focus (alt-tab, DevTools, OS shortcut) between
+  // a Space keydown and keyup, the keyup never reaches us and
+  // `spaceDown` stays stuck — and any in-flight pan drag would similarly
+  // outlive the gesture. Clear both on blur / hidden so the user
+  // returns to a clean state.
+  function onWindowBlur() {
+    spaceDown = false;
+    panning = false;
+    panStartClient = null;
+    panStartOffset = null;
+  }
+
+  function onVisibilityChange() {
+    if (document.hidden) onWindowBlur();
+  }
+
   onMount(() => {
     let cancelled = false;
     loadCore()
@@ -417,9 +533,17 @@
         console.error('loadCore failed', err);
         status = `wasm init failed: ${msg}`;
       });
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onWindowBlur);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onWindowBlur);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       disposeDoc();
     };
   });
@@ -511,6 +635,36 @@
       >
         Ellipse Fill
       </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'move'}
+        aria-pressed={tool === 'move'}
+        onclick={() => (tool = 'move')}
+      >
+        Move
+      </button>
+    </span>
+    <span class="ml-2 flex items-center gap-1" role="group" aria-label="Zoom">
+      <button
+        class="toolbar-btn"
+        onclick={zoomOut}
+        disabled={zoom <= MIN_ZOOM}
+        aria-label="Zoom out"
+      >
+        −
+      </button>
+      <span class="w-10 text-center text-xs text-neutral-400">{zoom}×</span>
+      <button
+        class="toolbar-btn"
+        onclick={zoomIn}
+        disabled={zoom >= MAX_ZOOM}
+        aria-label="Zoom in"
+      >
+        +
+      </button>
+      <button class="toolbar-btn" onclick={resetView} aria-label="Reset view">
+        Reset
+      </button>
     </span>
     <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
       <span>Color</span>
@@ -524,12 +678,18 @@
     <button class="toolbar-btn" onclick={redo} disabled={redoDepth === 0}>Redo</button>
   </header>
 
-  <section class="flex flex-1 items-center justify-center overflow-hidden p-6">
+  <section class="flex flex-1 items-center justify-center overflow-hidden">
     <canvas
       bind:this={canvas}
-      width="64"
-      height="64"
-      class="canvas-pixelated h-[512px] w-[512px] touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
+      class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
+      style:width="{canvasW * zoom}px"
+      style:height="{canvasH * zoom}px"
+      style:transform="translate({panX}px, {panY}px)"
+      style:cursor={panning
+        ? 'grabbing'
+        : tool === 'move' || spaceDown
+          ? 'grab'
+          : 'crosshair'}
       aria-label="Pincel canvas"
       onpointerdown={onPointerDown}
       onpointermove={onPointerMove}

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.6: Bucket tool — `FillRegion` command with 4-connected BFS flood-fill at tolerance 0, `Document::applyBucket`, UI single-click commit)
+_Last updated: 2026-05-11_ (M7.7: Move tool viewport pan — Move toolbar button + space-drag pan modifier + zoom controls; UI-only, no wasm changes)
 
 ## Completed
 
@@ -735,6 +735,58 @@ _Last updated: 2026-05-11_ (M7.6: Bucket tool — `FillRegion` command with 4-co
   a drag-shape tool so the existing Line / Rect / Ellipse preview
   pipeline is untouched.
 
+### M7 — Move tool viewport pan (M7.7) ✅
+
+- UI-only slice (no wasm changes, no command emitted). Selection-
+  content move waits for M7.8.
+- `Tool` union widens to include `'move'`. A new **Move** button
+  joins the toolbar after Ellipse Fill (`role="group"` /
+  `aria-pressed` / `.toolbar-btn-active` pattern unchanged from the
+  other tool buttons).
+- New state in `App.svelte`: `zoom` (integer multiplier, 1×–64×,
+  defaults to 8× — preserves the M6.6 64×64 → 512×512 default look),
+  `panX` / `panY` (CSS-pixel offset applied as a
+  `transform: translate(...)` on the canvas, relative to the flex-
+  centered layout box), `panning` / `panStartClient` / `panStartOffset`
+  (in-flight pan-drag state), and `spaceDown` (window-level space-
+  key tracker).
+- Canvas markup rebuilt: the hardcoded `width="64" height="64"`
+  attributes and the `h-[512px] w-[512px]` fixed-CSS classes are
+  dropped. The CSS display size is now `canvasW * zoom` × `canvasH *
+  zoom`, the canvas is `shrink-0` so it overflows the flex container
+  when zoomed beyond viewport, and `style:cursor` switches between
+  `grabbing` (active pan) / `grab` (Move tool active or space held)
+  / `crosshair` (any other tool). `getBoundingClientRect()` returns
+  post-transform dimensions, so `spriteCoord()` keeps working without
+  changes — the `(client - rect.left) * canvas.width / rect.width`
+  math reduces to `(client - rect.left) / zoom`.
+- Pointer pipeline gains a pan branch: `onPointerDown` checks
+  `tool === 'move' || spaceDown` before the drag-shape / bucket /
+  paint branches and snapshots `(clientX, clientY)` + `(panX, panY)`
+  at press; `onPointerMove` applies cursor deltas to pan when
+  `panning` is set; `onPointerUp` releases. `paintAt` is hardened to
+  ignore the Move tool so a mid-drag tool switch from a paint tool
+  to Move during a paint stroke doesn't route through `applyTool`.
+- Space-drag (spec §5.2 — Move tool "Pans canvas with space-drag"):
+  window-level `keydown` / `keyup` listeners toggle `spaceDown` after
+  filtering out events whose target is an `<input>` / `<textarea>` /
+  contenteditable. The keydown handler also `preventDefault()`s to
+  stop the browser from page-scrolling on space.
+- Zoom controls: new `−` / `+` / Reset button group between Move and
+  the color picker. `zoomIn` / `zoomOut` double / halve clamped to
+  `MIN_ZOOM = 1` / `MAX_ZOOM = 64`; `resetView` resets zoom to 8 and
+  pan to zero. The `{zoom}×` readout sits between the +/− buttons.
+- The canvas's natural-size flex centering means a sprite at zoom 8
+  is centered by default with `panX = panY = 0`; zooming in past the
+  viewport size lets the canvas overflow under `overflow-hidden`,
+  and pan offsets shift it from the centered position. Sprites
+  larger than the default 64×64 also center automatically.
+- Verified: `pnpm check` (0 errors / 0 warnings across 384 files),
+  `pnpm lint` (clean), `pnpm build` (59 KB JS / 9.7 KB CSS — the
+  wasm asset is unchanged at 1.55 MB). `cargo check --workspace`,
+  `cargo clippy --workspace --all-targets -- -D warnings`, and
+  `cargo fmt --all --check` still green.
+
 ### M7 — Rectangle tool (M7.4) ✅
 
 - New `pincel_core::DrawRectangle` command (`crates/pincel-core/src/
@@ -802,7 +854,7 @@ round-trip + 8 aseprite-writer roundtrip + 64 pincel-wasm unit + 2
 pincel-wasm paint-save-open-roundtrip integration),
 `cargo clippy --workspace --all-targets -- -D warnings`, and
 `cargo fmt --all --check` are all green on the
-`claude/continue-from-status-Vcv5l` branch. `pnpm install`,
+`claude/continue-work-f6nLq` branch. `pnpm install`,
 `pnpm check`, `pnpm lint`, `pnpm build`, and `pnpm wasm:build` all
 pass under `ui/`.
 
@@ -846,8 +898,14 @@ behavior.
   tolerance 0 via a new `FillRegion` command (BFS over a visited
   bitmap, prior-pixel list for revert). UI ships a single-click
   Bucket button; the drag-shape pipeline is untouched.
-- [ ] **M7.7** — Move. Pans the canvas viewport (no command);
-  selection content move (depends on M7.8).
+- [x] **M7.7a** — Move tool viewport pan. UI-only slice: Move
+  toolbar button, space-drag pan modifier, integer-zoom 1×–64× with
+  `−` / `+` / Reset controls. Canvas display size scales with zoom
+  via CSS (the wasm `compose` zoom arg stays at 1×); pan offsets
+  apply as `transform: translate(...)` on the canvas. The selection-
+  content-move half of M7.7 waits for M7.8.
+- [ ] **M7.7b** — Move tool selection-content drag. Depends on M7.8
+  (the selection model that defines what gets moved).
 - [ ] **M7.8** — Selection (rect marquee). Selection model on the
   document plus a marching-ants overlay (Overlays scaffold already
   exists in `pincel_core::render`).
@@ -966,11 +1024,17 @@ Plan when a fixture surfaces the need:
   file that `aseprite-loader` then refuses to parse. Decide whether
   to enforce ≥1 frame in `SpriteBuilder::build`, or leave it as a
   "valid Pincel document, invalid Aseprite file" affordance.
-- M6.6 ships with a fixed 512×512 CSS canvas: opening a non-square
-  or non-64-multiple sprite stretches each pixel to fit, which is
-  visually wrong outside 64×64. A zoom / fit-to-window control
-  ships with the M7 tool expansion (zoom is already part of the
-  `Document.compose` API; the missing piece is a UI surface).
+- M7.7 ships with integer-zoom 1×–64× and a `transform: translate`
+  pan offset, but lacks: (1) wheel / pinch zoom, (2) auto-fit on
+  document open (a 256×256 sprite at the default 8× zoom overflows
+  the viewport; the user must hit `−` until it fits), (3) cursor-
+  anchored zoom (the viewport center anchors instead). These are
+  ergonomic follow-ups, not correctness gaps; the existing controls
+  are enough to verify the Move tool's pan + space-drag behavior.
+- Move tool's selection-content drag is not implemented in M7.7a —
+  the Move toolbar button only pans the viewport today. The
+  selection-content half lands as M7.7b after M7.8 introduces the
+  selection model.
 - `pincel-wasm` is linked via pnpm's `link:` protocol, which
   expects the `crates/pincel-wasm/pkg/` directory to exist at
   install time. The pkg/ directory is gitignored, so a clean
