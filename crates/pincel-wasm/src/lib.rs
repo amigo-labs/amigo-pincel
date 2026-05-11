@@ -386,11 +386,9 @@ impl Document {
     /// `0xRRGGBBAA` (matching [`Self::apply_tool`]). The command targets
     /// the same active layer / frame as the pencil — today the lowest-z
     /// `LayerKind::Image` layer and frame `0`. Painting the seed color
-    /// over itself is a no-op (the command joins the bus but no pixels
-    /// change and no dirty-rect event is emitted). Seed coordinates that
-    /// fall outside the target cel are also a no-op for the pixel buffer,
-    /// but the command still joins the bus for undo-symmetry with the
-    /// other paint tools.
+    /// over itself, or seeding outside the target cel, leaves the pixel
+    /// buffer unchanged but the command still joins the bus and emits
+    /// `dirty-canvas` for undo-symmetry with the other paint tools.
     ///
     /// The emitted `dirty-canvas` event reflects that a bucket fill can
     /// affect any subset of the cel — the UI's RAF loop coalesces the

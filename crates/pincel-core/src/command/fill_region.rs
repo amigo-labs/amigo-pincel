@@ -4,10 +4,11 @@
 //! Sprite-space seed coordinates are translated into cel-local space via the
 //! cel's `position`. The fill is 4-connected (up / down / left / right
 //! neighbors) and the tolerance is zero — only pixels whose RGBA matches
-//! the seed exactly are replaced. Painting the seed color over itself is a
-//! no-op (no event, no recorded prior pixels). A seed that falls outside
-//! the cel buffer is also a no-op. Indexed and grayscale cels are
-//! rejected (Phase 1 RGBA-first; see `docs/specs/pincel.md` §4.1 / §5.2).
+//! the seed exactly are replaced. Painting the seed color over itself
+//! short-circuits to a no-op (records no modified pixels, so `revert`
+//! does nothing). A seed that falls outside the cel buffer is also a
+//! no-op. Indexed and grayscale cels are rejected (Phase 1 RGBA-first;
+//! see `docs/specs/pincel.md` §4.1 / §5.2).
 //!
 //! Traversal uses a queue-based BFS with a visited bitmap so the worst-
 //! case work is `O(width * height)` and each pixel is touched at most
@@ -114,9 +115,10 @@ impl Command for FillRegion {
             a: buffer.data[seed_offset + 3],
         };
 
-        // Painting the seed color over itself would never terminate the
-        // queue meaningfully (every neighbor would re-match), and there is
-        // no visible effect either way. Return a no-op.
+        // Painting the seed color over itself would do O(region) work
+        // for no visible change (the visited bitmap still bounds the
+        // traversal, but every "write" would replace the pixel with its
+        // own value). Short-circuit to a no-op.
         if seed_color == self.new_color {
             self.previous = Some(FilledRegion {
                 prior: seed_color,
