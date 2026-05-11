@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "amigo-pincel",
+  "compatibility_date": "2026-05-11",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "ui"
+  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ]
+}
