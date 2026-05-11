@@ -21,9 +21,9 @@ use wasm_bindgen::prelude::*;
 /// the cap is exceeded.
 pub(crate) const DEFAULT_EVENT_CAP: usize = 1024;
 
-/// Discriminant for [`Event`]. Today two variants ship; new kinds are
-/// appended without renumbering so the JS-side `kind` strings stay
-/// stable across versions.
+/// Discriminant for [`Event`]. New kinds are appended without
+/// renumbering so the JS-side `kind` strings stay stable across
+/// versions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum EventKind {
     /// A region of a single cel changed and should be re-rendered.
@@ -36,6 +36,11 @@ pub(crate) enum EventKind {
     /// `width`, `height` are unspecified — consumers must not key
     /// off them.
     DirtyCanvas,
+    /// The active marquee selection changed. `x`, `y`, `width`,
+    /// `height` carry the new selection rect in sprite space; on a
+    /// clear, all four are `0`. `layer` and `frame` are unspecified.
+    /// The UI repaints the marching-ants overlay in response.
+    SelectionChanged,
 }
 
 impl EventKind {
@@ -43,6 +48,7 @@ impl EventKind {
         match self {
             EventKind::DirtyRect => "dirty-rect",
             EventKind::DirtyCanvas => "dirty-canvas",
+            EventKind::SelectionChanged => "selection-changed",
         }
     }
 }
@@ -59,6 +65,10 @@ impl EventKind {
 ///   numeric fields are `0` and have no meaning; consumers must not
 ///   key off them. Emitted by undo / redo until per-command dirty
 ///   tracking lands in M12.
+/// * `selection-changed` — the active marquee selection was replaced
+///   or cleared. `x`, `y`, `width`, `height` carry the new rect in
+///   sprite space; all four are `0` when the selection was cleared.
+///   `layer` / `frame` are unspecified.
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub struct Event {
@@ -150,6 +160,21 @@ impl Event {
             height: 0,
         }
     }
+
+    /// Build a `selection-changed` event. `x`, `y`, `width`, `height`
+    /// describe the new selection rect, or are all `0` when the
+    /// selection was cleared.
+    pub(crate) fn selection_changed(x: i32, y: i32, width: u32, height: u32) -> Self {
+        Self {
+            kind: EventKind::SelectionChanged,
+            layer: 0,
+            frame: 0,
+            x,
+            y,
+            width,
+            height,
+        }
+    }
 }
 
 /// Drop-oldest ring buffer that backs [`Document::drain_events`].
@@ -207,6 +232,26 @@ mod tests {
         assert_eq!(ev.kind(), "dirty-canvas");
         assert_eq!(ev.layer(), 0);
         assert_eq!(ev.frame(), 0);
+        assert_eq!(ev.width(), 0);
+        assert_eq!(ev.height(), 0);
+    }
+
+    #[test]
+    fn selection_changed_kind_string_and_fields() {
+        let ev = Event::selection_changed(3, 4, 10, 6);
+        assert_eq!(ev.kind(), "selection-changed");
+        assert_eq!(ev.x(), 3);
+        assert_eq!(ev.y(), 4);
+        assert_eq!(ev.width(), 10);
+        assert_eq!(ev.height(), 6);
+        assert_eq!(ev.layer(), 0);
+        assert_eq!(ev.frame(), 0);
+    }
+
+    #[test]
+    fn selection_changed_with_cleared_rect_zeros_fields() {
+        let ev = Event::selection_changed(0, 0, 0, 0);
+        assert_eq!(ev.kind(), "selection-changed");
         assert_eq!(ev.width(), 0);
         assert_eq!(ev.height(), 0);
     }
