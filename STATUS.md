@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-11_ (M7.8a: Selection model on `Sprite` — `selection: Option<Rect>` field + `set_selection` / `clear_selection` / `has_selection` accessors. `pincel-core` only; wasm + UI slices follow.)
+_Last updated: 2026-05-11_ (M7.8b: `pincel-wasm` selection surface — `setSelection` / `clearSelection` + `hasSelection` / `selectionX` / `selectionY` / `selectionWidth` / `selectionHeight` getters, plus a new `selection-changed` event. UI slice (M7.8c) follows.)
 
 ## Completed
 
@@ -735,6 +735,46 @@ _Last updated: 2026-05-11_ (M7.8a: Selection model on `Sprite` — `selection: O
   a drag-shape tool so the existing Line / Rect / Ellipse preview
   pipeline is untouched.
 
+### M7 — `pincel-wasm` selection surface (M7.8b) ✅
+
+- Builds on M7.8a's `Sprite::selection` model. Exposes the marquee
+  rect through the JS boundary so the UI slice (M7.8c) can drive a
+  Selection tool without reaching past the wasm adapter into
+  `pincel-core`.
+- New `Document` methods (`#[wasm_bindgen]` exported):
+  - `setSelection(x, y, width, height)` — `js_name = setSelection`.
+    Replaces the active marquee with the given sprite-space rect.
+    An empty rect (`width == 0` or `height == 0`) clears, matching
+    `Sprite::set_selection`. Always enqueues a `selection-changed`
+    event (the RAF loop coalesces duplicates).
+  - `clearSelection()` — `js_name = clearSelection`. Drops the
+    selection; always enqueues `selection-changed` (zero bounds).
+    No-op on the data model when nothing was selected, but still
+    emits — symmetric with the rest of the "every write emits"
+    paint API (e.g. `applyBucket` on a no-op fill).
+  - Getters: `hasSelection`, `selectionX`, `selectionY`,
+    `selectionWidth`, `selectionHeight`. When `hasSelection ==
+    false`, the position / size getters return `0`; the UI is
+    expected to pair the bounds with `hasSelection` to distinguish
+    "selection at (0, 0)" from "no selection".
+- New `EventKind::SelectionChanged` in `pincel-wasm::events`. JS
+  kind string `"selection-changed"`; numeric fields carry the new
+  rect (or all-zeros when cleared); `layer` / `frame` unspecified.
+  The kind catalog comment + module-level doc are updated.
+- 8 new wasm unit tests (74 wasm unit total, +10 incl. the 2 new
+  events-module tests): fresh-doc has no selection, set stores +
+  exposes via getters, set emits event with new bounds, set with
+  empty rect clears + emits zeros, clear drops + emits zeros,
+  clear emits even with no prior selection, paint between two
+  selection changes is the only thing undone (selection not in
+  undo stack), off-canvas rect round-trips through the getters.
+- Verified: `cargo check --workspace`, `cargo test --workspace`
+  (157 pincel-core + 19 aseprite-writer + 8 roundtrip + 5 codec +
+  6 command-bus + 3 render + 74 pincel-wasm unit + 2 paint-save-
+  open), `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo fmt --all --check` all green. `pnpm wasm:build`
+  re-generates the JS bindings; the new methods compile cleanly.
+
 ### M7 — Selection model on `Sprite` (M7.8a) ✅
 
 - `pincel-core` only; no commands, no wasm, no UI in this slice. Wires
@@ -942,10 +982,13 @@ behavior.
   Option<Rect>` on `Sprite` + `set_selection` / `clear_selection` /
   `has_selection` helpers. Empty rects clear instead of storing a
   degenerate marquee; off-canvas rects round-trip (consumer clips).
-- [ ] **M7.8b** — `pincel-wasm` selection surface: `setSelection(x,
-  y, w, h)`, `clearSelection()`, `selectionBounds()` /
-  `hasSelection` getters. Emits a `selection-changed` event (new
-  `kind`) so the UI can repaint the marching-ants overlay.
+- [x] **M7.8b** — `pincel-wasm` selection surface: `setSelection(x,
+  y, w, h)` / `clearSelection()` + `hasSelection` / `selectionX` /
+  `selectionY` / `selectionWidth` / `selectionHeight` getters. New
+  `selection-changed` event kind on the existing event ring so the
+  UI can repaint the marching-ants overlay. Selection state is
+  intentionally not on the undo stack in this slice (pinned by a
+  regression test).
 - [ ] **M7.8c** — UI Selection (Rect) tool + marching-ants overlay.
   New toolbar button, marquee press-drag-release pipeline reusing
   the drag-shape infrastructure, animated dashed-rectangle overlay
