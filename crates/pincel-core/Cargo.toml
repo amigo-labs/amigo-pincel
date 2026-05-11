@@ -12,5 +12,8 @@ aseprite-loader = { workspace = true }
 aseprite-writer = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+flate2 = { workspace = true }
+
 [lints]
 workspace = true

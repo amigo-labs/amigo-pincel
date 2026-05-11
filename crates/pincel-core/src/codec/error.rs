@@ -190,4 +190,47 @@ pub enum CodecError {
         /// Frame index the linked cel points at.
         target: u32,
     },
+
+    /// A tilemap layer's `tileset_index` was missing from the layer chunk.
+    /// Aseprite always emits this field for `LayerType::Tilemap`, so a
+    /// missing value indicates a malformed or truncated file.
+    #[error("tilemap layer {name:?} is missing its tileset index")]
+    TilemapLayerMissingTilesetIndex {
+        /// Layer name as encoded in the source file.
+        name: String,
+    },
+
+    /// A tilemap cel uses a `bits_per_tile` value other than 32. The
+    /// Aseprite v1.3 spec currently fixes this at 32 bits per tile;
+    /// anything else is rejected so that the bitmask layout is well-defined.
+    #[error("tilemap cel uses unsupported bits_per_tile {bits}")]
+    TilemapBitsPerTileUnsupported {
+        /// Bits-per-tile value reported by the cel chunk.
+        bits: u16,
+    },
+
+    /// A tilemap cel's compressed payload did not decompress to the
+    /// expected `width * height * bits_per_tile / 8` bytes.
+    #[error("tilemap cel decode failed: {0}")]
+    TilemapDecode(String),
+
+    /// A tileset chunk uses a feature Pincel does not yet ingest. Phase 1
+    /// supports inline tile data only; external-file tilesets are deferred.
+    #[error("tileset {id} uses an unsupported feature: {what}")]
+    TilesetUnsupported {
+        /// Numeric tileset id from the chunk.
+        id: u32,
+        /// Short human-readable description of the rejected feature.
+        what: &'static str,
+    },
+
+    /// A tileset chunk's compressed tile-image payload did not decompress
+    /// to the expected `tile_w * tile_h * number_of_tiles * 4` bytes.
+    #[error("tileset {id} tile-image decode failed: {message}")]
+    TilesetDecode {
+        /// Numeric tileset id from the chunk.
+        id: u32,
+        /// Underlying decode error message.
+        message: String,
+    },
 }

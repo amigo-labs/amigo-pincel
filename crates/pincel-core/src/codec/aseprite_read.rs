@@ -3,29 +3,38 @@
 //! Wraps [`aseprite_loader`] and translates its parser output into Pincel's
 //! [`Sprite`] / [`CelMap`] pair. See `docs/specs/pincel.md` §7.1.
 //!
-//! M4 scope (this milestone):
+//! Current scope:
 //!
 //! - **RGBA color mode only.** Indexed / grayscale return
 //!   [`CodecError::UnsupportedColorMode`].
-//! - **Image and group layers only.** Tilemap layers raise
-//!   [`CodecError::UnsupportedLayerKind`]; tileset chunks are dropped on read
-//!   (M8 will preserve them).
+//! - **Image, group, and tilemap layers.** Tilemap layers carry their
+//!   `tileset_index` through as [`LayerKind::Tilemap`]; tileset chunks
+//!   (`0x2023`) hydrate into [`crate::Tileset`] entries on the sprite, and
+//!   compressed-tilemap cels (Cel Type 3) hydrate into [`CelData::Tilemap`]
+//!   grids.
 //! - **Slice chunks are dropped.** M9 will round-trip them.
 //! - **Linked cels are preserved** as [`CelData::Linked`] — round-trip via the
 //!   M5 writer remains lossless.
+//! - **External-file tilesets are not yet supported.** A tileset that omits
+//!   the inline `TILES` flag raises [`CodecError::TilesetUnsupported`].
 
 use aseprite_loader::binary::blend_mode::BlendMode as AseBlendMode;
+use aseprite_loader::binary::chunk::Chunk;
 use aseprite_loader::binary::chunks::cel::CelContent;
 use aseprite_loader::binary::chunks::layer::{LayerFlags, LayerType};
-use aseprite_loader::binary::chunks::tags::AnimationDirection;
+use aseprite_loader::binary::chunks::tags::{AnimationDirection, Tag as AseTag};
+use aseprite_loader::binary::chunks::tileset::{TilesetChunk, TilesetFlags};
 use aseprite_loader::binary::color_depth::ColorDepth;
+use aseprite_loader::binary::file::{File as AseFile, parse_file};
 use aseprite_loader::binary::image::Image as AseImage;
-use aseprite_loader::loader::{AsepriteFile, decompress};
+use aseprite_loader::binary::raw_file::parse_raw_file;
+use aseprite_loader::loader::decompress;
 
 use super::error::CodecError;
 use crate::document::{
     BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    PaletteEntry, PixelBuffer, Rgba, Sprite, Tag, TagDirection,
+    PaletteEntry, PathRef, PixelBuffer, Rgba, Sprite, Tag, TagDirection, TileImage, TileRef,
+    Tileset, TilesetId,
 };
 
 /// Result of reading a `.aseprite` byte slice. The cel store is returned
@@ -43,16 +52,24 @@ pub struct AsepriteReadOutput {
 /// borrowed only for the duration of the call; the returned [`Sprite`] owns
 /// all its data.
 pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
-    let ase = AsepriteFile::load(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
+    // We use the low-level `parse_file` rather than the high-level
+    // `AsepriteFile::load`. `AsepriteFile::load` (a) filters tilemap
+    // *layers* out of its `ase.layers` view (we already worked around this
+    // by reading from `ase.file.layers`) and (b) errors out with
+    // `"invalid cel"` when it encounters a Cel Type 3 (compressed tilemap)
+    // entry — which would block M8.4 entirely. Going one level lower keeps
+    // the data the adapter actually needs (header, layers, frames, palette,
+    // tags) while exposing tilemap cels for our own decode.
+    let file = parse_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
 
-    let color_mode = map_color_mode(ase.file.header.color_depth)?;
+    let color_mode = map_color_mode(file.header.color_depth)?;
 
-    let mut layers = Vec::with_capacity(ase.file.layers.len());
+    let mut layers = Vec::with_capacity(file.layers.len());
     // `parent_stack[d]` is the most recently opened group at depth `d`. When a
     // layer at depth `d` arrives, its parent is `parent_stack[d - 1]`; deeper
     // entries from prior siblings are dropped before we (re)open this depth.
     let mut parent_stack: Vec<LayerId> = Vec::new();
-    for (index, layer_chunk) in ase.file.layers.iter().enumerate() {
+    for (index, layer_chunk) in file.layers.iter().enumerate() {
         let depth = usize::from(layer_chunk.child_level);
         let parent = if depth == 0 {
             None
@@ -70,20 +87,23 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
         layers.push(layer);
     }
 
-    let mut frames = Vec::with_capacity(ase.file.frames.len());
-    for frame in &ase.file.frames {
+    let mut frames = Vec::with_capacity(file.frames.len());
+    for frame in &file.frames {
         frames.push(Frame::new(frame.duration));
     }
 
-    let palette = build_palette(&ase);
-    let tags = ase.tags.iter().map(map_tag).collect::<Vec<_>>();
+    let palette = build_palette(&file);
+    let tags = file.tags.iter().map(map_tag).collect::<Vec<_>>();
+    // `parse_file` discards `Chunk::Tileset` entries. A second pass via
+    // `parse_raw_file` recovers them; the raw parser is cheap (no
+    // decompression on this pass) and the per-tileset image decode happens
+    // lazily inside `build_tileset`.
+    let tilesets = extract_tilesets(bytes)?;
 
-    let mut sprite_builder = Sprite::builder(
-        u32::from(ase.file.header.width),
-        u32::from(ase.file.header.height),
-    )
-    .color_mode(color_mode)
-    .palette(palette);
+    let mut sprite_builder =
+        Sprite::builder(u32::from(file.header.width), u32::from(file.header.height))
+            .color_mode(color_mode)
+            .palette(palette);
     for layer in layers {
         sprite_builder = sprite_builder.add_layer(layer);
     }
@@ -93,9 +113,12 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
     for tag in tags {
         sprite_builder = sprite_builder.add_tag(tag);
     }
+    for tileset in tilesets {
+        sprite_builder = sprite_builder.add_tileset(tileset);
+    }
     let sprite = sprite_builder.build()?;
 
-    let cels = build_cels(&ase, color_mode, &sprite)?;
+    let cels = build_cels(&file, color_mode, &sprite)?;
 
     Ok(AsepriteReadOutput { sprite, cels })
 }
@@ -117,7 +140,17 @@ fn map_layer(
     let kind = match layer.layer_type {
         LayerType::Normal => LayerKind::Image,
         LayerType::Group => LayerKind::Group,
-        LayerType::Tilemap => return Err(CodecError::UnsupportedLayerKind { kind: 2 }),
+        LayerType::Tilemap => {
+            let tileset_index =
+                layer
+                    .tileset_index
+                    .ok_or_else(|| CodecError::TilemapLayerMissingTilesetIndex {
+                        name: layer.name.to_string(),
+                    })?;
+            LayerKind::Tilemap {
+                tileset_id: TilesetId::new(tileset_index),
+            }
+        }
         LayerType::Unknown(n) => return Err(CodecError::UnsupportedLayerKind { kind: n }),
     };
     let blend_mode = map_blend_mode(layer.blend_mode)?;
@@ -170,19 +203,20 @@ fn map_tag_direction(direction: AnimationDirection) -> TagDirection {
     }
 }
 
-fn map_tag(tag: &aseprite_loader::loader::Tag) -> Tag {
+#[allow(deprecated)]
+fn map_tag(tag: &AseTag<'_>) -> Tag {
     Tag {
-        name: tag.name.clone(),
-        from: FrameIndex::new(u32::from(*tag.range.start())),
-        to: FrameIndex::new(u32::from(*tag.range.end())),
-        direction: map_tag_direction(tag.direction),
+        name: tag.name.to_string(),
+        from: FrameIndex::new(u32::from(*tag.frames.start())),
+        to: FrameIndex::new(u32::from(*tag.frames.end())),
+        direction: map_tag_direction(tag.animation_direction),
         color: Rgba::WHITE,
-        repeats: tag.repeat.unwrap_or(0),
+        repeats: tag.animation_repeat,
     }
 }
 
-fn build_palette(ase: &AsepriteFile<'_>) -> crate::document::Palette {
-    let Some(parsed) = ase.file.palette.as_ref() else {
+fn build_palette(file: &AseFile<'_>) -> crate::document::Palette {
+    let Some(parsed) = file.palette.as_ref() else {
         return crate::document::Palette::default();
     };
     let entries = parsed
@@ -201,12 +235,12 @@ fn build_palette(ase: &AsepriteFile<'_>) -> crate::document::Palette {
 }
 
 fn build_cels(
-    ase: &AsepriteFile<'_>,
+    file: &AseFile<'_>,
     color_mode: ColorMode,
     sprite: &Sprite,
 ) -> Result<CelMap, CodecError> {
     let mut map = CelMap::new();
-    for (frame_index, frame) in ase.file.frames.iter().enumerate() {
+    for (frame_index, frame) in file.frames.iter().enumerate() {
         for cel_chunk in frame.cels.iter().filter_map(|c| c.as_ref()) {
             let layer_index = usize::from(cel_chunk.layer_index);
             let layer_id = sprite
@@ -226,9 +260,26 @@ fn build_cels(
                 CelContent::LinkedCel { frame_position } => {
                     CelData::Linked(FrameIndex::new(u32::from(*frame_position)))
                 }
-                CelContent::CompressedTilemap { .. } => {
-                    return Err(CodecError::UnsupportedCelKind { kind: 3 });
-                }
+                CelContent::CompressedTilemap {
+                    width,
+                    height,
+                    bits_per_tile,
+                    bitmask_tile_id,
+                    bitmask_x_flip,
+                    bitmask_y_flip,
+                    bitmask_diagonal_flip,
+                    data,
+                } => decode_tilemap_cel(
+                    (*width, *height),
+                    *bits_per_tile,
+                    TilemapMasks {
+                        tile_id: *bitmask_tile_id,
+                        x_flip: *bitmask_x_flip,
+                        y_flip: *bitmask_y_flip,
+                        diagonal_flip: *bitmask_diagonal_flip,
+                    },
+                    data,
+                )?,
                 CelContent::Unknown { cel_type, .. } => {
                     return Err(CodecError::UnsupportedCelKind { kind: *cel_type });
                 }
@@ -244,6 +295,155 @@ fn build_cels(
         }
     }
     Ok(map)
+}
+
+/// Per-cel bitmasks for the four packed fields of a Cel Type 3 entry.
+#[derive(Debug, Copy, Clone)]
+struct TilemapMasks {
+    tile_id: u32,
+    x_flip: u32,
+    y_flip: u32,
+    diagonal_flip: u32,
+}
+
+/// Decode a Cel Type 3 (Compressed Tilemap) payload into a [`CelData::Tilemap`].
+///
+/// The on-disk grid is row-major; each tile is a fixed-width little-endian
+/// unsigned integer whose layout is described by the per-cel bitmasks. The
+/// Aseprite v1.3 spec pins `bits_per_tile = 32`; anything else is rejected so
+/// that the bitmask layout stays well-defined and the per-tile stride matches
+/// the buffer math here.
+fn decode_tilemap_cel(
+    grid: (u16, u16),
+    bits_per_tile: u16,
+    masks: TilemapMasks,
+    data: &[u8],
+) -> Result<CelData, CodecError> {
+    if bits_per_tile != 32 {
+        return Err(CodecError::TilemapBitsPerTileUnsupported {
+            bits: bits_per_tile,
+        });
+    }
+    let grid_w = u32::from(grid.0);
+    let grid_h = u32::from(grid.1);
+    let tile_count = (grid_w as usize) * (grid_h as usize);
+    let expected_bytes = tile_count.checked_mul(4).ok_or_else(|| {
+        CodecError::TilemapDecode("tilemap byte size overflowed usize".to_string())
+    })?;
+    let mut buf = vec![0u8; expected_bytes];
+    decompress(data, &mut buf).map_err(|e| CodecError::TilemapDecode(format!("{e:?}")))?;
+    let mut tiles = Vec::with_capacity(tile_count);
+    for chunk in buf.chunks_exact(4) {
+        let raw = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        tiles.push(TileRef {
+            tile_id: raw & masks.tile_id,
+            flip_x: (raw & masks.x_flip) != 0,
+            flip_y: (raw & masks.y_flip) != 0,
+            rotate_90: (raw & masks.diagonal_flip) != 0,
+        });
+    }
+    Ok(CelData::Tilemap {
+        grid_w,
+        grid_h,
+        tiles,
+    })
+}
+
+/// Re-parse `bytes` via `parse_raw_file` and pull out every [`Chunk::Tileset`]
+/// across all frames. The high-level [`parse_file`] used by
+/// [`AsepriteFile::load`] discards tileset chunks (`Chunk::Tileset(_) => {}`
+/// in `aseprite-loader` 0.4.2), so the raw pass is the only path that
+/// surfaces them.
+fn extract_tilesets(bytes: &[u8]) -> Result<Vec<Tileset>, CodecError> {
+    // `AsepriteFile::load` already validated the header upstream; if that
+    // succeeded, `parse_raw_file` is expected to succeed too. Propagate any
+    // error rather than silently dropping tilesets.
+    let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
+    let mut tilesets = Vec::new();
+    for frame in &raw.frames {
+        for chunk in &frame.chunks {
+            if let Chunk::Tileset(ts) = chunk {
+                tilesets.push(build_tileset(ts)?);
+            }
+        }
+    }
+    Ok(tilesets)
+}
+
+/// Hydrate a single [`TilesetChunk`] into [`Tileset`].
+///
+/// Inline tile data (`TilesetFlags::TILES`) is decompressed; the on-disk
+/// layout is `tile_w × (tile_h × number_of_tiles)` RGBA8, with tiles stacked
+/// vertically. Tile id `0` is the empty / transparent tile by Aseprite
+/// convention; whether the file stores an explicit tile-0 entry is
+/// preserved verbatim so the [`Tileset::tiles`] indices line up with
+/// [`TileRef::tile_id`].
+///
+/// External-file tilesets (`TilesetFlags::EXTERNAL_FILE` without
+/// `TilesetFlags::TILES`) raise [`CodecError::TilesetUnsupported`]: Phase 1
+/// supports inline tile data only.
+fn build_tileset(chunk: &TilesetChunk<'_>) -> Result<Tileset, CodecError> {
+    let id = chunk.id;
+    let tile_w = u32::from(chunk.width);
+    let tile_h = u32::from(chunk.height);
+    let n_tiles = chunk.number_of_tiles as usize;
+
+    let tiles = if chunk.flags.contains(TilesetFlags::TILES) {
+        let tiles_block = chunk.tiles.as_ref().ok_or(CodecError::TilesetUnsupported {
+            id,
+            what: "TILES flag set but no inline tile data",
+        })?;
+        let bytes_per_tile = (tile_w as usize)
+            .checked_mul(tile_h as usize)
+            .and_then(|n| n.checked_mul(4))
+            .ok_or(CodecError::TilesetDecode {
+                id,
+                message: "per-tile byte size overflowed usize".into(),
+            })?;
+        let total = bytes_per_tile
+            .checked_mul(n_tiles)
+            .ok_or(CodecError::TilesetDecode {
+                id,
+                message: "tileset byte size overflowed usize".into(),
+            })?;
+        let mut buf = vec![0u8; total];
+        decompress(tiles_block.data, &mut buf).map_err(|e| CodecError::TilesetDecode {
+            id,
+            message: format!("{e:?}"),
+        })?;
+        buf.chunks_exact(bytes_per_tile)
+            .map(|tile_bytes| TileImage {
+                pixels: PixelBuffer {
+                    width: tile_w,
+                    height: tile_h,
+                    color_mode: ColorMode::Rgba,
+                    data: tile_bytes.to_vec(),
+                },
+            })
+            .collect()
+    } else if chunk.flags.contains(TilesetFlags::EXTERNAL_FILE) {
+        return Err(CodecError::TilesetUnsupported {
+            id,
+            what: "external-file tilesets are not yet supported",
+        });
+    } else {
+        // No inline tiles and no external file reference — Aseprite still
+        // emits a tileset chunk in this corner case; keep it as a
+        // zero-tile tileset so the layer's `tileset_index` resolves.
+        Vec::new()
+    };
+
+    Ok(Tileset {
+        id: TilesetId::new(id),
+        name: chunk.name.to_string(),
+        tile_size: (tile_w, tile_h),
+        tiles,
+        base_index: i32::from(chunk.base_index),
+        // The external_file_id in the chunk is an opaque pointer into the
+        // External Files Chunk (0x2008); resolving it to a `PathRef` is
+        // deferred to a follow-up. Keep the slot empty rather than guess.
+        external_file: None::<PathRef>,
+    })
 }
 
 /// Decode a low-level `aseprite-loader` image straight from its `CelContent`
