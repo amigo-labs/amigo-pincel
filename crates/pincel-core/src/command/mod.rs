@@ -8,6 +8,7 @@ mod draw_line;
 mod draw_rectangle;
 mod error;
 mod fill_region;
+mod move_selection_content;
 mod set_pixel;
 
 pub use add_frame::AddFrame;
@@ -18,6 +19,7 @@ pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
+pub use move_selection_content::MoveSelectionContent;
 pub use set_pixel::SetPixel;
 
 use crate::document::{CelMap, Sprite};
@@ -56,6 +58,7 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    MoveSelectionContent(MoveSelectionContent),
     AddLayer(AddLayer),
     AddFrame(AddFrame),
 }
@@ -72,6 +75,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
         }
@@ -84,6 +88,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
         }
@@ -96,6 +101,7 @@ impl AnyCommand {
             (Self::DrawRectangle(a), Self::DrawRectangle(b)) => a.merge(b),
             (Self::DrawEllipse(a), Self::DrawEllipse(b)) => a.merge(b),
             (Self::FillRegion(a), Self::FillRegion(b)) => a.merge(b),
+            (Self::MoveSelectionContent(a), Self::MoveSelectionContent(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             _ => false,
@@ -130,6 +136,12 @@ impl From<DrawEllipse> for AnyCommand {
 impl From<FillRegion> for AnyCommand {
     fn from(c: FillRegion) -> Self {
         Self::FillRegion(c)
+    }
+}
+
+impl From<MoveSelectionContent> for AnyCommand {
+    fn from(c: MoveSelectionContent) -> Self {
+        Self::MoveSelectionContent(c)
     }
 }
 
