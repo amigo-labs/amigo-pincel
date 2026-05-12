@@ -1,10 +1,14 @@
 //! `AddSlice` command — append a slice to the sprite's slice list.
 //!
-//! Slice z-order is irrelevant (slices are overlay-only and looked up by
-//! id), so this is an append-only command mirroring
-//! [`AddTileset`](super::AddTileset). Validation rejects duplicate ids,
-//! empty key vectors (the aseprite codec refuses them on write), and
-//! per-key empty bounding rects.
+//! Slices have no rendering z-order between each other (they're overlay-
+//! only and looked up by id), but the list's appearance order is still
+//! meaningful: `pincel-core::codec::aseprite_write` serializes slices in
+//! list order, and `aseprite_read` assigns sequential `SliceId`s by that
+//! same order. `RemoveSlice` therefore re-inserts at the prior index on
+//! revert, and this command appends to the tail so newly added slices
+//! land at the end. Validation rejects duplicate ids, empty key vectors
+//! (the aseprite codec refuses them on write), and per-key empty
+//! bounding rects.
 
 use crate::document::{CelMap, Slice, Sprite};
 
