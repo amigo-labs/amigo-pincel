@@ -12,6 +12,7 @@ mod fill_region;
 mod move_selection_content;
 mod place_tile;
 mod set_pixel;
+mod set_tile_pixel;
 
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
@@ -25,6 +26,7 @@ pub use fill_region::FillRegion;
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use set_pixel::SetPixel;
+pub use set_tile_pixel::SetTilePixel;
 
 use crate::document::{CelMap, Sprite};
 
@@ -67,6 +69,7 @@ pub enum AnyCommand {
     AddFrame(AddFrame),
     AddTileset(AddTileset),
     PlaceTile(PlaceTile),
+    SetTilePixel(SetTilePixel),
 }
 
 impl AnyCommand {
@@ -86,6 +89,7 @@ impl AnyCommand {
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::PlaceTile(c) => c.apply(doc, cels),
+            Self::SetTilePixel(c) => c.apply(doc, cels),
         }
     }
 
@@ -101,6 +105,7 @@ impl AnyCommand {
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::PlaceTile(c) => c.revert(doc, cels),
+            Self::SetTilePixel(c) => c.revert(doc, cels),
         }
     }
 
@@ -116,6 +121,7 @@ impl AnyCommand {
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
             (Self::PlaceTile(a), Self::PlaceTile(b)) => a.merge(b),
+            (Self::SetTilePixel(a), Self::SetTilePixel(b)) => a.merge(b),
             _ => false,
         }
     }
@@ -178,5 +184,11 @@ impl From<AddTileset> for AnyCommand {
 impl From<PlaceTile> for AnyCommand {
     fn from(c: PlaceTile) -> Self {
         Self::PlaceTile(c)
+    }
+}
+
+impl From<SetTilePixel> for AnyCommand {
+    fn from(c: SetTilePixel) -> Self {
+        Self::SetTilePixel(c)
     }
 }
