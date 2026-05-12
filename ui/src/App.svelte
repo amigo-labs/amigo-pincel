@@ -3,10 +3,13 @@
   import { Document, loadCore } from './lib/core';
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
+  import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import {
     blitFrame,
     paintEllipsePreview,
     paintLinePreview,
+    paintPivotCrosshair,
+    paintRectOutline,
     paintRectanglePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
@@ -27,7 +30,8 @@
     | 'ellipse-fill'
     | 'selection-rect'
     | 'move'
-    | 'tilemap-stamp';
+    | 'tilemap-stamp'
+    | 'slice';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
@@ -35,6 +39,9 @@
   // tool shares the same shape so a Shift constraint / mid-drag
   // pre-empt can be added uniformly; its release path commits via
   // `setSelection` / `clearSelection` rather than the paint commands.
+  // The Slice tool reuses the same shape — release commits via
+  // `addSlice` (no active slice) or `setSliceKey` (preserving the
+  // active slice's center / pivot).
   function isDragShapeTool(t: Tool): boolean {
     return (
       t === 'line' ||
@@ -42,7 +49,8 @@
       t === 'rectangle-fill' ||
       t === 'ellipse' ||
       t === 'ellipse-fill' ||
-      t === 'selection-rect'
+      t === 'selection-rect' ||
+      t === 'slice'
     );
   }
 
@@ -141,6 +149,12 @@
   // (tileset, tile) pair. The modal `TileEditor` component owns the
   // pointer routing while it is mounted.
   let editingTile = $state<{ tilesetId: number; tileId: number } | null>(null);
+  // Currently focused slice in the SlicesPanel — the canvas paints a
+  // marching-ants overlay on its frame-0 bounds, and the Slice tool
+  // drag commits via `setSliceKey` (preserving center / pivot)
+  // rather than `addSlice` when this is set. `null` means no
+  // selection — Slice tool drag falls through to `addSlice`.
+  let activeSliceId = $state<number | null>(null);
 
   function syncMeta() {
     if (!doc) return;
@@ -221,11 +235,12 @@
             color,
             true,
           );
-        } else if (dragTool === 'selection-rect') {
+        } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
           // Inclusive-corner marquee preview: matches the rect that
-          // `commitSelection` will hand to `setSelection` on release
-          // (so the user sees the exact pixels that will be inside the
-          // committed selection).
+          // `commitSelection` / `commitSliceDrag` will hand to the
+          // wasm side on release. Slice drags reuse the marching
+          // marquee so the gesture matches the active-slice overlay
+          // the user is editing.
           const minX = Math.min(dragStart.x, end.x);
           const maxX = Math.max(dragStart.x, end.x);
           const minY = Math.min(dragStart.y, end.y);
@@ -275,9 +290,74 @@
       if (tool === 'tilemap-stamp' && stampTile && doc) {
         paintTileGridOverlay();
       }
+      // Active slice overlay: paint frame-0 bounds as marching ants,
+      // and the optional 9-patch center / pivot as static accents.
+      // Drawn last so the slice's geometry stays visible above the
+      // tile grid or selection marquee when several overlays would
+      // otherwise compete.
+      if (doc && activeSliceId !== null) {
+        paintActiveSliceOverlay();
+      }
     } finally {
       frame.free();
     }
+  }
+
+  // Paint marching ants on the active slice's frame-0 bounds, plus
+  // its optional 9-patch center band and pivot crosshair. The wasm
+  // getters that back this run only when `activeSliceId` is set; if
+  // the slice was just removed via undo, the function silently
+  // no-ops via the try/catch wrapping the bounds read.
+  function paintActiveSliceOverlay() {
+    if (!canvas || !doc || activeSliceId === null) return;
+    try {
+      const id = activeSliceId;
+      const keyCount = doc.sliceKeyCount(id);
+      if (keyCount === 0) return;
+      // Prefer the explicit frame-0 key when present, falling back to
+      // key 0 so a slice that only carries a later-frame key still
+      // gets a visible overlay.
+      let keyIndex = 0;
+      for (let k = 0; k < keyCount; k += 1) {
+        if (doc.sliceKeyFrame(id, k) === 0) {
+          keyIndex = k;
+          break;
+        }
+      }
+      const x = doc.sliceKeyX(id, keyIndex);
+      const y = doc.sliceKeyY(id, keyIndex);
+      const w = doc.sliceKeyWidth(id, keyIndex);
+      const h = doc.sliceKeyHeight(id, keyIndex);
+      paintSelectionMarquee(canvas, x, y, w, h, marchPhase);
+      if (doc.sliceKeyHasCenter(id, keyIndex)) {
+        const cx = doc.sliceKeyCenterX(id, keyIndex);
+        const cy = doc.sliceKeyCenterY(id, keyIndex);
+        const cw = doc.sliceKeyCenterWidth(id, keyIndex);
+        const ch = doc.sliceKeyCenterHeight(id, keyIndex);
+        // Reuse the slice's editor color for the center accent so
+        // 9-patch slices read as distinct from the active marquee.
+        const color = sliceColorCss(doc.sliceColor(id));
+        paintRectOutline(canvas!, cx, cy, cw, ch, color);
+      }
+      if (doc.sliceKeyHasPivot(id, keyIndex)) {
+        const px = doc.sliceKeyPivotX(id, keyIndex);
+        const py = doc.sliceKeyPivotY(id, keyIndex);
+        paintPivotCrosshair(canvas!, px, py);
+      }
+    } catch {
+      // Slice disappeared mid-frame (e.g. undo of an addSlice). The
+      // `sliceRev`/`activeSliceId` reconciler in the parent picks
+      // the change up on the next tick and clears the active id.
+    }
+  }
+
+  // Drop the slice color's alpha and render `#RRGGBB` so the 2D
+  // context's `fillStyle` accepts it. Alpha is intentionally
+  // dropped — overlays always paint fully opaque to stay legible
+  // against the composed sprite.
+  function sliceColorCss(packed: number): string {
+    const rgb = (packed >>> 8) & 0xffffff;
+    return '#' + rgb.toString(16).padStart(6, '0');
   }
 
   // Paint a 1-CSS-pixel grid over the main canvas at the active
@@ -558,6 +638,65 @@
     }
   }
 
+  // Commit a Slice tool drag from the two corner points of the
+  // press / drag / release gesture. Routes to `addSlice` when no
+  // slice is active (creating a new slice with the drawn bounds), or
+  // to `setSliceKey` when a slice is active (preserving its 9-patch
+  // center and pivot). Degenerate (single-pixel) drags are accepted
+  // as 1×1 slices — the underlying commands reject empty bounds, so
+  // a click without a drag still surfaces a valid 1-pixel slice.
+  function commitSliceDrag(x0: number, y0: number, x1: number, y1: number) {
+    if (!doc) return;
+    const minX = Math.min(x0, x1);
+    const minY = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    try {
+      if (activeSliceId === null) {
+        const autoName = `Slice ${doc.sliceCount + 1}`;
+        const packed = packColor(color);
+        const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
+        activeSliceId = newId;
+      } else {
+        const id = activeSliceId;
+        // Preserve the active slice's 9-patch center and pivot
+        // around the new bounds. The wasm side validates the
+        // partial-quartet invariant on its own.
+        let keyIndex = 0;
+        const keyCount = doc.sliceKeyCount(id);
+        for (let k = 0; k < keyCount; k += 1) {
+          if (doc.sliceKeyFrame(id, k) === 0) {
+            keyIndex = k;
+            break;
+          }
+        }
+        const hasCenter =
+          keyCount > 0 ? doc.sliceKeyHasCenter(id, keyIndex) : false;
+        const hasPivot =
+          keyCount > 0 ? doc.sliceKeyHasPivot(id, keyIndex) : false;
+        doc.setSliceKey(
+          id,
+          0,
+          minX,
+          minY,
+          w,
+          h,
+          hasCenter ? doc.sliceKeyCenterX(id, keyIndex) : undefined,
+          hasCenter ? doc.sliceKeyCenterY(id, keyIndex) : undefined,
+          hasCenter ? doc.sliceKeyCenterWidth(id, keyIndex) : undefined,
+          hasCenter ? doc.sliceKeyCenterHeight(id, keyIndex) : undefined,
+          hasPivot ? doc.sliceKeyPivotX(id, keyIndex) : undefined,
+          hasPivot ? doc.sliceKeyPivotY(id, keyIndex) : undefined,
+        );
+      }
+      tilesetRev += 1;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('slice commit failed', err);
+      status = `slice failed: ${msg}`;
+    }
+  }
+
   // Commit a selection marquee from the two corner points of the
   // press / drag / release gesture. A no-move click (start === end)
   // clears the selection, matching Aseprite's "click outside to
@@ -666,6 +805,8 @@
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
         } else if (dragTool === 'selection-rect') {
           commitSelection(dragStart.x, dragStart.y, end.x, end.y);
+        } else if (dragTool === 'slice') {
+          commitSliceDrag(dragStart.x, dragStart.y, end.x, end.y);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -703,6 +844,7 @@
     stampTile = null;
     stampHover = null;
     editingTile = null;
+    activeSliceId = null;
     status = 'new 64×64 document';
   }
 
@@ -722,6 +864,7 @@
       stampTile = null;
       stampHover = null;
       editingTile = null;
+      activeSliceId = null;
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -758,6 +901,7 @@
       dirty = true;
       syncMeta();
       tilesetRev += 1;
+      reconcileActiveSlice();
     }
   }
 
@@ -768,11 +912,29 @@
         dirty = true;
         syncMeta();
         tilesetRev += 1;
+        reconcileActiveSlice();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `redo failed: ${msg}`;
     }
+  }
+
+  // If `activeSliceId` references a slice that no longer exists
+  // (typical after `undo` of an `addSlice`), drop the local pointer
+  // so the marching-ants overlay and the panel highlight stop
+  // tracking a phantom id.
+  function reconcileActiveSlice() {
+    if (!doc || activeSliceId === null) return;
+    const count = doc.sliceCount;
+    for (let i = 0; i < count; i += 1) {
+      try {
+        if (doc.sliceIdAt(i) === activeSliceId) return;
+      } catch {
+        // ignore
+      }
+    }
+    activeSliceId = null;
   }
 
   function tick() {
@@ -792,8 +954,9 @@
       // recompose path stays idle.
       if (
         selection ||
-        (dragStart && dragTool === 'selection-rect') ||
-        moveSelStart
+        (dragStart && (dragTool === 'selection-rect' || dragTool === 'slice')) ||
+        moveSelStart ||
+        activeSliceId !== null
       ) {
         marchTicks += 1;
         if (marchTicks >= MARCH_FRAMES_PER_STEP) {
@@ -1006,6 +1169,17 @@
       >
         Stamp
       </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'slice'}
+        aria-pressed={tool === 'slice'}
+        onclick={() => (tool = 'slice')}
+        title={activeSliceId !== null
+          ? 'drag to resize the active slice'
+          : 'drag to create a slice'}
+      >
+        Slice
+      </button>
     </span>
     <span class="ml-2 flex items-center gap-1" role="group" aria-label="Zoom">
       <button
@@ -1095,6 +1269,17 @@
       }}
       onEditTile={(tilesetId, tileId) => {
         editingTile = { tilesetId, tileId };
+      }}
+    />
+    <SlicesPanel
+      {doc}
+      rev={tilesetRev}
+      {activeSliceId}
+      onChange={() => (tilesetRev += 1)}
+      onActivate={(sliceId) => {
+        activeSliceId = sliceId;
+        if (sliceId !== null) tool = 'slice';
+        dirty = true;
       }}
     />
   </section>
