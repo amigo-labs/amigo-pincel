@@ -15,7 +15,12 @@
 //! - **Tilesets round-trip.** Inline-tile tilesets are emitted as
 //!   `0x2023` chunks; external-file tilesets raise
 //!   [`CodecError::UnsupportedTilesetExternalFile`].
-//! - Slices on the document are dropped (M9 will round-trip them).
+//! - **Slices round-trip.** `sprite.slices` are emitted as `0x2022`
+//!   chunks (one per slice, with per-frame keys). The slice
+//!   [`crate::SliceId`] and overlay `color` are editor-only metadata
+//!   that the on-disk format does not carry; both are reconstructed by
+//!   the read adapter (IDs are assigned by position, color defaults to
+//!   white).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -23,14 +28,15 @@ use std::io::Write;
 use aseprite_writer::{
     AnimationDirection as AseDirection, AseFile, BlendMode as AseBlendMode, CelChunk, CelContent,
     Color as AseColor, ColorDepth as AseColorDepth, Frame as AseFrame, Header, LayerChunk,
-    LayerFlags, LayerType, PaletteChunk, PaletteEntry as AsePaletteEntry, Tag as AseTag,
-    TilesetChunk as AseTilesetChunk,
+    LayerFlags, LayerType, NinePatch as AseNinePatch, PaletteChunk,
+    PaletteEntry as AsePaletteEntry, Pivot as AsePivot, SliceChunk as AseSliceChunk,
+    SliceKey as AseSliceKey, Tag as AseTag, TilesetChunk as AseTilesetChunk,
 };
 
 use super::error::CodecError;
 use crate::document::{
-    BlendMode, Cel, CelData, CelMap, ColorMode, Layer, LayerId, LayerKind, Palette, Sprite, Tag,
-    TagDirection, TileRef, Tileset,
+    BlendMode, Cel, CelData, CelMap, ColorMode, Layer, LayerId, LayerKind, Palette, Slice,
+    SliceKey, Sprite, Tag, TagDirection, TileRef, Tileset,
 };
 
 /// Canonical 32-bit bitmasks used for Cel Type 3 (Compressed Tilemap)
@@ -68,6 +74,7 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
     let palette = build_palette(&sprite.palette);
     let tags = build_tags(&sprite.tags)?;
     let tilesets = build_tilesets(&sprite.tilesets)?;
+    let slices = build_slices(&sprite.slices);
     let frames = build_frames(sprite, cels)?;
     Ok(AseFile {
         header,
@@ -75,10 +82,41 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
         palette,
         tags,
         tilesets,
-        // Slice round-trip lands in M9.2; the writer still drops slices today.
-        slices: Vec::new(),
+        slices,
         frames,
     })
+}
+
+fn build_slices(slices: &[Slice]) -> Vec<AseSliceChunk> {
+    slices.iter().map(map_slice).collect()
+}
+
+/// Translate a Pincel [`Slice`] into the writer's [`AseSliceChunk`]. The
+/// slice `id` and overlay `color` are editor-only metadata that the
+/// on-disk format does not carry; the read adapter re-derives the id
+/// from the slice's position and defaults the color to white.
+fn map_slice(slice: &Slice) -> AseSliceChunk {
+    AseSliceChunk {
+        name: slice.name.clone(),
+        keys: slice.keys.iter().map(map_slice_key).collect(),
+    }
+}
+
+fn map_slice_key(key: &SliceKey) -> AseSliceKey {
+    AseSliceKey {
+        frame: key.frame.0,
+        x: key.bounds.x,
+        y: key.bounds.y,
+        width: key.bounds.width,
+        height: key.bounds.height,
+        nine_patch: key.center.map(|c| AseNinePatch {
+            x: c.x,
+            y: c.y,
+            width: c.width,
+            height: c.height,
+        }),
+        pivot: key.pivot.map(|(x, y)| AsePivot { x, y }),
+    }
 }
 
 fn build_header(sprite: &Sprite) -> Result<Header, CodecError> {

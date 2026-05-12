@@ -2,17 +2,14 @@
 
 _Last updated: 2026-05-12_
 
-**Branch:** `claude/continue-from-status-aXYqc` · M9.1 complete
-(`aseprite-writer` emits Slice Chunks `0x2022`).
+**Branch:** `claude/continue-from-status-LsVMC` · M9.2 complete
+(slices round-trip through `pincel-core`'s aseprite codec pair).
 
 ## Next task
 
-**M9.2** — Slice round-trip through `pincel-core`'s codec.
-`aseprite_write` translates `sprite.slices` into `SliceChunk`s on the
-writer side; `aseprite_read` extracts `0x2022` chunks (via the
-`parse_raw_file` pass that already surfaces tilesets) into
-`Sprite.slices`. End-to-end round-trip test on top of the in-crate
-`SliceChunk` round-trip from M9.1.
+**M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed
+through the undo bus, with apply / revert tests. Mirrors the existing
+`AddTileset` / `AddTilemapLayer` / `PlaceTile` command style.
 
 ## Milestone status
 
@@ -44,13 +41,14 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 ### M9 sub-tasks
 
 - [x] **M9.1** — `aseprite-writer` gains `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types and a `0x2022` chunk encoder. Three new `WriteError` variants cover empty keys, non-monotonic frames, and per-key flag inconsistencies. Loader round-trip test covers plain + 9-patch-with-pivot slices, including negative pivot DWORD encoding.
-- [ ] **M9.2** — `pincel-core::codec` round-trips slices. `aseprite_write` translates `sprite.slices` → `SliceChunk`s; `aseprite_read` extracts `0x2022` chunks via the existing `parse_raw_file` pass (the high-level `parse_file` already surfaces slices but our adapter currently drops them).
+- [x] **M9.2** — `pincel-core::codec` round-trips slices. `aseprite_write` translates `sprite.slices` → `SliceChunk`s (dropping editor-only `SliceId` + overlay color, which Aseprite stores out-of-band); `aseprite_read` re-uses the existing `parse_raw_file` pass — extended to recover both `Chunk::Tileset` and `Chunk::Slice` — and assigns sequential `SliceId`s by appearance order, defaulting colors to white. Integration test `slices_round_trip_plain_and_nine_patch_with_pivot` covers a plain slice and a 9-patch + pivot slice with a negative pivot key.
 - [ ] **M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed through the undo bus, with apply / revert tests.
 - [ ] **M9.4** — wasm bindings + UI: Slices Panel, Slice tool, 9-patch + pivot editing handles, marching-ants overlay reused for the active slice's bounds.
 
 ## Recent work
 
-- **2026-05-12 — M9.1 (this branch).** New `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types in `aseprite-writer::file`. `AseFile` grows a mandatory `slices: Vec<SliceChunk>`. `write::write` emits a `0x2022` chunk per slice into frame 0 (after the existing layer / palette / tags / tileset chunks). `validate_slice` derives the chunk-level `NINE_PATCH` / `PIVOT` flag word from the keys and rejects empty key vecs, non-monotonic frame ordering, and keys that disagree about which optional fields they carry — three new `WriteError` variants cover those. Tests round-trip a plain slice and a 9-patch+pivot slice (including a negative pivot DWORD) through `aseprite-loader`'s raw chunk parser. `pincel-core::aseprite_write` carries a `slices: Vec::new()` stub for now; M9.2 wires the real slice translation.
+- **2026-05-12 — M9.2 (this branch).** `pincel-core::aseprite_write` now translates `sprite.slices` → `aseprite_writer::SliceChunk`s; the per-slice `SliceId` and overlay `color` are editor-only and dropped on write (Aseprite stores neither in the slice chunk itself). `pincel-core::aseprite_read` extends the existing `parse_raw_file` pass (previously named `extract_tilesets`, now `extract_tilesets_and_slices`) to also collect `Chunk::Slice` entries, hydrating them into `Slice` with sequential `SliceId`s and white default color. New integration test `slices_round_trip_plain_and_nine_patch_with_pivot` round-trips a plain slice and a 9-patch + pivot slice (negative pivot included) end-to-end through the codec pair.
+- **2026-05-12 — M9.1.** New `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types in `aseprite-writer::file`. `AseFile` grows a mandatory `slices: Vec<SliceChunk>`. `write::write` emits a `0x2022` chunk per slice into frame 0 (after the existing layer / palette / tags / tileset chunks). `validate_slice` derives the chunk-level `NINE_PATCH` / `PIVOT` flag word from the keys and rejects empty key vecs, non-monotonic frame ordering, and keys that disagree about which optional fields they carry — three new `WriteError` variants cover those. Tests round-trip a plain slice and a 9-patch+pivot slice (including a negative pivot DWORD) through `aseprite-loader`'s raw chunk parser. `pincel-core::aseprite_write` carries a `slices: Vec::new()` stub for now; M9.2 wires the real slice translation.
 - **2026-05-12 — M8.7c + M8.7d.** New `SetTilePixel` command in `pincel-core` writes a single RGBA pixel into `Tileset::tiles[tile_id].pixels` and joins the undo bus. Wasm surface gains `addTilemapLayer(name, tilesetId)` (creates the layer + tilemap cels sized to `ceil(canvas / tile_size)` for every existing frame), `setTilePixel(tilesetId, tileId, x, y, color)`, `addTile(tilesetId)`, and layer-enumeration getters (`layerIdAt`, `layerName`, `layerKind`, `layerTilesetId`). UI: TilesetPanel grows `+ Tile` / `+ Layer` buttons and clickable thumbnails (single click selects stamp target + auto-switches to the Stamp tool, double click opens the Tile Editor). App.svelte adds a `Stamp` toolbar tool with a grid + cell hover overlay drawn after the recompose blit. New `TileEditor.svelte` modal renders the active tile at 16× zoom and routes pointer paint through `setTilePixel`. 8 new wasm tests cover happy path + undo round-trip + error branches.
 - **2026-05-12 — M8.7b.** New wasm method `Document::tile_pixels(tileset_id, tile_id) -> Vec<u8>` (JS `tilePixels`) returns non-premultiplied RGBA8 in row-major order. New `ui/src/lib/components/TileThumbnail.svelte` paints each tile to a Canvas2D with `image-rendering: pixelated` and a 2rem display size. `TilesetPanel` iterates `0..tileCount` for each tileset and propagates the existing `rev` change counter so undo / redo / open repaint the thumbnails. Errors when `tileset_id` is unknown, `tile_id` is past the stored tile range, or the tile is non-RGBA (indexed is Phase 2).
 - **2026-05-12 — M8.7a.** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
@@ -89,7 +87,7 @@ Human action still needed:
 - **Auto-tile mode** — Painting on a tilemap that auto-creates / reuses tiles stays Phase 2 (spec §5.3 / §13.2).
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
-- **Slice round-trip carrier** — `aseprite_read` drops slice chunks today. Spec §7.1 wants opaque chunk preservation; needs an `unknown_chunks: Vec<RawChunk>` carrier on `Sprite` / `Layer` / `Cel`. Land alongside M9.
+- **Slice user-data round-trip** — `aseprite_read` now hydrates `0x2022` chunks into `Sprite.slices` (M9.2), but the per-slice overlay color lives in an adjacent User Data chunk (`0x2020`) that we still drop on both sides. Pincel reconstructs slices with `Rgba::WHITE`. Round-trip preservation of the color lands when the User Data carrier does.
 - **Stable LayerIds** — IDs assigned by source-file position today. Stable for read-only sessions but conflicts with spec's "stable id" promise once a reorder command exists. Revisit when reorder lands.
 - **Mid-list AddFrame** — Append-only today. Mid-list insertion needs a `FrameIndex` remap on cel map / `Tag` / `Slice` refs. Defer until a tool needs it.
 - **Indexed-mode painting** — `SetPixel` is RGBA-only. Indexed needs either a payload enum or a separate command. Land when indexed `compose()` lands.
@@ -106,4 +104,4 @@ Human action still needed:
 
 ## Deferred Aseprite chunks
 
-Beyond CLAUDE.md M5 scope but in spec §8.3: Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`), External Files (`0x2008`), User Data (`0x2020`), Slice (`0x2022`), Tileset (`0x2023` — done in M8.5). Land alongside the milestones that need them (M8 tilemaps ✅, M9 slices).
+Beyond CLAUDE.md M5 scope but in spec §8.3: Color Profile (`0x2007`, sRGB), Old Palette (`0x0004`), External Files (`0x2008`), User Data (`0x2020`), Slice (`0x2022` — done in M9.2), Tileset (`0x2023` — done in M8.5). Land alongside the milestones that need them (M8 tilemaps ✅, M9 slices: chunk done, command + UI deferred to M9.3 / M9.4).
