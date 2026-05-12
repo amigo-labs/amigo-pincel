@@ -135,6 +135,8 @@
           <input
             type="number"
             min="1"
+            step="1"
+            inputmode="numeric"
             bind:value={formTileW}
             class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
           />
@@ -144,6 +146,8 @@
           <input
             type="number"
             min="1"
+            step="1"
+            inputmode="numeric"
             bind:value={formTileH}
             class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
           />
