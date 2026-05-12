@@ -686,6 +686,38 @@ impl Document {
             .unwrap_or_default()
     }
 
+    /// RGBA pixel bytes for `tile_id` inside the named tileset.
+    ///
+    /// The returned buffer is `tile_w * tile_h * 4` bytes of
+    /// non-premultiplied RGBA8 in row-major order — the same layout
+    /// [`Document::compose`] produces, so it feeds directly into a JS
+    /// `ImageData` for canvas painting.
+    ///
+    /// Errors when `tileset_id` is unknown, when `tile_id` is past the
+    /// end of the tileset's stored tiles, or when the tile is not RGBA
+    /// (indexed tiles are Phase 2 and need palette resolution before
+    /// they cross the boundary). Aseprite convention reserves tile id
+    /// `0` as the implicit empty / transparent tile and may not store
+    /// it explicitly — callers iterating thumbnails should drive their
+    /// loop off [`Document::tileset_tile_count`].
+    #[wasm_bindgen(js_name = tilePixels)]
+    pub fn tile_pixels(&self, tileset_id: u32, tile_id: u32) -> Result<Vec<u8>, String> {
+        let tileset = self
+            .sprite
+            .tileset(TilesetId::new(tileset_id))
+            .ok_or_else(|| format!("unknown tileset id {tileset_id}"))?;
+        let tile = tileset
+            .tile(tile_id)
+            .ok_or_else(|| format!("tile id {tile_id} out of range for tileset {tileset_id}"))?;
+        if tile.pixels.color_mode != ColorMode::Rgba {
+            return Err(format!(
+                "tileset {tileset_id} is not RGBA (got {:?})",
+                tile.pixels.color_mode
+            ));
+        }
+        Ok(tile.pixels.data.clone())
+    }
+
     /// Add a new tileset to the document. The id is chosen as
     /// `max(existing ids) + 1` (or `0` when no tilesets exist) so it is
     /// stable across runs and monotonic. Returns the assigned id.
@@ -1898,5 +1930,56 @@ mod tests {
             err.contains("place tile") || err.contains("coord") || err.contains("bounds"),
             "expected coord-bounds error, got: {err}"
         );
+    }
+
+    #[test]
+    fn tile_pixels_returns_rgba_buffer_for_stored_tile() {
+        use pincel_core::TileImage;
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        // Seed two distinct tiles directly on the underlying tileset —
+        // the public surface doesn't yet expose per-tile pixel writes
+        // (that lands in M8.7d).
+        let tileset = doc
+            .sprite
+            .tilesets
+            .iter_mut()
+            .find(|t| t.id.0 == ts_id)
+            .expect("freshly added tileset is reachable");
+        let mut tile0 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        tile0.data.copy_from_slice(&[0u8; 16]);
+        let mut tile1 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        tile1.data.copy_from_slice(&[
+            0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF,
+        ]);
+        tileset.tiles.push(TileImage { pixels: tile0 });
+        tileset.tiles.push(TileImage { pixels: tile1 });
+
+        let bytes0 = doc.tile_pixels(ts_id, 0).expect("tile 0 pixels");
+        assert_eq!(bytes0.len(), 2 * 2 * 4);
+        assert!(bytes0.iter().all(|b| *b == 0));
+
+        let bytes1 = doc.tile_pixels(ts_id, 1).expect("tile 1 pixels");
+        assert_eq!(bytes1[0..4], [0xFF, 0x00, 0x00, 0xFF]);
+        assert_eq!(bytes1[12..16], [0xFF, 0xFF, 0xFF, 0xFF]);
+    }
+
+    #[test]
+    fn tile_pixels_rejects_unknown_tileset() {
+        let doc = Document::new(4, 4).expect("dims");
+        let err = doc.tile_pixels(99, 0).unwrap_err();
+        assert!(err.contains("unknown tileset"), "got: {err}");
+    }
+
+    #[test]
+    fn tile_pixels_rejects_tile_id_past_end() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("empty", 8, 8).expect("addTileset");
+        // Freshly added tileset stores zero tiles (Aseprite convention:
+        // tile 0 is implicit empty and not stored), so any tile_id is
+        // past the end.
+        let err = doc.tile_pixels(ts_id, 0).unwrap_err();
+        assert!(err.contains("out of range"), "got: {err}");
     }
 }
