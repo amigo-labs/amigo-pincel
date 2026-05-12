@@ -25,10 +25,11 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap, ColorMode,
-    ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, Rgba, SetPixel,
-    SetTilePixel, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
+    AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
+    ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
+    Layer, LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveSlice,
+    Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
+    TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -991,6 +992,310 @@ impl Document {
         });
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
+    }
+
+    // ---- M9.4: slice surface ----------------------------------------
+
+    /// Number of slices in the document.
+    #[wasm_bindgen(getter, js_name = sliceCount)]
+    pub fn slice_count(&self) -> u32 {
+        self.sprite.slices.len() as u32
+    }
+
+    /// Numeric id of the slice at position `index` in `Sprite::slices`
+    /// (`0..sliceCount`). Slice ids survive the codec round-trip and
+    /// are assigned by [`Document::add_slice`] using
+    /// `max(existing) + 1`, so they may be non-contiguous after an
+    /// `openAseprite`. Errors when `index` is out of range.
+    #[wasm_bindgen(js_name = sliceIdAt)]
+    pub fn slice_id_at(&self, index: u32) -> Result<u32, String> {
+        self.sprite
+            .slices
+            .get(index as usize)
+            .map(|s| s.id.0)
+            .ok_or_else(|| format!("slice index {index} out of range"))
+    }
+
+    /// Display name of the named slice, or an empty string when
+    /// `slice_id` is unknown. Pair with [`Self::slice_key_count`] to
+    /// detect missing slices (a real slice always has at least one
+    /// key — the codec rejects empty key vectors).
+    #[wasm_bindgen(js_name = sliceName)]
+    pub fn slice_name(&self, slice_id: u32) -> String {
+        self.sprite
+            .slices
+            .iter()
+            .find(|s| s.id.0 == slice_id)
+            .map(|s| s.name.clone())
+            .unwrap_or_default()
+    }
+
+    /// Editor-overlay color for the named slice, packed as
+    /// `0xRRGGBBAA`. Returns `0` when `slice_id` is unknown.
+    #[wasm_bindgen(js_name = sliceColor)]
+    pub fn slice_color(&self, slice_id: u32) -> u32 {
+        self.sprite
+            .slices
+            .iter()
+            .find(|s| s.id.0 == slice_id)
+            .map(|s| s.color.to_u32())
+            .unwrap_or(0)
+    }
+
+    /// Number of per-frame keys on the named slice. Returns `0` when
+    /// `slice_id` is unknown.
+    #[wasm_bindgen(js_name = sliceKeyCount)]
+    pub fn slice_key_count(&self, slice_id: u32) -> u32 {
+        self.sprite
+            .slices
+            .iter()
+            .find(|s| s.id.0 == slice_id)
+            .map(|s| s.keys.len() as u32)
+            .unwrap_or(0)
+    }
+
+    /// Numeric frame at which the key applies. Errors when `slice_id`
+    /// or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyFrame)]
+    pub fn slice_key_frame(&self, slice_id: u32, key_index: u32) -> Result<u32, String> {
+        self.slice_key(slice_id, key_index).map(|k| k.frame.0)
+    }
+
+    /// Sprite-space `x` of the key's bounding rectangle. Errors when
+    /// `slice_id` or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyX)]
+    pub fn slice_key_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index).map(|k| k.bounds.x)
+    }
+
+    /// Sprite-space `y` of the key's bounding rectangle. Errors when
+    /// `slice_id` or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyY)]
+    pub fn slice_key_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index).map(|k| k.bounds.y)
+    }
+
+    /// Width of the key's bounding rectangle. Errors when `slice_id`
+    /// or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyWidth)]
+    pub fn slice_key_width(&self, slice_id: u32, key_index: u32) -> Result<u32, String> {
+        self.slice_key(slice_id, key_index).map(|k| k.bounds.width)
+    }
+
+    /// Height of the key's bounding rectangle. Errors when `slice_id`
+    /// or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyHeight)]
+    pub fn slice_key_height(&self, slice_id: u32, key_index: u32) -> Result<u32, String> {
+        self.slice_key(slice_id, key_index).map(|k| k.bounds.height)
+    }
+
+    /// `true` when the key carries a 9-patch center rectangle. Errors
+    /// when `slice_id` or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyHasCenter)]
+    pub fn slice_key_has_center(&self, slice_id: u32, key_index: u32) -> Result<bool, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.center.is_some())
+    }
+
+    /// Sprite-space `x` of the key's 9-patch center, or `0` when the
+    /// key has no center. Errors when `slice_id` or `key_index` is
+    /// out of range.
+    #[wasm_bindgen(js_name = sliceKeyCenterX)]
+    pub fn slice_key_center_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.center.map_or(0, |c| c.x))
+    }
+
+    /// Sprite-space `y` of the key's 9-patch center, or `0` when the
+    /// key has no center.
+    #[wasm_bindgen(js_name = sliceKeyCenterY)]
+    pub fn slice_key_center_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.center.map_or(0, |c| c.y))
+    }
+
+    /// Width of the key's 9-patch center, or `0` when the key has no
+    /// center.
+    #[wasm_bindgen(js_name = sliceKeyCenterWidth)]
+    pub fn slice_key_center_width(&self, slice_id: u32, key_index: u32) -> Result<u32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.center.map_or(0, |c| c.width))
+    }
+
+    /// Height of the key's 9-patch center, or `0` when the key has no
+    /// center.
+    #[wasm_bindgen(js_name = sliceKeyCenterHeight)]
+    pub fn slice_key_center_height(&self, slice_id: u32, key_index: u32) -> Result<u32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.center.map_or(0, |c| c.height))
+    }
+
+    /// `true` when the key carries a pivot point. Errors when
+    /// `slice_id` or `key_index` is out of range.
+    #[wasm_bindgen(js_name = sliceKeyHasPivot)]
+    pub fn slice_key_has_pivot(&self, slice_id: u32, key_index: u32) -> Result<bool, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.pivot.is_some())
+    }
+
+    /// Sprite-space `x` of the key's pivot, or `0` when the key has
+    /// no pivot.
+    #[wasm_bindgen(js_name = sliceKeyPivotX)]
+    pub fn slice_key_pivot_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.pivot.map_or(0, |p| p.0))
+    }
+
+    /// Sprite-space `y` of the key's pivot, or `0` when the key has
+    /// no pivot.
+    #[wasm_bindgen(js_name = sliceKeyPivotY)]
+    pub fn slice_key_pivot_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
+        self.slice_key(slice_id, key_index)
+            .map(|k| k.pivot.map_or(0, |p| p.1))
+    }
+
+    /// Resolve a slice key by `(slice_id, key_index)`, producing the
+    /// shared "slice index out of range" / "slice unknown" errors so
+    /// the per-field getters above stay one-liners.
+    fn slice_key(&self, slice_id: u32, key_index: u32) -> Result<&SliceKey, String> {
+        let slice = self
+            .sprite
+            .slices
+            .iter()
+            .find(|s| s.id.0 == slice_id)
+            .ok_or_else(|| format!("unknown slice id {slice_id}"))?;
+        slice
+            .keys
+            .get(key_index as usize)
+            .ok_or_else(|| format!("slice {slice_id} key index {key_index} out of range"))
+    }
+
+    /// Add a new slice to the document with a single key at frame `0`
+    /// covering `(x, y, width, height)`. `color` is the
+    /// `0xRRGGBBAA` overlay color used by the editor. Returns the
+    /// assigned slice id.
+    ///
+    /// The id is chosen as `max(existing ids) + 1` (or `0` when no
+    /// slices exist) so it stays stable across runs and monotonic, in
+    /// the same shape as [`Self::add_tileset`]. Routes through the
+    /// [`AddSlice`] command so the operation joins the undo / redo bus.
+    ///
+    /// Errors when the bounds rect is empty (zero width or height),
+    /// the id space is exhausted, or the command bus rejects the
+    /// insert.
+    #[wasm_bindgen(js_name = addSlice)]
+    pub fn add_slice(
+        &mut self,
+        name: &str,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        color: u32,
+    ) -> Result<u32, String> {
+        if width == 0 || height == 0 {
+            return Err(format!(
+                "slice bounds must be non-zero (got {width}x{height})"
+            ));
+        }
+        let new_id = match self.sprite.slices.iter().map(|s| s.id.0).max() {
+            None => 0,
+            Some(u32::MAX) => return Err("slice id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
+        let slice = Slice {
+            id: SliceId::new(new_id),
+            name: name.to_string(),
+            color: Rgba::from_u32(color),
+            keys: vec![SliceKey {
+                frame: FrameIndex::new(0),
+                bounds: Rect::new(x, y, width, height),
+                center: None,
+                pivot: None,
+            }],
+        };
+        let cmd = AddSlice::new(slice);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add slice: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        Ok(new_id)
+    }
+
+    /// Remove the slice identified by `slice_id` from the document.
+    /// Routes through the [`RemoveSlice`] command so the operation
+    /// joins the undo / redo bus and re-inserts at the same position
+    /// on undo. Errors when `slice_id` is unknown.
+    #[wasm_bindgen(js_name = removeSlice)]
+    pub fn remove_slice(&mut self, slice_id: u32) -> Result<(), String> {
+        let cmd = RemoveSlice::new(SliceId::new(slice_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to remove slice: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        Ok(())
+    }
+
+    /// Upsert a per-frame [`SliceKey`] on the named slice. If the
+    /// slice already carries a key for `frame`, the existing key is
+    /// replaced; otherwise the new key is inserted at the sorted
+    /// position required by the `Slice::keys` ascending-frame
+    /// invariant. Routes through the [`SetSliceKey`] command so the
+    /// operation joins the undo / redo bus.
+    ///
+    /// The `center_*` quartet is `Some` on a 9-patch slice and must
+    /// be all-set-or-all-unset; passing a partial set surfaces as an
+    /// error rather than silently dropping fields. The `pivot_*` pair
+    /// works the same way.
+    ///
+    /// Errors when `slice_id` is unknown, the bounds rect is empty,
+    /// the center / pivot quartet is partial, or the command bus
+    /// rejects the write.
+    #[allow(clippy::too_many_arguments)]
+    #[wasm_bindgen(js_name = setSliceKey)]
+    pub fn set_slice_key(
+        &mut self,
+        slice_id: u32,
+        frame: u32,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        center_x: Option<i32>,
+        center_y: Option<i32>,
+        center_width: Option<u32>,
+        center_height: Option<u32>,
+        pivot_x: Option<i32>,
+        pivot_y: Option<i32>,
+    ) -> Result<(), String> {
+        let center = match (center_x, center_y, center_width, center_height) {
+            (None, None, None, None) => None,
+            (Some(cx), Some(cy), Some(cw), Some(ch)) => Some(Rect::new(cx, cy, cw, ch)),
+            _ => {
+                return Err(concat!(
+                    "9-patch center requires all four of ",
+                    "(center_x, center_y, center_width, center_height)"
+                )
+                .to_string());
+            }
+        };
+        let pivot = match (pivot_x, pivot_y) {
+            (None, None) => None,
+            (Some(px), Some(py)) => Some((px, py)),
+            _ => return Err("pivot requires both (pivot_x, pivot_y)".to_string()),
+        };
+        let key = SliceKey {
+            frame: FrameIndex::new(frame),
+            bounds: Rect::new(x, y, width, height),
+            center,
+            pivot,
+        };
+        let cmd = SetSliceKey::new(SliceId::new(slice_id), key);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set slice key: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        Ok(())
     }
 }
 
@@ -2265,5 +2570,201 @@ mod tests {
         let bytes = doc.tile_pixels(ts_id, tile_id).expect("tilePixels");
         assert_eq!(bytes.len(), 2 * 2 * 4);
         assert!(bytes.iter().all(|b| *b == 0));
+    }
+
+    // ---- M9.4 slice surface ------------------------------------------
+
+    #[test]
+    fn add_slice_appends_with_single_key_at_frame_zero() {
+        let mut doc = Document::new(32, 32).expect("dims");
+        let id = doc
+            .add_slice("hitbox", 4, 5, 6, 7, 0x80a0c0ff)
+            .expect("addSlice");
+        assert_eq!(id, 0);
+        assert_eq!(doc.slice_count(), 1);
+        assert_eq!(doc.slice_id_at(0).expect("slice 0"), 0);
+        assert_eq!(doc.slice_name(0), "hitbox");
+        assert_eq!(doc.slice_color(0), 0x80a0c0ff);
+        assert_eq!(doc.slice_key_count(0), 1);
+        assert_eq!(doc.slice_key_frame(0, 0).expect("frame"), 0);
+        assert_eq!(doc.slice_key_x(0, 0).expect("x"), 4);
+        assert_eq!(doc.slice_key_y(0, 0).expect("y"), 5);
+        assert_eq!(doc.slice_key_width(0, 0).expect("w"), 6);
+        assert_eq!(doc.slice_key_height(0, 0).expect("h"), 7);
+        assert!(!doc.slice_key_has_center(0, 0).expect("center?"));
+        assert!(!doc.slice_key_has_pivot(0, 0).expect("pivot?"));
+    }
+
+    #[test]
+    fn add_slice_assigns_monotonic_ids() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let a = doc.add_slice("a", 0, 0, 1, 1, 0xff).expect("a");
+        let b = doc.add_slice("b", 0, 0, 1, 1, 0xff).expect("b");
+        let c = doc.add_slice("c", 0, 0, 1, 1, 0xff).expect("c");
+        assert_eq!((a, b, c), (0, 1, 2));
+    }
+
+    #[test]
+    fn add_slice_rejects_zero_size() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.add_slice("z", 0, 0, 0, 4, 0xff).is_err());
+        assert!(doc.add_slice("z", 0, 0, 4, 0, 0xff).is_err());
+    }
+
+    #[test]
+    fn add_slice_joins_undo_bus() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        assert_eq!(doc.undo_depth(), 1);
+        assert!(doc.undo());
+        assert_eq!(doc.slice_count(), 0);
+    }
+
+    #[test]
+    fn remove_slice_drops_and_undo_restores() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        doc.remove_slice(id).expect("remove");
+        assert_eq!(doc.slice_count(), 0);
+        assert!(doc.undo());
+        assert_eq!(doc.slice_count(), 1);
+        assert_eq!(doc.slice_id_at(0).expect("slice 0"), id);
+    }
+
+    #[test]
+    fn remove_slice_rejects_unknown_id() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.remove_slice(99).is_err());
+    }
+
+    #[test]
+    fn set_slice_key_replaces_existing_frame_zero_key() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        doc.set_slice_key(id, 0, 1, 2, 8, 9, None, None, None, None, None, None)
+            .expect("set");
+        assert_eq!(doc.slice_key_count(id), 1);
+        assert_eq!(doc.slice_key_x(id, 0).expect("x"), 1);
+        assert_eq!(doc.slice_key_y(id, 0).expect("y"), 2);
+        assert_eq!(doc.slice_key_width(id, 0).expect("w"), 8);
+        assert_eq!(doc.slice_key_height(id, 0).expect("h"), 9);
+    }
+
+    #[test]
+    fn set_slice_key_inserts_new_frame_in_sorted_order() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        // SliceKey::frame can land on any frame index — keys do not
+        // require the frame to exist on the sprite, only that the
+        // command bus accept the ascending-order invariant. Insert
+        // out-of-order and assert the sorted result.
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        doc.set_slice_key(id, 2, 5, 5, 4, 4, None, None, None, None, None, None)
+            .expect("set 2");
+        doc.set_slice_key(id, 1, 2, 2, 4, 4, None, None, None, None, None, None)
+            .expect("set 1");
+        assert_eq!(doc.slice_key_count(id), 3);
+        let frames: Vec<u32> = (0..doc.slice_key_count(id))
+            .map(|i| doc.slice_key_frame(id, i).expect("f"))
+            .collect();
+        assert_eq!(frames, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn set_slice_key_carries_center_and_pivot() {
+        let mut doc = Document::new(32, 32).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 16, 16, 0xff).expect("add");
+        doc.set_slice_key(
+            id,
+            0,
+            0,
+            0,
+            16,
+            16,
+            Some(4),
+            Some(4),
+            Some(8),
+            Some(8),
+            Some(2),
+            Some(3),
+        )
+        .expect("set");
+        assert!(doc.slice_key_has_center(id, 0).expect("center?"));
+        assert_eq!(doc.slice_key_center_x(id, 0).expect("cx"), 4);
+        assert_eq!(doc.slice_key_center_width(id, 0).expect("cw"), 8);
+        assert!(doc.slice_key_has_pivot(id, 0).expect("pivot?"));
+        assert_eq!(doc.slice_key_pivot_x(id, 0).expect("px"), 2);
+        assert_eq!(doc.slice_key_pivot_y(id, 0).expect("py"), 3);
+    }
+
+    #[test]
+    fn set_slice_key_rejects_partial_center_quartet() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        // 3-of-4 center fields is rejected as "partial".
+        let err = doc
+            .set_slice_key(
+                id,
+                0,
+                0,
+                0,
+                4,
+                4,
+                Some(1),
+                Some(1),
+                Some(2),
+                None,
+                None,
+                None,
+            )
+            .expect_err("partial center");
+        assert!(err.contains("9-patch"));
+    }
+
+    #[test]
+    fn set_slice_key_rejects_partial_pivot_pair() {
+        let mut doc = Document::new(16, 16).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        let err = doc
+            .set_slice_key(id, 0, 0, 0, 4, 4, None, None, None, None, Some(1), None)
+            .expect_err("partial pivot");
+        assert!(err.contains("pivot"));
+    }
+
+    #[test]
+    fn set_slice_key_rejects_unknown_slice() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(
+            doc.set_slice_key(99, 0, 0, 0, 4, 4, None, None, None, None, None, None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn set_slice_key_rejects_empty_bounds() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        assert!(
+            doc.set_slice_key(id, 0, 0, 0, 0, 4, None, None, None, None, None, None)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn slice_getters_return_defaults_for_unknown_ids() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.slice_count(), 0);
+        assert_eq!(doc.slice_name(99), "");
+        assert_eq!(doc.slice_color(99), 0);
+        assert_eq!(doc.slice_key_count(99), 0);
+        assert!(doc.slice_id_at(0).is_err());
+        assert!(doc.slice_key_frame(99, 0).is_err());
+    }
+
+    #[test]
+    fn add_slice_emits_dirty_canvas_event() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
     }
 }

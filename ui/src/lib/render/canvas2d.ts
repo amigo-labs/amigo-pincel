@@ -343,6 +343,105 @@ export function paintSelectionMarquee(
   for (let py = maxY - 1; py >= y + 1; py--) plot(x, py, i++);
 }
 
+/**
+ * Paint a solid 1-pixel-wide rectangle outline at sprite-space `(x, y,
+ * width, height)` in the given canvas-pixel color. Used by the Slice
+ * overlay to draw the 9-patch center band — distinct from the active
+ * slice's marching-ants bounds rect (`paintSelectionMarquee`), the
+ * center is a static accent so the two overlays nest cleanly.
+ *
+ * Degenerate rects (`width === 0` or `height === 0`) and out-of-canvas
+ * pixels are clipped silently.
+ */
+export function paintRectOutline(
+  canvas: HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  color: string,
+): void {
+  if (width <= 0 || height <= 0) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.fillStyle = color;
+  const cw = canvas.width;
+  const ch = canvas.height;
+  // Clip each edge to the canvas extent and draw it as a single
+  // `fillRect` span so the outline costs four spans instead of one
+  // `fillRect` per perimeter pixel.
+  const drawHSpan = (sx: number, sy: number, len: number) => {
+    if (sy < 0 || sy >= ch || len <= 0) return;
+    const cx0 = Math.max(0, sx);
+    const cx1 = Math.min(cw, sx + len);
+    if (cx1 > cx0) ctx.fillRect(cx0, sy, cx1 - cx0, 1);
+  };
+  const drawVSpan = (sx: number, sy: number, len: number) => {
+    if (sx < 0 || sx >= cw || len <= 0) return;
+    const cy0 = Math.max(0, sy);
+    const cy1 = Math.min(ch, sy + len);
+    if (cy1 > cy0) ctx.fillRect(sx, cy0, 1, cy1 - cy0);
+  };
+  if (height === 1) {
+    drawHSpan(x, y, width);
+    return;
+  }
+  if (width === 1) {
+    drawVSpan(x, y, height);
+    return;
+  }
+  // Top + bottom edges (full width), then left + right edges
+  // (inner span between the two horizontals to avoid corner double-
+  // paint).
+  const maxY = y + height - 1;
+  drawHSpan(x, y, width);
+  drawHSpan(x, maxY, width);
+  drawVSpan(x, y + 1, height - 2);
+  drawVSpan(x + width - 1, y + 1, height - 2);
+}
+
+/**
+ * Paint a small `+` crosshair centered on the sprite-space pixel
+ * `(x, y)`. The marker spans 5×5 pixels: a black tip on each
+ * arm at distance 2, a white arm at distance 1, and a black
+ * center pixel — that double-band keeps the pivot legible against
+ * arbitrary backgrounds. Used by the Slice overlay to mark the
+ * active slice's pivot point.
+ *
+ * Out-of-canvas pixels are clipped silently.
+ */
+export function paintPivotCrosshair(
+  canvas: HTMLCanvasElement,
+  x: number,
+  y: number,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const plot = (px: number, py: number, fill: string) => {
+    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return;
+    ctx.fillStyle = fill;
+    ctx.fillRect(px, py, 1, 1);
+  };
+  // Black border on the outer 5x5 cross, white core on the inner 3x3.
+  for (const [dx, dy] of [
+    [-2, 0],
+    [2, 0],
+    [0, -2],
+    [0, 2],
+  ] as const) {
+    plot(x + dx, y + dy, '#000000');
+  }
+  for (const [dx, dy] of [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ] as const) {
+    plot(x + dx, y + dy, '#ffffff');
+  }
+  plot(x, y, '#000000');
+}
+
 function* bresenham(
   x0: number,
   y0: number,
