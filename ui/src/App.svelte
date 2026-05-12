@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
+  import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import {
     blitFrame,
@@ -25,7 +26,8 @@
     | 'ellipse'
     | 'ellipse-fill'
     | 'selection-rect'
-    | 'move';
+    | 'move'
+    | 'tilemap-stamp';
 
   // Tools that use the press / drag / release pipeline (a start point
   // captured on `pointerdown`, a live endpoint tracked on
@@ -127,6 +129,18 @@
   // getters it polls are opaque to Svelte's reactive graph, so it needs
   // an explicit "something changed" signal to re-derive its list.
   let tilesetRev = $state(0);
+  // Active stamp tile for the Tilemap Stamp tool. Set by clicking a
+  // tile thumbnail in the Tileset Panel; null clears the stamp and
+  // the tool is essentially disabled until one is picked.
+  let stampTile = $state<{ tilesetId: number; tileId: number } | null>(null);
+  // Live hover position (sprite-space pixels) under the cursor while
+  // the Tilemap Stamp tool is active. Drives the grid + cell overlay
+  // on the main canvas; null when the cursor leaves the canvas.
+  let stampHover = $state<{ x: number; y: number } | null>(null);
+  // When non-null, the Tileset Editor sub-mode is open for the named
+  // (tileset, tile) pair. The modal `TileEditor` component owns the
+  // pointer routing while it is mounted.
+  let editingTile = $state<{ tilesetId: number; tileId: number } | null>(null);
 
   function syncMeta() {
     if (!doc) return;
@@ -254,9 +268,53 @@
           );
         }
       }
+      // Tilemap Stamp tool: overlay the tile grid and highlight the
+      // cell under the cursor so the user sees exactly where a click
+      // will land. Drawn after the selection marquee so a marquee +
+      // stamp tool combo doesn't hide one of them.
+      if (tool === 'tilemap-stamp' && stampTile && doc) {
+        paintTileGridOverlay();
+      }
     } finally {
       frame.free();
     }
+  }
+
+  // Paint a 1-CSS-pixel grid over the main canvas at the active
+  // stamp tileset's tile_size, then highlight the cell under the
+  // cursor. Coordinates use the canvas's intrinsic pixel space
+  // (`canvas.width`/`height` == sprite dimensions); CSS scaling does
+  // the visual upscale via `image-rendering: pixelated`.
+  function paintTileGridOverlay() {
+    if (!canvas || !doc || !stampTile) return;
+    const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
+    const tileH = doc.tilesetTileHeight(stampTile.tilesetId);
+    if (tileW === 0 || tileH === 0) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
+    ctx.lineWidth = 1;
+    for (let gx = tileW; gx < canvas.width; gx += tileW) {
+      ctx.beginPath();
+      ctx.moveTo(gx + 0.5, 0);
+      ctx.lineTo(gx + 0.5, canvas.height);
+      ctx.stroke();
+    }
+    for (let gy = tileH; gy < canvas.height; gy += tileH) {
+      ctx.beginPath();
+      ctx.moveTo(0, gy + 0.5);
+      ctx.lineTo(canvas.width, gy + 0.5);
+      ctx.stroke();
+    }
+    if (stampHover) {
+      const cellX = Math.floor(stampHover.x / tileW) * tileW;
+      const cellY = Math.floor(stampHover.y / tileH) * tileH;
+      ctx.strokeStyle = 'rgba(59, 130, 246, 0.95)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cellX + 0.5, cellY + 0.5, tileW - 1, tileH - 1);
+    }
+    ctx.restore();
   }
 
   // Sprite-space endpoint for the in-flight drag, after applying any
@@ -334,6 +392,59 @@
     const x = Math.floor(((e.clientX - rect.left) * canvas.width) / rect.width);
     const y = Math.floor(((e.clientY - rect.top) * canvas.height) / rect.height);
     return { x, y };
+  }
+
+  // Find a tilemap layer bound to `tilesetId`. The Stamp tool needs
+  // a target layer; today we auto-pick the topmost matching tilemap
+  // layer (highest z-index), which matches the natural "the last
+  // tilemap layer you added is the one you draw on" expectation.
+  // An explicit active-layer selector lands when the Layers panel
+  // ships.
+  function activeTilemapLayerForTileset(tilesetId: number): number | null {
+    if (!doc) return null;
+    for (let i = doc.layerCount - 1; i >= 0; i -= 1) {
+      let layerId: number;
+      try {
+        layerId = doc.layerIdAt(i);
+      } catch {
+        continue;
+      }
+      if (
+        doc.layerKind(layerId) === 'tilemap' &&
+        doc.layerTilesetId(layerId) === tilesetId
+      ) {
+        return layerId;
+      }
+    }
+    return null;
+  }
+
+  // Commit the active stamp tile onto the canvas cell under `point`.
+  // Resolves the target tilemap layer, the tileset's tile size, and
+  // forwards the grid cell to wasm `placeTile`. Out-of-grid clicks
+  // (canvas larger than grid * tile_size) and missing layers surface
+  // in the status bar rather than throwing.
+  function commitStamp(point: { x: number; y: number }) {
+    if (!doc || !stampTile) return;
+    const layerId = activeTilemapLayerForTileset(stampTile.tilesetId);
+    if (layerId === null) {
+      status = 'add a tilemap layer first (+ Layer in the Tilesets panel)';
+      return;
+    }
+    const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
+    const tileH = doc.tilesetTileHeight(stampTile.tilesetId);
+    if (tileW === 0 || tileH === 0) return;
+    if (point.x < 0 || point.y < 0) return;
+    const gx = Math.floor(point.x / tileW);
+    const gy = Math.floor(point.y / tileH);
+    try {
+      doc.placeTile(layerId, 0, gx, gy, stampTile.tileId);
+      dirty = true;
+      syncMeta();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `stamp failed: ${msg}`;
+    }
   }
 
   function paintAt(e: PointerEvent) {
@@ -422,6 +533,14 @@
       commitBucket(e);
       return;
     }
+    if (tool === 'tilemap-stamp') {
+      // Stamp commits once per click for the same reason as Bucket.
+      // Drag-to-paint over tiles can land alongside auto-tile mode
+      // in Phase 2 (spec §5.3 / §13.2).
+      const point = spriteCoord(e);
+      if (point) commitStamp(point);
+      return;
+    }
     painting = true;
     paintAt(e);
   }
@@ -481,8 +600,25 @@
       dirty = true;
       return;
     }
+    if (tool === 'tilemap-stamp') {
+      // Update the hover indicator regardless of button state — the
+      // overlay should follow the cursor whether or not the user is
+      // mid-click. `dirty = true` triggers a recompose so the grid
+      // overlay redraws at the new cell.
+      const point = spriteCoord(e);
+      stampHover = point;
+      dirty = true;
+      return;
+    }
     if (!painting) return;
     paintAt(e);
+  }
+
+  function onPointerLeave() {
+    if (tool === 'tilemap-stamp' && stampHover) {
+      stampHover = null;
+      dirty = true;
+    }
   }
 
   function onPointerUp(e: PointerEvent) {
@@ -564,6 +700,9 @@
     syncMeta();
     syncSelection();
     tilesetRev += 1;
+    stampTile = null;
+    stampHover = null;
+    editingTile = null;
     status = 'new 64×64 document';
   }
 
@@ -580,6 +719,9 @@
       syncMeta();
       syncSelection();
       tilesetRev += 1;
+      stampTile = null;
+      stampHover = null;
+      editingTile = null;
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -852,6 +994,18 @@
       >
         Move
       </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'tilemap-stamp'}
+        aria-pressed={tool === 'tilemap-stamp'}
+        onclick={() => (tool = 'tilemap-stamp')}
+        disabled={!stampTile}
+        title={stampTile
+          ? `stamp tile ${stampTile.tileId} from tileset ${stampTile.tilesetId}`
+          : 'pick a tile in the Tilesets panel first'}
+      >
+        Stamp
+      </button>
     </span>
     <span class="ml-2 flex items-center gap-1" role="group" aria-label="Zoom">
       <button
@@ -888,7 +1042,7 @@
   </header>
 
   <section class="flex flex-1 overflow-hidden">
-    <div class="flex flex-1 items-center justify-center overflow-hidden">
+    <div class="relative flex flex-1 items-center justify-center overflow-hidden">
       <canvas
         bind:this={canvas}
         class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
@@ -909,9 +1063,40 @@
         onpointermove={onPointerMove}
         onpointerup={onPointerUp}
         onpointercancel={onPointerUp}
+        onpointerleave={onPointerLeave}
       ></canvas>
+      {#if doc && editingTile}
+        <TileEditor
+          {doc}
+          tilesetId={editingTile.tilesetId}
+          tileId={editingTile.tileId}
+          {color}
+          rev={tilesetRev}
+          onClose={() => (editingTile = null)}
+          onChange={() => {
+            tilesetRev += 1;
+            dirty = true;
+            syncMeta();
+          }}
+        />
+      {/if}
     </div>
-    <TilesetPanel {doc} rev={tilesetRev} onChange={() => (tilesetRev += 1)} />
+    <TilesetPanel
+      {doc}
+      rev={tilesetRev}
+      selectedTile={stampTile}
+      onChange={() => (tilesetRev += 1)}
+      onSelectStampTile={(tilesetId, tileId) => {
+        stampTile = { tilesetId, tileId };
+        // Auto-switch to the Stamp tool so a single click on a tile
+        // is enough to start placing. The user can switch back via
+        // the toolbar if they wanted to keep editing pixels.
+        tool = 'tilemap-stamp';
+      }}
+      onEditTile={(tilesetId, tileId) => {
+        editingTile = { tilesetId, tileId };
+      }}
+    />
   </section>
 
   <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">

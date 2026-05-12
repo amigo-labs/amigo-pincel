@@ -6,18 +6,31 @@
   // panel reads through the M8.6 / M8.7b surface (`tilesetCount`,
   // `tilesetIdAt`, `tilesetName`, `tilesetTileWidth`,
   // `tilesetTileHeight`, `tilesetTileCount`, `tilePixels`) and emits
-  // `addTileset` on submit. `rev` is a parent-managed change counter
-  // that bumps whenever the wasm side may have mutated tilesets (new /
-  // open document, undo, redo, or any edit). The `$derived.by` block
-  // reads it to mark the list reactive against opaque wasm mutations.
+  // `addTileset`, `addTile`, `addTilemapLayer` on the various buttons.
+  // `rev` is a parent-managed change counter that bumps whenever the
+  // wasm side may have mutated tilesets (new / open document, undo,
+  // redo, or any edit). The `$derived.by` block reads it to mark the
+  // list reactive against opaque wasm mutations.
+  //
+  // `selectedTile` highlights the active stamp target — the parent
+  // owns the state so the Tilemap Stamp tool can read it without the
+  // panel re-broadcasting. `onSelectStampTile` / `onEditTile` fire on
+  // single click / double click respectively, letting the parent
+  // route the gesture to the Stamp tool or the Tile Editor sub-mode.
   let {
     doc,
     rev = 0,
+    selectedTile = null,
     onChange,
+    onSelectStampTile,
+    onEditTile,
   }: {
     doc: Document | null;
     rev?: number;
+    selectedTile?: { tilesetId: number; tileId: number } | null;
     onChange?: () => void;
+    onSelectStampTile?: (tilesetId: number, tileId: number) => void;
+    onEditTile?: (tilesetId: number, tileId: number) => void;
   } = $props();
 
   type TilesetRow = {
@@ -56,6 +69,9 @@
   let formTileW = $state(16);
   let formTileH = $state(16);
   let formError = $state<string | null>(null);
+  // Per-tileset transient error surface, keyed by tileset id. Cleared
+  // on the next mutation that targets the same tileset.
+  let rowError = $state<Record<number, string | null>>({});
 
   function openForm() {
     formOpen = true;
@@ -91,11 +107,44 @@
     }
     formOpen = false;
     formError = null;
-    // Reset only the name so the user keeps tile-size defaults across
-    // consecutive adds (common workflow: a few tilesets at the same
-    // grid size).
     formName = 'Tileset';
     onChange?.();
+  }
+
+  function addTile(tilesetId: number) {
+    if (!doc) return;
+    rowError[tilesetId] = null;
+    try {
+      const newTileId = doc.addTile(tilesetId);
+      // Auto-select the freshly added tile as the stamp target so the
+      // common workflow "create tile, paint, place" needs no extra
+      // click.
+      onSelectStampTile?.(tilesetId, newTileId);
+    } catch (err) {
+      rowError[tilesetId] = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    onChange?.();
+  }
+
+  function addTilemapLayer(tilesetId: number, tilesetName: string) {
+    if (!doc) return;
+    rowError[tilesetId] = null;
+    try {
+      doc.addTilemapLayer(`${tilesetName} Layer`, tilesetId);
+    } catch (err) {
+      rowError[tilesetId] = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    onChange?.();
+  }
+
+  function selectStamp(tilesetId: number, tileId: number) {
+    onSelectStampTile?.(tilesetId, tileId);
+  }
+
+  function editTile(tilesetId: number, tileId: number) {
+    onEditTile?.(tilesetId, tileId);
   }
 </script>
 
@@ -178,10 +227,42 @@
           <span class="text-xs text-neutral-500">
             id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
           </span>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              class="panel-btn"
+              onclick={() => addTile(ts.id)}
+              aria-label={`Add tile to ${ts.name}`}
+            >
+              + Tile
+            </button>
+            <button
+              type="button"
+              class="panel-btn"
+              onclick={() => addTilemapLayer(ts.id, ts.name)}
+              aria-label={`Add tilemap layer using ${ts.name}`}
+            >
+              + Layer
+            </button>
+          </div>
+          {#if rowError[ts.id]}
+            <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
+          {/if}
           {#if doc && ts.tileCount > 0}
-            <div class="flex flex-wrap gap-1" role="list" aria-label={`${ts.name} tiles`}>
+            <div class="flex flex-wrap gap-1" aria-label={`${ts.name} tiles`}>
               {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
-                <div role="listitem">
+                {@const isSelected =
+                  selectedTile?.tilesetId === ts.id && selectedTile?.tileId === tileId}
+                <button
+                  type="button"
+                  class="tile-btn"
+                  class:tile-btn-selected={isSelected}
+                  onclick={() => selectStamp(ts.id, tileId)}
+                  ondblclick={() => editTile(ts.id, tileId)}
+                  aria-pressed={isSelected}
+                  aria-label={`Select tile ${tileId} of ${ts.name} (double-click to edit)`}
+                  title={`tile ${tileId} — click to stamp, double-click to edit`}
+                >
                   <TileThumbnail
                     {doc}
                     tilesetId={ts.id}
@@ -190,7 +271,7 @@
                     tileH={ts.tileH}
                     {rev}
                   />
-                </div>
+                </button>
               {/each}
             </div>
           {/if}
@@ -221,5 +302,20 @@
   }
   .panel-btn-primary:hover:not(:disabled) {
     background-color: rgb(75 85 99);
+  }
+  .tile-btn {
+    padding: 0;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .tile-btn:hover {
+    border-color: rgb(82 82 82);
+  }
+  .tile-btn-selected {
+    border-color: rgb(59 130 246);
+    box-shadow: 0 0 0 1px rgb(59 130 246);
   }
 </style>
