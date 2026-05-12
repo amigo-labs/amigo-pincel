@@ -5,8 +5,11 @@
   // Tile bytes are fetched through the M8.7b wasm surface
   // (`tilePixels(tilesetId, tileId)`) which returns non-premultiplied
   // RGBA8 in row-major order — the same layout `ImageData` expects, so
-  // we wrap the underlying buffer in a `Uint8ClampedArray` view (no
-  // copy) before handing it to `putImageData`.
+  // we copy the buffer into a `Uint8ClampedArray` (TypeScript types
+  // `Uint8Array.buffer` as `ArrayBufferLike`, which the `ImageData`
+  // constructor rejects). The copy is one tile's worth of bytes and
+  // happens at most once per `rev` bump per thumbnail, so it is
+  // negligible.
   //
   // `rev` is a parent-managed change counter that bumps whenever the
   // wasm side may have mutated tile pixels (open / undo / redo, plus
