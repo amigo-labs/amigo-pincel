@@ -2,6 +2,7 @@
 
 mod add_frame;
 mod add_layer;
+mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
 mod draw_ellipse;
@@ -16,6 +17,7 @@ mod set_tile_pixel;
 
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
+pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
 pub use draw_ellipse::DrawEllipse;
@@ -68,6 +70,7 @@ pub enum AnyCommand {
     AddLayer(AddLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
+    AddTilemapLayer(AddTilemapLayer),
     PlaceTile(PlaceTile),
     SetTilePixel(SetTilePixel),
 }
@@ -88,6 +91,7 @@ impl AnyCommand {
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
+            Self::AddTilemapLayer(c) => c.apply(doc, cels),
             Self::PlaceTile(c) => c.apply(doc, cels),
             Self::SetTilePixel(c) => c.apply(doc, cels),
         }
@@ -104,6 +108,7 @@ impl AnyCommand {
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
+            Self::AddTilemapLayer(c) => c.revert(doc, cels),
             Self::PlaceTile(c) => c.revert(doc, cels),
             Self::SetTilePixel(c) => c.revert(doc, cels),
         }
@@ -120,6 +125,7 @@ impl AnyCommand {
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
+            (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
             (Self::PlaceTile(a), Self::PlaceTile(b)) => a.merge(b),
             (Self::SetTilePixel(a), Self::SetTilePixel(b)) => a.merge(b),
             _ => false,
@@ -184,6 +190,12 @@ impl From<AddTileset> for AnyCommand {
 impl From<PlaceTile> for AnyCommand {
     fn from(c: PlaceTile) -> Self {
         Self::PlaceTile(c)
+    }
+}
+
+impl From<AddTilemapLayer> for AnyCommand {
+    fn from(c: AddTilemapLayer) -> Self {
+        Self::AddTilemapLayer(c)
     }
 }
 

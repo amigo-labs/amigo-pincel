@@ -25,10 +25,10 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap, ColorMode, ComposeRequest,
-    DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    MoveSelectionContent, PixelBuffer, PlaceTile, Rect, Rgba, SetPixel, SetTilePixel, Sprite,
-    TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
+    AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap, ColorMode,
+    ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer,
+    LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, Rgba, SetPixel,
+    SetTilePixel, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -880,12 +880,9 @@ impl Document {
     /// canvas (`grid_w = ceil(width / tile_w)`,
     /// `grid_h = ceil(height / tile_h)`). Returns the new layer's id.
     ///
-    /// The layer is added on top of the existing stack via the
-    /// [`AddLayer`] command so the operation joins the undo bus.
-    /// Per-frame cels are inserted directly into the [`CelMap`]
-    /// after the layer lands — they are not undoable in this slice,
-    /// which is consistent with how [`Document::new`] bootstraps its
-    /// default image cel.
+    /// Routes through the [`AddTilemapLayer`] command so the layer
+    /// and its seeded cels are inserted as one undoable unit — undo
+    /// removes both, redo restores both. Returns the new layer id.
     ///
     /// Errors when the tileset id is unknown, when the existing
     /// layer-id space is exhausted, or when the underlying command
@@ -909,19 +906,13 @@ impl Document {
         };
         let grid_w = self.sprite.width.div_ceil(tile_w);
         let grid_h = self.sprite.height.div_ceil(tile_h);
-        let frame_count = self.sprite.frames.len();
-        let layer = Layer::tilemap(LayerId::new(new_layer_id), name, TilesetId::new(tileset_id));
-        let cmd = AddLayer::on_top(layer);
-        self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
-            .map_err(|e| format!("failed to add tilemap layer: {e}"))?;
-        let layer_id = LayerId::new(new_layer_id);
         let tile_count = (grid_w as usize) * (grid_h as usize);
-        for f in 0..frame_count {
-            let frame = FrameIndex::new(f as u32);
-            self.cels.insert(Cel {
+        let layer_id = LayerId::new(new_layer_id);
+        let layer = Layer::tilemap(layer_id, name, TilesetId::new(tileset_id));
+        let seeded: Vec<Cel> = (0..self.sprite.frames.len())
+            .map(|f| Cel {
                 layer: layer_id,
-                frame,
+                frame: FrameIndex::new(f as u32),
                 position: (0, 0),
                 opacity: 255,
                 data: CelData::Tilemap {
@@ -929,8 +920,12 @@ impl Document {
                     grid_h,
                     tiles: vec![TileRef::EMPTY; tile_count],
                 },
-            });
-        }
+            })
+            .collect();
+        let cmd = AddTilemapLayer::new(layer, seeded);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add tilemap layer: {e}"))?;
         self.events.push(Event::dirty_canvas());
         Ok(new_layer_id)
     }
@@ -2109,9 +2104,10 @@ mod tests {
         use pincel_core::TileImage;
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        // Seed two distinct tiles directly on the underlying tileset —
-        // the public surface doesn't yet expose per-tile pixel writes
-        // (that lands in M8.7d).
+        // Seed two distinct tiles directly on the underlying tileset.
+        // We use the raw `sprite.tilesets` field rather than `addTile`
+        // + `setTilePixel` so the assertions exercise the read path in
+        // isolation from those write methods.
         let tileset = doc
             .sprite
             .tilesets
@@ -2200,12 +2196,22 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("g", 4, 4).expect("addTileset");
         let depth = doc.undo_depth();
-        let _ = doc.add_tilemap_layer("tiles", ts_id).expect("addTilemapLayer");
+        let new_layer = doc
+            .add_tilemap_layer("tiles", ts_id)
+            .expect("addTilemapLayer");
         assert_eq!(doc.undo_depth(), depth + 1);
         assert!(doc.undo());
         // After undo the tilemap layer is gone; only the bootstrap
-        // image layer remains.
+        // image layer remains. Seeded cels must come with the layer
+        // — otherwise reusing the layer id later would surface stale
+        // tilemap data (Copilot review on PR #28).
         assert_eq!(doc.layer_count(), 1);
+        assert!(
+            doc.cels
+                .get(LayerId::new(new_layer), FrameIndex::new(0))
+                .is_none(),
+            "undo must drop seeded tilemap cels"
+        );
     }
 
     #[test]
