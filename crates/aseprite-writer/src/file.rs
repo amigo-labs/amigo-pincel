@@ -22,6 +22,7 @@ pub struct AseFile {
     pub palette: Option<PaletteChunk>,
     pub tags: Vec<Tag>,
     pub tilesets: Vec<TilesetChunk>,
+    pub slices: Vec<SliceChunk>,
     pub frames: Vec<Frame>,
 }
 
@@ -236,4 +237,62 @@ pub struct TilesetChunk {
     /// this before emission and rejects buffers whose length does not
     /// match the expected size.
     pub tile_pixels: Vec<u8>,
+}
+
+/// Slice chunk (`0x2022`). Mirrors
+/// `aseprite-loader::binary::chunks::slice::SliceChunk` with an owned
+/// `name` and per-key 9-patch / pivot optionals.
+///
+/// A slice is a named rectangle (optionally 9-patch and / or pivoted)
+/// overlaid on the sprite. Its geometry can vary by frame: each
+/// [`SliceKey`] applies starting at `frame` until the next key's `frame`,
+/// matching Aseprite semantics.
+///
+/// The writer derives the on-disk `flags` field from the keys: the
+/// `NINE_PATCH` bit is set when **any** key carries a `nine_patch`, and
+/// the `PIVOT` bit is set when **any** key carries a `pivot`. Aseprite
+/// stores the flag set on the chunk rather than per key, so every key
+/// must agree on which optional fields are present once a slice opts
+/// into one — passing a key without `nine_patch` while another key has
+/// one (and vice versa for `pivot`) is rejected at write time with
+/// [`crate::WriteError::SliceFlagsInconsistent`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SliceChunk {
+    pub name: String,
+    /// Per-frame keys, sorted ascending by `frame`. The writer rejects
+    /// an empty `keys` vec or a non-monotonic ordering.
+    pub keys: Vec<SliceKey>,
+}
+
+/// Per-frame geometry for a [`SliceChunk`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SliceKey {
+    /// First frame this key applies to.
+    pub frame: u32,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    /// 9-patch inner rectangle, when this slice is a 9-patch.
+    pub nine_patch: Option<NinePatch>,
+    /// Pivot point, when this slice has a pivot.
+    pub pivot: Option<Pivot>,
+}
+
+/// 9-patch inner rectangle inside a [`SliceKey`]. Coordinates are
+/// relative to the slice's `(x, y)` origin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NinePatch {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Pivot point inside a [`SliceKey`]. Coordinates are relative to the
+/// slice's `(x, y)` origin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pivot {
+    pub x: i32,
+    pub y: i32,
 }

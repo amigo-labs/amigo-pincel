@@ -85,4 +85,31 @@ pub enum WriteError {
         expected: usize,
         actual: usize,
     },
+
+    /// Slice chunk has no keys.
+    #[error("slice '{name}' has zero keys")]
+    SliceWithoutKeys { name: String },
+
+    /// Slice keys are not sorted ascending by `frame`, or two keys share
+    /// the same frame.
+    #[error(
+        "slice '{name}' keys are not strictly ascending by frame ({prev} followed by {next})"
+    )]
+    SliceKeysNotMonotonic {
+        name: String,
+        prev: u32,
+        next: u32,
+    },
+
+    /// Slice keys disagree about which optional fields are present. Aseprite
+    /// stores `NINE_PATCH` / `PIVOT` as chunk-level flags, so every key must
+    /// agree.
+    #[error(
+        "slice '{name}' key #{key_index} has inconsistent {field} flag relative to earlier keys"
+    )]
+    SliceFlagsInconsistent {
+        name: String,
+        key_index: usize,
+        field: &'static str,
+    },
 }

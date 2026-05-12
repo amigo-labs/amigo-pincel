@@ -33,6 +33,7 @@ fn empty_rgba_sprite_roundtrips_through_loader() {
         palette: None,
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![Frame::new(100)],
     };
     let bytes = write_to_vec(&file);
@@ -86,6 +87,7 @@ fn three_layers_with_blend_modes_roundtrip() {
         palette: None,
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![Frame::new(80)],
     };
 
@@ -137,6 +139,7 @@ fn palette_roundtrips_via_raw_file() {
         palette: Some(palette),
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![Frame::new(100)],
     };
 
@@ -199,6 +202,7 @@ fn tags_roundtrip_with_directions() {
         palette: None,
         tags,
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: (0..7).map(|_| Frame::new(50)).collect(),
     };
 
@@ -266,6 +270,7 @@ fn single_image_cel_roundtrips_with_pixels() {
         palette: None,
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![Frame {
             duration: 100,
             cels: vec![CelChunk {
@@ -315,6 +320,7 @@ fn linked_cel_roundtrips_pointing_at_source_frame() {
         palette: None,
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![
             Frame {
                 duration: 100,
@@ -369,6 +375,7 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
         palette: None,
         tags: Vec::new(),
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![
             Frame {
                 duration: 100,
@@ -479,6 +486,7 @@ fn full_file_with_layers_palette_tags_roundtrips() {
             name: "all".into(),
         }],
         tilesets: Vec::new(),
+        slices: Vec::new(),
         frames: vec![Frame::new(100), Frame::new(150)],
     };
 
@@ -549,6 +557,7 @@ fn build_tilemap_file() -> AseFile {
             name: "ts".into(),
             tile_pixels,
         }],
+        slices: Vec::new(),
         frames: vec![Frame {
             duration: 100,
             cels: vec![CelChunk {
