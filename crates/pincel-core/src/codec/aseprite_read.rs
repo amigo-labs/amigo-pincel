@@ -12,7 +12,12 @@
 //!   (`0x2023`) hydrate into [`crate::Tileset`] entries on the sprite, and
 //!   compressed-tilemap cels (Cel Type 3) hydrate into [`CelData::Tilemap`]
 //!   grids.
-//! - **Slice chunks are dropped.** M9 will round-trip them.
+//! - **Slice chunks round-trip.** `0x2022` entries hydrate into
+//!   [`crate::Slice`] entries on the sprite; per-key 9-patch and pivot
+//!   data ride along on each [`crate::SliceKey`]. The on-disk format
+//!   does not carry the editor-only [`crate::SliceId`] or overlay color,
+//!   so IDs are assigned sequentially by appearance order and colors
+//!   default to white.
 //! - **Linked cels are preserved** as [`CelData::Linked`] — round-trip via the
 //!   M5 writer remains lossless.
 //! - **External-file tilesets are not yet supported.** A tileset whose
@@ -36,9 +41,10 @@ use aseprite_loader::loader::decompress;
 use super::error::CodecError;
 use crate::document::{
     BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    PaletteEntry, PathRef, PixelBuffer, Rgba, Sprite, Tag, TagDirection, TileImage, TileRef,
-    Tileset, TilesetId,
+    PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection,
+    TileImage, TileRef, Tileset, TilesetId,
 };
+use crate::geometry::Rect;
 
 /// Result of reading a `.aseprite` byte slice. The cel store is returned
 /// alongside the [`Sprite`] because Pincel keeps cel data outside the document
@@ -97,11 +103,11 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
 
     let palette = build_palette(&file);
     let tags = file.tags.iter().map(map_tag).collect::<Vec<_>>();
-    // `parse_file` discards `Chunk::Tileset` entries. A second pass via
-    // `parse_raw_file` recovers them; the raw parser is cheap (no
-    // decompression on this pass) and the per-tileset image decode happens
-    // lazily inside `build_tileset`.
-    let tilesets = extract_tilesets(bytes)?;
+    // `parse_file` discards `Chunk::Tileset` and `Chunk::Slice` entries.
+    // A second pass via `parse_raw_file` recovers both; the raw parser
+    // is cheap (no decompression on this pass) and the per-tileset
+    // image decode happens lazily inside `build_tileset`.
+    let (tilesets, slices) = extract_tilesets_and_slices(bytes)?;
 
     let mut sprite_builder =
         Sprite::builder(u32::from(file.header.width), u32::from(file.header.height))
@@ -118,6 +124,9 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
     }
     for tileset in tilesets {
         sprite_builder = sprite_builder.add_tileset(tileset);
+    }
+    for slice in slices {
+        sprite_builder = sprite_builder.add_slice(slice);
     }
     let sprite = sprite_builder.build()?;
 
@@ -359,28 +368,65 @@ fn decode_tilemap_cel(
     })
 }
 
-/// Re-parse `bytes` via `parse_raw_file` and pull out every [`Chunk::Tileset`]
-/// across all frames. The high-level [`parse_file`] used by
-/// [`AsepriteFile::load`] discards tileset chunks (`Chunk::Tileset(_) => {}`
-/// in `aseprite-loader` 0.4.2), so the raw pass is the only path that
-/// surfaces them.
-fn extract_tilesets(bytes: &[u8]) -> Result<Vec<Tileset>, CodecError> {
+/// Re-parse `bytes` via `parse_raw_file` and pull out every
+/// [`Chunk::Tileset`] and [`Chunk::Slice`] across all frames. The
+/// high-level [`parse_file`] used by [`AsepriteFile::load`] discards
+/// both (see `aseprite-loader` 0.4.2 `file.rs`), so the raw pass is the
+/// only path that surfaces them. The order they appeared in the source
+/// file is preserved.
+fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>), CodecError> {
     // `parse_raw_file` independently validates the header magic and frame
     // envelopes; we run it after `parse_file` succeeded in the caller so
     // the cost is a second header / chunk walk (no decompression). Any
     // error here means the byte stream changed between the two passes,
     // which shouldn't happen for an in-memory slice — propagate it rather
-    // than silently dropping tilesets.
+    // than silently dropping tilesets and slices.
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
     let mut tilesets = Vec::new();
+    let mut slices = Vec::new();
     for frame in &raw.frames {
         for chunk in &frame.chunks {
-            if let Chunk::Tileset(ts) = chunk {
-                tilesets.push(build_tileset(ts)?);
+            match chunk {
+                Chunk::Tileset(ts) => tilesets.push(build_tileset(ts)?),
+                Chunk::Slice(s) => {
+                    let id = SliceId::new(slices.len() as u32);
+                    slices.push(build_slice(id, s)?);
+                }
+                _ => {}
             }
         }
     }
-    Ok(tilesets)
+    Ok((tilesets, slices))
+}
+
+/// Hydrate a single loader [`SliceChunkRef`] (see
+/// `aseprite-loader::binary::chunks::slice`) into a document [`Slice`].
+/// The on-disk slice chunk carries no overlay color or stable id; both
+/// are editor-only metadata. The color defaults to opaque white and the
+/// id is assigned by the caller from the slice's appearance order.
+fn build_slice(
+    id: SliceId,
+    chunk: &aseprite_loader::binary::chunks::slice::SliceChunk<'_>,
+) -> Result<Slice, CodecError> {
+    let keys = chunk.slice_keys.iter().map(map_slice_key).collect();
+    Ok(Slice {
+        id,
+        name: chunk.name.to_string(),
+        color: Rgba::WHITE,
+        keys,
+    })
+}
+
+fn map_slice_key(key: &aseprite_loader::binary::chunks::slice::SliceKey) -> SliceKey {
+    SliceKey {
+        frame: FrameIndex::new(key.frame_number),
+        bounds: Rect::new(key.x, key.y, key.width, key.height),
+        center: key
+            .nine_patch
+            .as_ref()
+            .map(|np| Rect::new(np.x, np.y, np.width, np.height)),
+        pivot: key.pivot.as_ref().map(|p| (p.x, p.y)),
+    }
 }
 
 /// Hydrate a single [`TilesetChunk`] into [`Tileset`].

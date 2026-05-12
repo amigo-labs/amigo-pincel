@@ -8,8 +8,8 @@
 
 use pincel_core::{
     AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, PixelBuffer, Rgba, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
-    TilesetId, read_aseprite, write_aseprite,
+    LayerId, LayerKind, PixelBuffer, Rect, Rgba, Slice, SliceId, SliceKey, Sprite, Tag,
+    TagDirection, TileImage, TileRef, Tileset, TilesetId, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -435,4 +435,59 @@ fn tilemap_round_trips_rotate_90_flag() {
         panic!("expected tilemap cel");
     };
     assert!(tiles[0].rotate_90);
+}
+
+#[test]
+fn slices_round_trip_plain_and_nine_patch_with_pivot() {
+    let plain = Slice {
+        id: SliceId::new(0),
+        name: "hitbox".into(),
+        color: Rgba::WHITE,
+        keys: vec![SliceKey {
+            frame: FrameIndex::new(0),
+            bounds: Rect::new(1, 2, 3, 4),
+            center: None,
+            pivot: None,
+        }],
+    };
+    let panel = Slice {
+        id: SliceId::new(1),
+        name: "panel".into(),
+        color: Rgba::WHITE,
+        keys: vec![
+            SliceKey {
+                frame: FrameIndex::new(0),
+                bounds: Rect::new(0, 0, 16, 16),
+                center: Some(Rect::new(4, 4, 8, 8)),
+                pivot: Some((2, 3)),
+            },
+            SliceKey {
+                frame: FrameIndex::new(1),
+                bounds: Rect::new(1, 1, 14, 14),
+                center: Some(Rect::new(3, 3, 8, 8)),
+                pivot: Some((-1, -1)),
+            },
+        ],
+    };
+    let sprite = Sprite::builder(16, 16)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .add_frame(Frame::new(100))
+        .add_frame(Frame::new(100))
+        .add_slice(plain.clone())
+        .add_slice(panel.clone())
+        .build()
+        .unwrap();
+    let cels = CelMap::new();
+
+    let AsepriteReadOutput { sprite, .. } = round_trip(&sprite, &cels);
+
+    assert_eq!(sprite.slices.len(), 2);
+    // Slice IDs are reassigned by appearance order on read; the on-disk
+    // format does not carry the editor-only id.
+    assert_eq!(sprite.slices[0].id, SliceId::new(0));
+    assert_eq!(sprite.slices[1].id, SliceId::new(1));
+    assert_eq!(sprite.slices[0].name, plain.name);
+    assert_eq!(sprite.slices[0].keys, plain.keys);
+    assert_eq!(sprite.slices[1].name, panel.name);
+    assert_eq!(sprite.slices[1].keys, panel.keys);
 }
