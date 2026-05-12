@@ -248,14 +248,12 @@ pub struct TilesetChunk {
 /// [`SliceKey`] applies starting at `frame` until the next key's `frame`,
 /// matching Aseprite semantics.
 ///
-/// The writer derives the on-disk `flags` field from the keys: the
-/// `NINE_PATCH` bit is set when **any** key carries a `nine_patch`, and
-/// the `PIVOT` bit is set when **any** key carries a `pivot`. Aseprite
-/// stores the flag set on the chunk rather than per key, so every key
-/// must agree on which optional fields are present once a slice opts
-/// into one — passing a key without `nine_patch` while another key has
-/// one (and vice versa for `pivot`) is rejected at write time with
-/// [`crate::WriteError::SliceFlagsInconsistent`].
+/// Aseprite stores the `NINE_PATCH` / `PIVOT` flags once per chunk
+/// (not per key), so every key must agree on which optional fields it
+/// carries. The writer derives the on-disk flag word from the first
+/// key — `NINE_PATCH` is set iff the first key carries a `nine_patch`,
+/// likewise for `PIVOT` — and rejects any later key that disagrees
+/// with [`crate::WriteError::SliceFlagsInconsistent`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SliceChunk {
     pub name: String,

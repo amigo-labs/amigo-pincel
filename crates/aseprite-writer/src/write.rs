@@ -15,7 +15,9 @@ use std::io::Write;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::bytes::{write_byte, write_dword, write_short, write_string, write_word, write_zeros};
+use crate::bytes::{
+    write_byte, write_dword, write_long, write_short, write_string, write_word, write_zeros,
+};
 use crate::error::WriteError;
 use crate::file::{
     AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, SliceChunk, Tag,
@@ -551,23 +553,23 @@ fn write_slice_body<W: Write>(
     write_string(w, &slice.name)?;
     for key in &slice.keys {
         write_dword(w, key.frame)?;
-        write_dword(w, key.x as u32)?;
-        write_dword(w, key.y as u32)?;
+        write_long(w, key.x)?;
+        write_long(w, key.y)?;
         write_dword(w, key.width)?;
         write_dword(w, key.height)?;
         if (flags & SLICE_FLAG_NINE_PATCH) != 0 {
             // `validate_slice` enforces that every key carries the
             // nine-patch when the chunk-level flag is set.
             let np = key.nine_patch.expect("nine_patch present (validated)");
-            write_dword(w, np.x as u32)?;
-            write_dword(w, np.y as u32)?;
+            write_long(w, np.x)?;
+            write_long(w, np.y)?;
             write_dword(w, np.width)?;
             write_dword(w, np.height)?;
         }
         if (flags & SLICE_FLAG_PIVOT) != 0 {
             let pv = key.pivot.expect("pivot present (validated)");
-            write_dword(w, pv.x as u32)?;
-            write_dword(w, pv.y as u32)?;
+            write_long(w, pv.x)?;
+            write_long(w, pv.y)?;
         }
     }
     Ok(())
