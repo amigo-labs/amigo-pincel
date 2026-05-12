@@ -2,14 +2,14 @@
 
 _Last updated: 2026-05-12_
 
-**Branch:** `claude/continue-status-md-ot5GR` · PR [#27](https://github.com/amigo-labs/amigo-pincel/pull/27) (draft) · M8.7a landed (Tileset Panel sidebar).
+**Branch:** `claude/continue-from-status-W8q35` · M8.7b landed (per-tile
+thumbnails in the Tileset Panel).
 
 ## Next task
 
-**M8.7b** — Per-tile thumbnails in the Tileset Panel. Adds a new wasm
-method `tilePixels(tilesetId, tileId) -> Uint8Array` (or a single
-tileset-image buffer) that the panel paints into small Canvas2D tiles.
-M-sized.
+**M8.7c** — Active-layer concept + "Add Tilemap Layer" wasm method +
+Tilemap Stamp tool. Click-to-place on the active tilemap layer with a
+grid overlay during hover. M-sized.
 
 ## Milestone status
 
@@ -32,7 +32,7 @@ M-sized.
 ### M8.7 sub-tasks
 
 - [x] **M8.7a** — Tileset Panel + "Add Tileset" form. No new wasm.
-- [ ] **M8.7b** — Per-tile thumbnails. New wasm `tilePixels(tilesetId, tileId) -> Uint8Array` (or a single tileset-image buffer) painted into small Canvas2D tiles.
+- [x] **M8.7b** — Per-tile thumbnails. New wasm `tilePixels(tilesetId, tileId) -> Uint8Array` painted into small Canvas2D tiles via the `TileThumbnail` component.
 - [ ] **M8.7c** — Active-layer concept + "Add Tilemap Layer" wasm method + Tilemap Stamp tool (click-to-place on the active tilemap layer with a grid overlay during hover).
 - [ ] **M8.7d** — Tileset Editor sub-mode + `paintTilePixel(tilesetId, tileId, x, y, color)` wasm. Routes existing image tools through the bus targeting `Tileset::tiles[tile_id].pixels`.
 
@@ -40,7 +40,8 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
-- **2026-05-12 — M8.7a (this branch).** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
+- **2026-05-12 — M8.7b (this branch).** New wasm method `Document::tile_pixels(tileset_id, tile_id) -> Vec<u8>` (JS `tilePixels`) returns non-premultiplied RGBA8 in row-major order. New `ui/src/lib/components/TileThumbnail.svelte` paints each tile to a Canvas2D with `image-rendering: pixelated` and a 2rem display size. `TilesetPanel` iterates `0..tileCount` for each tileset and propagates the existing `rev` change counter so undo / redo / open repaint the thumbnails. Errors when `tileset_id` is unknown, `tile_id` is past the stored tile range, or the tile is non-RGBA (indexed is Phase 2).
+- **2026-05-12 — M8.7a.** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
 - **2026-05-11 — M8.1–M8.6.** End-to-end tilemap pipeline below the UI. See commits `9c0a6cc` (wasm), `8f9f3ed` + `e4549ea` (write path), `c05a31b` + `d58197e` (read path), and the M8.1–M8.3 commits in `git log` for per-step detail.
 - **Earlier 2026-05 — M7.1–M7.8c.** Tools expansion, end with the Selection (Rect) tool + marching-ants overlay. Move tool ships both viewport pan (M7.7a) and selection-content drag (M7.7b).
 - **Earlier 2026-05 — M6.** wasm crate + Svelte 5 + Vite + open / paint / save MVP.
