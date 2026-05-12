@@ -1,14 +1,15 @@
 <script lang="ts">
   import type { Document } from '../core';
+  import TileThumbnail from './TileThumbnail.svelte';
 
   // The wasm `Document` is the source of truth for tileset state. The
-  // panel reads through the M8.6 surface (`tilesetCount`, `tilesetIdAt`,
-  // `tilesetName`, `tilesetTileWidth`, `tilesetTileHeight`,
-  // `tilesetTileCount`) and emits `addTileset` on submit. `rev` is a
-  // parent-managed change counter that bumps whenever the wasm side may
-  // have mutated tilesets (new / open document, undo, redo, or any
-  // edit). The `$derived.by` block reads it to mark the list reactive
-  // against opaque wasm mutations.
+  // panel reads through the M8.6 / M8.7b surface (`tilesetCount`,
+  // `tilesetIdAt`, `tilesetName`, `tilesetTileWidth`,
+  // `tilesetTileHeight`, `tilesetTileCount`, `tilePixels`) and emits
+  // `addTileset` on submit. `rev` is a parent-managed change counter
+  // that bumps whenever the wasm side may have mutated tilesets (new /
+  // open document, undo, redo, or any edit). The `$derived.by` block
+  // reads it to mark the list reactive against opaque wasm mutations.
   let {
     doc,
     rev = 0,
@@ -171,12 +172,28 @@
     <ul class="flex flex-col gap-1">
       {#each tilesets as ts (ts.id)}
         <li
-          class="flex flex-col gap-0.5 rounded border border-neutral-800 px-2 py-1"
+          class="flex flex-col gap-1 rounded border border-neutral-800 px-2 py-1"
         >
           <span class="truncate text-sm text-neutral-100" title={ts.name}>{ts.name}</span>
           <span class="text-xs text-neutral-500">
             id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
           </span>
+          {#if doc && ts.tileCount > 0}
+            <div class="flex flex-wrap gap-1" role="list" aria-label={`${ts.name} tiles`}>
+              {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
+                <div role="listitem">
+                  <TileThumbnail
+                    {doc}
+                    tilesetId={ts.id}
+                    {tileId}
+                    tileW={ts.tileW}
+                    tileH={ts.tileH}
+                    {rev}
+                  />
+                </div>
+              {/each}
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
