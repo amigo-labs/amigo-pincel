@@ -49,10 +49,9 @@
   <section class="block">
     <h2>The team</h2>
     <p>
-      Pincel is currently maintained by <strong>Daniel Rück</strong> at amigo-labs. Contributors
-      are welcome — see the
-      <a href="https://github.com/amigo-labs/amigo-pincel">GitHub repo</a> for open issues and
-      the contributing guide.
+      Pincel is currently maintained by <strong>amigo-labs</strong>. Contributors are welcome —
+      see the <a href="https://github.com/amigo-labs/amigo-pincel">GitHub repo</a> for open
+      issues and the contributing guide.
     </p>
     <a class="btn-pixel btn-pixel--secondary" href="https://github.com/amigo-labs/amigo-pincel">
       <PixelIcon name="github" size={16} />

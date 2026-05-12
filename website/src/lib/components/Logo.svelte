@@ -16,26 +16,45 @@
     class="pixelated mark"
     shape-rendering="crispEdges"
   >
-    <!-- Brush stroke motif in brand-primary (PICO-8 blue, see spec §5.2) on a dark square -->
+    <!-- Pixel paintbrush mirroring the "brush" PixelIcon shape: thin blue
+         handle going up-right, chunky brown bristle clump at the bottom-
+         left. PICO-8 palette (see spec §5.2). -->
     <rect x="0" y="0" width="16" height="16" fill="#0d0d12" />
     <rect x="1" y="1" width="14" height="14" fill="#1a1a23" />
-    <!-- Diagonal pink brush stroke -->
+    <!-- Handle (blue diagonal) -->
     <g fill="#29adff">
-      <rect x="11" y="2" width="2" height="2" />
-      <rect x="10" y="3" width="3" height="2" />
-      <rect x="9" y="4" width="3" height="2" />
-      <rect x="8" y="5" width="3" height="2" />
-      <rect x="7" y="6" width="3" height="2" />
-      <rect x="6" y="7" width="3" height="2" />
-      <rect x="5" y="8" width="3" height="2" />
-      <rect x="4" y="9" width="3" height="2" />
-      <rect x="3" y="10" width="3" height="2" />
-      <rect x="2" y="11" width="3" height="2" />
+      <rect x="12" y="1" width="2" height="1" />
+      <rect x="11" y="2" width="4" height="1" />
+      <rect x="10" y="3" width="4" height="1" />
+      <rect x="9" y="4" width="4" height="1" />
+      <rect x="8" y="5" width="4" height="1" />
+      <rect x="7" y="6" width="4" height="1" />
+      <rect x="6" y="7" width="4" height="1" />
+      <rect x="5" y="8" width="4" height="1" />
     </g>
-    <!-- Drip -->
-    <rect x="2" y="13" width="1" height="1" fill="#29adff" />
-    <!-- Highlight -->
-    <rect x="12" y="3" width="1" height="1" fill="#ffec27" />
+    <!-- Handle underside shadow -->
+    <g fill="#1d2b53">
+      <rect x="11" y="2" width="1" height="1" />
+      <rect x="10" y="3" width="1" height="1" />
+      <rect x="9" y="4" width="1" height="1" />
+      <rect x="8" y="5" width="1" height="1" />
+      <rect x="7" y="6" width="1" height="1" />
+      <rect x="6" y="7" width="1" height="1" />
+      <rect x="5" y="8" width="1" height="1" />
+    </g>
+    <!-- Metal ferrule -->
+    <rect x="4" y="9" width="3" height="1" fill="#c2c3c7" />
+    <!-- Bristles -->
+    <g fill="#ab5236">
+      <rect x="3" y="10" width="4" height="1" />
+      <rect x="2" y="11" width="6" height="1" />
+      <rect x="2" y="12" width="6" height="1" />
+      <rect x="3" y="13" width="4" height="1" />
+    </g>
+    <!-- Bristle highlight -->
+    <rect x="7" y="11" width="1" height="1" fill="#ffccaa" />
+    <!-- Yellow paint speck -->
+    <rect x="4" y="12" width="1" height="1" fill="#ffec27" />
   </svg>
   {#if showWordmark}
     <span class="wordmark">PINCEL</span>

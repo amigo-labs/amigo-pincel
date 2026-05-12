@@ -2,14 +2,17 @@
 
 _Last updated: 2026-05-12_
 
-**Branch:** `claude/continue-from-status-LsVMC` · M9.2 complete
-(slices round-trip through `pincel-core`'s aseprite codec pair).
+**Branch:** `claude/continue-from-status-0xbL8` · M9.3 complete
+(`AddSlice` / `RemoveSlice` / `SetSliceKey` commands wired through
+the undo bus with apply / revert tests).
 
 ## Next task
 
-**M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed
-through the undo bus, with apply / revert tests. Mirrors the existing
-`AddTileset` / `AddTilemapLayer` / `PlaceTile` command style.
+**M9.4** — wasm bindings + UI: Slices Panel, Slice tool, 9-patch +
+pivot editing handles, marching-ants overlay reused for the active
+slice's bounds. Mirrors the M8.7a–d pattern: wasm-bindgen surface
+first (`addSlice`, `removeSlice`, `setSliceKey`, slice-enumeration
+getters), then a Slices Panel sidebar, then a Slice toolbar tool.
 
 ## Milestone status
 
@@ -42,12 +45,13 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 - [x] **M9.1** — `aseprite-writer` gains `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types and a `0x2022` chunk encoder. Three new `WriteError` variants cover empty keys, non-monotonic frames, and per-key flag inconsistencies. Loader round-trip test covers plain + 9-patch-with-pivot slices, including negative pivot DWORD encoding.
 - [x] **M9.2** — `pincel-core::codec` round-trips slices. `aseprite_write` translates `sprite.slices` → `SliceChunk`s (dropping editor-only `SliceId` + overlay color, which Aseprite stores out-of-band); `aseprite_read` re-uses the existing `parse_raw_file` pass — extended to recover both `Chunk::Tileset` and `Chunk::Slice` — and assigns sequential `SliceId`s by appearance order, defaulting colors to white. Integration test `slices_round_trip_plain_and_nine_patch_with_pivot` covers a plain slice and a 9-patch + pivot slice with a negative pivot key.
-- [ ] **M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed through the undo bus, with apply / revert tests.
+- [x] **M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed through the undo bus with apply / revert tests. Four new `CommandError` variants (`DuplicateSliceId`, `UnknownSlice`, `EmptySliceKeys`, `EmptySliceBounds`) cover the validation surface. `SetSliceKey` upserts into the sorted-by-frame keys vector, tracking "replaced" vs "inserted" so `revert` restores the prior key or removes the new slot. 19 unit tests cover happy path, error branches, and apply / revert / apply round-trips.
 - [ ] **M9.4** — wasm bindings + UI: Slices Panel, Slice tool, 9-patch + pivot editing handles, marching-ants overlay reused for the active slice's bounds.
 
 ## Recent work
 
-- **2026-05-12 — M9.2 (this branch).** `pincel-core::aseprite_write` now translates `sprite.slices` → `aseprite_writer::SliceChunk`s; the per-slice `SliceId` and overlay `color` are editor-only and dropped on write (Aseprite stores neither in the slice chunk itself). `pincel-core::aseprite_read` extends the existing `parse_raw_file` pass (previously named `extract_tilesets`, now `extract_tilesets_and_slices`) to also collect `Chunk::Slice` entries, hydrating them into `Slice` with sequential `SliceId`s and white default color. New integration test `slices_round_trip_plain_and_nine_patch_with_pivot` round-trips a plain slice and a 9-patch + pivot slice (negative pivot included) end-to-end through the codec pair.
+- **2026-05-12 — M9.3 (this branch).** Three new commands in `pincel-core::command`: `AddSlice` appends a slice (rejecting duplicate ids, empty key vectors, and per-key empty bounds rects); `RemoveSlice` drops a slice by id and records its prior index so `revert` re-inserts at the same position; `SetSliceKey` upserts a key on a slice and uses `partition_point` to keep `Slice::keys` sorted by `frame` ascending. `SetSliceKey::revert` distinguishes the "replaced" and "inserted" cases via a private `PriorSlot` enum so it either restores the prior key or removes the new slot. Four new `CommandError` variants surface duplicate / unknown ids and the two emptiness rejections. `AnyCommand` and the `lib.rs` re-exports cover the new commands; the bus dispatch arms route them in the existing M8 pattern.
+- **2026-05-12 — M9.2.** `pincel-core::aseprite_write` now translates `sprite.slices` → `aseprite_writer::SliceChunk`s; the per-slice `SliceId` and overlay `color` are editor-only and dropped on write (Aseprite stores neither in the slice chunk itself). `pincel-core::aseprite_read` extends the existing `parse_raw_file` pass (previously named `extract_tilesets`, now `extract_tilesets_and_slices`) to also collect `Chunk::Slice` entries, hydrating them into `Slice` with sequential `SliceId`s and white default color. New integration test `slices_round_trip_plain_and_nine_patch_with_pivot` round-trips a plain slice and a 9-patch + pivot slice (negative pivot included) end-to-end through the codec pair.
 - **2026-05-12 — M9.1.** New `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types in `aseprite-writer::file`. `AseFile` grows a mandatory `slices: Vec<SliceChunk>`. `write::write` emits a `0x2022` chunk per slice into frame 0 (after the existing layer / palette / tags / tileset chunks). `validate_slice` derives the chunk-level `NINE_PATCH` / `PIVOT` flag word from the keys and rejects empty key vecs, non-monotonic frame ordering, and keys that disagree about which optional fields they carry — three new `WriteError` variants cover those. Tests round-trip a plain slice and a 9-patch+pivot slice (including a negative pivot DWORD) through `aseprite-loader`'s raw chunk parser. `pincel-core::aseprite_write` carries a `slices: Vec::new()` stub for now; M9.2 wires the real slice translation.
 - **2026-05-12 — M8.7c + M8.7d.** New `SetTilePixel` command in `pincel-core` writes a single RGBA pixel into `Tileset::tiles[tile_id].pixels` and joins the undo bus. Wasm surface gains `addTilemapLayer(name, tilesetId)` (creates the layer + tilemap cels sized to `ceil(canvas / tile_size)` for every existing frame), `setTilePixel(tilesetId, tileId, x, y, color)`, `addTile(tilesetId)`, and layer-enumeration getters (`layerIdAt`, `layerName`, `layerKind`, `layerTilesetId`). UI: TilesetPanel grows `+ Tile` / `+ Layer` buttons and clickable thumbnails (single click selects stamp target + auto-switches to the Stamp tool, double click opens the Tile Editor). App.svelte adds a `Stamp` toolbar tool with a grid + cell hover overlay drawn after the recompose blit. New `TileEditor.svelte` modal renders the active tile at 16× zoom and routes pointer paint through `setTilePixel`. 8 new wasm tests cover happy path + undo round-trip + error branches.
 - **2026-05-12 — M8.7b.** New wasm method `Document::tile_pixels(tileset_id, tile_id) -> Vec<u8>` (JS `tilePixels`) returns non-premultiplied RGBA8 in row-major order. New `ui/src/lib/components/TileThumbnail.svelte` paints each tile to a Canvas2D with `image-rendering: pixelated` and a 2rem display size. `TilesetPanel` iterates `0..tileCount` for each tileset and propagates the existing `rev` change counter so undo / redo / open repaint the thumbnails. Errors when `tileset_id` is unknown, `tile_id` is past the stored tile range, or the tile is non-RGBA (indexed is Phase 2).

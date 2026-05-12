@@ -2,6 +2,7 @@
 
 mod add_frame;
 mod add_layer;
+mod add_slice;
 mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
@@ -12,11 +13,14 @@ mod error;
 mod fill_region;
 mod move_selection_content;
 mod place_tile;
+mod remove_slice;
 mod set_pixel;
+mod set_slice_key;
 mod set_tile_pixel;
 
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
+pub use add_slice::AddSlice;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
@@ -27,7 +31,9 @@ pub use error::CommandError;
 pub use fill_region::FillRegion;
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
+pub use remove_slice::RemoveSlice;
 pub use set_pixel::SetPixel;
+pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
 
 use crate::document::{CelMap, Sprite};
@@ -73,6 +79,9 @@ pub enum AnyCommand {
     AddTilemapLayer(AddTilemapLayer),
     PlaceTile(PlaceTile),
     SetTilePixel(SetTilePixel),
+    AddSlice(AddSlice),
+    RemoveSlice(RemoveSlice),
+    SetSliceKey(SetSliceKey),
 }
 
 impl AnyCommand {
@@ -94,6 +103,9 @@ impl AnyCommand {
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
             Self::PlaceTile(c) => c.apply(doc, cels),
             Self::SetTilePixel(c) => c.apply(doc, cels),
+            Self::AddSlice(c) => c.apply(doc, cels),
+            Self::RemoveSlice(c) => c.apply(doc, cels),
+            Self::SetSliceKey(c) => c.apply(doc, cels),
         }
     }
 
@@ -111,6 +123,9 @@ impl AnyCommand {
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
             Self::PlaceTile(c) => c.revert(doc, cels),
             Self::SetTilePixel(c) => c.revert(doc, cels),
+            Self::AddSlice(c) => c.revert(doc, cels),
+            Self::RemoveSlice(c) => c.revert(doc, cels),
+            Self::SetSliceKey(c) => c.revert(doc, cels),
         }
     }
 
@@ -128,6 +143,9 @@ impl AnyCommand {
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
             (Self::PlaceTile(a), Self::PlaceTile(b)) => a.merge(b),
             (Self::SetTilePixel(a), Self::SetTilePixel(b)) => a.merge(b),
+            (Self::AddSlice(a), Self::AddSlice(b)) => a.merge(b),
+            (Self::RemoveSlice(a), Self::RemoveSlice(b)) => a.merge(b),
+            (Self::SetSliceKey(a), Self::SetSliceKey(b)) => a.merge(b),
             _ => false,
         }
     }
@@ -202,5 +220,23 @@ impl From<AddTilemapLayer> for AnyCommand {
 impl From<SetTilePixel> for AnyCommand {
     fn from(c: SetTilePixel) -> Self {
         Self::SetTilePixel(c)
+    }
+}
+
+impl From<AddSlice> for AnyCommand {
+    fn from(c: AddSlice) -> Self {
+        Self::AddSlice(c)
+    }
+}
+
+impl From<RemoveSlice> for AnyCommand {
+    fn from(c: RemoveSlice) -> Self {
+        Self::RemoveSlice(c)
+    }
+}
+
+impl From<SetSliceKey> for AnyCommand {
+    fn from(c: SetSliceKey) -> Self {
+        Self::SetSliceKey(c)
     }
 }

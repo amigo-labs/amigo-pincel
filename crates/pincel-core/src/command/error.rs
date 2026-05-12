@@ -3,6 +3,7 @@
 use thiserror::Error;
 
 use crate::document::{FrameIndex, LayerId};
+use crate::geometry::Rect;
 
 /// Errors raised when a command cannot be applied.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -99,4 +100,26 @@ pub enum CommandError {
         width: u32,
         height: u32,
     },
+
+    /// A slice with the same id already exists. Emitted by
+    /// [`crate::AddSlice`].
+    #[error("slice id {0} already exists")]
+    DuplicateSliceId(u32),
+
+    /// The targeted slice does not exist on the sprite. Emitted by
+    /// [`crate::RemoveSlice`] and [`crate::SetSliceKey`].
+    #[error("unknown slice id {0}")]
+    UnknownSlice(u32),
+
+    /// A slice was constructed with an empty `keys` vector, which the
+    /// aseprite format would refuse to encode. Emitted by
+    /// [`crate::AddSlice`].
+    #[error("slice id {0} must carry at least one key")]
+    EmptySliceKeys(u32),
+
+    /// A slice key carries a zero-area bounding rect, which has no
+    /// useful semantics. Emitted by [`crate::AddSlice`] and
+    /// [`crate::SetSliceKey`].
+    #[error("slice key for frame {frame:?} has an empty bounds rect {bounds:?}")]
+    EmptySliceBounds { frame: FrameIndex, bounds: Rect },
 }
