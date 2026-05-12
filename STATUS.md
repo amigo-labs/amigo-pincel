@@ -2,14 +2,15 @@
 
 _Last updated: 2026-05-12_
 
-**Branch:** `claude/continue-status-md-ot5GR` · PR [#27](https://github.com/amigo-labs/amigo-pincel/pull/27) (draft) · M8.7a landed (Tileset Panel sidebar).
+**Branch:** `claude/continue-from-status-W8q35` · M8.7 complete (panel
++ thumbnails + Stamp tool + Tile Editor).
 
 ## Next task
 
-**M8.7b** — Per-tile thumbnails in the Tileset Panel. Adds a new wasm
-method `tilePixels(tilesetId, tileId) -> Uint8Array` (or a single
-tileset-image buffer) that the panel paints into small Canvas2D tiles.
-M-sized.
+**M9** — Slice support. Document model gains `Slice` + `SliceKey`,
+`aseprite_read` / `aseprite_write` round-trip the Slice Chunk
+(`0x2022`), UI gets a Slice tool, Slices panel, and 9-patch / pivot
+editing. L-sized — split into M tasks before starting.
 
 ## Milestone status
 
@@ -23,8 +24,8 @@ M-sized.
 | M6 | ✅ | `pincel-wasm` + minimal Svelte UI (open / Pencil / save). M6.7 human cross-validation deferred. |
 | M7 | ✅ | Tools — Eraser, Eyedropper, Line, Rect, Rect-Fill, Ellipse, Ellipse-Fill, Bucket, Move (pan + selection-content drag), Selection (Rect) + marching-ants overlay |
 | M8.1–M8.6 | ✅ | Tilemap pipeline below the UI — core accessors, compose path (rotate→flip_x→flip_y), AddTileset / PlaceTile commands, aseprite_read + aseprite_write tileset+tilemap, wasm tileset surface |
-| **M8.7** | 🔄 | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below |
-| M9 | ⬜ | Slice support |
+| **M8.7** | ✅ | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below |
+| **M9** | ⬜ | Slice support |
 | M10 | ⬜ | PWA polish |
 | M11 | ⬜ | Tauri build |
 | M12 | ⬜ | Performance pass |
@@ -32,15 +33,17 @@ M-sized.
 ### M8.7 sub-tasks
 
 - [x] **M8.7a** — Tileset Panel + "Add Tileset" form. No new wasm.
-- [ ] **M8.7b** — Per-tile thumbnails. New wasm `tilePixels(tilesetId, tileId) -> Uint8Array` (or a single tileset-image buffer) painted into small Canvas2D tiles.
-- [ ] **M8.7c** — Active-layer concept + "Add Tilemap Layer" wasm method + Tilemap Stamp tool (click-to-place on the active tilemap layer with a grid overlay during hover).
-- [ ] **M8.7d** — Tileset Editor sub-mode + `paintTilePixel(tilesetId, tileId, x, y, color)` wasm. Routes existing image tools through the bus targeting `Tileset::tiles[tile_id].pixels`.
+- [x] **M8.7b** — Per-tile thumbnails. New wasm `tilePixels(tilesetId, tileId) -> Uint8Array` painted into small Canvas2D tiles via the `TileThumbnail` component.
+- [x] **M8.7c** — `addTilemapLayer` + `placeTile` wired through a new `Stamp` toolbar tool. Topmost matching tilemap layer is auto-picked as the active target; grid + cell overlay paint on hover.
+- [x] **M8.7d** — `setTilePixel` wasm + new `TileEditor` modal that double-click opens from a tile thumbnail. Direct pixel painting routes through the undo bus.
 
 Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per spec §5.3 / §13.2.
 
 ## Recent work
 
-- **2026-05-12 — M8.7a (this branch).** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
+- **2026-05-12 — M8.7c + M8.7d (this branch).** New `SetTilePixel` command in `pincel-core` writes a single RGBA pixel into `Tileset::tiles[tile_id].pixels` and joins the undo bus. Wasm surface gains `addTilemapLayer(name, tilesetId)` (creates the layer + tilemap cels sized to `ceil(canvas / tile_size)` for every existing frame), `setTilePixel(tilesetId, tileId, x, y, color)`, `addTile(tilesetId)`, and layer-enumeration getters (`layerIdAt`, `layerName`, `layerKind`, `layerTilesetId`). UI: TilesetPanel grows `+ Tile` / `+ Layer` buttons and clickable thumbnails (single click selects stamp target + auto-switches to the Stamp tool, double click opens the Tile Editor). App.svelte adds a `Stamp` toolbar tool with a grid + cell hover overlay drawn after the recompose blit. New `TileEditor.svelte` modal renders the active tile at 16× zoom and routes pointer paint through `setTilePixel`. 8 new wasm tests cover happy path + undo round-trip + error branches.
+- **2026-05-12 — M8.7b.** New wasm method `Document::tile_pixels(tileset_id, tile_id) -> Vec<u8>` (JS `tilePixels`) returns non-premultiplied RGBA8 in row-major order. New `ui/src/lib/components/TileThumbnail.svelte` paints each tile to a Canvas2D with `image-rendering: pixelated` and a 2rem display size. `TilesetPanel` iterates `0..tileCount` for each tileset and propagates the existing `rev` change counter so undo / redo / open repaint the thumbnails. Errors when `tileset_id` is unknown, `tile_id` is past the stored tile range, or the tile is non-RGBA (indexed is Phase 2).
+- **2026-05-12 — M8.7a.** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
 - **2026-05-11 — M8.1–M8.6.** End-to-end tilemap pipeline below the UI. See commits `9c0a6cc` (wasm), `8f9f3ed` + `e4549ea` (write path), `c05a31b` + `d58197e` (read path), and the M8.1–M8.3 commits in `git log` for per-step detail.
 - **Earlier 2026-05 — M7.1–M7.8c.** Tools expansion, end with the Selection (Rect) tool + marching-ants overlay. Move tool ships both viewport pan (M7.7a) and selection-content drag (M7.7b).
 - **Earlier 2026-05 — M6.** wasm crate + Svelte 5 + Vite + open / paint / save MVP.
@@ -69,6 +72,11 @@ Human action still needed:
 2. Decide the production domain (spec §14 Q1) and update `website/src/lib/config.ts::siteUrl` if it differs from `https://pincel.app`.
 
 ## Open questions (still actionable)
+
+- **Per-tile dirty events** — `setTilePixel` emits `dirty-canvas` today; a `dirty-tile-pixel` variant carrying `(tileset_id, tile_id, rect)` lands alongside the M12 dirty-rect refinement.
+- **Explicit active layer** — Stamp tool auto-picks the topmost tilemap layer bound to the active tileset. A Layers panel + explicit active-layer selector lands when a reorder command needs it (M9 follow-up).
+- **Tile Editor tool routing** — Only direct click-paint is wired. Routing Line / Rect / Bucket through the tile-pixel target needs a tile-pixel sister command per tool (Phase 2).
+- **Auto-tile mode** — Painting on a tilemap that auto-creates / reuses tiles stays Phase 2 (spec §5.3 / §13.2).
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
 - **Slice round-trip carrier** — `aseprite_read` drops slice chunks today. Spec §7.1 wants opaque chunk preservation; needs an `unknown_chunks: Vec<RawChunk>` carrier on `Sprite` / `Layer` / `Cel`. Land alongside M9.

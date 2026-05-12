@@ -72,4 +72,31 @@ pub enum CommandError {
     /// the UI) should fall back to a pan / no-op instead.
     #[error("no active selection")]
     NoSelection,
+
+    /// The targeted tileset does not exist on the sprite. Emitted by
+    /// [`crate::SetTilePixel`] and any future tileset-scoped command.
+    #[error("unknown tileset id {0}")]
+    UnknownTileset(u32),
+
+    /// The targeted tile id is past the end of the tileset's stored
+    /// tiles. Aseprite convention reserves tile id `0` as the implicit
+    /// empty tile; if the caller needs to write to it the tileset
+    /// must explicitly grow first.
+    #[error("unknown tile id {tile_id} in tileset {tileset}")]
+    UnknownTile { tileset: u32, tile_id: u32 },
+
+    /// Pixel coordinates fall outside the targeted tile's pixel
+    /// buffer. Emitted by [`crate::SetTilePixel`].
+    #[error(
+        "tile pixel ({x}, {y}) is out of bounds for tile {tile_id} of tileset {tileset} \
+         (size {width}x{height})"
+    )]
+    TilePixelOutOfBounds {
+        tileset: u32,
+        tile_id: u32,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    },
 }
