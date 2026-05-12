@@ -75,6 +75,8 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
         palette,
         tags,
         tilesets,
+        // Slice round-trip lands in M9.2; the writer still drops slices today.
+        slices: Vec::new(),
         frames,
     })
 }

@@ -2,15 +2,17 @@
 
 _Last updated: 2026-05-12_
 
-**Branch:** `claude/continue-from-status-W8q35` · M8.7 complete (panel
-+ thumbnails + Stamp tool + Tile Editor).
+**Branch:** `claude/continue-from-status-aXYqc` · M9.1 complete
+(`aseprite-writer` emits Slice Chunks `0x2022`).
 
 ## Next task
 
-**M9** — Slice support. Document model gains `Slice` + `SliceKey`,
-`aseprite_read` / `aseprite_write` round-trip the Slice Chunk
-(`0x2022`), UI gets a Slice tool, Slices panel, and 9-patch / pivot
-editing. L-sized — split into M tasks before starting.
+**M9.2** — Slice round-trip through `pincel-core`'s codec.
+`aseprite_write` translates `sprite.slices` into `SliceChunk`s on the
+writer side; `aseprite_read` extracts `0x2022` chunks (via the
+`parse_raw_file` pass that already surfaces tilesets) into
+`Sprite.slices`. End-to-end round-trip test on top of the in-crate
+`SliceChunk` round-trip from M9.1.
 
 ## Milestone status
 
@@ -24,8 +26,8 @@ editing. L-sized — split into M tasks before starting.
 | M6 | ✅ | `pincel-wasm` + minimal Svelte UI (open / Pencil / save). M6.7 human cross-validation deferred. |
 | M7 | ✅ | Tools — Eraser, Eyedropper, Line, Rect, Rect-Fill, Ellipse, Ellipse-Fill, Bucket, Move (pan + selection-content drag), Selection (Rect) + marching-ants overlay |
 | M8.1–M8.6 | ✅ | Tilemap pipeline below the UI — core accessors, compose path (rotate→flip_x→flip_y), AddTileset / PlaceTile commands, aseprite_read + aseprite_write tileset+tilemap, wasm tileset surface |
-| **M8.7** | ✅ | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below |
-| **M9** | ⬜ | Slice support |
+| M8.7 | ✅ | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below |
+| **M9** | 🔄 | Slice support — split into M9.1–M9.4 below |
 | M10 | ⬜ | PWA polish |
 | M11 | ⬜ | Tauri build |
 | M12 | ⬜ | Performance pass |
@@ -39,9 +41,17 @@ editing. L-sized — split into M tasks before starting.
 
 Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per spec §5.3 / §13.2.
 
+### M9 sub-tasks
+
+- [x] **M9.1** — `aseprite-writer` gains `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types and a `0x2022` chunk encoder. Three new `WriteError` variants cover empty keys, non-monotonic frames, and per-key flag inconsistencies. Loader round-trip test covers plain + 9-patch-with-pivot slices, including negative pivot DWORD encoding.
+- [ ] **M9.2** — `pincel-core::codec` round-trips slices. `aseprite_write` translates `sprite.slices` → `SliceChunk`s; `aseprite_read` extracts `0x2022` chunks via the existing `parse_raw_file` pass (the high-level `parse_file` already surfaces slices but our adapter currently drops them).
+- [ ] **M9.3** — `AddSlice` / `RemoveSlice` / `SetSliceKey` commands routed through the undo bus, with apply / revert tests.
+- [ ] **M9.4** — wasm bindings + UI: Slices Panel, Slice tool, 9-patch + pivot editing handles, marching-ants overlay reused for the active slice's bounds.
+
 ## Recent work
 
-- **2026-05-12 — M8.7c + M8.7d (this branch).** New `SetTilePixel` command in `pincel-core` writes a single RGBA pixel into `Tileset::tiles[tile_id].pixels` and joins the undo bus. Wasm surface gains `addTilemapLayer(name, tilesetId)` (creates the layer + tilemap cels sized to `ceil(canvas / tile_size)` for every existing frame), `setTilePixel(tilesetId, tileId, x, y, color)`, `addTile(tilesetId)`, and layer-enumeration getters (`layerIdAt`, `layerName`, `layerKind`, `layerTilesetId`). UI: TilesetPanel grows `+ Tile` / `+ Layer` buttons and clickable thumbnails (single click selects stamp target + auto-switches to the Stamp tool, double click opens the Tile Editor). App.svelte adds a `Stamp` toolbar tool with a grid + cell hover overlay drawn after the recompose blit. New `TileEditor.svelte` modal renders the active tile at 16× zoom and routes pointer paint through `setTilePixel`. 8 new wasm tests cover happy path + undo round-trip + error branches.
+- **2026-05-12 — M9.1 (this branch).** New `SliceChunk` / `SliceKey` / `NinePatch` / `Pivot` types in `aseprite-writer::file`. `AseFile` grows a mandatory `slices: Vec<SliceChunk>`. `write::write` emits a `0x2022` chunk per slice into frame 0 (after the existing layer / palette / tags / tileset chunks). `validate_slice` derives the chunk-level `NINE_PATCH` / `PIVOT` flag word from the keys and rejects empty key vecs, non-monotonic frame ordering, and keys that disagree about which optional fields they carry — three new `WriteError` variants cover those. Tests round-trip a plain slice and a 9-patch+pivot slice (including a negative pivot DWORD) through `aseprite-loader`'s raw chunk parser. `pincel-core::aseprite_write` carries a `slices: Vec::new()` stub for now; M9.2 wires the real slice translation.
+- **2026-05-12 — M8.7c + M8.7d.** New `SetTilePixel` command in `pincel-core` writes a single RGBA pixel into `Tileset::tiles[tile_id].pixels` and joins the undo bus. Wasm surface gains `addTilemapLayer(name, tilesetId)` (creates the layer + tilemap cels sized to `ceil(canvas / tile_size)` for every existing frame), `setTilePixel(tilesetId, tileId, x, y, color)`, `addTile(tilesetId)`, and layer-enumeration getters (`layerIdAt`, `layerName`, `layerKind`, `layerTilesetId`). UI: TilesetPanel grows `+ Tile` / `+ Layer` buttons and clickable thumbnails (single click selects stamp target + auto-switches to the Stamp tool, double click opens the Tile Editor). App.svelte adds a `Stamp` toolbar tool with a grid + cell hover overlay drawn after the recompose blit. New `TileEditor.svelte` modal renders the active tile at 16× zoom and routes pointer paint through `setTilePixel`. 8 new wasm tests cover happy path + undo round-trip + error branches.
 - **2026-05-12 — M8.7b.** New wasm method `Document::tile_pixels(tileset_id, tile_id) -> Vec<u8>` (JS `tilePixels`) returns non-premultiplied RGBA8 in row-major order. New `ui/src/lib/components/TileThumbnail.svelte` paints each tile to a Canvas2D with `image-rendering: pixelated` and a 2rem display size. `TilesetPanel` iterates `0..tileCount` for each tileset and propagates the existing `rev` change counter so undo / redo / open repaint the thumbnails. Errors when `tileset_id` is unknown, `tile_id` is past the stored tile range, or the tile is non-RGBA (indexed is Phase 2).
 - **2026-05-12 — M8.7a.** `ui/src/lib/components/TilesetPanel.svelte` mounted as right-side sidebar in `App.svelte`. Reads via the M8.6 wasm surface; writes via `addTileset(name, tile_w, tile_h)`. Inline validation + wasm error surfacing. Reactivity over opaque wasm getters via a `tilesetRev` `$state` counter bumped on `newDoc` / `openFile` / `undo` / `redo` / `onChange`. Tile-size number inputs use `step="1"` + `inputmode="numeric"`. PR-27 Copilot review addressed in commit `4884f7a`.
 - **2026-05-11 — M8.1–M8.6.** End-to-end tilemap pipeline below the UI. See commits `9c0a6cc` (wasm), `8f9f3ed` + `e4549ea` (write path), `c05a31b` + `d58197e` (read path), and the M8.1–M8.3 commits in `git log` for per-step detail.

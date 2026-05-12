@@ -33,6 +33,12 @@ pub fn write_dword<W: Write>(w: &mut W, v: u32) -> Result<(), WriteError> {
 }
 
 #[inline]
+pub fn write_long<W: Write>(w: &mut W, v: i32) -> Result<(), WriteError> {
+    w.write_all(&v.to_le_bytes())?;
+    Ok(())
+}
+
+#[inline]
 pub fn write_zeros<W: Write>(w: &mut W, n: usize) -> Result<(), WriteError> {
     const CHUNK: [u8; 32] = [0u8; 32];
     let mut remaining = n;
@@ -82,6 +88,13 @@ mod tests {
         let mut buf = Vec::new();
         write_dword(&mut buf, 0x0102_0304).unwrap();
         assert_eq!(buf, [0x04, 0x03, 0x02, 0x01]);
+    }
+
+    #[test]
+    fn write_long_emits_two_complement_le() {
+        let mut buf = Vec::new();
+        write_long(&mut buf, -2).unwrap();
+        assert_eq!(buf, [0xFE, 0xFF, 0xFF, 0xFF]);
     }
 
     #[test]

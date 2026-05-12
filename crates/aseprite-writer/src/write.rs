@@ -15,10 +15,13 @@ use std::io::Write;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::bytes::{write_byte, write_dword, write_short, write_string, write_word, write_zeros};
+use crate::bytes::{
+    write_byte, write_dword, write_long, write_short, write_string, write_word, write_zeros,
+};
 use crate::error::WriteError;
 use crate::file::{
-    AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, Tag, TilesetChunk,
+    AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, SliceChunk, Tag,
+    TilesetChunk,
 };
 use crate::types::{LayerType, PaletteEntryFlags};
 
@@ -32,6 +35,7 @@ const CHUNK_TYPE_LAYER: u16 = 0x2004;
 const CHUNK_TYPE_CEL: u16 = 0x2005;
 const CHUNK_TYPE_TAGS: u16 = 0x2018;
 const CHUNK_TYPE_PALETTE: u16 = 0x2019;
+const CHUNK_TYPE_SLICE: u16 = 0x2022;
 const CHUNK_TYPE_TILESET: u16 = 0x2023;
 
 const CEL_TYPE_LINKED: u16 = 1;
@@ -44,6 +48,11 @@ const TILESET_FLAG_TILES: u32 = 0x2;
 /// the empty / transparent tile. Pincel preserves the convention so the
 /// writer always sets it.
 const TILESET_FLAG_TILE_0_EMPTY: u32 = 0x4;
+
+/// `SliceFlags::NINE_PATCH` bit — slice has a 9-patch inner rectangle.
+const SLICE_FLAG_NINE_PATCH: u32 = 0x1;
+/// `SliceFlags::PIVOT` bit — slice has a pivot point.
+const SLICE_FLAG_PIVOT: u32 = 0x2;
 
 /// Write `file` to `out` in the Aseprite v1.3 format.
 ///
@@ -106,6 +115,12 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 validate_tileset(tileset)?;
                 chunks.push(encode_chunk(CHUNK_TYPE_TILESET, |buf| {
                     write_tileset_body(buf, tileset)
+                })?);
+            }
+            for slice in &file.slices {
+                let flags = validate_slice(slice)?;
+                chunks.push(encode_chunk(CHUNK_TYPE_SLICE, |buf| {
+                    write_slice_body(buf, slice, flags)
                 })?);
             }
         }
@@ -218,6 +233,55 @@ fn validate_tileset(tileset: &TilesetChunk) -> Result<(), WriteError> {
         });
     }
     Ok(())
+}
+
+/// Cross-key consistency check + flag derivation for a [`SliceChunk`].
+///
+/// Returns the combined `NINE_PATCH | PIVOT` flag word that the on-disk
+/// chunk advertises. Every key must agree on which optional fields it
+/// carries because Aseprite stores the chunk-level flags once and each
+/// key's optional fields are parsed conditionally on those flags.
+fn validate_slice(slice: &SliceChunk) -> Result<u32, WriteError> {
+    let Some(first) = slice.keys.first() else {
+        return Err(WriteError::SliceWithoutKeys {
+            name: slice.name.clone(),
+        });
+    };
+    let has_nine = first.nine_patch.is_some();
+    let has_pivot = first.pivot.is_some();
+    let mut prev_frame = first.frame;
+    for (i, key) in slice.keys.iter().enumerate().skip(1) {
+        if key.frame <= prev_frame {
+            return Err(WriteError::SliceKeysNotMonotonic {
+                name: slice.name.clone(),
+                prev: prev_frame,
+                next: key.frame,
+            });
+        }
+        if key.nine_patch.is_some() != has_nine {
+            return Err(WriteError::SliceFlagsInconsistent {
+                name: slice.name.clone(),
+                key_index: i,
+                field: "nine_patch",
+            });
+        }
+        if key.pivot.is_some() != has_pivot {
+            return Err(WriteError::SliceFlagsInconsistent {
+                name: slice.name.clone(),
+                key_index: i,
+                field: "pivot",
+            });
+        }
+        prev_frame = key.frame;
+    }
+    let mut flags = 0u32;
+    if has_nine {
+        flags |= SLICE_FLAG_NINE_PATCH;
+    }
+    if has_pivot {
+        flags |= SLICE_FLAG_PIVOT;
+    }
+    Ok(flags)
 }
 
 fn write_header<W: Write>(
@@ -466,6 +530,51 @@ fn write_tileset_body<W: Write>(w: &mut W, tileset: &TilesetChunk) -> Result<(),
     Ok(())
 }
 
+/// Emit a Slice chunk body (`0x2022`).
+///
+/// On-disk layout: `DWORD number_of_keys`, `DWORD flags`, `DWORD reserved`,
+/// `STRING name`, then `number_of_keys` slice keys. Each key is `DWORD
+/// frame_number`, `LONG x`, `LONG y`, `DWORD width`, `DWORD height`,
+/// followed conditionally by a `NinePatch` and / or `Pivot` block based on
+/// the chunk-level flags. Caller must pass the validated flag word.
+fn write_slice_body<W: Write>(
+    w: &mut W,
+    slice: &SliceChunk,
+    flags: u32,
+) -> Result<(), WriteError> {
+    let key_count: u32 = slice.keys.len().try_into().map_err(|_| WriteError::TooMany {
+        what: "slice keys",
+        count: slice.keys.len() as u64,
+        max: u32::MAX as u64,
+    })?;
+    write_dword(w, key_count)?;
+    write_dword(w, flags)?;
+    write_zeros(w, 4)?; // reserved
+    write_string(w, &slice.name)?;
+    for key in &slice.keys {
+        write_dword(w, key.frame)?;
+        write_long(w, key.x)?;
+        write_long(w, key.y)?;
+        write_dword(w, key.width)?;
+        write_dword(w, key.height)?;
+        if (flags & SLICE_FLAG_NINE_PATCH) != 0 {
+            // `validate_slice` enforces that every key carries the
+            // nine-patch when the chunk-level flag is set.
+            let np = key.nine_patch.expect("nine_patch present (validated)");
+            write_long(w, np.x)?;
+            write_long(w, np.y)?;
+            write_dword(w, np.width)?;
+            write_dword(w, np.height)?;
+        }
+        if (flags & SLICE_FLAG_PIVOT) != 0 {
+            let pv = key.pivot.expect("pivot present (validated)");
+            write_long(w, pv.x)?;
+            write_long(w, pv.y)?;
+        }
+    }
+    Ok(())
+}
+
 fn write_tags_body<W: Write>(w: &mut W, tags: &[Tag]) -> Result<(), WriteError> {
     let count: u16 = tags.len().try_into().map_err(|_| WriteError::TooMany {
         what: "tags",
@@ -510,6 +619,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: vec![Frame::new(100)],
         };
         let mut buf = Vec::new();
@@ -530,6 +640,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: Vec::with_capacity(u16::MAX as usize + 1),
         };
         for _ in 0..(u16::MAX as usize + 1) {
@@ -602,6 +713,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -641,6 +753,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -676,6 +789,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -716,6 +830,7 @@ mod tests {
             palette: None,
             tags: Vec::new(),
             tilesets: Vec::new(),
+            slices: Vec::new(),
             frames: vec![Frame {
                 duration: 100,
                 cels: vec![CelChunk {
@@ -749,5 +864,216 @@ mod tests {
         assert_eq!(cel.y, 7);
         assert_eq!(cel.opacity, 200);
         assert!(matches!(&cel.content, LoaderCelContent::Image(img) if img.compressed));
+    }
+
+    fn plain_slice(name: &str, frame: u32, x: i32, y: i32, w: u32, h: u32) -> SliceChunk {
+        SliceChunk {
+            name: name.into(),
+            keys: vec![crate::file::SliceKey {
+                frame,
+                x,
+                y,
+                width: w,
+                height: h,
+                nine_patch: None,
+                pivot: None,
+            }],
+        }
+    }
+
+    #[test]
+    fn slice_without_keys_is_rejected() {
+        let mut buf = Vec::new();
+        let slice = SliceChunk {
+            name: "empty".into(),
+            keys: Vec::new(),
+        };
+        let err = validate_slice(&slice).unwrap_err();
+        assert!(matches!(err, WriteError::SliceWithoutKeys { .. }));
+        // Ensure the write path bubbles the error as well.
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: Vec::new(),
+            palette: None,
+            tags: Vec::new(),
+            tilesets: Vec::new(),
+            slices: vec![slice],
+            frames: vec![Frame::new(0)],
+        };
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(err, WriteError::SliceWithoutKeys { .. }));
+    }
+
+    #[test]
+    fn slice_keys_must_be_strictly_ascending() {
+        let slice = SliceChunk {
+            name: "bad-order".into(),
+            keys: vec![
+                crate::file::SliceKey {
+                    frame: 4,
+                    x: 0,
+                    y: 0,
+                    width: 1,
+                    height: 1,
+                    nine_patch: None,
+                    pivot: None,
+                },
+                // Same frame as the previous key — must be strictly ascending.
+                crate::file::SliceKey {
+                    frame: 4,
+                    x: 0,
+                    y: 0,
+                    width: 1,
+                    height: 1,
+                    nine_patch: None,
+                    pivot: None,
+                },
+            ],
+        };
+        let err = validate_slice(&slice).unwrap_err();
+        assert!(matches!(
+            err,
+            WriteError::SliceKeysNotMonotonic {
+                prev: 4,
+                next: 4,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn slice_keys_must_agree_on_nine_patch_presence() {
+        let slice = SliceChunk {
+            name: "mixed".into(),
+            keys: vec![
+                crate::file::SliceKey {
+                    frame: 0,
+                    x: 0,
+                    y: 0,
+                    width: 16,
+                    height: 16,
+                    nine_patch: Some(crate::file::NinePatch {
+                        x: 4,
+                        y: 4,
+                        width: 8,
+                        height: 8,
+                    }),
+                    pivot: None,
+                },
+                crate::file::SliceKey {
+                    frame: 1,
+                    x: 0,
+                    y: 0,
+                    width: 16,
+                    height: 16,
+                    nine_patch: None,
+                    pivot: None,
+                },
+            ],
+        };
+        let err = validate_slice(&slice).unwrap_err();
+        assert!(matches!(
+            err,
+            WriteError::SliceFlagsInconsistent {
+                key_index: 1,
+                field: "nine_patch",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn slice_chunk_round_trips_through_loader() {
+        // Emit a single-layer RGBA file carrying two slices: one plain
+        // (no flags) and one 9-patch + pivot. The loader's chunk
+        // parser is the authoritative inverse — anything it parses
+        // back identically matches the on-disk layout we want.
+        use aseprite_loader::binary::chunk::Chunk;
+        use aseprite_loader::binary::chunks::slice::SliceFlags;
+        use aseprite_loader::binary::raw_file::parse_raw_file;
+
+        let file = AseFile {
+            header: Header::new(16, 16, ColorDepth::Rgba),
+            layers: vec![rgba_layer("L0")],
+            palette: None,
+            tags: Vec::new(),
+            tilesets: Vec::new(),
+            slices: vec![
+                plain_slice("hitbox", 0, 1, 2, 3, 4),
+                SliceChunk {
+                    name: "panel".into(),
+                    keys: vec![
+                        crate::file::SliceKey {
+                            frame: 0,
+                            x: 0,
+                            y: 0,
+                            width: 16,
+                            height: 16,
+                            nine_patch: Some(crate::file::NinePatch {
+                                x: 4,
+                                y: 4,
+                                width: 8,
+                                height: 8,
+                            }),
+                            pivot: Some(crate::file::Pivot { x: 2, y: 3 }),
+                        },
+                        crate::file::SliceKey {
+                            frame: 1,
+                            x: 1,
+                            y: 1,
+                            width: 14,
+                            height: 14,
+                            nine_patch: Some(crate::file::NinePatch {
+                                x: 3,
+                                y: 3,
+                                width: 8,
+                                height: 8,
+                            }),
+                            pivot: Some(crate::file::Pivot { x: -1, y: -1 }),
+                        },
+                    ],
+                },
+            ],
+            frames: vec![Frame::new(100), Frame::new(100)],
+        };
+        let mut buf = Vec::new();
+        write(&file, &mut buf).unwrap();
+
+        let raw = parse_raw_file(&buf).expect("raw parse");
+        let slices: Vec<_> = raw.frames[0]
+            .chunks
+            .iter()
+            .filter_map(|c| match c {
+                Chunk::Slice(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(slices.len(), 2, "both slice chunks present in frame 0");
+
+        let hitbox = slices
+            .iter()
+            .find(|s| s.name == "hitbox")
+            .expect("hitbox slice");
+        assert!(hitbox.flags.is_empty());
+        assert_eq!(hitbox.slice_keys.len(), 1);
+        let k = &hitbox.slice_keys[0];
+        assert_eq!((k.frame_number, k.x, k.y, k.width, k.height), (0, 1, 2, 3, 4));
+        assert!(k.nine_patch.is_none());
+        assert!(k.pivot.is_none());
+
+        let panel = slices
+            .iter()
+            .find(|s| s.name == "panel")
+            .expect("panel slice");
+        assert!(panel.flags.contains(SliceFlags::NINE_PATCH));
+        assert!(panel.flags.contains(SliceFlags::PIVOT));
+        assert_eq!(panel.slice_keys.len(), 2);
+        let k1 = &panel.slice_keys[1];
+        assert_eq!(k1.frame_number, 1);
+        // i32 negative pivot round-trips through the DWORD slot.
+        let pv = k1.pivot.expect("pivot on panel key 1");
+        assert_eq!((pv.x, pv.y), (-1, -1));
+        let np = k1.nine_patch.expect("nine_patch on panel key 1");
+        assert_eq!((np.x, np.y, np.width, np.height), (3, 3, 8, 8));
     }
 }
