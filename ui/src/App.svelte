@@ -345,9 +345,9 @@
         paintPivotCrosshair(canvas!, px, py);
       }
     } catch {
-      // Slice disappeared mid-frame (e.g. undo of an addSlice). The
-      // `sliceRev`/`activeSliceId` reconciler in the parent picks
-      // the change up on the next tick and clears the active id.
+      // Slice disappeared mid-frame (e.g. undo of an addSlice).
+      // `reconcileActiveSlice` runs after undo / redo (the same
+      // place `tilesetRev` bumps) and clears the stale id.
     }
   }
 

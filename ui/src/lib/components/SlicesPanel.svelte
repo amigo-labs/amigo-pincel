@@ -208,9 +208,22 @@
     onChange?.();
   }
 
+  // Fields the wasm surface stores as `u32`. JS numbers cross into
+  // wasm-bindgen as raw bit patterns, so a negative input would wrap
+  // to a huge unsigned and produce an invalid (often massive) rect.
+  // Gate the unsigned fields here and surface the rejection as a row
+  // error rather than calling wasm with a wrapped value.
+  const UNSIGNED_FIELDS = new Set<keyof SliceRow>(['w', 'h', 'cw', 'ch']);
+
   function onNumberCommit(row: SliceRow, field: keyof SliceRow, value: number) {
     if (!Number.isFinite(value)) return;
-    (row as Record<string, unknown>)[field as string] = Math.trunc(value);
+    const truncated = Math.trunc(value);
+    if (UNSIGNED_FIELDS.has(field) && truncated < 1) {
+      rowError[row.id] = `${String(field)} must be a positive integer`;
+      return;
+    }
+    rowError[row.id] = null;
+    (row as Record<string, unknown>)[field as string] = truncated;
     commit(row);
   }
 

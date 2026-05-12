@@ -1272,9 +1272,11 @@ impl Document {
             (None, None, None, None) => None,
             (Some(cx), Some(cy), Some(cw), Some(ch)) => Some(Rect::new(cx, cy, cw, ch)),
             _ => {
-                return Err("9-patch center requires all four of (center_x, center_y, \
-                     center_width, center_height)"
-                    .to_string());
+                return Err(concat!(
+                    "9-patch center requires all four of ",
+                    "(center_x, center_y, center_width, center_height)"
+                )
+                .to_string());
             }
         };
         let pivot = match (pivot_x, pivot_y) {

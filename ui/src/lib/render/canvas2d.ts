@@ -364,36 +364,49 @@ export function paintRectOutline(
   if (width <= 0 || height <= 0) return;
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
-  const maxX = x + width - 1;
-  const maxY = y + height - 1;
-  const plot = (px: number, py: number) => {
-    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return;
-    ctx.fillStyle = color;
-    ctx.fillRect(px, py, 1, 1);
+  ctx.fillStyle = color;
+  const cw = canvas.width;
+  const ch = canvas.height;
+  // Clip each edge to the canvas extent and draw it as a single
+  // `fillRect` span so the outline costs four spans instead of one
+  // `fillRect` per perimeter pixel.
+  const drawHSpan = (sx: number, sy: number, len: number) => {
+    if (sy < 0 || sy >= ch || len <= 0) return;
+    const cx0 = Math.max(0, sx);
+    const cx1 = Math.min(cw, sx + len);
+    if (cx1 > cx0) ctx.fillRect(cx0, sy, cx1 - cx0, 1);
+  };
+  const drawVSpan = (sx: number, sy: number, len: number) => {
+    if (sx < 0 || sx >= cw || len <= 0) return;
+    const cy0 = Math.max(0, sy);
+    const cy1 = Math.min(ch, sy + len);
+    if (cy1 > cy0) ctx.fillRect(sx, cy0, 1, cy1 - cy0);
   };
   if (height === 1) {
-    for (let px = x; px <= maxX; px++) plot(px, y);
+    drawHSpan(x, y, width);
     return;
   }
   if (width === 1) {
-    for (let py = y; py <= maxY; py++) plot(x, py);
+    drawVSpan(x, y, height);
     return;
   }
-  for (let px = x; px <= maxX; px++) {
-    plot(px, y);
-    plot(px, maxY);
-  }
-  for (let py = y + 1; py <= maxY - 1; py++) {
-    plot(x, py);
-    plot(maxX, py);
-  }
+  // Top + bottom edges (full width), then left + right edges
+  // (inner span between the two horizontals to avoid corner double-
+  // paint).
+  const maxY = y + height - 1;
+  drawHSpan(x, y, width);
+  drawHSpan(x, maxY, width);
+  drawVSpan(x, y + 1, height - 2);
+  drawVSpan(x + width - 1, y + 1, height - 2);
 }
 
 /**
  * Paint a small `+` crosshair centered on the sprite-space pixel
- * `(x, y)`. The crosshair is a 3×3 plus sign with white + black
- * fill for legibility against arbitrary backgrounds. Used by the
- * Slice overlay to mark the active slice's pivot point.
+ * `(x, y)`. The marker spans 5×5 pixels: a black tip on each
+ * arm at distance 2, a white arm at distance 1, and a black
+ * center pixel — that double-band keeps the pivot legible against
+ * arbitrary backgrounds. Used by the Slice overlay to mark the
+ * active slice's pivot point.
  *
  * Out-of-canvas pixels are clipped silently.
  */
