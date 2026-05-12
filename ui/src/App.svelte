@@ -5,6 +5,12 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import {
+    hasFsAccess,
+    pickAndOpen,
+    saveBytes,
+    type SaveTarget,
+  } from './lib/fs';
+  import {
     blitFrame,
     paintEllipsePreview,
     paintLinePreview,
@@ -69,7 +75,18 @@
   let painting = false;
   let dirty = false;
   let rafHandle: number | null = null;
-  let fileInput: HTMLInputElement | null = null;
+  // Current on-disk identity of the document. `handle` is non-null
+  // only on File System Access API browsers after a successful
+  // open / save-as; subsequent saves write through it in place. `name`
+  // is the suggested filename for fallback downloads and the new-file
+  // case. See ui/src/lib/fs/index.ts and docs/specs/pincel.md §10.2.
+  const DEFAULT_FILE_NAME = 'pincel.aseprite';
+  let saveTarget = $state<SaveTarget>({
+    name: DEFAULT_FILE_NAME,
+    handle: null,
+  });
+  // Stable across the session; drives Save / Save As button labels.
+  const fsAccessAvailable = hasFsAccess();
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -845,16 +862,22 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    saveTarget = { name: DEFAULT_FILE_NAME, handle: null };
     status = 'new 64×64 document';
   }
 
-  async function openFile(event: Event) {
-    const input = event.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+  async function openDoc() {
+    let opened;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const next = Document.openAseprite(bytes);
+      opened = await pickAndOpen();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `open failed: ${msg}`;
+      return;
+    }
+    if (!opened) return;
+    try {
+      const next = Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
       dirty = true;
@@ -865,31 +888,22 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
-      status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+      saveTarget = { name: opened.name, handle: opened.handle };
+      status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `open failed: ${msg}`;
-    } finally {
-      input.value = '';
     }
   }
 
-  function save() {
+  async function save(opts: { forceAs?: boolean } = {}) {
     if (!doc) return;
+    const forceAs = opts.forceAs ?? false;
     try {
-      const bytes = doc.saveAseprite();
-      const blob = new Blob([new Uint8Array(bytes)], {
-        type: 'application/octet-stream',
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'pincel.aseprite';
-      a.click();
-      // Defer the revoke: some browsers cancel the download if the
-      // blob URL is revoked synchronously after `.click()`.
-      setTimeout(() => URL.revokeObjectURL(url), 0);
-      status = `saved ${bytes.length} bytes`;
+      const bytes = new Uint8Array(doc.saveAseprite());
+      const next = await saveBytes(bytes, saveTarget, { forceAs });
+      saveTarget = next;
+      status = `saved ${bytes.length} bytes · ${next.name}`;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
@@ -1059,15 +1073,19 @@
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
     <button class="toolbar-btn" onclick={newDoc}>New</button>
-    <button class="toolbar-btn" onclick={() => fileInput?.click()}>Open…</button>
-    <button class="toolbar-btn" onclick={save} disabled={!doc}>Save</button>
-    <input
-      bind:this={fileInput}
-      type="file"
-      accept=".aseprite,.ase"
-      class="hidden"
-      onchange={openFile}
-    />
+    <button class="toolbar-btn" onclick={openDoc}>Open…</button>
+    <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
+      {fsAccessAvailable ? 'Save' : 'Save As (download)'}
+    </button>
+    {#if fsAccessAvailable}
+      <button
+        class="toolbar-btn"
+        onclick={() => save({ forceAs: true })}
+        disabled={!doc}
+      >
+        Save As…
+      </button>
+    {/if}
     <span class="ml-2 flex items-center gap-1" role="group" aria-label="Active tool">
       <button
         class="toolbar-btn"
