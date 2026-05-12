@@ -389,8 +389,17 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
             match chunk {
                 Chunk::Tileset(ts) => tilesets.push(build_tileset(ts)?),
                 Chunk::Slice(s) => {
-                    let id = SliceId::new(slices.len() as u32);
-                    slices.push(build_slice(id, s)?);
+                    // `SliceId` is a `u32`; on 64-bit hosts `slices.len()` is
+                    // a `usize` and a bare `as u32` would silently truncate
+                    // past `u32::MAX` and assign duplicate ids. Surface the
+                    // overflow as a structured error to match the writer's
+                    // own `OutOfRange` pre-validation.
+                    let id_raw =
+                        u32::try_from(slices.len()).map_err(|_| CodecError::OutOfRange {
+                            what: "slice count",
+                            value: slices.len() as i64,
+                        })?;
+                    slices.push(build_slice(SliceId::new(id_raw), s)?);
                 }
                 _ => {}
             }
