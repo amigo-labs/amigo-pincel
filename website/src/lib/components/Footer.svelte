@@ -19,14 +19,6 @@
             GitHub
           </a>
         </li>
-        <li>
-          <a href="https://mastodon.gamedev.place/@amigo_labs" rel="external me noopener">
-            Mastodon
-          </a>
-        </li>
-        <li>
-          <a href="https://bsky.app/profile/amigo-labs.dev" rel="external noopener">Bluesky</a>
-        </li>
       </ul>
     </div>
     <div class="meta">
