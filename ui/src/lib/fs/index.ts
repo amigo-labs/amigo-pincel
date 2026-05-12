@@ -87,7 +87,11 @@ function isUserCancel(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
-async function ensureReadWrite(
+/** Ask the FSA handle for read/write permission. Returns true when
+ *  the handle is already granted or the user grants on prompt; false
+ *  on denial. Safe to call on browsers without permission APIs — it
+ *  returns true (those browsers don't gate access). */
+export async function ensureReadWritePermission(
   handle: FileSystemFileHandle,
 ): Promise<boolean> {
   const node = handle as FileSystemFileHandle & FsHandlePermissioned;
@@ -196,7 +200,7 @@ export async function saveBytes(
   const forceAs = opts.forceAs ?? false;
 
   if (!forceAs && target.handle && fs.showSaveFilePicker) {
-    if (await ensureReadWrite(target.handle)) {
+    if (await ensureReadWritePermission(target.handle)) {
       await writeHandle(target.handle, bytes);
       return target;
     }

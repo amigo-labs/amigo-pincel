@@ -5,11 +5,18 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import {
+    ensureReadWritePermission,
     hasFsAccess,
     pickAndOpen,
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
+  import { isIdbAvailable } from './lib/idb/db';
+  import {
+    listRecents,
+    upsertRecent,
+    type RecentFile,
+  } from './lib/idb/recent-files';
   import {
     blitFrame,
     paintEllipsePreview,
@@ -87,6 +94,18 @@
   });
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
+  // Per-document UUID. Refreshed on every `New` / `Open` /
+  // `Open Recent` so each session has a stable identity that the
+  // recent-files registry and (M10.3) autosave snapshots can key on.
+  // M10.2 only persists FSA-handle-bearing recents — without a handle
+  // the entry would be unclickable.
+  let docId = $state<string>(crypto.randomUUID());
+  // Most-recently-opened recents, refreshed after every successful
+  // open / save-as / open-recent. Empty list on non-FSA browsers and
+  // before the IDB layer has loaded.
+  let recents = $state<RecentFile[]>([]);
+  let recentMenuOpen = $state(false);
+  const recentsAvailable = fsAccessAvailable && isIdbAvailable();
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -863,6 +882,7 @@
     editingTile = null;
     activeSliceId = null;
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null };
+    docId = crypto.randomUUID();
     status = 'new 64×64 document';
   }
 
@@ -889,7 +909,9 @@
       editingTile = null;
       activeSliceId = null;
       saveTarget = { name: opened.name, handle: opened.handle };
+      docId = crypto.randomUUID();
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
+      await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `open failed: ${msg}`;
@@ -904,9 +926,69 @@
       const next = await saveBytes(bytes, saveTarget, { forceAs });
       saveTarget = next;
       status = `saved ${bytes.length} bytes · ${next.name}`;
+      await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
+    }
+  }
+
+  // Persist the current `saveTarget` to the recent-files registry and
+  // refresh the in-memory list. No-op when the registry isn't
+  // available (non-FSA browsers / IDB disabled) or the current target
+  // doesn't carry a handle (a download-only save, or a New document
+  // that hasn't been written yet).
+  async function recordRecent() {
+    if (!recentsAvailable) return;
+    if (!saveTarget.handle) return;
+    try {
+      await upsertRecent({
+        id: docId,
+        name: saveTarget.name,
+        handle: saveTarget.handle,
+      });
+      recents = await listRecents();
+    } catch (err) {
+      // Persistence is best-effort; surface to the status line but
+      // don't block the save / open the user already completed.
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `${status} (recents update failed: ${msg})`;
+    }
+  }
+
+  async function openRecent(r: RecentFile) {
+    recentMenuOpen = false;
+    if (!r.handle) {
+      status = `recent ${r.name}: no handle`;
+      return;
+    }
+    try {
+      if (!(await ensureReadWritePermission(r.handle))) {
+        status = `recent ${r.name}: permission denied`;
+        return;
+      }
+      const file = await r.handle.getFile();
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const next = Document.openAseprite(bytes);
+      disposeDoc();
+      doc = next;
+      dirty = true;
+      syncMeta();
+      syncSelection();
+      tilesetRev += 1;
+      stampTile = null;
+      stampHover = null;
+      editingTile = null;
+      activeSliceId = null;
+      saveTarget = { name: file.name, handle: r.handle };
+      // Preserve the recent's id so re-opens count as the same doc and
+      // (M10.3) autosave snapshots survive across page reloads.
+      docId = r.id;
+      status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+      await recordRecent();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `recent ${r.name} open failed: ${msg}`;
     }
   }
 
@@ -1057,6 +1139,17 @@
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onWindowBlur);
     document.addEventListener('visibilitychange', onVisibilityChange);
+    // Best-effort recents load — failures are silent (the dropdown
+    // just stays empty / hidden).
+    if (recentsAvailable) {
+      listRecents()
+        .then((rows) => {
+          if (!cancelled) recents = rows;
+        })
+        .catch((err: unknown) => {
+          console.error('listRecents failed', err);
+        });
+    }
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
@@ -1085,6 +1178,39 @@
       >
         Save As…
       </button>
+    {/if}
+    {#if recentsAvailable}
+      <div class="relative">
+        <button
+          class="toolbar-btn"
+          class:toolbar-btn-active={recentMenuOpen}
+          aria-haspopup="menu"
+          aria-expanded={recentMenuOpen}
+          disabled={recents.length === 0}
+          onclick={() => (recentMenuOpen = !recentMenuOpen)}
+        >
+          Recent…
+        </button>
+        {#if recentMenuOpen}
+          <ul
+            class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+            role="menu"
+          >
+            {#each recents as r (r.id)}
+              <li role="none">
+                <button
+                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
+                  role="menuitem"
+                  title={r.name}
+                  onclick={() => openRecent(r)}
+                >
+                  {r.name}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
     {/if}
     <span class="ml-2 flex items-center gap-1" role="group" aria-label="Active tool">
       <button
