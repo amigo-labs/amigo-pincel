@@ -11,7 +11,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg",
-    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg"
+    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "pincel-wasm": "link:../crates/pincel-wasm/pkg"
@@ -20,6 +23,7 @@
     "@eslint/js": "^9.20.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.0.0",
     "@types/node": "^22.10.0",
     "eslint": "^9.20.0",
     "eslint-plugin-svelte": "^3.0.0",
