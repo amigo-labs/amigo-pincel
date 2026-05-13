@@ -10,15 +10,20 @@ import { VitePWA } from 'vite-plugin-pwa';
 // resolved web app manifest from the `manifest:` block below. WASM
 // bytes are explicitly added to the glob patterns so the wasm-pack
 // output is precached alongside the JS / CSS / HTML.
-// `TAURI_*` env vars are injected by the Tauri CLI when it invokes
-// `pnpm dev`. Their presence is the signal we're being driven by
-// `pnpm tauri:dev`. `clearScreen: false` keeps the Tauri runner's
-// startup logs visible, and `server.strictPort` makes Vite fail
-// loudly if 5173 is taken so Tauri's `devUrl` never points at the
-// wrong process.
+//
+// Tauri 2 integration:
+//   * `clearScreen: false` keeps the Tauri runner's startup logs
+//     visible (Vite would otherwise clear them on dev-server boot).
+//   * `envPrefix` adds `TAURI_ENV_` so the CLI-injected env vars
+//     (`TAURI_ENV_PLATFORM`, `_ARCH`, `_FAMILY`, `_DEBUG`,
+//     `_TARGET_TRIPLE`) are exposed via `import.meta.env`. Vite
+//     matches prefixes via `startsWith`, so a literal trailing `*`
+//     would never match anything.
+//   * `server.strictPort` makes Vite fail loudly if 5173 is taken so
+//     Tauri's `devUrl` never points at the wrong process.
 export default defineConfig({
   clearScreen: false,
-  envPrefix: ['VITE_', 'TAURI_ENV_*'],
+  envPrefix: ['VITE_', 'TAURI_ENV_'],
   plugins: [
     svelte(),
     tailwindcss(),
