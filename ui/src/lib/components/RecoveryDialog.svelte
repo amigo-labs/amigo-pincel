@@ -1,25 +1,31 @@
 <script lang="ts">
-  import type { AutosaveSnapshot } from '../idb/autosave';
+  import type { AutosaveSnapshotMeta } from '../idb/autosave';
 
   // Modal shown on app boot when the IDB autosave store holds
   // snapshots from a prior session. The parent owns the snapshot
   // list and the load / discard side effects — this component is
   // purely presentational and emits callbacks.
   //
-  // Each row is one doc's latest snapshot. `onRecover` triggers a
-  // `Document.openAseprite` load and re-binds the parent's `docId`
-  // to the snapshot's id so subsequent saves and autosaves stay
-  // grouped under the same identity. `onDiscard` drops every
-  // snapshot for that docId. `onDismiss` closes the dialog without
-  // touching the store — the snapshots survive to the next boot.
+  // Each row is one doc's latest snapshot metadata (the bytes stay
+  // on disk until the user clicks Recover). `onRecover` triggers a
+  // bytes fetch + `Document.openAseprite` load and re-binds the
+  // parent's `docId` to the snapshot's id so subsequent saves and
+  // autosaves stay grouped under the same identity. `onDiscard`
+  // drops every row for that docId. `onDismiss` closes the dialog
+  // without touching the store — the snapshots survive to the next
+  // boot. `errors` carries per-row failure messages so a failed
+  // Recover / Discard surfaces against the offending row without
+  // closing the dialog.
   let {
     snapshots,
+    errors = {},
     onRecover,
     onDiscard,
     onDismiss,
   }: {
-    snapshots: AutosaveSnapshot[];
-    onRecover: (snap: AutosaveSnapshot) => void;
+    snapshots: AutosaveSnapshotMeta[];
+    errors?: Record<string, string>;
+    onRecover: (snap: AutosaveSnapshotMeta) => void;
     onDiscard: (docId: string) => void;
     onDismiss: () => void;
   } = $props();
@@ -61,30 +67,37 @@
     <ul class="flex flex-col gap-2">
       {#each snapshots as snap (snap.docId)}
         <li
-          class="flex items-center justify-between gap-3 rounded border border-neutral-800 bg-neutral-950 px-3 py-2"
+          class="flex flex-col gap-1 rounded border border-neutral-800 bg-neutral-950 px-3 py-2"
         >
-          <div class="flex min-w-0 flex-col">
-            <span class="truncate font-medium" title={snap.name}>
-              {snap.name}
-            </span>
-            <span class="text-xs text-neutral-500">
-              {formatTimestamp(snap.ts)} · {formatBytes(snap.bytes.length)}
-            </span>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex min-w-0 flex-col">
+              <span class="truncate font-medium" title={snap.name}>
+                {snap.name}
+              </span>
+              <span class="text-xs text-neutral-500">
+                {formatTimestamp(snap.ts)} · {formatBytes(snap.byteLength)}
+              </span>
+            </div>
+            <div class="flex shrink-0 gap-1">
+              <button
+                class="recovery-btn recovery-btn-primary"
+                onclick={() => onRecover(snap)}
+              >
+                Recover
+              </button>
+              <button
+                class="recovery-btn"
+                onclick={() => onDiscard(snap.docId)}
+              >
+                Discard
+              </button>
+            </div>
           </div>
-          <div class="flex shrink-0 gap-1">
-            <button
-              class="recovery-btn recovery-btn-primary"
-              onclick={() => onRecover(snap)}
-            >
-              Recover
-            </button>
-            <button
-              class="recovery-btn"
-              onclick={() => onDiscard(snap.docId)}
-            >
-              Discard
-            </button>
-          </div>
+          {#if errors[snap.docId]}
+            <p class="text-xs text-rose-400" role="alert">
+              {errors[snap.docId]}
+            </p>
+          {/if}
         </li>
       {/each}
     </ul>

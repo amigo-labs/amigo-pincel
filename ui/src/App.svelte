@@ -14,10 +14,11 @@
   } from './lib/fs';
   import { isIdbAvailable } from './lib/idb/db';
   import {
+    latestSnapshot,
     listLatestSnapshots,
     removeSnapshots,
     writeSnapshot,
-    type AutosaveSnapshot,
+    type AutosaveSnapshotMeta,
   } from './lib/idb/autosave';
   import {
     listRecents,
@@ -125,8 +126,13 @@
   const autosaveAvailable = isIdbAvailable();
   let autosaveTimer: ReturnType<typeof setInterval> | null = null;
   let lastWriteUndoDepth = $state(0);
-  let recoverySnapshots = $state<AutosaveSnapshot[]>([]);
+  let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
   let recoveryOpen = $state(false);
+  // Per-row failure surface so a failed Recover / Discard keeps the
+  // dialog open with the error visible against the offending row,
+  // and the user can retry or pick a different snapshot. Keyed by
+  // `docId` so independent rows don't share an error slot.
+  let recoveryErrors = $state<Record<string, string>>({});
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -1004,29 +1010,36 @@
   // current one. Re-binds `docId` to the snapshot's id so subsequent
   // saves and autosaves stay grouped under the same identity — this
   // is what makes the recovered session feel like a continuation
-  // rather than a copy. The snapshot row is dropped on success.
-  async function applyRecovery(snap: AutosaveSnapshot) {
+  // rather than a copy. The snapshot row is dropped only on success;
+  // on failure the dialog stays open with a per-row error so the
+  // user can retry or pick a different snapshot.
+  async function applyRecovery(meta: AutosaveSnapshotMeta) {
+    let next: Document;
     try {
-      const next = Document.openAseprite(snap.bytes);
-      disposeDoc();
-      doc = next;
-      dirty = true;
-      syncMeta();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      saveTarget = { name: snap.name, handle: null };
-      docId = snap.docId;
-      lastWriteUndoDepth = doc.undoDepth;
-      status = `recovered ${snap.name} · ${doc.width}×${doc.height}`;
-      await clearAutosave();
+      const full = await latestSnapshot(meta.docId);
+      if (!full) throw new Error('snapshot bytes not found');
+      next = Document.openAseprite(full.bytes);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      recoveryErrors = { ...recoveryErrors, [meta.docId]: msg };
       status = `recover failed: ${msg}`;
+      return;
     }
+    disposeDoc();
+    doc = next;
+    dirty = true;
+    syncMeta();
+    syncSelection();
+    tilesetRev += 1;
+    stampTile = null;
+    stampHover = null;
+    editingTile = null;
+    activeSliceId = null;
+    saveTarget = { name: meta.name, handle: null };
+    docId = meta.docId;
+    lastWriteUndoDepth = doc.undoDepth;
+    status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
+    await clearAutosave();
     closeRecovery();
   }
 
@@ -1034,17 +1047,27 @@
     try {
       await removeSnapshots(targetDocId);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('discard snapshot failed', err);
+      recoveryErrors = { ...recoveryErrors, [targetDocId]: msg };
+      status = `discard failed: ${msg}`;
+      return;
     }
     recoverySnapshots = recoverySnapshots.filter(
       (s) => s.docId !== targetDocId,
     );
+    if (targetDocId in recoveryErrors) {
+      const next = { ...recoveryErrors };
+      delete next[targetDocId];
+      recoveryErrors = next;
+    }
     if (recoverySnapshots.length === 0) closeRecovery();
   }
 
   function closeRecovery() {
     recoveryOpen = false;
     recoverySnapshots = [];
+    recoveryErrors = {};
   }
 
   // Persist the current `saveTarget` to the recent-files registry and
@@ -1589,6 +1612,7 @@
 {#if recoveryOpen && recoverySnapshots.length > 0}
   <RecoveryDialog
     snapshots={recoverySnapshots}
+    errors={recoveryErrors}
     onRecover={(snap) => {
       void applyRecovery(snap);
     }}
