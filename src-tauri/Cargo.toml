@@ -1,0 +1,26 @@
+[package]
+name = "pincel-tauri"
+version = "0.1.0"
+description = "Pincel pixel-art editor — native desktop shell (Tauri 2)."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+default-run = "pincel"
+
+[[bin]]
+name = "pincel"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# pincel-core is a direct cargo dependency per CLAUDE.md §5.5 so
+# M11.2 native commands can call codec functions without a WASM
+# round-trip. M11.1 does not yet exercise the dependency.
+pincel-core = { workspace = true }
+tauri = { version = "2", features = [] }
+
+[lints]
+workspace = true

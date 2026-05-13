@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for the main Pincel window. M11.2 will add the FS-related permissions the native open / save commands need.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
