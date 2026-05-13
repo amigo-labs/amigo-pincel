@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { Document, loadCore } from './lib/core';
+  import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
@@ -12,6 +13,12 @@
     type SaveTarget,
   } from './lib/fs';
   import { isIdbAvailable } from './lib/idb/db';
+  import {
+    listLatestSnapshots,
+    removeSnapshots,
+    writeSnapshot,
+    type AutosaveSnapshot,
+  } from './lib/idb/autosave';
   import {
     listRecents,
     upsertRecent,
@@ -106,6 +113,20 @@
   let recents = $state<RecentFile[]>([]);
   let recentMenuOpen = $state(false);
   const recentsAvailable = fsAccessAvailable && isIdbAvailable();
+  // Autosave (M10.3): on a 30-second cadence, snapshot the current
+  // `.aseprite` bytes into the IDB `autosave_snapshots` store keyed
+  // by `docId`. The interval keeps ticking once `loadCore` resolves;
+  // each tick is a no-op when the undo depth hasn't advanced past
+  // the last successful save / snapshot, so an idle session never
+  // touches IDB. A successful save (`save` / `openRecent` /
+  // `openDoc` / `newDoc`) drops the snapshot row and re-baselines
+  // `lastWriteUndoDepth` so the next dirty edit re-arms the timer.
+  const AUTOSAVE_INTERVAL_MS = 30_000;
+  const autosaveAvailable = isIdbAvailable();
+  let autosaveTimer: ReturnType<typeof setInterval> | null = null;
+  let lastWriteUndoDepth = $state(0);
+  let recoverySnapshots = $state<AutosaveSnapshot[]>([]);
+  let recoveryOpen = $state(false);
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -883,6 +904,7 @@
     activeSliceId = null;
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null };
     docId = crypto.randomUUID();
+    lastWriteUndoDepth = doc.undoDepth;
     status = 'new 64×64 document';
   }
 
@@ -910,7 +932,9 @@
       activeSliceId = null;
       saveTarget = { name: opened.name, handle: opened.handle };
       docId = crypto.randomUUID();
+      lastWriteUndoDepth = doc.undoDepth;
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
+      await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -925,12 +949,102 @@
       const bytes = new Uint8Array(doc.saveAseprite());
       const next = await saveBytes(bytes, saveTarget, { forceAs });
       saveTarget = next;
+      lastWriteUndoDepth = doc.undoDepth;
       status = `saved ${bytes.length} bytes · ${next.name}`;
+      await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
     }
+  }
+
+  // Drop autosave snapshots for the current `docId`. Called after
+  // every successful save / open so the IDB store only ever holds
+  // snapshots that represent unsaved edits.
+  async function clearAutosave() {
+    if (!autosaveAvailable) return;
+    try {
+      await removeSnapshots(docId);
+    } catch (err) {
+      // Best-effort; log but don't surface — the user's save itself
+      // succeeded.
+      console.error('autosave clear failed', err);
+    }
+  }
+
+  // One autosave tick. No-op when nothing to snapshot (no doc, no
+  // change since last write, IDB unavailable). Surfacing failure in
+  // the status bar is intentional — autosave silently failing is the
+  // worst failure mode for this feature.
+  async function autosaveTick() {
+    if (!autosaveAvailable || !doc) return;
+    if (doc.undoDepth === lastWriteUndoDepth) return;
+    const depthAtSnapshot = doc.undoDepth;
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(doc.saveAseprite());
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('autosave encode failed', err);
+      status = `autosave failed: ${msg}`;
+      return;
+    }
+    try {
+      await writeSnapshot(docId, saveTarget.name, bytes);
+      lastWriteUndoDepth = depthAtSnapshot;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('autosave write failed', err);
+      status = `autosave failed: ${msg}`;
+    }
+  }
+
+  // Load the recovered bytes into a fresh `Document`, replacing the
+  // current one. Re-binds `docId` to the snapshot's id so subsequent
+  // saves and autosaves stay grouped under the same identity — this
+  // is what makes the recovered session feel like a continuation
+  // rather than a copy. The snapshot row is dropped on success.
+  async function applyRecovery(snap: AutosaveSnapshot) {
+    try {
+      const next = Document.openAseprite(snap.bytes);
+      disposeDoc();
+      doc = next;
+      dirty = true;
+      syncMeta();
+      syncSelection();
+      tilesetRev += 1;
+      stampTile = null;
+      stampHover = null;
+      editingTile = null;
+      activeSliceId = null;
+      saveTarget = { name: snap.name, handle: null };
+      docId = snap.docId;
+      lastWriteUndoDepth = doc.undoDepth;
+      status = `recovered ${snap.name} · ${doc.width}×${doc.height}`;
+      await clearAutosave();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `recover failed: ${msg}`;
+    }
+    closeRecovery();
+  }
+
+  async function discardSnapshot(targetDocId: string) {
+    try {
+      await removeSnapshots(targetDocId);
+    } catch (err) {
+      console.error('discard snapshot failed', err);
+    }
+    recoverySnapshots = recoverySnapshots.filter(
+      (s) => s.docId !== targetDocId,
+    );
+    if (recoverySnapshots.length === 0) closeRecovery();
+  }
+
+  function closeRecovery() {
+    recoveryOpen = false;
+    recoverySnapshots = [];
   }
 
   // Persist the current `saveTarget` to the recent-files registry and
@@ -983,10 +1097,15 @@
       editingTile = null;
       activeSliceId = null;
       saveTarget = { name: file.name, handle: r.handle };
-      // Preserve the recent's id so re-opens count as the same doc and
-      // (M10.3) autosave snapshots survive across page reloads.
+      // Preserve the recent's id so re-opens count as the same doc
+      // and autosave snapshots survive across page reloads. The
+      // open itself is treated as a successful "write to disk" event
+      // — its bytes match the on-disk state, so any pending
+      // autosave snapshot for this id is stale and gets cleared.
       docId = r.id;
+      lastWriteUndoDepth = doc.undoDepth;
       status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+      await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1132,6 +1251,7 @@
         syncMeta();
         syncSelection();
         dirty = true;
+        lastWriteUndoDepth = doc.undoDepth;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
       })
@@ -1156,9 +1276,31 @@
           console.error('listRecents failed', err);
         });
     }
+    // Recovery probe: surface any snapshots from a prior session.
+    // The interval starts here too — the timer body short-circuits
+    // until `doc` is non-null, so it's safe to arm before
+    // `loadCore` resolves.
+    if (autosaveAvailable) {
+      listLatestSnapshots()
+        .then((snaps) => {
+          if (cancelled || snaps.length === 0) return;
+          recoverySnapshots = snaps;
+          recoveryOpen = true;
+        })
+        .catch((err: unknown) => {
+          console.error('autosave probe failed', err);
+        });
+      autosaveTimer = setInterval(() => {
+        void autosaveTick();
+      }, AUTOSAVE_INTERVAL_MS);
+    }
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+      if (autosaveTimer !== null) {
+        clearInterval(autosaveTimer);
+        autosaveTimer = null;
+      }
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
@@ -1443,6 +1585,19 @@
     {/if}
   </footer>
 </main>
+
+{#if recoveryOpen && recoverySnapshots.length > 0}
+  <RecoveryDialog
+    snapshots={recoverySnapshots}
+    onRecover={(snap) => {
+      void applyRecovery(snap);
+    }}
+    onDiscard={(targetDocId) => {
+      void discardSnapshot(targetDocId);
+    }}
+    onDismiss={closeRecovery}
+  />
+{/if}
 
 <style>
   .canvas-pixelated {
