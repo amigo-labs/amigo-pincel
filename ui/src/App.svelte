@@ -5,7 +5,7 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import {
-    ensureReadWritePermission,
+    ensureReadPermission,
     hasFsAccess,
     pickAndOpen,
     saveBytes,
@@ -963,7 +963,9 @@
       return;
     }
     try {
-      if (!(await ensureReadWritePermission(r.handle))) {
+      // Read access is enough to open. The next save will prompt
+      // for write via `saveBytes` → `ensureReadWritePermission`.
+      if (!(await ensureReadPermission(r.handle))) {
         status = `recent ${r.name}: permission denied`;
         return;
       }
@@ -1090,6 +1092,10 @@
       // Prevent the browser from page-scrolling on space.
       e.preventDefault();
       spaceDown = true;
+      return;
+    }
+    if (e.key === 'Escape' && recentMenuOpen) {
+      recentMenuOpen = false;
     }
   }
 
@@ -1194,13 +1200,12 @@
         {#if recentMenuOpen}
           <ul
             class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
-            role="menu"
+            aria-label="Recent files"
           >
             {#each recents as r (r.id)}
-              <li role="none">
+              <li>
                 <button
                   class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
-                  role="menuitem"
                   title={r.name}
                   onclick={() => openRecent(r)}
                 >

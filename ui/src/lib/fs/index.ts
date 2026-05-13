@@ -36,12 +36,14 @@ interface FsAccessWindow {
   ) => Promise<FileSystemFileHandle>;
 }
 
+type FsPermissionMode = 'read' | 'readwrite';
+
 interface FsHandlePermissioned {
   queryPermission?: (descriptor: {
-    mode: 'readwrite';
+    mode: FsPermissionMode;
   }) => Promise<PermissionState>;
   requestPermission?: (descriptor: {
-    mode: 'readwrite';
+    mode: FsPermissionMode;
   }) => Promise<PermissionState>;
 }
 
@@ -87,15 +89,12 @@ function isUserCancel(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
-/** Ask the FSA handle for read/write permission. Returns true when
- *  the handle is already granted or the user grants on prompt; false
- *  on denial. Safe to call on browsers without permission APIs — it
- *  returns true (those browsers don't gate access). */
-export async function ensureReadWritePermission(
+async function ensurePermission(
   handle: FileSystemFileHandle,
+  mode: FsPermissionMode,
 ): Promise<boolean> {
   const node = handle as FileSystemFileHandle & FsHandlePermissioned;
-  const opts = { mode: 'readwrite' } as const;
+  const opts = { mode } as const;
   if (node.queryPermission) {
     const state = await node.queryPermission(opts);
     if (state === 'granted') return true;
@@ -105,6 +104,25 @@ export async function ensureReadWritePermission(
     return state === 'granted';
   }
   return true;
+}
+
+/** Ask the FSA handle for read/write permission. Use before in-place
+ *  saves. Returns true when granted (already or on prompt); false on
+ *  denial. Safe on browsers without permission APIs — returns true
+ *  (those browsers don't gate access). */
+export function ensureReadWritePermission(
+  handle: FileSystemFileHandle,
+): Promise<boolean> {
+  return ensurePermission(handle, 'readwrite');
+}
+
+/** Ask the FSA handle for read permission. Use before reading a
+ *  persisted handle (e.g. opening a recent file); the user can deny
+ *  write access without blocking the open. */
+export function ensureReadPermission(
+  handle: FileSystemFileHandle,
+): Promise<boolean> {
+  return ensurePermission(handle, 'read');
 }
 
 /** Prompt the user to pick a sprite file. Returns `null` on cancel. */
@@ -138,7 +156,41 @@ function openViaInput(): Promise<OpenedFile | null> {
     document.body.appendChild(input);
 
     let settled = false;
+    let focusTimer: ReturnType<typeof setTimeout> | null = null;
+    const onChange = async () => {
+      const file = input.files?.[0];
+      if (!file) {
+        settle(null);
+        return;
+      }
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        settle({ name: file.name, bytes, handle: null });
+      } catch (err) {
+        fail(err);
+      }
+    };
+    const onCancel = () => settle(null);
+    // When the OS picker closes the browser tab regains focus.
+    // Wait long enough for a near-simultaneous `change` to win the
+    // race (file selection), then settle null on the assumption it
+    // was a dismiss. Covers Firefox / Safari where the standard
+    // `cancel` event is unreliable.
+    const onFocus = () => {
+      if (focusTimer !== null) return;
+      focusTimer = setTimeout(() => {
+        focusTimer = null;
+        if (!settled) settle(null);
+      }, 300);
+    };
     const cleanup = () => {
+      if (focusTimer !== null) {
+        clearTimeout(focusTimer);
+        focusTimer = null;
+      }
+      input.removeEventListener('change', onChange);
+      input.removeEventListener('cancel', onCancel);
+      window.removeEventListener('focus', onFocus);
       input.parentNode?.removeChild(input);
     };
     const settle = (val: OpenedFile | null) => {
@@ -154,22 +206,18 @@ function openViaInput(): Promise<OpenedFile | null> {
       reject(err);
     };
 
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0];
-      if (!file) {
-        settle(null);
-        return;
-      }
-      try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        settle({ name: file.name, bytes, handle: null });
-      } catch (err) {
-        fail(err);
-      }
-    });
+    input.addEventListener('change', onChange);
     // Newer browsers fire `cancel` when the picker closes without a
-    // selection. On older ones the listener is harmlessly inert.
-    input.addEventListener('cancel', () => settle(null));
+    // selection. On older ones the listener is harmlessly inert and
+    // the focus fallback below picks up the cancel.
+    input.addEventListener('cancel', onCancel);
+    // Defer the focus listener so the click that opens the picker
+    // doesn't trigger it; the picker steals focus, then returns it
+    // on dismiss.
+    queueMicrotask(() => {
+      if (settled) return;
+      window.addEventListener('focus', onFocus);
+    });
 
     input.click();
   });
@@ -179,9 +227,12 @@ function openViaInput(): Promise<OpenedFile | null> {
  *
  * Resolution order:
  *  1. `forceAs === false` and `target.handle` present and writable:
- *     write through the existing handle in place.
- *  2. FSA available: prompt `showSaveFilePicker` and write to the
- *     returned handle.
+ *     write through the existing handle in place. Gated on
+ *     `createWritable` being a function on the handle so a browser
+ *     that exposes the open picker but not the writable surface
+ *     still falls through to the next arm.
+ *  2. FSA save picker available: prompt `showSaveFilePicker` and
+ *     write to the returned handle.
  *  3. Fallback: trigger a Blob + anchor download named `target.name`.
  *
  * Returns the (possibly updated) target so the caller can persist the
@@ -199,7 +250,11 @@ export async function saveBytes(
   const fs = fsAccess();
   const forceAs = opts.forceAs ?? false;
 
-  if (!forceAs && target.handle && fs.showSaveFilePicker) {
+  if (
+    !forceAs &&
+    target.handle &&
+    typeof target.handle.createWritable === 'function'
+  ) {
     if (await ensureReadWritePermission(target.handle)) {
       await writeHandle(target.handle, bytes);
       return target;
