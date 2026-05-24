@@ -6,7 +6,8 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import type { UnlistenFn } from '@tauri-apps/api/event';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import {
     ensureReadPermission,
     hasFsAccess,
@@ -14,6 +15,7 @@
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
+  import { getPref, setPref } from './lib/idb/prefs';
   import { syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { isIdbAvailable } from './lib/idb/db';
@@ -139,6 +141,18 @@
   // and the user can retry or pick a different snapshot. Keyed by
   // `docId` so independent rows don't share an error slot.
   let recoveryErrors = $state<Record<string, string>>({});
+  // First-launch file-association dialog (Tauri-only). Visible once
+  // per install; "Don't show again" persists the pref.
+  const FILE_ASSOC_PREF = 'fileAssocPromptShown';
+  let fileAssocOpen = $state(false);
+  const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
+    if (typeof navigator === 'undefined') return 'unknown';
+    const ua = navigator.userAgent;
+    if (/Mac/i.test(ua)) return 'macos';
+    if (/Win/i.test(ua)) return 'windows';
+    if (/Linux/i.test(ua)) return 'linux';
+    return 'unknown';
+  })();
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -1347,6 +1361,7 @@
     // before the window unloads. Best-effort: a wire failure logs but
     // doesn't block the app — the toolbar buttons stay available.
     let unlistenMenu: UnlistenFn | null = null;
+    let unlistenOpenFile: UnlistenFn | null = null;
     if (tauriHost) {
       wireNativeMenu({
         'menu:new': newDoc,
@@ -1370,6 +1385,32 @@
         .catch((err: unknown) => {
           console.error('wireNativeMenu failed', err);
         });
+      // Open-file events from Rust: file-association double-click,
+      // CLI arg, macOS RunEvent::Opened, single-instance forward.
+      listen<string>('open-file', (e) => {
+        if (typeof e.payload === 'string') void openByPath(e.payload);
+      })
+        .then((fn) => {
+          if (cancelled) {
+            fn();
+            return;
+          }
+          unlistenOpenFile = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('open-file listen failed', err);
+        });
+      // First-launch file-association advisory. Best-effort: a missing
+      // IDB or a getPref failure silently skips the dialog.
+      if (autosaveAvailable) {
+        getPref(FILE_ASSOC_PREF)
+          .then((shown) => {
+            if (!cancelled && !shown) fileAssocOpen = true;
+          })
+          .catch((err: unknown) => {
+            console.error('getPref fileAssoc failed', err);
+          });
+      }
     }
     return () => {
       cancelled = true;
@@ -1379,6 +1420,7 @@
         autosaveTimer = null;
       }
       if (unlistenMenu) unlistenMenu();
+      if (unlistenOpenFile) unlistenOpenFile();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
@@ -1393,6 +1435,49 @@
   function openRecentById(id: string) {
     const r = recents.find((row) => row.id === id);
     if (r) void openRecent(r);
+  }
+
+  // Tauri-only: open a sprite by absolute path. Used by the
+  // `open-file` event (file-association double-click, CLI arg) and
+  // by `openRecent` when the recent carries a path.
+  async function openByPath(path: string) {
+    try {
+      const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
+        path,
+      });
+      const bytes =
+        raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+      const next = Document.openAseprite(bytes);
+      disposeDoc();
+      doc = next;
+      dirty = true;
+      syncMeta();
+      syncSelection();
+      tilesetRev += 1;
+      stampTile = null;
+      stampHover = null;
+      editingTile = null;
+      activeSliceId = null;
+      const name = path.replace(/^.*[/\\]/, '');
+      saveTarget = { name, handle: null, path };
+      docId = crypto.randomUUID();
+      lastWriteUndoDepth = doc.undoDepth;
+      status = `opened ${name} · ${doc.width}×${doc.height}`;
+      await clearAutosave();
+      await recordRecent();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `open-file failed: ${msg}`;
+    }
+  }
+
+  function dismissFileAssoc(dontShowAgain: boolean) {
+    fileAssocOpen = false;
+    if (dontShowAgain) {
+      setPref(FILE_ASSOC_PREF, true).catch((err: unknown) => {
+        console.error('setPref fileAssoc failed', err);
+      });
+    }
   }
 
   // Push the current recents list to the Rust-side `Open Recent`
@@ -1700,6 +1785,10 @@
     }}
     onDismiss={closeRecovery}
   />
+{/if}
+
+{#if fileAssocOpen}
+  <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
 {/if}
 
 <style>
