@@ -2,19 +2,32 @@
 
 _Last updated: 2026-05-24_
 
-**Branch:** `claude/progress-check-QjqAo` · M11 complete — native
-Tauri 2 desktop shell now covers the full open / save / recents / menu /
-file-association surface. The PWA path is byte-for-byte unchanged;
-all Tauri branches gate on `isTauri()`. Slice 0 fmt-only cleanup of
-prior rustfmt drift in `aseprite-writer` + `pincel-core` landed first.
+**Branch:** `claude/mach-m12-Adb9a` · M12.1 in progress — performance
+pass kickoff. Profiling baseline landed via a new `criterion` bench
+suite at `crates/pincel-core/benches/compose.rs`. No behavior change;
+subsequent M12 slices will move the recorded numbers.
 
 ## Next task
 
-**M12** — Performance pass. Target: 256×256 sprite at 32× zoom holds
-60 fps. Likely shape: dirty-rect compose (`pincel-core::render`),
-per-tile / per-cel hashes to short-circuit unchanged regions, profiling
-pass to pin actual hot spots before mechanical refactors. See
-CLAUDE.md §4 (M12) / spec §16.
+**M12.2** — `compose()` honors `dirty_hint` + scratch reuse. Shrink
+`ComposeResult.pixels` to the dirty sub-rect (spec §4.3) and thread a
+caller-owned `&mut Vec<u8>` scratch through `compose()` so the hot path
+stops allocating. See the M12 plan (`/root/.claude/plans/mach-m12-abstract-dewdrop.md`)
+for the slice list.
+
+## M12 baselines (criterion, 2026-05-24)
+
+Recorded on the M12.1 commit. `cargo bench -p pincel-core --bench compose`.
+Numbers are sandbox-host medians; relative comparison is what matters for
+subsequent slices.
+
+| Bench | Median |
+|-------|--------|
+| `compose_256_single_layer_full` | 129.49 µs |
+| `compose_256_four_layers_full`  | 1.3730 ms |
+| `compose_256_dirty_hint_4x4`    | 131.03 µs (≈ full path — `dirty_hint` ignored pre-M12.2) |
+| `compose_64_tilemap_full`       | 6.3359 µs |
+| `compose_256_zoom_32`           | 23.914 µs |
 
 ## Milestone status
 
@@ -35,7 +48,8 @@ CLAUDE.md §4 (M12) / spec §16.
 | M11.2 | ✅ | Native FS commands (`read_file_bytes` / `write_file_bytes`) + `tauri-plugin-dialog` + `ui/src/lib/fs/index.ts` Tauri branch |
 | M11.3 | ✅ | Native menu bar (File / Edit / View / Help) + Recents submenu wired via `set_recent_menu` |
 | M11.4 | ✅ | `bundle.fileAssociations` for `.aseprite` / `.ase`, single-instance forward, macOS `RunEvent::Opened`, first-launch advisory dialog |
-| M12 | ⬜ | Performance pass |
+| M12.1 | ✅ | Profiling baseline — `criterion` workspace dev-dep, `crates/pincel-core/benches/compose.rs` with five scenarios (single-layer / four-layer / dirty-hint / tilemap / zoom-32). Numbers pinned above. |
+| M12.2–M12.6 | ⬜ | Performance pass — `dirty_hint` honored, scratch reuse, per-command DirtyRegion, UI sub-rect blit, WebGPU adapter. See plan file. |
 
 ### M8.7 sub-tasks
 
