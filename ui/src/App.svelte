@@ -6,6 +6,7 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import type { UnlistenFn } from '@tauri-apps/api/event';
   import {
     ensureReadPermission,
     hasFsAccess,
@@ -13,6 +14,7 @@
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
+  import { syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { isIdbAvailable } from './lib/idb/db';
   import {
@@ -1339,6 +1341,36 @@
         void autosaveTick();
       }, AUTOSAVE_INTERVAL_MS);
     }
+    // Native menu wiring (Tauri only). The Rust side emits a "menu"
+    // event with the item id as payload; we dispatch into local
+    // handlers. The unlisten fn is stored so cleanup tears it down
+    // before the window unloads. Best-effort: a wire failure logs but
+    // doesn't block the app — the toolbar buttons stay available.
+    let unlistenMenu: UnlistenFn | null = null;
+    if (tauriHost) {
+      wireNativeMenu({
+        'menu:new': newDoc,
+        'menu:open': openDoc,
+        'menu:save': () => save(),
+        'menu:saveAs': () => save({ forceAs: true }),
+        'menu:undo': undo,
+        'menu:redo': redo,
+        'menu:zoomIn': zoomIn,
+        'menu:zoomOut': zoomOut,
+        'menu:resetZoom': resetView,
+        recent: openRecentById,
+      })
+        .then((fn) => {
+          if (cancelled) {
+            fn();
+            return;
+          }
+          unlistenMenu = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('wireNativeMenu failed', err);
+        });
+    }
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
@@ -1346,12 +1378,37 @@
         clearInterval(autosaveTimer);
         autosaveTimer = null;
       }
+      if (unlistenMenu) unlistenMenu();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       disposeDoc();
     };
+  });
+
+  // Look a recent up by id and route through `openRecent`.
+  // Native-menu Recent items only know the id; the full RecentFile
+  // lives in the local `recents` state.
+  function openRecentById(id: string) {
+    const r = recents.find((row) => row.id === id);
+    if (r) void openRecent(r);
+  }
+
+  // Push the current recents list to the Rust-side `Open Recent`
+  // submenu so the native menu stays in sync with the in-memory list.
+  // Only entries with a path can be re-opened by the menu (FSA handles
+  // need an in-page permission gesture). Failures are logged but don't
+  // surface in the UI — the toolbar dropdown remains the authoritative
+  // recents UI on the web.
+  $effect(() => {
+    if (!tauriHost) return;
+    const items = recents
+      .filter((r) => r.path !== null)
+      .map((r) => ({ id: r.id, name: r.name }));
+    syncRecentMenu(items).catch((err: unknown) => {
+      console.error('syncRecentMenu failed', err);
+    });
   });
 </script>
 
