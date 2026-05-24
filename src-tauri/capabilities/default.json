@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main Pincel window. M11.2 will add the FS-related permissions the native open / save commands need.",
+  "description": "Default permissions for the main Pincel window. M11.2 adds `dialog:default` for the native open / save pickers; the read_file_bytes / write_file_bytes commands wrap std::fs directly, so no fs-plugin permissions are needed.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:default"]
 }
