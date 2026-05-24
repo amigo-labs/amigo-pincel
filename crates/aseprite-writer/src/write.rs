@@ -537,16 +537,16 @@ fn write_tileset_body<W: Write>(w: &mut W, tileset: &TilesetChunk) -> Result<(),
 /// frame_number`, `LONG x`, `LONG y`, `DWORD width`, `DWORD height`,
 /// followed conditionally by a `NinePatch` and / or `Pivot` block based on
 /// the chunk-level flags. Caller must pass the validated flag word.
-fn write_slice_body<W: Write>(
-    w: &mut W,
-    slice: &SliceChunk,
-    flags: u32,
-) -> Result<(), WriteError> {
-    let key_count: u32 = slice.keys.len().try_into().map_err(|_| WriteError::TooMany {
-        what: "slice keys",
-        count: slice.keys.len() as u64,
-        max: u32::MAX as u64,
-    })?;
+fn write_slice_body<W: Write>(w: &mut W, slice: &SliceChunk, flags: u32) -> Result<(), WriteError> {
+    let key_count: u32 = slice
+        .keys
+        .len()
+        .try_into()
+        .map_err(|_| WriteError::TooMany {
+            what: "slice keys",
+            count: slice.keys.len() as u64,
+            max: u32::MAX as u64,
+        })?;
     write_dword(w, key_count)?;
     write_dword(w, flags)?;
     write_zeros(w, 4)?; // reserved
@@ -1057,7 +1057,10 @@ mod tests {
         assert!(hitbox.flags.is_empty());
         assert_eq!(hitbox.slice_keys.len(), 1);
         let k = &hitbox.slice_keys[0];
-        assert_eq!((k.frame_number, k.x, k.y, k.width, k.height), (0, 1, 2, 3, 4));
+        assert_eq!(
+            (k.frame_number, k.x, k.y, k.width, k.height),
+            (0, 1, 2, 3, 4)
+        );
         assert!(k.nine_patch.is_none());
         assert!(k.pivot.is_none());
 
