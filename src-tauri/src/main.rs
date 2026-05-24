@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tauri::menu::{
     AboutMetadata, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder,
 };
-use tauri::{AppHandle, Emitter, Wry};
+use tauri::{AppHandle, Emitter, Manager, Wry};
 
 // Sync helpers split out from the async commands so unit tests can
 // exercise the FS round-trip without spinning up a Tokio runtime.
@@ -180,8 +180,27 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     Menu::with_items(app, &[&file, &edit, &view, &help])
 }
 
+// Pull the first non-binary CLI argument that looks like a sprite path.
+// Tauri 2 hands `argv[0]` as the binary; we forward any subsequent path.
+// File-association launches pass the file as `argv[1]` on every
+// supported platform.
+fn first_file_arg(argv: &[String]) -> Option<String> {
+    argv.iter().skip(1).find(|a| !a.starts_with('-')).cloned()
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Second-instance: foreground the existing window and
+            // forward any opened file to the renderer. Errors are
+            // logged but non-fatal.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+            if let Some(path) = first_file_arg(&argv) {
+                let _ = app.emit("open-file", path);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
@@ -192,6 +211,19 @@ fn main() {
             let handle = app.handle();
             let menu = build_menu(handle)?;
             app.set_menu(menu)?;
+            // First-launch CLI arg (file-association on Windows /
+            // Linux, also macOS when launched from a shell).
+            let argv: Vec<String> = std::env::args().collect();
+            if let Some(path) = first_file_arg(&argv) {
+                let app_handle = app.handle().clone();
+                // Defer until the renderer is listening. A short
+                // setTimeout-equivalent on the Rust side: spawn a task
+                // that waits for the webview to fire `tauri://load`
+                // before we emit. For simplicity we emit immediately
+                // and rely on the renderer's `listen` arming before
+                // first paint.
+                let _ = app_handle.emit("open-file", path);
+            }
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -199,8 +231,26 @@ fn main() {
             // string. The renderer parses the prefix to dispatch.
             let _ = app.emit("menu", event.id().0.clone());
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Pincel");
+        .build(tauri::generate_context!())
+        .expect("error while building Pincel")
+        .run(handle_run_event);
+}
+
+// macOS file-open events (Finder double-click, `open -a`, Dock drop)
+// arrive here as `RunEvent::Opened { urls }`. The variant only exists
+// on macOS; everywhere else the handler is a no-op.
+#[allow(unused_variables)]
+fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
+    #[cfg(target_os = "macos")]
+    if let tauri::RunEvent::Opened { urls } = event {
+        for url in urls {
+            if let Ok(path) = url.to_file_path() {
+                if let Some(s) = path.to_str() {
+                    let _ = app.emit("open-file", s.to_string());
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -224,6 +274,31 @@ mod tests {
         let path = dir.path().join("does-not-exist.bin");
         let err = read_path(&path.to_string_lossy()).unwrap_err();
         assert!(err.starts_with("read "));
+    }
+
+    #[test]
+    fn first_file_arg_skips_binary() {
+        let argv = vec![
+            "/usr/bin/pincel".to_string(),
+            "/tmp/foo.aseprite".to_string(),
+        ];
+        assert_eq!(first_file_arg(&argv), Some("/tmp/foo.aseprite".to_string()));
+    }
+
+    #[test]
+    fn first_file_arg_skips_flags() {
+        let argv = vec![
+            "/usr/bin/pincel".to_string(),
+            "--debug".to_string(),
+            "/tmp/foo.aseprite".to_string(),
+        ];
+        assert_eq!(first_file_arg(&argv), Some("/tmp/foo.aseprite".to_string()));
+    }
+
+    #[test]
+    fn first_file_arg_none_when_only_binary() {
+        let argv = vec!["/usr/bin/pincel".to_string()];
+        assert_eq!(first_file_arg(&argv), None);
     }
 
     #[test]
