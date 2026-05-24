@@ -172,9 +172,11 @@ mod tests {
     #[test]
     fn duplicate_layer_id_is_rejected_without_touching_cels() {
         let (mut sprite, mut cels, layer, seeded) = fixture();
-        sprite
-            .layers
-            .push(Layer::tilemap(LayerId::new(7), "existing", TilesetId::new(0)));
+        sprite.layers.push(Layer::tilemap(
+            LayerId::new(7),
+            "existing",
+            TilesetId::new(0),
+        ));
         let mut cmd = AddTilemapLayer::new(layer, seeded);
         assert_eq!(
             cmd.apply(&mut sprite, &mut cels),

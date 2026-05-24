@@ -5,6 +5,9 @@
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import {
     ensureReadPermission,
     hasFsAccess,
@@ -12,6 +15,9 @@
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
+  import { getPref, setPref } from './lib/idb/prefs';
+  import { syncRecentMenu, wireNativeMenu } from './lib/menu';
+  import { isTauri } from './lib/platform';
   import { isIdbAvailable } from './lib/idb/db';
   import {
     latestSnapshot,
@@ -99,6 +105,7 @@
   let saveTarget = $state<SaveTarget>({
     name: DEFAULT_FILE_NAME,
     handle: null,
+    path: null,
   });
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
@@ -113,7 +120,8 @@
   // before the IDB layer has loaded.
   let recents = $state<RecentFile[]>([]);
   let recentMenuOpen = $state(false);
-  const recentsAvailable = fsAccessAvailable && isIdbAvailable();
+  const tauriHost = isTauri();
+  const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
   // `.aseprite` bytes into the IDB `autosave_snapshots` store keyed
   // by `docId`. The interval keeps ticking once `loadCore` resolves;
@@ -133,6 +141,18 @@
   // and the user can retry or pick a different snapshot. Keyed by
   // `docId` so independent rows don't share an error slot.
   let recoveryErrors = $state<Record<string, string>>({});
+  // First-launch file-association dialog (Tauri-only). Visible once
+  // per install; "Don't show again" persists the pref.
+  const FILE_ASSOC_PREF = 'fileAssocPromptShown';
+  let fileAssocOpen = $state(false);
+  const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
+    if (typeof navigator === 'undefined') return 'unknown';
+    const ua = navigator.userAgent;
+    if (/Mac/i.test(ua)) return 'macos';
+    if (/Win/i.test(ua)) return 'windows';
+    if (/Linux/i.test(ua)) return 'linux';
+    return 'unknown';
+  })();
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -908,7 +928,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
-    saveTarget = { name: DEFAULT_FILE_NAME, handle: null };
+    saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
     status = 'new 64×64 document';
@@ -936,7 +956,11 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
-      saveTarget = { name: opened.name, handle: opened.handle };
+      saveTarget = {
+        name: opened.name,
+        handle: opened.handle,
+        path: opened.path,
+      };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
@@ -1035,7 +1059,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
-    saveTarget = { name: meta.name, handle: null };
+    saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
     status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
@@ -1077,12 +1101,15 @@
   // that hasn't been written yet).
   async function recordRecent() {
     if (!recentsAvailable) return;
-    if (!saveTarget.handle) return;
+    // A recent needs something a future re-open can use: an FSA handle
+    // (web) or a path (Tauri).
+    if (!saveTarget.handle && !saveTarget.path) return;
     try {
       await upsertRecent({
         id: docId,
         name: saveTarget.name,
         handle: saveTarget.handle,
+        path: saveTarget.path,
       });
       recents = await listRecents();
     } catch (err) {
@@ -1095,19 +1122,33 @@
 
   async function openRecent(r: RecentFile) {
     recentMenuOpen = false;
-    if (!r.handle) {
-      status = `recent ${r.name}: no handle`;
-      return;
-    }
     try {
-      // Read access is enough to open. The next save will prompt
-      // for write via `saveBytes` → `ensureReadWritePermission`.
-      if (!(await ensureReadPermission(r.handle))) {
-        status = `recent ${r.name}: permission denied`;
+      let name: string;
+      let bytes: Uint8Array;
+      let nextTarget: SaveTarget;
+      if (tauriHost && r.path) {
+        const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
+          path: r.path,
+        });
+        bytes =
+          raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+        name = r.name;
+        nextTarget = { name: r.name, handle: null, path: r.path };
+      } else if (r.handle) {
+        // Read access is enough to open. The next save will prompt
+        // for write via `saveBytes` → `ensureReadWritePermission`.
+        if (!(await ensureReadPermission(r.handle))) {
+          status = `recent ${r.name}: permission denied`;
+          return;
+        }
+        const file = await r.handle.getFile();
+        bytes = new Uint8Array(await file.arrayBuffer());
+        name = file.name;
+        nextTarget = { name: file.name, handle: r.handle, path: null };
+      } else {
+        status = `recent ${r.name}: no handle / path`;
         return;
       }
-      const file = await r.handle.getFile();
-      const bytes = new Uint8Array(await file.arrayBuffer());
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
@@ -1119,15 +1160,12 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
-      saveTarget = { name: file.name, handle: r.handle };
+      saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
-      // and autosave snapshots survive across page reloads. The
-      // open itself is treated as a successful "write to disk" event
-      // — its bytes match the on-disk state, so any pending
-      // autosave snapshot for this id is stale and gets cleared.
+      // and autosave snapshots survive across page reloads.
       docId = r.id;
       lastWriteUndoDepth = doc.undoDepth;
-      status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+      status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
     } catch (err) {
@@ -1317,6 +1355,63 @@
         void autosaveTick();
       }, AUTOSAVE_INTERVAL_MS);
     }
+    // Native menu wiring (Tauri only). The Rust side emits a "menu"
+    // event with the item id as payload; we dispatch into local
+    // handlers. The unlisten fn is stored so cleanup tears it down
+    // before the window unloads. Best-effort: a wire failure logs but
+    // doesn't block the app — the toolbar buttons stay available.
+    let unlistenMenu: UnlistenFn | null = null;
+    let unlistenOpenFile: UnlistenFn | null = null;
+    if (tauriHost) {
+      wireNativeMenu({
+        'menu:new': newDoc,
+        'menu:open': openDoc,
+        'menu:save': () => save(),
+        'menu:saveAs': () => save({ forceAs: true }),
+        'menu:undo': undo,
+        'menu:redo': redo,
+        'menu:zoomIn': zoomIn,
+        'menu:zoomOut': zoomOut,
+        'menu:resetZoom': resetView,
+        recent: openRecentById,
+      })
+        .then((fn) => {
+          if (cancelled) {
+            fn();
+            return;
+          }
+          unlistenMenu = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('wireNativeMenu failed', err);
+        });
+      // Open-file events from Rust: file-association double-click,
+      // CLI arg, macOS RunEvent::Opened, single-instance forward.
+      listen<string>('open-file', (e) => {
+        if (typeof e.payload === 'string') void openByPath(e.payload);
+      })
+        .then((fn) => {
+          if (cancelled) {
+            fn();
+            return;
+          }
+          unlistenOpenFile = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('open-file listen failed', err);
+        });
+      // First-launch file-association advisory. Best-effort: a missing
+      // IDB or a getPref failure silently skips the dialog.
+      if (autosaveAvailable) {
+        getPref(FILE_ASSOC_PREF)
+          .then((shown) => {
+            if (!cancelled && !shown) fileAssocOpen = true;
+          })
+          .catch((err: unknown) => {
+            console.error('getPref fileAssoc failed', err);
+          });
+      }
+    }
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
@@ -1324,12 +1419,81 @@
         clearInterval(autosaveTimer);
         autosaveTimer = null;
       }
+      if (unlistenMenu) unlistenMenu();
+      if (unlistenOpenFile) unlistenOpenFile();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       disposeDoc();
     };
+  });
+
+  // Look a recent up by id and route through `openRecent`.
+  // Native-menu Recent items only know the id; the full RecentFile
+  // lives in the local `recents` state.
+  function openRecentById(id: string) {
+    const r = recents.find((row) => row.id === id);
+    if (r) void openRecent(r);
+  }
+
+  // Tauri-only: open a sprite by absolute path. Used by the
+  // `open-file` event (file-association double-click, CLI arg) and
+  // by `openRecent` when the recent carries a path.
+  async function openByPath(path: string) {
+    try {
+      const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
+        path,
+      });
+      const bytes =
+        raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+      const next = Document.openAseprite(bytes);
+      disposeDoc();
+      doc = next;
+      dirty = true;
+      syncMeta();
+      syncSelection();
+      tilesetRev += 1;
+      stampTile = null;
+      stampHover = null;
+      editingTile = null;
+      activeSliceId = null;
+      const name = path.replace(/^.*[/\\]/, '');
+      saveTarget = { name, handle: null, path };
+      docId = crypto.randomUUID();
+      lastWriteUndoDepth = doc.undoDepth;
+      status = `opened ${name} · ${doc.width}×${doc.height}`;
+      await clearAutosave();
+      await recordRecent();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `open-file failed: ${msg}`;
+    }
+  }
+
+  function dismissFileAssoc(dontShowAgain: boolean) {
+    fileAssocOpen = false;
+    if (dontShowAgain) {
+      setPref(FILE_ASSOC_PREF, true).catch((err: unknown) => {
+        console.error('setPref fileAssoc failed', err);
+      });
+    }
+  }
+
+  // Push the current recents list to the Rust-side `Open Recent`
+  // submenu so the native menu stays in sync with the in-memory list.
+  // Only entries with a path can be re-opened by the menu (FSA handles
+  // need an in-page permission gesture). Failures are logged but don't
+  // surface in the UI — the toolbar dropdown remains the authoritative
+  // recents UI on the web.
+  $effect(() => {
+    if (!tauriHost) return;
+    const items = recents
+      .filter((r) => r.path !== null)
+      .map((r) => ({ id: r.id, name: r.name }));
+    syncRecentMenu(items).catch((err: unknown) => {
+      console.error('syncRecentMenu failed', err);
+    });
   });
 </script>
 
@@ -1339,9 +1503,9 @@
     <button class="toolbar-btn" onclick={newDoc}>New</button>
     <button class="toolbar-btn" onclick={openDoc}>Open…</button>
     <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
-      {fsAccessAvailable ? 'Save' : 'Save As (download)'}
+      {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
-    {#if fsAccessAvailable}
+    {#if fsAccessAvailable || tauriHost}
       <button
         class="toolbar-btn"
         onclick={() => save({ forceAs: true })}
@@ -1621,6 +1785,10 @@
     }}
     onDismiss={closeRecovery}
   />
+{/if}
+
+{#if fileAssocOpen}
+  <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
 {/if}
 
 <style>

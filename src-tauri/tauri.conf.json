@@ -38,6 +38,15 @@
     ],
     "category": "GraphicsAndDesign",
     "shortDescription": "Pixel-art editor for game asset creation.",
-    "longDescription": "Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation. The native desktop build shares one Svelte UI and one Rust core with the PWA."
+    "longDescription": "Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation. The native desktop build shares one Svelte UI and one Rust core with the PWA.",
+    "fileAssociations": [
+      {
+        "ext": ["aseprite", "ase"],
+        "name": "Aseprite Sprite",
+        "description": "Aseprite pixel-art sprite",
+        "role": "Editor",
+        "mimeType": "application/x-aseprite"
+      }
+    ]
   }
 }

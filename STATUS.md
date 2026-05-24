@@ -1,25 +1,20 @@
 # Status
 
-_Last updated: 2026-05-13_
+_Last updated: 2026-05-24_
 
-**Branch:** `claude/review-open-tasks-ysZOx` · M11.1 complete —
-`src-tauri/` Tauri 2 scaffold (`pincel-tauri` workspace crate with
-`pincel` binary, `pincel-core` as a direct cargo dep, default
-capabilities, raster icons generated from `ui/public/favicon.svg`).
-`@tauri-apps/cli@^2` added to `ui/devDependencies`; `pnpm tauri:dev` /
-`pnpm tauri:build` scripts wire the Tauri CLI through the existing
-UI workflow. `ui/src/lib/platform/index.ts` exposes `isTauri()` for
-the M11.2 FS adapter swap.
+**Branch:** `claude/progress-check-QjqAo` · M11 complete — native
+Tauri 2 desktop shell now covers the full open / save / recents / menu /
+file-association surface. The PWA path is byte-for-byte unchanged;
+all Tauri branches gate on `isTauri()`. Slice 0 fmt-only cleanup of
+prior rustfmt drift in `aseprite-writer` + `pincel-core` landed first.
 
 ## Next task
 
-**M11.2** — Native FS commands + Tauri adapter. Add `@tauri-apps/api`
-runtime dep, wire `#[tauri::command] async fn` for open / save
-dialogs + read / write bytes, and branch `ui/src/lib/fs/index.ts`
-on `isTauri()` to call the Tauri commands instead of the FSA path.
-M11.3 follows with the native menu bar + Recent-files OS jump
-list / dock menu; M11.4 wires the `.aseprite` / `.ase` file
-association with first-launch opt-in. See CLAUDE.md §4 / spec §11.
+**M12** — Performance pass. Target: 256×256 sprite at 32× zoom holds
+60 fps. Likely shape: dirty-rect compose (`pincel-core::render`),
+per-tile / per-cel hashes to short-circuit unchanged regions, profiling
+pass to pin actual hot spots before mechanical refactors. See
+CLAUDE.md §4 (M12) / spec §16.
 
 ## Milestone status
 
@@ -37,9 +32,9 @@ association with first-launch opt-in. See CLAUDE.md §4 / spec §11.
 | M9 | ✅ | Slice support — split into M9.1–M9.4 below |
 | M10 | ✅ | PWA polish — split into M10.1–M10.4 below |
 | M11.1 | ✅ | Tauri 2 scaffold — `src-tauri/` crate, workspace member, CLI wiring, `isTauri()` helper |
-| M11.2 | ⬜ | Native FS commands + Tauri adapter for `ui/src/lib/fs/index.ts` |
-| M11.3 | ⬜ | Native menu bar + Recent-files OS jump list / dock menu |
-| M11.4 | ⬜ | File association `.aseprite` / `.ase` with first-launch opt-in |
+| M11.2 | ✅ | Native FS commands (`read_file_bytes` / `write_file_bytes`) + `tauri-plugin-dialog` + `ui/src/lib/fs/index.ts` Tauri branch |
+| M11.3 | ✅ | Native menu bar (File / Edit / View / Help) + Recents submenu wired via `set_recent_menu` |
+| M11.4 | ✅ | `bundle.fileAssociations` for `.aseprite` / `.ase`, single-instance forward, macOS `RunEvent::Opened`, first-launch advisory dialog |
 | M12 | ⬜ | Performance pass |
 
 ### M8.7 sub-tasks
@@ -67,7 +62,50 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
-- **2026-05-13 — M11.1 (this branch).** New `src-tauri/` crate (`pincel-tauri`) with `[[bin]] name = "pincel"`, `tauri = "2"` + `tauri-build = "2"` as runtime / build deps, and `pincel-core = { workspace = true }` per CLAUDE.md §5.5 (declared now, exercised in M11.2). `src/main.rs` is the minimal Tauri 2 entry — `Builder::default().run(generate_context!())` gated on the `windows_subsystem = "windows"` cfg for release. `tauri.conf.json` v2 schema points `beforeDevCommand` / `beforeBuildCommand` at `pnpm --dir ../ui dev|build` so the CLI drives the existing UI workflow; `devUrl: http://localhost:5173` matches Vite's default and `frontendDist: ../ui/dist` matches `pnpm build` output. `capabilities/default.json` grants only `core:default` to the `main` window — FS / dialog / event permissions land with M11.2. Raster icons (32×32, 128×128, 128×128@2x, 512×512 `icon.png`, multi-size `icon.ico`) generated from `ui/public/favicon.svg` via `rsvg-convert` + ImageMagick, re-encoded RGBA after Tauri's codegen rejected the RGB output. macOS `.icns` is the one missing platform asset (`tauri icon` upstream can synthesize it; tracked under open questions). Workspace `Cargo.toml` grows the `src-tauri` member entry. `ui/package.json` adds `@tauri-apps/cli@^2` (devDep) and `tauri` / `tauri:dev` / `tauri:build` scripts; `@tauri-apps/api` is deferred to M11.2 where the JS-side `invoke()` lands. `ui/src/lib/platform/index.ts` exposes `isTauri()` probing both Tauri 2 (`__TAURI_INTERNALS__`) and v1 (`__TAURI__`) globals; spec §11.4 says `__TAURI__` but Tauri 2 ships `__TAURI_INTERNALS__`, so the helper covers both with a comment. `vite.config.ts` gains `clearScreen: false`, `envPrefix: ['VITE_', 'TAURI_ENV_*']`, and `server.strictPort: true` to keep the Vite dev server's port pinned at 5173 (so Tauri's `devUrl` never resolves to a stale process). All gates green: `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -p pincel-tauri --check`, `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`, `pnpm exec tauri info` reports environment ✔. Runtime `pnpm tauri:dev` not exercised in CI (needs a graphical display); the spec gate is the Rust + UI builds passing.
+- **2026-05-24 — M11.2 + M11.3 + M11.4 (this branch).** Native desktop
+  shell closes out: M11.2 adds two `#[tauri::command] async fn`
+  wrappers around `std::fs` (`read_file_bytes`, `write_file_bytes`)
+  plus `tauri-plugin-dialog` for native open / save pickers, and
+  `ui/src/lib/fs/index.ts` `pickAndOpen` / `saveBytes` branch vornean
+  on `isTauri()`. `OpenedFile` and `SaveTarget` grow a `path: string |
+  null` field; `RecentFile` schema does too (legacy rows treated as
+  `path: null`). `@tauri-apps/api@^2` + `@tauri-apps/plugin-dialog@^2`
+  added as runtime deps. App.svelte's `openRecent` dispatches on
+  `tauriHost && r.path` vs the existing FSA-handle branch; Save / Save
+  As… buttons unlock on Tauri too. M11.3 adds a four-submenu menu
+  (File / Edit / View / Help) via the Tauri 2 `tauri::menu` API, with
+  standard accelerators (Cmd/Ctrl+N/O/S/Z, …) and predefined Cut /
+  Copy / Paste / About items. Menu events emit on a `"menu"` window
+  event with the item id as payload; `set_recent_menu` lets the
+  renderer rebuild the Open Recent submenu from the IDB-backed
+  recents list (empty list yields a disabled "(no recent files)"
+  placeholder). New `ui/src/lib/menu/index.ts` (~60 lines) exposes
+  `wireNativeMenu` + `syncRecentMenu`; a `$effect` in App.svelte syncs
+  the submenu on every recents change. M11.4 adds
+  `bundle.fileAssociations` for `.aseprite` / `.ase` (MIME
+  `application/x-aseprite`), `tauri-plugin-single-instance` so a
+  second double-click forwards to the running instance, and CLI-arg
+  parsing (`first_file_arg` — skips binary + `-flag` args) so
+  file-association launches hand the file to the renderer via an
+  `open-file` event. macOS `RunEvent::Opened` is wired behind
+  `#[cfg(target_os = "macos")]` for Finder + `open -a` flows. New
+  `FileAssocDialog.svelte` (~80 lines) is a one-shot Tauri-only
+  advisory that walks the user through per-OS steps to register Pincel
+  as the default handler; "Don't show again" persists
+  `fileAssocPromptShown` in the M10.2 prefs store. All gates green:
+  `cargo fmt --all --check`, `cargo check --workspace`, `cargo test
+  --workspace` (419 tests, 0 failures), `cargo clippy --workspace
+  --all-targets -- -D warnings`, `pnpm check / lint / build /
+  wasm:build`. Runtime `pnpm tauri:dev` not exercised in this session
+  (needs a graphical display); CI confirms Rust + UI build.
+
+- **2026-05-24 — Workspace fmt drift (this branch).** Pre-existing
+  `cargo fmt` drift in `crates/aseprite-writer/{error.rs,write.rs}`
+  and four `crates/pincel-core/src/command/*.rs` files cleaned up in
+  a fmt-only commit before the M11 slices. `cargo fmt --all --check`
+  now clean.
+
+- **2026-05-13 — M11.1 (prior branch).** New `src-tauri/` crate (`pincel-tauri`) with `[[bin]] name = "pincel"`, `tauri = "2"` + `tauri-build = "2"` as runtime / build deps, and `pincel-core = { workspace = true }` per CLAUDE.md §5.5 (declared now, exercised in M11.2). `src/main.rs` is the minimal Tauri 2 entry — `Builder::default().run(generate_context!())` gated on the `windows_subsystem = "windows"` cfg for release. `tauri.conf.json` v2 schema points `beforeDevCommand` / `beforeBuildCommand` at `pnpm --dir ../ui dev|build` so the CLI drives the existing UI workflow; `devUrl: http://localhost:5173` matches Vite's default and `frontendDist: ../ui/dist` matches `pnpm build` output. `capabilities/default.json` grants only `core:default` to the `main` window — FS / dialog / event permissions land with M11.2. Raster icons (32×32, 128×128, 128×128@2x, 512×512 `icon.png`, multi-size `icon.ico`) generated from `ui/public/favicon.svg` via `rsvg-convert` + ImageMagick, re-encoded RGBA after Tauri's codegen rejected the RGB output. macOS `.icns` is the one missing platform asset (`tauri icon` upstream can synthesize it; tracked under open questions). Workspace `Cargo.toml` grows the `src-tauri` member entry. `ui/package.json` adds `@tauri-apps/cli@^2` (devDep) and `tauri` / `tauri:dev` / `tauri:build` scripts; `@tauri-apps/api` is deferred to M11.2 where the JS-side `invoke()` lands. `ui/src/lib/platform/index.ts` exposes `isTauri()` probing both Tauri 2 (`__TAURI_INTERNALS__`) and v1 (`__TAURI__`) globals; spec §11.4 says `__TAURI__` but Tauri 2 ships `__TAURI_INTERNALS__`, so the helper covers both with a comment. `vite.config.ts` gains `clearScreen: false`, `envPrefix: ['VITE_', 'TAURI_ENV_*']`, and `server.strictPort: true` to keep the Vite dev server's port pinned at 5173 (so Tauri's `devUrl` never resolves to a stale process). All gates green: `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt -p pincel-tauri --check`, `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`, `pnpm exec tauri info` reports environment ✔. Runtime `pnpm tauri:dev` not exercised in CI (needs a graphical display); the spec gate is the Rust + UI builds passing.
 - **2026-05-13 — M10.3 + M10.4 (prior branch).** Autosave + recovery + service worker land together as the M10 closer. `ui/src/lib/idb/autosave.ts` keeps at most one snapshot per `docId` in the M10.2 `autosave_snapshots` store via an `IDBKeyRange.bound([docId, -∞], [docId, +∞])` cursor that delete-walks prior rows inside the same readwrite transaction before the `put`. `listLatestSnapshots()` defensively dedupes by `docId` in case a partial write left an older row behind. App.svelte arms a 30 s `setInterval` from `onMount` once `autosaveAvailable` (== `isIdbAvailable()`) is true; the tick body is no-op unless `doc.undoDepth` has advanced past `lastWriteUndoDepth`. `lastWriteUndoDepth` is re-baselined on `newDoc` / `openDoc` / `openRecent` / `save` / `applyRecovery`, and `clearAutosave()` runs after each successful save / open so the recovery probe never surfaces a snapshot that matches on-disk state. New `RecoveryDialog.svelte` (~80 lines) mounts on boot when `listLatestSnapshots()` returns ≥ 1 row; each row exposes `Recover` (loads the snapshot via `Document.openAseprite`, re-binds `docId` to the snapshot's id, clears the row), `Discard` (drops the row), and a global `Not now` dismiss that keeps the snapshots for the next boot. `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` — counts as spec-approved). `vite.config.ts` adds `VitePWA({ strategies: 'injectManifest', srcDir: 'src', filename: 'sw.ts', registerType: 'autoUpdate', manifest: {…}, injectManifest: { globPatterns: '**/*.{js,css,html,wasm,svg,webmanifest}' } })`. Custom `src/sw.ts` imports `precacheAndRoute` from `workbox-precaching`, hands it `self.__WB_MANIFEST`, and skip-waits / claims clients on install / activate. `public/favicon.svg` (copied from `website/static/favicon.svg`), `index.html` gains `<meta name="theme-color" content="#0a0a0a">` + description + SVG favicon link. `tsconfig.json` `types` adds `vite-plugin-pwa/client` so `self.__WB_MANIFEST` types resolve. Built SW precaches 7 unique URLs (wasm + JS + CSS + HTML + manifest + favicon + registerSW) totalling ~1.9 MiB. All gates green: `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`.
 - **2026-05-12 — M10.2 (prior branch).** New `ui/src/lib/idb/` module group lays the IndexedDB substrate that M10.3 (autosave + recovery) and the recents UX in this commit both depend on. `db.ts` opens `pincel` v1 with three stores: `prefs` (keyPath `key`, simple k/v), `recent_files` (keyPath `id`, index `by_openedAt`), `autosave_snapshots` (composite keyPath `[docId, ts]`; schema-only in M10.2). The shared `openDb()` caches its open promise so concurrent first-touches collapse to one IDB open request, and clears the cache on rejection so a subsequent call retries. Helpers `idbRequest` + `transactionDone` wrap the request / transaction lifecycles. `recent-files.ts` upserts with prior-`addedAt` preservation, then evicts past `MAX_RECENTS = 8` inside the same readwrite transaction by walking the `by_openedAt` index in ascending order and dropping the overflow tail. `prefs.ts` is the minimal `getPref` / `setPref` / `removePref` k/v surface — included now since CLAUDE.md §9 bans `localStorage`. App.svelte adds `docId = $state<string>(crypto.randomUUID())` (refreshed on `New` / `Open`, preserved on `Open Recent` so re-opens count as the same doc and M10.3 snapshots survive page reloads), `recordRecent()` upserts after each successful open / save / save-as when both `recentsAvailable` and `saveTarget.handle` are set, and a `Recent…` toolbar dropdown (FSA + IDB-capable browsers only) lists the eight most-recent FSA-handle-bearing files; clicking re-opens via `ensureReadWritePermission` + `handle.getFile()`. UI gates green: `pnpm check`, `pnpm lint`, `pnpm build`.
 - **2026-05-12 — M10.1 (this branch).** New `ui/src/lib/fs/index.ts` (~210 lines) encapsulates file open / save behind one surface. `hasFsAccess()` probes `window.showOpenFilePicker`; `pickAndOpen()` runs the FSA picker when available (retaining the returned `FileSystemFileHandle`) and otherwise spawns a hidden `<input type="file">` that cleans itself up on `change` / `cancel`. `saveBytes(bytes, target, opts)` writes through `target.handle` in place when present and writable (gating on `queryPermission` / `requestPermission({ mode: 'readwrite' })`), prompts `showSaveFilePicker` when FSA is available but no handle is bound, and falls back to a Blob + anchor download otherwise; user-cancelled save-as returns the original target unchanged. The signatures pin `Uint8Array<ArrayBuffer>` (not `ArrayBufferLike`) so callers copy through `new Uint8Array(doc.saveAseprite())` before invoking — required by lib.dom's typing of FSA `write()` and `Blob`. `App.svelte` drops the previous hidden `<input>` element, replaces the inline `openFile` / `save` with `openDoc` / `save({ forceAs? })`, and adds a `saveTarget = $state<SaveTarget>` carrying `{name, handle}` across the session (reset on `newDoc`, refreshed on every successful open / save-as). Toolbar label switches `Save` ↔ `Save As (download)` per `hasFsAccess()`; an extra `Save As…` button is rendered only on FSA-capable browsers. UI gates green: `pnpm check`, `pnpm lint`, `pnpm build`.

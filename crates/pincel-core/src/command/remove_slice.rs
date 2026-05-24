@@ -5,7 +5,7 @@
 //! appearance order that the codec serializes by (see
 //! `pincel-core::codec::aseprite_write`).
 
-use crate::document::{CelMap, Slice, Sprite, SliceId};
+use crate::document::{CelMap, Slice, SliceId, Sprite};
 
 use super::Command;
 use super::error::CommandError;
