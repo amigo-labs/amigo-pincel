@@ -5,6 +5,7 @@
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
+  import { invoke } from '@tauri-apps/api/core';
   import {
     ensureReadPermission,
     hasFsAccess,
@@ -12,6 +13,7 @@
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
+  import { isTauri } from './lib/platform';
   import { isIdbAvailable } from './lib/idb/db';
   import {
     latestSnapshot,
@@ -99,6 +101,7 @@
   let saveTarget = $state<SaveTarget>({
     name: DEFAULT_FILE_NAME,
     handle: null,
+    path: null,
   });
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
@@ -113,7 +116,8 @@
   // before the IDB layer has loaded.
   let recents = $state<RecentFile[]>([]);
   let recentMenuOpen = $state(false);
-  const recentsAvailable = fsAccessAvailable && isIdbAvailable();
+  const tauriHost = isTauri();
+  const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
   // `.aseprite` bytes into the IDB `autosave_snapshots` store keyed
   // by `docId`. The interval keeps ticking once `loadCore` resolves;
@@ -908,7 +912,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
-    saveTarget = { name: DEFAULT_FILE_NAME, handle: null };
+    saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
     status = 'new 64×64 document';
@@ -936,7 +940,11 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
-      saveTarget = { name: opened.name, handle: opened.handle };
+      saveTarget = {
+        name: opened.name,
+        handle: opened.handle,
+        path: opened.path,
+      };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
@@ -1035,7 +1043,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
-    saveTarget = { name: meta.name, handle: null };
+    saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
     status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
@@ -1077,12 +1085,15 @@
   // that hasn't been written yet).
   async function recordRecent() {
     if (!recentsAvailable) return;
-    if (!saveTarget.handle) return;
+    // A recent needs something a future re-open can use: an FSA handle
+    // (web) or a path (Tauri).
+    if (!saveTarget.handle && !saveTarget.path) return;
     try {
       await upsertRecent({
         id: docId,
         name: saveTarget.name,
         handle: saveTarget.handle,
+        path: saveTarget.path,
       });
       recents = await listRecents();
     } catch (err) {
@@ -1095,19 +1106,33 @@
 
   async function openRecent(r: RecentFile) {
     recentMenuOpen = false;
-    if (!r.handle) {
-      status = `recent ${r.name}: no handle`;
-      return;
-    }
     try {
-      // Read access is enough to open. The next save will prompt
-      // for write via `saveBytes` → `ensureReadWritePermission`.
-      if (!(await ensureReadPermission(r.handle))) {
-        status = `recent ${r.name}: permission denied`;
+      let name: string;
+      let bytes: Uint8Array;
+      let nextTarget: SaveTarget;
+      if (tauriHost && r.path) {
+        const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
+          path: r.path,
+        });
+        bytes =
+          raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+        name = r.name;
+        nextTarget = { name: r.name, handle: null, path: r.path };
+      } else if (r.handle) {
+        // Read access is enough to open. The next save will prompt
+        // for write via `saveBytes` → `ensureReadWritePermission`.
+        if (!(await ensureReadPermission(r.handle))) {
+          status = `recent ${r.name}: permission denied`;
+          return;
+        }
+        const file = await r.handle.getFile();
+        bytes = new Uint8Array(await file.arrayBuffer());
+        name = file.name;
+        nextTarget = { name: file.name, handle: r.handle, path: null };
+      } else {
+        status = `recent ${r.name}: no handle / path`;
         return;
       }
-      const file = await r.handle.getFile();
-      const bytes = new Uint8Array(await file.arrayBuffer());
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
@@ -1119,15 +1144,12 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
-      saveTarget = { name: file.name, handle: r.handle };
+      saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
-      // and autosave snapshots survive across page reloads. The
-      // open itself is treated as a successful "write to disk" event
-      // — its bytes match the on-disk state, so any pending
-      // autosave snapshot for this id is stale and gets cleared.
+      // and autosave snapshots survive across page reloads.
       docId = r.id;
       lastWriteUndoDepth = doc.undoDepth;
-      status = `opened ${file.name} · ${doc.width}×${doc.height}`;
+      status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
     } catch (err) {
@@ -1339,9 +1361,9 @@
     <button class="toolbar-btn" onclick={newDoc}>New</button>
     <button class="toolbar-btn" onclick={openDoc}>Open…</button>
     <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
-      {fsAccessAvailable ? 'Save' : 'Save As (download)'}
+      {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
-    {#if fsAccessAvailable}
+    {#if fsAccessAvailable || tauriHost}
       <button
         class="toolbar-btn"
         onclick={() => save({ forceAs: true })}
