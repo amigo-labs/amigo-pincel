@@ -13,7 +13,12 @@ aseprite-writer = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 flate2 = { workspace = true }
+
+[[bench]]
+name = "compose"
+harness = false
 
 [lints]
 workspace = true
