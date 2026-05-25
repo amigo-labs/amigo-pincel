@@ -13,13 +13,14 @@ empty `out` so callers can skip the upload.
 
 ## Next task
 
-**M12.3 follow-up** — refine the remaining commands' `dirty_region`:
-`FillRegion` (track the flood-filled bbox post-apply),
-`MoveSelectionContent` (selection-rect ∪ translated selection-rect),
-and the structural / tilemap / slice commands (most stay `Canvas`,
-some can shrink to a specific layer). Or move straight to **M12.4** —
-the Canvas2D adapter sub-rect blit driven by the new `dirty-rect`
-events.
+**M12.4** — UI Canvas2D adapter sub-rect blit. Now that
+`Document::undo` / `redo` / `apply_*` all emit `dirty-rect` events
+with precise sprite-coord rects, the UI render loop can pass that
+rect as `compose()`'s `dirty_hint` and `ctx.putImageData(...)` only
+the changed sub-region instead of the full canvas. Touches
+`ui/src/lib/render/canvas2d.ts` and the event-consumer in
+`App.svelte` (or wherever the dirty-rect events drain to the
+render adapter today).
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -56,7 +57,7 @@ subsequent slices.
 | M11.4 | ✅ | `bundle.fileAssociations` for `.aseprite` / `.ase`, single-instance forward, macOS `RunEvent::Opened`, first-launch advisory dialog |
 | M12.1 | ✅ | Profiling baseline — `criterion` workspace dev-dep, `crates/pincel-core/benches/compose.rs` with five scenarios (single-layer / four-layer / dirty-hint / tilemap / zoom-32). Numbers pinned above. |
 | M12.2 | ✅ | `compose()` takes `out: &mut Vec<u8>` (scratch reuse); honors `dirty_hint` via `Rect::intersect`; `ComposeResult` drops `pixels`, gains `dirty_rect`. |
-| M12.3 | 🟨 | Per-command `DirtyRegion` partial: type + trait method + `Bus::last_dirty_region()` + wasm `Document::undo`/`redo` emit `dirty-rect`. Paint primitives (SetPixel / DrawLine / DrawRectangle / DrawEllipse) report precise rects; FillRegion + MoveSelectionContent + structural / tilemap / slice commands still default to `Canvas`. |
+| M12.3 | ✅ | Per-command `DirtyRegion` complete on the paint surface: type + trait method + `Bus::last_dirty_region()` + `Document::undo`/`redo` + bucket / move event paths all emit precise `dirty-rect` events. SetPixel / DrawLine / DrawRectangle / DrawEllipse / FillRegion / MoveSelectionContent all report sprite-coord rects; structural / tilemap / slice commands keep the safe-but-coarse `Canvas` default. |
 | M12.4–M12.6 | ⬜ | UI sub-rect blit, WebGPU adapter, 60 fps verification. See plan file. |
 
 ### M8.7 sub-tasks
