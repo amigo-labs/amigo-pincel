@@ -14,8 +14,8 @@ pub mod render;
 pub use codec::{AsepriteReadOutput, CodecError, read_aseprite, write_aseprite};
 pub use command::{
     AddFrame, AddLayer, AddSlice, AddTilemapLayer, AddTileset, AnyCommand, Bus, Command,
-    CommandError, DrawEllipse, DrawLine, DrawRectangle, FillRegion, MoveSelectionContent,
-    PlaceTile, RemoveSlice, SetPixel, SetSliceKey, SetTilePixel,
+    CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, FillRegion,
+    MoveSelectionContent, PlaceTile, RemoveSlice, SetPixel, SetSliceKey, SetTilePixel,
 };
 
 pub use document::{

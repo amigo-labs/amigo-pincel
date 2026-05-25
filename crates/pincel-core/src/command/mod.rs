@@ -6,6 +6,7 @@ mod add_slice;
 mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
+mod dirty;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
@@ -24,6 +25,7 @@ pub use add_slice::AddSlice;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
+pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
@@ -59,6 +61,19 @@ pub trait Command {
         Self: Sized,
     {
         false
+    }
+
+    /// Report what the most recent successful [`apply`](Self::apply) or
+    /// [`revert`](Self::revert) changed. The bus relays this to consumers
+    /// (the wasm event layer in particular) so the UI render adapter can
+    /// pass it as `compose()`'s `dirty_hint` and blit only the dirty
+    /// sub-rect (spec §4.3).
+    ///
+    /// Defaults to [`DirtyRegion::Canvas`] — safe-but-coarse for any
+    /// command that has not yet been refined. The high-frequency paint
+    /// commands override this in subsequent M12.3 slices.
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::Canvas
     }
 }
 
@@ -147,6 +162,28 @@ impl AnyCommand {
             (Self::RemoveSlice(a), Self::RemoveSlice(b)) => a.merge(b),
             (Self::SetSliceKey(a), Self::SetSliceKey(b)) => a.merge(b),
             _ => false,
+        }
+    }
+
+    /// Forward [`Command::dirty_region`] through the enum dispatch so the
+    /// bus can surface a per-command dirty rect to its callers.
+    pub fn dirty_region(&self) -> DirtyRegion {
+        match self {
+            Self::SetPixel(c) => c.dirty_region(),
+            Self::DrawLine(c) => c.dirty_region(),
+            Self::DrawRectangle(c) => c.dirty_region(),
+            Self::DrawEllipse(c) => c.dirty_region(),
+            Self::FillRegion(c) => c.dirty_region(),
+            Self::MoveSelectionContent(c) => c.dirty_region(),
+            Self::AddLayer(c) => c.dirty_region(),
+            Self::AddFrame(c) => c.dirty_region(),
+            Self::AddTileset(c) => c.dirty_region(),
+            Self::AddTilemapLayer(c) => c.dirty_region(),
+            Self::PlaceTile(c) => c.dirty_region(),
+            Self::SetTilePixel(c) => c.dirty_region(),
+            Self::AddSlice(c) => c.dirty_region(),
+            Self::RemoveSlice(c) => c.dirty_region(),
+            Self::SetSliceKey(c) => c.dirty_region(),
         }
     }
 }
