@@ -21,7 +21,7 @@
 //!   calls `compose()` with `zoom = 1`, so this is a probe on the
 //!   upscale cost in case we ever route zoom through the wasm boundary.
 
-use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 
 use pincel_core::{
@@ -128,53 +128,51 @@ fn sprite_64_tilemap() -> (Sprite, CelMap) {
 fn bench_compose(c: &mut Criterion) {
     let mut group = c.benchmark_group("compose");
 
+    // Every bench drives compose() with a per-bench reused `Vec<u8>` to
+    // match the production hot-path contract (M12.2): the caller owns the
+    // output buffer and reuses it across calls, so the steady-state cost
+    // excludes allocation. The first iteration pays the resize-to-fit cost
+    // once; subsequent iterations are zero-alloc.
+
     let (sprite, cels) = sprite_256_single_layer();
     group.bench_function("compose_256_single_layer_full", |b| {
         let req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
-        b.iter_batched(
-            || (sprite.clone(), cels.clone()),
-            |(s, c)| {
-                let _ = black_box(compose(&s, &c, &req).expect("compose"));
-            },
-            BatchSize::SmallInput,
-        );
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
     });
 
     let (sprite, cels) = sprite_256_four_layers();
     group.bench_function("compose_256_four_layers_full", |b| {
         let req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
-        b.iter_batched(
-            || (sprite.clone(), cels.clone()),
-            |(s, c)| {
-                let _ = black_box(compose(&s, &c, &req).expect("compose"));
-            },
-            BatchSize::SmallInput,
-        );
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
     });
 
     let (sprite, cels) = sprite_256_single_layer();
     group.bench_function("compose_256_dirty_hint_4x4", |b| {
         let mut req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
         req.dirty_hint = Some(Rect::new(120, 120, 4, 4));
-        b.iter_batched(
-            || (sprite.clone(), cels.clone()),
-            |(s, c)| {
-                let _ = black_box(compose(&s, &c, &req).expect("compose"));
-            },
-            BatchSize::SmallInput,
-        );
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
     });
 
     let (sprite, cels) = sprite_64_tilemap();
     group.bench_function("compose_64_tilemap_full", |b| {
         let req = ComposeRequest::full(FrameIndex::new(0), 64, 64);
-        b.iter_batched(
-            || (sprite.clone(), cels.clone()),
-            |(s, c)| {
-                let _ = black_box(compose(&s, &c, &req).expect("compose"));
-            },
-            BatchSize::SmallInput,
-        );
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
     });
 
     // 8×8 viewport at zoom 32 → 256×256 output. The viewport is small on
@@ -187,13 +185,11 @@ fn bench_compose(c: &mut Criterion) {
         let mut req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
         req.viewport = Rect::new(0, 0, 8, 8);
         req.zoom = 32;
-        b.iter_batched(
-            || (sprite.clone(), cels.clone()),
-            |(s, c)| {
-                let _ = black_box(compose(&s, &c, &req).expect("compose"));
-            },
-            BatchSize::SmallInput,
-        );
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
     });
 
     group.finish();

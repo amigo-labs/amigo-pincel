@@ -87,14 +87,17 @@ impl ComposeRequest {
     }
 }
 
-/// The output of `compose()`: an RGBA8 pixel buffer in row-major order.
+/// Metadata describing the buffer that [`super::compose`] wrote into the
+/// caller-owned output `Vec`. The pixel data lives in the `out` argument
+/// the caller passed — `ComposeResult` only carries dimensions and the
+/// generation counter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComposeResult {
-    /// `width * height * 4` bytes. Non-premultiplied RGBA8.
-    pub pixels: Vec<u8>,
-    /// `viewport.width * zoom`.
+    /// Width of the buffer the caller's `out` was filled to. Today this
+    /// equals `viewport.width * zoom`; the M12.2 follow-up shrinks it to
+    /// `dirty_hint.width * zoom` once `compose()` honors the hint.
     pub width: u32,
-    /// `viewport.height * zoom`.
+    /// Height of the buffer the caller's `out` was filled to.
     pub height: u32,
     /// Monotonic counter the caller may use to detect staleness. `compose()`
     /// is pure and always returns `0`; the UI layer is expected to maintain

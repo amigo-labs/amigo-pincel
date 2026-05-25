@@ -122,11 +122,16 @@ pub enum RenderError {
     },
 }
 
-/// Compose a frame of `sprite` into an RGBA8 pixel buffer. See spec §4.
+/// Compose a frame of `sprite` into the caller-owned RGBA8 pixel buffer
+/// `out`. See spec §4 for the contract. `out` is resized and overwritten
+/// to hold exactly `result.width * result.height * 4` non-premultiplied
+/// RGBA8 bytes in row-major order. Reusing the same `out` across calls
+/// keeps the hot path allocation-free (spec §4.1).
 pub fn compose(
     sprite: &Sprite,
     cels: &CelMap,
     request: &ComposeRequest,
+    out: &mut Vec<u8>,
 ) -> Result<ComposeResult, RenderError> {
     if sprite.color_mode != ColorMode::Rgba {
         return Err(RenderError::UnsupportedColorMode {
@@ -152,8 +157,48 @@ pub fn compose(
     }
 
     let vp = request.viewport;
-    let mut buffer = vec![0u8; (vp.width as usize) * (vp.height as usize) * 4];
+    let pre_zoom_len = (vp.width as usize) * (vp.height as usize) * 4;
+    let out_len = pre_zoom_len * (request.zoom as usize) * (request.zoom as usize);
 
+    // For zoom == 1 we composite directly into `out`. For zoom > 1 we
+    // composite into a small intermediate `Vec`, then nearest-neighbor
+    // upscale into `out`. Either way `out` ends up sized to `out_len`.
+    if request.zoom == 1 {
+        out.clear();
+        out.resize(out_len, 0);
+        composite_visible_layers(out.as_mut_slice(), sprite, cels, request, vp)?;
+    } else {
+        let mut intermediate = vec![0u8; pre_zoom_len];
+        composite_visible_layers(intermediate.as_mut_slice(), sprite, cels, request, vp)?;
+        out.clear();
+        out.resize(out_len, 0);
+        upscale_nearest_into(
+            out.as_mut_slice(),
+            &intermediate,
+            vp.width,
+            vp.height,
+            request.zoom,
+        );
+    }
+
+    Ok(ComposeResult {
+        width: vp.width * request.zoom,
+        height: vp.height * request.zoom,
+        generation: 0,
+    })
+}
+
+/// Composite every selected layer at `request.frame` into `dst`, which is
+/// sized to `viewport.width * viewport.height * 4` bytes. Group layers,
+/// non-Normal blend modes, linked cels, and mismatched cel kinds raise
+/// [`RenderError`] — see the per-arm comments below.
+fn composite_visible_layers(
+    dst: &mut [u8],
+    sprite: &Sprite,
+    cels: &CelMap,
+    request: &ComposeRequest,
+    viewport: Rect,
+) -> Result<(), RenderError> {
     for layer in sprite.layers.iter() {
         if !layer_included(layer, &request.include_layers) {
             continue;
@@ -186,8 +231,8 @@ pub fn compose(
                     });
                 }
                 composite_image_cel(
-                    &mut buffer,
-                    vp,
+                    dst,
+                    viewport,
                     cel.position,
                     pixels,
                     layer.opacity,
@@ -209,8 +254,8 @@ pub fn compose(
                         tileset: *tileset_id,
                     })?;
                 composite_tilemap_cel(
-                    &mut buffer,
-                    vp,
+                    dst,
+                    viewport,
                     cel.position,
                     *grid_w,
                     *grid_h,
@@ -242,30 +287,18 @@ pub fn compose(
             }
         }
     }
-
-    let pixels = if request.zoom == 1 {
-        buffer
-    } else {
-        upscale_nearest(&buffer, vp.width, vp.height, request.zoom)
-    };
-
-    Ok(ComposeResult {
-        pixels,
-        width: vp.width * request.zoom,
-        height: vp.height * request.zoom,
-        generation: 0,
-    })
+    Ok(())
 }
 
 /// Nearest-neighbor integer upscale of an RGBA8 image. See spec §4.1: the
 /// composer produces the exact pixel grid the UI displays so the GPU just
-/// blits and we avoid subpixel sampling artifacts.
-fn upscale_nearest(src: &[u8], w: u32, h: u32, zoom: u32) -> Vec<u8> {
+/// blits and we avoid subpixel sampling artifacts. `out` is sized to
+/// `w * zoom * h * zoom * 4` bytes by the caller.
+fn upscale_nearest_into(out: &mut [u8], src: &[u8], w: u32, h: u32, zoom: u32) {
     let zoom_us = zoom as usize;
     let w_us = w as usize;
     let h_us = h as usize;
     let zw = w_us * zoom_us;
-    let mut out = vec![0u8; zw * h_us * zoom_us * 4];
 
     for y in 0..h_us {
         // Build the first replicated row for this source row, then memcpy
@@ -289,8 +322,6 @@ fn upscale_nearest(src: &[u8], w: u32, h: u32, zoom: u32) -> Vec<u8> {
             tail[dst_offset..dst_offset + row_bytes].copy_from_slice(row);
         }
     }
-
-    out
 }
 
 fn layer_included(layer: &Layer, filter: &LayerFilter) -> bool {
@@ -578,6 +609,30 @@ mod tests {
         Tileset, TilesetId,
     };
 
+    /// Test helper that owns the output buffer alongside the metadata so
+    /// existing `r.pixels` / `r.width` / `r.height` assertions keep working
+    /// after the M12.2 move of pixel ownership to a caller-provided `out`.
+    #[derive(Debug)]
+    struct OwnedFrame {
+        pixels: Vec<u8>,
+        width: u32,
+        height: u32,
+    }
+
+    fn compose_owned(
+        sprite: &Sprite,
+        cels: &CelMap,
+        request: &ComposeRequest,
+    ) -> Result<OwnedFrame, RenderError> {
+        let mut pixels = Vec::new();
+        let r = compose(sprite, cels, request, &mut pixels)?;
+        Ok(OwnedFrame {
+            pixels,
+            width: r.width,
+            height: r.height,
+        })
+    }
+
     fn solid(w: u32, h: u32, rgba: [u8; 4]) -> PixelBuffer {
         let mut buf = PixelBuffer::empty(w, h, ColorMode::Rgba);
         for px in buf.data.chunks_exact_mut(4) {
@@ -608,7 +663,7 @@ mod tests {
             solid(2, 2, [10, 20, 30, 255]),
         ));
 
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         assert_eq!((r.width, r.height), (2, 2));
         assert_eq!(r.pixels, [10u8, 20, 30, 255].repeat(4));
     }
@@ -628,7 +683,7 @@ mod tests {
             FrameIndex::new(0),
             solid(1, 1, [255, 0, 0, 255]),
         ));
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         assert_eq!(r.pixels, vec![0, 0, 0, 0]);
     }
 
@@ -651,7 +706,7 @@ mod tests {
             FrameIndex::new(0),
             solid(1, 1, [0, 255, 0, 255]),
         ));
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         assert_eq!(r.pixels, vec![0, 255, 0, 255]);
     }
 
@@ -674,7 +729,7 @@ mod tests {
             FrameIndex::new(0),
             solid(1, 1, [0, 0, 255, 128]),
         ));
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         // Hand-derived: sa=128, inv=127, blend_a=(255*127+127)/255=127, oa=255,
         // R = (0*128 + 255*127)/255 = 127
         // B = (255*128 + 0)/255 = 128
@@ -696,7 +751,7 @@ mod tests {
             FrameIndex::new(0),
             solid(1, 1, [255, 0, 0, 255]),
         ));
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         // mul_u8(128, 255) = 128, so out alpha = 128 over transparent backdrop.
         assert_eq!(r.pixels, vec![255, 0, 0, 128]);
     }
@@ -712,7 +767,7 @@ mod tests {
         cel.opacity = 64;
         let mut cels = CelMap::new();
         cels.insert(cel);
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         // mul_u8(255, 64) → (255*64 + 127)/255 = 16447/255 = 64.
         assert_eq!(r.pixels[3], 64);
     }
@@ -728,7 +783,7 @@ mod tests {
         cel.position = (-1, -1);
         let mut cels = CelMap::new();
         cels.insert(cel);
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         // Cel covers sprite coords (-1..1, -1..1); only pixel (0,0) is inside the canvas.
         assert_eq!(&r.pixels[0..4], &[100, 100, 100, 255]);
         assert_eq!(&r.pixels[4..8], &[0, 0, 0, 0]); // (1, 0) is outside cel
@@ -751,7 +806,7 @@ mod tests {
             viewport: Rect::new(2, 2, 2, 2),
             ..ComposeRequest::full(FrameIndex::new(0), 4, 4)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (2, 2));
         assert_eq!(&r.pixels[0..4], &[255, 0, 0, 255]);
         assert_eq!(&r.pixels[4..8], &[255, 255, 255, 255]);
@@ -768,7 +823,7 @@ mod tests {
             .unwrap();
         let cels = CelMap::new();
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::UnsupportedColorMode {
                 mode: ColorMode::Indexed {
                     transparent_index: 0
@@ -784,12 +839,12 @@ mod tests {
         let mut req = full_req(1, 1);
         req.zoom = 0;
         assert!(matches!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::InvalidZoom { zoom: 0 }
         ));
         req.zoom = 65;
         assert!(matches!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::InvalidZoom { zoom: 65 }
         ));
     }
@@ -803,7 +858,7 @@ mod tests {
             ..full_req(4, 4)
         };
         assert_eq!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::EmptyViewport
         );
     }
@@ -814,7 +869,7 @@ mod tests {
         let cels = CelMap::new();
         let req = ComposeRequest::full(FrameIndex::new(2), 1, 1);
         assert_eq!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::UnknownFrame {
                 frame: FrameIndex::new(2)
             }
@@ -830,7 +885,7 @@ mod tests {
             .unwrap();
         let cels = CelMap::new();
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::UnsupportedLayerKind {
                 layer: LayerId::new(7),
             }
@@ -895,7 +950,7 @@ mod tests {
             ],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         let red = [255, 0, 0, 255];
         let blank = [0, 0, 0, 0];
         // Row 0: red red blank blank
@@ -946,7 +1001,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Mirrored along x: columns swap.
         // (0, 0) green, (1, 0) red, (0, 1) green, (1, 1) red.
         assert_eq!(&r.pixels[0..4], &[0, 255, 0, 255]);
@@ -988,7 +1043,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Top row should now be green, bottom row red.
         assert_eq!(&r.pixels[0..4], &[0, 255, 0, 255]);
         assert_eq!(&r.pixels[4..8], &[0, 255, 0, 255]);
@@ -1035,7 +1090,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Expected: C A / D B
         assert_eq!(&r.pixels[0..4], &c);
         assert_eq!(&r.pixels[4..8], &a);
@@ -1059,7 +1114,7 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
             RenderError::TilesetNotFound {
                 layer: LayerId::new(0),
                 tileset: TilesetId::new(7),
@@ -1084,7 +1139,7 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
             RenderError::TileIdOutOfRange {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1108,7 +1163,7 @@ mod tests {
             solid(2, 2, [255, 0, 0, 255]),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
             RenderError::CelTypeMismatch {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1146,7 +1201,7 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
             RenderError::NonSquareRotateUnsupported {
                 layer: LayerId::new(0),
                 tileset: TilesetId::new(0),
@@ -1178,7 +1233,7 @@ mod tests {
             vec![TileRef::EMPTY],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         assert!(r.pixels.iter().all(|&v| v == 0));
     }
 
@@ -1206,7 +1261,7 @@ mod tests {
             },
         });
         assert_eq!(
-            compose(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
             RenderError::MalformedCelBuffer {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1230,7 +1285,7 @@ mod tests {
             vec![TileRef::new(1)],
             (2, 2),
         ));
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         // Tile is at sprite (2..4, 2..4); rest is transparent.
         let row_bytes = 4 * 4;
         let cell = [10, 20, 30, 255];
@@ -1265,7 +1320,7 @@ mod tests {
             .unwrap();
         let cels = CelMap::new();
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::UnsupportedBlendMode {
                 layer: LayerId::new(3),
                 mode: BlendMode::Multiply,
@@ -1292,7 +1347,7 @@ mod tests {
             include_layers: LayerFilter::All,
             ..full_req(1, 1)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!(r.pixels, vec![10, 20, 30, 255]);
     }
 
@@ -1319,7 +1374,7 @@ mod tests {
             include_layers: LayerFilter::Only(vec![LayerId::new(0)]),
             ..full_req(1, 1)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!(r.pixels, vec![255, 0, 0, 255]);
     }
 
@@ -1336,7 +1391,7 @@ mod tests {
             zoom: 2,
             ..ComposeRequest::full(FrameIndex::new(0), 2, 1)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (4, 2));
         // Row 0: R R B B
         let row0: Vec<u8> = [
@@ -1364,7 +1419,7 @@ mod tests {
             zoom: 3,
             ..ComposeRequest::full(FrameIndex::new(0), 2, 2)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (6, 6));
         assert_eq!(r.pixels.len(), 6 * 6 * 4);
         for px in r.pixels.chunks_exact(4) {
@@ -1385,7 +1440,7 @@ mod tests {
             zoom: 64,
             ..ComposeRequest::full(FrameIndex::new(0), 1, 1)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (64, 64));
         assert_eq!(r.pixels.len(), 64 * 64 * 4);
     }
@@ -1402,7 +1457,7 @@ mod tests {
             data: CelData::Linked(FrameIndex::new(0)),
         });
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::LinkedCelUnsupported {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1424,7 +1479,7 @@ mod tests {
         );
         cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), bogus));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::CelColorModeMismatch {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1448,7 +1503,7 @@ mod tests {
         };
         cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), mangled));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::MalformedCelBuffer {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1472,7 +1527,7 @@ mod tests {
             },
         });
         assert_eq!(
-            compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::CelTypeMismatch {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -1489,7 +1544,7 @@ mod tests {
             ..full_req(1, 1)
         };
         assert_eq!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::OnionSkinUnsupported
         );
     }
@@ -1506,7 +1561,7 @@ mod tests {
             ..full_req(1, 1)
         };
         assert_eq!(
-            compose(&sprite, &cels, &req).unwrap_err(),
+            compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::OverlaysUnsupported
         );
     }

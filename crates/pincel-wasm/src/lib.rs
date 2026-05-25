@@ -206,12 +206,13 @@ impl Document {
             self.sprite.height,
         );
         request.zoom = zoom;
-        let result = compose(&self.sprite, &self.cels, &request)
+        let mut pixels = Vec::new();
+        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
-            pixels: result.pixels,
+            pixels,
         })
     }
 
@@ -489,14 +490,12 @@ impl Document {
             self.sprite.height,
         );
         request.viewport = Rect::new(x, y, 1, 1);
-        let result = compose(&self.sprite, &self.cels, &request)
+        let mut pixels = Vec::new();
+        compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to pick color: {e}"))?;
-        debug_assert_eq!(result.pixels.len(), 4);
+        debug_assert_eq!(pixels.len(), 4);
         Ok(u32::from_be_bytes([
-            result.pixels[0],
-            result.pixels[1],
-            result.pixels[2],
-            result.pixels[3],
+            pixels[0], pixels[1], pixels[2], pixels[3],
         ]))
     }
 
