@@ -27,7 +27,7 @@ subsequent slices.
 | `compose_256_four_layers_full`  | 1.3730 ms |
 | `compose_256_dirty_hint_4x4`    | 131.03 µs (≈ full path — `dirty_hint` ignored pre-M12.2) |
 | `compose_64_tilemap_full`       | 6.3359 µs |
-| `compose_256_zoom_32`           | 23.914 µs |
+| `compose_zoom_32_upscale_8x8_to_256x256` | 23.914 µs (8×8 viewport, zoom 32 → 256×256 output) |
 
 ## Milestone status
 

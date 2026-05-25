@@ -14,9 +14,12 @@
 //!   baseline so the M12.2 numbers can quote a precise speedup.
 //! * `compose_64_tilemap_full` — tilemap composite path (4×4 grid of 16×16
 //!   tiles).
-//! * `compose_256_zoom_32` — the spec-cited zoom factor. The UI today does
-//!   CSS zoom and always composes at zoom 1, so this measures the upscale
-//!   cost in case we ever flip the contract.
+//! * `compose_zoom_32_upscale_8x8_to_256x256` — exercises the nearest-
+//!   neighbor upscale path. Composes an 8×8 viewport at zoom 32 (256×256
+//!   output) so the bench name matches what the function actually does.
+//!   The UI today applies the spec-cited "zoom 32" via CSS and always
+//!   calls `compose()` with `zoom = 1`, so this is a probe on the
+//!   upscale cost in case we ever route zoom through the wasm boundary.
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
@@ -174,9 +177,15 @@ fn bench_compose(c: &mut Criterion) {
         );
     });
 
+    // 8×8 viewport at zoom 32 → 256×256 output. The viewport is small on
+    // purpose: 256×256 at zoom 32 would be an 8192×8192 (256 MB) buffer,
+    // which dwarfs any plausible UI workload. This bench probes the
+    // `upscale_nearest()` path with the spec-cited zoom factor at a
+    // realistic output size.
     let (sprite, cels) = sprite_256_single_layer();
-    group.bench_function("compose_256_zoom_32", |b| {
-        let mut req = ComposeRequest::full(FrameIndex::new(0), 8, 8);
+    group.bench_function("compose_zoom_32_upscale_8x8_to_256x256", |b| {
+        let mut req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
+        req.viewport = Rect::new(0, 0, 8, 8);
         req.zoom = 32;
         b.iter_batched(
             || (sprite.clone(), cels.clone()),
