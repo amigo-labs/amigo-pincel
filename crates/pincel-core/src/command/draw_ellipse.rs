@@ -24,6 +24,7 @@ use std::collections::HashSet;
 use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, PixelBuffer, Rgba, Sprite};
 
 use super::Command;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Largest bbox dimension (max - min, in sprite pixels) along either
@@ -234,6 +235,10 @@ impl Command for DrawEllipse {
             buffer.data[offset + 2] = entry.prior.b;
             buffer.data[offset + 3] = entry.prior.a;
         }
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::bbox(self.layer, self.frame, self.x0, self.y0, self.x1, self.y1)
     }
 }
 

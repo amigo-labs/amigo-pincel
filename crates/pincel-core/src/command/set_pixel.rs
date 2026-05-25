@@ -6,8 +6,10 @@
 //! §4.1).
 
 use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, Rgba, Sprite};
+use crate::geometry::Rect;
 
 use super::Command;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Write a single pixel into an image cel.
@@ -119,6 +121,14 @@ impl Command for SetPixel {
         buffer.data[offset + 1] = prior.g;
         buffer.data[offset + 2] = prior.b;
         buffer.data[offset + 3] = prior.a;
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::layer_rect(
+            self.layer,
+            self.frame,
+            Rect::new(self.sprite_x, self.sprite_y, 1, 1),
+        )
     }
 }
 
