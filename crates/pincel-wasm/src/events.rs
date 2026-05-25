@@ -161,6 +161,24 @@ impl Event {
         }
     }
 
+    /// Translate a `pincel_core::DirtyRegion` into the matching wasm
+    /// event. Returns `None` for [`DirtyRegion::None`] so callers can
+    /// skip pushing a no-op event.
+    pub(crate) fn from_dirty(region: pincel_core::DirtyRegion) -> Option<Self> {
+        match region {
+            pincel_core::DirtyRegion::None => None,
+            pincel_core::DirtyRegion::Canvas => Some(Self::dirty_canvas()),
+            pincel_core::DirtyRegion::Layer { layer, frame, rect } => Some(Self::dirty_rect(
+                layer.0,
+                frame.0,
+                rect.x,
+                rect.y,
+                rect.width,
+                rect.height,
+            )),
+        }
+    }
+
     /// Build a `selection-changed` event. `x`, `y`, `width`, `height`
     /// describe the new selection rect, or are all `0` when the
     /// selection was cleared.

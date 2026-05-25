@@ -502,14 +502,18 @@ impl Document {
     /// Revert the most recent command. Returns `true` if a command was
     /// undone, `false` when the undo stack was empty.
     ///
-    /// On a successful undo a `dirty-canvas` event is enqueued so the
-    /// UI re-renders. The WASM layer cannot yet attribute the reverted
-    /// change to a single cel — per-command dirty rects land in M12
-    /// (perf pass).
+    /// On a successful undo the reverted command's
+    /// [`DirtyRegion`](pincel_core::DirtyRegion) is translated into the
+    /// matching event: `dirty-rect` for paint commands that carry a
+    /// precise sub-rect (SetPixel, DrawLine, …), `dirty-canvas` for
+    /// structural commands that haven't been refined yet (M12.3
+    /// follow-up).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
         if undone {
-            self.events.push(Event::dirty_canvas());
+            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+                self.events.push(ev);
+            }
         }
         undone
     }
@@ -518,15 +522,18 @@ impl Document {
     /// command was redone. Errors propagate from the underlying
     /// command (e.g. a redo whose target cel was deleted).
     ///
-    /// On a successful redo a `dirty-canvas` event is enqueued, same
-    /// rationale as [`Document::undo`].
+    /// On a successful redo a dirty event derived from the redone
+    /// command's region is enqueued, same translation rules as
+    /// [`Document::undo`].
     pub fn redo(&mut self) -> Result<bool, String> {
         let redone = self
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
         if redone {
-            self.events.push(Event::dirty_canvas());
+            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+                self.events.push(ev);
+            }
         }
         Ok(redone)
     }
@@ -1637,7 +1644,7 @@ mod tests {
     }
 
     #[test]
-    fn undo_redo_emit_dirty_canvas_and_track_depth() {
+    fn undo_redo_emit_dirty_rect_for_paint_command_and_track_depth() {
         let mut doc = Document::new(4, 3).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x123456ff)
             .expect("pencil ok");
@@ -1650,16 +1657,24 @@ mod tests {
         assert!(doc.undo());
         assert_eq!(doc.undo_depth(), 0);
         assert_eq!(doc.redo_depth(), 1);
+        // M12.3: SetPixel reports a 1×1 Layer rect, so undo / redo emit
+        // `dirty-rect` instead of the old blanket `dirty-canvas`.
         let after_undo = doc.drain_events();
         assert_eq!(after_undo.len(), 1);
-        assert_eq!(after_undo[0].kind(), "dirty-canvas");
+        assert_eq!(after_undo[0].kind(), "dirty-rect");
+        assert_eq!((after_undo[0].x(), after_undo[0].y()), (0, 0));
+        assert_eq!(
+            (after_undo[0].width(), after_undo[0].height()),
+            (1, 1),
+            "SetPixel dirty rect is 1×1 at the target pixel",
+        );
 
         assert!(doc.redo().expect("redo ok"));
         assert_eq!(doc.undo_depth(), 1);
         assert_eq!(doc.redo_depth(), 0);
         let after_redo = doc.drain_events();
         assert_eq!(after_redo.len(), 1);
-        assert_eq!(after_redo[0].kind(), "dirty-canvas");
+        assert_eq!(after_redo[0].kind(), "dirty-rect");
     }
 
     #[test]
