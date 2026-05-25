@@ -1,19 +1,24 @@
 # Status
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-05-25_
 
-**Branch:** `claude/mach-m12-Adb9a` · M12.1 in progress — performance
-pass kickoff. Profiling baseline landed via a new `criterion` bench
-suite at `crates/pincel-core/benches/compose.rs`. No behavior change;
-subsequent M12 slices will move the recorded numbers.
+**Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
+takes a caller-owned `&mut Vec<u8>` for the output (no per-call
+allocation in the steady state) and honors `dirty_hint`, shrinking the
+returned buffer to the intersection of viewport and hint (spec §4.3).
+`ComposeResult` gains a `dirty_rect: Rect` field reporting the rendered
+sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
+and `dirty.height * zoom`. Empty intersections short-circuit with an
+empty `out` so callers can skip the upload.
 
 ## Next task
 
-**M12.2** — `compose()` honors `dirty_hint` + scratch reuse. Shrink
-`ComposeResult.pixels` to the dirty sub-rect (spec §4.3) and thread a
-caller-owned `&mut Vec<u8>` scratch through `compose()` so the hot path
-stops allocating. See the M12 plan (`/root/.claude/plans/mach-m12-abstract-dewdrop.md`)
-for the slice list.
+**M12.3** — Per-command `DirtyRegion`. Commands carry their own
+dirty-box so `Document::undo`/`redo` can emit `dirty-rect` events
+instead of the current full-canvas `dirty-canvas` (STATUS.md open-q
+"`Document::undo` / `redo` dirty events"). Pair with the wasm/UI
+plumbing that turns those events into incremental compose() calls
+sized by `dirty_hint`.
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -49,7 +54,8 @@ subsequent slices.
 | M11.3 | ✅ | Native menu bar (File / Edit / View / Help) + Recents submenu wired via `set_recent_menu` |
 | M11.4 | ✅ | `bundle.fileAssociations` for `.aseprite` / `.ase`, single-instance forward, macOS `RunEvent::Opened`, first-launch advisory dialog |
 | M12.1 | ✅ | Profiling baseline — `criterion` workspace dev-dep, `crates/pincel-core/benches/compose.rs` with five scenarios (single-layer / four-layer / dirty-hint / tilemap / zoom-32). Numbers pinned above. |
-| M12.2–M12.6 | ⬜ | Performance pass — `dirty_hint` honored, scratch reuse, per-command DirtyRegion, UI sub-rect blit, WebGPU adapter. See plan file. |
+| M12.2 | ✅ | `compose()` takes `out: &mut Vec<u8>` (scratch reuse); honors `dirty_hint` via `Rect::intersect`; `ComposeResult` drops `pixels`, gains `dirty_rect`. |
+| M12.3–M12.6 | ⬜ | Performance pass — per-command DirtyRegion, UI sub-rect blit, WebGPU adapter. See plan file. |
 
 ### M8.7 sub-tasks
 
