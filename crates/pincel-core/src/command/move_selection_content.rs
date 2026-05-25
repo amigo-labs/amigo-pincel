@@ -22,6 +22,7 @@ use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, Rgba, Spr
 use crate::geometry::Rect;
 
 use super::Command;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Move the pixels inside the sprite's active selection by
@@ -36,6 +37,11 @@ pub struct MoveSelectionContent {
     /// `Some` after a successful `apply`; carries every datum required
     /// to undo the move. `None` before `apply` or after `revert`.
     state: Option<AppliedState>,
+    /// Sprite-coord bbox of the source-rect ∪ destination-rect from
+    /// the most recent successful `apply`. Populated once at apply time
+    /// and preserved across `revert` so `dirty_region()` reports the
+    /// same rect before and after.
+    dirty_bbox: Option<Rect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +76,7 @@ impl MoveSelectionContent {
             delta_x,
             delta_y,
             state: None,
+            dirty_bbox: None,
         }
     }
 
@@ -89,6 +96,17 @@ impl Command for MoveSelectionContent {
         if selection.is_empty() {
             return Err(CommandError::NoSelection);
         }
+
+        // bbox = source-rect ∪ translated-rect, in sprite coords. The
+        // actual cleared / overwritten pixels are a subset of this rect
+        // (clipped to the cel buffer); the compose path further
+        // intersects with the viewport, so the conservative union is
+        // fine as a `dirty_hint`.
+        let min_x = selection.x.min(selection.x.saturating_add(self.delta_x));
+        let min_y = selection.y.min(selection.y.saturating_add(self.delta_y));
+        let bbox_w = selection.width.saturating_add(self.delta_x.unsigned_abs());
+        let bbox_h = selection.height.saturating_add(self.delta_y.unsigned_abs());
+        self.dirty_bbox = Some(Rect::new(min_x, min_y, bbox_w, bbox_h));
 
         let cel = cels
             .get_mut(self.layer, self.frame)
@@ -221,6 +239,13 @@ impl Command for MoveSelectionContent {
             }
         }
         doc.selection = state.prior_selection;
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        match self.dirty_bbox {
+            Some(rect) => DirtyRegion::layer_rect(self.layer, self.frame, rect),
+            None => DirtyRegion::None,
+        }
     }
 }
 
@@ -483,5 +508,34 @@ mod tests {
         let mut a = MoveSelectionContent::new(LayerId::new(1), FrameIndex::new(0), 1, 0);
         let b = MoveSelectionContent::new(LayerId::new(1), FrameIndex::new(0), 1, 0);
         assert!(!a.merge(&b));
+    }
+
+    #[test]
+    fn dirty_region_is_union_of_source_and_translated_rects() {
+        let (mut sprite, mut cels) = fixture();
+        write(&mut cels, 1, 1, RED);
+        sprite.set_selection(Rect::new(1, 1, 2, 2));
+        // delta = (3, 2): source = (1, 1, 2, 2), dest = (4, 3, 2, 2).
+        // Union bbox = (1, 1, 5, 4).
+        let mut cmd = MoveSelectionContent::new(LayerId::new(1), FrameIndex::new(0), 3, 2);
+        cmd.apply(&mut sprite, &mut cels).expect("apply ok");
+        assert_eq!(
+            cmd.dirty_region(),
+            DirtyRegion::layer_rect(LayerId::new(1), FrameIndex::new(0), Rect::new(1, 1, 5, 4))
+        );
+    }
+
+    #[test]
+    fn dirty_region_negative_delta_keeps_min_origin() {
+        let (mut sprite, mut cels) = fixture();
+        sprite.set_selection(Rect::new(3, 3, 2, 2));
+        // delta = (-2, -1): source = (3, 3, 2, 2), dest = (1, 2, 2, 2).
+        // Union bbox = (1, 2, 4, 3).
+        let mut cmd = MoveSelectionContent::new(LayerId::new(1), FrameIndex::new(0), -2, -1);
+        cmd.apply(&mut sprite, &mut cels).expect("apply ok");
+        assert_eq!(
+            cmd.dirty_region(),
+            DirtyRegion::layer_rect(LayerId::new(1), FrameIndex::new(0), Rect::new(1, 2, 4, 3))
+        );
     }
 }

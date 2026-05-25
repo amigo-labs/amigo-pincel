@@ -464,7 +464,9 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply bucket: {e}"))?;
-        self.events.push(Event::dirty_canvas());
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         Ok(())
     }
 
@@ -665,7 +667,9 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to move selection: {e}"))?;
-        self.events.push(Event::dirty_canvas());
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         let event = match self.sprite.selection {
             Some(r) => Event::selection_changed(r.x, r.y, r.width, r.height),
             None => Event::selection_changed(0, 0, 0, 0),
@@ -2022,12 +2026,16 @@ mod tests {
     }
 
     #[test]
-    fn apply_bucket_emits_dirty_canvas_event() {
+    fn apply_bucket_emits_dirty_rect_event() {
         let mut doc = Document::new(4, 3).expect("dims");
+        // Filling the all-transparent canvas from (0,0) hits every
+        // pixel, so the dirty rect covers the full canvas.
         doc.apply_bucket(0, 0, 0x336699ff).expect("bucket ok");
         let events = doc.drain_events();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].kind(), "dirty-canvas");
+        assert_eq!(events[0].kind(), "dirty-rect");
+        assert_eq!((events[0].x(), events[0].y()), (0, 0));
+        assert_eq!((events[0].width(), events[0].height()), (4, 3));
     }
 
     #[test]
@@ -2192,15 +2200,21 @@ mod tests {
     }
 
     #[test]
-    fn apply_move_selection_emits_dirty_canvas_and_selection_events() {
+    fn apply_move_selection_emits_dirty_rect_and_selection_events() {
         let mut doc = Document::new(8, 8).expect("dims");
         doc.set_selection(2, 2, 2, 2);
         let _ = doc.drain_events();
         doc.apply_move_selection(1, 0).expect("move ok");
         let events = doc.drain_events();
         let kinds: Vec<String> = events.iter().map(|e| e.kind()).collect();
-        assert!(kinds.iter().any(|k| k == "dirty-canvas"));
+        // selection (2,2,2,2) translated by (1,0) → bbox = (2,2,3,2).
+        assert!(kinds.iter().any(|k| k == "dirty-rect"));
         assert!(kinds.iter().any(|k| k == "selection-changed"));
+        let dirty = events.iter().find(|e| e.kind() == "dirty-rect").unwrap();
+        assert_eq!(
+            (dirty.x(), dirty.y(), dirty.width(), dirty.height()),
+            (2, 2, 3, 2)
+        );
     }
 
     #[test]
