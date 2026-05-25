@@ -156,8 +156,30 @@ pub fn compose(
         });
     }
 
-    let vp = request.viewport;
-    let pre_zoom_len = (vp.width as usize) * (vp.height as usize) * 4;
+    let viewport = request.viewport;
+    // The effective render region is the intersection of the viewport
+    // with `dirty_hint`. When `dirty_hint` is `None` we fall back to the
+    // full viewport, preserving the historical full-frame contract.
+    let dirty_rect = match request.dirty_hint {
+        Some(hint) => viewport.intersect(hint),
+        None => viewport,
+    };
+
+    if dirty_rect.is_empty() {
+        // Caller asked for a dirty region that doesn't overlap the
+        // viewport — nothing to render. Clear `out` and report the empty
+        // rect; the caller can use `dirty_rect.is_empty()` to skip the
+        // upload step entirely.
+        out.clear();
+        return Ok(ComposeResult {
+            width: 0,
+            height: 0,
+            dirty_rect,
+            generation: 0,
+        });
+    }
+
+    let pre_zoom_len = (dirty_rect.width as usize) * (dirty_rect.height as usize) * 4;
     let out_len = pre_zoom_len * (request.zoom as usize) * (request.zoom as usize);
 
     // For zoom == 1 we composite directly into `out`. For zoom > 1 we
@@ -166,24 +188,31 @@ pub fn compose(
     if request.zoom == 1 {
         out.clear();
         out.resize(out_len, 0);
-        composite_visible_layers(out.as_mut_slice(), sprite, cels, request, vp)?;
+        composite_visible_layers(out.as_mut_slice(), sprite, cels, request, dirty_rect)?;
     } else {
         let mut intermediate = vec![0u8; pre_zoom_len];
-        composite_visible_layers(intermediate.as_mut_slice(), sprite, cels, request, vp)?;
+        composite_visible_layers(
+            intermediate.as_mut_slice(),
+            sprite,
+            cels,
+            request,
+            dirty_rect,
+        )?;
         out.clear();
         out.resize(out_len, 0);
         upscale_nearest_into(
             out.as_mut_slice(),
             &intermediate,
-            vp.width,
-            vp.height,
+            dirty_rect.width,
+            dirty_rect.height,
             request.zoom,
         );
     }
 
     Ok(ComposeResult {
-        width: vp.width * request.zoom,
-        height: vp.height * request.zoom,
+        width: dirty_rect.width * request.zoom,
+        height: dirty_rect.height * request.zoom,
+        dirty_rect,
         generation: 0,
     })
 }
@@ -1564,5 +1593,131 @@ mod tests {
             compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::OverlaysUnsupported
         );
+    }
+
+    // ---------- M12.2 dirty_hint ----------
+
+    /// 4×4 sprite filled with a recognizable per-pixel pattern so the
+    /// dirty-hint tests can assert on exact sub-rect contents.
+    fn rainbow_sprite_4x4() -> (Sprite, CelMap) {
+        let sprite = one_layer_sprite(4, 4, 1);
+        let mut buf = PixelBuffer::empty(4, 4, ColorMode::Rgba);
+        for y in 0..4u32 {
+            for x in 0..4u32 {
+                let idx = ((y * 4 + x) * 4) as usize;
+                // Encode (x, y) into RGB so the sub-rect read is unambiguous.
+                buf.data[idx..idx + 4].copy_from_slice(&[
+                    (x * 60) as u8,
+                    (y * 60) as u8,
+                    ((x + y) * 30) as u8,
+                    255,
+                ]);
+            }
+        }
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), buf));
+        (sprite, cels)
+    }
+
+    #[test]
+    fn no_dirty_hint_reports_full_viewport_as_dirty_rect() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
+        assert_eq!(r.pixels.len(), 4 * 4 * 4);
+        // Without a hint, dirty_rect spans the whole viewport. We don't expose
+        // dirty_rect via OwnedFrame, so check it via the direct API below.
+        let mut out = Vec::new();
+        let req = full_req(4, 4);
+        let info = compose(&sprite, &cels, &req, &mut out).unwrap();
+        assert_eq!(info.dirty_rect, Rect::new(0, 0, 4, 4));
+        assert_eq!((info.width, info.height), (4, 4));
+    }
+
+    #[test]
+    fn dirty_hint_inside_viewport_renders_only_intersection() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        // 2×2 sub-rect at (1, 1).
+        let req = ComposeRequest {
+            dirty_hint: Some(Rect::new(1, 1, 2, 2)),
+            ..full_req(4, 4)
+        };
+        let mut out = Vec::new();
+        let info = compose(&sprite, &cels, &req, &mut out).unwrap();
+
+        assert_eq!(info.dirty_rect, Rect::new(1, 1, 2, 2));
+        assert_eq!((info.width, info.height), (2, 2));
+        assert_eq!(out.len(), 2 * 2 * 4);
+        // Expected: (1,1), (2,1), (1,2), (2,2) in row-major order.
+        let expected = [
+            [60, 60, 60, 255], // x=1, y=1
+            [120, 60, 90, 255],
+            [60, 120, 90, 255],
+            [120, 120, 120, 255], // x=2, y=2
+        ]
+        .concat();
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn dirty_hint_partially_outside_viewport_clamps_to_overlap() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        // Hint extends past the canvas — overlap is the bottom-right 2×2.
+        let req = ComposeRequest {
+            dirty_hint: Some(Rect::new(2, 2, 10, 10)),
+            ..full_req(4, 4)
+        };
+        let mut out = Vec::new();
+        let info = compose(&sprite, &cels, &req, &mut out).unwrap();
+
+        assert_eq!(info.dirty_rect, Rect::new(2, 2, 2, 2));
+        assert_eq!(out.len(), 2 * 2 * 4);
+    }
+
+    #[test]
+    fn dirty_hint_disjoint_from_viewport_returns_empty_buffer() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        let req = ComposeRequest {
+            dirty_hint: Some(Rect::new(100, 100, 4, 4)),
+            ..full_req(4, 4)
+        };
+        let mut out = vec![0xAB; 16]; // pre-fill so we can see it's cleared
+        let info = compose(&sprite, &cels, &req, &mut out).unwrap();
+
+        assert!(info.dirty_rect.is_empty());
+        assert_eq!((info.width, info.height), (0, 0));
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn dirty_hint_equal_to_viewport_matches_full_render() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        let mut hinted_out = Vec::new();
+        let mut full_out = Vec::new();
+        let hinted = ComposeRequest {
+            dirty_hint: Some(Rect::new(0, 0, 4, 4)),
+            ..full_req(4, 4)
+        };
+        let full = full_req(4, 4);
+        let hinted_info = compose(&sprite, &cels, &hinted, &mut hinted_out).unwrap();
+        let full_info = compose(&sprite, &cels, &full, &mut full_out).unwrap();
+
+        assert_eq!(hinted_info.dirty_rect, full_info.dirty_rect);
+        assert_eq!(hinted_out, full_out);
+    }
+
+    #[test]
+    fn dirty_hint_with_zoom_upscales_only_intersection() {
+        let (sprite, cels) = rainbow_sprite_4x4();
+        let req = ComposeRequest {
+            dirty_hint: Some(Rect::new(1, 1, 2, 2)),
+            zoom: 3,
+            ..full_req(4, 4)
+        };
+        let mut out = Vec::new();
+        let info = compose(&sprite, &cels, &req, &mut out).unwrap();
+
+        assert_eq!(info.dirty_rect, Rect::new(1, 1, 2, 2));
+        assert_eq!((info.width, info.height), (6, 6));
+        assert_eq!(out.len(), 6 * 6 * 4);
     }
 }

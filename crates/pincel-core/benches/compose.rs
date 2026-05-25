@@ -9,9 +9,9 @@
 //!   layer covering the canvas at 1:1 zoom.
 //! * `compose_256_four_layers_full` — multi-layer source-over blend (M11.x
 //!   sprites grow layers quickly).
-//! * `compose_256_dirty_hint_4x4` — pre-M12.2 this matches the full path
-//!   because `dirty_hint` is ignored; the bench's existence pins the
-//!   baseline so the M12.2 numbers can quote a precise speedup.
+//! * `compose_256_dirty_hint_4x4` — M12.2 honors `dirty_hint`, so this
+//!   should now sit ~3 orders of magnitude below the full-canvas
+//!   single-layer baseline (4×4 region vs 256×256).
 //! * `compose_64_tilemap_full` — tilemap composite path (4×4 grid of 16×16
 //!   tiles).
 //! * `compose_zoom_32_upscale_8x8_to_256x256` — exercises the nearest-

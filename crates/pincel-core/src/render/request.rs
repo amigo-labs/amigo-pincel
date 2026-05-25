@@ -89,16 +89,25 @@ impl ComposeRequest {
 
 /// Metadata describing the buffer that [`super::compose`] wrote into the
 /// caller-owned output `Vec`. The pixel data lives in the `out` argument
-/// the caller passed — `ComposeResult` only carries dimensions and the
-/// generation counter.
+/// the caller passed — `ComposeResult` only carries dimensions, the
+/// rendered region's sprite-coord rect, and the generation counter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComposeResult {
-    /// Width of the buffer the caller's `out` was filled to. Today this
-    /// equals `viewport.width * zoom`; the M12.2 follow-up shrinks it to
-    /// `dirty_hint.width * zoom` once `compose()` honors the hint.
+    /// Width of the buffer the caller's `out` was filled to. Equals
+    /// `dirty_rect.width * zoom` (which collapses to `viewport.width *
+    /// zoom` when `dirty_hint` is `None`).
     pub width: u32,
-    /// Height of the buffer the caller's `out` was filled to.
+    /// Height of the buffer the caller's `out` was filled to. Equals
+    /// `dirty_rect.height * zoom`.
     pub height: u32,
+    /// Sprite-coord rect that the returned pixel buffer covers — the
+    /// intersection of `request.viewport` and `request.dirty_hint`
+    /// (or the full viewport when no hint was given). The UI render
+    /// adapter uses `(dirty_rect.x - viewport.x) * zoom`,
+    /// `(dirty_rect.y - viewport.y) * zoom` to place the upload inside
+    /// the on-screen viewport-aligned texture. When `dirty_hint` does
+    /// not overlap the viewport the rect is empty and `out` is cleared.
+    pub dirty_rect: Rect,
     /// Monotonic counter the caller may use to detect staleness. `compose()`
     /// is pure and always returns `0`; the UI layer is expected to maintain
     /// the counter itself across calls.
