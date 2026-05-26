@@ -1283,7 +1283,15 @@
         ev.free();
       }
       if (dirtyKind !== 'none') dirty = true;
-      if (selectionTouched) syncSelection();
+      if (selectionTouched) {
+        syncSelection();
+        // A bare `selection-changed` event (e.g. `setSelection` /
+        // `clearSelection` from a tool) needs a repaint to show or
+        // hide the marquee. Force the full path so the overlay paint
+        // in `recompose()` runs — the sub-rect path skips overlays.
+        dirty = true;
+        if (dirtyKind === 'none') dirtyKind = 'canvas';
+      }
       // Drive the marching-ants animation: when a selection is
       // active, advance `marchPhase` once every
       // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the

@@ -125,8 +125,16 @@ pub enum RenderError {
 /// Compose a frame of `sprite` into the caller-owned RGBA8 pixel buffer
 /// `out`. See spec §4 for the contract. `out` is resized and overwritten
 /// to hold exactly `result.width * result.height * 4` non-premultiplied
-/// RGBA8 bytes in row-major order. Reusing the same `out` across calls
-/// keeps the hot path allocation-free (spec §4.1).
+/// RGBA8 bytes in row-major order.
+///
+/// Reusing the same `out` across calls keeps the `zoom == 1` hot path
+/// allocation-free (spec §4.1). For `zoom > 1` a single
+/// `pre_zoom_len`-sized intermediate `Vec` is still allocated per call
+/// — the nearest-neighbor upscale writes into `out` from that
+/// intermediate. Threading a second caller-owned scratch through the
+/// upscale path is a follow-up (a `Canvas2D` adapter rendering at the
+/// composed pixel-grid keeps `zoom == 1`, so the present API covers
+/// the production hot path).
 pub fn compose(
     sprite: &Sprite,
     cels: &CelMap,

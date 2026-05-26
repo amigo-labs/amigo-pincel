@@ -1401,14 +1401,17 @@ impl ComposeFrame {
     }
 
     /// Sprite-coord X origin of the returned sub-rect. `0` for the
-    /// full-frame `compose()` path; matches the `dirty_hint` x for
-    /// `composeDirty()`.
+    /// full-frame `compose()` path; matches the
+    /// `intersect(viewport, dirty_hint).x` from the core
+    /// [`ComposeResult::dirty_rect`] for `composeDirty()` — i.e.
+    /// clamped to the viewport when the hint extends past the canvas.
     #[wasm_bindgen(getter, js_name = dirtyX)]
     pub fn dirty_x(&self) -> i32 {
         self.dirty_x
     }
 
-    /// Sprite-coord Y origin of the returned sub-rect. See [`Self::dirty_x`].
+    /// Sprite-coord Y origin of the returned sub-rect. See [`Self::dirty_x`]
+    /// for the clamp semantics.
     #[wasm_bindgen(getter, js_name = dirtyY)]
     pub fn dirty_y(&self) -> i32 {
         self.dirty_y

@@ -2,13 +2,14 @@
 //! applied (or reverted) command changed on the document. See
 //! `docs/specs/pincel.md` §4.3.
 //!
-//! Today every command in the codebase falls back to the default trait
-//! impl that returns [`DirtyRegion::Canvas`], so consumers behave exactly
-//! like the pre-M12.3 world. Subsequent slices refine the high-frequency
-//! paint commands (SetPixel, DrawLine, DrawRectangle, …) to report a
-//! precise [`DirtyRegion::Layer`] rect so the UI render adapter can call
+//! All six paint commands (`SetPixel`, `DrawLine`, `DrawRectangle`,
+//! `DrawEllipse`, `FillRegion`, `MoveSelectionContent`) report precise
+//! [`DirtyRegion::Layer`] rects so the UI render adapter can call
 //! `compose()` with a matching `dirty_hint` and blit only the changed
-//! sub-rect.
+//! sub-rect. Structural / tilemap / slice commands keep the default
+//! [`DirtyRegion::Canvas`] — their effects are global to the composite
+//! (layer-stack changes, tilemap reorders, slice overlay edits), so a
+//! conservative full-canvas event is the right semantics for them.
 
 use crate::document::{FrameIndex, LayerId};
 use crate::geometry::Rect;
