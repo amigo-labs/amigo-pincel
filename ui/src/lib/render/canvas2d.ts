@@ -34,6 +34,32 @@ export function blitFrame(canvas: HTMLCanvasElement, frame: ComposeFrame): void 
 }
 
 /**
+ * Paint a sub-region of the composed sprite into the canvas at the
+ * sprite-coord origin reported by `frame.dirtyX` / `frame.dirtyY`.
+ *
+ * Unlike [`blitFrame`], this does **not** resize the canvas backing
+ * store — the caller is responsible for keeping the canvas sized to
+ * the full sprite (typically via an initial `blitFrame` after open /
+ * load). Sub-region blits are the M12.4 fast path driven by the
+ * `dirty-rect` events `Document::undo` / `Document::redo` /
+ * `apply_*` emit after M12.3.
+ *
+ * Empty frames (width or height === 0) are a no-op so the caller can
+ * safely route the result of `composeDirty(...)` here without
+ * special-casing disjoint dirty-hints.
+ */
+export function blitDirtyFrame(canvas: HTMLCanvasElement, frame: ComposeFrame): void {
+  if (frame.width === 0 || frame.height === 0) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('failed to acquire 2D context');
+  const pixels = frame.pixels;
+  const buffer = pixels.buffer as ArrayBuffer;
+  const clamped = new Uint8ClampedArray(buffer, pixels.byteOffset, pixels.byteLength);
+  const image = new ImageData(clamped, frame.width, frame.height);
+  ctx.putImageData(image, frame.dirtyX, frame.dirtyY);
+}
+
+/**
  * Overlay a 1-pixel-wide Bresenham line on top of the current canvas
  * contents. Coordinates are in the canvas's pixel space (i.e. sprite
  * coords for the M6 single-frame, 1× compose path).

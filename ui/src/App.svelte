@@ -32,6 +32,7 @@
     type RecentFile,
   } from './lib/idb/recent-files';
   import {
+    blitDirtyFrame,
     blitFrame,
     paintEllipsePreview,
     paintLinePreview,
@@ -384,6 +385,33 @@
     } finally {
       frame.free();
     }
+  }
+
+  // Sub-rect blit path (M12.4). Only safe when none of the overlay
+  // sources are live, since the overlay paints would otherwise stale
+  // out on the parts of the canvas this call leaves untouched. The
+  // caller (`tick`) checks `canRecomposeDirty()` before routing here.
+  function recomposeDirty(rect: { x: number; y: number; w: number; h: number }) {
+    if (!doc || !canvas) return;
+    const frame = doc.composeDirty(0, 1, rect.x, rect.y, rect.w, rect.h);
+    try {
+      blitDirtyFrame(canvas, frame);
+    } finally {
+      frame.free();
+    }
+  }
+
+  // True when no transient overlay is being painted on top of the
+  // composited frame — i.e. a sub-rect blit will not leave stale
+  // overlay pixels behind. Selection marquee, drag shape preview,
+  // tilemap stamp grid, and active-slice marquee all force the full
+  // recompose path.
+  function canRecomposeDirty(): boolean {
+    if (selection) return false;
+    if (dragStart || moveSelStart) return false;
+    if (tool === 'tilemap-stamp' && stampTile) return false;
+    if (activeSliceId !== null) return false;
+    return true;
   }
 
   // Paint marching ants on the active slice's frame-0 bounds, plus
@@ -1219,11 +1247,42 @@
     if (doc) {
       const events = doc.drainEvents();
       let selectionTouched = false;
-      if (events.length > 0) dirty = true;
+      // Aggregate dirty events: any `dirty-canvas` (or `dirty-rect`
+      // whose union with prior rects we'd rather not compute) forces
+      // the full recompose path; consecutive `dirty-rect`s union into
+      // a single bbox so a sub-rect blit can replay them in one
+      // `composeDirty` call.
+      let dirtyKind: 'none' | 'rect' | 'canvas' = 'none';
+      let dirtyMinX = 0;
+      let dirtyMinY = 0;
+      let dirtyMaxX = 0;
+      let dirtyMaxY = 0;
       for (const ev of events) {
-        if (ev.kind === 'selection-changed') selectionTouched = true;
+        if (ev.kind === 'selection-changed') {
+          selectionTouched = true;
+        } else if (ev.kind === 'dirty-canvas') {
+          dirtyKind = 'canvas';
+        } else if (ev.kind === 'dirty-rect' && dirtyKind !== 'canvas') {
+          const x0 = ev.x;
+          const y0 = ev.y;
+          const x1 = ev.x + ev.width;
+          const y1 = ev.y + ev.height;
+          if (dirtyKind === 'none') {
+            dirtyMinX = x0;
+            dirtyMinY = y0;
+            dirtyMaxX = x1;
+            dirtyMaxY = y1;
+          } else {
+            if (x0 < dirtyMinX) dirtyMinX = x0;
+            if (y0 < dirtyMinY) dirtyMinY = y0;
+            if (x1 > dirtyMaxX) dirtyMaxX = x1;
+            if (y1 > dirtyMaxY) dirtyMaxY = y1;
+          }
+          dirtyKind = 'rect';
+        }
         ev.free();
       }
+      if (dirtyKind !== 'none') dirty = true;
       if (selectionTouched) syncSelection();
       // Drive the marching-ants animation: when a selection is
       // active, advance `marchPhase` once every
@@ -1241,13 +1300,25 @@
           marchTicks = 0;
           marchPhase = (marchPhase + 1) & 0x3;
           dirty = true;
+          // The march tick repaints overlays, not pixels, but the
+          // sub-rect path can't redraw them — force full recompose.
+          dirtyKind = 'canvas';
         }
       } else {
         marchTicks = 0;
       }
       if (dirty) {
         dirty = false;
-        recompose();
+        if (dirtyKind === 'rect' && canRecomposeDirty()) {
+          recomposeDirty({
+            x: dirtyMinX,
+            y: dirtyMinY,
+            w: dirtyMaxX - dirtyMinX,
+            h: dirtyMaxY - dirtyMinY,
+          });
+        } else {
+          recompose();
+        }
         syncMeta();
       }
     }

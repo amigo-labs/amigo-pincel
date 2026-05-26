@@ -212,6 +212,49 @@ impl Document {
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
+            dirty_x: result.dirty_rect.x,
+            dirty_y: result.dirty_rect.y,
+            pixels,
+        })
+    }
+
+    /// Composite a sub-rect of the sprite at the given integer zoom.
+    ///
+    /// Drives `pincel_core::compose` with a `dirty_hint` of
+    /// `(dx, dy, dw, dh)` in sprite coords. The returned `ComposeFrame`
+    /// is sized to `intersect(viewport, dirty_hint).{width,height} *
+    /// zoom`, and its `dirtyX` / `dirtyY` getters report the sprite-
+    /// coord origin so the UI knows where in the on-screen canvas to
+    /// blit the sub-region. An empty intersection returns an empty
+    /// frame (zero width / height, zero-length `pixels`).
+    ///
+    /// Mirrors the `dirty-rect` event the UI listens to — pass that
+    /// event's `(x, y, width, height)` directly.
+    #[wasm_bindgen(js_name = composeDirty)]
+    pub fn compose_dirty(
+        &self,
+        frame: u32,
+        zoom: u32,
+        dx: i32,
+        dy: i32,
+        dw: u32,
+        dh: u32,
+    ) -> Result<ComposeFrame, String> {
+        let mut request = ComposeRequest::full(
+            FrameIndex::new(frame),
+            self.sprite.width,
+            self.sprite.height,
+        );
+        request.zoom = zoom;
+        request.dirty_hint = Some(Rect::new(dx, dy, dw, dh));
+        let mut pixels = Vec::new();
+        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
+            .map_err(|e| format!("failed to compose dirty: {e}"))?;
+        Ok(ComposeFrame {
+            width: result.width,
+            height: result.height,
+            dirty_x: result.dirty_rect.x,
+            dirty_y: result.dirty_rect.y,
             pixels,
         })
     }
@@ -1337,21 +1380,38 @@ fn endpoint_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
 pub struct ComposeFrame {
     width: u32,
     height: u32,
+    dirty_x: i32,
+    dirty_y: i32,
     pixels: Vec<u8>,
 }
 
 #[wasm_bindgen]
 impl ComposeFrame {
-    /// Output buffer width in pixels (`viewport.width * zoom`).
+    /// Output buffer width in pixels (`dirty_rect.width * zoom`,
+    /// collapsing to `viewport.width * zoom` for full-frame composes).
     #[wasm_bindgen(getter)]
     pub fn width(&self) -> u32 {
         self.width
     }
 
-    /// Output buffer height in pixels (`viewport.height * zoom`).
+    /// Output buffer height in pixels (`dirty_rect.height * zoom`).
     #[wasm_bindgen(getter)]
     pub fn height(&self) -> u32 {
         self.height
+    }
+
+    /// Sprite-coord X origin of the returned sub-rect. `0` for the
+    /// full-frame `compose()` path; matches the `dirty_hint` x for
+    /// `composeDirty()`.
+    #[wasm_bindgen(getter, js_name = dirtyX)]
+    pub fn dirty_x(&self) -> i32 {
+        self.dirty_x
+    }
+
+    /// Sprite-coord Y origin of the returned sub-rect. See [`Self::dirty_x`].
+    #[wasm_bindgen(getter, js_name = dirtyY)]
+    pub fn dirty_y(&self) -> i32 {
+        self.dirty_y
     }
 
     /// Fresh `Uint8Array` copy of the RGBA8 pixel buffer.
@@ -1441,6 +1501,50 @@ mod tests {
     fn compose_rejects_zoom_above_max() {
         let doc = Document::new(2, 2).expect("dims");
         assert!(doc.compose(0, 65).is_err());
+    }
+
+    #[test]
+    fn compose_dirty_returns_sub_rect_at_sprite_coords() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 3, 5, 0x12345678)
+            .expect("pencil ok");
+        // Ask compose to cover only a 2×2 sub-rect at (2, 4) — should
+        // include the painted pixel at (3, 5).
+        let frame = doc
+            .compose_dirty(0, 1, 2, 4, 2, 2)
+            .expect("compose_dirty ok");
+        assert_eq!((frame.width(), frame.height()), (2, 2));
+        assert_eq!((frame.dirty_x(), frame.dirty_y()), (2, 4));
+        let pixels = frame.pixels();
+        assert_eq!(pixels.len(), 2 * 2 * 4);
+        // (3, 5) is sub-rect local (1, 1).
+        assert_eq!(pixel_at(&pixels, 2, 1, 1), [0x12, 0x34, 0x56, 0x78]);
+    }
+
+    #[test]
+    fn compose_dirty_disjoint_from_viewport_returns_empty_frame() {
+        let doc = Document::new(4, 4).expect("dims");
+        let frame = doc
+            .compose_dirty(0, 1, 100, 100, 4, 4)
+            .expect("compose_dirty ok");
+        assert_eq!((frame.width(), frame.height()), (0, 0));
+        assert_eq!(frame.pixels().len(), 0);
+    }
+
+    #[test]
+    fn compose_dirty_full_viewport_matches_compose() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 2, 2, 0xff8800ff)
+            .expect("pencil ok");
+        let full = doc.compose(0, 1).expect("compose ok");
+        let hinted = doc
+            .compose_dirty(0, 1, 0, 0, 4, 4)
+            .expect("compose_dirty ok");
+        assert_eq!(
+            (full.width(), full.height()),
+            (hinted.width(), hinted.height())
+        );
+        assert_eq!(*full.pixels(), *hinted.pixels());
     }
 
     fn pixel_at(pixels: &[u8], width: u32, x: u32, y: u32) -> [u8; 4] {
