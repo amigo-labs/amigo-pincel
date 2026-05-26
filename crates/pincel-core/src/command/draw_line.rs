@@ -12,6 +12,7 @@
 use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, Rgba, Sprite};
 
 use super::Command;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Write a 1-pixel-wide line between sprite-space `(x0, y0)` and `(x1, y1)`.
@@ -130,6 +131,10 @@ impl Command for DrawLine {
             buffer.data[offset + 2] = entry.prior.b;
             buffer.data[offset + 3] = entry.prior.a;
         }
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::bbox(self.layer, self.frame, self.x0, self.y0, self.x1, self.y1)
     }
 }
 

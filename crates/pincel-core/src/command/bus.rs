@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use crate::document::{CelMap, Sprite};
 
 use super::AnyCommand;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Default cap on the undo stack (matches `docs/specs/pincel.md` §6.2).
@@ -21,6 +22,11 @@ pub struct Bus {
     undo: VecDeque<AnyCommand>,
     redo: Vec<AnyCommand>,
     cap: usize,
+    /// The [`DirtyRegion`] reported by the most recent successful
+    /// `execute` / `undo` / `redo`. Stays as the last value across
+    /// subsequent no-op calls so the caller can read it after the fact
+    /// without changing the existing return-shape API.
+    last_dirty: DirtyRegion,
 }
 
 impl Bus {
@@ -35,6 +41,7 @@ impl Bus {
             undo: VecDeque::new(),
             redo: Vec::new(),
             cap,
+            last_dirty: DirtyRegion::None,
         }
     }
 
@@ -47,6 +54,7 @@ impl Bus {
         cels: &mut CelMap,
     ) -> Result<(), CommandError> {
         cmd.apply(doc, cels)?;
+        self.last_dirty = cmd.dirty_region();
         self.redo.clear();
 
         if self.cap == 0 {
@@ -72,6 +80,7 @@ impl Bus {
             return false;
         };
         cmd.revert(doc, cels);
+        self.last_dirty = cmd.dirty_region();
         self.redo.push(cmd);
         true
     }
@@ -83,6 +92,7 @@ impl Bus {
             return Ok(false);
         };
         cmd.apply(doc, cels)?;
+        self.last_dirty = cmd.dirty_region();
         self.undo.push_back(cmd);
         Ok(true)
     }
@@ -95,6 +105,13 @@ impl Bus {
     /// Number of commands available to redo.
     pub fn redo_depth(&self) -> usize {
         self.redo.len()
+    }
+
+    /// [`DirtyRegion`] reported by the most recent successful
+    /// `execute` / `undo` / `redo`. Returns [`DirtyRegion::None`] for a
+    /// fresh bus that has never applied a command.
+    pub fn last_dirty_region(&self) -> DirtyRegion {
+        self.last_dirty
     }
 }
 

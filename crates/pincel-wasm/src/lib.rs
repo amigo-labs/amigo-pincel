@@ -206,12 +206,56 @@ impl Document {
             self.sprite.height,
         );
         request.zoom = zoom;
-        let result = compose(&self.sprite, &self.cels, &request)
+        let mut pixels = Vec::new();
+        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
-            pixels: result.pixels,
+            dirty_x: result.dirty_rect.x,
+            dirty_y: result.dirty_rect.y,
+            pixels,
+        })
+    }
+
+    /// Composite a sub-rect of the sprite at the given integer zoom.
+    ///
+    /// Drives `pincel_core::compose` with a `dirty_hint` of
+    /// `(dx, dy, dw, dh)` in sprite coords. The returned `ComposeFrame`
+    /// is sized to `intersect(viewport, dirty_hint).{width,height} *
+    /// zoom`, and its `dirtyX` / `dirtyY` getters report the sprite-
+    /// coord origin so the UI knows where in the on-screen canvas to
+    /// blit the sub-region. An empty intersection returns an empty
+    /// frame (zero width / height, zero-length `pixels`).
+    ///
+    /// Mirrors the `dirty-rect` event the UI listens to — pass that
+    /// event's `(x, y, width, height)` directly.
+    #[wasm_bindgen(js_name = composeDirty)]
+    pub fn compose_dirty(
+        &self,
+        frame: u32,
+        zoom: u32,
+        dx: i32,
+        dy: i32,
+        dw: u32,
+        dh: u32,
+    ) -> Result<ComposeFrame, String> {
+        let mut request = ComposeRequest::full(
+            FrameIndex::new(frame),
+            self.sprite.width,
+            self.sprite.height,
+        );
+        request.zoom = zoom;
+        request.dirty_hint = Some(Rect::new(dx, dy, dw, dh));
+        let mut pixels = Vec::new();
+        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
+            .map_err(|e| format!("failed to compose dirty: {e}"))?;
+        Ok(ComposeFrame {
+            width: result.width,
+            height: result.height,
+            dirty_x: result.dirty_rect.x,
+            dirty_y: result.dirty_rect.y,
+            pixels,
         })
     }
 
@@ -463,7 +507,9 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply bucket: {e}"))?;
-        self.events.push(Event::dirty_canvas());
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         Ok(())
     }
 
@@ -489,28 +535,30 @@ impl Document {
             self.sprite.height,
         );
         request.viewport = Rect::new(x, y, 1, 1);
-        let result = compose(&self.sprite, &self.cels, &request)
+        let mut pixels = Vec::new();
+        compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to pick color: {e}"))?;
-        debug_assert_eq!(result.pixels.len(), 4);
+        debug_assert_eq!(pixels.len(), 4);
         Ok(u32::from_be_bytes([
-            result.pixels[0],
-            result.pixels[1],
-            result.pixels[2],
-            result.pixels[3],
+            pixels[0], pixels[1], pixels[2], pixels[3],
         ]))
     }
 
     /// Revert the most recent command. Returns `true` if a command was
     /// undone, `false` when the undo stack was empty.
     ///
-    /// On a successful undo a `dirty-canvas` event is enqueued so the
-    /// UI re-renders. The WASM layer cannot yet attribute the reverted
-    /// change to a single cel — per-command dirty rects land in M12
-    /// (perf pass).
+    /// On a successful undo the reverted command's
+    /// [`DirtyRegion`](pincel_core::DirtyRegion) is translated into the
+    /// matching event: `dirty-rect` for paint commands that carry a
+    /// precise sub-rect (SetPixel, DrawLine, …), `dirty-canvas` for
+    /// structural commands that haven't been refined yet (M12.3
+    /// follow-up).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
         if undone {
-            self.events.push(Event::dirty_canvas());
+            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+                self.events.push(ev);
+            }
         }
         undone
     }
@@ -519,15 +567,18 @@ impl Document {
     /// command was redone. Errors propagate from the underlying
     /// command (e.g. a redo whose target cel was deleted).
     ///
-    /// On a successful redo a `dirty-canvas` event is enqueued, same
-    /// rationale as [`Document::undo`].
+    /// On a successful redo a dirty event derived from the redone
+    /// command's region is enqueued, same translation rules as
+    /// [`Document::undo`].
     pub fn redo(&mut self) -> Result<bool, String> {
         let redone = self
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
         if redone {
-            self.events.push(Event::dirty_canvas());
+            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+                self.events.push(ev);
+            }
         }
         Ok(redone)
     }
@@ -659,7 +710,9 @@ impl Document {
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to move selection: {e}"))?;
-        self.events.push(Event::dirty_canvas());
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         let event = match self.sprite.selection {
             Some(r) => Event::selection_changed(r.x, r.y, r.width, r.height),
             None => Event::selection_changed(0, 0, 0, 0),
@@ -1327,21 +1380,41 @@ fn endpoint_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
 pub struct ComposeFrame {
     width: u32,
     height: u32,
+    dirty_x: i32,
+    dirty_y: i32,
     pixels: Vec<u8>,
 }
 
 #[wasm_bindgen]
 impl ComposeFrame {
-    /// Output buffer width in pixels (`viewport.width * zoom`).
+    /// Output buffer width in pixels (`dirty_rect.width * zoom`,
+    /// collapsing to `viewport.width * zoom` for full-frame composes).
     #[wasm_bindgen(getter)]
     pub fn width(&self) -> u32 {
         self.width
     }
 
-    /// Output buffer height in pixels (`viewport.height * zoom`).
+    /// Output buffer height in pixels (`dirty_rect.height * zoom`).
     #[wasm_bindgen(getter)]
     pub fn height(&self) -> u32 {
         self.height
+    }
+
+    /// Sprite-coord X origin of the returned sub-rect. `0` for the
+    /// full-frame `compose()` path; matches the
+    /// `intersect(viewport, dirty_hint).x` from the core
+    /// [`ComposeResult::dirty_rect`] for `composeDirty()` — i.e.
+    /// clamped to the viewport when the hint extends past the canvas.
+    #[wasm_bindgen(getter, js_name = dirtyX)]
+    pub fn dirty_x(&self) -> i32 {
+        self.dirty_x
+    }
+
+    /// Sprite-coord Y origin of the returned sub-rect. See [`Self::dirty_x`]
+    /// for the clamp semantics.
+    #[wasm_bindgen(getter, js_name = dirtyY)]
+    pub fn dirty_y(&self) -> i32 {
+        self.dirty_y
     }
 
     /// Fresh `Uint8Array` copy of the RGBA8 pixel buffer.
@@ -1431,6 +1504,50 @@ mod tests {
     fn compose_rejects_zoom_above_max() {
         let doc = Document::new(2, 2).expect("dims");
         assert!(doc.compose(0, 65).is_err());
+    }
+
+    #[test]
+    fn compose_dirty_returns_sub_rect_at_sprite_coords() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 3, 5, 0x12345678)
+            .expect("pencil ok");
+        // Ask compose to cover only a 2×2 sub-rect at (2, 4) — should
+        // include the painted pixel at (3, 5).
+        let frame = doc
+            .compose_dirty(0, 1, 2, 4, 2, 2)
+            .expect("compose_dirty ok");
+        assert_eq!((frame.width(), frame.height()), (2, 2));
+        assert_eq!((frame.dirty_x(), frame.dirty_y()), (2, 4));
+        let pixels = frame.pixels();
+        assert_eq!(pixels.len(), 2 * 2 * 4);
+        // (3, 5) is sub-rect local (1, 1).
+        assert_eq!(pixel_at(&pixels, 2, 1, 1), [0x12, 0x34, 0x56, 0x78]);
+    }
+
+    #[test]
+    fn compose_dirty_disjoint_from_viewport_returns_empty_frame() {
+        let doc = Document::new(4, 4).expect("dims");
+        let frame = doc
+            .compose_dirty(0, 1, 100, 100, 4, 4)
+            .expect("compose_dirty ok");
+        assert_eq!((frame.width(), frame.height()), (0, 0));
+        assert_eq!(frame.pixels().len(), 0);
+    }
+
+    #[test]
+    fn compose_dirty_full_viewport_matches_compose() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 2, 2, 0xff8800ff)
+            .expect("pencil ok");
+        let full = doc.compose(0, 1).expect("compose ok");
+        let hinted = doc
+            .compose_dirty(0, 1, 0, 0, 4, 4)
+            .expect("compose_dirty ok");
+        assert_eq!(
+            (full.width(), full.height()),
+            (hinted.width(), hinted.height())
+        );
+        assert_eq!(*full.pixels(), *hinted.pixels());
     }
 
     fn pixel_at(pixels: &[u8], width: u32, x: u32, y: u32) -> [u8; 4] {
@@ -1638,7 +1755,7 @@ mod tests {
     }
 
     #[test]
-    fn undo_redo_emit_dirty_canvas_and_track_depth() {
+    fn undo_redo_emit_dirty_rect_for_paint_command_and_track_depth() {
         let mut doc = Document::new(4, 3).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x123456ff)
             .expect("pencil ok");
@@ -1651,16 +1768,24 @@ mod tests {
         assert!(doc.undo());
         assert_eq!(doc.undo_depth(), 0);
         assert_eq!(doc.redo_depth(), 1);
+        // M12.3: SetPixel reports a 1×1 Layer rect, so undo / redo emit
+        // `dirty-rect` instead of the old blanket `dirty-canvas`.
         let after_undo = doc.drain_events();
         assert_eq!(after_undo.len(), 1);
-        assert_eq!(after_undo[0].kind(), "dirty-canvas");
+        assert_eq!(after_undo[0].kind(), "dirty-rect");
+        assert_eq!((after_undo[0].x(), after_undo[0].y()), (0, 0));
+        assert_eq!(
+            (after_undo[0].width(), after_undo[0].height()),
+            (1, 1),
+            "SetPixel dirty rect is 1×1 at the target pixel",
+        );
 
         assert!(doc.redo().expect("redo ok"));
         assert_eq!(doc.undo_depth(), 1);
         assert_eq!(doc.redo_depth(), 0);
         let after_redo = doc.drain_events();
         assert_eq!(after_redo.len(), 1);
-        assert_eq!(after_redo[0].kind(), "dirty-canvas");
+        assert_eq!(after_redo[0].kind(), "dirty-rect");
     }
 
     #[test]
@@ -2008,12 +2133,16 @@ mod tests {
     }
 
     #[test]
-    fn apply_bucket_emits_dirty_canvas_event() {
+    fn apply_bucket_emits_dirty_rect_event() {
         let mut doc = Document::new(4, 3).expect("dims");
+        // Filling the all-transparent canvas from (0,0) hits every
+        // pixel, so the dirty rect covers the full canvas.
         doc.apply_bucket(0, 0, 0x336699ff).expect("bucket ok");
         let events = doc.drain_events();
         assert_eq!(events.len(), 1);
-        assert_eq!(events[0].kind(), "dirty-canvas");
+        assert_eq!(events[0].kind(), "dirty-rect");
+        assert_eq!((events[0].x(), events[0].y()), (0, 0));
+        assert_eq!((events[0].width(), events[0].height()), (4, 3));
     }
 
     #[test]
@@ -2178,15 +2307,21 @@ mod tests {
     }
 
     #[test]
-    fn apply_move_selection_emits_dirty_canvas_and_selection_events() {
+    fn apply_move_selection_emits_dirty_rect_and_selection_events() {
         let mut doc = Document::new(8, 8).expect("dims");
         doc.set_selection(2, 2, 2, 2);
         let _ = doc.drain_events();
         doc.apply_move_selection(1, 0).expect("move ok");
         let events = doc.drain_events();
         let kinds: Vec<String> = events.iter().map(|e| e.kind()).collect();
-        assert!(kinds.iter().any(|k| k == "dirty-canvas"));
+        // selection (2,2,2,2) translated by (1,0) → bbox = (2,2,3,2).
+        assert!(kinds.iter().any(|k| k == "dirty-rect"));
         assert!(kinds.iter().any(|k| k == "selection-changed"));
+        let dirty = events.iter().find(|e| e.kind() == "dirty-rect").unwrap();
+        assert_eq!(
+            (dirty.x(), dirty.y(), dirty.width(), dirty.height()),
+            (2, 2, 3, 2)
+        );
     }
 
     #[test]

@@ -1,19 +1,26 @@
 # Status
 
-_Last updated: 2026-05-24_
+_Last updated: 2026-05-25_
 
-**Branch:** `claude/mach-m12-Adb9a` · M12.1 in progress — performance
-pass kickoff. Profiling baseline landed via a new `criterion` bench
-suite at `crates/pincel-core/benches/compose.rs`. No behavior change;
-subsequent M12 slices will move the recorded numbers.
+**Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
+takes a caller-owned `&mut Vec<u8>` for the output (no per-call
+allocation in the steady state) and honors `dirty_hint`, shrinking the
+returned buffer to the intersection of viewport and hint (spec §4.3).
+`ComposeResult` gains a `dirty_rect: Rect` field reporting the rendered
+sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
+and `dirty.height * zoom`. Empty intersections short-circuit with an
+empty `out` so callers can skip the upload.
 
 ## Next task
 
-**M12.2** — `compose()` honors `dirty_hint` + scratch reuse. Shrink
-`ComposeResult.pixels` to the dirty sub-rect (spec §4.3) and thread a
-caller-owned `&mut Vec<u8>` scratch through `compose()` so the hot path
-stops allocating. See the M12 plan (`/root/.claude/plans/mach-m12-abstract-dewdrop.md`)
-for the slice list.
+**M12.6** — Verify the spec exit criterion: 256×256 sprite at zoom
+32 maintains 60 fps on M1 / mid-tier Windows. The Criterion bench
+suite already covers `compose()`; the missing pieces are a UI-driven
+frame-time probe (RAF + `performance.now()` per `recompose`/
+`recomposeDirty`) and a real-app stress test (rapid pencil drag /
+animation frame onion-skin / etc.). **M12.5** (WebGPU adapter, spec
+§4.4 / §17.2) is optional unless M12.6 numbers come up short on
+Canvas2D — leave for after the perf verification.
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -49,7 +56,10 @@ subsequent slices.
 | M11.3 | ✅ | Native menu bar (File / Edit / View / Help) + Recents submenu wired via `set_recent_menu` |
 | M11.4 | ✅ | `bundle.fileAssociations` for `.aseprite` / `.ase`, single-instance forward, macOS `RunEvent::Opened`, first-launch advisory dialog |
 | M12.1 | ✅ | Profiling baseline — `criterion` workspace dev-dep, `crates/pincel-core/benches/compose.rs` with five scenarios (single-layer / four-layer / dirty-hint / tilemap / zoom-32). Numbers pinned above. |
-| M12.2–M12.6 | ⬜ | Performance pass — `dirty_hint` honored, scratch reuse, per-command DirtyRegion, UI sub-rect blit, WebGPU adapter. See plan file. |
+| M12.2 | ✅ | `compose()` takes `out: &mut Vec<u8>` (scratch reuse); honors `dirty_hint` via `Rect::intersect`; `ComposeResult` drops `pixels`, gains `dirty_rect`. |
+| M12.3 | ✅ | Per-command `DirtyRegion` complete on the paint surface: type + trait method + `Bus::last_dirty_region()` + `Document::undo`/`redo` + bucket / move event paths all emit precise `dirty-rect` events. SetPixel / DrawLine / DrawRectangle / DrawEllipse / FillRegion / MoveSelectionContent all report sprite-coord rects; structural / tilemap / slice commands keep the safe-but-coarse `Canvas` default. |
+| M12.4 | ✅ | Canvas2D sub-rect blit. `ComposeFrame` exposes `dirtyX` / `dirtyY`; new `Document::composeDirty(...)` + `blitDirtyFrame(...)`. `App.svelte::tick` aggregates `dirty-rect` events into a union bbox and routes through the sub-rect path when no overlays are live (selection / drag / stamp / active slice all force the full path). |
+| M12.5–M12.6 | ⬜ | WebGPU adapter, 60 fps verification. |
 
 ### M8.7 sub-tasks
 

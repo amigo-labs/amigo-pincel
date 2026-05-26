@@ -17,8 +17,10 @@
 use std::collections::VecDeque;
 
 use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, Rgba, Sprite};
+use crate::geometry::Rect;
 
 use super::Command;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Flood-fill the 4-connected region of pixels matching the seed-pixel
@@ -34,6 +36,13 @@ pub struct FillRegion {
     /// (shared across all filled pixels) and the cel-local coordinates of
     /// every pixel that was modified, used by `revert`.
     previous: Option<FilledRegion>,
+    /// Sprite-coord bbox of the pixels written by the most recent
+    /// successful `apply`. Populated once at apply time and preserved
+    /// across `revert` so `dirty_region()` reports the same rect before
+    /// and after, matching the source-over symmetry of the bus.
+    /// `None` before the first apply and for the empty / no-op fill
+    /// cases.
+    dirty_bbox: Option<Rect>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +68,7 @@ impl FillRegion {
             sprite_y,
             new_color: color,
             previous: None,
+            dirty_bbox: None,
         }
     }
 
@@ -185,6 +195,32 @@ impl Command for FillRegion {
             }
         }
 
+        if !pixels.is_empty() {
+            let (mut min_lx, mut min_ly) = pixels[0];
+            let mut max_lx = min_lx;
+            let mut max_ly = min_ly;
+            for &(lx, ly) in &pixels[1..] {
+                if lx < min_lx {
+                    min_lx = lx;
+                }
+                if lx > max_lx {
+                    max_lx = lx;
+                }
+                if ly < min_ly {
+                    min_ly = ly;
+                }
+                if ly > max_ly {
+                    max_ly = ly;
+                }
+            }
+            self.dirty_bbox = Some(Rect::new(
+                cel.position.0.saturating_add_unsigned(min_lx),
+                cel.position.1.saturating_add_unsigned(min_ly),
+                max_lx - min_lx + 1,
+                max_ly - min_ly + 1,
+            ));
+        }
+
         self.previous = Some(FilledRegion {
             prior: seed_color,
             pixels,
@@ -211,6 +247,13 @@ impl Command for FillRegion {
             buffer.data[offset + 1] = region.prior.g;
             buffer.data[offset + 2] = region.prior.b;
             buffer.data[offset + 3] = region.prior.a;
+        }
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        match self.dirty_bbox {
+            Some(rect) => DirtyRegion::layer_rect(self.layer, self.frame, rect),
+            None => DirtyRegion::None,
         }
     }
 }
@@ -499,5 +542,40 @@ mod tests {
         let mut a = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 0, 0, RED);
         let b = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 1, 1, BLUE);
         assert!(!a.merge(&b));
+    }
+
+    #[test]
+    fn dirty_region_reports_bbox_after_full_canvas_fill() {
+        let (mut sprite, mut cels) = fixture();
+        let mut cmd = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 0, 0, RED);
+        cmd.apply(&mut sprite, &mut cels).expect("fill ok");
+        // 8×8 transparent canvas filled from (0,0) — every pixel matches.
+        assert_eq!(
+            cmd.dirty_region(),
+            DirtyRegion::layer_rect(LayerId::new(1), FrameIndex::new(0), Rect::new(0, 0, 8, 8))
+        );
+    }
+
+    #[test]
+    fn dirty_region_after_noop_fill_is_none() {
+        let (mut sprite, mut cels) = fixture();
+        // Pre-paint the seed pixel with the target color so the fill
+        // short-circuits to a no-op (no pixels written).
+        write_pixel(&mut cels, 2, 2, RED);
+        let mut cmd = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 2, 2, RED);
+        cmd.apply(&mut sprite, &mut cels).expect("noop ok");
+        assert_eq!(cmd.dirty_region(), DirtyRegion::None);
+    }
+
+    #[test]
+    fn dirty_region_survives_revert() {
+        let (mut sprite, mut cels) = fixture();
+        let mut cmd = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 0, 0, RED);
+        cmd.apply(&mut sprite, &mut cels).expect("fill ok");
+        let region = cmd.dirty_region();
+        cmd.revert(&mut sprite, &mut cels);
+        // The bus reads `dirty_region()` after revert; the rect should
+        // match what `apply` reported so undo emits a matching event.
+        assert_eq!(cmd.dirty_region(), region);
     }
 }
