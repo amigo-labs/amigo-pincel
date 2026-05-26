@@ -631,11 +631,16 @@ The native build uses these instead of the File System Access API. `pincel-core`
 ### 11.4 Capability Detection in UI
 
 ```typescript
-const isTauri = '__TAURI__' in window;
+const isTauri =
+  '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
 const fs = isTauri ? tauriFsAdapter : webFsAdapter;
 ```
 
 Single FS interface, two adapters. UI never branches on platform beyond this.
+
+Tauri 2 exposes the runtime as `__TAURI_INTERNALS__`; the legacy
+`__TAURI__` global is checked only as a v1 fallback. The probe lives in
+[`ui/src/lib/platform/index.ts`](../../ui/src/lib/platform/index.ts).
 
 ---
 
@@ -732,6 +737,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-05-07 | Scripting deferred; if needed later, downloader pattern (rquickjs + SWC + TS) | Consistent with amigo-labs tooling; out-of-scope for Phase 1 |
 | 2026-05-07 | Document state lives exclusively in Rust memory; canvas / WebGPU is render-target only | Avoids the architectural failure mode that forced Piskel into a multi-year rewrite (Piskel #1245). Browser canvas anti-fingerprinting (Brave today, others tomorrow) corrupts pixel readbacks; in-memory state is immune. |
 | 2026-05-07 | `pincel-wasm` ships as npm-importable package with documented public API from Phase 1 | Embedding is a recurring Piskel community ask (#1229, #1246). Designing the boundary in early avoids retrofit. |
+| 2026-05-26 | §11.4 `isTauri` check accepts both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (Tauri 1) | The spec originally specified only `__TAURI__`, but Tauri 2 renamed the global. The shipping implementation in `ui/src/lib/platform/index.ts` accepts both so the same probe works against either runtime. Spec aligned with the implementation. |
 
 ---
 
