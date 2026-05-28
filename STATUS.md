@@ -14,13 +14,29 @@ empty `out` so callers can skip the upload.
 ## Next task
 
 **M12.6** — Verify the spec exit criterion: 256×256 sprite at zoom
-32 maintains 60 fps on M1 / mid-tier Windows. The Criterion bench
-suite already covers `compose()`; the missing pieces are a UI-driven
-frame-time probe (RAF + `performance.now()` per `recompose`/
-`recomposeDirty`) and a real-app stress test (rapid pencil drag /
-animation frame onion-skin / etc.). **M12.5** (WebGPU adapter, spec
-§4.4 / §17.2) is optional unless M12.6 numbers come up short on
-Canvas2D — leave for after the perf verification.
+32 maintains 60 fps on M1 / mid-tier Windows.
+
+**Done:** the UI-driven frame-time probe has landed. Press **F2** in the
+editor to toggle it; the footer then shows effective fps (EMA of
+inter-tick spacing) plus average and worst compose cost over a rolling
+60-frame window. The probe wraps the `recompose` / `recomposeDirty`
+calls in `App.svelte::tick` with `performance.now()` and is fully gated
+behind the toggle, so normal use pays only a single boolean test per
+frame. The Criterion bench suite already covers `compose()` in
+isolation.
+
+**Verification method (manual):** `pnpm dev`, `New`, resize/create a
+256×256 document, zoom to 32, press F2, then drag the Pencil rapidly
+across the canvas. Read fps / compose-ms off the footer. The exit
+criterion holds when fps stays at/near 60 and compose stays well under
+the ~16.6 ms frame budget. Record measured numbers below once taken on
+target hardware.
+
+**Measured:** _pending — capture on M1 / mid-tier Windows._
+
+**M12.5** (WebGPU adapter, spec §4.4 / §17.2) is optional unless M12.6
+numbers come up short on Canvas2D — leave for after the perf
+verification.
 
 ## M12 baselines (criterion, 2026-05-24)
 
