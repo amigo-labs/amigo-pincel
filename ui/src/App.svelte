@@ -133,6 +133,10 @@
   // before the IDB layer has loaded.
   let recents = $state<RecentFile[]>([]);
   let recentMenuOpen = $state(false);
+  // DOM refs for keyboard navigation of the recent-files menu: focus
+  // moves into the list on open and returns to the trigger on close.
+  let recentsTrigger = $state<HTMLButtonElement | null>(null);
+  let recentsMenu = $state<HTMLUListElement | null>(null);
   const tauriHost = isTauri();
   const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
@@ -1407,7 +1411,8 @@
       return;
     }
     if (e.key === 'Escape' && recentMenuOpen) {
-      recentMenuOpen = false;
+      closeRecentMenu();
+      return;
     }
     // F2 toggles the frame-time probe (M12.6). Reset the window on
     // enable so a reading reflects only post-toggle frames.
@@ -1630,6 +1635,48 @@
     }
   }
 
+  // Open/close the recent-files dropdown. Opening moves focus onto the
+  // first entry (next frame, once the list is in the DOM); closing
+  // returns focus to the trigger so keyboard users keep their place.
+  function toggleRecentMenu() {
+    recentMenuOpen = !recentMenuOpen;
+    if (recentMenuOpen) {
+      requestAnimationFrame(() => {
+        recentsMenu?.querySelector('button')?.focus();
+      });
+    }
+  }
+
+  function closeRecentMenu() {
+    recentMenuOpen = false;
+    recentsTrigger?.focus();
+  }
+
+  // Arrow / Home / End navigation across the recent-files entries.
+  function onRecentsKeydown(e: KeyboardEvent) {
+    if (!recentsMenu) return;
+    const items = Array.from(
+      recentsMenu.querySelectorAll<HTMLButtonElement>('button'),
+    );
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[current < 0 ? 0 : (current + 1) % items.length]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[
+        current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length
+      ]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  }
+
   function dismissFileAssoc(dontShowAgain: boolean) {
     fileAssocOpen = false;
     if (dontShowAgain) {
@@ -1676,24 +1723,29 @@
     {#if recentsAvailable}
       <div class="relative">
         <button
+          bind:this={recentsTrigger}
           class="toolbar-btn"
           class:toolbar-btn-active={recentMenuOpen}
           aria-haspopup="menu"
           aria-expanded={recentMenuOpen}
           disabled={recents.length === 0}
-          onclick={() => (recentMenuOpen = !recentMenuOpen)}
+          onclick={toggleRecentMenu}
         >
           Recent…
         </button>
         {#if recentMenuOpen}
           <ul
+            bind:this={recentsMenu}
             class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+            role="menu"
             aria-label="Recent files"
+            onkeydown={onRecentsKeydown}
           >
             {#each recents as r (r.id)}
               <li>
                 <button
                   class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
+                  role="menuitem"
                   title={r.name}
                   onclick={() => openRecent(r)}
                 >
