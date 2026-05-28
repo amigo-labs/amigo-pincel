@@ -97,6 +97,18 @@
   let painting = false;
   let dirty = false;
   let rafHandle: number | null = null;
+  // M12.6: frame-time probe. Off by default so normal use pays zero
+  // cost (a single boolean test in `tick()`). Toggled with F2. When on,
+  // `tick()` times each recompose into a rolling window and tracks the
+  // effective frame rate from inter-tick spacing; the footer surfaces
+  // average / worst compose cost and fps. See STATUS.md M12.6.
+  let probeOn = $state(false);
+  const PROBE_WINDOW = 60;
+  let composeSamples: number[] = [];
+  let composeMs = $state(0);
+  let composeMaxMs = $state(0);
+  let fpsEma = $state(0);
+  let lastTickTs = 0;
   // Current on-disk identity of the document. `handle` is non-null
   // only on File System Access API browsers after a successful
   // open / save-as; subsequent saves write through it in place. `name`
@@ -121,6 +133,10 @@
   // before the IDB layer has loaded.
   let recents = $state<RecentFile[]>([]);
   let recentMenuOpen = $state(false);
+  // DOM refs for keyboard navigation of the recent-files menu: focus
+  // moves into the list on open and returns to the trigger on close.
+  let recentsTrigger = $state<HTMLButtonElement | null>(null);
+  let recentsMenu = $state<HTMLUListElement | null>(null);
   const tauriHost = isTauri();
   const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
@@ -1243,7 +1259,32 @@
     activeSliceId = null;
   }
 
+  // Fold one compose-cost sample into the rolling window and refresh
+  // the derived average / max. Only called when the probe is active.
+  function recordComposeSample(ms: number) {
+    composeSamples.push(ms);
+    if (composeSamples.length > PROBE_WINDOW) composeSamples.shift();
+    let sum = 0;
+    let max = 0;
+    for (const s of composeSamples) {
+      sum += s;
+      if (s > max) max = s;
+    }
+    composeMs = sum / composeSamples.length;
+    composeMaxMs = max;
+  }
+
   function tick() {
+    if (probeOn) {
+      const now = performance.now();
+      if (lastTickTs > 0) {
+        const fps = 1000 / Math.max(now - lastTickTs, 0.0001);
+        // Exponential moving average smooths the per-frame jitter so
+        // the footer reading is stable enough to eyeball under load.
+        fpsEma = fpsEma === 0 ? fps : fpsEma * 0.9 + fps * 0.1;
+      }
+      lastTickTs = now;
+    }
     if (doc) {
       const events = doc.drainEvents();
       let selectionTouched = false;
@@ -1317,6 +1358,7 @@
       }
       if (dirty) {
         dirty = false;
+        const t0 = probeOn ? performance.now() : 0;
         if (dirtyKind === 'rect' && canRecomposeDirty()) {
           recomposeDirty({
             x: dirtyMinX,
@@ -1327,6 +1369,7 @@
         } else {
           recompose();
         }
+        if (probeOn) recordComposeSample(performance.now() - t0);
         syncMeta();
       }
     }
@@ -1346,6 +1389,20 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
   }
 
+  // Single-key tool shortcuts, aligned with Aseprite defaults where they
+  // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
+  // the browser / OS; Shift is tolerated (normalized via toLowerCase).
+  const TOOL_KEYS: Record<string, Tool> = {
+    b: 'pencil',
+    e: 'eraser',
+    i: 'eyedropper',
+    g: 'bucket',
+    l: 'line',
+    u: 'rectangle',
+    m: 'selection-rect',
+    v: 'move',
+  };
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -1354,7 +1411,35 @@
       return;
     }
     if (e.key === 'Escape' && recentMenuOpen) {
-      recentMenuOpen = false;
+      closeRecentMenu();
+      return;
+    }
+    // F2 toggles the frame-time probe (M12.6). Reset the window on
+    // enable so a reading reflects only post-toggle frames.
+    if (e.key === 'F2' && !isEditableTarget(e.target)) {
+      e.preventDefault();
+      probeOn = !probeOn;
+      composeSamples = [];
+      composeMs = 0;
+      composeMaxMs = 0;
+      fpsEma = 0;
+      lastTickTs = 0;
+      return;
+    }
+    // Single-key tool selection. Skip when a modifier is held (browser
+    // shortcuts) or focus is in an editable field.
+    if (
+      doc &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !isEditableTarget(e.target)
+    ) {
+      const next = TOOL_KEYS[e.key.toLowerCase()];
+      if (next) {
+        e.preventDefault();
+        tool = next;
+      }
     }
   }
 
@@ -1550,6 +1635,48 @@
     }
   }
 
+  // Open/close the recent-files dropdown. Opening moves focus onto the
+  // first entry (next frame, once the list is in the DOM); closing
+  // returns focus to the trigger so keyboard users keep their place.
+  function toggleRecentMenu() {
+    recentMenuOpen = !recentMenuOpen;
+    if (recentMenuOpen) {
+      requestAnimationFrame(() => {
+        recentsMenu?.querySelector('button')?.focus();
+      });
+    }
+  }
+
+  function closeRecentMenu() {
+    recentMenuOpen = false;
+    recentsTrigger?.focus();
+  }
+
+  // Arrow / Home / End navigation across the recent-files entries.
+  function onRecentsKeydown(e: KeyboardEvent) {
+    if (!recentsMenu) return;
+    const items = Array.from(
+      recentsMenu.querySelectorAll<HTMLButtonElement>('button'),
+    );
+    if (items.length === 0) return;
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      items[current < 0 ? 0 : (current + 1) % items.length]?.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      items[
+        current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length
+      ]?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      items[0]?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  }
+
   function dismissFileAssoc(dontShowAgain: boolean) {
     fileAssocOpen = false;
     if (dontShowAgain) {
@@ -1596,24 +1723,29 @@
     {#if recentsAvailable}
       <div class="relative">
         <button
+          bind:this={recentsTrigger}
           class="toolbar-btn"
           class:toolbar-btn-active={recentMenuOpen}
           aria-haspopup="menu"
           aria-expanded={recentMenuOpen}
           disabled={recents.length === 0}
-          onclick={() => (recentMenuOpen = !recentMenuOpen)}
+          onclick={toggleRecentMenu}
         >
           Recent…
         </button>
         {#if recentMenuOpen}
           <ul
+            bind:this={recentsMenu}
             class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+            role="menu"
             aria-label="Recent files"
+            onkeydown={onRecentsKeydown}
           >
             {#each recents as r (r.id)}
               <li>
                 <button
                   class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
+                  role="menuitem"
                   title={r.name}
                   onclick={() => openRecent(r)}
                 >
@@ -1630,6 +1762,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'pencil'}
         aria-pressed={tool === 'pencil'}
+        title="Pencil (B)"
         onclick={() => (tool = 'pencil')}
       >
         Pencil
@@ -1638,6 +1771,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'eraser'}
         aria-pressed={tool === 'eraser'}
+        title="Eraser (E)"
         onclick={() => (tool = 'eraser')}
       >
         Eraser
@@ -1646,6 +1780,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'eyedropper'}
         aria-pressed={tool === 'eyedropper'}
+        title="Eyedropper (I)"
         onclick={() => (tool = 'eyedropper')}
       >
         Eyedropper
@@ -1654,6 +1789,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'bucket'}
         aria-pressed={tool === 'bucket'}
+        title="Bucket (G)"
         onclick={() => (tool = 'bucket')}
       >
         Bucket
@@ -1662,6 +1798,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'line'}
         aria-pressed={tool === 'line'}
+        title="Line (L)"
         onclick={() => (tool = 'line')}
       >
         Line
@@ -1670,6 +1807,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'rectangle'}
         aria-pressed={tool === 'rectangle'}
+        title="Rectangle (U)"
         onclick={() => (tool = 'rectangle')}
       >
         Rect
@@ -1702,6 +1840,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'selection-rect'}
         aria-pressed={tool === 'selection-rect'}
+        title="Selection (M)"
         onclick={() => (tool = 'selection-rect')}
       >
         Select
@@ -1710,6 +1849,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'move'}
         aria-pressed={tool === 'move'}
+        title="Move (V)"
         onclick={() => (tool = 'move')}
       >
         Move
@@ -1848,6 +1988,13 @@
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
+    {/if}
+    {#if probeOn}
+      <span>·</span>
+      <span class="text-emerald-400">
+        {fpsEma.toFixed(0)} fps · compose {composeMs.toFixed(2)}ms (max
+        {composeMaxMs.toFixed(2)}ms)
+      </span>
     {/if}
   </footer>
 </main>

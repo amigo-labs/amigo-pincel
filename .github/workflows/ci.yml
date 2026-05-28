@@ -1,0 +1,92 @@
+# CI gate mirroring the pre-commit checks in CLAUDE.md §10.
+#
+# The Rust core crates (pincel-core, aseprite-writer, pincel-wasm) build
+# without system libraries, so they run in a fast, dependency-free job.
+# The Tauri shell (pincel-tauri) needs GTK/WebKit system libraries, so it
+# gets its own job that installs them. The UI job builds the wasm package
+# first (a local `link:` dependency) before linting, type-checking, and
+# building the Svelte frontend.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    name: rust core (fmt / clippy / test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
+      - name: test
+        run: cargo test -p pincel-core -p aseprite-writer -p pincel-wasm
+
+  tauri:
+    name: tauri shell (check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: check
+        run: cargo check -p pincel-tauri
+
+  ui:
+    name: ui (lint / check / build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - name: build wasm package
+        run: pnpm wasm:build
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        run: pnpm lint
+      - name: type-check
+        run: pnpm check
+      - name: build
+        run: pnpm build
