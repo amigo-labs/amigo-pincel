@@ -97,6 +97,18 @@
   let painting = false;
   let dirty = false;
   let rafHandle: number | null = null;
+  // M12.6: frame-time probe. Off by default so normal use pays zero
+  // cost (a single boolean test in `tick()`). Toggled with F2. When on,
+  // `tick()` times each recompose into a rolling window and tracks the
+  // effective frame rate from inter-tick spacing; the footer surfaces
+  // average / worst compose cost and fps. See STATUS.md M12.6.
+  let probeOn = $state(false);
+  const PROBE_WINDOW = 60;
+  let composeSamples: number[] = [];
+  let composeMs = $state(0);
+  let composeMaxMs = $state(0);
+  let fpsEma = $state(0);
+  let lastTickTs = 0;
   // Current on-disk identity of the document. `handle` is non-null
   // only on File System Access API browsers after a successful
   // open / save-as; subsequent saves write through it in place. `name`
@@ -1243,7 +1255,32 @@
     activeSliceId = null;
   }
 
+  // Fold one compose-cost sample into the rolling window and refresh
+  // the derived average / max. Only called when the probe is active.
+  function recordComposeSample(ms: number) {
+    composeSamples.push(ms);
+    if (composeSamples.length > PROBE_WINDOW) composeSamples.shift();
+    let sum = 0;
+    let max = 0;
+    for (const s of composeSamples) {
+      sum += s;
+      if (s > max) max = s;
+    }
+    composeMs = sum / composeSamples.length;
+    composeMaxMs = max;
+  }
+
   function tick() {
+    if (probeOn) {
+      const now = performance.now();
+      if (lastTickTs > 0) {
+        const fps = 1000 / Math.max(now - lastTickTs, 0.0001);
+        // Exponential moving average smooths the per-frame jitter so
+        // the footer reading is stable enough to eyeball under load.
+        fpsEma = fpsEma === 0 ? fps : fpsEma * 0.9 + fps * 0.1;
+      }
+      lastTickTs = now;
+    }
     if (doc) {
       const events = doc.drainEvents();
       let selectionTouched = false;
@@ -1317,6 +1354,7 @@
       }
       if (dirty) {
         dirty = false;
+        const t0 = probeOn ? performance.now() : 0;
         if (dirtyKind === 'rect' && canRecomposeDirty()) {
           recomposeDirty({
             x: dirtyMinX,
@@ -1327,6 +1365,7 @@
         } else {
           recompose();
         }
+        if (probeOn) recordComposeSample(performance.now() - t0);
         syncMeta();
       }
     }
@@ -1355,6 +1394,17 @@
     }
     if (e.key === 'Escape' && recentMenuOpen) {
       recentMenuOpen = false;
+    }
+    // F2 toggles the frame-time probe (M12.6). Reset the window on
+    // enable so a reading reflects only post-toggle frames.
+    if (e.key === 'F2' && !isEditableTarget(e.target)) {
+      e.preventDefault();
+      probeOn = !probeOn;
+      composeSamples = [];
+      composeMs = 0;
+      composeMaxMs = 0;
+      fpsEma = 0;
+      lastTickTs = 0;
     }
   }
 
@@ -1848,6 +1898,13 @@
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
+    {/if}
+    {#if probeOn}
+      <span>·</span>
+      <span class="text-emerald-400">
+        {fpsEma.toFixed(0)} fps · compose {composeMs.toFixed(2)}ms (max
+        {composeMaxMs.toFixed(2)}ms)
+      </span>
     {/if}
   </footer>
 </main>
