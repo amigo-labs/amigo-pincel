@@ -1385,6 +1385,20 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
   }
 
+  // Single-key tool shortcuts, aligned with Aseprite defaults where they
+  // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
+  // the browser / OS; Shift is tolerated (normalized via toLowerCase).
+  const TOOL_KEYS: Record<string, Tool> = {
+    b: 'pencil',
+    e: 'eraser',
+    i: 'eyedropper',
+    g: 'bucket',
+    l: 'line',
+    u: 'rectangle',
+    m: 'selection-rect',
+    v: 'move',
+  };
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -1405,6 +1419,22 @@
       composeMaxMs = 0;
       fpsEma = 0;
       lastTickTs = 0;
+      return;
+    }
+    // Single-key tool selection. Skip when a modifier is held (browser
+    // shortcuts) or focus is in an editable field.
+    if (
+      doc &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !isEditableTarget(e.target)
+    ) {
+      const next = TOOL_KEYS[e.key.toLowerCase()];
+      if (next) {
+        e.preventDefault();
+        tool = next;
+      }
     }
   }
 
@@ -1680,6 +1710,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'pencil'}
         aria-pressed={tool === 'pencil'}
+        title="Pencil (B)"
         onclick={() => (tool = 'pencil')}
       >
         Pencil
@@ -1688,6 +1719,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'eraser'}
         aria-pressed={tool === 'eraser'}
+        title="Eraser (E)"
         onclick={() => (tool = 'eraser')}
       >
         Eraser
@@ -1696,6 +1728,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'eyedropper'}
         aria-pressed={tool === 'eyedropper'}
+        title="Eyedropper (I)"
         onclick={() => (tool = 'eyedropper')}
       >
         Eyedropper
@@ -1704,6 +1737,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'bucket'}
         aria-pressed={tool === 'bucket'}
+        title="Bucket (G)"
         onclick={() => (tool = 'bucket')}
       >
         Bucket
@@ -1712,6 +1746,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'line'}
         aria-pressed={tool === 'line'}
+        title="Line (L)"
         onclick={() => (tool = 'line')}
       >
         Line
@@ -1720,6 +1755,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'rectangle'}
         aria-pressed={tool === 'rectangle'}
+        title="Rectangle (U)"
         onclick={() => (tool = 'rectangle')}
       >
         Rect
@@ -1752,6 +1788,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'selection-rect'}
         aria-pressed={tool === 'selection-rect'}
+        title="Selection (M)"
         onclick={() => (tool = 'selection-rect')}
       >
         Select
@@ -1760,6 +1797,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'move'}
         aria-pressed={tool === 'move'}
+        title="Move (V)"
         onclick={() => (tool = 'move')}
       >
         Move
