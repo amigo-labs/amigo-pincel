@@ -600,6 +600,10 @@
   // levels still respond. See docs/specs/pincel.md §5 (Move/zoom).
   function onWheel(e: WheelEvent) {
     if (!canvas) return;
+    // Ignore purely horizontal gestures (deltaY === 0): they aren't a
+    // zoom intent, and swallowing them would suppress horizontal
+    // trackpad scroll over the canvas.
+    if (e.deltaY === 0) return;
     // Stop the gesture from scrolling the page / parent containers.
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
