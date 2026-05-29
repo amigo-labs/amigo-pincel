@@ -631,15 +631,28 @@ The native build uses these instead of the File System Access API. `pincel-core`
 ### 11.4 Capability Detection in UI
 
 ```typescript
-const isTauri =
-  '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
-const fs = isTauri ? tauriFsAdapter : webFsAdapter;
+function isTauri(): boolean {
+  if (typeof window === 'undefined') return false; // SSR guard
+  const w = window as Window & {
+    __TAURI_INTERNALS__?: unknown;
+    __TAURI__?: unknown;
+  };
+  return (
+    typeof w.__TAURI_INTERNALS__ !== 'undefined' ||
+    typeof w.__TAURI__ !== 'undefined'
+  );
+}
+
+const fs = isTauri() ? tauriFsAdapter : webFsAdapter;
 ```
 
 Single FS interface, two adapters. UI never branches on platform beyond this.
 
 Tauri 2 exposes the runtime as `__TAURI_INTERNALS__`; the legacy
-`__TAURI__` global is checked only as a v1 fallback. The probe lives in
+`__TAURI__` global is checked only as a v1 fallback. `typeof … !==
+'undefined'` is used instead of `'x' in window` so the check reports
+false when the property exists but the runtime hasn't populated it
+yet. The probe lives in
 [`ui/src/lib/platform/index.ts`](../../ui/src/lib/platform/index.ts).
 
 ---

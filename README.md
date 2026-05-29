@@ -40,6 +40,8 @@ Toolchain:
 
 - Rust 1.85+ (workspace pinned via `rust-version` in
   [`Cargo.toml`](Cargo.toml))
+- `wasm32-unknown-unknown` Rust target
+  (`rustup target add wasm32-unknown-unknown`)
 - Node.js 20+, pnpm 9+
 - `wasm-pack` (`cargo install wasm-pack`)
 - For the native build: Tauri prerequisites
@@ -97,7 +99,7 @@ conditions.
 
 ## Trademark
 
-"Aseprite" is a trademark of [Igara Studio S.A.][igara] This project
+"Aseprite" is a trademark of [Igara Studio S.A.][igara]. This project
 is **not** affiliated with, endorsed by, or sponsored by Igara Studio.
 Pincel implements the publicly-documented `.aseprite` file format for
 interoperability.

@@ -55,5 +55,3 @@ The initial 1.0.0 release ships the full Phase 1 scope per
 - **Performance** — Criterion baselines for `compose()`, per-command
   `DirtyRegion`, Canvas2D sub-rect blit driven by a union-bounding-box
   dirty aggregator.
-
-[Unreleased]: https://github.com/amigo-labs/amigo-pincel/compare/v0.0.0...HEAD
