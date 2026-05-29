@@ -14,13 +14,29 @@ empty `out` so callers can skip the upload.
 ## Next task
 
 **M12.6** — Verify the spec exit criterion: 256×256 sprite at zoom
-32 maintains 60 fps on M1 / mid-tier Windows. The Criterion bench
-suite already covers `compose()`; the missing pieces are a UI-driven
-frame-time probe (RAF + `performance.now()` per `recompose`/
-`recomposeDirty`) and a real-app stress test (rapid pencil drag /
-animation frame onion-skin / etc.). **M12.5** (WebGPU adapter, spec
-§4.4 / §17.2) is optional unless M12.6 numbers come up short on
-Canvas2D — leave for after the perf verification.
+32 maintains 60 fps on M1 / mid-tier Windows.
+
+**Done:** the UI-driven frame-time probe has landed. Press **F2** in the
+editor to toggle it; the footer then shows effective fps (EMA of
+inter-tick spacing) plus average and worst compose cost over a rolling
+60-frame window. The probe wraps the `recompose` / `recomposeDirty`
+calls in `App.svelte::tick` with `performance.now()` and is fully gated
+behind the toggle, so normal use pays only a single boolean test per
+frame. The Criterion bench suite already covers `compose()` in
+isolation.
+
+**Verification method (manual):** `pnpm dev`, `New`, resize/create a
+256×256 document, zoom to 32, press F2, then drag the Pencil rapidly
+across the canvas. Read fps / compose-ms off the footer. The exit
+criterion holds when fps stays at/near 60 and compose stays well under
+the ~16.6 ms frame budget. Record measured numbers below once taken on
+target hardware.
+
+**Measured:** _pending — capture on M1 / mid-tier Windows._
+
+**M12.5** (WebGPU adapter, spec §4.4 / §17.2) is optional unless M12.6
+numbers come up short on Canvas2D — leave for after the perf
+verification.
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -188,7 +204,7 @@ Human action still needed:
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
 - **`Document::undo` / `redo` dirty events** — Emit full-canvas `dirty-canvas` because commands don't carry their own dirty region. Per-command dirty-rect is M12.
 - **`Document::new` 0-frame question** — `aseprite-writer` happily emits a 0-frame file that `aseprite-loader` then refuses to parse. Decide whether to enforce ≥1 frame in `SpriteBuilder::build` or leave as a "valid Pincel, invalid Aseprite" affordance.
-- **Move/zoom ergonomics** — M7.7 lacks wheel/pinch zoom, auto-fit on open, and cursor-anchored zoom. Cosmetic; not blocking.
+- **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom landed (`App.svelte::onWheel`, non-passive listener). Still missing: touch pinch-zoom and auto-fit on open. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
 - **`pincel-wasm` link order** — `link:` protocol needs `crates/pincel-wasm/pkg/` to exist before `pnpm install`. CI / contributor docs should encode the order.
 - **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
