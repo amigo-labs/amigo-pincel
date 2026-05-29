@@ -592,6 +592,36 @@
     panY = 0;
   }
 
+  // Cursor-anchored mouse-wheel zoom. The canvas is flex-centered, so it
+  // scales about its own center for a fixed pan — which means keeping the
+  // sprite pixel under the cursor put is a pure pan adjustment, computed
+  // from the live rect with no async DOM read. Wheel up zooms in, down
+  // zooms out; steps are multiplicative but nudged by ±1 so low zoom
+  // levels still respond. See docs/specs/pincel.md §5 (Move/zoom).
+  function onWheel(e: WheelEvent) {
+    if (!canvas) return;
+    // Ignore purely horizontal gestures (deltaY === 0): they aren't a
+    // zoom intent, and swallowing them would suppress horizontal
+    // trackpad scroll over the canvas.
+    if (e.deltaY === 0) return;
+    // Stop the gesture from scrolling the page / parent containers.
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const oldZoom = zoom;
+    let next =
+      e.deltaY < 0 ? Math.round(oldZoom * 1.25) : Math.round(oldZoom / 1.25);
+    if (next === oldZoom) next = oldZoom + (e.deltaY < 0 ? 1 : -1);
+    next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, next));
+    if (next === oldZoom) return;
+    const ratio = next / oldZoom;
+    const rectCx = rect.left + rect.width / 2;
+    const rectCy = rect.top + rect.height / 2;
+    panX += (rectCx - e.clientX) * (ratio - 1);
+    panY += (rectCy - e.clientY) * (ratio - 1);
+    zoom = next;
+  }
+
   function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -1490,6 +1520,10 @@
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onWindowBlur);
     document.addEventListener('visibilitychange', onVisibilityChange);
+    // Wheel zoom is registered imperatively (not via `onwheel`) so the
+    // listener is non-passive and `preventDefault()` actually suppresses
+    // page scroll. `canvas` is bound by the time onMount runs.
+    canvas?.addEventListener('wheel', onWheel, { passive: false });
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -1589,6 +1623,7 @@
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      canvas?.removeEventListener('wheel', onWheel);
       disposeDoc();
     };
   });
