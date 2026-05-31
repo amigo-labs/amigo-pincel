@@ -34,9 +34,14 @@ target hardware.
 
 **Measured:** _pending — capture on M1 / mid-tier Windows._
 
-**M12.5** (WebGPU adapter, spec §4.4 / §17.2) is optional unless M12.6
-numbers come up short on Canvas2D — leave for after the perf
-verification.
+**M12.5** (WebGPU adapter, spec §4.4 / §17.2) — **done.** Split into
+M12.5a (render-adapter seam + stacked overlay canvas) and M12.5b
+(WebGPU backend + capability detection). The base layer now blits
+through a `CanvasRenderer`; WebGPU is preferred with automatic Canvas2D
+fallback, and `?renderer=canvas2d` forces the fallback for A/B testing.
+The active backend shows in the footer. Verify on real hardware via the
+Cloudflare branch-preview URL in a WebGPU-capable browser (this sandbox
+is headless — GPU rendering not exercisable here).
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -75,7 +80,8 @@ subsequent slices.
 | M12.2 | ✅ | `compose()` takes `out: &mut Vec<u8>` (scratch reuse); honors `dirty_hint` via `Rect::intersect`; `ComposeResult` drops `pixels`, gains `dirty_rect`. |
 | M12.3 | ✅ | Per-command `DirtyRegion` complete on the paint surface: type + trait method + `Bus::last_dirty_region()` + `Document::undo`/`redo` + bucket / move event paths all emit precise `dirty-rect` events. SetPixel / DrawLine / DrawRectangle / DrawEllipse / FillRegion / MoveSelectionContent all report sprite-coord rects; structural / tilemap / slice commands keep the safe-but-coarse `Canvas` default. |
 | M12.4 | ✅ | Canvas2D sub-rect blit. `ComposeFrame` exposes `dirtyX` / `dirtyY`; new `Document::composeDirty(...)` + `blitDirtyFrame(...)`. `App.svelte::tick` aggregates `dirty-rect` events into a union bbox and routes through the sub-rect path when no overlays are live (selection / drag / stamp / active slice all force the full path). |
-| M12.5–M12.6 | ⬜ | WebGPU adapter, 60 fps verification. |
+| M12.5 | ✅ | WebGPU render adapter (spec §4.4). `CanvasRenderer` seam + stacked overlay canvas (M12.5a), `WebGPURenderer` + capability detection + `?renderer=canvas2d` force toggle (M12.5b). |
+| M12.6 | ⬜ | 60 fps verification on M1 / mid-tier Windows (manual, target hardware). |
 
 ### M8.7 sub-tasks
 
@@ -101,6 +107,31 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — M12.5 WebGPU render adapter (this branch).** Spec §4.4.
+  **M12.5a** introduces the render-adapter seam: `ui/src/lib/render/
+  types.ts::CanvasRenderer` (`draw` / `drawDirty` / `destroy` + `backend`
+  label) and `Canvas2DRenderer` wrapping the existing blit helpers. The
+  single render canvas splits into a base layer (driven by the renderer)
+  and a transparent, `pointer-events-none` Canvas2D **overlay** stacked
+  exactly on top via a sizing/transform wrapper; all transient furniture
+  (drag previews, marquee, tile grid, slice accents) moves to the overlay
+  through the new `paintOverlays()`, and the dirty fast path wipes it via
+  `clearOverlay()`. Behaviour stayed identical (still Canvas2D).
+  **M12.5b** adds `WebGPURenderer` — a full-screen-triangle blit of the
+  sprite texture (`writeTexture` upload, nearest sampling, premultiplied
+  output to match the Canvas2D compositing of non-premultiplied pixels),
+  with `drawDirty` doing a sub-rect `writeTexture` + full redraw.
+  `WebGPURenderer.create()` resolves to `null` (never throws) on any
+  failure, and only claims the canvas's `'webgpu'` context as its last
+  step so the Canvas2D fallback stays viable. `App.svelte::createRenderer`
+  prefers WebGPU, falls back automatically, and honours
+  `?renderer=canvas2d`; the footer shows the active backend. New
+  devDependency `@webgpu/types` (type-only; Decision Log §15) — TS's
+  bundled `lib.dom` still omits WebGPU types. UI gates green: `pnpm
+  check` (0 errors), `pnpm lint`, `pnpm build`. GPU rendering itself is
+  not exercisable in this headless sandbox — verify on the Cloudflare
+  branch-preview URL in a WebGPU browser.
 
 - **2026-05-31 — Move/zoom ergonomics: auto-fit + keyboard zoom (this
   branch).** Continues the cursor-anchored-wheel-zoom thread. New pure
