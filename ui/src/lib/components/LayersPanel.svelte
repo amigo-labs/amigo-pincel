@@ -20,6 +20,7 @@
     onChange,
     onActivate,
     onToggleVisible,
+    onRename,
   }: {
     doc: Document | null;
     rev?: number;
@@ -27,6 +28,7 @@
     onChange?: () => void;
     onActivate?: (layerId: number) => void;
     onToggleVisible?: (layerId: number, visible: boolean) => void;
+    onRename?: (layerId: number, name: string) => void;
   } = $props();
 
   type LayerRow = {
@@ -62,6 +64,34 @@
   });
 
   let error = $state<string | null>(null);
+
+  // Inline-rename state: the layer id whose name is being edited, plus
+  // the draft text. Double-click a name to start; Enter / blur commits,
+  // Escape cancels. An empty / whitespace-only draft is discarded.
+  let editingId = $state<number | null>(null);
+  let draftName = $state('');
+
+  function startRename(id: number, current: string) {
+    editingId = id;
+    draftName = current;
+  }
+
+  function commitRename(id: number) {
+    if (editingId !== id) return;
+    editingId = null;
+    const name = draftName.trim();
+    if (name.length > 0) onRename?.(id, name);
+  }
+
+  function onRenameKey(e: KeyboardEvent, id: number) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename(id);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      editingId = null;
+    }
+  }
 
   function move(id: number, dir: 'up' | 'down') {
     if (!doc) return;
@@ -109,25 +139,38 @@
           >
             {layer.visible ? '●' : '○'}
           </button>
-          <button
-            type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 text-left"
-            onclick={() => onActivate?.(layer.id)}
-            aria-pressed={isActive}
-            title={`Select ${layer.name}`}
-          >
-            <span
-              class="truncate text-sm"
-              class:text-neutral-100={layer.visible}
-              class:text-neutral-500={!layer.visible}
-              title={layer.name}
+          {#if editingId === layer.id}
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+              bind:value={draftName}
+              autofocus
+              onkeydown={(e) => onRenameKey(e, layer.id)}
+              onblur={() => commitRename(layer.id)}
+              aria-label={`Rename ${layer.name}`}
+            />
+          {:else}
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onclick={() => onActivate?.(layer.id)}
+              ondblclick={() => startRename(layer.id, layer.name)}
+              aria-pressed={isActive}
+              title={`Select ${layer.name} (double-click to rename)`}
             >
-              {layer.name}
-            </span>
-            <span class="ml-auto shrink-0 text-[0.65rem] text-neutral-600 uppercase">
-              {layer.kind}
-            </span>
-          </button>
+              <span
+                class="truncate text-sm"
+                class:text-neutral-100={layer.visible}
+                class:text-neutral-500={!layer.visible}
+                title={layer.name}
+              >
+                {layer.name}
+              </span>
+              <span class="ml-auto shrink-0 text-[0.65rem] text-neutral-600 uppercase">
+                {layer.kind}
+              </span>
+            </button>
+          {/if}
           <div class="flex shrink-0 flex-col">
             <button
               type="button"

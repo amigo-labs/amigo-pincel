@@ -2093,6 +2093,15 @@
           status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
         }
       }}
+      onRename={(layerId, name) => {
+        if (!doc) return;
+        try {
+          doc.renameLayer(layerId, name);
+          tilesetRev += 1;
+        } catch (err) {
+          status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
     />
     <TilesetPanel
       {doc}
