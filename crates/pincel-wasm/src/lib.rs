@@ -27,9 +27,9 @@ use events::EventQueue;
 use pincel_core::{
     AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveSlice,
-    Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
-    TilesetId, compose, read_aseprite, write_aseprite,
+    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
+    PlaceTile, Rect, RemoveSlice, Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId,
+    SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -180,6 +180,43 @@ impl Document {
             Some(LayerKind::Tilemap { tileset_id }) => tileset_id.0,
             _ => 0,
         }
+    }
+
+    /// Whether the named layer is visible. Returns `false` when
+    /// `layer_id` is unknown — pair with [`Document::layer_kind`] to
+    /// disambiguate a hidden layer from a missing one.
+    #[wasm_bindgen(js_name = layerVisible)]
+    pub fn layer_visible(&self, layer_id: u32) -> bool {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.visible)
+            .unwrap_or(false)
+    }
+
+    /// Opacity (`0..=255`) of the named layer, or `0` when unknown.
+    #[wasm_bindgen(js_name = layerOpacity)]
+    pub fn layer_opacity(&self, layer_id: u32) -> u8 {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.opacity)
+            .unwrap_or(0)
+    }
+
+    /// Move the named layer one sibling position toward the top of the
+    /// stack (higher z-index), carrying its whole subtree (group-atomic).
+    /// Routes through the undo bus and emits a `dirty-canvas` event.
+    /// Errors when the layer is unknown or already topmost among its
+    /// siblings ([`MoveLayer`](pincel_core::MoveLayer)).
+    #[wasm_bindgen(js_name = moveLayerUp)]
+    pub fn move_layer_up(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Up)
+    }
+
+    /// Move the named layer one sibling position toward the bottom of the
+    /// stack (group-atomic). See [`Document::move_layer_up`].
+    #[wasm_bindgen(js_name = moveLayerDown)]
+    pub fn move_layer_down(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Down)
     }
 
     /// Number of frames in the document.
@@ -902,6 +939,20 @@ impl Document {
             tile_size.0,
             tile_size.1,
         ));
+        Ok(())
+    }
+
+    /// Shared body for [`Document::move_layer_up`] /
+    /// [`Document::move_layer_down`]: run a [`MoveLayer`] through the bus
+    /// and drain its dirty region into the event queue.
+    fn move_layer(&mut self, layer_id: u32, direction: MoveDirection) -> Result<(), String> {
+        let cmd = MoveLayer::new(LayerId::new(layer_id), direction);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move layer: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         Ok(())
     }
 
@@ -2901,5 +2952,70 @@ mod tests {
         let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
         let events = doc.drain_events();
         assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    // ---- M13.2: layer reorder surface ---------------------------------
+
+    /// 8x8 doc with three top-level image layers (ids 0,1,2 bottom→top).
+    /// Id 0 is the `Document::new` default; 1 and 2 are pushed on top.
+    fn doc_with_three_layers() -> Document {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.layers.push(Layer::image(LayerId::new(1), "l1"));
+        doc.sprite.layers.push(Layer::image(LayerId::new(2), "l2"));
+        doc
+    }
+
+    fn layer_ids(doc: &Document) -> Vec<u32> {
+        doc.sprite.layers.iter().map(|l| l.id.0).collect()
+    }
+
+    #[test]
+    fn move_layer_up_reorders_and_emits_event() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(1).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    #[test]
+    fn move_layer_down_reorders() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_down(2).expect("move down");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+    }
+
+    #[test]
+    fn move_layer_round_trips_through_undo() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(0).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![1, 0, 2]);
+        assert!(doc.undo());
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn move_layer_at_edge_errors() {
+        let mut doc = doc_with_three_layers();
+        let err = doc.move_layer_up(2).expect_err("top layer can't move up");
+        assert!(err.contains("edge"), "got: {err}");
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2], "document untouched");
+    }
+
+    #[test]
+    fn move_unknown_layer_errors() {
+        let mut doc = doc_with_three_layers();
+        assert!(doc.move_layer_down(99).is_err());
+    }
+
+    #[test]
+    fn layer_visibility_and_opacity_getters() {
+        let doc = Document::new(8, 8).expect("dims");
+        // The default layer is visible and fully opaque.
+        assert!(doc.layer_visible(0));
+        assert_eq!(doc.layer_opacity(0), 255);
+        // Unknown ids report the documented defaults.
+        assert!(!doc.layer_visible(99));
+        assert_eq!(doc.layer_opacity(99), 0);
     }
 }

@@ -230,6 +230,12 @@ impl From<MoveSelectionContent> for AnyCommand {
     }
 }
 
+impl From<MoveLayer> for AnyCommand {
+    fn from(c: MoveLayer) -> Self {
+        Self::MoveLayer(c)
+    }
+}
+
 impl From<AddLayer> for AnyCommand {
     fn from(c: AddLayer) -> Self {
         Self::AddLayer(c)
