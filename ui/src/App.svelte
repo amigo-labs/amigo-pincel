@@ -41,6 +41,7 @@
     paintRectanglePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
+  import { fitZoom } from './lib/view/fit';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -84,8 +85,16 @@
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 64;
+  // CSS px of breathing room left on each edge when auto-fitting a
+  // sprite to the viewport (see `fitView`).
+  const FIT_MARGIN = 24;
 
   let canvas = $state<HTMLCanvasElement | null>(null);
+  // Live size of the flex-centered canvas stage (the `overflow-hidden`
+  // wrapper). Bound to the wrapper's `clientWidth` / `clientHeight` so
+  // `fitView` can pick a zoom that lands the whole sprite in view.
+  let stageW = $state(0);
+  let stageH = $state(0);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
   let tool = $state<Tool>('pencil');
@@ -583,13 +592,26 @@
     setZoom(zoom >>> 1);
   }
 
-  // Default view: 8× zoom + zero pan offset. Matches the M6.6 default
-  // look (64×64 canvas at 512×512 CSS) and re-centers the canvas in
-  // the viewport regardless of where it had been dragged.
-  function resetView() {
-    zoom = 8;
+  // Fit the whole sprite to the viewport: the largest integer zoom that
+  // shows it with a small margin, then re-center (pan 0). Runs on every
+  // document replacement (new / open / recover) so a freshly-loaded
+  // sprite always lands fully in view regardless of its dimensions, and
+  // backs the "Reset" control + the `0` shortcut. Falls back to the
+  // historical 8× default when the stage hasn't been measured yet
+  // (e.g. first paint before layout settles).
+  function fitView() {
+    zoom =
+      stageW > 0 && stageH > 0
+        ? fitZoom(stageW, stageH, canvasW, canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
+        : 8;
     panX = 0;
     panY = 0;
+  }
+
+  // "Reset view" — re-centers and fits the sprite to the viewport.
+  // Wired to the toolbar button and the View ▸ Reset Zoom menu item.
+  function resetView() {
+    fitView();
   }
 
   // Cursor-anchored mouse-wheel zoom. The canvas is flex-centered, so it
@@ -996,6 +1018,7 @@
     doc = new Document(64, 64);
     dirty = true;
     syncMeta();
+    fitView();
     syncSelection();
     tilesetRev += 1;
     stampTile = null;
@@ -1024,6 +1047,7 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
@@ -1127,6 +1151,7 @@
     doc = next;
     dirty = true;
     syncMeta();
+    fitView();
     syncSelection();
     tilesetRev += 1;
     stampTile = null;
@@ -1228,6 +1253,7 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
@@ -1465,6 +1491,24 @@
       !e.altKey &&
       !isEditableTarget(e.target)
     ) {
+      // View zoom shortcuts. Bare keys only — Ctrl/Cmd +/- stays the
+      // browser's page zoom (the modifier guard above excludes it).
+      // `0` fits the sprite to the viewport (same as the Reset control).
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        resetView();
+        return;
+      }
       const next = TOOL_KEYS[e.key.toLowerCase()];
       if (next) {
         e.preventDefault();
@@ -1504,6 +1548,7 @@
         if (cancelled) return;
         doc = new Document(64, 64);
         syncMeta();
+        fitView();
         syncSelection();
         dirty = true;
         lastWriteUndoDepth = doc.undoDepth;
@@ -1651,6 +1696,7 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
@@ -1948,7 +1994,11 @@
   </header>
 
   <section class="flex flex-1 overflow-hidden">
-    <div class="relative flex flex-1 items-center justify-center overflow-hidden">
+    <div
+      class="relative flex flex-1 items-center justify-center overflow-hidden"
+      bind:clientWidth={stageW}
+      bind:clientHeight={stageH}
+    >
       <canvas
         bind:this={canvas}
         class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
