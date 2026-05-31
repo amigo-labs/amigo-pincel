@@ -108,6 +108,16 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
+- **2026-05-31 — Reject zero-frame writes (this branch).** Closes the
+  0-frame footgun: a frameless `Sprite` (which `SpriteBuilder::build`
+  still allows as a valid in-memory object) used to write an Aseprite
+  header claiming 0 frames that `aseprite-loader` then refused to parse.
+  `aseprite_writer::write` now returns the new `WriteError::NoFrames`
+  before emitting anything, propagating through `pincel-core` as
+  `CodecError::Write`. Decision: enforce the invariant at the format
+  boundary, not in the builder, so the permissive minimal-sprite
+  affordance stays. Writer + `pincel-core` tests cover the rejection.
+
 - **2026-05-31 — Slice overlay color round-trip via User Data (this
   branch).** Closes the long-standing fidelity gap where Pincel dropped a
   slice's editor color on save and reconstructed every slice as white.
@@ -272,7 +282,7 @@ Human action still needed:
 - **`dirty_hint` not wired** — Accepted but ignored. Needs dirty-rect tracking (spec §4.3). Defer to M12.
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
 - **`Document::undo` / `redo` dirty events** — Emit full-canvas `dirty-canvas` because commands don't carry their own dirty region. Per-command dirty-rect is M12.
-- **`Document::new` 0-frame question** — `aseprite-writer` happily emits a 0-frame file that `aseprite-loader` then refuses to parse. Decide whether to enforce ≥1 frame in `SpriteBuilder::build` or leave as a "valid Pincel, invalid Aseprite" affordance.
+- **`Document::new` 0-frame question** — _resolved 2026-05-31._ Decided to keep `SpriteBuilder::build` permissive (a frameless sprite is a valid in-memory Pincel object) and enforce the format invariant at the write boundary: `aseprite_writer::write` now returns `WriteError::NoFrames` instead of emitting a header readers reject. Covered by writer + `pincel-core` tests.
 - **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom
   (`App.svelte::onWheel`, non-passive listener), **auto-fit on open**
   (`fitView` + `ui/src/lib/view/fit.ts::fitZoom`, runs on every doc
