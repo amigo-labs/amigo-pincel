@@ -67,6 +67,9 @@ const SLICE_FLAG_PIVOT: u32 = 0x2;
 /// sizes this is well within budget; very large sprites should use a
 /// streaming writer (not yet implemented — see `STATUS.md`).
 pub fn write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError> {
+    if file.frames.is_empty() {
+        return Err(WriteError::NoFrames);
+    }
     let frame_count: u16 = file
         .frames
         .len()
@@ -690,6 +693,25 @@ mod tests {
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
         assert!(matches!(err, WriteError::TooMany { what: "frames", .. }));
+    }
+
+    #[test]
+    fn write_rejects_zero_frames() {
+        // A zero-frame file writes a header claiming 0 frames, which
+        // readers reject. Refuse it up front rather than emit garbage.
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: Vec::new(),
+            palette: None,
+            tags: Vec::new(),
+            tilesets: Vec::new(),
+            slices: Vec::new(),
+            frames: Vec::new(),
+        };
+        let mut buf = Vec::new();
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(err, WriteError::NoFrames));
+        assert!(buf.is_empty(), "nothing written on rejection");
     }
 
     #[test]

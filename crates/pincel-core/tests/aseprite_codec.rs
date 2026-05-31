@@ -495,3 +495,24 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     assert_eq!(sprite.slices[0].color, plain.color);
     assert_eq!(sprite.slices[1].color, panel.color);
 }
+
+#[test]
+fn zero_frame_sprite_fails_to_write_instead_of_emitting_invalid_file() {
+    // `SpriteBuilder::build` permits a frameless sprite (a valid
+    // in-memory Pincel object), but the Aseprite format requires at least
+    // one frame. The writer must reject it with a clear error rather than
+    // emit a header that readers can't parse.
+    let sprite = Sprite::builder(8, 8)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .build()
+        .unwrap();
+    assert!(sprite.frames.is_empty());
+    let cels = CelMap::new();
+    let mut bytes = Vec::new();
+    let err = write_aseprite(&sprite, &cels, &mut bytes).unwrap_err();
+    assert!(
+        err.to_string().contains("zero frames"),
+        "expected a zero-frames error, got: {err}"
+    );
+    assert!(bytes.is_empty(), "nothing written on rejection");
+}
