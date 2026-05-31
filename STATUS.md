@@ -24,11 +24,13 @@ drag is deferred. Task breakdown:
   / `LayerAtEdge`. Wired into `AnyCommand`. 10 unit tests (siblings,
   group-atomic moves, leaf-over-group, intra-group, all four edge
   cases).
-- [ ] **M13.2** — wasm surface: `moveLayerUp(id)` / `moveLayerDown(id)`
-  through the bus; an explicit **active layer** (`activeLayerId` on the
-  document/UI) replacing the Stamp tool's topmost-auto-pick; reuse the
-  existing `layerIdAt` / `layerName` / `layerKind` / `layerTilesetId`
-  getters, add `layerVisible` / `layerOpacity` as needed.
+- [x] **M13.2** — wasm surface: `moveLayerUp(id)` / `moveLayerDown(id)`
+  route a `MoveLayer` through the bus (group-atomic, undo-routed, emit
+  `dirty-canvas`); `From<MoveLayer>` for `AnyCommand`; new `layerVisible`
+  / `layerOpacity` read getters for the panel. 6 host tests (reorder both
+  directions, undo round-trip, edge + unknown errors, getter defaults).
+  The explicit **active layer** is UI state and lands with the panel
+  (M13.3).
 - [ ] **M13.3** — `LayersPanel.svelte`: z-ordered list (top = highest
   index), active-row highlight, ↑/↓ move buttons (disabled at edges),
   visibility toggle, rename. Wire active layer into Pencil / Stamp / fill
