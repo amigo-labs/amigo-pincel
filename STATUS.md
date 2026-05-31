@@ -108,6 +108,22 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
+- **2026-05-31 — Slice overlay color round-trip via User Data (this
+  branch).** Closes the long-standing fidelity gap where Pincel dropped a
+  slice's editor color on save and reconstructed every slice as white.
+  `aseprite-writer`: `SliceChunk` gains `user_data: Option<UserData>`
+  (text + RGBA); `write()` emits a `0x2020` User Data chunk right after
+  each slice (Aseprite attaches user data to the preceding chunk). New
+  `UserData` re-export; writer round-trip test asserts the loader reads
+  the color back. `pincel-core`: `map_slice` writes the color into that
+  chunk and `extract_tilesets_and_slices` tracks the preceding slice to
+  apply a trailing `UserData` color (white fallback). The slices
+  integration test now round-trips two distinct colors incl. a
+  non-opaque alpha. Gates green: `cargo test`/`clippy`/`fmt` for
+  `aseprite-writer` + `pincel-core`, plus `pincel-wasm` host tests
+  (118 pass). Note text + property maps stay dropped (no per-slice note
+  field yet).
+
 - **2026-05-31 — M12.5 WebGPU render adapter (this branch).** Spec §4.4.
   **M12.5a** introduces the render-adapter seam: `ui/src/lib/render/
   types.ts::CanvasRenderer` (`draw` / `drawDirty` / `destroy` + `backend`
@@ -247,7 +263,7 @@ Human action still needed:
 - **Spec §11.4 `isTauri` global** — Spec text says `'__TAURI__' in window`, but Tauri 2 ships `__TAURI_INTERNALS__` instead. `ui/src/lib/platform/isTauri()` accepts both; bring the spec text in line during the next spec sweep.
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
-- **Slice user-data round-trip** — `aseprite_read` now hydrates `0x2022` chunks into `Sprite.slices` (M9.2), but the per-slice overlay color lives in an adjacent User Data chunk (`0x2020`) that we still drop on both sides. Pincel reconstructs slices with `Rgba::WHITE`. Round-trip preservation of the color lands when the User Data carrier does.
+- **Slice user-data round-trip** — _resolved 2026-05-31._ `aseprite-writer` now emits a `0x2020` User Data chunk after each slice and `pincel-core` writes / recovers the overlay color through it. Note text + property maps (`0x2020` flags `0x1` / `0x4`) are still dropped — Pincel has no per-slice note field yet; revisit if one is added.
 - **Stable LayerIds** — IDs assigned by source-file position today. Stable for read-only sessions but conflicts with spec's "stable id" promise once a reorder command exists. Revisit when reorder lands.
 - **Mid-list AddFrame** — Append-only today. Mid-list insertion needs a `FrameIndex` remap on cel map / `Tag` / `Slice` refs. Defer until a tool needs it.
 - **Indexed-mode painting** — `SetPixel` is RGBA-only. Indexed needs either a payload enum or a separate command. Land when indexed `compose()` lands.
