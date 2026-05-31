@@ -27,6 +27,7 @@
     "@tailwindcss/vite": "^4.0.0",
     "@tauri-apps/cli": "^2.0.0",
     "@types/node": "^22.10.0",
+    "@webgpu/types": "^0.1.70",
     "eslint": "^9.20.0",
     "eslint-plugin-svelte": "^3.0.0",
     "globals": "^15.14.0",

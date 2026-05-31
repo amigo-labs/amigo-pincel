@@ -41,6 +41,7 @@
   } from './lib/render/canvas2d';
   import { Canvas2DRenderer } from './lib/render/canvas2d-renderer';
   import type { CanvasRenderer, RenderBackend } from './lib/render/types';
+  import { WebGPURenderer } from './lib/render/webgpu-renderer';
   import { fitZoom } from './lib/view/fit';
 
   // The wasm `Document` is the source of truth for sprite state
@@ -101,6 +102,22 @@
   // Active backend, surfaced in the footer (M12.5). `'none'` until the
   // renderer is selected.
   let backend = $state<RenderBackend | 'none'>('none');
+  // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
+  // fallback so WebGPU can be A/B'd against it on the same build.
+  const forceCanvas2d =
+    typeof location !== 'undefined' &&
+    new URLSearchParams(location.search).get('renderer') === 'canvas2d';
+
+  // Pick the base-layer renderer: WebGPU when available (and not forced
+  // off), else the universal Canvas2D fallback. WebGPURenderer.create
+  // resolves to null rather than throwing, so the fallback is automatic.
+  async function createRenderer(target: HTMLCanvasElement): Promise<CanvasRenderer> {
+    if (!forceCanvas2d) {
+      const gpu = await WebGPURenderer.create(target);
+      if (gpu) return gpu;
+    }
+    return new Canvas2DRenderer(target);
+  }
   // Live size of the flex-centered canvas stage (the `overflow-hidden`
   // wrapper). Bound to the wrapper's `clientWidth` / `clientHeight` so
   // `fitView` can pick a zoom that lands the whole sprite in view.
@@ -1521,13 +1538,18 @@
   onMount(() => {
     let cancelled = false;
     loadCore()
-      .then(() => {
+      .then(async () => {
         if (cancelled) return;
         // Pick the base-layer renderer before the first frame. The base
         // canvas is bound by the time onMount runs (spec §4.4, M12.5).
         if (canvas && !renderer) {
-          renderer = new Canvas2DRenderer(canvas);
-          backend = renderer.backend;
+          const r = await createRenderer(canvas);
+          if (cancelled) {
+            r.destroy();
+            return;
+          }
+          renderer = r;
+          backend = r.backend;
         }
         doc = new Document(64, 64);
         syncMeta();
