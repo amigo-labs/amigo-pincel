@@ -31,10 +31,18 @@ drag is deferred. Task breakdown:
   directions, undo round-trip, edge + unknown errors, getter defaults).
   The explicit **active layer** is UI state and lands with the panel
   (M13.3).
-- [ ] **M13.3** — `LayersPanel.svelte`: z-ordered list (top = highest
-  index), active-row highlight, ↑/↓ move buttons (disabled at edges),
-  visibility toggle, rename. Wire active layer into Pencil / Stamp / fill
-  targets.
+- [x] **M13.3** — `LayersPanel.svelte` mounted as the first right-side
+  panel: z-ordered list (top-most first), active-row highlight (click →
+  `onActivate` sets `activeLayerId`), ▲/▼ reorder via `moveLayerUp` /
+  `moveLayerDown` (disabled at the flat list ends; a true mid-group edge
+  is a caught `LayerAtEdge` no-op), visibility indicator (●/○ + dimmed
+  name, read-only). Reorder bumps the shared `rev` so the list
+  re-derives; the canvas recomposes off the `dirty-canvas` event. UI
+  gates green (`pnpm check` / `lint` / `build`).
+- [ ] **M13.3b** — wire the active layer into the paint surface
+  (`apply_tool` / bucket / shapes target `activeLayerId` via a
+  `setActiveLayer` + `paint_target_layer` fallback), plus a
+  `SetLayerVisible` toggle command and inline rename.
 - [ ] **M13.4** — stable `LayerId` across save/reload (decouple id from
   source position) so reorder survives a round-trip; closes the
   "Stable LayerIds" open question.
@@ -137,6 +145,20 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — M13.3 LayersPanel (this branch).** New
+  `ui/src/lib/components/LayersPanel.svelte`, mounted as the first
+  right-side panel. Lists layers top-most-first (reversed z-order) via
+  the `layerCount` / `layerIdAt` / `layerName` / `layerKind` /
+  `layerVisible` getters behind the shared `rev` counter; a row click
+  sets the parent's `activeLayerId` (highlight only for now); ▲/▼ call
+  `moveLayerUp` / `moveLayerDown` and bump `rev` to re-derive, with the
+  canvas recomposing off the emitted `dirty-canvas`. Move buttons are
+  disabled at the flat list ends and a true mid-group edge is swallowed
+  as a `LayerAtEdge` no-op. Visibility is shown read-only (●/○ + dimmed
+  name). Painting still auto-picks the image layer — active-layer paint
+  targeting + visibility toggle + rename are M13.3b. `pnpm check` (0
+  errors) / `lint` / `build` green.
 
 - **2026-05-31 — M13.1 core MoveLayer command (this branch).** First
   slice of the Layers-panel feature. `pincel-core::MoveLayer { Up |
