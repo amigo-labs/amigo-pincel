@@ -2077,7 +2077,13 @@
       rev={tilesetRev}
       {activeLayerId}
       onChange={() => (tilesetRev += 1)}
-      onActivate={(layerId) => (activeLayerId = layerId)}
+      onActivate={(layerId) => {
+        activeLayerId = layerId;
+        // Route pixel tools to the selected layer (M13.3b). A fresh
+        // document resets the wasm-side target to None on its own, so
+        // the fallback stays correct after New / Open.
+        doc?.setActiveLayer(layerId);
+      }}
     />
     <TilesetPanel
       {doc}
