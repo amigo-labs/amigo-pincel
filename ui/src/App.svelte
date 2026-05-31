@@ -5,6 +5,7 @@
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
+  import LayersPanel from './lib/components/LayersPanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
@@ -292,6 +293,11 @@
   // rather than `addSlice` when this is set. `null` means no
   // selection — Slice tool drag falls through to `addSlice`.
   let activeSliceId = $state<number | null>(null);
+  // Layer highlighted in the Layers panel (M13.3). Parent-owned so the
+  // panel can read it back for the active-row style. Painting still
+  // auto-picks the image layer until M13.3b wires this into the paint
+  // surface. `null` until the user selects a row.
+  let activeLayerId = $state<number | null>(null);
 
   function syncMeta() {
     if (!doc) return;
@@ -2066,6 +2072,13 @@
         />
       {/if}
     </div>
+    <LayersPanel
+      {doc}
+      rev={tilesetRev}
+      {activeLayerId}
+      onChange={() => (tilesetRev += 1)}
+      onActivate={(layerId) => (activeLayerId = layerId)}
+    />
     <TilesetPanel
       {doc}
       rev={tilesetRev}
