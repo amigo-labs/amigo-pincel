@@ -15,7 +15,8 @@ pub use codec::{AsepriteReadOutput, CodecError, read_aseprite, write_aseprite};
 pub use command::{
     AddFrame, AddLayer, AddSlice, AddTilemapLayer, AddTileset, AnyCommand, Bus, Command,
     CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, FillRegion, MoveDirection,
-    MoveLayer, MoveSelectionContent, PlaceTile, RemoveSlice, SetPixel, SetSliceKey, SetTilePixel,
+    MoveLayer, MoveSelectionContent, PlaceTile, RemoveSlice, SetLayerVisible, SetPixel,
+    SetSliceKey, SetTilePixel,
 };
 
 pub use document::{
