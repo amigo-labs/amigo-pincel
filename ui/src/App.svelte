@@ -2084,6 +2084,15 @@
         // the fallback stays correct after New / Open.
         doc?.setActiveLayer(layerId);
       }}
+      onToggleVisible={(layerId, visible) => {
+        if (!doc) return;
+        try {
+          doc.setLayerVisible(layerId, visible);
+          tilesetRev += 1;
+        } catch (err) {
+          status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
     />
     <TilesetPanel
       {doc}

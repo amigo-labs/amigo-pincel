@@ -19,12 +19,14 @@
     activeLayerId = null,
     onChange,
     onActivate,
+    onToggleVisible,
   }: {
     doc: Document | null;
     rev?: number;
     activeLayerId?: number | null;
     onChange?: () => void;
     onActivate?: (layerId: number) => void;
+    onToggleVisible?: (layerId: number, visible: boolean) => void;
   } = $props();
 
   type LayerRow = {
@@ -99,14 +101,21 @@
         >
           <button
             type="button"
+            class="layer-eye shrink-0"
+            onclick={() => onToggleVisible?.(layer.id, !layer.visible)}
+            aria-pressed={layer.visible}
+            aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`}
+            title={layer.visible ? 'Hide layer' : 'Show layer'}
+          >
+            {layer.visible ? '●' : '○'}
+          </button>
+          <button
+            type="button"
             class="flex min-w-0 flex-1 items-center gap-2 text-left"
             onclick={() => onActivate?.(layer.id)}
             aria-pressed={isActive}
             title={`Select ${layer.name}`}
           >
-            <span class="text-[0.65rem] text-neutral-500" aria-hidden="true">
-              {layer.visible ? '●' : '○'}
-            </span>
             <span
               class="truncate text-sm"
               class:text-neutral-100={layer.visible}
@@ -155,6 +164,17 @@
   .layer-active {
     border-color: rgb(59 130 246);
     background-color: rgb(30 41 59);
+  }
+  .layer-eye {
+    font-size: 0.6rem;
+    line-height: 1;
+    color: rgb(115 115 115);
+  }
+  .layer-eye[aria-pressed='true'] {
+    color: rgb(163 163 163);
+  }
+  .layer-eye:hover {
+    color: rgb(229 229 229);
   }
   .layer-move {
     line-height: 1;
