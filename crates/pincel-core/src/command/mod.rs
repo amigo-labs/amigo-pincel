@@ -12,6 +12,7 @@ mod draw_line;
 mod draw_rectangle;
 mod error;
 mod fill_region;
+mod move_layer;
 mod move_selection_content;
 mod place_tile;
 mod remove_slice;
@@ -31,6 +32,7 @@ pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
+pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use remove_slice::RemoveSlice;
@@ -88,6 +90,7 @@ pub enum AnyCommand {
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
     MoveSelectionContent(MoveSelectionContent),
+    MoveLayer(MoveLayer),
     AddLayer(AddLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
@@ -112,6 +115,7 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
+            Self::MoveLayer(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
@@ -132,6 +136,7 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
+            Self::MoveLayer(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
@@ -175,6 +180,7 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
+            Self::MoveLayer(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
