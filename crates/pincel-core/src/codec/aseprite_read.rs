@@ -384,10 +384,17 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
     let mut tilesets = Vec::new();
     let mut slices = Vec::new();
+    // Index of the most recent slice, eligible to receive a trailing User
+    // Data chunk's color. Aseprite attaches User Data to the immediately
+    // preceding chunk, so any non-slice / non-user-data chunk clears it.
+    let mut pending_slice: Option<usize> = None;
     for frame in &raw.frames {
         for chunk in &frame.chunks {
             match chunk {
-                Chunk::Tileset(ts) => tilesets.push(build_tileset(ts)?),
+                Chunk::Tileset(ts) => {
+                    tilesets.push(build_tileset(ts)?);
+                    pending_slice = None;
+                }
                 Chunk::Slice(s) => {
                     // `SliceId` is a `u32`; on 64-bit hosts `slices.len()` is
                     // a `usize` and a bare `as u32` would silently truncate
@@ -400,8 +407,19 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
                             value: slices.len() as i64,
                         })?;
                     slices.push(build_slice(SliceId::new(id_raw), s)?);
+                    pending_slice = Some(slices.len() - 1);
                 }
-                _ => {}
+                Chunk::UserData(ud) => {
+                    // A User Data color immediately after a slice chunk is
+                    // that slice's overlay color (otherwise it defaults to
+                    // white in `build_slice`). Consume the pending slot so a
+                    // second User Data chunk can't re-target the same slice.
+                    if let (Some(idx), Some(c)) = (pending_slice, ud.color) {
+                        slices[idx].color = Rgba::new(c.red, c.green, c.blue, c.alpha);
+                    }
+                    pending_slice = None;
+                }
+                _ => pending_slice = None,
             }
         }
     }
@@ -411,8 +429,10 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
 /// Hydrate a single loader [`SliceChunkRef`] (see
 /// `aseprite-loader::binary::chunks::slice`) into a document [`Slice`].
 /// The on-disk slice chunk carries no overlay color or stable id; both
-/// are editor-only metadata. The color defaults to opaque white and the
-/// id is assigned by the caller from the slice's appearance order.
+/// are editor-only metadata. The id is assigned by the caller from the
+/// slice's appearance order. The color defaults to opaque white here and
+/// is overwritten by [`extract_tilesets_and_slices`] when a trailing
+/// User Data chunk (`0x2020`) supplies one.
 fn build_slice(
     id: SliceId,
     chunk: &aseprite_loader::binary::chunks::slice::SliceChunk<'_>,

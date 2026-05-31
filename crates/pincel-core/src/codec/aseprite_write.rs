@@ -16,11 +16,11 @@
 //!   `0x2023` chunks; external-file tilesets raise
 //!   [`CodecError::UnsupportedTilesetExternalFile`].
 //! - **Slices round-trip.** `sprite.slices` are emitted as `0x2022`
-//!   chunks (one per slice, with per-frame keys). The slice
-//!   [`crate::SliceId`] and overlay `color` are editor-only metadata
-//!   that the on-disk format does not carry; both are reconstructed by
-//!   the read adapter (IDs are assigned by position, color defaults to
-//!   white).
+//!   chunks (one per slice, with per-frame keys), each followed by a
+//!   `0x2020` User Data chunk carrying the overlay `color`. The slice
+//!   [`crate::SliceId`] is editor-only and reconstructed by the read
+//!   adapter from the slice's position; the `color` round-trips through
+//!   the User Data chunk.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -31,6 +31,7 @@ use aseprite_writer::{
     LayerFlags, LayerType, NinePatch as AseNinePatch, PaletteChunk,
     PaletteEntry as AsePaletteEntry, Pivot as AsePivot, SliceChunk as AseSliceChunk,
     SliceKey as AseSliceKey, Tag as AseTag, TilesetChunk as AseTilesetChunk,
+    UserData as AseUserData,
 };
 
 use super::error::CodecError;
@@ -92,16 +93,18 @@ fn build_slices(slices: &[Slice]) -> Vec<AseSliceChunk> {
 }
 
 /// Translate a Pincel [`Slice`] into the writer's [`AseSliceChunk`]. The
-/// slice `id` and overlay `color` are editor-only metadata that the
-/// on-disk format does not carry; the read adapter re-derives the id
-/// from the slice's position and defaults the color to white.
+/// slice `id` is editor-only and re-derived from position on read. The
+/// overlay `color` is carried in a trailing User Data chunk (`0x2020`) —
+/// the slice chunk itself has no color field — and recovered by the read
+/// adapter.
 fn map_slice(slice: &Slice) -> AseSliceChunk {
     AseSliceChunk {
         name: slice.name.clone(),
         keys: slice.keys.iter().map(map_slice_key).collect(),
-        // Slice color travels in a trailing User Data chunk; wired in the
-        // follow-up commit. `None` keeps the writer from emitting one.
-        user_data: None,
+        user_data: Some(AseUserData {
+            text: None,
+            color: Some([slice.color.r, slice.color.g, slice.color.b, slice.color.a]),
+        }),
     }
 }
 

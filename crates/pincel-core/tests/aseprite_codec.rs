@@ -442,7 +442,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     let plain = Slice {
         id: SliceId::new(0),
         name: "hitbox".into(),
-        color: Rgba::WHITE,
+        color: Rgba::new(200, 30, 40, 255),
         keys: vec![SliceKey {
             frame: FrameIndex::new(0),
             bounds: Rect::new(1, 2, 3, 4),
@@ -453,7 +453,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     let panel = Slice {
         id: SliceId::new(1),
         name: "panel".into(),
-        color: Rgba::WHITE,
+        color: Rgba::new(10, 20, 30, 128),
         keys: vec![
             SliceKey {
                 frame: FrameIndex::new(0),
@@ -490,4 +490,8 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     assert_eq!(sprite.slices[0].keys, plain.keys);
     assert_eq!(sprite.slices[1].name, panel.name);
     assert_eq!(sprite.slices[1].keys, panel.keys);
+    // Overlay color round-trips through the trailing User Data chunk
+    // (0x2020), including a non-opaque alpha.
+    assert_eq!(sprite.slices[0].color, plain.color);
+    assert_eq!(sprite.slices[1].color, panel.color);
 }
