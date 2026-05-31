@@ -28,8 +28,9 @@ use pincel_core::{
     AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
     Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
-    PlaceTile, Rect, RemoveSlice, Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId,
-    SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
+    PlaceTile, Rect, RemoveSlice, Rgba, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel,
+    Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite,
+    write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -241,6 +242,21 @@ impl Document {
     #[wasm_bindgen(js_name = moveLayerDown)]
     pub fn move_layer_down(&mut self, layer_id: u32) -> Result<(), String> {
         self.move_layer(layer_id, MoveDirection::Down)
+    }
+
+    /// Set the named layer's visibility flag, routed through the undo bus.
+    /// Hidden layers drop out of the composite, so this emits a
+    /// `dirty-canvas` event. Errors when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = setLayerVisible)]
+    pub fn set_layer_visible(&mut self, layer_id: u32, visible: bool) -> Result<(), String> {
+        let cmd = SetLayerVisible::new(LayerId::new(layer_id), visible);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set layer visibility: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(())
     }
 
     /// Number of frames in the document.
@@ -3078,6 +3094,24 @@ mod tests {
             }
             _ => panic!("expected image cels"),
         }
+    }
+
+    #[test]
+    fn set_layer_visible_toggles_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.layer_visible(0));
+        doc.set_layer_visible(0, false).expect("hide");
+        assert!(!doc.layer_visible(0));
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+        assert!(doc.undo());
+        assert!(doc.layer_visible(0), "undo restores visibility");
+    }
+
+    #[test]
+    fn set_layer_visible_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.set_layer_visible(99, false).is_err());
     }
 
     #[test]
