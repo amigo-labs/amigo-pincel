@@ -5,6 +5,7 @@
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
+  import LayersPanel from './lib/components/LayersPanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
@@ -32,8 +33,6 @@
     type RecentFile,
   } from './lib/idb/recent-files';
   import {
-    blitDirtyFrame,
-    blitFrame,
     paintEllipsePreview,
     paintLinePreview,
     paintPivotCrosshair,
@@ -41,6 +40,10 @@
     paintRectanglePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
+  import { Canvas2DRenderer } from './lib/render/canvas2d-renderer';
+  import type { CanvasRenderer, RenderBackend } from './lib/render/types';
+  import { WebGPURenderer } from './lib/render/webgpu-renderer';
+  import { fitZoom } from './lib/view/fit';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -84,8 +87,43 @@
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 64;
+  // CSS px of breathing room left on each edge when auto-fitting a
+  // sprite to the viewport (see `fitView`).
+  const FIT_MARGIN = 24;
 
   let canvas = $state<HTMLCanvasElement | null>(null);
+  // Transparent Canvas2D layer stacked over the base canvas; carries the
+  // marching-ants marquee, drag-shape previews, tile grid, and active
+  // slice accents so the base layer can be WebGPU (spec §4.4, M12.5).
+  let overlay = $state<HTMLCanvasElement | null>(null);
+  // The base-layer blit surface. Created in `onMount` once the base
+  // canvas binds — WebGPU when available, else Canvas2D. Not reactive:
+  // only the render path touches it.
+  let renderer: CanvasRenderer | null = null;
+  // Active backend, surfaced in the footer (M12.5). `'none'` until the
+  // renderer is selected.
+  let backend = $state<RenderBackend | 'none'>('none');
+  // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
+  // fallback so WebGPU can be A/B'd against it on the same build.
+  const forceCanvas2d =
+    typeof location !== 'undefined' &&
+    new URLSearchParams(location.search).get('renderer') === 'canvas2d';
+
+  // Pick the base-layer renderer: WebGPU when available (and not forced
+  // off), else the universal Canvas2D fallback. WebGPURenderer.create
+  // resolves to null rather than throwing, so the fallback is automatic.
+  async function createRenderer(target: HTMLCanvasElement): Promise<CanvasRenderer> {
+    if (!forceCanvas2d) {
+      const gpu = await WebGPURenderer.create(target);
+      if (gpu) return gpu;
+    }
+    return new Canvas2DRenderer(target);
+  }
+  // Live size of the flex-centered canvas stage (the `overflow-hidden`
+  // wrapper). Bound to the wrapper's `clientWidth` / `clientHeight` so
+  // `fitView` can pick a zoom that lands the whole sprite in view.
+  let stageW = $state(0);
+  let stageH = $state(0);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
   let tool = $state<Tool>('pencil');
@@ -255,6 +293,11 @@
   // rather than `addSlice` when this is set. `null` means no
   // selection — Slice tool drag falls through to `addSlice`.
   let activeSliceId = $state<number | null>(null);
+  // Layer highlighted in the Layers panel (M13.3). Parent-owned so the
+  // panel can read it back for the active-row style. Painting still
+  // auto-picks the image layer until M13.3b wires this into the paint
+  // surface. `null` until the user selects a row.
+  let activeLayerId = $state<number | null>(null);
 
   function syncMeta() {
     if (!doc) return;
@@ -283,124 +326,89 @@
   }
 
   function recompose() {
-    if (!doc || !canvas) return;
+    if (!doc || !renderer) return;
     const frame = doc.compose(0, 1);
     try {
-      blitFrame(canvas, frame);
-      if (dragStart && dragPreview && dragTool) {
-        // Overlay the in-flight drag-shape preview after the blit. The
-        // next recompose clears it; on release we commit through the
-        // appropriate wasm method and the composed cel surfaces the
-        // same pixels naturally.
-        const end = constrainedEndpoint();
-        if (dragTool === 'line') {
-          paintLinePreview(canvas, dragStart.x, dragStart.y, end.x, end.y, color);
-        } else if (dragTool === 'rectangle') {
-          paintRectanglePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            false,
-          );
-        } else if (dragTool === 'rectangle-fill') {
-          paintRectanglePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            true,
-          );
-        } else if (dragTool === 'ellipse') {
-          paintEllipsePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            false,
-          );
-        } else if (dragTool === 'ellipse-fill') {
-          paintEllipsePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            true,
-          );
-        } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
-          // Inclusive-corner marquee preview: matches the rect that
-          // `commitSelection` / `commitSliceDrag` will hand to the
-          // wasm side on release. Slice drags reuse the marching
-          // marquee so the gesture matches the active-slice overlay
-          // the user is editing.
-          const minX = Math.min(dragStart.x, end.x);
-          const maxX = Math.max(dragStart.x, end.x);
-          const minY = Math.min(dragStart.y, end.y);
-          const maxY = Math.max(dragStart.y, end.y);
-          paintSelectionMarquee(
-            canvas,
-            minX,
-            minY,
-            maxX - minX + 1,
-            maxY - minY + 1,
-            marchPhase,
-          );
-        }
-      } else if (selection) {
-        // No marquee drag in flight. If a Move-tool selection drag is
-        // active, paint a ghost marquee at the translated position so
-        // the user sees where the selection will land (the pixels
-        // themselves snap into place on release — the live drag
-        // doesn't bother rasterizing them). Otherwise paint the
-        // committed marquee at its stored sprite-space position.
-        if (moveSelStart && moveSelPreview) {
-          const dx = moveSelPreview.x - moveSelStart.x;
-          const dy = moveSelPreview.y - moveSelStart.y;
-          paintSelectionMarquee(
-            canvas,
-            selection.x + dx,
-            selection.y + dy,
-            selection.w,
-            selection.h,
-            marchPhase,
-          );
-        } else {
-          paintSelectionMarquee(
-            canvas,
-            selection.x,
-            selection.y,
-            selection.w,
-            selection.h,
-            marchPhase,
-          );
-        }
-      }
-      // Tilemap Stamp tool: overlay the tile grid and highlight the
-      // cell under the cursor so the user sees exactly where a click
-      // will land. Drawn after the selection marquee so a marquee +
-      // stamp tool combo doesn't hide one of them.
-      if (tool === 'tilemap-stamp' && stampTile && doc) {
-        paintTileGridOverlay();
-      }
-      // Active slice overlay: paint frame-0 bounds as marching ants,
-      // and the optional 9-patch center / pivot as static accents.
-      // Drawn last so the slice's geometry stays visible above the
-      // tile grid or selection marquee when several overlays would
-      // otherwise compete.
-      if (doc && activeSliceId !== null) {
-        paintActiveSliceOverlay();
-      }
+      renderer.draw(frame);
     } finally {
       frame.free();
     }
+    paintOverlays();
+  }
+
+  // Clear the overlay layer and repaint whatever transient furniture is
+  // currently live. Runs on the full recompose path (the dirty fast path
+  // only fires when nothing here would paint, per `canRecomposeDirty`).
+  function paintOverlays() {
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (dragStart && dragPreview && dragTool) {
+      // In-flight drag-shape preview. On release we commit through the
+      // matching wasm method and the composed cel surfaces the same
+      // pixels naturally; the next paint clears this preview.
+      const end = constrainedEndpoint();
+      if (dragTool === 'line') {
+        paintLinePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color);
+      } else if (dragTool === 'rectangle') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
+      } else if (dragTool === 'rectangle-fill') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'ellipse') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
+      } else if (dragTool === 'ellipse-fill') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
+        // Inclusive-corner marquee preview: matches the rect that
+        // `commitSelection` / `commitSliceDrag` will hand to the wasm
+        // side on release. Slice drags reuse the marching marquee so the
+        // gesture matches the active-slice overlay being edited.
+        const minX = Math.min(dragStart.x, end.x);
+        const maxX = Math.max(dragStart.x, end.x);
+        const minY = Math.min(dragStart.y, end.y);
+        const maxY = Math.max(dragStart.y, end.y);
+        paintSelectionMarquee(overlay, minX, minY, maxX - minX + 1, maxY - minY + 1, marchPhase);
+      }
+    } else if (selection) {
+      // No marquee drag in flight. A live Move-tool selection drag paints
+      // a ghost marquee at the translated position (the pixels snap into
+      // place on release); otherwise paint the committed marquee.
+      if (moveSelStart && moveSelPreview) {
+        const dx = moveSelPreview.x - moveSelStart.x;
+        const dy = moveSelPreview.y - moveSelStart.y;
+        paintSelectionMarquee(
+          overlay,
+          selection.x + dx,
+          selection.y + dy,
+          selection.w,
+          selection.h,
+          marchPhase,
+        );
+      } else {
+        paintSelectionMarquee(overlay, selection.x, selection.y, selection.w, selection.h, marchPhase);
+      }
+    }
+    // Tilemap Stamp tool: tile grid + hovered cell, drawn after the
+    // marquee so a marquee + stamp combo keeps both visible.
+    if (tool === 'tilemap-stamp' && stampTile && doc) {
+      paintTileGridOverlay();
+    }
+    // Active slice overlay last so its geometry stays above the grid /
+    // marquee when several overlays would otherwise compete.
+    if (doc && activeSliceId !== null) {
+      paintActiveSliceOverlay();
+    }
+  }
+
+  // Wipe the overlay layer. Used by the dirty fast path so a preview /
+  // marquee painted on the previous full frame can't linger once the
+  // overlay sources go inactive (the base sub-rect blit leaves the
+  // overlay untouched).
+  function clearOverlay() {
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    ctx?.clearRect(0, 0, overlay.width, overlay.height);
   }
 
   // Sub-rect blit path (M12.4). Only safe when none of the overlay
@@ -408,13 +416,14 @@
   // out on the parts of the canvas this call leaves untouched. The
   // caller (`tick`) checks `canRecomposeDirty()` before routing here.
   function recomposeDirty(rect: { x: number; y: number; w: number; h: number }) {
-    if (!doc || !canvas) return;
+    if (!doc || !renderer) return;
     const frame = doc.composeDirty(0, 1, rect.x, rect.y, rect.w, rect.h);
     try {
-      blitDirtyFrame(canvas, frame);
+      renderer.drawDirty(frame);
     } finally {
       frame.free();
     }
+    clearOverlay();
   }
 
   // True when no transient overlay is being painted on top of the
@@ -436,7 +445,7 @@
   // the slice was just removed via undo, the function silently
   // no-ops via the try/catch wrapping the bounds read.
   function paintActiveSliceOverlay() {
-    if (!canvas || !doc || activeSliceId === null) return;
+    if (!overlay || !doc || activeSliceId === null) return;
     try {
       const id = activeSliceId;
       const keyCount = doc.sliceKeyCount(id);
@@ -455,7 +464,7 @@
       const y = doc.sliceKeyY(id, keyIndex);
       const w = doc.sliceKeyWidth(id, keyIndex);
       const h = doc.sliceKeyHeight(id, keyIndex);
-      paintSelectionMarquee(canvas, x, y, w, h, marchPhase);
+      paintSelectionMarquee(overlay, x, y, w, h, marchPhase);
       if (doc.sliceKeyHasCenter(id, keyIndex)) {
         const cx = doc.sliceKeyCenterX(id, keyIndex);
         const cy = doc.sliceKeyCenterY(id, keyIndex);
@@ -464,12 +473,12 @@
         // Reuse the slice's editor color for the center accent so
         // 9-patch slices read as distinct from the active marquee.
         const color = sliceColorCss(doc.sliceColor(id));
-        paintRectOutline(canvas!, cx, cy, cw, ch, color);
+        paintRectOutline(overlay!, cx, cy, cw, ch, color);
       }
       if (doc.sliceKeyHasPivot(id, keyIndex)) {
         const px = doc.sliceKeyPivotX(id, keyIndex);
         const py = doc.sliceKeyPivotY(id, keyIndex);
-        paintPivotCrosshair(canvas!, px, py);
+        paintPivotCrosshair(overlay!, px, py);
       }
     } catch {
       // Slice disappeared mid-frame (e.g. undo of an addSlice).
@@ -493,25 +502,25 @@
   // (`canvas.width`/`height` == sprite dimensions); CSS scaling does
   // the visual upscale via `image-rendering: pixelated`.
   function paintTileGridOverlay() {
-    if (!canvas || !doc || !stampTile) return;
+    if (!overlay || !doc || !stampTile) return;
     const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
     const tileH = doc.tilesetTileHeight(stampTile.tilesetId);
     if (tileW === 0 || tileH === 0) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = overlay.getContext('2d');
     if (!ctx) return;
     ctx.save();
     ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
     ctx.lineWidth = 1;
-    for (let gx = tileW; gx < canvas.width; gx += tileW) {
+    for (let gx = tileW; gx < overlay.width; gx += tileW) {
       ctx.beginPath();
       ctx.moveTo(gx + 0.5, 0);
-      ctx.lineTo(gx + 0.5, canvas.height);
+      ctx.lineTo(gx + 0.5, overlay.height);
       ctx.stroke();
     }
-    for (let gy = tileH; gy < canvas.height; gy += tileH) {
+    for (let gy = tileH; gy < overlay.height; gy += tileH) {
       ctx.beginPath();
       ctx.moveTo(0, gy + 0.5);
-      ctx.lineTo(canvas.width, gy + 0.5);
+      ctx.lineTo(overlay.width, gy + 0.5);
       ctx.stroke();
     }
     if (stampHover) {
@@ -583,13 +592,26 @@
     setZoom(zoom >>> 1);
   }
 
-  // Default view: 8× zoom + zero pan offset. Matches the M6.6 default
-  // look (64×64 canvas at 512×512 CSS) and re-centers the canvas in
-  // the viewport regardless of where it had been dragged.
-  function resetView() {
-    zoom = 8;
+  // Fit the whole sprite to the viewport: the largest integer zoom that
+  // shows it with a small margin, then re-center (pan 0). Runs on every
+  // document replacement (new / open / recover) so a freshly-loaded
+  // sprite always lands fully in view regardless of its dimensions, and
+  // backs the "Reset" control + the `0` shortcut. Falls back to the
+  // historical 8× default when the stage hasn't been measured yet
+  // (e.g. first paint before layout settles).
+  function fitView() {
+    zoom =
+      stageW > 0 && stageH > 0
+        ? fitZoom(stageW, stageH, canvasW, canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
+        : 8;
     panX = 0;
     panY = 0;
+  }
+
+  // "Reset view" — re-centers and fits the sprite to the viewport.
+  // Wired to the toolbar button and the View ▸ Reset Zoom menu item.
+  function resetView() {
+    fitView();
   }
 
   // Cursor-anchored mouse-wheel zoom. The canvas is flex-centered, so it
@@ -996,12 +1018,14 @@
     doc = new Document(64, 64);
     dirty = true;
     syncMeta();
+    fitView();
     syncSelection();
     tilesetRev += 1;
     stampTile = null;
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    activeLayerId = null;
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
@@ -1024,12 +1048,14 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       saveTarget = {
         name: opened.name,
         handle: opened.handle,
@@ -1127,12 +1153,14 @@
     doc = next;
     dirty = true;
     syncMeta();
+    fitView();
     syncSelection();
     tilesetRev += 1;
     stampTile = null;
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    activeLayerId = null;
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
@@ -1228,12 +1256,14 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
       // and autosave snapshots survive across page reloads.
@@ -1465,6 +1495,24 @@
       !e.altKey &&
       !isEditableTarget(e.target)
     ) {
+      // View zoom shortcuts. Bare keys only — Ctrl/Cmd +/- stays the
+      // browser's page zoom (the modifier guard above excludes it).
+      // `0` fits the sprite to the viewport (same as the Reset control).
+      if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        resetView();
+        return;
+      }
       const next = TOOL_KEYS[e.key.toLowerCase()];
       if (next) {
         e.preventDefault();
@@ -1500,10 +1548,22 @@
   onMount(() => {
     let cancelled = false;
     loadCore()
-      .then(() => {
+      .then(async () => {
         if (cancelled) return;
+        // Pick the base-layer renderer before the first frame. The base
+        // canvas is bound by the time onMount runs (spec §4.4, M12.5).
+        if (canvas && !renderer) {
+          const r = await createRenderer(canvas);
+          if (cancelled) {
+            r.destroy();
+            return;
+          }
+          renderer = r;
+          backend = r.backend;
+        }
         doc = new Document(64, 64);
         syncMeta();
+        fitView();
         syncSelection();
         dirty = true;
         lastWriteUndoDepth = doc.undoDepth;
@@ -1624,6 +1684,8 @@
       window.removeEventListener('blur', onWindowBlur);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas?.removeEventListener('wheel', onWheel);
+      renderer?.destroy();
+      renderer = null;
       disposeDoc();
     };
   });
@@ -1651,12 +1713,14 @@
       doc = next;
       dirty = true;
       syncMeta();
+      fitView();
       syncSelection();
       tilesetRev += 1;
       stampTile = null;
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       const name = path.replace(/^.*[/\\]/, '');
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
@@ -1948,29 +2012,55 @@
   </header>
 
   <section class="flex flex-1 overflow-hidden">
-    <div class="relative flex flex-1 items-center justify-center overflow-hidden">
-      <canvas
-        bind:this={canvas}
-        class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
+    <div
+      class="relative flex flex-1 items-center justify-center overflow-hidden"
+      bind:clientWidth={stageW}
+      bind:clientHeight={stageH}
+    >
+<!--
+        Stacked render surfaces (spec §4.4, M12.5): the base canvas
+        shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
+        or Canvas2D) and the overlay canvas, sitting exactly on top with
+        `pointer-events: none`, carries the transient Canvas2D furniture
+        (selection marquee, drag previews, tile grid, slice accents).
+        The wrapper owns the display size / pan transform / frame chrome
+        so both layers scale and translate as one; the canvases fill it
+        via `h-full w-full` and CSS upscales their sprite-sized backing
+        stores (`image-rendering: pixelated`).
+      -->
+      <div
+        class="relative shrink-0 border border-neutral-700 bg-neutral-900 shadow-lg"
         style:width="{canvasW * zoom}px"
         style:height="{canvasH * zoom}px"
         style:transform="translate({panX}px, {panY}px)"
-        style:cursor={panning
-          ? 'grabbing'
-          : moveSelStart
-            ? 'move'
-            : tool === 'move' && selection && !spaceDown
+      >
+        <canvas
+          bind:this={canvas}
+          class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
+          style:cursor={panning
+            ? 'grabbing'
+            : moveSelStart
               ? 'move'
-              : tool === 'move' || spaceDown
-                ? 'grab'
-                : 'crosshair'}
-        aria-label="Pincel canvas"
-        onpointerdown={onPointerDown}
-        onpointermove={onPointerMove}
-        onpointerup={onPointerUp}
-        onpointercancel={onPointerUp}
-        onpointerleave={onPointerLeave}
-      ></canvas>
+              : tool === 'move' && selection && !spaceDown
+                ? 'move'
+                : tool === 'move' || spaceDown
+                  ? 'grab'
+                  : 'crosshair'}
+          aria-label="Pincel canvas"
+          onpointerdown={onPointerDown}
+          onpointermove={onPointerMove}
+          onpointerup={onPointerUp}
+          onpointercancel={onPointerUp}
+          onpointerleave={onPointerLeave}
+        ></canvas>
+        <canvas
+          bind:this={overlay}
+          class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
+          width={canvasW}
+          height={canvasH}
+          aria-hidden="true"
+        ></canvas>
+      </div>
       {#if doc && editingTile}
         <TileEditor
           {doc}
@@ -1987,6 +2077,37 @@
         />
       {/if}
     </div>
+    <LayersPanel
+      {doc}
+      rev={tilesetRev}
+      {activeLayerId}
+      onChange={() => (tilesetRev += 1)}
+      onActivate={(layerId) => {
+        activeLayerId = layerId;
+        // Route pixel tools to the selected layer (M13.3b). A fresh
+        // document resets the wasm-side target to None on its own, so
+        // the fallback stays correct after New / Open.
+        doc?.setActiveLayer(layerId);
+      }}
+      onToggleVisible={(layerId, visible) => {
+        if (!doc) return;
+        try {
+          doc.setLayerVisible(layerId, visible);
+          tilesetRev += 1;
+        } catch (err) {
+          status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onRename={(layerId, name) => {
+        if (!doc) return;
+        try {
+          doc.renameLayer(layerId, name);
+          tilesetRev += 1;
+        } catch (err) {
+          status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+    />
     <TilesetPanel
       {doc}
       rev={tilesetRev}
@@ -2023,6 +2144,10 @@
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
+    {/if}
+    {#if backend !== 'none'}
+      <span>·</span>
+      <span>{backend}</span>
     {/if}
     {#if probeOn}
       <span>·</span>

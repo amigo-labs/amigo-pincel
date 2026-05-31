@@ -260,6 +260,24 @@ pub struct SliceChunk {
     /// Per-frame keys, sorted ascending by `frame`. The writer rejects
     /// an empty `keys` vec or a non-monotonic ordering.
     pub keys: Vec<SliceKey>,
+    /// Optional user data emitted as a trailing User Data chunk
+    /// (`0x2020`). Aseprite attaches user data to the immediately
+    /// preceding chunk, so this carries the slice's editor color (and
+    /// any note text), which the Slice chunk itself does not store.
+    /// `None` emits no User Data chunk.
+    pub user_data: Option<UserData>,
+}
+
+/// User Data chunk (`0x2020`). In Aseprite this attaches to the
+/// immediately preceding chunk; the writer emits it right after the
+/// chunk it belongs to. Both fields are optional and select the on-disk
+/// flag bits independently. Property maps (flag `0x4`) are not emitted.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UserData {
+    /// Free-form note text (flag `0x1`).
+    pub text: Option<String>,
+    /// RGBA color (flag `0x2`).
+    pub color: Option<[u8; 4]>,
 }
 
 /// Per-frame geometry for a [`SliceChunk`].

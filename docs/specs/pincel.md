@@ -732,6 +732,8 @@ Out of scope indefinitely. Local-first by design.
 | 2026-05-07 | Scripting deferred; if needed later, downloader pattern (rquickjs + SWC + TS) | Consistent with amigo-labs tooling; out-of-scope for Phase 1 |
 | 2026-05-07 | Document state lives exclusively in Rust memory; canvas / WebGPU is render-target only | Avoids the architectural failure mode that forced Piskel into a multi-year rewrite (Piskel #1245). Browser canvas anti-fingerprinting (Brave today, others tomorrow) corrupts pixel readbacks; in-memory state is immune. |
 | 2026-05-07 | `pincel-wasm` ships as npm-importable package with documented public API from Phase 1 | Embedding is a recurring Piskel community ask (#1229, #1246). Designing the boundary in early avoids retrofit. |
+| 2026-05-31 | Add `@webgpu/types` as a UI devDependency (M12.5) | Type-only, dev-only, W3C `gpuweb`-maintained. TypeScript's bundled `lib.dom` still omits WebGPU types, so the §4.4 WebGPU adapter can't typecheck without it. No runtime bundle impact. |
+| 2026-05-31 | Layer reorder (M13) is a sibling block-swap, group-atomic | `MoveLayer { Up \| Down }` swaps a layer's whole subtree with the adjacent sibling's subtree, so a group moves with its children and no layer crosses a group boundary. Preserves the flat-Vec contiguity invariant that `validate_layer_order` enforces, keeping write round-trips lossless. Cross-group / arbitrary drag-and-drop reorder is deferred (needs reparenting + a richer command). |
 
 ---
 

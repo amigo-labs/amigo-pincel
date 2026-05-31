@@ -12,9 +12,12 @@ mod draw_line;
 mod draw_rectangle;
 mod error;
 mod fill_region;
+mod move_layer;
 mod move_selection_content;
 mod place_tile;
 mod remove_slice;
+mod set_layer_name;
+mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
 mod set_tile_pixel;
@@ -31,9 +34,12 @@ pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
+pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use remove_slice::RemoveSlice;
+pub use set_layer_name::SetLayerName;
+pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
@@ -88,6 +94,9 @@ pub enum AnyCommand {
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
     MoveSelectionContent(MoveSelectionContent),
+    MoveLayer(MoveLayer),
+    SetLayerName(SetLayerName),
+    SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
@@ -112,6 +121,9 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
+            Self::MoveLayer(c) => c.apply(doc, cels),
+            Self::SetLayerName(c) => c.apply(doc, cels),
+            Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
@@ -132,6 +144,9 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
+            Self::MoveLayer(c) => c.revert(doc, cels),
+            Self::SetLayerName(c) => c.revert(doc, cels),
+            Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
@@ -175,6 +190,9 @@ impl AnyCommand {
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
+            Self::MoveLayer(c) => c.dirty_region(),
+            Self::SetLayerName(c) => c.dirty_region(),
+            Self::SetLayerVisible(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
@@ -221,6 +239,24 @@ impl From<FillRegion> for AnyCommand {
 impl From<MoveSelectionContent> for AnyCommand {
     fn from(c: MoveSelectionContent) -> Self {
         Self::MoveSelectionContent(c)
+    }
+}
+
+impl From<MoveLayer> for AnyCommand {
+    fn from(c: MoveLayer) -> Self {
+        Self::MoveLayer(c)
+    }
+}
+
+impl From<SetLayerVisible> for AnyCommand {
+    fn from(c: SetLayerVisible) -> Self {
+        Self::SetLayerVisible(c)
+    }
+}
+
+impl From<SetLayerName> for AnyCommand {
+    fn from(c: SetLayerName) -> Self {
+        Self::SetLayerName(c)
     }
 }
 

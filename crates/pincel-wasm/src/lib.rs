@@ -27,9 +27,10 @@ use events::EventQueue;
 use pincel_core::{
     AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveSlice,
-    Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
-    TilesetId, compose, read_aseprite, write_aseprite,
+    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
+    PlaceTile, Rect, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
+    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose,
+    read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -48,6 +49,10 @@ pub struct Document {
     cels: CelMap,
     bus: Bus,
     events: EventQueue,
+    /// Layer the UI has selected as the paint target (M13.3b). `None`
+    /// falls back to the lowest-z image layer; a non-image / unknown
+    /// selection also falls back. See [`Document::paint_target_layer`].
+    active_layer: Option<LayerId>,
 }
 
 #[wasm_bindgen]
@@ -83,6 +88,7 @@ impl Document {
             cels,
             bus: Bus::new(),
             events: EventQueue::new(),
+            active_layer: None,
         })
     }
 
@@ -99,6 +105,7 @@ impl Document {
             cels,
             bus: Bus::new(),
             events: EventQueue::new(),
+            active_layer: None,
         })
     }
 
@@ -180,6 +187,88 @@ impl Document {
             Some(LayerKind::Tilemap { tileset_id }) => tileset_id.0,
             _ => 0,
         }
+    }
+
+    /// Whether the named layer is visible. Returns `false` when
+    /// `layer_id` is unknown — pair with [`Document::layer_kind`] to
+    /// disambiguate a hidden layer from a missing one.
+    #[wasm_bindgen(js_name = layerVisible)]
+    pub fn layer_visible(&self, layer_id: u32) -> bool {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.visible)
+            .unwrap_or(false)
+    }
+
+    /// Opacity (`0..=255`) of the named layer, or `0` when unknown.
+    #[wasm_bindgen(js_name = layerOpacity)]
+    pub fn layer_opacity(&self, layer_id: u32) -> u8 {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.opacity)
+            .unwrap_or(0)
+    }
+
+    /// Set the paint target layer (M13.3b). Pixel tools (pencil, eraser,
+    /// line, rect, ellipse, bucket, move-selection) write to this layer
+    /// when it exists and is an image layer; otherwise they fall back to
+    /// the lowest-z image layer. Pass any id — validation happens lazily
+    /// at paint time so selecting a group / tilemap row never errors.
+    #[wasm_bindgen(js_name = setActiveLayer)]
+    pub fn set_active_layer(&mut self, layer_id: u32) {
+        self.active_layer = Some(LayerId::new(layer_id));
+    }
+
+    /// The layer pixel tools will actually paint into right now, after
+    /// the active-layer / image-layer fallback resolves. Returns the
+    /// numeric id, or `u32::MAX` when the document has no image layer.
+    #[wasm_bindgen(js_name = paintTargetLayer)]
+    pub fn paint_target_layer_id(&self) -> u32 {
+        self.paint_target_layer().map(|l| l.0).unwrap_or(u32::MAX)
+    }
+
+    /// Move the named layer one sibling position toward the top of the
+    /// stack (higher z-index), carrying its whole subtree (group-atomic).
+    /// Routes through the undo bus and emits a `dirty-canvas` event.
+    /// Errors when the layer is unknown or already topmost among its
+    /// siblings ([`MoveLayer`](pincel_core::MoveLayer)).
+    #[wasm_bindgen(js_name = moveLayerUp)]
+    pub fn move_layer_up(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Up)
+    }
+
+    /// Move the named layer one sibling position toward the bottom of the
+    /// stack (group-atomic). See [`Document::move_layer_up`].
+    #[wasm_bindgen(js_name = moveLayerDown)]
+    pub fn move_layer_down(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Down)
+    }
+
+    /// Set the named layer's visibility flag, routed through the undo bus.
+    /// Hidden layers drop out of the composite, so this emits a
+    /// `dirty-canvas` event. Errors when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = setLayerVisible)]
+    pub fn set_layer_visible(&mut self, layer_id: u32, visible: bool) -> Result<(), String> {
+        let cmd = SetLayerVisible::new(LayerId::new(layer_id), visible);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set layer visibility: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(())
+    }
+
+    /// Rename the named layer, routed through the undo bus. The name is
+    /// metadata only (no repaint), so no dirty event is emitted. Errors
+    /// when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = renameLayer)]
+    pub fn rename_layer(&mut self, layer_id: u32, name: &str) -> Result<(), String> {
+        let cmd = SetLayerName::new(LayerId::new(layer_id), name);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to rename layer: {e}"))?;
+        Ok(())
     }
 
     /// Number of frames in the document.
@@ -300,13 +389,7 @@ impl Document {
             },
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
         self.bus
@@ -348,13 +431,7 @@ impl Document {
             b: ((color >> 8) & 0xff) as u8,
             a: (color & 0xff) as u8,
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
         self.bus
@@ -400,13 +477,7 @@ impl Document {
             b: ((color >> 8) & 0xff) as u8,
             a: (color & 0xff) as u8,
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
@@ -451,13 +522,7 @@ impl Document {
             b: ((color >> 8) & 0xff) as u8,
             a: (color & 0xff) as u8,
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
@@ -495,13 +560,7 @@ impl Document {
             b: ((color >> 8) & 0xff) as u8,
             a: (color & 0xff) as u8,
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
         self.bus
@@ -698,13 +757,7 @@ impl Document {
     /// missing image layer, unsupported color mode, etc.
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
+        let layer = self.paint_target_layer()?;
         let frame = FrameIndex::new(0);
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
@@ -902,6 +955,41 @@ impl Document {
             tile_size.0,
             tile_size.1,
         ));
+        Ok(())
+    }
+
+    /// Resolve the layer pixel tools should write to: the active layer
+    /// when it exists and is an image layer, else the lowest-z image
+    /// layer (legacy behavior). Errors only when the document has no
+    /// image layer at all.
+    fn paint_target_layer(&self) -> Result<LayerId, String> {
+        if let Some(id) = self.active_layer {
+            if matches!(
+                self.sprite.layer(id).map(|l| &l.kind),
+                Some(LayerKind::Image)
+            ) {
+                return Ok(id);
+            }
+        }
+        self.sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .map(|l| l.id)
+            .ok_or_else(|| "document has no paintable image layer".to_string())
+    }
+
+    /// Shared body for [`Document::move_layer_up`] /
+    /// [`Document::move_layer_down`]: run a [`MoveLayer`] through the bus
+    /// and drain its dirty region into the event queue.
+    fn move_layer(&mut self, layer_id: u32, direction: MoveDirection) -> Result<(), String> {
+        let cmd = MoveLayer::new(LayerId::new(layer_id), direction);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move layer: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
         Ok(())
     }
 
@@ -2901,5 +2989,167 @@ mod tests {
         let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
         let events = doc.drain_events();
         assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    // ---- M13.2: layer reorder surface ---------------------------------
+
+    /// 8x8 doc with three top-level image layers (ids 0,1,2 bottom→top).
+    /// Id 0 is the `Document::new` default; 1 and 2 are pushed on top.
+    fn doc_with_three_layers() -> Document {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.layers.push(Layer::image(LayerId::new(1), "l1"));
+        doc.sprite.layers.push(Layer::image(LayerId::new(2), "l2"));
+        doc
+    }
+
+    fn layer_ids(doc: &Document) -> Vec<u32> {
+        doc.sprite.layers.iter().map(|l| l.id.0).collect()
+    }
+
+    #[test]
+    fn move_layer_up_reorders_and_emits_event() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(1).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    #[test]
+    fn move_layer_down_reorders() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_down(2).expect("move down");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+    }
+
+    #[test]
+    fn move_layer_round_trips_through_undo() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(0).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![1, 0, 2]);
+        assert!(doc.undo());
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn move_layer_at_edge_errors() {
+        let mut doc = doc_with_three_layers();
+        let err = doc.move_layer_up(2).expect_err("top layer can't move up");
+        assert!(err.contains("edge"), "got: {err}");
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2], "document untouched");
+    }
+
+    #[test]
+    fn move_unknown_layer_errors() {
+        let mut doc = doc_with_three_layers();
+        assert!(doc.move_layer_down(99).is_err());
+    }
+
+    #[test]
+    fn paint_target_resolves_active_image_layer() {
+        let mut doc = doc_with_three_layers();
+        // No active layer → lowest-z image layer (the default, id 0).
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        doc.set_active_layer(2);
+        assert_eq!(doc.paint_target_layer_id(), 2);
+    }
+
+    #[test]
+    fn paint_target_falls_back_for_non_image_or_unknown_active() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.layers.push(Layer::group(LayerId::new(5), "grp"));
+        // A group layer can't take pixels → fall back to image layer 0.
+        doc.set_active_layer(5);
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        // Unknown id → fall back too.
+        doc.set_active_layer(99);
+        assert_eq!(doc.paint_target_layer_id(), 0);
+    }
+
+    #[test]
+    fn pencil_paints_into_active_layer_cel() {
+        // Two image layers, each with its own cel. Painting with layer 1
+        // active must land on layer 1, leaving the default layer 0 clear.
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite.layers.push(Layer::image(LayerId::new(1), "top"));
+        doc.cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            PixelBuffer::empty(4, 4, ColorMode::Rgba),
+        ));
+        doc.set_active_layer(1);
+        doc.apply_tool("pencil", 1, 1, 0x0a141eff).expect("pencil");
+
+        let on_active = doc
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(0))
+            .expect("active cel");
+        let on_default = doc
+            .cels
+            .get(LayerId::new(0), FrameIndex::new(0))
+            .expect("default cel");
+        match (&on_active.data, &on_default.data) {
+            (CelData::Image(active), CelData::Image(default)) => {
+                // RGBA8 row-major; byte offset of pixel (1,1) in a
+                // 4-wide buffer: (y * width + x) * 4 = (4 + 1) * 4.
+                let idx = (4 + 1) * 4;
+                assert_eq!(
+                    &active.data[idx..idx + 4],
+                    &[10, 20, 30, 255],
+                    "active layer 1 received the pixel"
+                );
+                assert_eq!(
+                    &default.data[idx..idx + 4],
+                    &[0, 0, 0, 0],
+                    "default layer 0 stayed transparent"
+                );
+            }
+            _ => panic!("expected image cels"),
+        }
+    }
+
+    #[test]
+    fn set_layer_visible_toggles_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.layer_visible(0));
+        doc.set_layer_visible(0, false).expect("hide");
+        assert!(!doc.layer_visible(0));
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+        assert!(doc.undo());
+        assert!(doc.layer_visible(0), "undo restores visibility");
+    }
+
+    #[test]
+    fn set_layer_visible_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.set_layer_visible(99, false).is_err());
+    }
+
+    #[test]
+    fn rename_layer_updates_name_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.layer_name(0), "Layer 1");
+        doc.rename_layer(0, "ground").expect("rename");
+        assert_eq!(doc.layer_name(0), "ground");
+        assert!(doc.undo());
+        assert_eq!(doc.layer_name(0), "Layer 1");
+    }
+
+    #[test]
+    fn rename_layer_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.rename_layer(99, "x").is_err());
+    }
+
+    #[test]
+    fn layer_visibility_and_opacity_getters() {
+        let doc = Document::new(8, 8).expect("dims");
+        // The default layer is visible and fully opaque.
+        assert!(doc.layer_visible(0));
+        assert_eq!(doc.layer_opacity(0), 255);
+        // Unknown ids report the documented defaults.
+        assert!(!doc.layer_visible(99));
+        assert_eq!(doc.layer_opacity(99), 0);
     }
 }

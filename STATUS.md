@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-25_
+_Last updated: 2026-05-31_
 
 **Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
 takes a caller-owned `&mut Vec<u8>` for the output (no per-call
@@ -10,6 +10,63 @@ returned buffer to the intersection of viewport and hint (spec §4.3).
 sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
 and `dirty.height * zoom`. Empty intersections short-circuit with an
 empty `out` so callers can skip the upload.
+
+## M13 — Layers panel + reorder (complete)
+
+Post-M12 feature (spec §3.2, panel layout §6). Decision: reorder is a
+**sibling block-swap, group-atomic** (Decision Log §15) — moving a group
+carries its children; no layer crosses a group boundary. Cross-group
+drag is deferred. Task breakdown:
+
+- [x] **M13.1** — core `MoveLayer { Up | Down }` command: swaps a
+  layer's contiguous subtree with the adjacent sibling's subtree via a
+  range rotation; `revert` rotates back. New `CommandError::UnknownLayer`
+  / `LayerAtEdge`. Wired into `AnyCommand`. 10 unit tests (siblings,
+  group-atomic moves, leaf-over-group, intra-group, all four edge
+  cases).
+- [x] **M13.2** — wasm surface: `moveLayerUp(id)` / `moveLayerDown(id)`
+  route a `MoveLayer` through the bus (group-atomic, undo-routed, emit
+  `dirty-canvas`); `From<MoveLayer>` for `AnyCommand`; new `layerVisible`
+  / `layerOpacity` read getters for the panel. 6 host tests (reorder both
+  directions, undo round-trip, edge + unknown errors, getter defaults).
+  The explicit **active layer** is UI state and lands with the panel
+  (M13.3).
+- [x] **M13.3** — `LayersPanel.svelte` mounted as the first right-side
+  panel: z-ordered list (top-most first), active-row highlight (click →
+  `onActivate` sets `activeLayerId`), ▲/▼ reorder via `moveLayerUp` /
+  `moveLayerDown` (disabled at the flat list ends; a true mid-group edge
+  is a caught `LayerAtEdge` no-op), visibility indicator (●/○ + dimmed
+  name, read-only). Reorder bumps the shared `rev` so the list
+  re-derives; the canvas recomposes off the `dirty-canvas` event. UI
+  gates green (`pnpm check` / `lint` / `build`).
+- [x] **M13.3b** — active layer wired into the paint surface. wasm
+  `setActiveLayer(id)` stores the target; a `paint_target_layer()` helper
+  resolves it (active iff it exists and is an image layer, else the
+  lowest-z image layer) and now backs all six pixel paths (pencil/eraser,
+  line, rect, ellipse, bucket, move-selection). `paintTargetLayer()`
+  getter exposes the resolved id. `LayersPanel` row-click calls
+  `setActiveLayer`. 3 host tests (resolution, group/unknown fallback,
+  pencil lands on the active cel while the default stays clear).
+- [x] **M13.3c** — layer visibility toggle, end to end: core
+  `SetLayerVisible { layer, visible }` (prior value captured for revert,
+  `dirty_region = Canvas`), wasm `setLayerVisible(id, visible)` through
+  the bus, and a clickable ●/○ eye button in `LayersPanel` wired to it.
+  Undo-routed. Core + 2 host tests.
+- [x] **M13.3d** — inline rename: core `SetLayerName` (`dirty_region =
+  None`), wasm `renameLayer(id, name)`, panel double-click-to-edit
+  (Enter / blur commits, Escape cancels, empty discarded). Core + 2 host
+  tests.
+- [x] **M13.4** — reorder survives the aseprite round-trip. No code
+  change needed: `build_layer_index_map` already maps each `LayerId` to
+  its current Vec position, so a reorder (which permutes positions but
+  keeps ids) writes every cel at the right `layer_index`. On reload ids
+  are renumbered by position — `LayerId` is positional by the format's
+  design (it stores no editor id), which is consistent and closes the
+  "Stable LayerIds" open question. Locked in by a `pincel-core`
+  integration test (reorder → write → read; asserts z-order + per-layer
+  cel content by name + pixels).
+- [ ] Later — opacity / blend-mode controls, lock toggle, cross-group
+  drag-and-drop reparenting (all outside M13).
 
 ## Next task
 
@@ -34,9 +91,14 @@ target hardware.
 
 **Measured:** _pending — capture on M1 / mid-tier Windows._
 
-**M12.5** (WebGPU adapter, spec §4.4 / §17.2) is optional unless M12.6
-numbers come up short on Canvas2D — leave for after the perf
-verification.
+**M12.5** (WebGPU adapter, spec §4.4 / §17.2) — **done.** Split into
+M12.5a (render-adapter seam + stacked overlay canvas) and M12.5b
+(WebGPU backend + capability detection). The base layer now blits
+through a `CanvasRenderer`; WebGPU is preferred with automatic Canvas2D
+fallback, and `?renderer=canvas2d` forces the fallback for A/B testing.
+The active backend shows in the footer. Verify on real hardware via the
+Cloudflare branch-preview URL in a WebGPU-capable browser (this sandbox
+is headless — GPU rendering not exercisable here).
 
 ## M12 baselines (criterion, 2026-05-24)
 
@@ -75,7 +137,8 @@ subsequent slices.
 | M12.2 | ✅ | `compose()` takes `out: &mut Vec<u8>` (scratch reuse); honors `dirty_hint` via `Rect::intersect`; `ComposeResult` drops `pixels`, gains `dirty_rect`. |
 | M12.3 | ✅ | Per-command `DirtyRegion` complete on the paint surface: type + trait method + `Bus::last_dirty_region()` + `Document::undo`/`redo` + bucket / move event paths all emit precise `dirty-rect` events. SetPixel / DrawLine / DrawRectangle / DrawEllipse / FillRegion / MoveSelectionContent all report sprite-coord rects; structural / tilemap / slice commands keep the safe-but-coarse `Canvas` default. |
 | M12.4 | ✅ | Canvas2D sub-rect blit. `ComposeFrame` exposes `dirtyX` / `dirtyY`; new `Document::composeDirty(...)` + `blitDirtyFrame(...)`. `App.svelte::tick` aggregates `dirty-rect` events into a union bbox and routes through the sub-rect path when no overlays are live (selection / drag / stamp / active slice all force the full path). |
-| M12.5–M12.6 | ⬜ | WebGPU adapter, 60 fps verification. |
+| M12.5 | ✅ | WebGPU render adapter (spec §4.4). `CanvasRenderer` seam + stacked overlay canvas (M12.5a), `WebGPURenderer` + capability detection + `?renderer=canvas2d` force toggle (M12.5b). |
+| M12.6 | ⬜ | 60 fps verification on M1 / mid-tier Windows (manual, target hardware). |
 
 ### M8.7 sub-tasks
 
@@ -101,6 +164,145 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — M13.3d rename + M13.4 reorder round-trip (this branch);
+  M13 complete.** Rename: core `SetLayerName` (captures the prior name
+  for `revert`, `dirty_region = None` since it changes no pixels), wasm
+  `renameLayer(id, name)`, and double-click-to-edit in `LayersPanel`
+  (Enter / blur commits, Escape cancels, blank discarded). M13.4: a new
+  `pincel-core` integration test reorders layers, round-trips through
+  `write_aseprite` / `read_aseprite`, and asserts z-order plus per-layer
+  cel content survive — confirming `build_layer_index_map`'s
+  position-mapping already makes reorder lossless; `LayerId` is positional
+  by the format's design. Core + 2 host rename tests; 131 wasm tests; all
+  `cargo` + `pnpm` gates green. M13 (Layers panel: list · reorder · active
+  selection driving paint · visibility toggle · rename · lossless
+  round-trip) is done.
+
+- **2026-05-31 — M13.3c layer visibility toggle (this branch).** Core
+  `SetLayerVisible { layer, visible }` flips `Layer::visible` (prior value
+  captured for `revert`, `dirty_region = Canvas` since hidden layers drop
+  from the composite); wasm `setLayerVisible(id, visible)` routes it
+  through the undo bus and emits `dirty-canvas`; the `LayersPanel`
+  visibility indicator is now a clickable ●/○ button wired to it (bumps
+  `rev`). Core unit tests + 2 host tests (toggle + undo, unknown-id
+  error); 129 wasm tests green. `cargo`/`pnpm` gates green. Rename is
+  M13.3d.
+
+- **2026-05-31 — M13.3b active-layer paint targeting (this branch).**
+  The Layers panel selection is now functional: `Document` gains an
+  `active_layer: Option<LayerId>` with `setActiveLayer(id)` and a private
+  `paint_target_layer()` that prefers the active layer when it exists and
+  is an image layer, else falls back to the lowest-z image layer (the
+  prior behavior). All six pixel paths (apply_tool, line, rect, ellipse,
+  bucket, move-selection) route through it — six identical inline picks
+  collapsed to one helper. `paintTargetLayer()` getter surfaces the
+  resolved id; `LayersPanel` row-click calls `setActiveLayer`. A fresh
+  `Document` resets the target to `None`, so New / Open keep the
+  fallback. 3 host tests (resolution, group / unknown fallback, pencil
+  lands on the active cel while the default stays clear); 127 wasm tests
+  green. `pnpm check`/`lint`/`build` green. Visibility toggle + rename
+  are M13.3c.
+
+- **2026-05-31 — M13.3 LayersPanel (this branch).** New
+  `ui/src/lib/components/LayersPanel.svelte`, mounted as the first
+  right-side panel. Lists layers top-most-first (reversed z-order) via
+  the `layerCount` / `layerIdAt` / `layerName` / `layerKind` /
+  `layerVisible` getters behind the shared `rev` counter; a row click
+  sets the parent's `activeLayerId` (highlight only for now); ▲/▼ call
+  `moveLayerUp` / `moveLayerDown` and bump `rev` to re-derive, with the
+  canvas recomposing off the emitted `dirty-canvas`. Move buttons are
+  disabled at the flat list ends and a true mid-group edge is swallowed
+  as a `LayerAtEdge` no-op. Visibility is shown read-only (●/○ + dimmed
+  name). Painting still auto-picks the image layer — active-layer paint
+  targeting + visibility toggle + rename are M13.3b. `pnpm check` (0
+  errors) / `lint` / `build` green.
+
+- **2026-05-31 — M13.1 core MoveLayer command (this branch).** First
+  slice of the Layers-panel feature. `pincel-core::MoveLayer { Up |
+  Down }` reorders a layer among its siblings by swapping its whole
+  contiguous subtree with the adjacent sibling's subtree (a single range
+  `rotate_left`; `revert` is the inverse `rotate_right`), so groups move
+  atomically and the flat-Vec contiguity invariant survives. New
+  `CommandError::UnknownLayer` / `LayerAtEdge`; `MoveDirection` +
+  `MoveLayer` exported and wired into `AnyCommand` (apply / revert /
+  dirty_region = Canvas). 10 unit tests cover sibling swaps, group-atomic
+  moves, a leaf jumping over a sibling group, intra-group moves, and the
+  four edge/unknown cases. `cargo test`/`clippy -D warnings`/`fmt` green.
+  wasm + UI panel are M13.2–M13.3.
+
+- **2026-05-31 — Reject zero-frame writes (this branch).** Closes the
+  0-frame footgun: a frameless `Sprite` (which `SpriteBuilder::build`
+  still allows as a valid in-memory object) used to write an Aseprite
+  header claiming 0 frames that `aseprite-loader` then refused to parse.
+  `aseprite_writer::write` now returns the new `WriteError::NoFrames`
+  before emitting anything, propagating through `pincel-core` as
+  `CodecError::Write`. Decision: enforce the invariant at the format
+  boundary, not in the builder, so the permissive minimal-sprite
+  affordance stays. Writer + `pincel-core` tests cover the rejection.
+
+- **2026-05-31 — Slice overlay color round-trip via User Data (this
+  branch).** Closes the long-standing fidelity gap where Pincel dropped a
+  slice's editor color on save and reconstructed every slice as white.
+  `aseprite-writer`: `SliceChunk` gains `user_data: Option<UserData>`
+  (text + RGBA); `write()` emits a `0x2020` User Data chunk right after
+  each slice (Aseprite attaches user data to the preceding chunk). New
+  `UserData` re-export; writer round-trip test asserts the loader reads
+  the color back. `pincel-core`: `map_slice` writes the color into that
+  chunk and `extract_tilesets_and_slices` tracks the preceding slice to
+  apply a trailing `UserData` color (white fallback). The slices
+  integration test now round-trips two distinct colors incl. a
+  non-opaque alpha. Gates green: `cargo test`/`clippy`/`fmt` for
+  `aseprite-writer` + `pincel-core`, plus `pincel-wasm` host tests
+  (118 pass). Note text + property maps stay dropped (no per-slice note
+  field yet).
+
+- **2026-05-31 — M12.5 WebGPU render adapter (this branch).** Spec §4.4.
+  **M12.5a** introduces the render-adapter seam: `ui/src/lib/render/
+  types.ts::CanvasRenderer` (`draw` / `drawDirty` / `destroy` + `backend`
+  label) and `Canvas2DRenderer` wrapping the existing blit helpers. The
+  single render canvas splits into a base layer (driven by the renderer)
+  and a transparent, `pointer-events-none` Canvas2D **overlay** stacked
+  exactly on top via a sizing/transform wrapper; all transient furniture
+  (drag previews, marquee, tile grid, slice accents) moves to the overlay
+  through the new `paintOverlays()`, and the dirty fast path wipes it via
+  `clearOverlay()`. Behaviour stayed identical (still Canvas2D).
+  **M12.5b** adds `WebGPURenderer` — a full-screen-triangle blit of the
+  sprite texture (`writeTexture` upload, nearest sampling, premultiplied
+  output to match the Canvas2D compositing of non-premultiplied pixels),
+  with `drawDirty` doing a sub-rect `writeTexture` + full redraw.
+  `WebGPURenderer.create()` resolves to `null` (never throws) on any
+  failure, and only claims the canvas's `'webgpu'` context as its last
+  step so the Canvas2D fallback stays viable. `App.svelte::createRenderer`
+  prefers WebGPU, falls back automatically, and honours
+  `?renderer=canvas2d`; the footer shows the active backend. New
+  devDependency `@webgpu/types` (type-only; Decision Log §15) — TS's
+  bundled `lib.dom` still omits WebGPU types. UI gates green: `pnpm
+  check` (0 errors), `pnpm lint`, `pnpm build`. GPU rendering itself is
+  not exercisable in this headless sandbox — verify on the Cloudflare
+  branch-preview URL in a WebGPU browser.
+
+- **2026-05-31 — Move/zoom ergonomics: auto-fit + keyboard zoom (this
+  branch).** Continues the cursor-anchored-wheel-zoom thread. New pure
+  helper `ui/src/lib/view/fit.ts::fitZoom(viewportW, viewportH, spriteW,
+  spriteH, min, max, margin)` returns the largest integer display-zoom
+  that shows the whole sprite with a margin, clamped to `[1, 64]` and
+  falling back to `min` for degenerate / unmeasured inputs. `App.svelte`
+  binds the flex-centered stage wrapper's `clientWidth` / `clientHeight`
+  (`stageW` / `stageH`) and gains `fitView()`, which picks that zoom
+  (24 px margin) and re-centers (pan 0), falling back to the historical
+  8× when the stage hasn't been measured yet. `fitView()` now runs on
+  every document replacement (`newDoc`, `openDoc`, `applyRecovery`,
+  `openRecent`, `openRecentById`, and the `onMount` initial doc) so a
+  freshly-loaded sprite always lands fully in view regardless of its
+  dimensions. `resetView()` (the "Reset" toolbar button + `View ▸ Reset
+  Zoom` menu item) now delegates to `fitView()` instead of the fixed 8×,
+  which was off-screen for large sprites. New bare-key zoom shortcuts in
+  `onKeyDown` (inside the existing no-modifier / not-editable guard, so
+  Ctrl/Cmd +/- stays the browser's page zoom): `+`/`=` zoom in, `-`/`_`
+  zoom out, `0` fits. UI gates green: `pnpm check` (0 errors), `pnpm
+  lint`, `pnpm build`. Touch pinch-zoom is the remaining ergonomics gap
+  (can't be exercised headless; deferred).
 
 - **2026-05-24 — M11.2 + M11.3 + M11.4 (this branch).** Native desktop
   shell closes out: M11.2 adds two `#[tauri::command] async fn`
@@ -194,7 +396,7 @@ Human action still needed:
 - **Spec §11.4 `isTauri` global** — Spec text says `'__TAURI__' in window`, but Tauri 2 ships `__TAURI_INTERNALS__` instead. `ui/src/lib/platform/isTauri()` accepts both; bring the spec text in line during the next spec sweep.
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
-- **Slice user-data round-trip** — `aseprite_read` now hydrates `0x2022` chunks into `Sprite.slices` (M9.2), but the per-slice overlay color lives in an adjacent User Data chunk (`0x2020`) that we still drop on both sides. Pincel reconstructs slices with `Rgba::WHITE`. Round-trip preservation of the color lands when the User Data carrier does.
+- **Slice user-data round-trip** — _resolved 2026-05-31._ `aseprite-writer` now emits a `0x2020` User Data chunk after each slice and `pincel-core` writes / recovers the overlay color through it. Note text + property maps (`0x2020` flags `0x1` / `0x4`) are still dropped — Pincel has no per-slice note field yet; revisit if one is added.
 - **Stable LayerIds** — IDs assigned by source-file position today. Stable for read-only sessions but conflicts with spec's "stable id" promise once a reorder command exists. Revisit when reorder lands.
 - **Mid-list AddFrame** — Append-only today. Mid-list insertion needs a `FrameIndex` remap on cel map / `Tag` / `Slice` refs. Defer until a tool needs it.
 - **Indexed-mode painting** — `SetPixel` is RGBA-only. Indexed needs either a payload enum or a separate command. Land when indexed `compose()` lands.
@@ -203,8 +405,14 @@ Human action still needed:
 - **`dirty_hint` not wired** — Accepted but ignored. Needs dirty-rect tracking (spec §4.3). Defer to M12.
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
 - **`Document::undo` / `redo` dirty events** — Emit full-canvas `dirty-canvas` because commands don't carry their own dirty region. Per-command dirty-rect is M12.
-- **`Document::new` 0-frame question** — `aseprite-writer` happily emits a 0-frame file that `aseprite-loader` then refuses to parse. Decide whether to enforce ≥1 frame in `SpriteBuilder::build` or leave as a "valid Pincel, invalid Aseprite" affordance.
-- **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom landed (`App.svelte::onWheel`, non-passive listener). Still missing: touch pinch-zoom and auto-fit on open. Cosmetic; not blocking.
+- **`Document::new` 0-frame question** — _resolved 2026-05-31._ Decided to keep `SpriteBuilder::build` permissive (a frameless sprite is a valid in-memory Pincel object) and enforce the format invariant at the write boundary: `aseprite_writer::write` now returns `WriteError::NoFrames` instead of emitting a header readers reject. Covered by writer + `pincel-core` tests.
+- **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom
+  (`App.svelte::onWheel`, non-passive listener), **auto-fit on open**
+  (`fitView` + `ui/src/lib/view/fit.ts::fitZoom`, runs on every doc
+  replacement), and **keyboard zoom shortcuts** (`+`/`=`, `-`/`_`, `0`
+  → fit) all landed. The "Reset" control + `View ▸ Reset Zoom` now
+  fit-to-viewport instead of the old fixed 8×. Still missing: touch
+  pinch-zoom. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
 - **`pincel-wasm` link order** — `link:` protocol needs `crates/pincel-wasm/pkg/` to exist before `pnpm install`. CI / contributor docs should encode the order.
 - **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
