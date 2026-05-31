@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-25_
+_Last updated: 2026-05-31_
 
 **Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
 takes a caller-owned `&mut Vec<u8>` for the output (no per-call
@@ -101,6 +101,28 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — Move/zoom ergonomics: auto-fit + keyboard zoom (this
+  branch).** Continues the cursor-anchored-wheel-zoom thread. New pure
+  helper `ui/src/lib/view/fit.ts::fitZoom(viewportW, viewportH, spriteW,
+  spriteH, min, max, margin)` returns the largest integer display-zoom
+  that shows the whole sprite with a margin, clamped to `[1, 64]` and
+  falling back to `min` for degenerate / unmeasured inputs. `App.svelte`
+  binds the flex-centered stage wrapper's `clientWidth` / `clientHeight`
+  (`stageW` / `stageH`) and gains `fitView()`, which picks that zoom
+  (24 px margin) and re-centers (pan 0), falling back to the historical
+  8× when the stage hasn't been measured yet. `fitView()` now runs on
+  every document replacement (`newDoc`, `openDoc`, `applyRecovery`,
+  `openRecent`, `openRecentById`, and the `onMount` initial doc) so a
+  freshly-loaded sprite always lands fully in view regardless of its
+  dimensions. `resetView()` (the "Reset" toolbar button + `View ▸ Reset
+  Zoom` menu item) now delegates to `fitView()` instead of the fixed 8×,
+  which was off-screen for large sprites. New bare-key zoom shortcuts in
+  `onKeyDown` (inside the existing no-modifier / not-editable guard, so
+  Ctrl/Cmd +/- stays the browser's page zoom): `+`/`=` zoom in, `-`/`_`
+  zoom out, `0` fits. UI gates green: `pnpm check` (0 errors), `pnpm
+  lint`, `pnpm build`. Touch pinch-zoom is the remaining ergonomics gap
+  (can't be exercised headless; deferred).
 
 - **2026-05-24 — M11.2 + M11.3 + M11.4 (this branch).** Native desktop
   shell closes out: M11.2 adds two `#[tauri::command] async fn`
@@ -204,7 +226,13 @@ Human action still needed:
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
 - **`Document::undo` / `redo` dirty events** — Emit full-canvas `dirty-canvas` because commands don't carry their own dirty region. Per-command dirty-rect is M12.
 - **`Document::new` 0-frame question** — `aseprite-writer` happily emits a 0-frame file that `aseprite-loader` then refuses to parse. Decide whether to enforce ≥1 frame in `SpriteBuilder::build` or leave as a "valid Pincel, invalid Aseprite" affordance.
-- **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom landed (`App.svelte::onWheel`, non-passive listener). Still missing: touch pinch-zoom and auto-fit on open. Cosmetic; not blocking.
+- **Move/zoom ergonomics** — cursor-anchored mouse-wheel zoom
+  (`App.svelte::onWheel`, non-passive listener), **auto-fit on open**
+  (`fitView` + `ui/src/lib/view/fit.ts::fitZoom`, runs on every doc
+  replacement), and **keyboard zoom shortcuts** (`+`/`=`, `-`/`_`, `0`
+  → fit) all landed. The "Reset" control + `View ▸ Reset Zoom` now
+  fit-to-viewport instead of the old fixed 8×. Still missing: touch
+  pinch-zoom. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
 - **`pincel-wasm` link order** — `link:` protocol needs `crates/pincel-wasm/pkg/` to exist before `pnpm install`. CI / contributor docs should encode the order.
 - **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
