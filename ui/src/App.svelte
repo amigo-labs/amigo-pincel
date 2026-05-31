@@ -1025,6 +1025,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    activeLayerId = null;
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
@@ -1054,6 +1055,7 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       saveTarget = {
         name: opened.name,
         handle: opened.handle,
@@ -1158,6 +1160,7 @@
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    activeLayerId = null;
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
@@ -1260,6 +1263,7 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
       // and autosave snapshots survive across page reloads.
@@ -1716,6 +1720,7 @@
       stampHover = null;
       editingTile = null;
       activeSliceId = null;
+      activeLayerId = null;
       const name = path.replace(/^.*[/\\]/, '');
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
