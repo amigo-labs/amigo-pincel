@@ -11,6 +11,34 @@ sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
 and `dirty.height * zoom`. Empty intersections short-circuit with an
 empty `out` so callers can skip the upload.
 
+## M13 — Layers panel + reorder (in progress)
+
+Post-M12 feature (spec §3.2, panel layout §6). Decision: reorder is a
+**sibling block-swap, group-atomic** (Decision Log §15) — moving a group
+carries its children; no layer crosses a group boundary. Cross-group
+drag is deferred. Task breakdown:
+
+- [x] **M13.1** — core `MoveLayer { Up | Down }` command: swaps a
+  layer's contiguous subtree with the adjacent sibling's subtree via a
+  range rotation; `revert` rotates back. New `CommandError::UnknownLayer`
+  / `LayerAtEdge`. Wired into `AnyCommand`. 10 unit tests (siblings,
+  group-atomic moves, leaf-over-group, intra-group, all four edge
+  cases).
+- [ ] **M13.2** — wasm surface: `moveLayerUp(id)` / `moveLayerDown(id)`
+  through the bus; an explicit **active layer** (`activeLayerId` on the
+  document/UI) replacing the Stamp tool's topmost-auto-pick; reuse the
+  existing `layerIdAt` / `layerName` / `layerKind` / `layerTilesetId`
+  getters, add `layerVisible` / `layerOpacity` as needed.
+- [ ] **M13.3** — `LayersPanel.svelte`: z-ordered list (top = highest
+  index), active-row highlight, ↑/↓ move buttons (disabled at edges),
+  visibility toggle, rename. Wire active layer into Pencil / Stamp / fill
+  targets.
+- [ ] **M13.4** — stable `LayerId` across save/reload (decouple id from
+  source position) so reorder survives a round-trip; closes the
+  "Stable LayerIds" open question.
+- [ ] Later — opacity / blend-mode controls, lock toggle, cross-group
+  drag-and-drop reparenting.
+
 ## Next task
 
 **M12.6** — Verify the spec exit criterion: 256×256 sprite at zoom
@@ -107,6 +135,19 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — M13.1 core MoveLayer command (this branch).** First
+  slice of the Layers-panel feature. `pincel-core::MoveLayer { Up |
+  Down }` reorders a layer among its siblings by swapping its whole
+  contiguous subtree with the adjacent sibling's subtree (a single range
+  `rotate_left`; `revert` is the inverse `rotate_right`), so groups move
+  atomically and the flat-Vec contiguity invariant survives. New
+  `CommandError::UnknownLayer` / `LayerAtEdge`; `MoveDirection` +
+  `MoveLayer` exported and wired into `AnyCommand` (apply / revert /
+  dirty_region = Canvas). 10 unit tests cover sibling swaps, group-atomic
+  moves, a leaf jumping over a sibling group, intra-group moves, and the
+  four edge/unknown cases. `cargo test`/`clippy -D warnings`/`fmt` green.
+  wasm + UI panel are M13.2–M13.3.
 
 - **2026-05-31 — Reject zero-frame writes (this branch).** Closes the
   0-frame footgun: a frameless `Sprite` (which `SpriteBuilder::build`
