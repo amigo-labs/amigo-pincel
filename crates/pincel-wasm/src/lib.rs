@@ -28,9 +28,9 @@ use pincel_core::{
     AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
     Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
-    PlaceTile, Rect, RemoveSlice, Rgba, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel,
-    Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite,
-    write_aseprite,
+    PlaceTile, Rect, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
+    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose,
+    read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -256,6 +256,18 @@ impl Document {
         if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
+        Ok(())
+    }
+
+    /// Rename the named layer, routed through the undo bus. The name is
+    /// metadata only (no repaint), so no dirty event is emitted. Errors
+    /// when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = renameLayer)]
+    pub fn rename_layer(&mut self, layer_id: u32, name: &str) -> Result<(), String> {
+        let cmd = SetLayerName::new(LayerId::new(layer_id), name);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to rename layer: {e}"))?;
         Ok(())
     }
 
@@ -3112,6 +3124,22 @@ mod tests {
     fn set_layer_visible_unknown_errors() {
         let mut doc = Document::new(8, 8).expect("dims");
         assert!(doc.set_layer_visible(99, false).is_err());
+    }
+
+    #[test]
+    fn rename_layer_updates_name_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.layer_name(0), "Layer 1");
+        doc.rename_layer(0, "ground").expect("rename");
+        assert_eq!(doc.layer_name(0), "ground");
+        assert!(doc.undo());
+        assert_eq!(doc.layer_name(0), "Layer 1");
+    }
+
+    #[test]
+    fn rename_layer_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.rename_layer(99, "x").is_err());
     }
 
     #[test]
