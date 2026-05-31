@@ -7,9 +7,10 @@
 //! pair; see `docs/specs/pincel.md` §7.1.
 
 use pincel_core::{
-    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, PixelBuffer, Rect, Rgba, Slice, SliceId, SliceKey, Sprite, Tag,
-    TagDirection, TileImage, TileRef, Tileset, TilesetId, read_aseprite, write_aseprite,
+    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, Frame, FrameIndex,
+    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, PixelBuffer, Rect, Rgba, Slice, SliceId,
+    SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset, TilesetId, read_aseprite,
+    write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -494,6 +495,92 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     // (0x2020), including a non-opaque alpha.
     assert_eq!(sprite.slices[0].color, plain.color);
     assert_eq!(sprite.slices[1].color, panel.color);
+}
+
+#[test]
+fn reordered_layers_round_trip_with_cels_intact() {
+    // M13.4: a reorder permutes `sprite.layers` but keeps each
+    // `LayerId`; the write adapter maps ids → current position, so a
+    // round-trip must preserve z-order *and* keep every cel attached to
+    // its own layer. On reload ids are renumbered by position (the
+    // format stores no editor id), so we assert by name + pixel content.
+    let mut bg = Layer::image(LayerId::new(0), "bg");
+    bg.opacity = 255;
+    let fg = Layer::image(LayerId::new(1), "fg");
+    let sprite = Sprite::builder(2, 2)
+        .add_layer(bg) // z 0 (bottom)
+        .add_layer(fg) // z 1 (top)
+        .add_frame(Frame::new(100))
+        .build()
+        .unwrap();
+    let mut cels = CelMap::new();
+    // bg: red at (0,0); fg: green at (1,1) — distinct, non-overlapping.
+    cels.insert(Cel {
+        layer: LayerId::new(0),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Image(rgba_buffer(
+            2,
+            2,
+            flat_pixels(&[
+                rgba(200, 0, 0, 255),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+            ]),
+        )),
+    });
+    cels.insert(Cel {
+        layer: LayerId::new(1),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Image(rgba_buffer(
+            2,
+            2,
+            flat_pixels(&[
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 200, 0, 255),
+            ]),
+        )),
+    });
+
+    // Move bg (id 0) up past fg → layer order becomes [fg, bg].
+    let mut sprite = sprite;
+    MoveLayer::new(LayerId::new(0), MoveDirection::Up)
+        .apply(&mut sprite, &mut cels)
+        .expect("reorder");
+    assert_eq!(
+        sprite
+            .layers
+            .iter()
+            .map(|l| l.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fg", "bg"],
+    );
+
+    let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
+
+    // Z-order survived: bottom is now "fg", top is "bg".
+    assert_eq!(sprite.layers[0].name, "fg");
+    assert_eq!(sprite.layers[1].name, "bg");
+
+    // Each cel still belongs to its own (reordered) layer.
+    let fg_id = sprite.layers[0].id;
+    let bg_id = sprite.layers[1].id;
+    let CelData::Image(fg_buf) = &cels.get(fg_id, FrameIndex::new(0)).expect("fg cel").data else {
+        panic!("fg cel is not an image");
+    };
+    let CelData::Image(bg_buf) = &cels.get(bg_id, FrameIndex::new(0)).expect("bg cel").data else {
+        panic!("bg cel is not an image");
+    };
+    // fg kept its green at (1,1); bg kept its red at (0,0). Byte offset
+    // of (1,1) in a 2-wide RGBA buffer is (2 + 1) * 4 = 12.
+    assert_eq!(&fg_buf.data[12..16], &[0, 200, 0, 255]);
+    assert_eq!(&bg_buf.data[0..4], &[200, 0, 0, 255]);
 }
 
 #[test]
