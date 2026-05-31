@@ -11,7 +11,7 @@ sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
 and `dirty.height * zoom`. Empty intersections short-circuit with an
 empty `out` so callers can skip the upload.
 
-## M13 — Layers panel + reorder (in progress)
+## M13 — Layers panel + reorder (complete)
 
 Post-M12 feature (spec §3.2, panel layout §6). Decision: reorder is a
 **sibling block-swap, group-atomic** (Decision Log §15) — moving a group
@@ -52,13 +52,21 @@ drag is deferred. Task breakdown:
   `dirty_region = Canvas`), wasm `setLayerVisible(id, visible)` through
   the bus, and a clickable ●/○ eye button in `LayersPanel` wired to it.
   Undo-routed. Core + 2 host tests.
-- [ ] **M13.3d** — inline rename (`SetLayerName` command + panel
-  double-click-to-edit).
-- [ ] **M13.4** — stable `LayerId` across save/reload (decouple id from
-  source position) so reorder survives a round-trip; closes the
-  "Stable LayerIds" open question.
+- [x] **M13.3d** — inline rename: core `SetLayerName` (`dirty_region =
+  None`), wasm `renameLayer(id, name)`, panel double-click-to-edit
+  (Enter / blur commits, Escape cancels, empty discarded). Core + 2 host
+  tests.
+- [x] **M13.4** — reorder survives the aseprite round-trip. No code
+  change needed: `build_layer_index_map` already maps each `LayerId` to
+  its current Vec position, so a reorder (which permutes positions but
+  keeps ids) writes every cel at the right `layer_index`. On reload ids
+  are renumbered by position — `LayerId` is positional by the format's
+  design (it stores no editor id), which is consistent and closes the
+  "Stable LayerIds" open question. Locked in by a `pincel-core`
+  integration test (reorder → write → read; asserts z-order + per-layer
+  cel content by name + pixels).
 - [ ] Later — opacity / blend-mode controls, lock toggle, cross-group
-  drag-and-drop reparenting.
+  drag-and-drop reparenting (all outside M13).
 
 ## Next task
 
@@ -156,6 +164,20 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-05-31 — M13.3d rename + M13.4 reorder round-trip (this branch);
+  M13 complete.** Rename: core `SetLayerName` (captures the prior name
+  for `revert`, `dirty_region = None` since it changes no pixels), wasm
+  `renameLayer(id, name)`, and double-click-to-edit in `LayersPanel`
+  (Enter / blur commits, Escape cancels, blank discarded). M13.4: a new
+  `pincel-core` integration test reorders layers, round-trips through
+  `write_aseprite` / `read_aseprite`, and asserts z-order plus per-layer
+  cel content survive — confirming `build_layer_index_map`'s
+  position-mapping already makes reorder lossless; `LayerId` is positional
+  by the format's design. Core + 2 host rename tests; 131 wasm tests; all
+  `cargo` + `pnpm` gates green. M13 (Layers panel: list · reorder · active
+  selection driving paint · visibility toggle · rename · lossless
+  round-trip) is done.
 
 - **2026-05-31 — M13.3c layer visibility toggle (this branch).** Core
   `SetLayerVisible { layer, visible }` flips `Layer::visible` (prior value
