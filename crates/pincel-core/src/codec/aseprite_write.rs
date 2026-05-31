@@ -99,6 +99,9 @@ fn map_slice(slice: &Slice) -> AseSliceChunk {
     AseSliceChunk {
         name: slice.name.clone(),
         keys: slice.keys.iter().map(map_slice_key).collect(),
+        // Slice color travels in a trailing User Data chunk; wired in the
+        // follow-up commit. `None` keeps the writer from emitting one.
+        user_data: None,
     }
 }
 
