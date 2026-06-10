@@ -428,6 +428,9 @@ fn composite_image_cel(
 /// (honoring `flip_x`, `flip_y`, and `rotate_90`) at its sprite-coord
 /// position. Tile id `0` is the Aseprite empty / transparent tile and is
 /// skipped without consulting the tileset.
+// Private helper with a single call site in `compose()`; the arguments are
+// the already-unpacked pieces of that caller's loop state, so bundling them
+// into a one-off struct would only add indirection.
 #[allow(clippy::too_many_arguments)]
 fn composite_tilemap_cel(
     dst: &mut [u8],

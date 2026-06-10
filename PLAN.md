@@ -52,7 +52,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               five sites (per-site `saveTarget`/`docId`/status lines stay).
       Verify: cd ui && pnpm check && pnpm lint && pnpm build
 
-- [ ] T4: [pincel-core] document the two bare clippy suppressions
+- [x] T4: [pincel-core] document the two bare clippy suppressions
       Files: crates/pincel-core/src/render/compose.rs:431,
              crates/pincel-wasm/src/lib.rs:1395
       Change: CLAUDE.md §9 forbids undocumented suppressions; add a one-line
