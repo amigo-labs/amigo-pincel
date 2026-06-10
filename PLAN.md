@@ -80,7 +80,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               license + Aseprite trademark note.
       Verify: steps match the commands exercised this session
 
-- [ ] T7: [ui] shape-tool tooltips + group key cycling
+- [x] T7: [ui] shape-tool tooltips + group key cycling
       Files: ui/src/App.svelte — TOOL_KEYS (1455), onKeyDown (1516–1520),
              tool buttons (1914–1937)
       Change: Rect Fill / Ellipse / Ellipse Fill have no `title` and no

@@ -1468,15 +1468,18 @@
   // Single-key tool shortcuts, aligned with Aseprite defaults where they
   // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
   // the browser / OS; Shift is tolerated (normalized via toLowerCase).
-  const TOOL_KEYS: Record<string, Tool> = {
-    b: 'pencil',
-    e: 'eraser',
-    i: 'eyedropper',
-    g: 'bucket',
-    l: 'line',
-    u: 'rectangle',
-    m: 'selection-rect',
-    v: 'move',
+  // Each key maps to a tool group. The first press selects the group's
+  // first tool; repeated presses cycle through the group (the Aseprite
+  // pattern — `U` walks the four shape variants).
+  const TOOL_KEYS: Record<string, Tool[]> = {
+    b: ['pencil'],
+    e: ['eraser'],
+    i: ['eyedropper'],
+    g: ['bucket'],
+    l: ['line'],
+    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
+    m: ['selection-rect'],
+    v: ['move'],
   };
 
   function onKeyDown(e: KeyboardEvent) {
@@ -1529,10 +1532,14 @@
         resetView();
         return;
       }
-      const next = TOOL_KEYS[e.key.toLowerCase()];
-      if (next) {
+      const group = TOOL_KEYS[e.key.toLowerCase()];
+      if (group) {
         e.preventDefault();
-        tool = next;
+        // `indexOf` is -1 when the current tool isn't in the group, so
+        // the first press lands on the group's first entry. The `??`
+        // only satisfies noUncheckedIndexedAccess — the index is always
+        // in range.
+        tool = group[(group.indexOf(tool) + 1) % group.length] ?? tool;
       }
     }
   }
@@ -1926,6 +1933,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'rectangle-fill'}
         aria-pressed={tool === 'rectangle-fill'}
+        title="Rectangle Fill (U)"
         onclick={() => (tool = 'rectangle-fill')}
       >
         Rect Fill
@@ -1934,6 +1942,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse'}
         aria-pressed={tool === 'ellipse'}
+        title="Ellipse (U)"
         onclick={() => (tool = 'ellipse')}
       >
         Ellipse
@@ -1942,6 +1951,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse-fill'}
         aria-pressed={tool === 'ellipse-fill'}
+        title="Ellipse Fill (U)"
         onclick={() => (tool = 'ellipse-fill')}
       >
         Ellipse Fill
