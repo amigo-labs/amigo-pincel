@@ -43,7 +43,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               New/Open/Save/Save As/Recent buttons while busy.
       Verify: cd ui && pnpm check && pnpm lint && pnpm build
 
-- [ ] T3: [ui] extract duplicated document-reset block (×5)
+- [x] T3: [ui] extract duplicated document-reset block (×5)
       Files: ui/src/App.svelte:1019–1028, 1049–1058, 1154–1163, 1257–1266,
              1714–1723
       Change: identical 10-line reset sequence in newDoc/openDoc/

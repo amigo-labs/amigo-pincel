@@ -1019,11 +1019,11 @@
     }
   }
 
-  function newDoc() {
-    // Don't free the document under an in-flight open / save.
-    if (fileOpBusy) return;
-    disposeDoc();
-    doc = new Document(64, 64);
+  // Re-derive every piece of view / panel state that tracks the
+  // document after it has been replaced. Ids held from the previous
+  // document (stamp target, active slice / layer, tile editor) are
+  // meaningless against the new one and are dropped.
+  function resetDocViewState() {
     dirty = true;
     syncMeta();
     fitView();
@@ -1034,6 +1034,14 @@
     editingTile = null;
     activeSliceId = null;
     activeLayerId = null;
+  }
+
+  function newDoc() {
+    // Don't free the document under an in-flight open / save.
+    if (fileOpBusy) return;
+    disposeDoc();
+    doc = new Document(64, 64);
+    resetDocViewState();
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
@@ -1064,16 +1072,7 @@
       const next = Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       saveTarget = {
         name: opened.name,
         handle: opened.handle,
@@ -1182,16 +1181,7 @@
     }
     disposeDoc();
     doc = next;
-    dirty = true;
-    syncMeta();
-    fitView();
-    syncSelection();
-    tilesetRev += 1;
-    stampTile = null;
-    stampHover = null;
-    editingTile = null;
-    activeSliceId = null;
-    activeLayerId = null;
+    resetDocViewState();
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
@@ -1287,16 +1277,7 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
       // and autosave snapshots survive across page reloads.
@@ -1748,16 +1729,7 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       const name = path.replace(/^.*[/\\]/, '');
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
