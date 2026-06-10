@@ -20,7 +20,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
 
 ## Tasks
 
-- [ ] T1: [pincel-core] read tag color in aseprite_read (round-trip fidelity bug)
+- [x] T1: [pincel-core] read tag color in aseprite_read (round-trip fidelity bug)
       Files: crates/pincel-core/src/codec/aseprite_read.rs:218 (map_tag),
              crates/pincel-core/tests/aseprite_codec.rs:256
       Change: the write path emits `tag.color` RGB but the read path
