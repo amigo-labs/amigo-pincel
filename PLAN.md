@@ -61,7 +61,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               compose helper; wasm-bindgen method mirroring the JS API shape).
       Verify: cargo clippy -p pincel-core -p pincel-wasm --all-targets -- -D warnings
 
-- [ ] T5: [chore] add missing LICENSE texts
+- [x] T5: [chore] add missing LICENSE texts
       Files: new LICENSE-MIT + LICENSE-APACHE at repo root, copies in
              crates/aseprite-writer/
       Change: workspace Cargo.toml declares `MIT OR Apache-2.0` but no
