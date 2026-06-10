@@ -70,7 +70,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               standard texts (MIT copyright line: 2026 amigo-labs).
       Verify: files present at both locations
 
-- [ ] T6: [docs] root README.md (clone → running)
+- [x] T6: [docs] root README.md (clone → running)
       Files: new README.md at repo root
       Change: no root README; encode the non-obvious build order
               (`pnpm wasm:build` before `pnpm install` due to the
