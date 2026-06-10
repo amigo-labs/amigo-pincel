@@ -32,7 +32,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               non-white colors survive.
       Verify: cargo test -p pincel-core
 
-- [ ] T2: [ui] re-entrancy guard on async file operations
+- [x] T2: [ui] re-entrancy guard on async file operations
       Files: ui/src/App.svelte — newDoc (1016), openDoc (1035), save (1075),
              applyRecovery (~1150), openRecent (~1250), openByPath (~1710),
              toolbar buttons (~1808–1834)

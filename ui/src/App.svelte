@@ -158,6 +158,12 @@
     handle: null,
     path: null,
   });
+  // True while an async file operation (open / save / recover) is in
+  // flight. Guards re-entrancy: a second click would otherwise start a
+  // concurrent `saveBytes` write through the same handle, or dispose a
+  // `Document` the first flow is still using. Checked at every file-op
+  // entry point and mirrored as a `disabled` state on the file buttons.
+  let fileOpBusy = $state(false);
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
   // Per-document UUID. Refreshed on every `New` / `Open` /
@@ -1014,6 +1020,8 @@
   }
 
   function newDoc() {
+    // Don't free the document under an in-flight open / save.
+    if (fileOpBusy) return;
     disposeDoc();
     doc = new Document(64, 64);
     dirty = true;
@@ -1033,6 +1041,16 @@
   }
 
   async function openDoc() {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await openDocInner();
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function openDocInner() {
     let opened;
     try {
       opened = await pickAndOpen();
@@ -1073,8 +1091,9 @@
   }
 
   async function save(opts: { forceAs?: boolean } = {}) {
-    if (!doc) return;
+    if (!doc || fileOpBusy) return;
     const forceAs = opts.forceAs ?? false;
+    fileOpBusy = true;
     try {
       const bytes = new Uint8Array(doc.saveAseprite());
       const next = await saveBytes(bytes, saveTarget, { forceAs });
@@ -1086,6 +1105,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1138,6 +1159,16 @@
   // on failure the dialog stays open with a per-row error so the
   // user can retry or pick a different snapshot.
   async function applyRecovery(meta: AutosaveSnapshotMeta) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await applyRecoveryInner(meta);
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function applyRecoveryInner(meta: AutosaveSnapshotMeta) {
     let next: Document;
     try {
       const full = await latestSnapshot(meta.docId);
@@ -1223,7 +1254,9 @@
   }
 
   async function openRecent(r: RecentFile) {
+    if (fileOpBusy) return;
     recentMenuOpen = false;
+    fileOpBusy = true;
     try {
       let name: string;
       let bytes: Uint8Array;
@@ -1275,6 +1308,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `recent ${r.name} open failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1702,6 +1737,8 @@
   // `open-file` event (file-association double-click, CLI arg) and
   // by `openRecent` when the recent carries a path.
   async function openByPath(path: string) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
     try {
       const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
         path,
@@ -1731,6 +1768,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `open-file failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1805,16 +1844,16 @@
 <main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={newDoc}>New</button>
-    <button class="toolbar-btn" onclick={openDoc}>Open…</button>
-    <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
+    <button class="toolbar-btn" onclick={newDoc} disabled={fileOpBusy}>New</button>
+    <button class="toolbar-btn" onclick={openDoc} disabled={fileOpBusy}>Open…</button>
+    <button class="toolbar-btn" onclick={() => save()} disabled={!doc || fileOpBusy}>
       {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
     {#if fsAccessAvailable || tauriHost}
       <button
         class="toolbar-btn"
         onclick={() => save({ forceAs: true })}
-        disabled={!doc}
+        disabled={!doc || fileOpBusy}
       >
         Save As…
       </button>
@@ -1827,7 +1866,7 @@
           class:toolbar-btn-active={recentMenuOpen}
           aria-haspopup="menu"
           aria-expanded={recentMenuOpen}
-          disabled={recents.length === 0}
+          disabled={recents.length === 0 || fileOpBusy}
           onclick={toggleRecentMenu}
         >
           Recent…
