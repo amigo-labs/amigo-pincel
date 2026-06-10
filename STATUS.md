@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-31_
+_Last updated: 2026-06-10_
 
 **Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
 takes a caller-owned `&mut Vec<u8>` for the output (no per-call
@@ -164,6 +164,24 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-06-10 — Deep-fixup session (this branch).** Repo-wide
+  analyze → plan → fix pass; task record in `PLAN.md`. Fixed: tag
+  colors were bleached to white on open (`aseprite_read::map_tag` now
+  reads the in-chunk RGB our writer emits; round-trip test asserts
+  non-white colors survive); async file ops (open / save / recent /
+  recovery) gained a `fileOpBusy` re-entrancy guard so a double-clicked
+  Save can't run two concurrent FSA writes and a second Open can't
+  dispose a `Document` mid-use. Simplified: the 10-line post-replace
+  reset block (×5 in App.svelte) is now `resetDocViewState()`. UX:
+  Rect Fill / Ellipse / Ellipse Fill gained tooltips and `U` now
+  cycles the shape group (Aseprite pattern). DX/docs: root `README.md`
+  (clone → run incl. the wasm-pkg-before-install order), LICENSE-MIT /
+  LICENSE-APACHE added (root + `aseprite-writer`), the two
+  `too_many_arguments` allows documented per CLAUDE.md §9, CLAUDE.md
+  §10/§14 synced to the real scripts and layout, spec §11.4 `isTauri`
+  snippet fixed for Tauri 2. All gates green (454 Rust tests;
+  `pnpm lint`/`check`/`build`).
 
 - **2026-05-31 — M13.3d rename + M13.4 reorder round-trip (this branch);
   M13 complete.** Rename: core `SetLayerName` (captures the prior name
@@ -369,10 +387,8 @@ Full prose history for each milestone lives in `git log` (the prior 1647-line `S
 
 All gates green on this branch:
 
-- `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
+- `cargo fmt --all --check`, `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
 - `pnpm install`, `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`
-
-`cargo fmt --all --check` has pre-existing drift in `crates/pincel-wasm/src/lib.rs` — to clean up in a standalone fmt-only commit (out of scope for the current slice per CLAUDE.md §9).
 
 ## Website (Cloudflare Workers Builds)
 
@@ -393,7 +409,7 @@ Human action still needed:
 - **Auto-tile mode** — Painting on a tilemap that auto-creates / reuses tiles stays Phase 2 (spec §5.3 / §13.2).
 
 - **macOS `icon.icns`** — M11.1 ships PNG + ICO icons generated from `ui/public/favicon.svg`. The macOS bundle target needs `icon.icns`; `pnpm exec tauri icon ui/public/favicon.svg` regenerates the full platform set in one shot. Land alongside the first macOS build attempt (M11.4 or release prep).
-- **Spec §11.4 `isTauri` global** — Spec text says `'__TAURI__' in window`, but Tauri 2 ships `__TAURI_INTERNALS__` instead. `ui/src/lib/platform/isTauri()` accepts both; bring the spec text in line during the next spec sweep.
+- **Spec §11.4 `isTauri` global** — _resolved 2026-06-10._ Spec snippet now probes both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (v1 / `withGlobalTauri`), matching `ui/src/lib/platform/isTauri()`.
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
 - **Slice user-data round-trip** — _resolved 2026-05-31._ `aseprite-writer` now emits a `0x2020` User Data chunk after each slice and `pincel-core` writes / recovers the overlay color through it. Note text + property maps (`0x2020` flags `0x1` / `0x4`) are still dropped — Pincel has no per-slice note field yet; revisit if one is added.
@@ -414,7 +430,7 @@ Human action still needed:
   fit-to-viewport instead of the old fixed 8×. Still missing: touch
   pinch-zoom. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
-- **`pincel-wasm` link order** — `link:` protocol needs `crates/pincel-wasm/pkg/` to exist before `pnpm install`. CI / contributor docs should encode the order.
+- **`pincel-wasm` link order** — _resolved 2026-06-10._ The root `README.md` and CLAUDE.md §10 document that `pnpm wasm:build` must run before `pnpm install`; CI already encoded the order.
 - **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
 
 ## Deferred Aseprite chunks

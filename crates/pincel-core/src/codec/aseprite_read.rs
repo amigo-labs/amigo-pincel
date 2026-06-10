@@ -215,14 +215,19 @@ fn map_tag_direction(direction: AnimationDirection) -> TagDirection {
     }
 }
 
+// `aseprite-loader` deprecates `Tag::color` because Aseprite ≥1.3 stores
+// tag colors in a trailing User Data chunk — but the in-chunk RGB bytes
+// are still written (by Aseprite for compatibility and by our own write
+// path), so reading them keeps Pincel round-trips lossless.
 #[allow(deprecated)]
 fn map_tag(tag: &AseTag<'_>) -> Tag {
+    let [r, g, b] = tag.color;
     Tag {
         name: tag.name.to_string(),
         from: FrameIndex::new(u32::from(*tag.frames.start())),
         to: FrameIndex::new(u32::from(*tag.frames.end())),
         direction: map_tag_direction(tag.animation_direction),
-        color: Rgba::WHITE,
+        color: Rgba { r, g, b, a: 255 },
         repeats: tag.animation_repeat,
     }
 }

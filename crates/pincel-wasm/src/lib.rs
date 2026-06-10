@@ -1392,6 +1392,8 @@ impl Document {
     /// Errors when `slice_id` is unknown, the bounds rect is empty,
     /// the center / pivot quartet is partial, or the command bus
     /// rejects the write.
+    // The argument list mirrors the flat JS signature wasm-bindgen exposes
+    // (spec §17.5); an args struct would not cross the boundary as cleanly.
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = setSliceKey)]
     pub fn set_slice_key(

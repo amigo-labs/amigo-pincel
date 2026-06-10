@@ -158,6 +158,12 @@
     handle: null,
     path: null,
   });
+  // True while an async file operation (open / save / recover) is in
+  // flight. Guards re-entrancy: a second click would otherwise start a
+  // concurrent `saveBytes` write through the same handle, or dispose a
+  // `Document` the first flow is still using. Checked at every file-op
+  // entry point and mirrored as a `disabled` state on the file buttons.
+  let fileOpBusy = $state(false);
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
   // Per-document UUID. Refreshed on every `New` / `Open` /
@@ -1013,9 +1019,11 @@
     }
   }
 
-  function newDoc() {
-    disposeDoc();
-    doc = new Document(64, 64);
+  // Re-derive every piece of view / panel state that tracks the
+  // document after it has been replaced. Ids held from the previous
+  // document (stamp target, active slice / layer, tile editor) are
+  // meaningless against the new one and are dropped.
+  function resetDocViewState() {
     dirty = true;
     syncMeta();
     fitView();
@@ -1026,6 +1034,14 @@
     editingTile = null;
     activeSliceId = null;
     activeLayerId = null;
+  }
+
+  function newDoc() {
+    // Don't free the document under an in-flight open / save.
+    if (fileOpBusy) return;
+    disposeDoc();
+    doc = new Document(64, 64);
+    resetDocViewState();
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
@@ -1033,6 +1049,16 @@
   }
 
   async function openDoc() {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await openDocInner();
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function openDocInner() {
     let opened;
     try {
       opened = await pickAndOpen();
@@ -1046,16 +1072,7 @@
       const next = Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       saveTarget = {
         name: opened.name,
         handle: opened.handle,
@@ -1073,8 +1090,9 @@
   }
 
   async function save(opts: { forceAs?: boolean } = {}) {
-    if (!doc) return;
+    if (!doc || fileOpBusy) return;
     const forceAs = opts.forceAs ?? false;
+    fileOpBusy = true;
     try {
       const bytes = new Uint8Array(doc.saveAseprite());
       const next = await saveBytes(bytes, saveTarget, { forceAs });
@@ -1086,6 +1104,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1138,6 +1158,16 @@
   // on failure the dialog stays open with a per-row error so the
   // user can retry or pick a different snapshot.
   async function applyRecovery(meta: AutosaveSnapshotMeta) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await applyRecoveryInner(meta);
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function applyRecoveryInner(meta: AutosaveSnapshotMeta) {
     let next: Document;
     try {
       const full = await latestSnapshot(meta.docId);
@@ -1151,16 +1181,7 @@
     }
     disposeDoc();
     doc = next;
-    dirty = true;
-    syncMeta();
-    fitView();
-    syncSelection();
-    tilesetRev += 1;
-    stampTile = null;
-    stampHover = null;
-    editingTile = null;
-    activeSliceId = null;
-    activeLayerId = null;
+    resetDocViewState();
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
@@ -1223,7 +1244,9 @@
   }
 
   async function openRecent(r: RecentFile) {
+    if (fileOpBusy) return;
     recentMenuOpen = false;
+    fileOpBusy = true;
     try {
       let name: string;
       let bytes: Uint8Array;
@@ -1254,16 +1277,7 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
       // and autosave snapshots survive across page reloads.
@@ -1275,6 +1289,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `recent ${r.name} open failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1452,15 +1468,18 @@
   // Single-key tool shortcuts, aligned with Aseprite defaults where they
   // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
   // the browser / OS; Shift is tolerated (normalized via toLowerCase).
-  const TOOL_KEYS: Record<string, Tool> = {
-    b: 'pencil',
-    e: 'eraser',
-    i: 'eyedropper',
-    g: 'bucket',
-    l: 'line',
-    u: 'rectangle',
-    m: 'selection-rect',
-    v: 'move',
+  // Each key maps to a tool group. The first press selects the group's
+  // first tool; repeated presses cycle through the group (the Aseprite
+  // pattern — `U` walks the four shape variants).
+  const TOOL_KEYS: Record<string, Tool[]> = {
+    b: ['pencil'],
+    e: ['eraser'],
+    i: ['eyedropper'],
+    g: ['bucket'],
+    l: ['line'],
+    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
+    m: ['selection-rect'],
+    v: ['move'],
   };
 
   function onKeyDown(e: KeyboardEvent) {
@@ -1513,10 +1532,14 @@
         resetView();
         return;
       }
-      const next = TOOL_KEYS[e.key.toLowerCase()];
-      if (next) {
+      const group = TOOL_KEYS[e.key.toLowerCase()];
+      if (group) {
         e.preventDefault();
-        tool = next;
+        // `indexOf` is -1 when the current tool isn't in the group, so
+        // the first press lands on the group's first entry. The `??`
+        // only satisfies noUncheckedIndexedAccess — the index is always
+        // in range.
+        tool = group[(group.indexOf(tool) + 1) % group.length] ?? tool;
       }
     }
   }
@@ -1702,6 +1725,8 @@
   // `open-file` event (file-association double-click, CLI arg) and
   // by `openRecent` when the recent carries a path.
   async function openByPath(path: string) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
     try {
       const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
         path,
@@ -1711,16 +1736,7 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      fitView();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
-      activeLayerId = null;
+      resetDocViewState();
       const name = path.replace(/^.*[/\\]/, '');
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
@@ -1731,6 +1747,8 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `open-file failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1805,16 +1823,16 @@
 <main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={newDoc}>New</button>
-    <button class="toolbar-btn" onclick={openDoc}>Open…</button>
-    <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
+    <button class="toolbar-btn" onclick={newDoc} disabled={fileOpBusy}>New</button>
+    <button class="toolbar-btn" onclick={openDoc} disabled={fileOpBusy}>Open…</button>
+    <button class="toolbar-btn" onclick={() => save()} disabled={!doc || fileOpBusy}>
       {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
     {#if fsAccessAvailable || tauriHost}
       <button
         class="toolbar-btn"
         onclick={() => save({ forceAs: true })}
-        disabled={!doc}
+        disabled={!doc || fileOpBusy}
       >
         Save As…
       </button>
@@ -1827,7 +1845,7 @@
           class:toolbar-btn-active={recentMenuOpen}
           aria-haspopup="menu"
           aria-expanded={recentMenuOpen}
-          disabled={recents.length === 0}
+          disabled={recents.length === 0 || fileOpBusy}
           onclick={toggleRecentMenu}
         >
           Recent…
@@ -1915,6 +1933,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'rectangle-fill'}
         aria-pressed={tool === 'rectangle-fill'}
+        title="Rectangle Fill (U)"
         onclick={() => (tool = 'rectangle-fill')}
       >
         Rect Fill
@@ -1923,6 +1942,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse'}
         aria-pressed={tool === 'ellipse'}
+        title="Ellipse (U)"
         onclick={() => (tool = 'ellipse')}
       >
         Ellipse
@@ -1931,6 +1951,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse-fill'}
         aria-pressed={tool === 'ellipse-fill'}
+        title="Ellipse Fill (U)"
         onclick={() => (tool = 'ellipse-fill')}
       >
         Ellipse Fill

@@ -264,7 +264,12 @@ fn tags_round_trip_with_directions() {
             from: FrameIndex::new(0),
             to: FrameIndex::new(1),
             direction: TagDirection::Forward,
-            color: Rgba::WHITE,
+            color: Rgba {
+                r: 200,
+                g: 30,
+                b: 30,
+                a: 255,
+            },
             repeats: 0,
         })
         .add_tag(Tag {
@@ -272,7 +277,12 @@ fn tags_round_trip_with_directions() {
             from: FrameIndex::new(1),
             to: FrameIndex::new(2),
             direction: TagDirection::Pingpong,
-            color: Rgba::WHITE,
+            color: Rgba {
+                r: 30,
+                g: 60,
+                b: 220,
+                a: 255,
+            },
             repeats: 3,
         })
         .build()
@@ -285,9 +295,27 @@ fn tags_round_trip_with_directions() {
     assert_eq!(sprite.tags[0].direction, TagDirection::Forward);
     assert_eq!(sprite.tags[0].from, FrameIndex::new(0));
     assert_eq!(sprite.tags[0].to, FrameIndex::new(1));
+    assert_eq!(
+        sprite.tags[0].color,
+        Rgba {
+            r: 200,
+            g: 30,
+            b: 30,
+            a: 255
+        }
+    );
     assert_eq!(sprite.tags[1].name, "wave");
     assert_eq!(sprite.tags[1].direction, TagDirection::Pingpong);
     assert_eq!(sprite.tags[1].repeats, 3);
+    assert_eq!(
+        sprite.tags[1].color,
+        Rgba {
+            r: 30,
+            g: 60,
+            b: 220,
+            a: 255
+        }
+    );
 }
 
 // Palette round-trip is covered by `aseprite-writer`'s integration tests
