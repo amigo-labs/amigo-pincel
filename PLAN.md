@@ -91,7 +91,7 @@ the command bus is covered by `crates/pincel-core/tests/command_bus.rs`; the
               `title` attributes.
       Verify: cd ui && pnpm check && pnpm lint && pnpm build
 
-- [ ] T8: [docs] sync CLAUDE.md / spec / STATUS.md to reality
+- [x] T8: [docs] sync CLAUDE.md / spec / STATUS.md to reality
       Files: CLAUDE.md §10 + §14, docs/specs/pincel.md:634, STATUS.md
       Change: §10 lists nonexistent `pnpm test` / `pnpm test:e2e` (incl. the
               pre-commit gate); §14 maps nonexistent `ui/src/lib/stores/` and

@@ -631,7 +631,9 @@ The native build uses these instead of the File System Access API. `pincel-core`
 ### 11.4 Capability Detection in UI
 
 ```typescript
-const isTauri = '__TAURI__' in window;
+// Tauri 2 exposes `__TAURI_INTERNALS__`; `__TAURI__` only exists with the
+// v1-compat `withGlobalTauri` flag. Probe both (ui/src/lib/platform/).
+const isTauri = '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
 const fs = isTauri ? tauriFsAdapter : webFsAdapter;
 ```
 
