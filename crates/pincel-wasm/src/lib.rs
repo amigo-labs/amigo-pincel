@@ -319,22 +319,7 @@ impl Document {
     /// Output dimensions are `width * zoom` × `height * zoom` and the
     /// pixel buffer is row-major non-premultiplied RGBA8.
     pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
-        let mut request = ComposeRequest::full(
-            FrameIndex::new(frame),
-            self.sprite.width,
-            self.sprite.height,
-        );
-        request.zoom = zoom;
-        let mut pixels = Vec::new();
-        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose: {e}"))?;
-        Ok(ComposeFrame {
-            width: result.width,
-            height: result.height,
-            dirty_x: result.dirty_rect.x,
-            dirty_y: result.dirty_rect.y,
-            pixels,
-        })
+        self.compose_impl(frame, zoom, None)
     }
 
     /// Composite a sub-rect of the sprite at the given integer zoom.
@@ -359,16 +344,28 @@ impl Document {
         dw: u32,
         dh: u32,
     ) -> Result<ComposeFrame, String> {
+        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)))
+    }
+
+    /// Shared body of [`Document::compose`] / [`Document::compose_dirty`]:
+    /// a full-canvas request at `zoom`, optionally narrowed by a
+    /// `dirty_hint` rect.
+    fn compose_impl(
+        &self,
+        frame: u32,
+        zoom: u32,
+        dirty_hint: Option<Rect>,
+    ) -> Result<ComposeFrame, String> {
         let mut request = ComposeRequest::full(
             FrameIndex::new(frame),
             self.sprite.width,
             self.sprite.height,
         );
         request.zoom = zoom;
-        request.dirty_hint = Some(Rect::new(dx, dy, dw, dh));
+        request.dirty_hint = dirty_hint;
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose dirty: {e}"))?;
+            .map_err(|e| format!("failed to compose: {e}"))?;
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
@@ -405,18 +402,8 @@ impl Document {
     #[wasm_bindgen(js_name = applyTool)]
     pub fn apply_tool(&mut self, tool_id: &str, x: i32, y: i32, color: u32) -> Result<(), String> {
         let rgba = match tool_id {
-            "pencil" => Rgba {
-                r: ((color >> 24) & 0xff) as u8,
-                g: ((color >> 16) & 0xff) as u8,
-                b: ((color >> 8) & 0xff) as u8,
-                a: (color & 0xff) as u8,
-            },
-            "eraser" => Rgba {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            },
+            "pencil" => Rgba::from_u32(color),
+            "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
         let layer = self.paint_target_layer()?;
@@ -455,12 +442,7 @@ impl Document {
         y1: i32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
@@ -501,12 +483,7 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -546,12 +523,7 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -584,12 +556,7 @@ impl Document {
     /// event into a single recompose.
     #[wasm_bindgen(js_name = applyBucket)]
     pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
@@ -1135,12 +1102,7 @@ impl Document {
         y: u32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let cmd = SetTilePixel::new(TilesetId::new(tileset_id), tile_id, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)

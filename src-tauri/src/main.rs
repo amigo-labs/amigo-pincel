@@ -50,30 +50,27 @@ async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(
 
 const RECENT_MENU_ID: &str = "open-recent";
 
+/// Depth-first search for the submenu with `id`. Non-submenu entries are
+/// *skipped*, not fatal — the previous split implementation used `?` on
+/// `as_submenu()`, which aborted the scan at the first plain item, so
+/// "Open Recent" (which sits after "New" / "Open…" in the File menu) was
+/// never found and the recents submenu never synced.
 fn find_submenu(menu: &Menu<Wry>, id: &str) -> Option<Submenu<Wry>> {
-    for item in menu.items().ok()? {
-        let sub = item.as_submenu()?;
-        if sub.id().0 == id {
-            return Some(sub.clone());
+    fn walk(items: Vec<tauri::menu::MenuItemKind<Wry>>, id: &str) -> Option<Submenu<Wry>> {
+        for item in items {
+            let Some(sub) = item.as_submenu() else {
+                continue;
+            };
+            if sub.id().0 == id {
+                return Some(sub.clone());
+            }
+            if let Some(nested) = walk(sub.items().unwrap_or_default(), id) {
+                return Some(nested);
+            }
         }
-        if let Some(nested) = find_submenu_in(sub, id) {
-            return Some(nested);
-        }
+        None
     }
-    None
-}
-
-fn find_submenu_in(sub: &Submenu<Wry>, id: &str) -> Option<Submenu<Wry>> {
-    for item in sub.items().ok()? {
-        let inner = item.as_submenu()?;
-        if inner.id().0 == id {
-            return Some(inner.clone());
-        }
-        if let Some(nested) = find_submenu_in(inner, id) {
-            return Some(nested);
-        }
-    }
-    None
+    walk(menu.items().ok()?, id)
 }
 
 fn rebuild_recent_submenu(

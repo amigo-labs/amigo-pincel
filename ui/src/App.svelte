@@ -44,6 +44,7 @@
   import type { CanvasRenderer, RenderBackend } from './lib/render/types';
   import { WebGPURenderer } from './lib/render/webgpu-renderer';
   import { fitZoom } from './lib/view/fit';
+  import { packColor, unpackColor } from './lib/color';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -303,12 +304,13 @@
   // overlay redraws once per phase step; intermediate ticks skip the
   // recompose so an idle selection costs near-zero CPU.
   const MARCH_FRAMES_PER_STEP = 7;
-  // Bumped whenever the wasm side may have mutated the tileset list
-  // (new / open document, undo, redo, or a panel-initiated addTileset).
-  // The Tileset Panel reads it as a reactivity tripwire — the wasm
-  // getters it polls are opaque to Svelte's reactive graph, so it needs
-  // an explicit "something changed" signal to re-derive its list.
-  let tilesetRev = $state(0);
+  // Document revision counter: bumped whenever the wasm side may have
+  // mutated structural state any panel derives from (new / open
+  // document, undo, redo, layer / tileset / slice edits). The panels
+  // read it as a reactivity tripwire — the wasm getters they poll are
+  // opaque to Svelte's reactive graph, so they need an explicit
+  // "something changed" signal to re-derive their lists.
+  let docRev = $state(0);
   // Active stamp tile for the Tilemap Stamp tool. Set by clicking a
   // tile thumbnail in the Tileset Panel; null clears the stamp and
   // the tool is essentially disabled until one is picked.
@@ -519,7 +521,7 @@
     } catch {
       // Slice disappeared mid-frame (e.g. undo of an addSlice).
       // `reconcileActiveSlice` runs after undo / redo (the same
-      // place `tilesetRev` bumps) and clears the stale id.
+      // place `docRev` bumps) and clears the stale id.
     }
   }
 
@@ -591,23 +593,6 @@
       return { x: dragStart.x + side * sx, y: dragStart.y + side * sy };
     }
     return dragPreview;
-  }
-
-  // `<input type="color">` reports `#RRGGBB`. The wasm `applyTool`
-  // expects a packed `0xRRGGBBAA`; alpha is fixed at fully opaque
-  // until the UI grows an alpha control.
-  function packColor(hex: string): number {
-    const rgb = Number.parseInt(hex.slice(1), 16);
-    return ((rgb << 8) | 0xff) >>> 0;
-  }
-
-  // Convert a packed `0xRRGGBBAA` back to the `#RRGGBB` form the color
-  // input expects. Alpha is intentionally dropped — the input has no
-  // alpha control yet, and `pickColor` callers that need it can read
-  // the raw u32 themselves.
-  function unpackColor(rgba: number): string {
-    const rgb = (rgba >>> 8) & 0xffffff;
-    return '#' + rgb.toString(16).padStart(6, '0');
   }
 
   // Clamp + apply a new zoom level. Pan offset stays in CSS pixels,
@@ -904,7 +889,7 @@
           hasPivot ? doc.sliceKeyPivotY(id, keyIndex) : undefined,
         );
       }
-      tilesetRev += 1;
+      docRev += 1;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('slice commit failed', err);
@@ -1078,7 +1063,7 @@
     syncMeta();
     fitView();
     syncSelection();
-    tilesetRev += 1;
+    docRev += 1;
     stampTile = null;
     stampHover = null;
     editingTile = null;
@@ -1387,7 +1372,7 @@
       if (doc.undo()) {
         dirty = true;
         syncMeta();
-        tilesetRev += 1;
+        docRev += 1;
         reconcileActiveSlice();
         reconcileActiveLayerAndStamp();
       }
@@ -1403,7 +1388,7 @@
       if (doc.redo()) {
         dirty = true;
         syncMeta();
-        tilesetRev += 1;
+        docRev += 1;
         reconcileActiveSlice();
         reconcileActiveLayerAndStamp();
       }
@@ -2371,10 +2356,10 @@
           tilesetId={editingTile.tilesetId}
           tileId={editingTile.tileId}
           {color}
-          rev={tilesetRev}
+          rev={docRev}
           onClose={() => (editingTile = null)}
           onChange={() => {
-            tilesetRev += 1;
+            docRev += 1;
             dirty = true;
             syncMeta();
           }}
@@ -2383,9 +2368,9 @@
     </div>
     <LayersPanel
       {doc}
-      rev={tilesetRev}
+      rev={docRev}
       {activeLayerId}
-      onChange={() => (tilesetRev += 1)}
+      onChange={() => (docRev += 1)}
       onActivate={(layerId) => {
         activeLayerId = layerId;
         // Route pixel tools to the selected layer (M13.3b). A fresh
@@ -2397,7 +2382,7 @@
         if (!doc) return;
         try {
           doc.setLayerVisible(layerId, visible);
-          tilesetRev += 1;
+          docRev += 1;
         } catch (err) {
           status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -2406,7 +2391,7 @@
         if (!doc) return;
         try {
           doc.renameLayer(layerId, name);
-          tilesetRev += 1;
+          docRev += 1;
         } catch (err) {
           status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -2414,9 +2399,9 @@
     />
     <TilesetPanel
       {doc}
-      rev={tilesetRev}
+      rev={docRev}
       selectedTile={stampTile}
-      onChange={() => (tilesetRev += 1)}
+      onChange={() => (docRev += 1)}
       onSelectStampTile={(tilesetId, tileId) => {
         stampTile = { tilesetId, tileId };
         // Auto-switch to the Stamp tool so a single click on a tile
@@ -2430,9 +2415,9 @@
     />
     <SlicesPanel
       {doc}
-      rev={tilesetRev}
+      rev={docRev}
       {activeSliceId}
-      onChange={() => (tilesetRev += 1)}
+      onChange={() => (docRev += 1)}
       onActivate={(sliceId) => {
         activeSliceId = sliceId;
         if (sliceId !== null) tool = 'slice';
