@@ -642,6 +642,17 @@ impl Document {
         Ok(redone)
     }
 
+    /// Close the current paint gesture: the next command pushed onto the
+    /// undo bus starts a fresh entry instead of merging into the last one.
+    /// The UI calls this on pointer-up / pointer-cancel so consecutive
+    /// pencil / eraser strokes stay separate undo steps while the pixels
+    /// *within* one drag coalesce into a single entry. Idempotent; calling
+    /// it with no stroke in flight is harmless.
+    #[wasm_bindgen(js_name = endStroke)]
+    pub fn end_stroke(&mut self) {
+        self.bus.seal();
+    }
+
     /// Number of commands available to undo.
     #[wasm_bindgen(getter, js_name = undoDepth)]
     pub fn undo_depth(&self) -> u32 {
@@ -1666,6 +1677,7 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x0a141eff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("pencil", 1, 0, 0x28323cff)
             .expect("pencil ok");
         assert_eq!(doc.bus.undo_depth(), 2);
@@ -1674,6 +1686,42 @@ mod tests {
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
         assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
+    }
+
+    #[test]
+    fn apply_tool_drag_then_end_stroke_is_single_undo_entry() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        for x in 0..4 {
+            doc.apply_tool("pencil", x, 0, 0xffffffff).expect("pencil");
+        }
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 1, "one drag, one entry");
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        assert!(
+            frame.pixels().iter().all(|&b| b == 0),
+            "whole stroke undone at once"
+        );
+    }
+
+    #[test]
+    fn two_strokes_are_two_undo_entries() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xffffffff).expect("pencil");
+        doc.apply_tool("pencil", 1, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        doc.apply_tool("pencil", 2, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 2);
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 0), [0, 0, 0, 0], "stroke 2 undone");
+        assert_eq!(
+            pixel_at(&pixels, 4, 0, 0),
+            [255, 255, 255, 255],
+            "stroke 1 intact"
+        );
     }
 
     #[test]
@@ -1694,12 +1742,14 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 2, 1, 0xff0000ff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("eraser", 2, 1, 0x00000000)
             .expect("eraser ok");
         let frame = doc.compose(0, 1).expect("compose ok");
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 2, 1), [0, 0, 0, 0]);
-        // The eraser is its own command, so it joins the bus.
+        // The eraser gesture is sealed off from the pencil stroke, so it
+        // joins the bus as its own entry.
         assert_eq!(doc.bus.undo_depth(), 2);
     }
 
