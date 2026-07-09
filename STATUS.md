@@ -1,15 +1,14 @@
 # Status
 
-_Last updated: 2026-06-10_
+_Last updated: 2026-07-09_
 
-**Branch:** `claude/missing-items-E5TJi` · M12.2 done — `compose()` now
-takes a caller-owned `&mut Vec<u8>` for the output (no per-call
-allocation in the steady state) and honors `dirty_hint`, shrinking the
-returned buffer to the intersection of viewport and hint (spec §4.3).
-`ComposeResult` gains a `dirty_rect: Rect` field reporting the rendered
-sprite-coord region; `width`/`height` collapse to `dirty.width * zoom`
-and `dirty.height * zoom`. Empty intersections short-circuit with an
-empty `out` so callers can skip the upload.
+**Branch:** `claude/app-audit-fixes-vkp6jg` — app-wide audit & deep-fixup
+batch (T1–T17): compose() now renders grouped files and all separable
+blend modes, RGBA palettes round-trip, pencil strokes are single undo
+entries (`Bus::seal` / wasm `endStroke`), the web build has Ctrl/Cmd
+accelerators + unsaved-changes protection + a frame stepper, and the CI /
+docs / website drift is cleaned up. Details in the "Recent work" entry
+below.
 
 ## M13 — Layers panel + reorder (complete)
 
@@ -165,7 +164,39 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
-- **2026-06-10 — Deep-fixup session (this branch).** Repo-wide
+- **2026-07-09 — Audit & deep-fixup 2 (this branch).** Repo-wide audit
+  (core / UI / DX+website) followed by a T1–T17 fix batch. Core:
+  `compose()` skips group layers and propagates group visibility
+  (grouped files previously failed to render at all), implements all 14
+  separable blend modes per the W3C formula with HSL→Normal fallback
+  (Decision Log), and RGBA palettes (incl. entry names) are recovered
+  from raw `0x2019` chunks — the loader only fills `file.palette` for
+  Indexed, so every RGBA open dropped the palette. Undo: `SetPixel`
+  batches + merges within a stroke (`Bus::seal`, wasm `endStroke`, UI
+  pointerup) so a drag is one undo entry instead of one per pixel;
+  `addTile` routes through a new core `AddTile` command (was direct
+  mutation — un-undoable and left a stale redo stack). Multi-frame:
+  wasm `currentFrame` / `setCurrentFrame` route all paint paths and a
+  footer frame stepper makes frames beyond 0 viewable/editable. UI/UX:
+  web Ctrl/Cmd+Z / Shift+Z / Y / S / O accelerators (Tauri keeps the
+  native menu's), Ctrl/Cmd+A/D + Escape selection shortcuts, dirty
+  indicator (footer + tab title) + `beforeunload` + inline discard
+  confirm on New/Open/Recent, New-document size dialog, last color
+  persisted via prefs, marching-ants tick now repaints only the
+  overlay, undo/redo reconcile the active layer + stamp tile, recent
+  menu closes on outside click, autosave tick can no longer clobber a
+  doc swap. Dedup: `Rgba::from_u32` (×6), wasm `compose_impl`, shared
+  `ui/src/lib/color.ts` (×3 copies), `.panel-btn` hoisted to app.css,
+  `tilesetRev`→`docRev`; Tauri submenu search merged — fixing a real
+  bug where `as_submenu()?` aborted at the first plain item so the
+  native recents submenu never synced. DX/website: website CI job,
+  wasm-pack pinned, `packageManager`+`engines`, ui `preinstall` guard,
+  README/CLAUDE.md clippy/test scoped to the library crates, stale
+  PLAN.md removed, feature-grid/embed/footer claims made honest, OG
+  image now a real PNG. Gates green (312 core + 137 wasm host tests;
+  ui + website `check`/`lint`/`build`).
+
+- **2026-06-10 — Deep-fixup session (PR #45).** Repo-wide
   analyze → plan → fix pass; task record in `PLAN.md`. Fixed: tag
   colors were bleached to white on open (`aseprite_read::map_tag` now
   reads the in-chunk RGB our writer emits; round-trip test asserts
