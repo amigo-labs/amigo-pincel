@@ -61,8 +61,9 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 
 | Command | Where | What |
 |---------|-------|------|
-| `cargo check` / `cargo test` | repo root | build / test all Rust crates |
-| `cargo clippy --workspace -- -D warnings` | repo root | lint (CI-enforced) |
+| `cargo check` | repo root | build all Rust crates (needs GTK/WebKit libs for `pincel-tauri`) |
+| `cargo test -p pincel-core -p aseprite-writer -p pincel-wasm` | repo root | test the library crates (what CI runs) |
+| `cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
 | `cargo fmt` | repo root | format |
 | `pnpm wasm:build` | `ui/` | dev wasm build into `crates/pincel-wasm/pkg/` |
 | `pnpm dev` | `ui/` | Vite dev server |
@@ -70,7 +71,7 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 | `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |
 
 CI (`.github/workflows/ci.yml`) runs the Rust gates, a Tauri check, and the
-UI lint/check/build on every push and pull request.
+UI and website lint/check/build on every push and pull request.
 
 ## License
 

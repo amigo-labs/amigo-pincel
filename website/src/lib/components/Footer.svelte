@@ -23,7 +23,7 @@
     </div>
     <div class="meta">
       <p>
-        <a href="/about#built-in-pincel">Built with Pincel itself. <span aria-hidden="true">▲</span></a>
+        <a href="/about#built-in-pincel">Soon to be drawn in Pincel itself. <span aria-hidden="true">▲</span></a>
       </p>
       <button
         type="button"
