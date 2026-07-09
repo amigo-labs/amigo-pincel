@@ -129,6 +129,11 @@
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
+  // Current frame (view + edit target) and total frame count, mirrored
+  // from the wasm side by `syncMeta`. The footer stepper only renders
+  // for multi-frame documents.
+  let currentFrame = $state(0);
+  let frameCount = $state(1);
   let canvasW = $state(64);
   let canvasH = $state(64);
   let status = $state('initializing…');
@@ -181,6 +186,18 @@
   // moves into the list on open and returns to the trigger on close.
   let recentsTrigger = $state<HTMLButtonElement | null>(null);
   let recentsMenu = $state<HTMLUListElement | null>(null);
+  // "New document" dialog: size inputs, defaults matching the historical
+  // 64×64. Clamped to 1..=4096 on create.
+  let newDocOpen = $state(false);
+  let newDocW = $state(64);
+  let newDocH = $state(64);
+  const MAX_DOC_SIZE = 4096;
+
+  // Pending destructive action awaiting the user's unsaved-changes
+  // confirmation. Non-null renders the inline confirm dialog; `run` is
+  // the guarded action (New / Open / Open Recent) to execute on
+  // "Discard changes".
+  let confirmState = $state<{ message: string; run: () => void } | null>(null);
   const tauriHost = isTauri();
   const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
@@ -195,6 +212,13 @@
   const autosaveAvailable = isIdbAvailable();
   let autosaveTimer: ReturnType<typeof setInterval> | null = null;
   let lastWriteUndoDepth = $state(0);
+  // Undo depth at the last successful on-disk save (or document load).
+  // Distinct from `lastWriteUndoDepth`, which autosave snapshots also
+  // re-baseline — an autosave must not make the document read as clean.
+  let lastSavedUndoDepth = $state(0);
+  // "Modified since last save" — drives the footer dot, the tab title,
+  // the beforeunload warning, and the New / Open confirm guard.
+  const isDirty = $derived(doc !== null && undoDepth !== lastSavedUndoDepth);
   let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
   let recoveryOpen = $state(false);
   // Per-row failure surface so a failed Recover / Discard keeps the
@@ -205,6 +229,10 @@
   // First-launch file-association dialog (Tauri-only). Visible once
   // per install; "Don't show again" persists the pref.
   const FILE_ASSOC_PREF = 'fileAssocPromptShown';
+  // Last-used foreground color, persisted across sessions (prefs IDB
+  // store). Loaded once on mount; written on every change thereafter.
+  const COLOR_PREF = 'lastColor';
+  let colorPrefLoaded = false;
   let fileAssocOpen = $state(false);
   const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
     if (typeof navigator === 'undefined') return 'unknown';
@@ -311,6 +339,8 @@
     redoDepth = doc.redoDepth;
     canvasW = doc.width;
     canvasH = doc.height;
+    frameCount = doc.frameCount;
+    currentFrame = doc.currentFrame;
   }
 
   // Re-read the selection rect from the wasm side. Called after any
@@ -333,7 +363,7 @@
 
   function recompose() {
     if (!doc || !renderer) return;
-    const frame = doc.compose(0, 1);
+    const frame = doc.compose(currentFrame, 1);
     try {
       renderer.draw(frame);
     } finally {
@@ -423,7 +453,7 @@
   // caller (`tick`) checks `canRecomposeDirty()` before routing here.
   function recomposeDirty(rect: { x: number; y: number; w: number; h: number }) {
     if (!doc || !renderer) return;
-    const frame = doc.composeDirty(0, 1, rect.x, rect.y, rect.w, rect.h);
+    const frame = doc.composeDirty(currentFrame, 1, rect.x, rect.y, rect.w, rect.h);
     try {
       renderer.drawDirty(frame);
     } finally {
@@ -703,7 +733,7 @@
     const gx = Math.floor(point.x / tileW);
     const gy = Math.floor(point.y / tileH);
     try {
-      doc.placeTile(layerId, 0, gx, gy, stampTile.tileId);
+      doc.placeTile(layerId, currentFrame, gx, gy, stampTile.tileId);
       dirty = true;
       syncMeta();
     } catch (err) {
@@ -726,7 +756,7 @@
       // bind it to the foreground color picker. Drags keep sampling
       // so the user can scrub for the exact pixel they want.
       try {
-        const picked = doc.pickColor(0, point.x, point.y);
+        const picked = doc.pickColor(currentFrame, point.x, point.y);
         color = unpackColor(picked);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1006,7 +1036,12 @@
       syncMeta();
       return;
     }
-    painting = false;
+    if (painting) {
+      painting = false;
+      // Close the gesture on the undo bus so this drag stays one undo
+      // entry and the next stroke starts a fresh one.
+      doc?.endStroke();
+    }
   }
 
   // wasm-bindgen classes own Rust-side allocations; freeing the prior
@@ -1023,6 +1058,21 @@
   // document after it has been replaced. Ids held from the previous
   // document (stamp target, active slice / layer, tile editor) are
   // meaningless against the new one and are dropped.
+  // Switch the viewed / edited frame. Clamped; the wasm side emits a
+  // dirty-canvas event that drives the recompose.
+  function setFrame(next: number) {
+    if (!doc) return;
+    const clamped = Math.max(0, Math.min(frameCount - 1, next));
+    if (clamped === currentFrame) return;
+    try {
+      doc.setCurrentFrame(clamped);
+      currentFrame = clamped;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `frame switch failed: ${msg}`;
+    }
+  }
+
   function resetDocViewState() {
     dirty = true;
     syncMeta();
@@ -1036,16 +1086,44 @@
     activeLayerId = null;
   }
 
-  function newDoc() {
+  // Run `action` immediately when the document is clean; otherwise park
+  // it behind the inline "discard unsaved changes?" confirm dialog.
+  function guardUnsaved(action: () => void) {
+    if (!isDirty) {
+      action();
+      return;
+    }
+    confirmState = {
+      message: `Discard unsaved changes to ${saveTarget.name}?`,
+      run: action,
+    };
+  }
+
+  function confirmDiscard() {
+    const pending = confirmState;
+    confirmState = null;
+    pending?.run();
+  }
+
+  function openNewDialog() {
+    if (fileOpBusy) return;
+    newDocOpen = true;
+  }
+
+  function newDoc(width = 64, height = 64) {
     // Don't free the document under an in-flight open / save.
     if (fileOpBusy) return;
+    const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(width)));
+    const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(height)));
+    newDocOpen = false;
     disposeDoc();
-    doc = new Document(64, 64);
+    doc = new Document(w, h);
     resetDocViewState();
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
-    status = 'new 64×64 document';
+    lastSavedUndoDepth = doc.undoDepth;
+    status = `new ${w}×${h} document`;
   }
 
   async function openDoc() {
@@ -1080,6 +1158,7 @@
       };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
@@ -1098,6 +1177,7 @@
       const next = await saveBytes(bytes, saveTarget, { forceAs });
       saveTarget = next;
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `saved ${bytes.length} bytes · ${next.name}`;
       await clearAutosave();
       await recordRecent();
@@ -1128,9 +1208,12 @@
   // the status bar is intentional — autosave silently failing is the
   // worst failure mode for this feature.
   async function autosaveTick() {
-    if (!autosaveAvailable || !doc) return;
+    // Skip while a file op is in flight — the doc may be disposed /
+    // replaced under the await below.
+    if (!autosaveAvailable || !doc || fileOpBusy) return;
     if (doc.undoDepth === lastWriteUndoDepth) return;
     const depthAtSnapshot = doc.undoDepth;
+    const idAtSnapshot = docId;
     let bytes: Uint8Array;
     try {
       bytes = new Uint8Array(doc.saveAseprite());
@@ -1141,8 +1224,10 @@
       return;
     }
     try {
-      await writeSnapshot(docId, saveTarget.name, bytes);
-      lastWriteUndoDepth = depthAtSnapshot;
+      await writeSnapshot(idAtSnapshot, saveTarget.name, bytes);
+      // A New / Open may have swapped the document during the await;
+      // its own re-baseline must not be clobbered with our stale depth.
+      if (docId === idAtSnapshot) lastWriteUndoDepth = depthAtSnapshot;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('autosave write failed', err);
@@ -1185,6 +1270,7 @@
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
+    lastSavedUndoDepth = doc.undoDepth;
     status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
     await clearAutosave();
     closeRecovery();
@@ -1283,6 +1369,7 @@
       // and autosave snapshots survive across page reloads.
       docId = r.id;
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
@@ -1295,11 +1382,18 @@
   }
 
   function undo() {
-    if (doc?.undo()) {
-      dirty = true;
-      syncMeta();
-      tilesetRev += 1;
-      reconcileActiveSlice();
+    if (!doc) return;
+    try {
+      if (doc.undo()) {
+        dirty = true;
+        syncMeta();
+        tilesetRev += 1;
+        reconcileActiveSlice();
+        reconcileActiveLayerAndStamp();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `undo failed: ${msg}`;
     }
   }
 
@@ -1311,6 +1405,7 @@
         syncMeta();
         tilesetRev += 1;
         reconcileActiveSlice();
+        reconcileActiveLayerAndStamp();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1333,6 +1428,41 @@
       }
     }
     activeSliceId = null;
+  }
+
+  // Companion to `reconcileActiveSlice` for the Layers panel highlight
+  // and the stamp target: undo/redo can remove the referenced layer or
+  // tile (e.g. undoing an addTilemapLayer / addTile), leaving the local
+  // pointer dangling — painting would target a stale layer and the next
+  // stamp would throw. The wasm-side paint target already falls back
+  // gracefully when its layer vanishes, so only the UI state needs
+  // clearing.
+  function reconcileActiveLayerAndStamp() {
+    if (!doc) return;
+    if (activeLayerId !== null) {
+      let found = false;
+      const count = doc.layerCount;
+      for (let i = 0; i < count; i += 1) {
+        try {
+          if (doc.layerIdAt(i) === activeLayerId) {
+            found = true;
+            break;
+          }
+        } catch {
+          // ignore — treat unreadable rows as "not the active layer"
+        }
+      }
+      if (!found) activeLayerId = null;
+    }
+    if (stampTile) {
+      try {
+        if (stampTile.tileId >= doc.tilesetTileCount(stampTile.tilesetId)) {
+          stampTile = null;
+        }
+      } catch {
+        stampTile = null;
+      }
+    }
   }
 
   // Fold one compose-cost sample into the rolling window and refresh
@@ -1424,10 +1554,12 @@
         if (marchTicks >= MARCH_FRAMES_PER_STEP) {
           marchTicks = 0;
           marchPhase = (marchPhase + 1) & 0x3;
-          dirty = true;
-          // The march tick repaints overlays, not pixels, but the
-          // sub-rect path can't redraw them — force full recompose.
-          dirtyKind = 'canvas';
+          // The ant-phase advance changes overlay pixels only — the
+          // overlay is its own canvas (M12.5a), so repaint it directly
+          // instead of forcing a full sprite recompose 8.5×/sec. When a
+          // real recompose is already queued this tick, it repaints the
+          // overlay itself.
+          if (!dirty) paintOverlays();
         }
       } else {
         marchTicks = 0;
@@ -1482,6 +1614,16 @@
     v: ['move'],
   };
 
+  // Deselect the marquee. The wasm side enqueues a `selection-changed`
+  // event, which the next tick drains into a repaint.
+  function deselect() {
+    doc?.clearSelection();
+  }
+
+  function selectAll() {
+    doc?.setSelection(0, 0, canvasW, canvasH);
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -1489,8 +1631,69 @@
       spaceDown = true;
       return;
     }
-    if (e.key === 'Escape' && recentMenuOpen) {
-      closeRecentMenu();
+    if (e.key === 'Escape') {
+      if (recentMenuOpen) {
+        closeRecentMenu();
+        return;
+      }
+      if (confirmState) {
+        confirmState = null;
+        return;
+      }
+      if (newDocOpen) {
+        newDocOpen = false;
+        return;
+      }
+      if (selection && !isEditableTarget(e.target)) {
+        deselect();
+        return;
+      }
+    }
+    // Editor accelerators on the web build. On Tauri the native menu
+    // already owns Cmd/Ctrl+N/O/S/Z/Y — handling them here too would
+    // double-fire. Shift+Z redoes (mac convention), Y redoes (win),
+    // Shift+S is Save As, A/D select-all / deselect.
+    if (
+      !tauriHost &&
+      (e.ctrlKey || e.metaKey) &&
+      !e.altKey &&
+      !isEditableTarget(e.target)
+    ) {
+      const k = e.key.toLowerCase();
+      if (k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (k === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (k === 's') {
+        e.preventDefault();
+        void save({ forceAs: e.shiftKey });
+        return;
+      }
+      if (k === 'o') {
+        e.preventDefault();
+        guardUnsaved(() => void openDoc());
+        return;
+      }
+      if (k === 'a' && doc) {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+      if (k === 'd' && doc) {
+        e.preventDefault();
+        deselect();
+        return;
+      }
+      // Note: Ctrl/Cmd+N is reserved by most browsers (new window) and
+      // never reaches the page, so New intentionally has no web
+      // accelerator — the toolbar button is the path.
       return;
     }
     // F2 toggles the frame-time probe (M12.6). Reset the window on
@@ -1590,6 +1793,7 @@
         syncSelection();
         dirty = true;
         lastWriteUndoDepth = doc.undoDepth;
+        lastSavedUndoDepth = doc.undoDepth;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
       })
@@ -1602,11 +1806,27 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
     // Wheel zoom is registered imperatively (not via `onwheel`) so the
     // listener is non-passive and `preventDefault()` actually suppresses
     // page scroll. `canvas` is bound by the time onMount runs.
     canvas?.addEventListener('wheel', onWheel, { passive: false });
+    // Restore the last-used foreground color (best-effort; the default
+    // stands when the pref is missing or IDB is unavailable). The
+    // persist effect below only starts writing once this load settled,
+    // so a slow IDB can't overwrite the stored value with the default.
+    if (autosaveAvailable) {
+      getPref(COLOR_PREF)
+        .then((v) => {
+          if (cancelled) return;
+          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) color = v;
+          colorPrefLoaded = true;
+        })
+        .catch(() => {
+          colorPrefLoaded = true;
+        });
+    }
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -1645,8 +1865,8 @@
     let unlistenOpenFile: UnlistenFn | null = null;
     if (tauriHost) {
       wireNativeMenu({
-        'menu:new': newDoc,
-        'menu:open': openDoc,
+        'menu:new': () => guardUnsaved(openNewDialog),
+        'menu:open': () => guardUnsaved(() => void openDoc()),
         'menu:save': () => save(),
         'menu:saveAs': () => save({ forceAs: true }),
         'menu:undo': undo,
@@ -1705,6 +1925,7 @@
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas?.removeEventListener('wheel', onWheel);
       renderer?.destroy();
@@ -1741,6 +1962,7 @@
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
@@ -1803,6 +2025,45 @@
     }
   }
 
+  // Close the recent-files dropdown on any pointer press outside the
+  // menu and its trigger. Focus is left where the user clicked (unlike
+  // the Escape path, which restores it to the trigger).
+  $effect(() => {
+    if (!recentMenuOpen) return;
+    const onDocPointerDown = (ev: PointerEvent) => {
+      const t = ev.target;
+      if (!(t instanceof Node)) return;
+      if (recentsMenu?.contains(t) || recentsTrigger?.contains(t)) return;
+      recentMenuOpen = false;
+    };
+    document.addEventListener('pointerdown', onDocPointerDown);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown);
+  });
+
+  // Persist the foreground color once the initial load settled.
+  $effect(() => {
+    const current = color;
+    if (!colorPrefLoaded || !autosaveAvailable) return;
+    setPref(COLOR_PREF, current).catch((err: unknown) => {
+      console.error('setPref lastColor failed', err);
+    });
+  });
+
+  // Reflect the document identity + dirty state in the tab title.
+  $effect(() => {
+    document.title = `${isDirty ? '● ' : ''}${saveTarget.name} – Pincel`;
+  });
+
+  // Warn before the tab closes with unsaved edits. Autosave (30 s
+  // cadence) softens the loss, but the user should still get the
+  // browser's "leave site?" prompt.
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    if (!isDirty) return;
+    e.preventDefault();
+    // Chrome still requires returnValue to be set.
+    e.returnValue = '';
+  }
+
   // Push the current recents list to the Rust-side `Open Recent`
   // submenu so the native menu stays in sync with the in-memory list.
   // Only entries with a path can be re-opened by the menu (FSA handles
@@ -1823,8 +2084,16 @@
 <main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={newDoc} disabled={fileOpBusy}>New</button>
-    <button class="toolbar-btn" onclick={openDoc} disabled={fileOpBusy}>Open…</button>
+    <button class="toolbar-btn" onclick={() => guardUnsaved(openNewDialog)} disabled={fileOpBusy}>
+      New
+    </button>
+    <button
+      class="toolbar-btn"
+      onclick={() => guardUnsaved(() => void openDoc())}
+      disabled={fileOpBusy}
+    >
+      Open…
+    </button>
     <button class="toolbar-btn" onclick={() => save()} disabled={!doc || fileOpBusy}>
       {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
@@ -1864,7 +2133,7 @@
                   class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
                   role="menuitem"
                   title={r.name}
-                  onclick={() => openRecent(r)}
+                  onclick={() => guardUnsaved(() => void openRecent(r))}
                 >
                   {r.name}
                 </button>
@@ -2028,8 +2297,22 @@
         class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
       />
     </label>
-    <button class="toolbar-btn ml-2" onclick={undo} disabled={undoDepth === 0}>Undo</button>
-    <button class="toolbar-btn" onclick={redo} disabled={redoDepth === 0}>Redo</button>
+    <button
+      class="toolbar-btn ml-2"
+      onclick={undo}
+      disabled={undoDepth === 0}
+      title="Undo (Ctrl/Cmd+Z)"
+    >
+      Undo
+    </button>
+    <button
+      class="toolbar-btn"
+      onclick={redo}
+      disabled={redoDepth === 0}
+      title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)"
+    >
+      Redo
+    </button>
   </header>
 
   <section class="flex flex-1 overflow-hidden">
@@ -2162,7 +2445,33 @@
     <span>{status}</span>
     {#if doc}
       <span>·</span>
+      <span title={isDirty ? 'unsaved changes' : 'all changes saved'}>
+        {saveTarget.name}{#if isDirty}<span class="text-amber-400"> ●</span>{/if}
+      </span>
+      <span>·</span>
       <span>{canvasW}×{canvasH}</span>
+      {#if frameCount > 1}
+        <span>·</span>
+        <span class="flex items-center gap-1" role="group" aria-label="Frame">
+          <button
+            class="toolbar-btn"
+            onclick={() => setFrame(currentFrame - 1)}
+            disabled={currentFrame === 0}
+            aria-label="Previous frame"
+          >
+            ◀
+          </button>
+          <span>frame {currentFrame + 1}/{frameCount}</span>
+          <button
+            class="toolbar-btn"
+            onclick={() => setFrame(currentFrame + 1)}
+            disabled={currentFrame >= frameCount - 1}
+            aria-label="Next frame"
+          >
+            ▶
+          </button>
+        </span>
+      {/if}
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
     {/if}
@@ -2196,6 +2505,85 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if newDocOpen}
+  <div
+    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+    role="dialog"
+    aria-modal="true"
+    aria-label="New document"
+  >
+    <form
+      class="w-72 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+      onsubmit={(e) => {
+        e.preventDefault();
+        newDoc(newDocW, newDocH);
+      }}
+    >
+      <p class="font-semibold">New document</p>
+      <div class="mt-3 flex items-center gap-2">
+        <label class="flex items-center gap-1 text-xs text-neutral-400">
+          W
+          <input
+            type="number"
+            min="1"
+            max={MAX_DOC_SIZE}
+            step="1"
+            inputmode="numeric"
+            bind:value={newDocW}
+            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          />
+        </label>
+        <span class="text-neutral-500">×</span>
+        <label class="flex items-center gap-1 text-xs text-neutral-400">
+          H
+          <input
+            type="number"
+            min="1"
+            max={MAX_DOC_SIZE}
+            step="1"
+            inputmode="numeric"
+            bind:value={newDocH}
+            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          />
+        </label>
+        <span class="text-xs text-neutral-500">px</span>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          class="toolbar-btn"
+          onclick={() => (newDocOpen = false)}
+        >
+          Cancel
+        </button>
+        <button type="submit" class="toolbar-btn toolbar-btn-active">Create</button>
+      </div>
+    </form>
+  </div>
+{/if}
+
+{#if confirmState}
+  <div
+    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+    role="alertdialog"
+    aria-modal="true"
+    aria-label="Unsaved changes"
+  >
+    <div class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl">
+      <p>{confirmState.message}</p>
+      <div class="mt-4 flex justify-end gap-2">
+        <button class="toolbar-btn" onclick={() => (confirmState = null)}>Cancel</button>
+        <button
+          class="toolbar-btn border-red-800 text-red-300"
+          onclick={confirmDiscard}
+        >
+          Discard changes
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
