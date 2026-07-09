@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "preinstall": "node -e \"if(!require('fs').existsSync('../crates/pincel-wasm/pkg/package.json')){console.error('\\npincel-ui: crates/pincel-wasm/pkg is missing — run `pnpm wasm:build` before `pnpm install` (the UI links the generated wasm package; needs wasm-pack and the wasm32-unknown-unknown target).\\n');process.exit(1)}\"",
+    "preinstall": "node scripts/check-wasm-pkg.mjs",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
