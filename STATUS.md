@@ -432,6 +432,63 @@ Human action still needed:
 1. Confirm the Cloudflare `amigo-pincel` project's Workers Builds settings don't override `wrangler.toml` (or set: build command from `wrangler.toml`, root directory `/`).
 2. Decide the production domain (spec §14 Q1) and update `website/src/lib/config.ts::siteUrl` if it differs from `https://pincel.app`.
 
+## Deferred from the 2026-07-09 audit (found, deliberately not fixed)
+
+The audit surfaced more than the T1–T19 batch addressed. Parked here so
+the findings don't get lost — each is scoped and ready to pick up:
+
+**Features (each its own task/PR):**
+
+- **Palette / swatch panel UI** — palettes now survive the round-trip
+  (T3), but nothing displays them. Needs wasm getters
+  (`paletteCount` / `paletteColor(i)` / names) + a swatch row or panel;
+  clicking a swatch sets the foreground color.
+- **addLayer / addFrame / removeLayer through wasm + UI** — the core
+  commands exist and are tested, but aren't exposed; the Layers panel
+  can't create layers and there's no way to add frames.
+- **Timeline / playback** — T12 ships only a frame stepper. Per-frame
+  duration display, tag lanes, onion skin, and play/pause are the spec's
+  §5 timeline; frame add/remove belongs with it.
+- **Delete / Backspace clears selection pixels** — needs a core
+  `ClearRegion`-style command; Escape/Ctrl+A/Ctrl+D landed, this didn't.
+- **Alpha in the color picker** — `packColor` still pins alpha to 0xff;
+  the native `<input type="color">` has no alpha control.
+- **Touch pinch-zoom** — pre-existing gap, still open.
+
+**Round-trip fidelity (small, codec):**
+
+- Header fields reset on write: sprite grid, pixel aspect ratio,
+  `color_count` (writer uses `Header::new` defaults).
+- Layer flags Background / Reference / Collapsed / LockMovement dropped
+  (only Visible/Editable map); cel `z_index` dropped (always 0 on
+  write); unknown tag directions silently coerced to Forward.
+- User data (text/color) on layers, cels, sprite, and tags not carried;
+  only slice overlay color and tag color round-trip today.
+- Palette-entry names round-trip since T3, but only via `0x2019`; legacy
+  `0x0004`/`0x0011` chunks are ignored (modern Aseprite always writes
+  `0x2019`).
+
+**Architecture / DX (larger):**
+
+- **App.svelte decomposition** — ~2,400 lines; extract an
+  overlay-painter module, a file-ops composable, a pointer/tool
+  controller, and the keyboard map. Own refactor PR.
+- **Panel derive-pattern helper** — the three panels still repeat the
+  `$derived.by(() => { void rev; … idAt loop })` shape; a shared
+  `deriveRows` helper was considered and skipped (indirection vs. ~20
+  duplicated lines). Revisit if a fourth panel appears.
+- **Group opacity / blend-mode folding** and the four **HSL blend
+  modes** render children/Normal for now (spec §15 Decision Log,
+  2026-07-09); Aseprite pixel-parity for blend rounding is explicitly
+  out of scope until someone needs it.
+- **Tauri `read_file_bytes` / `write_file_bytes` accept arbitrary
+  paths** — acceptable for a local editor, but unscoped; consider
+  restricting to dialog-granted paths.
+- **Error surfacing** — failures land in the transient status bar only;
+  a toast/notification area would make them harder to miss.
+- **Website CTA funnel** — Header/Hero/404 still point at the `/app`
+  placeholder (product decision: stays until the editor deploys there).
+
 ## Open questions (still actionable)
 
 - **Per-tile dirty events** — `setTilePixel` emits `dirty-canvas` today; a `dirty-tile-pixel` variant carrying `(tileset_id, tile_id, rect)` lands alongside the M12 dirty-rect refinement.
