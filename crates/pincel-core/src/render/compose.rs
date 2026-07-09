@@ -1,10 +1,10 @@
 //! `compose()` — the single composition entry point. See `docs/specs/pincel.md` §4.
 //!
 //! M3 implements the minimum useful path: visible image layers in z-order
-//! with the `Normal` blend mode, RGBA color mode only. Tilemap and group
-//! layers, indexed color, non-Normal blend modes, linked cels, onion skin,
-//! and overlays all return [`RenderError`] for now. The `dirty_hint` field
-//! on the request is accepted and currently ignored.
+//! with the `Normal` blend mode, RGBA color mode only. Group layers hold no
+//! pixels and are skipped (their visibility gates their children — see
+//! [`effectively_visible`]). Indexed color, non-Normal blend modes, linked
+//! cels, onion skin, and overlays all return [`RenderError`] for now.
 
 use thiserror::Error;
 
@@ -37,10 +37,6 @@ pub enum RenderError {
     /// `frame` did not refer to a frame in the sprite.
     #[error("unknown frame index: {frame:?}")]
     UnknownFrame { frame: FrameIndex },
-
-    /// A layer's content cannot be composed in this milestone.
-    #[error("unsupported layer kind on layer {layer:?}")]
-    UnsupportedLayerKind { layer: LayerId },
 
     /// A layer's blend mode is not yet implemented.
     #[error("unsupported blend mode {mode:?} on layer {layer:?}")]
@@ -226,9 +222,9 @@ pub fn compose(
 }
 
 /// Composite every selected layer at `request.frame` into `dst`, which is
-/// sized to `viewport.width * viewport.height * 4` bytes. Group layers,
-/// non-Normal blend modes, linked cels, and mismatched cel kinds raise
-/// [`RenderError`] — see the per-arm comments below.
+/// sized to `viewport.width * viewport.height * 4` bytes. Non-Normal blend
+/// modes, linked cels, and mismatched cel kinds raise [`RenderError`] — see
+/// the per-arm comments below.
 fn composite_visible_layers(
     dst: &mut [u8],
     sprite: &Sprite,
@@ -237,11 +233,16 @@ fn composite_visible_layers(
     viewport: Rect,
 ) -> Result<(), RenderError> {
     for layer in sprite.layers.iter() {
-        if !layer_included(layer, &request.include_layers) {
+        if !layer_included(layer, sprite, &request.include_layers) {
             continue;
         }
         if let LayerKind::Group = layer.kind {
-            return Err(RenderError::UnsupportedLayerKind { layer: layer.id });
+            // A group holds no pixels of its own — its children are separate
+            // entries in the flat z-ordered Vec and composite on their own.
+            // Group visibility gates children via `effectively_visible`;
+            // group opacity / blend mode are NOT folded into children in
+            // Phase 1 (spec §4 defers the fold-into-temp-buffer behavior).
+            continue;
         }
         if !matches!(layer.blend_mode, BlendMode::Normal) {
             return Err(RenderError::UnsupportedBlendMode {
@@ -319,7 +320,7 @@ fn composite_visible_layers(
                 });
             }
             (LayerKind::Group, _) => {
-                // Group layers are rejected above before the cel lookup.
+                // Group layers are skipped above before the cel lookup.
                 unreachable!("group layers handled before cel lookup");
             }
         }
@@ -361,12 +362,44 @@ fn upscale_nearest_into(out: &mut [u8], src: &[u8], w: u32, h: u32, zoom: u32) {
     }
 }
 
-fn layer_included(layer: &Layer, filter: &LayerFilter) -> bool {
+fn layer_included(layer: &Layer, sprite: &Sprite, filter: &LayerFilter) -> bool {
     match filter {
-        LayerFilter::Visible => layer.visible,
+        LayerFilter::Visible => effectively_visible(sprite, layer),
         LayerFilter::All => true,
         LayerFilter::Only(ids) => ids.contains(&layer.id),
     }
+}
+
+/// A layer renders under [`LayerFilter::Visible`] only when it *and every
+/// ancestor group* are visible — hiding a group hides its whole subtree,
+/// matching Aseprite. Only visibility propagates; group opacity and blend
+/// mode are not folded into children in Phase 1. `LayerFilter::All` and
+/// `LayerFilter::Only` bypass this walk (All means "everything", Only is an
+/// explicit override).
+///
+/// The walk is capped at `sprite.layers.len()` hops so a corrupt parent
+/// cycle terminates; a dangling parent id ends the chain (the layer still
+/// renders — structural inconsistency shouldn't silently hide content).
+fn effectively_visible(sprite: &Sprite, layer: &Layer) -> bool {
+    if !layer.visible {
+        return false;
+    }
+    let mut parent = layer.parent;
+    let mut hops = 0usize;
+    while let Some(pid) = parent {
+        let Some(p) = sprite.layer(pid) else {
+            return true;
+        };
+        if !p.visible {
+            return false;
+        }
+        hops += 1;
+        if hops >= sprite.layers.len() {
+            return true;
+        }
+        parent = p.parent;
+    }
+    true
 }
 
 fn composite_image_cel(
@@ -916,20 +949,75 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rejects_group_layer() {
+    /// Builds a 1×1 sprite with a group (id 0), a child image layer (id 1)
+    /// parented to it, and a red cel on the child.
+    fn group_child_sprite(group_visible: bool, child_visible: bool) -> (Sprite, CelMap) {
+        let mut group = Layer::group(LayerId::new(0), "grp");
+        group.visible = group_visible;
+        let mut child = Layer::image(LayerId::new(1), "fg");
+        child.visible = child_visible;
+        child.parent = Some(LayerId::new(0));
         let sprite = Sprite::builder(1, 1)
-            .add_layer(Layer::group(LayerId::new(7), "grp"))
+            .add_layer(group)
+            .add_layer(child)
             .add_frame(Frame::default())
             .build()
             .unwrap();
-        let cels = CelMap::new();
-        assert_eq!(
-            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
-            RenderError::UnsupportedLayerKind {
-                layer: LayerId::new(7),
-            }
-        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            solid(1, 1, [255, 0, 0, 255]),
+        ));
+        (sprite, cels)
+    }
+
+    #[test]
+    fn group_layer_is_skipped_and_children_render() {
+        let (sprite, cels) = group_child_sprite(true, true);
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn hidden_group_hides_child_layers() {
+        let (sprite, cels) = group_child_sprite(false, true);
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn hidden_grandparent_hides_nested_child() {
+        let mut outer = Layer::group(LayerId::new(0), "outer");
+        outer.visible = false;
+        let mut inner = Layer::group(LayerId::new(1), "inner");
+        inner.parent = Some(LayerId::new(0));
+        let mut child = Layer::image(LayerId::new(2), "fg");
+        child.parent = Some(LayerId::new(1));
+        let sprite = Sprite::builder(1, 1)
+            .add_layer(outer)
+            .add_layer(inner)
+            .add_layer(child)
+            .add_frame(Frame::default())
+            .build()
+            .unwrap();
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(2),
+            FrameIndex::new(0),
+            solid(1, 1, [255, 0, 0, 255]),
+        ));
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn layer_filter_all_ignores_hidden_group() {
+        let (sprite, cels) = group_child_sprite(false, true);
+        let mut req = full_req(1, 1);
+        req.include_layers = LayerFilter::All;
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
+        assert_eq!(r.pixels, vec![255, 0, 0, 255]);
     }
 
     // ---------- M8.2 tilemap compose ----------
