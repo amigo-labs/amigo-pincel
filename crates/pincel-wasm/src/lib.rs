@@ -53,6 +53,11 @@ pub struct Document {
     /// falls back to the lowest-z image layer; a non-image / unknown
     /// selection also falls back. See [`Document::paint_target_layer`].
     active_layer: Option<LayerId>,
+    /// Frame the UI is currently viewing and editing. All pixel paths
+    /// (pencil/eraser, line, rect, ellipse, bucket, move-selection)
+    /// target this frame. Set via [`Document::set_current_frame`];
+    /// starts at frame 0 for every fresh / opened document.
+    current_frame: FrameIndex,
 }
 
 #[wasm_bindgen]
@@ -89,6 +94,7 @@ impl Document {
             bus: Bus::new(),
             events: EventQueue::new(),
             active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -106,6 +112,7 @@ impl Document {
             bus: Bus::new(),
             events: EventQueue::new(),
             active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -277,6 +284,29 @@ impl Document {
         self.sprite.frames.len() as u32
     }
 
+    /// Frame the UI is currently viewing / editing (0-based). All paint
+    /// paths target it. See [`Document::set_current_frame`].
+    #[wasm_bindgen(getter, js_name = currentFrame)]
+    pub fn current_frame(&self) -> u32 {
+        self.current_frame.0
+    }
+
+    /// Switch the current frame. Rejects an index at or past
+    /// `frameCount`. Enqueues a `dirty-canvas` event so the UI
+    /// recomposes onto the newly-selected frame.
+    #[wasm_bindgen(js_name = setCurrentFrame)]
+    pub fn set_current_frame(&mut self, frame: u32) -> Result<(), String> {
+        if frame >= self.frame_count() {
+            return Err(format!(
+                "frame {frame} out of range (frameCount {})",
+                self.frame_count()
+            ));
+        }
+        self.current_frame = FrameIndex::new(frame);
+        self.events.push(Event::dirty_canvas());
+        Ok(())
+    }
+
     /// Composite the requested frame at the given integer zoom over the
     /// full sprite canvas, with the default `Visible` layer filter and
     /// no overlays / onion skin.
@@ -390,7 +420,7 @@ impl Document {
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -432,7 +462,7 @@ impl Document {
             a: (color & 0xff) as u8,
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -478,7 +508,7 @@ impl Document {
             a: (color & 0xff) as u8,
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -523,7 +553,7 @@ impl Document {
             a: (color & 0xff) as u8,
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -561,7 +591,7 @@ impl Document {
             a: (color & 0xff) as u8,
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -769,7 +799,7 @@ impl Document {
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -1686,6 +1716,48 @@ mod tests {
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
         assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
+    }
+
+    /// Two-frame single-layer document, built through the codec since
+    /// the wasm surface has no addFrame yet.
+    fn two_frame_doc() -> Document {
+        let sprite = Sprite::builder(4, 4)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_frame(Frame::new(100))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        let mut cels = CelMap::new();
+        for f in 0..2 {
+            cels.insert(Cel::image(
+                LayerId::new(0),
+                FrameIndex::new(f),
+                PixelBuffer::empty(4, 4, ColorMode::Rgba),
+            ));
+        }
+        let mut bytes = Vec::new();
+        write_aseprite(&sprite, &cels, &mut bytes).expect("write");
+        Document::open_aseprite(&bytes).expect("open")
+    }
+
+    #[test]
+    fn set_current_frame_routes_painting_to_that_frame() {
+        let mut doc = two_frame_doc();
+        assert_eq!(doc.frame_count(), 2);
+        doc.set_current_frame(1).expect("frame 1 exists");
+        assert_eq!(doc.current_frame(), 1);
+        doc.apply_tool("pencil", 0, 0, 0xff0000ff).expect("pencil");
+        let f1 = doc.compose(1, 1).expect("compose f1");
+        assert_eq!(pixel_at(&f1.pixels(), 4, 0, 0), [255, 0, 0, 255]);
+        let f0 = doc.compose(0, 1).expect("compose f0");
+        assert_eq!(pixel_at(&f0.pixels(), 4, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn set_current_frame_rejects_out_of_range() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.set_current_frame(1).is_err());
+        assert_eq!(doc.current_frame(), 0);
     }
 
     #[test]
