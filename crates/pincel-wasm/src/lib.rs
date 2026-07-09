@@ -25,7 +25,7 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
+    AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
     Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
     PlaceTile, Rect, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
@@ -1114,23 +1114,23 @@ impl Document {
     /// can be edited via [`Document::set_tile_pixel`] immediately
     /// without first crossing the boundary again to learn the size.
     ///
-    /// Not undoable in this slice — tile-image insertion is treated
-    /// like [`Document::new`]'s bootstrap cels: the editing commands
-    /// targeting the tile join the bus, the container does not.
+    /// Routes an [`AddTile`] command through the undo bus, so the
+    /// insertion is undoable and executing it clears the redo stack
+    /// (a stale redo could otherwise replay onto a diverged tileset).
     /// Errors when the tileset id is unknown.
     #[wasm_bindgen(js_name = addTile)]
     pub fn add_tile(&mut self, tileset_id: u32) -> Result<u32, String> {
         let tileset = self
             .sprite
             .tilesets
-            .iter_mut()
+            .iter()
             .find(|t| t.id.0 == tileset_id)
             .ok_or_else(|| format!("unknown tileset id {tileset_id}"))?;
-        let (tile_w, tile_h) = tileset.tile_size;
         let new_id = tileset.tiles.len() as u32;
-        tileset.tiles.push(pincel_core::TileImage {
-            pixels: PixelBuffer::empty(tile_w, tile_h, ColorMode::Rgba),
-        });
+        let cmd = AddTile::new(TilesetId::new(tileset_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add tile: {e}"))?;
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
     }
@@ -2795,6 +2795,36 @@ mod tests {
         let bytes = doc.tile_pixels(ts_id, tile_id).expect("tilePixels");
         assert_eq!(bytes.len(), 2 * 2 * 4);
         assert!(bytes.iter().all(|b| *b == 0));
+    }
+
+    #[test]
+    fn add_tile_joins_undo_bus() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        let depth = doc.undo_depth();
+        doc.add_tile(ts_id).expect("addTile");
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert!(doc.undo());
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+    }
+
+    #[test]
+    fn add_tile_clears_redo_stack() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        doc.add_tile(ts_id).expect("addTile 0");
+        assert!(doc.undo(), "undo the first tile");
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        // A fresh execute must drop the pending redo entry.
+        doc.add_tile(ts_id).expect("addTile again");
+        assert!(
+            !doc.redo().expect("redo"),
+            "redo stack cleared by the new command"
+        );
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
     }
 
     // ---- M9.4 slice surface ------------------------------------------
