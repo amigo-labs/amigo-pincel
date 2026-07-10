@@ -16,6 +16,7 @@ mod fill_region;
 mod move_layer;
 mod move_selection_content;
 mod place_tile;
+mod remove_layer;
 mod remove_slice;
 mod set_layer_name;
 mod set_layer_visible;
@@ -39,6 +40,7 @@ pub use fill_region::FillRegion;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
+pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_visible::SetLayerVisible;
@@ -100,6 +102,7 @@ pub enum AnyCommand {
     SetLayerName(SetLayerName),
     SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
+    RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
     AddTile(AddTile),
@@ -128,6 +131,7 @@ impl AnyCommand {
             Self::SetLayerName(c) => c.apply(doc, cels),
             Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
+            Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
@@ -152,6 +156,7 @@ impl AnyCommand {
             Self::SetLayerName(c) => c.revert(doc, cels),
             Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
+            Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
@@ -200,6 +205,7 @@ impl AnyCommand {
             Self::SetLayerName(c) => c.dirty_region(),
             Self::SetLayerVisible(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
+            Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
@@ -270,6 +276,12 @@ impl From<SetLayerName> for AnyCommand {
 impl From<AddLayer> for AnyCommand {
     fn from(c: AddLayer) -> Self {
         Self::AddLayer(c)
+    }
+}
+
+impl From<RemoveLayer> for AnyCommand {
+    fn from(c: RemoveLayer) -> Self {
+        Self::RemoveLayer(c)
     }
 }
 
