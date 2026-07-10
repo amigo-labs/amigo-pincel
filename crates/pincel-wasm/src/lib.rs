@@ -26,9 +26,9 @@ pub use events::Event;
 use events::EventQueue;
 use pincel_core::{
     AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus,
-    Cel, CelData, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle,
-    FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveDirection, MoveLayer,
-    MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer, RemoveSlice, Rgba,
+    Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
+    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveDirection,
+    MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer, RemoveSlice, Rgba,
     SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey,
     Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
 };
@@ -782,6 +782,32 @@ impl Document {
     pub fn clear_selection(&mut self) {
         self.sprite.clear_selection();
         self.events.push(Event::selection_changed(0, 0, 0, 0));
+    }
+
+    /// Clear the pixels inside the active marquee selection to transparent
+    /// on the active paint layer / current frame, routed through the undo
+    /// bus as a [`ClearRegion`]. The marquee itself stays put (Aseprite's
+    /// Delete behavior). Returns `true` when a selection was present and
+    /// the command ran, `false` when there was nothing to delete. Errors
+    /// only when the document has no paintable image layer.
+    #[wasm_bindgen(js_name = deleteSelection)]
+    pub fn delete_selection(&mut self) -> Result<bool, String> {
+        let Some(sel) = self.sprite.selection else {
+            return Ok(false);
+        };
+        if sel.is_empty() {
+            return Ok(false);
+        }
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        let cmd = ClearRegion::new(layer, frame, sel);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to delete selection: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(true)
     }
 
     /// `true` when a non-empty marquee selection is active. See
@@ -1809,6 +1835,25 @@ mod tests {
         assert_eq!(doc.pick_color(idx, 2, 2).unwrap(), blue);
         // Frame 0 stays clear at that pixel.
         assert_eq!(doc.pick_color(0, 2, 2).unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_selection_clears_pixels_and_undoes() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let red = Rgba::new(255, 0, 0, 255).to_u32();
+        doc.apply_tool("pencil", 1, 1, red).expect("paint");
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), red);
+        doc.set_selection(1, 1, 1, 1);
+        assert!(doc.delete_selection().expect("delete ran"));
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), 0, "pixel cleared");
+        assert!(doc.undo());
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), red, "undo restores");
+    }
+
+    #[test]
+    fn delete_selection_without_selection_returns_false() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(!doc.delete_selection().expect("no-op ok"));
     }
 
     #[test]
