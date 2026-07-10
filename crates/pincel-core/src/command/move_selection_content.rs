@@ -252,7 +252,7 @@ impl Command for MoveSelectionContent {
 /// Intersect a sprite-space rect with the cel buffer's bounds and
 /// return the resulting cel-local `(x, y, width, height)`. Returns
 /// `None` when the intersection is empty.
-fn intersect_with_cel(
+pub(crate) fn intersect_with_cel(
     rect: Rect,
     cel_pos: (i32, i32),
     cel_w: u32,
@@ -282,7 +282,7 @@ fn intersect_with_cel(
     Some((local_x, local_y, local_w, local_h))
 }
 
-fn read_pixel(buf: &crate::document::PixelBuffer, x: u32, y: u32) -> Rgba {
+pub(crate) fn read_pixel(buf: &crate::document::PixelBuffer, x: u32, y: u32) -> Rgba {
     let off = ((y * buf.width + x) * 4) as usize;
     Rgba {
         r: buf.data[off],
@@ -292,7 +292,7 @@ fn read_pixel(buf: &crate::document::PixelBuffer, x: u32, y: u32) -> Rgba {
     }
 }
 
-fn write_pixel(buf: &mut crate::document::PixelBuffer, x: u32, y: u32, c: Rgba) {
+pub(crate) fn write_pixel(buf: &mut crate::document::PixelBuffer, x: u32, y: u32, c: Rgba) {
     let off = ((y * buf.width + x) * 4) as usize;
     buf.data[off] = c.r;
     buf.data[off + 1] = c.g;

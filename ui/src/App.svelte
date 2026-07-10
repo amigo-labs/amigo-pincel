@@ -5,6 +5,8 @@
   import TileEditor from './lib/components/TileEditor.svelte';
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
+  import LayersPanel from './lib/components/LayersPanel.svelte';
+  import PalettePanel from './lib/components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
@@ -32,8 +34,6 @@
     type RecentFile,
   } from './lib/idb/recent-files';
   import {
-    blitDirtyFrame,
-    blitFrame,
     paintEllipsePreview,
     paintLinePreview,
     paintPivotCrosshair,
@@ -41,6 +41,11 @@
     paintRectanglePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
+  import { Canvas2DRenderer } from './lib/render/canvas2d-renderer';
+  import type { CanvasRenderer, RenderBackend } from './lib/render/types';
+  import { WebGPURenderer } from './lib/render/webgpu-renderer';
+  import { fitZoom } from './lib/view/fit';
+  import { packColor, unpackColor } from './lib/color';
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -84,13 +89,59 @@
 
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 64;
+  // CSS px of breathing room left on each edge when auto-fitting a
+  // sprite to the viewport (see `fitView`).
+  const FIT_MARGIN = 24;
 
   let canvas = $state<HTMLCanvasElement | null>(null);
+  // Transparent Canvas2D layer stacked over the base canvas; carries the
+  // marching-ants marquee, drag-shape previews, tile grid, and active
+  // slice accents so the base layer can be WebGPU (spec §4.4, M12.5).
+  let overlay = $state<HTMLCanvasElement | null>(null);
+  // The base-layer blit surface. Created in `onMount` once the base
+  // canvas binds — WebGPU when available, else Canvas2D. Not reactive:
+  // only the render path touches it.
+  let renderer: CanvasRenderer | null = null;
+  // Active backend, surfaced in the footer (M12.5). `'none'` until the
+  // renderer is selected.
+  let backend = $state<RenderBackend | 'none'>('none');
+
+  // Release version stamped in by the release workflow; `dev` locally.
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
+  // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
+  // fallback so WebGPU can be A/B'd against it on the same build.
+  const forceCanvas2d =
+    typeof location !== 'undefined' &&
+    new URLSearchParams(location.search).get('renderer') === 'canvas2d';
+
+  // Pick the base-layer renderer: WebGPU when available (and not forced
+  // off), else the universal Canvas2D fallback. WebGPURenderer.create
+  // resolves to null rather than throwing, so the fallback is automatic.
+  async function createRenderer(target: HTMLCanvasElement): Promise<CanvasRenderer> {
+    if (!forceCanvas2d) {
+      const gpu = await WebGPURenderer.create(target);
+      if (gpu) return gpu;
+    }
+    return new Canvas2DRenderer(target);
+  }
+  // Live size of the flex-centered canvas stage (the `overflow-hidden`
+  // wrapper). Bound to the wrapper's `clientWidth` / `clientHeight` so
+  // `fitView` can pick a zoom that lands the whole sprite in view.
+  let stageW = $state(0);
+  let stageH = $state(0);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
+  // Foreground alpha (0–255). The native <input type="color"> has no
+  // alpha channel, so it's a separate slider; packColor folds it in.
+  let alpha = $state(255);
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
+  // Current frame (view + edit target) and total frame count, mirrored
+  // from the wasm side by `syncMeta`. The footer stepper only renders
+  // for multi-frame documents.
+  let currentFrame = $state(0);
+  let frameCount = $state(1);
   let canvasW = $state(64);
   let canvasH = $state(64);
   let status = $state('initializing…');
@@ -120,6 +171,12 @@
     handle: null,
     path: null,
   });
+  // True while an async file operation (open / save / recover) is in
+  // flight. Guards re-entrancy: a second click would otherwise start a
+  // concurrent `saveBytes` write through the same handle, or dispose a
+  // `Document` the first flow is still using. Checked at every file-op
+  // entry point and mirrored as a `disabled` state on the file buttons.
+  let fileOpBusy = $state(false);
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
   // Per-document UUID. Refreshed on every `New` / `Open` /
@@ -137,6 +194,18 @@
   // moves into the list on open and returns to the trigger on close.
   let recentsTrigger = $state<HTMLButtonElement | null>(null);
   let recentsMenu = $state<HTMLUListElement | null>(null);
+  // "New document" dialog: size inputs, defaults matching the historical
+  // 64×64. Clamped to 1..=4096 on create.
+  let newDocOpen = $state(false);
+  let newDocW = $state(64);
+  let newDocH = $state(64);
+  const MAX_DOC_SIZE = 4096;
+
+  // Pending destructive action awaiting the user's unsaved-changes
+  // confirmation. Non-null renders the inline confirm dialog; `run` is
+  // the guarded action (New / Open / Open Recent) to execute on
+  // "Discard changes".
+  let confirmState = $state<{ message: string; run: () => void } | null>(null);
   const tauriHost = isTauri();
   const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
   // Autosave (M10.3): on a 30-second cadence, snapshot the current
@@ -151,6 +220,13 @@
   const autosaveAvailable = isIdbAvailable();
   let autosaveTimer: ReturnType<typeof setInterval> | null = null;
   let lastWriteUndoDepth = $state(0);
+  // Undo depth at the last successful on-disk save (or document load).
+  // Distinct from `lastWriteUndoDepth`, which autosave snapshots also
+  // re-baseline — an autosave must not make the document read as clean.
+  let lastSavedUndoDepth = $state(0);
+  // "Modified since last save" — drives the footer dot, the tab title,
+  // the beforeunload warning, and the New / Open confirm guard.
+  const isDirty = $derived(doc !== null && undoDepth !== lastSavedUndoDepth);
   let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
   let recoveryOpen = $state(false);
   // Per-row failure surface so a failed Recover / Discard keeps the
@@ -161,6 +237,10 @@
   // First-launch file-association dialog (Tauri-only). Visible once
   // per install; "Don't show again" persists the pref.
   const FILE_ASSOC_PREF = 'fileAssocPromptShown';
+  // Last-used foreground color, persisted across sessions (prefs IDB
+  // store). Loaded once on mount; written on every change thereafter.
+  const COLOR_PREF = 'lastColor';
+  let colorPrefLoaded = false;
   let fileAssocOpen = $state(false);
   const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
     if (typeof navigator === 'undefined') return 'unknown';
@@ -231,12 +311,13 @@
   // overlay redraws once per phase step; intermediate ticks skip the
   // recompose so an idle selection costs near-zero CPU.
   const MARCH_FRAMES_PER_STEP = 7;
-  // Bumped whenever the wasm side may have mutated the tileset list
-  // (new / open document, undo, redo, or a panel-initiated addTileset).
-  // The Tileset Panel reads it as a reactivity tripwire — the wasm
-  // getters it polls are opaque to Svelte's reactive graph, so it needs
-  // an explicit "something changed" signal to re-derive its list.
-  let tilesetRev = $state(0);
+  // Document revision counter: bumped whenever the wasm side may have
+  // mutated structural state any panel derives from (new / open
+  // document, undo, redo, layer / tileset / slice edits). The panels
+  // read it as a reactivity tripwire — the wasm getters they poll are
+  // opaque to Svelte's reactive graph, so they need an explicit
+  // "something changed" signal to re-derive their lists.
+  let docRev = $state(0);
   // Active stamp tile for the Tilemap Stamp tool. Set by clicking a
   // tile thumbnail in the Tileset Panel; null clears the stamp and
   // the tool is essentially disabled until one is picked.
@@ -255,6 +336,11 @@
   // rather than `addSlice` when this is set. `null` means no
   // selection — Slice tool drag falls through to `addSlice`.
   let activeSliceId = $state<number | null>(null);
+  // Layer highlighted in the Layers panel (M13.3). Parent-owned so the
+  // panel can read it back for the active-row style. Painting still
+  // auto-picks the image layer until M13.3b wires this into the paint
+  // surface. `null` until the user selects a row.
+  let activeLayerId = $state<number | null>(null);
 
   function syncMeta() {
     if (!doc) return;
@@ -262,6 +348,8 @@
     redoDepth = doc.redoDepth;
     canvasW = doc.width;
     canvasH = doc.height;
+    frameCount = doc.frameCount;
+    currentFrame = doc.currentFrame;
   }
 
   // Re-read the selection rect from the wasm side. Called after any
@@ -283,124 +371,89 @@
   }
 
   function recompose() {
-    if (!doc || !canvas) return;
-    const frame = doc.compose(0, 1);
+    if (!doc || !renderer) return;
+    const frame = doc.compose(currentFrame, 1);
     try {
-      blitFrame(canvas, frame);
-      if (dragStart && dragPreview && dragTool) {
-        // Overlay the in-flight drag-shape preview after the blit. The
-        // next recompose clears it; on release we commit through the
-        // appropriate wasm method and the composed cel surfaces the
-        // same pixels naturally.
-        const end = constrainedEndpoint();
-        if (dragTool === 'line') {
-          paintLinePreview(canvas, dragStart.x, dragStart.y, end.x, end.y, color);
-        } else if (dragTool === 'rectangle') {
-          paintRectanglePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            false,
-          );
-        } else if (dragTool === 'rectangle-fill') {
-          paintRectanglePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            true,
-          );
-        } else if (dragTool === 'ellipse') {
-          paintEllipsePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            false,
-          );
-        } else if (dragTool === 'ellipse-fill') {
-          paintEllipsePreview(
-            canvas,
-            dragStart.x,
-            dragStart.y,
-            end.x,
-            end.y,
-            color,
-            true,
-          );
-        } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
-          // Inclusive-corner marquee preview: matches the rect that
-          // `commitSelection` / `commitSliceDrag` will hand to the
-          // wasm side on release. Slice drags reuse the marching
-          // marquee so the gesture matches the active-slice overlay
-          // the user is editing.
-          const minX = Math.min(dragStart.x, end.x);
-          const maxX = Math.max(dragStart.x, end.x);
-          const minY = Math.min(dragStart.y, end.y);
-          const maxY = Math.max(dragStart.y, end.y);
-          paintSelectionMarquee(
-            canvas,
-            minX,
-            minY,
-            maxX - minX + 1,
-            maxY - minY + 1,
-            marchPhase,
-          );
-        }
-      } else if (selection) {
-        // No marquee drag in flight. If a Move-tool selection drag is
-        // active, paint a ghost marquee at the translated position so
-        // the user sees where the selection will land (the pixels
-        // themselves snap into place on release — the live drag
-        // doesn't bother rasterizing them). Otherwise paint the
-        // committed marquee at its stored sprite-space position.
-        if (moveSelStart && moveSelPreview) {
-          const dx = moveSelPreview.x - moveSelStart.x;
-          const dy = moveSelPreview.y - moveSelStart.y;
-          paintSelectionMarquee(
-            canvas,
-            selection.x + dx,
-            selection.y + dy,
-            selection.w,
-            selection.h,
-            marchPhase,
-          );
-        } else {
-          paintSelectionMarquee(
-            canvas,
-            selection.x,
-            selection.y,
-            selection.w,
-            selection.h,
-            marchPhase,
-          );
-        }
-      }
-      // Tilemap Stamp tool: overlay the tile grid and highlight the
-      // cell under the cursor so the user sees exactly where a click
-      // will land. Drawn after the selection marquee so a marquee +
-      // stamp tool combo doesn't hide one of them.
-      if (tool === 'tilemap-stamp' && stampTile && doc) {
-        paintTileGridOverlay();
-      }
-      // Active slice overlay: paint frame-0 bounds as marching ants,
-      // and the optional 9-patch center / pivot as static accents.
-      // Drawn last so the slice's geometry stays visible above the
-      // tile grid or selection marquee when several overlays would
-      // otherwise compete.
-      if (doc && activeSliceId !== null) {
-        paintActiveSliceOverlay();
-      }
+      renderer.draw(frame);
     } finally {
       frame.free();
     }
+    paintOverlays();
+  }
+
+  // Clear the overlay layer and repaint whatever transient furniture is
+  // currently live. Runs on the full recompose path (the dirty fast path
+  // only fires when nothing here would paint, per `canRecomposeDirty`).
+  function paintOverlays() {
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    if (dragStart && dragPreview && dragTool) {
+      // In-flight drag-shape preview. On release we commit through the
+      // matching wasm method and the composed cel surfaces the same
+      // pixels naturally; the next paint clears this preview.
+      const end = constrainedEndpoint();
+      if (dragTool === 'line') {
+        paintLinePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color);
+      } else if (dragTool === 'rectangle') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
+      } else if (dragTool === 'rectangle-fill') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'ellipse') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
+      } else if (dragTool === 'ellipse-fill') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
+        // Inclusive-corner marquee preview: matches the rect that
+        // `commitSelection` / `commitSliceDrag` will hand to the wasm
+        // side on release. Slice drags reuse the marching marquee so the
+        // gesture matches the active-slice overlay being edited.
+        const minX = Math.min(dragStart.x, end.x);
+        const maxX = Math.max(dragStart.x, end.x);
+        const minY = Math.min(dragStart.y, end.y);
+        const maxY = Math.max(dragStart.y, end.y);
+        paintSelectionMarquee(overlay, minX, minY, maxX - minX + 1, maxY - minY + 1, marchPhase);
+      }
+    } else if (selection) {
+      // No marquee drag in flight. A live Move-tool selection drag paints
+      // a ghost marquee at the translated position (the pixels snap into
+      // place on release); otherwise paint the committed marquee.
+      if (moveSelStart && moveSelPreview) {
+        const dx = moveSelPreview.x - moveSelStart.x;
+        const dy = moveSelPreview.y - moveSelStart.y;
+        paintSelectionMarquee(
+          overlay,
+          selection.x + dx,
+          selection.y + dy,
+          selection.w,
+          selection.h,
+          marchPhase,
+        );
+      } else {
+        paintSelectionMarquee(overlay, selection.x, selection.y, selection.w, selection.h, marchPhase);
+      }
+    }
+    // Tilemap Stamp tool: tile grid + hovered cell, drawn after the
+    // marquee so a marquee + stamp combo keeps both visible.
+    if (tool === 'tilemap-stamp' && stampTile && doc) {
+      paintTileGridOverlay();
+    }
+    // Active slice overlay last so its geometry stays above the grid /
+    // marquee when several overlays would otherwise compete.
+    if (doc && activeSliceId !== null) {
+      paintActiveSliceOverlay();
+    }
+  }
+
+  // Wipe the overlay layer. Used by the dirty fast path so a preview /
+  // marquee painted on the previous full frame can't linger once the
+  // overlay sources go inactive (the base sub-rect blit leaves the
+  // overlay untouched).
+  function clearOverlay() {
+    if (!overlay) return;
+    const ctx = overlay.getContext('2d');
+    ctx?.clearRect(0, 0, overlay.width, overlay.height);
   }
 
   // Sub-rect blit path (M12.4). Only safe when none of the overlay
@@ -408,13 +461,14 @@
   // out on the parts of the canvas this call leaves untouched. The
   // caller (`tick`) checks `canRecomposeDirty()` before routing here.
   function recomposeDirty(rect: { x: number; y: number; w: number; h: number }) {
-    if (!doc || !canvas) return;
-    const frame = doc.composeDirty(0, 1, rect.x, rect.y, rect.w, rect.h);
+    if (!doc || !renderer) return;
+    const frame = doc.composeDirty(currentFrame, 1, rect.x, rect.y, rect.w, rect.h);
     try {
-      blitDirtyFrame(canvas, frame);
+      renderer.drawDirty(frame);
     } finally {
       frame.free();
     }
+    clearOverlay();
   }
 
   // True when no transient overlay is being painted on top of the
@@ -436,7 +490,7 @@
   // the slice was just removed via undo, the function silently
   // no-ops via the try/catch wrapping the bounds read.
   function paintActiveSliceOverlay() {
-    if (!canvas || !doc || activeSliceId === null) return;
+    if (!overlay || !doc || activeSliceId === null) return;
     try {
       const id = activeSliceId;
       const keyCount = doc.sliceKeyCount(id);
@@ -455,7 +509,7 @@
       const y = doc.sliceKeyY(id, keyIndex);
       const w = doc.sliceKeyWidth(id, keyIndex);
       const h = doc.sliceKeyHeight(id, keyIndex);
-      paintSelectionMarquee(canvas, x, y, w, h, marchPhase);
+      paintSelectionMarquee(overlay, x, y, w, h, marchPhase);
       if (doc.sliceKeyHasCenter(id, keyIndex)) {
         const cx = doc.sliceKeyCenterX(id, keyIndex);
         const cy = doc.sliceKeyCenterY(id, keyIndex);
@@ -464,17 +518,17 @@
         // Reuse the slice's editor color for the center accent so
         // 9-patch slices read as distinct from the active marquee.
         const color = sliceColorCss(doc.sliceColor(id));
-        paintRectOutline(canvas!, cx, cy, cw, ch, color);
+        paintRectOutline(overlay!, cx, cy, cw, ch, color);
       }
       if (doc.sliceKeyHasPivot(id, keyIndex)) {
         const px = doc.sliceKeyPivotX(id, keyIndex);
         const py = doc.sliceKeyPivotY(id, keyIndex);
-        paintPivotCrosshair(canvas!, px, py);
+        paintPivotCrosshair(overlay!, px, py);
       }
     } catch {
       // Slice disappeared mid-frame (e.g. undo of an addSlice).
       // `reconcileActiveSlice` runs after undo / redo (the same
-      // place `tilesetRev` bumps) and clears the stale id.
+      // place `docRev` bumps) and clears the stale id.
     }
   }
 
@@ -493,25 +547,25 @@
   // (`canvas.width`/`height` == sprite dimensions); CSS scaling does
   // the visual upscale via `image-rendering: pixelated`.
   function paintTileGridOverlay() {
-    if (!canvas || !doc || !stampTile) return;
+    if (!overlay || !doc || !stampTile) return;
     const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
     const tileH = doc.tilesetTileHeight(stampTile.tilesetId);
     if (tileW === 0 || tileH === 0) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = overlay.getContext('2d');
     if (!ctx) return;
     ctx.save();
     ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
     ctx.lineWidth = 1;
-    for (let gx = tileW; gx < canvas.width; gx += tileW) {
+    for (let gx = tileW; gx < overlay.width; gx += tileW) {
       ctx.beginPath();
       ctx.moveTo(gx + 0.5, 0);
-      ctx.lineTo(gx + 0.5, canvas.height);
+      ctx.lineTo(gx + 0.5, overlay.height);
       ctx.stroke();
     }
-    for (let gy = tileH; gy < canvas.height; gy += tileH) {
+    for (let gy = tileH; gy < overlay.height; gy += tileH) {
       ctx.beginPath();
       ctx.moveTo(0, gy + 0.5);
-      ctx.lineTo(canvas.width, gy + 0.5);
+      ctx.lineTo(overlay.width, gy + 0.5);
       ctx.stroke();
     }
     if (stampHover) {
@@ -548,23 +602,6 @@
     return dragPreview;
   }
 
-  // `<input type="color">` reports `#RRGGBB`. The wasm `applyTool`
-  // expects a packed `0xRRGGBBAA`; alpha is fixed at fully opaque
-  // until the UI grows an alpha control.
-  function packColor(hex: string): number {
-    const rgb = Number.parseInt(hex.slice(1), 16);
-    return ((rgb << 8) | 0xff) >>> 0;
-  }
-
-  // Convert a packed `0xRRGGBBAA` back to the `#RRGGBB` form the color
-  // input expects. Alpha is intentionally dropped — the input has no
-  // alpha control yet, and `pickColor` callers that need it can read
-  // the raw u32 themselves.
-  function unpackColor(rgba: number): string {
-    const rgb = (rgba >>> 8) & 0xffffff;
-    return '#' + rgb.toString(16).padStart(6, '0');
-  }
-
   // Clamp + apply a new zoom level. Pan offset stays in CSS pixels,
   // so the canvas's flex-centered position keeps the sprite center
   // anchored across zoom changes; further pan offsets shift uniformly
@@ -583,13 +620,26 @@
     setZoom(zoom >>> 1);
   }
 
-  // Default view: 8× zoom + zero pan offset. Matches the M6.6 default
-  // look (64×64 canvas at 512×512 CSS) and re-centers the canvas in
-  // the viewport regardless of where it had been dragged.
-  function resetView() {
-    zoom = 8;
+  // Fit the whole sprite to the viewport: the largest integer zoom that
+  // shows it with a small margin, then re-center (pan 0). Runs on every
+  // document replacement (new / open / recover) so a freshly-loaded
+  // sprite always lands fully in view regardless of its dimensions, and
+  // backs the "Reset" control + the `0` shortcut. Falls back to the
+  // historical 8× default when the stage hasn't been measured yet
+  // (e.g. first paint before layout settles).
+  function fitView() {
+    zoom =
+      stageW > 0 && stageH > 0
+        ? fitZoom(stageW, stageH, canvasW, canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
+        : 8;
     panX = 0;
     panY = 0;
+  }
+
+  // "Reset view" — re-centers and fits the sprite to the viewport.
+  // Wired to the toolbar button and the View ▸ Reset Zoom menu item.
+  function resetView() {
+    fitView();
   }
 
   // Cursor-anchored mouse-wheel zoom. The canvas is flex-centered, so it
@@ -675,7 +725,7 @@
     const gx = Math.floor(point.x / tileW);
     const gy = Math.floor(point.y / tileH);
     try {
-      doc.placeTile(layerId, 0, gx, gy, stampTile.tileId);
+      doc.placeTile(layerId, currentFrame, gx, gy, stampTile.tileId);
       dirty = true;
       syncMeta();
     } catch (err) {
@@ -698,8 +748,9 @@
       // bind it to the foreground color picker. Drags keep sampling
       // so the user can scrub for the exact pixel they want.
       try {
-        const picked = doc.pickColor(0, point.x, point.y);
+        const picked = doc.pickColor(currentFrame, point.x, point.y);
         color = unpackColor(picked);
+        alpha = picked & 0xff;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error('pickColor failed', err);
@@ -710,7 +761,7 @@
     try {
       // The wasm eraser ignores the `color` arg, but we still pass
       // the packed foreground so the JS surface stays uniform.
-      doc.applyTool(tool, point.x, point.y, packColor(color));
+      doc.applyTool(tool, point.x, point.y, packColor(color, alpha));
     } catch (err) {
       // Drags that leave the canvas raise PixelOutOfBounds; that is
       // expected and silenced. Anything else (missing layer, unknown
@@ -787,7 +838,7 @@
     const point = spriteCoord(e);
     if (!point) return;
     try {
-      doc.applyBucket(point.x, point.y, packColor(color));
+      doc.applyBucket(point.x, point.y, packColor(color, alpha));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('applyBucket failed', err);
@@ -811,7 +862,7 @@
     try {
       if (activeSliceId === null) {
         const autoName = `Slice ${doc.sliceCount + 1}`;
-        const packed = packColor(color);
+        const packed = packColor(color, alpha);
         const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
         activeSliceId = newId;
       } else {
@@ -846,7 +897,7 @@
           hasPivot ? doc.sliceKeyPivotY(id, keyIndex) : undefined,
         );
       }
-      tilesetRev += 1;
+      docRev += 1;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('slice commit failed', err);
@@ -948,7 +999,7 @@
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
-      const packed = packColor(color);
+      const packed = packColor(color, alpha);
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
@@ -978,7 +1029,12 @@
       syncMeta();
       return;
     }
-    painting = false;
+    if (painting) {
+      painting = false;
+      // Close the gesture on the undo bus so this drag stays one undo
+      // entry and the next stroke starts a fresh one.
+      doc?.endStroke();
+    }
   }
 
   // wasm-bindgen classes own Rust-side allocations; freeing the prior
@@ -991,24 +1047,119 @@
     }
   }
 
-  function newDoc() {
-    disposeDoc();
-    doc = new Document(64, 64);
+  // Re-derive every piece of view / panel state that tracks the
+  // document after it has been replaced. Ids held from the previous
+  // document (stamp target, active slice / layer, tile editor) are
+  // meaningless against the new one and are dropped.
+  // Switch the viewed / edited frame. Clamped; the wasm side emits a
+  // dirty-canvas event that drives the recompose.
+  function setFrame(next: number) {
+    if (!doc) return;
+    const clamped = Math.max(0, Math.min(frameCount - 1, next));
+    if (clamped === currentFrame) return;
+    try {
+      doc.setCurrentFrame(clamped);
+      currentFrame = clamped;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `frame switch failed: ${msg}`;
+    }
+  }
+
+  function addLayer() {
+    if (!doc) return;
+    try {
+      const id = doc.addLayer(`Layer ${doc.layerCount + 1}`);
+      activeLayerId = id;
+      // Route the paint tools to the freshly created layer.
+      doc.setActiveLayer(id);
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    } catch (err) {
+      status = `add layer failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function addFrame() {
+    if (!doc) return;
+    try {
+      // 100 ms matches the default frame duration from a fresh document.
+      const idx = doc.addFrame(100);
+      dirty = true;
+      syncMeta();
+      // Step to the new frame so it's immediately viewable / paintable.
+      setFrame(idx);
+      docRev += 1;
+    } catch (err) {
+      status = `add frame failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function resetDocViewState() {
     dirty = true;
     syncMeta();
+    fitView();
     syncSelection();
-    tilesetRev += 1;
+    docRev += 1;
     stampTile = null;
     stampHover = null;
     editingTile = null;
     activeSliceId = null;
+    activeLayerId = null;
+  }
+
+  // Run `action` immediately when the document is clean; otherwise park
+  // it behind the inline "discard unsaved changes?" confirm dialog.
+  function guardUnsaved(action: () => void) {
+    if (!isDirty) {
+      action();
+      return;
+    }
+    confirmState = {
+      message: `Discard unsaved changes to ${saveTarget.name}?`,
+      run: action,
+    };
+  }
+
+  function confirmDiscard() {
+    const pending = confirmState;
+    confirmState = null;
+    pending?.run();
+  }
+
+  function openNewDialog() {
+    if (fileOpBusy) return;
+    newDocOpen = true;
+  }
+
+  function newDoc(width = 64, height = 64) {
+    // Don't free the document under an in-flight open / save.
+    if (fileOpBusy) return;
+    const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(width)));
+    const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(height)));
+    newDocOpen = false;
+    disposeDoc();
+    doc = new Document(w, h);
+    resetDocViewState();
     saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
     docId = crypto.randomUUID();
     lastWriteUndoDepth = doc.undoDepth;
-    status = 'new 64×64 document';
+    lastSavedUndoDepth = doc.undoDepth;
+    status = `new ${w}×${h} document`;
   }
 
   async function openDoc() {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await openDocInner();
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function openDocInner() {
     let opened;
     try {
       opened = await pickAndOpen();
@@ -1022,14 +1173,7 @@
       const next = Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
+      resetDocViewState();
       saveTarget = {
         name: opened.name,
         handle: opened.handle,
@@ -1037,6 +1181,7 @@
       };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
@@ -1047,19 +1192,23 @@
   }
 
   async function save(opts: { forceAs?: boolean } = {}) {
-    if (!doc) return;
+    if (!doc || fileOpBusy) return;
     const forceAs = opts.forceAs ?? false;
+    fileOpBusy = true;
     try {
       const bytes = new Uint8Array(doc.saveAseprite());
       const next = await saveBytes(bytes, saveTarget, { forceAs });
       saveTarget = next;
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `saved ${bytes.length} bytes · ${next.name}`;
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `save failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1082,9 +1231,12 @@
   // the status bar is intentional — autosave silently failing is the
   // worst failure mode for this feature.
   async function autosaveTick() {
-    if (!autosaveAvailable || !doc) return;
+    // Skip while a file op is in flight — the doc may be disposed /
+    // replaced under the await below.
+    if (!autosaveAvailable || !doc || fileOpBusy) return;
     if (doc.undoDepth === lastWriteUndoDepth) return;
     const depthAtSnapshot = doc.undoDepth;
+    const idAtSnapshot = docId;
     let bytes: Uint8Array;
     try {
       bytes = new Uint8Array(doc.saveAseprite());
@@ -1095,8 +1247,10 @@
       return;
     }
     try {
-      await writeSnapshot(docId, saveTarget.name, bytes);
-      lastWriteUndoDepth = depthAtSnapshot;
+      await writeSnapshot(idAtSnapshot, saveTarget.name, bytes);
+      // A New / Open may have swapped the document during the await;
+      // its own re-baseline must not be clobbered with our stale depth.
+      if (docId === idAtSnapshot) lastWriteUndoDepth = depthAtSnapshot;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('autosave write failed', err);
@@ -1112,6 +1266,16 @@
   // on failure the dialog stays open with a per-row error so the
   // user can retry or pick a different snapshot.
   async function applyRecovery(meta: AutosaveSnapshotMeta) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      await applyRecoveryInner(meta);
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  async function applyRecoveryInner(meta: AutosaveSnapshotMeta) {
     let next: Document;
     try {
       const full = await latestSnapshot(meta.docId);
@@ -1125,17 +1289,11 @@
     }
     disposeDoc();
     doc = next;
-    dirty = true;
-    syncMeta();
-    syncSelection();
-    tilesetRev += 1;
-    stampTile = null;
-    stampHover = null;
-    editingTile = null;
-    activeSliceId = null;
+    resetDocViewState();
     saveTarget = { name: meta.name, handle: null, path: null };
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
+    lastSavedUndoDepth = doc.undoDepth;
     status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
     await clearAutosave();
     closeRecovery();
@@ -1195,7 +1353,9 @@
   }
 
   async function openRecent(r: RecentFile) {
+    if (fileOpBusy) return;
     recentMenuOpen = false;
+    fileOpBusy = true;
     try {
       let name: string;
       let bytes: Uint8Array;
@@ -1226,34 +1386,37 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
+      resetDocViewState();
       saveTarget = nextTarget;
       // Preserve the recent's id so re-opens count as the same doc
       // and autosave snapshots survive across page reloads.
       docId = r.id;
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `recent ${r.name} open failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
   function undo() {
-    if (doc?.undo()) {
-      dirty = true;
-      syncMeta();
-      tilesetRev += 1;
-      reconcileActiveSlice();
+    if (!doc) return;
+    try {
+      if (doc.undo()) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+        reconcileActiveSlice();
+        reconcileActiveLayerAndStamp();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      status = `undo failed: ${msg}`;
     }
   }
 
@@ -1263,8 +1426,9 @@
       if (doc.redo()) {
         dirty = true;
         syncMeta();
-        tilesetRev += 1;
+        docRev += 1;
         reconcileActiveSlice();
+        reconcileActiveLayerAndStamp();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1287,6 +1451,41 @@
       }
     }
     activeSliceId = null;
+  }
+
+  // Companion to `reconcileActiveSlice` for the Layers panel highlight
+  // and the stamp target: undo/redo can remove the referenced layer or
+  // tile (e.g. undoing an addTilemapLayer / addTile), leaving the local
+  // pointer dangling — painting would target a stale layer and the next
+  // stamp would throw. The wasm-side paint target already falls back
+  // gracefully when its layer vanishes, so only the UI state needs
+  // clearing.
+  function reconcileActiveLayerAndStamp() {
+    if (!doc) return;
+    if (activeLayerId !== null) {
+      let found = false;
+      const count = doc.layerCount;
+      for (let i = 0; i < count; i += 1) {
+        try {
+          if (doc.layerIdAt(i) === activeLayerId) {
+            found = true;
+            break;
+          }
+        } catch {
+          // ignore — treat unreadable rows as "not the active layer"
+        }
+      }
+      if (!found) activeLayerId = null;
+    }
+    if (stampTile) {
+      try {
+        if (stampTile.tileId >= doc.tilesetTileCount(stampTile.tilesetId)) {
+          stampTile = null;
+        }
+      } catch {
+        stampTile = null;
+      }
+    }
   }
 
   // Fold one compose-cost sample into the rolling window and refresh
@@ -1378,10 +1577,12 @@
         if (marchTicks >= MARCH_FRAMES_PER_STEP) {
           marchTicks = 0;
           marchPhase = (marchPhase + 1) & 0x3;
-          dirty = true;
-          // The march tick repaints overlays, not pixels, but the
-          // sub-rect path can't redraw them — force full recompose.
-          dirtyKind = 'canvas';
+          // The ant-phase advance changes overlay pixels only — the
+          // overlay is its own canvas (M12.5a), so repaint it directly
+          // instead of forcing a full sprite recompose 8.5×/sec. When a
+          // real recompose is already queued this tick, it repaints the
+          // overlay itself.
+          if (!dirty) paintOverlays();
         }
       } else {
         marchTicks = 0;
@@ -1422,16 +1623,44 @@
   // Single-key tool shortcuts, aligned with Aseprite defaults where they
   // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
   // the browser / OS; Shift is tolerated (normalized via toLowerCase).
-  const TOOL_KEYS: Record<string, Tool> = {
-    b: 'pencil',
-    e: 'eraser',
-    i: 'eyedropper',
-    g: 'bucket',
-    l: 'line',
-    u: 'rectangle',
-    m: 'selection-rect',
-    v: 'move',
+  // Each key maps to a tool group. The first press selects the group's
+  // first tool; repeated presses cycle through the group (the Aseprite
+  // pattern — `U` walks the four shape variants).
+  const TOOL_KEYS: Record<string, Tool[]> = {
+    b: ['pencil'],
+    e: ['eraser'],
+    i: ['eyedropper'],
+    g: ['bucket'],
+    l: ['line'],
+    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
+    m: ['selection-rect'],
+    v: ['move'],
   };
+
+  // Deselect the marquee. The wasm side enqueues a `selection-changed`
+  // event, which the next tick drains into a repaint.
+  function deselect() {
+    doc?.clearSelection();
+  }
+
+  function selectAll() {
+    doc?.setSelection(0, 0, canvasW, canvasH);
+  }
+
+  // Delete/Backspace: clear the pixels inside the marquee (the marquee
+  // stays, Aseprite-style). Recompose rides the dirty-rect event.
+  function deleteSelectionPixels() {
+    if (!doc || !selection) return;
+    try {
+      if (doc.deleteSelection()) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      }
+    } catch (err) {
+      status = `delete failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
@@ -1440,8 +1669,79 @@
       spaceDown = true;
       return;
     }
-    if (e.key === 'Escape' && recentMenuOpen) {
-      closeRecentMenu();
+    if (e.key === 'Escape') {
+      if (recentMenuOpen) {
+        closeRecentMenu();
+        return;
+      }
+      if (confirmState) {
+        confirmState = null;
+        return;
+      }
+      if (newDocOpen) {
+        newDocOpen = false;
+        return;
+      }
+      if (selection && !isEditableTarget(e.target)) {
+        deselect();
+        return;
+      }
+    }
+    if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      doc &&
+      selection &&
+      !isEditableTarget(e.target)
+    ) {
+      e.preventDefault();
+      deleteSelectionPixels();
+      return;
+    }
+    // Editor accelerators on the web build. On Tauri the native menu
+    // already owns Cmd/Ctrl+N/O/S/Z/Y — handling them here too would
+    // double-fire. Shift+Z redoes (mac convention), Y redoes (win),
+    // Shift+S is Save As, A/D select-all / deselect.
+    if (
+      !tauriHost &&
+      (e.ctrlKey || e.metaKey) &&
+      !e.altKey &&
+      !isEditableTarget(e.target)
+    ) {
+      const k = e.key.toLowerCase();
+      if (k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (k === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (k === 's') {
+        e.preventDefault();
+        void save({ forceAs: e.shiftKey });
+        return;
+      }
+      if (k === 'o') {
+        e.preventDefault();
+        guardUnsaved(() => void openDoc());
+        return;
+      }
+      if (k === 'a' && doc) {
+        e.preventDefault();
+        selectAll();
+        return;
+      }
+      if (k === 'd' && doc) {
+        e.preventDefault();
+        deselect();
+        return;
+      }
+      // Note: Ctrl/Cmd+N is reserved by most browsers (new window) and
+      // never reaches the page, so New intentionally has no web
+      // accelerator — the toolbar button is the path.
       return;
     }
     // F2 toggles the frame-time probe (M12.6). Reset the window on
@@ -1465,10 +1765,32 @@
       !e.altKey &&
       !isEditableTarget(e.target)
     ) {
-      const next = TOOL_KEYS[e.key.toLowerCase()];
-      if (next) {
+      // View zoom shortcuts. Bare keys only — Ctrl/Cmd +/- stays the
+      // browser's page zoom (the modifier guard above excludes it).
+      // `0` fits the sprite to the viewport (same as the Reset control).
+      if (e.key === '+' || e.key === '=') {
         e.preventDefault();
-        tool = next;
+        zoomIn();
+        return;
+      }
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+      if (e.key === '0') {
+        e.preventDefault();
+        resetView();
+        return;
+      }
+      const group = TOOL_KEYS[e.key.toLowerCase()];
+      if (group) {
+        e.preventDefault();
+        // `indexOf` is -1 when the current tool isn't in the group, so
+        // the first press lands on the group's first entry. The `??`
+        // only satisfies noUncheckedIndexedAccess — the index is always
+        // in range.
+        tool = group[(group.indexOf(tool) + 1) % group.length] ?? tool;
       }
     }
   }
@@ -1500,13 +1822,26 @@
   onMount(() => {
     let cancelled = false;
     loadCore()
-      .then(() => {
+      .then(async () => {
         if (cancelled) return;
+        // Pick the base-layer renderer before the first frame. The base
+        // canvas is bound by the time onMount runs (spec §4.4, M12.5).
+        if (canvas && !renderer) {
+          const r = await createRenderer(canvas);
+          if (cancelled) {
+            r.destroy();
+            return;
+          }
+          renderer = r;
+          backend = r.backend;
+        }
         doc = new Document(64, 64);
         syncMeta();
+        fitView();
         syncSelection();
         dirty = true;
         lastWriteUndoDepth = doc.undoDepth;
+        lastSavedUndoDepth = doc.undoDepth;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
       })
@@ -1519,11 +1854,27 @@
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onWindowBlur);
+    window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
     // Wheel zoom is registered imperatively (not via `onwheel`) so the
     // listener is non-passive and `preventDefault()` actually suppresses
     // page scroll. `canvas` is bound by the time onMount runs.
     canvas?.addEventListener('wheel', onWheel, { passive: false });
+    // Restore the last-used foreground color (best-effort; the default
+    // stands when the pref is missing or IDB is unavailable). The
+    // persist effect below only starts writing once this load settled,
+    // so a slow IDB can't overwrite the stored value with the default.
+    if (autosaveAvailable) {
+      getPref(COLOR_PREF)
+        .then((v) => {
+          if (cancelled) return;
+          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) color = v;
+          colorPrefLoaded = true;
+        })
+        .catch(() => {
+          colorPrefLoaded = true;
+        });
+    }
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -1562,8 +1913,8 @@
     let unlistenOpenFile: UnlistenFn | null = null;
     if (tauriHost) {
       wireNativeMenu({
-        'menu:new': newDoc,
-        'menu:open': openDoc,
+        'menu:new': () => guardUnsaved(openNewDialog),
+        'menu:open': () => guardUnsaved(() => void openDoc()),
         'menu:save': () => save(),
         'menu:saveAs': () => save({ forceAs: true }),
         'menu:undo': undo,
@@ -1622,8 +1973,11 @@
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       canvas?.removeEventListener('wheel', onWheel);
+      renderer?.destroy();
+      renderer = null;
       disposeDoc();
     };
   });
@@ -1640,6 +1994,8 @@
   // `open-file` event (file-association double-click, CLI arg) and
   // by `openRecent` when the recent carries a path.
   async function openByPath(path: string) {
+    if (fileOpBusy) return;
+    fileOpBusy = true;
     try {
       const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
         path,
@@ -1649,24 +2005,20 @@
       const next = Document.openAseprite(bytes);
       disposeDoc();
       doc = next;
-      dirty = true;
-      syncMeta();
-      syncSelection();
-      tilesetRev += 1;
-      stampTile = null;
-      stampHover = null;
-      editingTile = null;
-      activeSliceId = null;
+      resetDocViewState();
       const name = path.replace(/^.*[/\\]/, '');
       saveTarget = { name, handle: null, path };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
+      lastSavedUndoDepth = doc.undoDepth;
       status = `opened ${name} · ${doc.width}×${doc.height}`;
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `open-file failed: ${msg}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 
@@ -1721,6 +2073,45 @@
     }
   }
 
+  // Close the recent-files dropdown on any pointer press outside the
+  // menu and its trigger. Focus is left where the user clicked (unlike
+  // the Escape path, which restores it to the trigger).
+  $effect(() => {
+    if (!recentMenuOpen) return;
+    const onDocPointerDown = (ev: PointerEvent) => {
+      const t = ev.target;
+      if (!(t instanceof Node)) return;
+      if (recentsMenu?.contains(t) || recentsTrigger?.contains(t)) return;
+      recentMenuOpen = false;
+    };
+    document.addEventListener('pointerdown', onDocPointerDown);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown);
+  });
+
+  // Persist the foreground color once the initial load settled.
+  $effect(() => {
+    const current = color;
+    if (!colorPrefLoaded || !autosaveAvailable) return;
+    setPref(COLOR_PREF, current).catch((err: unknown) => {
+      console.error('setPref lastColor failed', err);
+    });
+  });
+
+  // Reflect the document identity + dirty state in the tab title.
+  $effect(() => {
+    document.title = `${isDirty ? '● ' : ''}${saveTarget.name} – Pincel`;
+  });
+
+  // Warn before the tab closes with unsaved edits. Autosave (30 s
+  // cadence) softens the loss, but the user should still get the
+  // browser's "leave site?" prompt.
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    if (!isDirty) return;
+    e.preventDefault();
+    // Chrome still requires returnValue to be set.
+    e.returnValue = '';
+  }
+
   // Push the current recents list to the Rust-side `Open Recent`
   // submenu so the native menu stays in sync with the in-memory list.
   // Only entries with a path can be re-opened by the menu (FSA handles
@@ -1741,16 +2132,24 @@
 <main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={newDoc}>New</button>
-    <button class="toolbar-btn" onclick={openDoc}>Open…</button>
-    <button class="toolbar-btn" onclick={() => save()} disabled={!doc}>
+    <button class="toolbar-btn" onclick={() => guardUnsaved(openNewDialog)} disabled={fileOpBusy}>
+      New
+    </button>
+    <button
+      class="toolbar-btn"
+      onclick={() => guardUnsaved(() => void openDoc())}
+      disabled={fileOpBusy}
+    >
+      Open…
+    </button>
+    <button class="toolbar-btn" onclick={() => save()} disabled={!doc || fileOpBusy}>
       {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
     </button>
     {#if fsAccessAvailable || tauriHost}
       <button
         class="toolbar-btn"
         onclick={() => save({ forceAs: true })}
-        disabled={!doc}
+        disabled={!doc || fileOpBusy}
       >
         Save As…
       </button>
@@ -1763,7 +2162,7 @@
           class:toolbar-btn-active={recentMenuOpen}
           aria-haspopup="menu"
           aria-expanded={recentMenuOpen}
-          disabled={recents.length === 0}
+          disabled={recents.length === 0 || fileOpBusy}
           onclick={toggleRecentMenu}
         >
           Recent…
@@ -1782,7 +2181,7 @@
                   class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
                   role="menuitem"
                   title={r.name}
-                  onclick={() => openRecent(r)}
+                  onclick={() => guardUnsaved(() => void openRecent(r))}
                 >
                   {r.name}
                 </button>
@@ -1851,6 +2250,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'rectangle-fill'}
         aria-pressed={tool === 'rectangle-fill'}
+        title="Rectangle Fill (U)"
         onclick={() => (tool = 'rectangle-fill')}
       >
         Rect Fill
@@ -1859,6 +2259,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse'}
         aria-pressed={tool === 'ellipse'}
+        title="Ellipse (U)"
         onclick={() => (tool = 'ellipse')}
       >
         Ellipse
@@ -1867,6 +2268,7 @@
         class="toolbar-btn"
         class:toolbar-btn-active={tool === 'ellipse-fill'}
         aria-pressed={tool === 'ellipse-fill'}
+        title="Ellipse Fill (U)"
         onclick={() => (tool = 'ellipse-fill')}
       >
         Ellipse Fill
@@ -1943,55 +2345,151 @@
         class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
       />
     </label>
-    <button class="toolbar-btn ml-2" onclick={undo} disabled={undoDepth === 0}>Undo</button>
-    <button class="toolbar-btn" onclick={redo} disabled={redoDepth === 0}>Redo</button>
+    <label class="ml-1 flex items-center gap-1 text-xs text-neutral-400" title="Foreground alpha">
+      <span>α</span>
+      <input
+        type="range"
+        min="0"
+        max="255"
+        bind:value={alpha}
+        class="w-16 cursor-pointer"
+        aria-label="Foreground alpha"
+      />
+      <span class="w-7 tabular-nums text-neutral-500">{alpha}</span>
+    </label>
+    <button
+      class="toolbar-btn ml-2"
+      onclick={undo}
+      disabled={undoDepth === 0}
+      title="Undo (Ctrl/Cmd+Z)"
+    >
+      Undo
+    </button>
+    <button
+      class="toolbar-btn"
+      onclick={redo}
+      disabled={redoDepth === 0}
+      title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)"
+    >
+      Redo
+    </button>
   </header>
 
   <section class="flex flex-1 overflow-hidden">
-    <div class="relative flex flex-1 items-center justify-center overflow-hidden">
-      <canvas
-        bind:this={canvas}
-        class="canvas-pixelated shrink-0 touch-none border border-neutral-700 bg-neutral-900 shadow-lg"
+    <div
+      class="relative flex flex-1 items-center justify-center overflow-hidden"
+      bind:clientWidth={stageW}
+      bind:clientHeight={stageH}
+    >
+<!--
+        Stacked render surfaces (spec §4.4, M12.5): the base canvas
+        shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
+        or Canvas2D) and the overlay canvas, sitting exactly on top with
+        `pointer-events: none`, carries the transient Canvas2D furniture
+        (selection marquee, drag previews, tile grid, slice accents).
+        The wrapper owns the display size / pan transform / frame chrome
+        so both layers scale and translate as one; the canvases fill it
+        via `h-full w-full` and CSS upscales their sprite-sized backing
+        stores (`image-rendering: pixelated`).
+      -->
+      <div
+        class="relative shrink-0 border border-neutral-700 bg-neutral-900 shadow-lg"
         style:width="{canvasW * zoom}px"
         style:height="{canvasH * zoom}px"
         style:transform="translate({panX}px, {panY}px)"
-        style:cursor={panning
-          ? 'grabbing'
-          : moveSelStart
-            ? 'move'
-            : tool === 'move' && selection && !spaceDown
+      >
+        <canvas
+          bind:this={canvas}
+          class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
+          style:cursor={panning
+            ? 'grabbing'
+            : moveSelStart
               ? 'move'
-              : tool === 'move' || spaceDown
-                ? 'grab'
-                : 'crosshair'}
-        aria-label="Pincel canvas"
-        onpointerdown={onPointerDown}
-        onpointermove={onPointerMove}
-        onpointerup={onPointerUp}
-        onpointercancel={onPointerUp}
-        onpointerleave={onPointerLeave}
-      ></canvas>
+              : tool === 'move' && selection && !spaceDown
+                ? 'move'
+                : tool === 'move' || spaceDown
+                  ? 'grab'
+                  : 'crosshair'}
+          aria-label="Pincel canvas"
+          onpointerdown={onPointerDown}
+          onpointermove={onPointerMove}
+          onpointerup={onPointerUp}
+          onpointercancel={onPointerUp}
+          onpointerleave={onPointerLeave}
+        ></canvas>
+        <canvas
+          bind:this={overlay}
+          class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
+          width={canvasW}
+          height={canvasH}
+          aria-hidden="true"
+        ></canvas>
+      </div>
       {#if doc && editingTile}
         <TileEditor
           {doc}
           tilesetId={editingTile.tilesetId}
           tileId={editingTile.tileId}
           {color}
-          rev={tilesetRev}
+          rev={docRev}
           onClose={() => (editingTile = null)}
           onChange={() => {
-            tilesetRev += 1;
+            docRev += 1;
             dirty = true;
             syncMeta();
           }}
         />
       {/if}
     </div>
+    <LayersPanel
+      {doc}
+      rev={docRev}
+      {activeLayerId}
+      onChange={() => (docRev += 1)}
+      onActivate={(layerId) => {
+        activeLayerId = layerId;
+        // Route pixel tools to the selected layer (M13.3b). A fresh
+        // document resets the wasm-side target to None on its own, so
+        // the fallback stays correct after New / Open.
+        doc?.setActiveLayer(layerId);
+      }}
+      onToggleVisible={(layerId, visible) => {
+        if (!doc) return;
+        try {
+          doc.setLayerVisible(layerId, visible);
+          docRev += 1;
+        } catch (err) {
+          status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onRename={(layerId, name) => {
+        if (!doc) return;
+        try {
+          doc.renameLayer(layerId, name);
+          docRev += 1;
+        } catch (err) {
+          status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onAddLayer={addLayer}
+      onRemoveLayer={(layerId) => {
+        if (!doc) return;
+        try {
+          doc.removeLayer(layerId);
+          if (activeLayerId === layerId) activeLayerId = null;
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+    />
     <TilesetPanel
       {doc}
-      rev={tilesetRev}
+      rev={docRev}
       selectedTile={stampTile}
-      onChange={() => (tilesetRev += 1)}
+      onChange={() => (docRev += 1)}
       onSelectStampTile={(tilesetId, tileId) => {
         stampTile = { tilesetId, tileId };
         // Auto-switch to the Stamp tool so a single click on a tile
@@ -2005,13 +2503,24 @@
     />
     <SlicesPanel
       {doc}
-      rev={tilesetRev}
+      rev={docRev}
       {activeSliceId}
-      onChange={() => (tilesetRev += 1)}
+      onChange={() => (docRev += 1)}
       onActivate={(sliceId) => {
         activeSliceId = sliceId;
         if (sliceId !== null) tool = 'slice';
         dirty = true;
+      }}
+    />
+    <PalettePanel
+      {doc}
+      rev={docRev}
+      activeColor={color}
+      onPick={(packed) => {
+        // Set both the RGB (via the picker) and the alpha slider from
+        // the palette entry so a swatch's transparency carries over.
+        color = unpackColor(packed);
+        alpha = packed & 0xff;
       }}
     />
   </section>
@@ -2020,10 +2529,47 @@
     <span>{status}</span>
     {#if doc}
       <span>·</span>
+      <span title={isDirty ? 'unsaved changes' : 'all changes saved'}>
+        {saveTarget.name}{#if isDirty}<span class="text-amber-400"> ●</span>{/if}
+      </span>
+      <span>·</span>
       <span>{canvasW}×{canvasH}</span>
+      <span>·</span>
+      <span class="flex items-center gap-1" role="group" aria-label="Frame">
+        {#if frameCount > 1}
+          <button
+            class="toolbar-btn"
+            onclick={() => setFrame(currentFrame - 1)}
+            disabled={currentFrame === 0}
+            aria-label="Previous frame"
+          >
+            ◀
+          </button>
+          <span>frame {currentFrame + 1}/{frameCount}</span>
+          <button
+            class="toolbar-btn"
+            onclick={() => setFrame(currentFrame + 1)}
+            disabled={currentFrame >= frameCount - 1}
+            aria-label="Next frame"
+          >
+            ▶
+          </button>
+        {:else}
+          <span>frame 1/1</span>
+        {/if}
+        <button class="toolbar-btn" onclick={addFrame} aria-label="Add frame" title="Add frame">
+          +
+        </button>
+      </span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
     {/if}
+    {#if backend !== 'none'}
+      <span>·</span>
+      <span>{backend}</span>
+    {/if}
+    <span>·</span>
+    <span title="Pincel version">{appVersion}</span>
     {#if probeOn}
       <span>·</span>
       <span class="text-emerald-400">
@@ -2050,6 +2596,85 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if newDocOpen}
+  <div
+    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+    role="dialog"
+    aria-modal="true"
+    aria-label="New document"
+  >
+    <form
+      class="w-72 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+      onsubmit={(e) => {
+        e.preventDefault();
+        newDoc(newDocW, newDocH);
+      }}
+    >
+      <p class="font-semibold">New document</p>
+      <div class="mt-3 flex items-center gap-2">
+        <label class="flex items-center gap-1 text-xs text-neutral-400">
+          W
+          <input
+            type="number"
+            min="1"
+            max={MAX_DOC_SIZE}
+            step="1"
+            inputmode="numeric"
+            bind:value={newDocW}
+            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          />
+        </label>
+        <span class="text-neutral-500">×</span>
+        <label class="flex items-center gap-1 text-xs text-neutral-400">
+          H
+          <input
+            type="number"
+            min="1"
+            max={MAX_DOC_SIZE}
+            step="1"
+            inputmode="numeric"
+            bind:value={newDocH}
+            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          />
+        </label>
+        <span class="text-xs text-neutral-500">px</span>
+      </div>
+      <div class="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          class="toolbar-btn"
+          onclick={() => (newDocOpen = false)}
+        >
+          Cancel
+        </button>
+        <button type="submit" class="toolbar-btn toolbar-btn-active">Create</button>
+      </div>
+    </form>
+  </div>
+{/if}
+
+{#if confirmState}
+  <div
+    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+    role="alertdialog"
+    aria-modal="true"
+    aria-label="Unsaved changes"
+  >
+    <div class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl">
+      <p>{confirmState.message}</p>
+      <div class="mt-4 flex justify-end gap-2">
+        <button class="toolbar-btn" onclick={() => (confirmState = null)}>Cancel</button>
+        <button
+          class="toolbar-btn border-red-800 text-red-300"
+          onclick={confirmDiscard}
+        >
+          Discard changes
+        </button>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>

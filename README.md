@@ -1,11 +1,17 @@
 # Pincel
 
-A pixel-art editor for game asset creation, at the feature level of
-Aseprite. Pincel ships as one Svelte UI and one Rust core, packaged as
-a Progressive Web App **and** a native desktop app via Tauri.
+Pincel is a pixel-art editor for game asset creation, aiming at the feature
+level of [Aseprite](https://www.aseprite.org/). One Rust core and one Svelte
+UI ship two ways: as an installable PWA (WebAssembly) and as a native
+desktop app (Tauri 2). It reads and writes the `.aseprite` file format,
+including tilemaps, tilesets, slices, and animation tags.
 
 > **Status:** Phase 1, pre-1.0. See [`STATUS.md`](STATUS.md) for current
 > milestone state.
+
+- **What to build** lives in the spec: [`docs/specs/pincel.md`](docs/specs/pincel.md)
+- **How to build it** lives in the working agreement: [`CLAUDE.md`](CLAUDE.md)
+- **Current state / next task**: [`STATUS.md`](STATUS.md)
 
 ## Why Pincel
 
@@ -34,74 +40,74 @@ a Progressive Web App **and** a native desktop app via Tauri.
 
 [releases]: https://github.com/amigo-labs/amigo-pincel/releases/latest
 
-## Build from source
+## Repository layout
 
-Toolchain:
+```
+crates/pincel-core/      Pure logic: document model, commands + undo,
+                         compose(), aseprite codec. No I/O, no platform deps.
+crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
+                         independent of Pincel types.
+crates/pincel-wasm/      wasm-bindgen bindings (cdylib); built into pkg/.
+ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview).
+src-tauri/               Native desktop shell (Tauri 2).
+website/                 Marketing site (deployed via Cloudflare Workers).
+docs/specs/              Design specifications.
+```
 
-- Rust 1.85+ (workspace pinned via `rust-version` in
-  [`Cargo.toml`](Cargo.toml))
-- `wasm32-unknown-unknown` Rust target
-  (`rustup target add wasm32-unknown-unknown`)
-- Node.js 20+, pnpm 9+
-- `wasm-pack` (`cargo install wasm-pack`)
-- For the native build: Tauri prerequisites
-  ([Tauri docs](https://tauri.app/start/prerequisites/))
+## Prerequisites
+
+- Rust (stable) with the `wasm32-unknown-unknown` target:
+  `rustup target add wasm32-unknown-unknown`
+- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) (e.g. `cargo install wasm-pack`)
+- Node 22 + [`pnpm`](https://pnpm.io/) 10
+- For the native shell only: the [Tauri 2 system prerequisites](https://v2.tauri.app/start/prerequisites/)
+  (on Linux: WebKitGTK / GTK3 dev libraries)
+
+## Clone → running
+
+Build order matters: `ui/package.json` links `pincel-wasm` from
+`crates/pincel-wasm/pkg/` (a generated, gitignored directory), so the wasm
+package must exist **before** `pnpm install`.
 
 ```bash
 git clone https://github.com/amigo-labs/amigo-pincel
 cd amigo-pincel
 
-# build the wasm bridge once (required before pnpm install)
-pnpm -C ui wasm:build:release
+# 1. Rust core — check the library crates build and pass tests
+cargo test -p pincel-core -p aseprite-writer -p pincel-wasm
 
-# install UI deps and run dev server
-pnpm -C ui install
-pnpm -C ui dev          # http://localhost:5173
+# 2. Build the wasm package (creates crates/pincel-wasm/pkg/)
+cd ui
+pnpm wasm:build
 
-# or run the native build
-pnpm -C ui tauri:dev
+# 3. Install UI dependencies and start the dev server
+pnpm install
+pnpm dev          # → http://localhost:5173
 ```
 
-Full developer reference, including the per-crate conventions,
-session-management rules, and pre-commit gate, lives in
-[`CLAUDE.md`](CLAUDE.md). The design spec lives in
-[`docs/specs/pincel.md`](docs/specs/pincel.md).
+For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 
-## Workspace layout
+## Common commands
 
-```
-crates/
-  pincel-core/       pure Rust: document model, commands, compose, codec
-  aseprite-writer/   standalone .aseprite v1.3 writer (publishable)
-  pincel-wasm/       wasm-bindgen layer, builds to @amigo-labs/pincel
+| Command | Where | What |
+|---------|-------|------|
+| `cargo check` | repo root | build all Rust crates (needs GTK/WebKit libs for `pincel-tauri`) |
+| `cargo test -p pincel-core -p aseprite-writer -p pincel-wasm` | repo root | test the library crates (what CI runs) |
+| `cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
+| `cargo fmt` | repo root | format |
+| `pnpm wasm:build` | `ui/` | dev wasm build into `crates/pincel-wasm/pkg/` |
+| `pnpm dev` | `ui/` | Vite dev server |
+| `pnpm lint` / `pnpm check` / `pnpm build` | `ui/` | ESLint / svelte-check / production bundle |
+| `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |
 
-ui/                  Svelte 5 + Vite frontend (PWA + Tauri shell)
-src-tauri/           native desktop shell (Tauri 2)
-website/             marketing site (SvelteKit + Cloudflare Workers)
-
-docs/specs/          living design specs
-STATUS.md            current session state, next task, milestone status
-CLAUDE.md            implementation conventions
-```
+CI (`.github/workflows/ci.yml`) runs the Rust gates, a Tauri check, and the
+UI and website lint/check/build on every push and pull request.
 
 ## License
 
-Dual-licensed under either of:
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at
+your option.
 
-- [Apache License, Version 2.0](LICENSE-APACHE)
-- [MIT License](LICENSE-MIT)
-
-at your option.
-
-Contributions intentionally submitted for inclusion in this work
-shall be dual-licensed as above, without any additional terms or
-conditions.
-
-## Trademark
-
-"Aseprite" is a trademark of [Igara Studio S.A.][igara]. This project
-is **not** affiliated with, endorsed by, or sponsored by Igara Studio.
-Pincel implements the publicly-documented `.aseprite` file format for
-interoperability.
-
-[igara]: https://www.aseprite.org/
+"Aseprite" is a trademark of Igara Studio S.A. Pincel is not affiliated with
+or endorsed by Igara Studio; it independently implements the publicly
+documented `.aseprite` file format.

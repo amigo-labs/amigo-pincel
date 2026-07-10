@@ -1,10 +1,12 @@
 //! `compose()` — the single composition entry point. See `docs/specs/pincel.md` §4.
 //!
-//! M3 implements the minimum useful path: visible image layers in z-order
-//! with the `Normal` blend mode, RGBA color mode only. Tilemap and group
-//! layers, indexed color, non-Normal blend modes, linked cels, onion skin,
-//! and overlays all return [`RenderError`] for now. The `dirty_hint` field
-//! on the request is accepted and currently ignored.
+//! Composites visible image and tilemap layers in z-order, RGBA color mode
+//! only. All separable blend modes render via the W3C compositing formula;
+//! the four non-separable HSL modes fall back to `Normal` (spec §15
+//! Decision Log, 2026-07-09 — see [`blend_pixel_into`]). Group layers hold
+//! no pixels and are skipped (their visibility gates their children — see
+//! [`effectively_visible`]). Indexed color, linked cels, onion skin, and
+//! overlays still return [`RenderError`].
 
 use thiserror::Error;
 
@@ -37,14 +39,6 @@ pub enum RenderError {
     /// `frame` did not refer to a frame in the sprite.
     #[error("unknown frame index: {frame:?}")]
     UnknownFrame { frame: FrameIndex },
-
-    /// A layer's content cannot be composed in this milestone.
-    #[error("unsupported layer kind on layer {layer:?}")]
-    UnsupportedLayerKind { layer: LayerId },
-
-    /// A layer's blend mode is not yet implemented.
-    #[error("unsupported blend mode {mode:?} on layer {layer:?}")]
-    UnsupportedBlendMode { layer: LayerId, mode: BlendMode },
 
     /// A linked cel was encountered. Linked cels share data with another
     /// frame's cel; M3 does not follow links — the loader (M4) is the layer
@@ -226,9 +220,10 @@ pub fn compose(
 }
 
 /// Composite every selected layer at `request.frame` into `dst`, which is
-/// sized to `viewport.width * viewport.height * 4` bytes. Group layers,
-/// non-Normal blend modes, linked cels, and mismatched cel kinds raise
-/// [`RenderError`] — see the per-arm comments below.
+/// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
+/// under its own blend mode (see [`blend_pixel_into`]); linked cels and
+/// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
+/// below.
 fn composite_visible_layers(
     dst: &mut [u8],
     sprite: &Sprite,
@@ -237,17 +232,16 @@ fn composite_visible_layers(
     viewport: Rect,
 ) -> Result<(), RenderError> {
     for layer in sprite.layers.iter() {
-        if !layer_included(layer, &request.include_layers) {
+        if !layer_included(layer, sprite, &request.include_layers) {
             continue;
         }
         if let LayerKind::Group = layer.kind {
-            return Err(RenderError::UnsupportedLayerKind { layer: layer.id });
-        }
-        if !matches!(layer.blend_mode, BlendMode::Normal) {
-            return Err(RenderError::UnsupportedBlendMode {
-                layer: layer.id,
-                mode: layer.blend_mode,
-            });
+            // A group holds no pixels of its own — its children are separate
+            // entries in the flat z-ordered Vec and composite on their own.
+            // Group visibility gates children via `effectively_visible`;
+            // group opacity / blend mode are NOT folded into children in
+            // Phase 1 (spec §4 defers the fold-into-temp-buffer behavior).
+            continue;
         }
         let Some(cel) = cels.get(layer.id, request.frame) else {
             continue;
@@ -272,8 +266,8 @@ fn composite_visible_layers(
                     viewport,
                     cel.position,
                     pixels,
-                    layer.opacity,
-                    cel.opacity,
+                    mul_u8(layer.opacity, cel.opacity),
+                    layer.blend_mode,
                 );
             }
             (
@@ -301,8 +295,8 @@ fn composite_visible_layers(
                     layer.id,
                     request.frame,
                     sprite.color_mode,
-                    layer.opacity,
-                    cel.opacity,
+                    mul_u8(layer.opacity, cel.opacity),
+                    layer.blend_mode,
                 )?;
             }
             (_, CelData::Linked(_)) => {
@@ -319,7 +313,7 @@ fn composite_visible_layers(
                 });
             }
             (LayerKind::Group, _) => {
-                // Group layers are rejected above before the cel lookup.
+                // Group layers are skipped above before the cel lookup.
                 unreachable!("group layers handled before cel lookup");
             }
         }
@@ -361,12 +355,44 @@ fn upscale_nearest_into(out: &mut [u8], src: &[u8], w: u32, h: u32, zoom: u32) {
     }
 }
 
-fn layer_included(layer: &Layer, filter: &LayerFilter) -> bool {
+fn layer_included(layer: &Layer, sprite: &Sprite, filter: &LayerFilter) -> bool {
     match filter {
-        LayerFilter::Visible => layer.visible,
+        LayerFilter::Visible => effectively_visible(sprite, layer),
         LayerFilter::All => true,
         LayerFilter::Only(ids) => ids.contains(&layer.id),
     }
+}
+
+/// A layer renders under [`LayerFilter::Visible`] only when it *and every
+/// ancestor group* are visible — hiding a group hides its whole subtree,
+/// matching Aseprite. Only visibility propagates; group opacity and blend
+/// mode are not folded into children in Phase 1. `LayerFilter::All` and
+/// `LayerFilter::Only` bypass this walk (All means "everything", Only is an
+/// explicit override).
+///
+/// The walk is capped at `sprite.layers.len()` hops so a corrupt parent
+/// cycle terminates; a dangling parent id ends the chain (the layer still
+/// renders — structural inconsistency shouldn't silently hide content).
+fn effectively_visible(sprite: &Sprite, layer: &Layer) -> bool {
+    if !layer.visible {
+        return false;
+    }
+    let mut parent = layer.parent;
+    let mut hops = 0usize;
+    while let Some(pid) = parent {
+        let Some(p) = sprite.layer(pid) else {
+            return true;
+        };
+        if !p.visible {
+            return false;
+        }
+        hops += 1;
+        if hops >= sprite.layers.len() {
+            return true;
+        }
+        parent = p.parent;
+    }
+    true
 }
 
 fn composite_image_cel(
@@ -374,10 +400,9 @@ fn composite_image_cel(
     viewport: Rect,
     cel_pos: (i32, i32),
     src: &PixelBuffer,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
     if combined_opacity == 0 {
         return;
     }
@@ -412,7 +437,8 @@ fn composite_image_cel(
             let s = src_row + (x - cel_x) as usize * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
             let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            blend_pixel_into(
+                blend_mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],
@@ -428,6 +454,9 @@ fn composite_image_cel(
 /// (honoring `flip_x`, `flip_y`, and `rotate_90`) at its sprite-coord
 /// position. Tile id `0` is the Aseprite empty / transparent tile and is
 /// skipped without consulting the tileset.
+// Private helper with a single call site in `compose()`; the arguments are
+// the already-unpacked pieces of that caller's loop state, so bundling them
+// into a one-off struct would only add indirection.
 #[allow(clippy::too_many_arguments)]
 fn composite_tilemap_cel(
     dst: &mut [u8],
@@ -440,8 +469,8 @@ fn composite_tilemap_cel(
     layer_id: LayerId,
     frame: FrameIndex,
     sprite_color_mode: ColorMode,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) -> Result<(), RenderError> {
     let (tile_w, tile_h) = tileset.tile_size;
     if tile_w == 0 || tile_h == 0 {
@@ -506,8 +535,8 @@ fn composite_tilemap_cel(
                 (tile_x, tile_y),
                 &tile.pixels,
                 tile_ref,
-                layer_opacity,
-                cel_opacity,
+                combined_opacity,
+                blend_mode,
             );
         }
     }
@@ -525,10 +554,9 @@ fn composite_transformed_tile(
     tile_pos: (i32, i32),
     src: &PixelBuffer,
     tile_ref: TileRef,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
     if combined_opacity == 0 {
         return;
     }
@@ -591,7 +619,8 @@ fn composite_transformed_tile(
             let s = (sy as usize) * src_stride + (sx as usize) * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
             let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            blend_pixel_into(
+                blend_mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],
@@ -600,6 +629,157 @@ fn composite_transformed_tile(
             );
         }
     }
+}
+
+/// Blend one source pixel into `dst` under the layer's blend mode.
+///
+/// `Normal` takes the dedicated fast path. The four non-separable HSL modes
+/// (Hue / Saturation / Color / Luminosity) render as Normal in Phase 1 —
+/// see the spec §15 Decision Log (2026-07-09). Everything else goes through
+/// the W3C separable-blend compositing formula.
+fn blend_pixel_into(mode: BlendMode, dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
+    match mode {
+        BlendMode::Normal
+        | BlendMode::Hue
+        | BlendMode::Saturation
+        | BlendMode::Color
+        | BlendMode::Luminosity => blend_normal_into(dst, sr, sg, sb, sa),
+        _ => blend_separable_into(mode, dst, sr, sg, sb, sa),
+    }
+}
+
+/// W3C compositing for separable blend modes, non-premultiplied 8-bit
+/// channels: with backdrop `(Cb, αb)` and source `(Cs, αs)`,
+///
+/// ```text
+/// αo    = αs + αb·(1 − αs)
+/// co·αo = αs·(1 − αb)·Cs + αs·αb·B(Cb, Cs) + (1 − αs)·αb·Cb
+/// ```
+///
+/// so a blend over a fully transparent backdrop leaves the source unchanged
+/// and a fully transparent source is a no-op. Integer math is our own
+/// rounding, not Aseprite's fixed-point blender — pixel-exact parity with
+/// Aseprite is out of scope (spec §15 Decision Log).
+fn blend_separable_into(mode: BlendMode, dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
+    if sa == 0 {
+        return;
+    }
+    let da = u32::from(dst[3]);
+    let sa32 = u32::from(sa);
+    let inv_sa = 255 - sa32;
+    // αo scaled to 0..=255, rounded.
+    let oa = sa32 + (da * inv_sa + 127) / 255;
+    if oa == 0 {
+        dst[3] = 0;
+        return;
+    }
+    let src = [sr, sg, sb];
+    for (i, &cs) in src.iter().enumerate() {
+        let cb = dst[i];
+        let b = u32::from(blend_channel(mode, cb, cs));
+        // Numerator of co·αo scaled by 255²; fits u32 (≤ 255³).
+        let num = sa32 * (255 - da) * u32::from(cs) + sa32 * da * b + inv_sa * da * u32::from(cb);
+        let denom = 255 * oa;
+        // The min guards the ±1 rounding of `oa` at the top of the range.
+        dst[i] = ((num + denom / 2) / denom).min(255) as u8;
+    }
+    dst[3] = oa as u8;
+}
+
+/// The separable per-channel blend function `B(Cb, Cs)` for `mode`.
+/// Formulas follow the W3C compositing-and-blending spec (plus Aseprite's
+/// Addition / Subtract / Divide extensions), adapted to 8-bit integers.
+fn blend_channel(mode: BlendMode, cb: u8, cs: u8) -> u8 {
+    let b = u32::from(cb);
+    let s = u32::from(cs);
+    match mode {
+        BlendMode::Multiply => mul_u8(cb, cs),
+        BlendMode::Screen => screen(cb, cs),
+        // Overlay(Cb, Cs) = HardLight(Cs, Cb).
+        BlendMode::Overlay => hard_light(cs, cb),
+        BlendMode::Darken => cb.min(cs),
+        BlendMode::Lighten => cb.max(cs),
+        BlendMode::ColorDodge => {
+            if cb == 0 {
+                0
+            } else if cs == 255 {
+                255
+            } else {
+                ((b * 255) / (255 - s)).min(255) as u8
+            }
+        }
+        BlendMode::ColorBurn => {
+            if cb == 255 {
+                255
+            } else if cs == 0 {
+                0
+            } else {
+                255 - ((((255 - b) * 255) / s).min(255) as u8)
+            }
+        }
+        BlendMode::HardLight => hard_light(cb, cs),
+        BlendMode::SoftLight => soft_light(cb, cs),
+        BlendMode::Difference => cb.abs_diff(cs),
+        BlendMode::Exclusion => {
+            // Cb + Cs − 2·Cb·Cs; saturating guards the rounding of the
+            // product term at the extremes.
+            ((b + s).saturating_sub((2 * b * s + 127) / 255)) as u8
+        }
+        BlendMode::Addition => (b + s).min(255) as u8,
+        BlendMode::Subtract => cb.saturating_sub(cs),
+        BlendMode::Divide => {
+            if cb == 0 {
+                0
+            } else if cb >= cs {
+                255
+            } else {
+                // cs > cb ≥ 1 here, so the divisor is non-zero.
+                ((b * 255) / s) as u8
+            }
+        }
+        // Handled by `blend_pixel_into` before dispatch; returning the
+        // source channel keeps this arm equivalent to Normal.
+        BlendMode::Normal
+        | BlendMode::Hue
+        | BlendMode::Saturation
+        | BlendMode::Color
+        | BlendMode::Luminosity => cs,
+    }
+}
+
+/// `Screen(Cb, Cs) = Cb + Cs − Cb·Cs`.
+fn screen(cb: u8, cs: u8) -> u8 {
+    let b = u32::from(cb);
+    let s = u32::from(cs);
+    (b + s - (b * s + 127) / 255) as u8
+}
+
+/// `HardLight(Cb, Cs)`: `Multiply(Cb, 2·Cs)` for `Cs ≤ 0.5`, else
+/// `Screen(Cb, 2·Cs − 1)`.
+fn hard_light(cb: u8, cs: u8) -> u8 {
+    if cs <= 127 {
+        mul_u8(cb, cs * 2)
+    } else {
+        screen(cb, (2 * u16::from(cs) - 255) as u8)
+    }
+}
+
+/// W3C `SoftLight`. The only non-integer blend function (it needs a square
+/// root); computed in `f32` — precision is far beyond the 8-bit output.
+fn soft_light(cb: u8, cs: u8) -> u8 {
+    let b = f32::from(cb) / 255.0;
+    let s = f32::from(cs) / 255.0;
+    let r = if s <= 0.5 {
+        b - (1.0 - 2.0 * s) * b * (1.0 - b)
+    } else {
+        let d = if b <= 0.25 {
+            ((16.0 * b - 12.0) * b + 4.0) * b
+        } else {
+            b.sqrt()
+        };
+        b + (2.0 * s - 1.0) * (d - b)
+    };
+    (r.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 /// Source-over (`Normal`) blend, non-premultiplied 8-bit channels.
@@ -913,20 +1093,75 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rejects_group_layer() {
+    /// Builds a 1×1 sprite with a group (id 0), a child image layer (id 1)
+    /// parented to it, and a red cel on the child.
+    fn group_child_sprite(group_visible: bool, child_visible: bool) -> (Sprite, CelMap) {
+        let mut group = Layer::group(LayerId::new(0), "grp");
+        group.visible = group_visible;
+        let mut child = Layer::image(LayerId::new(1), "fg");
+        child.visible = child_visible;
+        child.parent = Some(LayerId::new(0));
         let sprite = Sprite::builder(1, 1)
-            .add_layer(Layer::group(LayerId::new(7), "grp"))
+            .add_layer(group)
+            .add_layer(child)
             .add_frame(Frame::default())
             .build()
             .unwrap();
-        let cels = CelMap::new();
-        assert_eq!(
-            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
-            RenderError::UnsupportedLayerKind {
-                layer: LayerId::new(7),
-            }
-        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            solid(1, 1, [255, 0, 0, 255]),
+        ));
+        (sprite, cels)
+    }
+
+    #[test]
+    fn group_layer_is_skipped_and_children_render() {
+        let (sprite, cels) = group_child_sprite(true, true);
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn hidden_group_hides_child_layers() {
+        let (sprite, cels) = group_child_sprite(false, true);
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn hidden_grandparent_hides_nested_child() {
+        let mut outer = Layer::group(LayerId::new(0), "outer");
+        outer.visible = false;
+        let mut inner = Layer::group(LayerId::new(1), "inner");
+        inner.parent = Some(LayerId::new(0));
+        let mut child = Layer::image(LayerId::new(2), "fg");
+        child.parent = Some(LayerId::new(1));
+        let sprite = Sprite::builder(1, 1)
+            .add_layer(outer)
+            .add_layer(inner)
+            .add_layer(child)
+            .add_frame(Frame::default())
+            .build()
+            .unwrap();
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(2),
+            FrameIndex::new(0),
+            solid(1, 1, [255, 0, 0, 255]),
+        ));
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn layer_filter_all_ignores_hidden_group() {
+        let (sprite, cels) = group_child_sprite(false, true);
+        let mut req = full_req(1, 1);
+        req.include_layers = LayerFilter::All;
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
+        assert_eq!(r.pixels, vec![255, 0, 0, 255]);
     }
 
     // ---------- M8.2 tilemap compose ----------
@@ -1346,23 +1581,124 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rejects_non_normal_blend_mode() {
-        let mut layer = Layer::image(LayerId::new(3), "bg");
-        layer.blend_mode = BlendMode::Multiply;
+    // ---------- blend modes ----------
+
+    /// 1×1 sprite: bottom layer with `bottom` pixels, top layer in `mode`
+    /// with `top` pixels; returns the composed RGBA pixel.
+    fn blend_compose(mode: BlendMode, bottom: [u8; 4], top: [u8; 4]) -> Vec<u8> {
+        let mut fg = Layer::image(LayerId::new(1), "fg");
+        fg.blend_mode = mode;
         let sprite = Sprite::builder(1, 1)
-            .add_layer(layer)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_layer(fg)
             .add_frame(Frame::default())
             .build()
             .unwrap();
-        let cels = CelMap::new();
-        assert_eq!(
-            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
-            RenderError::UnsupportedBlendMode {
-                layer: LayerId::new(3),
-                mode: BlendMode::Multiply,
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(0),
+            solid(1, 1, bottom),
+        ));
+        cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            solid(1, 1, top),
+        ));
+        compose_owned(&sprite, &cels, &full_req(1, 1))
+            .unwrap()
+            .pixels
+    }
+
+    #[test]
+    fn multiply_blends_channels() {
+        // Opaque red over opaque gray: B = Cb·Cs per channel.
+        let px = blend_compose(BlendMode::Multiply, [128, 128, 128, 255], [255, 0, 0, 255]);
+        assert_eq!(px, vec![128, 0, 0, 255]);
+    }
+
+    #[test]
+    fn screen_blends_channels() {
+        // Screen red over gray: r = 128 + 255 − 128 = 255, g/b = 128.
+        let px = blend_compose(BlendMode::Screen, [128, 128, 128, 255], [255, 0, 0, 255]);
+        assert_eq!(px, vec![255, 128, 128, 255]);
+    }
+
+    #[test]
+    fn overlay_matches_hardlight_swapped() {
+        for (cb, cs) in [(0u8, 0u8), (30, 200), (127, 128), (200, 40), (255, 255)] {
+            assert_eq!(
+                blend_channel(BlendMode::Overlay, cb, cs),
+                blend_channel(BlendMode::HardLight, cs, cb),
+            );
+        }
+    }
+
+    #[test]
+    fn darken_takes_min_and_lighten_takes_max() {
+        assert_eq!(blend_channel(BlendMode::Darken, 100, 200), 100);
+        assert_eq!(blend_channel(BlendMode::Lighten, 100, 200), 200);
+    }
+
+    #[test]
+    fn addition_saturates_at_255() {
+        assert_eq!(blend_channel(BlendMode::Addition, 200, 100), 255);
+        assert_eq!(blend_channel(BlendMode::Subtract, 100, 200), 0);
+    }
+
+    #[test]
+    fn blend_with_translucent_source_matches_w3c_formula() {
+        // 50%-alpha multiply red over opaque gray. Hand-derived from the
+        // integer formula: αo = 255; red   num = 128·255·128 + 127·255·128
+        // → co = 128; green/blue num = 127·255·128 → co = 64.
+        let px = blend_compose(BlendMode::Multiply, [128, 128, 128, 255], [255, 0, 0, 128]);
+        assert_eq!(px, vec![128, 64, 64, 255]);
+    }
+
+    #[test]
+    fn blend_over_transparent_backdrop_equals_source() {
+        // αb = 0 ⇒ result = source, for every separable mode and both an
+        // opaque and a translucent source.
+        let modes = [
+            BlendMode::Multiply,
+            BlendMode::Screen,
+            BlendMode::Overlay,
+            BlendMode::Darken,
+            BlendMode::Lighten,
+            BlendMode::ColorDodge,
+            BlendMode::ColorBurn,
+            BlendMode::HardLight,
+            BlendMode::SoftLight,
+            BlendMode::Difference,
+            BlendMode::Exclusion,
+            BlendMode::Addition,
+            BlendMode::Subtract,
+            BlendMode::Divide,
+        ];
+        for mode in modes {
+            for sa in [255u8, 128] {
+                let mut dst = [0u8, 0, 0, 0];
+                blend_pixel_into(mode, &mut dst, 200, 100, 50, sa);
+                assert_eq!(dst, [200, 100, 50, sa], "mode {mode:?} sa {sa}");
             }
-        );
+        }
+    }
+
+    #[test]
+    fn hsl_modes_fall_back_to_normal() {
+        let normal = blend_compose(BlendMode::Normal, [128, 128, 128, 255], [255, 0, 0, 128]);
+        for mode in [
+            BlendMode::Hue,
+            BlendMode::Saturation,
+            BlendMode::Color,
+            BlendMode::Luminosity,
+        ] {
+            assert_eq!(
+                blend_compose(mode, [128, 128, 128, 255], [255, 0, 0, 128]),
+                normal,
+                "mode {mode:?}"
+            );
+        }
     }
 
     #[test]

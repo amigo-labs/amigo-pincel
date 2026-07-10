@@ -25,11 +25,12 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
-    ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveSlice,
-    Rgba, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
-    TilesetId, compose, read_aseprite, write_aseprite,
+    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus,
+    Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
+    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveDirection,
+    MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer, RemoveSlice, Rgba,
+    SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey,
+    Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -48,6 +49,15 @@ pub struct Document {
     cels: CelMap,
     bus: Bus,
     events: EventQueue,
+    /// Layer the UI has selected as the paint target (M13.3b). `None`
+    /// falls back to the lowest-z image layer; a non-image / unknown
+    /// selection also falls back. See [`Document::paint_target_layer`].
+    active_layer: Option<LayerId>,
+    /// Frame the UI is currently viewing and editing. All pixel paths
+    /// (pencil/eraser, line, rect, ellipse, bucket, move-selection)
+    /// target this frame. Set via [`Document::set_current_frame`];
+    /// starts at frame 0 for every fresh / opened document.
+    current_frame: FrameIndex,
 }
 
 #[wasm_bindgen]
@@ -83,6 +93,8 @@ impl Document {
             cels,
             bus: Bus::new(),
             events: EventQueue::new(),
+            active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -99,6 +111,8 @@ impl Document {
             cels,
             bus: Bus::new(),
             events: EventQueue::new(),
+            active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -182,10 +196,188 @@ impl Document {
         }
     }
 
+    /// Whether the named layer is visible. Returns `false` when
+    /// `layer_id` is unknown — pair with [`Document::layer_kind`] to
+    /// disambiguate a hidden layer from a missing one.
+    #[wasm_bindgen(js_name = layerVisible)]
+    pub fn layer_visible(&self, layer_id: u32) -> bool {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.visible)
+            .unwrap_or(false)
+    }
+
+    /// Opacity (`0..=255`) of the named layer, or `0` when unknown.
+    #[wasm_bindgen(js_name = layerOpacity)]
+    pub fn layer_opacity(&self, layer_id: u32) -> u8 {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .map(|l| l.opacity)
+            .unwrap_or(0)
+    }
+
+    /// Set the paint target layer (M13.3b). Pixel tools (pencil, eraser,
+    /// line, rect, ellipse, bucket, move-selection) write to this layer
+    /// when it exists and is an image layer; otherwise they fall back to
+    /// the lowest-z image layer. Pass any id — validation happens lazily
+    /// at paint time so selecting a group / tilemap row never errors.
+    #[wasm_bindgen(js_name = setActiveLayer)]
+    pub fn set_active_layer(&mut self, layer_id: u32) {
+        self.active_layer = Some(LayerId::new(layer_id));
+    }
+
+    /// The layer pixel tools will actually paint into right now, after
+    /// the active-layer / image-layer fallback resolves. Returns the
+    /// numeric id, or `u32::MAX` when the document has no image layer.
+    #[wasm_bindgen(js_name = paintTargetLayer)]
+    pub fn paint_target_layer_id(&self) -> u32 {
+        self.paint_target_layer().map(|l| l.0).unwrap_or(u32::MAX)
+    }
+
+    /// Move the named layer one sibling position toward the top of the
+    /// stack (higher z-index), carrying its whole subtree (group-atomic).
+    /// Routes through the undo bus and emits a `dirty-canvas` event.
+    /// Errors when the layer is unknown or already topmost among its
+    /// siblings ([`MoveLayer`](pincel_core::MoveLayer)).
+    #[wasm_bindgen(js_name = moveLayerUp)]
+    pub fn move_layer_up(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Up)
+    }
+
+    /// Move the named layer one sibling position toward the bottom of the
+    /// stack (group-atomic). See [`Document::move_layer_up`].
+    #[wasm_bindgen(js_name = moveLayerDown)]
+    pub fn move_layer_down(&mut self, layer_id: u32) -> Result<(), String> {
+        self.move_layer(layer_id, MoveDirection::Down)
+    }
+
+    /// Set the named layer's visibility flag, routed through the undo bus.
+    /// Hidden layers drop out of the composite, so this emits a
+    /// `dirty-canvas` event. Errors when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = setLayerVisible)]
+    pub fn set_layer_visible(&mut self, layer_id: u32, visible: bool) -> Result<(), String> {
+        let cmd = SetLayerVisible::new(LayerId::new(layer_id), visible);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set layer visibility: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(())
+    }
+
+    /// Rename the named layer, routed through the undo bus. The name is
+    /// metadata only (no repaint), so no dirty event is emitted. Errors
+    /// when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = renameLayer)]
+    pub fn rename_layer(&mut self, layer_id: u32, name: &str) -> Result<(), String> {
+        let cmd = SetLayerName::new(LayerId::new(layer_id), name);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to rename layer: {e}"))?;
+        Ok(())
+    }
+
+    /// Add a new empty image layer on top of the stack and return its
+    /// id. The id is `max(existing ids) + 1` (or `0` when empty), the
+    /// same monotonic scheme as [`Self::add_tileset`] / [`Self::add_slice`].
+    ///
+    /// No cel is seeded — the drawing tools auto-create an empty cel on
+    /// first paint via [`Document::ensure_paint_cel`], so a fresh layer
+    /// composes as transparent and becomes paintable the moment a tool
+    /// touches it. Routes an [`AddLayer`] through the undo bus (undo
+    /// removes the layer, redo restores it) and emits `dirty-canvas`.
+    ///
+    /// Errors when the layer-id space is exhausted or the bus rejects
+    /// the insert.
+    #[wasm_bindgen(js_name = addLayer)]
+    pub fn add_layer(&mut self, name: &str) -> Result<u32, String> {
+        let new_id = match self.sprite.layers.iter().map(|l| l.id.0).max() {
+            None => 0,
+            Some(u32::MAX) => return Err("layer id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
+        let layer = Layer::image(LayerId::new(new_id), name);
+        let cmd = AddLayer::on_top(layer);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add layer: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        Ok(new_id)
+    }
+
+    /// Remove the layer `layer_id` (and, if it is a group, its whole
+    /// subtree) along with the cels those layers own, routed through the
+    /// undo bus as one [`RemoveLayer`] step (undo restores the layer(s)
+    /// and cels at their original z-position).
+    ///
+    /// If the removed layer was the active paint target — directly or as
+    /// a child of a removed group — the active layer is cleared so the
+    /// paint-target fallback resolves again. Emits `dirty-canvas`. Errors
+    /// when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = removeLayer)]
+    pub fn remove_layer(&mut self, layer_id: u32) -> Result<(), String> {
+        let cmd = RemoveLayer::new(LayerId::new(layer_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to remove layer: {e}"))?;
+        // Drop a now-dangling active-layer reference (covers both the
+        // directly-removed layer and any child of a removed group).
+        if let Some(active) = self.active_layer {
+            if self.sprite.layer(active).is_none() {
+                self.active_layer = None;
+            }
+        }
+        self.events.push(Event::dirty_canvas());
+        Ok(())
+    }
+
     /// Number of frames in the document.
     #[wasm_bindgen(getter, js_name = frameCount)]
     pub fn frame_count(&self) -> u32 {
         self.sprite.frames.len() as u32
+    }
+
+    /// Frame the UI is currently viewing / editing (0-based). All paint
+    /// paths target it. See [`Document::set_current_frame`].
+    #[wasm_bindgen(getter, js_name = currentFrame)]
+    pub fn current_frame(&self) -> u32 {
+        self.current_frame.0
+    }
+
+    /// Switch the current frame. Rejects an index at or past
+    /// `frameCount`. Enqueues a `dirty-canvas` event so the UI
+    /// recomposes onto the newly-selected frame.
+    #[wasm_bindgen(js_name = setCurrentFrame)]
+    pub fn set_current_frame(&mut self, frame: u32) -> Result<(), String> {
+        if frame >= self.frame_count() {
+            return Err(format!(
+                "frame {frame} out of range (frameCount {})",
+                self.frame_count()
+            ));
+        }
+        self.current_frame = FrameIndex::new(frame);
+        self.events.push(Event::dirty_canvas());
+        Ok(())
+    }
+
+    /// Append a new frame with the given duration (milliseconds) and
+    /// return its 0-based index. Cels are not seeded — every layer shows
+    /// transparent on the new frame until painted, at which point the
+    /// drawing tools auto-create the cel (see
+    /// [`Document::ensure_paint_cel`]). Routes an [`AddFrame`] through
+    /// the undo bus (undo drops the frame, redo restores it) and emits
+    /// `dirty-canvas`. Does not change the current frame — the caller
+    /// decides whether to step to it via [`Self::set_current_frame`].
+    #[wasm_bindgen(js_name = addFrame)]
+    pub fn add_frame(&mut self, duration_ms: u16) -> Result<u32, String> {
+        let new_index = self.sprite.frames.len() as u32;
+        let cmd = AddFrame::append(Frame::new(duration_ms));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add frame: {e}"))?;
+        self.events.push(Event::dirty_canvas());
+        Ok(new_index)
     }
 
     /// Composite the requested frame at the given integer zoom over the
@@ -200,22 +392,7 @@ impl Document {
     /// Output dimensions are `width * zoom` × `height * zoom` and the
     /// pixel buffer is row-major non-premultiplied RGBA8.
     pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
-        let mut request = ComposeRequest::full(
-            FrameIndex::new(frame),
-            self.sprite.width,
-            self.sprite.height,
-        );
-        request.zoom = zoom;
-        let mut pixels = Vec::new();
-        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose: {e}"))?;
-        Ok(ComposeFrame {
-            width: result.width,
-            height: result.height,
-            dirty_x: result.dirty_rect.x,
-            dirty_y: result.dirty_rect.y,
-            pixels,
-        })
+        self.compose_impl(frame, zoom, None)
     }
 
     /// Composite a sub-rect of the sprite at the given integer zoom.
@@ -240,16 +417,28 @@ impl Document {
         dw: u32,
         dh: u32,
     ) -> Result<ComposeFrame, String> {
+        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)))
+    }
+
+    /// Shared body of [`Document::compose`] / [`Document::compose_dirty`]:
+    /// a full-canvas request at `zoom`, optionally narrowed by a
+    /// `dirty_hint` rect.
+    fn compose_impl(
+        &self,
+        frame: u32,
+        zoom: u32,
+        dirty_hint: Option<Rect>,
+    ) -> Result<ComposeFrame, String> {
         let mut request = ComposeRequest::full(
             FrameIndex::new(frame),
             self.sprite.width,
             self.sprite.height,
         );
         request.zoom = zoom;
-        request.dirty_hint = Some(Rect::new(dx, dy, dw, dh));
+        request.dirty_hint = dirty_hint;
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose dirty: {e}"))?;
+            .map_err(|e| format!("failed to compose: {e}"))?;
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
@@ -286,28 +475,13 @@ impl Document {
     #[wasm_bindgen(js_name = applyTool)]
     pub fn apply_tool(&mut self, tool_id: &str, x: i32, y: i32, color: u32) -> Result<(), String> {
         let rgba = match tool_id {
-            "pencil" => Rgba {
-                r: ((color >> 24) & 0xff) as u8,
-                g: ((color >> 16) & 0xff) as u8,
-                b: ((color >> 8) & 0xff) as u8,
-                a: (color & 0xff) as u8,
-            },
-            "eraser" => Rgba {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            },
+            "pencil" => Rgba::from_u32(color),
+            "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        self.ensure_paint_cel(layer, frame);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -342,20 +516,10 @@ impl Document {
         y1: i32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let rgba = Rgba::from_u32(color);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        self.ensure_paint_cel(layer, frame);
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -394,20 +558,10 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let rgba = Rgba::from_u32(color);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        self.ensure_paint_cel(layer, frame);
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -445,20 +599,10 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let rgba = Rgba::from_u32(color);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        self.ensure_paint_cel(layer, frame);
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -489,20 +633,10 @@ impl Document {
     /// event into a single recompose.
     #[wasm_bindgen(js_name = applyBucket)]
     pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let rgba = Rgba::from_u32(color);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        self.ensure_paint_cel(layer, frame);
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -583,6 +717,17 @@ impl Document {
         Ok(redone)
     }
 
+    /// Close the current paint gesture: the next command pushed onto the
+    /// undo bus starts a fresh entry instead of merging into the last one.
+    /// The UI calls this on pointer-up / pointer-cancel so consecutive
+    /// pencil / eraser strokes stay separate undo steps while the pixels
+    /// *within* one drag coalesce into a single entry. Idempotent; calling
+    /// it with no stroke in flight is harmless.
+    #[wasm_bindgen(js_name = endStroke)]
+    pub fn end_stroke(&mut self) {
+        self.bus.seal();
+    }
+
     /// Number of commands available to undo.
     #[wasm_bindgen(getter, js_name = undoDepth)]
     pub fn undo_depth(&self) -> u32 {
@@ -637,6 +782,32 @@ impl Document {
     pub fn clear_selection(&mut self) {
         self.sprite.clear_selection();
         self.events.push(Event::selection_changed(0, 0, 0, 0));
+    }
+
+    /// Clear the pixels inside the active marquee selection to transparent
+    /// on the active paint layer / current frame, routed through the undo
+    /// bus as a [`ClearRegion`]. The marquee itself stays put (Aseprite's
+    /// Delete behavior). Returns `true` when a selection was present and
+    /// the command ran, `false` when there was nothing to delete. Errors
+    /// only when the document has no paintable image layer.
+    #[wasm_bindgen(js_name = deleteSelection)]
+    pub fn delete_selection(&mut self) -> Result<bool, String> {
+        let Some(sel) = self.sprite.selection else {
+            return Ok(false);
+        };
+        if sel.is_empty() {
+            return Ok(false);
+        }
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
+        let cmd = ClearRegion::new(layer, frame, sel);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to delete selection: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(true)
     }
 
     /// `true` when a non-empty marquee selection is active. See
@@ -698,14 +869,8 @@ impl Document {
     /// missing image layer, unsupported color mode, etc.
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
-        let layer = self
-            .sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .ok_or_else(|| "document has no paintable image layer".to_string())?
-            .id;
-        let frame = FrameIndex::new(0);
+        let layer = self.paint_target_layer()?;
+        let frame = self.current_frame;
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -905,6 +1070,64 @@ impl Document {
         Ok(())
     }
 
+    /// Resolve the layer pixel tools should write to: the active layer
+    /// when it exists and is an image layer, else the lowest-z image
+    /// layer (legacy behavior). Errors only when the document has no
+    /// image layer at all.
+    fn paint_target_layer(&self) -> Result<LayerId, String> {
+        if let Some(id) = self.active_layer {
+            if matches!(
+                self.sprite.layer(id).map(|l| &l.kind),
+                Some(LayerKind::Image)
+            ) {
+                return Ok(id);
+            }
+        }
+        self.sprite
+            .layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .map(|l| l.id)
+            .ok_or_else(|| "document has no paintable image layer".to_string())
+    }
+
+    /// Ensure an image cel exists at `(layer, frame)` so the drawing
+    /// tools have a buffer to paint into. A freshly added layer
+    /// ([`Document::add_layer`]) or frame ([`Document::add_frame`]) has
+    /// no cel yet; without this the paint commands would fail with
+    /// `MissingCel`. The seeded cel is an empty (transparent) RGBA
+    /// buffer sized to the canvas at origin, matching the bootstrap cel
+    /// from [`Document::new`].
+    ///
+    /// The insert is intentionally *not* routed through the undo bus: an
+    /// empty cel is visually a no-op (it composes to nothing), so undoing
+    /// the paint stroke that triggered it and leaving the empty cel in
+    /// place is harmless and matches Aseprite's auto-cel behavior. Re-
+    /// painting reuses the same cel.
+    fn ensure_paint_cel(&mut self, layer: LayerId, frame: FrameIndex) {
+        if self.cels.get(layer, frame).is_none() {
+            self.cels.insert(Cel::image(
+                layer,
+                frame,
+                PixelBuffer::empty(self.sprite.width, self.sprite.height, ColorMode::Rgba),
+            ));
+        }
+    }
+
+    /// Shared body for [`Document::move_layer_up`] /
+    /// [`Document::move_layer_down`]: run a [`MoveLayer`] through the bus
+    /// and drain its dirty region into the event queue.
+    fn move_layer(&mut self, layer_id: u32, direction: MoveDirection) -> Result<(), String> {
+        let cmd = MoveLayer::new(LayerId::new(layer_id), direction);
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move layer: {e}"))?;
+        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
+        }
+        Ok(())
+    }
+
     /// Look up the `tile_size` of the tileset bound to `layer`. Used
     /// by [`Document::place_tile`] to size the emitted dirty-rect.
     fn resolve_tile_size(&self, layer: LayerId) -> Result<(u32, u32), String> {
@@ -1006,12 +1229,7 @@ impl Document {
         y: u32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let cmd = SetTilePixel::new(TilesetId::new(tileset_id), tile_id, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -1026,25 +1244,62 @@ impl Document {
     /// can be edited via [`Document::set_tile_pixel`] immediately
     /// without first crossing the boundary again to learn the size.
     ///
-    /// Not undoable in this slice — tile-image insertion is treated
-    /// like [`Document::new`]'s bootstrap cels: the editing commands
-    /// targeting the tile join the bus, the container does not.
+    /// Routes an [`AddTile`] command through the undo bus, so the
+    /// insertion is undoable and executing it clears the redo stack
+    /// (a stale redo could otherwise replay onto a diverged tileset).
     /// Errors when the tileset id is unknown.
     #[wasm_bindgen(js_name = addTile)]
     pub fn add_tile(&mut self, tileset_id: u32) -> Result<u32, String> {
         let tileset = self
             .sprite
             .tilesets
-            .iter_mut()
+            .iter()
             .find(|t| t.id.0 == tileset_id)
             .ok_or_else(|| format!("unknown tileset id {tileset_id}"))?;
-        let (tile_w, tile_h) = tileset.tile_size;
         let new_id = tileset.tiles.len() as u32;
-        tileset.tiles.push(pincel_core::TileImage {
-            pixels: PixelBuffer::empty(tile_w, tile_h, ColorMode::Rgba),
-        });
+        let cmd = AddTile::new(TilesetId::new(tileset_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add tile: {e}"))?;
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
+    }
+
+    // ---- Palette read surface ---------------------------------------
+
+    /// Number of entries in the document's palette. Zero for a fresh
+    /// `Document::new` (which seeds no palette) and for opened files
+    /// that carry none. RGBA palettes are recovered on open from the
+    /// `0x2019` chunk (see `pincel_core::aseprite_read`), so this
+    /// reflects whatever the source file stored.
+    #[wasm_bindgen(getter, js_name = paletteCount)]
+    pub fn palette_count(&self) -> u32 {
+        self.sprite.palette.len() as u32
+    }
+
+    /// Color of the palette entry at `index` (`0..paletteCount`),
+    /// packed as `0xRRGGBBAA`. Errors when `index` is out of range.
+    #[wasm_bindgen(js_name = paletteColor)]
+    pub fn palette_color(&self, index: u32) -> Result<u32, String> {
+        self.sprite
+            .palette
+            .colors
+            .get(index as usize)
+            .map(|e| e.rgba.to_u32())
+            .ok_or_else(|| format!("palette index {index} out of range"))
+    }
+
+    /// Display name of the palette entry at `index`, or an empty string
+    /// when the entry is unnamed. Errors when `index` is out of range so
+    /// callers can distinguish "unnamed" from "no such entry".
+    #[wasm_bindgen(js_name = paletteName)]
+    pub fn palette_name(&self, index: u32) -> Result<String, String> {
+        self.sprite
+            .palette
+            .colors
+            .get(index as usize)
+            .map(|e| e.name.clone().unwrap_or_default())
+            .ok_or_else(|| format!("palette index {index} out of range"))
     }
 
     // ---- M9.4: slice surface ----------------------------------------
@@ -1304,6 +1559,8 @@ impl Document {
     /// Errors when `slice_id` is unknown, the bounds rect is empty,
     /// the center / pivot quartet is partial, or the command bus
     /// rejects the write.
+    // The argument list mirrors the flat JS signature wasm-bindgen exposes
+    // (spec §17.5); an args struct would not cross the boundary as cleanly.
     #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(js_name = setSliceKey)]
     pub fn set_slice_key(
@@ -1458,6 +1715,147 @@ mod tests {
         assert_eq!(reopened.frame_count(), 1);
     }
 
+    // ---- Palette read surface ----
+
+    /// A fresh document seeds no palette, so the panel shows an empty
+    /// state until a file with a palette is opened.
+    #[test]
+    fn palette_count_is_zero_for_fresh_document() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.palette_count(), 0);
+        assert!(doc.palette_color(0).is_err());
+        assert!(doc.palette_name(0).is_err());
+    }
+
+    #[test]
+    fn palette_getters_read_colors_and_names() {
+        use pincel_core::{Palette, PaletteEntry};
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.palette = Palette::from_entries(vec![
+            PaletteEntry::with_name(Rgba::new(0x12, 0x34, 0x56, 0x78), "shadow"),
+            PaletteEntry::new(Rgba::new(0xff, 0xff, 0xff, 0xff)),
+        ]);
+        assert_eq!(doc.palette_count(), 2);
+        assert_eq!(doc.palette_color(0).unwrap(), 0x1234_5678);
+        assert_eq!(doc.palette_color(1).unwrap(), 0xffff_ffff);
+        assert_eq!(doc.palette_name(0).unwrap(), "shadow");
+        // An unnamed entry reads back as an empty string, distinct from
+        // the out-of-range error.
+        assert_eq!(doc.palette_name(1).unwrap(), "");
+    }
+
+    #[test]
+    fn palette_getters_error_out_of_range() {
+        use pincel_core::{Palette, PaletteEntry};
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.palette = Palette::from_entries(vec![PaletteEntry::new(Rgba::new(1, 2, 3, 4))]);
+        assert!(doc.palette_color(1).is_err());
+        assert!(doc.palette_name(1).is_err());
+    }
+
+    // ---- Layer / frame creation ----
+
+    #[test]
+    fn add_layer_appends_and_returns_monotonic_id() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        // Document::new seeds layer id 0.
+        assert_eq!(doc.layer_count(), 1);
+        let id = doc.add_layer("Layer 2").expect("add");
+        assert_eq!(id, 1);
+        assert_eq!(doc.layer_count(), 2);
+        // Added on top (highest z-index = last in the Vec).
+        assert_eq!(doc.layer_id_at(1).unwrap(), 1);
+        assert_eq!(doc.layer_name(1), "Layer 2");
+    }
+
+    #[test]
+    fn add_layer_is_undoable() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.add_layer("extra").expect("add");
+        assert_eq!(doc.layer_count(), 2);
+        assert!(doc.undo());
+        assert_eq!(doc.layer_count(), 1);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.layer_count(), 2);
+    }
+
+    #[test]
+    fn remove_layer_drops_it_clears_active_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let id = doc.add_layer("extra").expect("add");
+        doc.set_active_layer(id);
+        assert_eq!(doc.layer_count(), 2);
+        doc.remove_layer(id).expect("remove");
+        assert_eq!(doc.layer_count(), 1);
+        // Active target fell back to the surviving image layer (id 0).
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        // Undo restores the removed layer.
+        assert!(doc.undo());
+        assert_eq!(doc.layer_count(), 2);
+        assert_eq!(doc.layer_name(id), "extra");
+    }
+
+    #[test]
+    fn remove_layer_rejects_unknown_id() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.remove_layer(999).is_err());
+    }
+
+    #[test]
+    fn add_frame_appends_and_is_undoable() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.frame_count(), 1);
+        let idx = doc.add_frame(120).expect("add");
+        assert_eq!(idx, 1);
+        assert_eq!(doc.frame_count(), 2);
+        assert!(doc.undo());
+        assert_eq!(doc.frame_count(), 1);
+    }
+
+    #[test]
+    fn paint_auto_creates_cel_on_a_fresh_layer() {
+        // A newly added layer has no cel; painting must auto-create one
+        // rather than fail with MissingCel.
+        let mut doc = Document::new(4, 4).expect("dims");
+        let id = doc.add_layer("top").expect("add");
+        doc.set_active_layer(id);
+        let red = Rgba::new(255, 0, 0, 255).to_u32();
+        doc.apply_tool("pencil", 1, 1, red).expect("paint ok");
+        // Composited pick reflects the painted pixel on the new layer.
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), red);
+    }
+
+    #[test]
+    fn paint_auto_creates_cel_on_a_fresh_frame() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let idx = doc.add_frame(100).expect("add");
+        doc.set_current_frame(idx).expect("switch");
+        let blue = Rgba::new(0, 0, 255, 255).to_u32();
+        doc.apply_tool("pencil", 2, 2, blue).expect("paint ok");
+        assert_eq!(doc.pick_color(idx, 2, 2).unwrap(), blue);
+        // Frame 0 stays clear at that pixel.
+        assert_eq!(doc.pick_color(0, 2, 2).unwrap(), 0);
+    }
+
+    #[test]
+    fn delete_selection_clears_pixels_and_undoes() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let red = Rgba::new(255, 0, 0, 255).to_u32();
+        doc.apply_tool("pencil", 1, 1, red).expect("paint");
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), red);
+        doc.set_selection(1, 1, 1, 1);
+        assert!(doc.delete_selection().expect("delete ran"));
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), 0, "pixel cleared");
+        assert!(doc.undo());
+        assert_eq!(doc.pick_color(0, 1, 1).unwrap(), red, "undo restores");
+    }
+
+    #[test]
+    fn delete_selection_without_selection_returns_false() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(!doc.delete_selection().expect("no-op ok"));
+    }
+
     #[test]
     fn open_aseprite_rejects_garbage_bytes() {
         let result = Document::open_aseprite(&[0, 1, 2, 3]);
@@ -1576,6 +1974,7 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x0a141eff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("pencil", 1, 0, 0x28323cff)
             .expect("pencil ok");
         assert_eq!(doc.bus.undo_depth(), 2);
@@ -1584,6 +1983,84 @@ mod tests {
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
         assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
+    }
+
+    /// Two-frame single-layer document, built through the codec since
+    /// the wasm surface has no addFrame yet.
+    fn two_frame_doc() -> Document {
+        let sprite = Sprite::builder(4, 4)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_frame(Frame::new(100))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        let mut cels = CelMap::new();
+        for f in 0..2 {
+            cels.insert(Cel::image(
+                LayerId::new(0),
+                FrameIndex::new(f),
+                PixelBuffer::empty(4, 4, ColorMode::Rgba),
+            ));
+        }
+        let mut bytes = Vec::new();
+        write_aseprite(&sprite, &cels, &mut bytes).expect("write");
+        Document::open_aseprite(&bytes).expect("open")
+    }
+
+    #[test]
+    fn set_current_frame_routes_painting_to_that_frame() {
+        let mut doc = two_frame_doc();
+        assert_eq!(doc.frame_count(), 2);
+        doc.set_current_frame(1).expect("frame 1 exists");
+        assert_eq!(doc.current_frame(), 1);
+        doc.apply_tool("pencil", 0, 0, 0xff0000ff).expect("pencil");
+        let f1 = doc.compose(1, 1).expect("compose f1");
+        assert_eq!(pixel_at(&f1.pixels(), 4, 0, 0), [255, 0, 0, 255]);
+        let f0 = doc.compose(0, 1).expect("compose f0");
+        assert_eq!(pixel_at(&f0.pixels(), 4, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn set_current_frame_rejects_out_of_range() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.set_current_frame(1).is_err());
+        assert_eq!(doc.current_frame(), 0);
+    }
+
+    #[test]
+    fn apply_tool_drag_then_end_stroke_is_single_undo_entry() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        for x in 0..4 {
+            doc.apply_tool("pencil", x, 0, 0xffffffff).expect("pencil");
+        }
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 1, "one drag, one entry");
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        assert!(
+            frame.pixels().iter().all(|&b| b == 0),
+            "whole stroke undone at once"
+        );
+    }
+
+    #[test]
+    fn two_strokes_are_two_undo_entries() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xffffffff).expect("pencil");
+        doc.apply_tool("pencil", 1, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        doc.apply_tool("pencil", 2, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 2);
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 0), [0, 0, 0, 0], "stroke 2 undone");
+        assert_eq!(
+            pixel_at(&pixels, 4, 0, 0),
+            [255, 255, 255, 255],
+            "stroke 1 intact"
+        );
     }
 
     #[test]
@@ -1604,12 +2081,14 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 2, 1, 0xff0000ff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("eraser", 2, 1, 0x00000000)
             .expect("eraser ok");
         let frame = doc.compose(0, 1).expect("compose ok");
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 2, 1), [0, 0, 0, 0]);
-        // The eraser is its own command, so it joins the bus.
+        // The eraser gesture is sealed off from the pencil stroke, so it
+        // joins the bus as its own entry.
         assert_eq!(doc.bus.undo_depth(), 2);
     }
 
@@ -2707,6 +3186,36 @@ mod tests {
         assert!(bytes.iter().all(|b| *b == 0));
     }
 
+    #[test]
+    fn add_tile_joins_undo_bus() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        let depth = doc.undo_depth();
+        doc.add_tile(ts_id).expect("addTile");
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert!(doc.undo());
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+    }
+
+    #[test]
+    fn add_tile_clears_redo_stack() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        doc.add_tile(ts_id).expect("addTile 0");
+        assert!(doc.undo(), "undo the first tile");
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        // A fresh execute must drop the pending redo entry.
+        doc.add_tile(ts_id).expect("addTile again");
+        assert!(
+            !doc.redo().expect("redo"),
+            "redo stack cleared by the new command"
+        );
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+    }
+
     // ---- M9.4 slice surface ------------------------------------------
 
     #[test]
@@ -2901,5 +3410,167 @@ mod tests {
         let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
         let events = doc.drain_events();
         assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    // ---- M13.2: layer reorder surface ---------------------------------
+
+    /// 8x8 doc with three top-level image layers (ids 0,1,2 bottom→top).
+    /// Id 0 is the `Document::new` default; 1 and 2 are pushed on top.
+    fn doc_with_three_layers() -> Document {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.layers.push(Layer::image(LayerId::new(1), "l1"));
+        doc.sprite.layers.push(Layer::image(LayerId::new(2), "l2"));
+        doc
+    }
+
+    fn layer_ids(doc: &Document) -> Vec<u32> {
+        doc.sprite.layers.iter().map(|l| l.id.0).collect()
+    }
+
+    #[test]
+    fn move_layer_up_reorders_and_emits_event() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(1).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    #[test]
+    fn move_layer_down_reorders() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_down(2).expect("move down");
+        assert_eq!(layer_ids(&doc), vec![0, 2, 1]);
+    }
+
+    #[test]
+    fn move_layer_round_trips_through_undo() {
+        let mut doc = doc_with_three_layers();
+        doc.move_layer_up(0).expect("move up");
+        assert_eq!(layer_ids(&doc), vec![1, 0, 2]);
+        assert!(doc.undo());
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn move_layer_at_edge_errors() {
+        let mut doc = doc_with_three_layers();
+        let err = doc.move_layer_up(2).expect_err("top layer can't move up");
+        assert!(err.contains("edge"), "got: {err}");
+        assert_eq!(layer_ids(&doc), vec![0, 1, 2], "document untouched");
+    }
+
+    #[test]
+    fn move_unknown_layer_errors() {
+        let mut doc = doc_with_three_layers();
+        assert!(doc.move_layer_down(99).is_err());
+    }
+
+    #[test]
+    fn paint_target_resolves_active_image_layer() {
+        let mut doc = doc_with_three_layers();
+        // No active layer → lowest-z image layer (the default, id 0).
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        doc.set_active_layer(2);
+        assert_eq!(doc.paint_target_layer_id(), 2);
+    }
+
+    #[test]
+    fn paint_target_falls_back_for_non_image_or_unknown_active() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.layers.push(Layer::group(LayerId::new(5), "grp"));
+        // A group layer can't take pixels → fall back to image layer 0.
+        doc.set_active_layer(5);
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        // Unknown id → fall back too.
+        doc.set_active_layer(99);
+        assert_eq!(doc.paint_target_layer_id(), 0);
+    }
+
+    #[test]
+    fn pencil_paints_into_active_layer_cel() {
+        // Two image layers, each with its own cel. Painting with layer 1
+        // active must land on layer 1, leaving the default layer 0 clear.
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.sprite.layers.push(Layer::image(LayerId::new(1), "top"));
+        doc.cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            PixelBuffer::empty(4, 4, ColorMode::Rgba),
+        ));
+        doc.set_active_layer(1);
+        doc.apply_tool("pencil", 1, 1, 0x0a141eff).expect("pencil");
+
+        let on_active = doc
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(0))
+            .expect("active cel");
+        let on_default = doc
+            .cels
+            .get(LayerId::new(0), FrameIndex::new(0))
+            .expect("default cel");
+        match (&on_active.data, &on_default.data) {
+            (CelData::Image(active), CelData::Image(default)) => {
+                // RGBA8 row-major; byte offset of pixel (1,1) in a
+                // 4-wide buffer: (y * width + x) * 4 = (4 + 1) * 4.
+                let idx = (4 + 1) * 4;
+                assert_eq!(
+                    &active.data[idx..idx + 4],
+                    &[10, 20, 30, 255],
+                    "active layer 1 received the pixel"
+                );
+                assert_eq!(
+                    &default.data[idx..idx + 4],
+                    &[0, 0, 0, 0],
+                    "default layer 0 stayed transparent"
+                );
+            }
+            _ => panic!("expected image cels"),
+        }
+    }
+
+    #[test]
+    fn set_layer_visible_toggles_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.layer_visible(0));
+        doc.set_layer_visible(0, false).expect("hide");
+        assert!(!doc.layer_visible(0));
+        let events = doc.drain_events();
+        assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+        assert!(doc.undo());
+        assert!(doc.layer_visible(0), "undo restores visibility");
+    }
+
+    #[test]
+    fn set_layer_visible_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.set_layer_visible(99, false).is_err());
+    }
+
+    #[test]
+    fn rename_layer_updates_name_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.layer_name(0), "Layer 1");
+        doc.rename_layer(0, "ground").expect("rename");
+        assert_eq!(doc.layer_name(0), "ground");
+        assert!(doc.undo());
+        assert_eq!(doc.layer_name(0), "Layer 1");
+    }
+
+    #[test]
+    fn rename_layer_unknown_errors() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.rename_layer(99, "x").is_err());
+    }
+
+    #[test]
+    fn layer_visibility_and_opacity_getters() {
+        let doc = Document::new(8, 8).expect("dims");
+        // The default layer is visible and fully opaque.
+        assert!(doc.layer_visible(0));
+        assert_eq!(doc.layer_opacity(0), 255);
+        // Unknown ids report the documented defaults.
+        assert!(!doc.layer_visible(99));
+        assert_eq!(doc.layer_opacity(99), 0);
     }
 }

@@ -7,9 +7,10 @@
 //! pair; see `docs/specs/pincel.md` §7.1.
 
 use pincel_core::{
-    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer,
-    LayerId, LayerKind, PixelBuffer, Rect, Rgba, Slice, SliceId, SliceKey, Sprite, Tag,
-    TagDirection, TileImage, TileRef, Tileset, TilesetId, read_aseprite, write_aseprite,
+    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, Frame, FrameIndex,
+    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, Palette, PaletteEntry, PixelBuffer, Rect,
+    Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
+    TilesetId, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -263,7 +264,12 @@ fn tags_round_trip_with_directions() {
             from: FrameIndex::new(0),
             to: FrameIndex::new(1),
             direction: TagDirection::Forward,
-            color: Rgba::WHITE,
+            color: Rgba {
+                r: 200,
+                g: 30,
+                b: 30,
+                a: 255,
+            },
             repeats: 0,
         })
         .add_tag(Tag {
@@ -271,7 +277,12 @@ fn tags_round_trip_with_directions() {
             from: FrameIndex::new(1),
             to: FrameIndex::new(2),
             direction: TagDirection::Pingpong,
-            color: Rgba::WHITE,
+            color: Rgba {
+                r: 30,
+                g: 60,
+                b: 220,
+                a: 255,
+            },
             repeats: 3,
         })
         .build()
@@ -284,15 +295,47 @@ fn tags_round_trip_with_directions() {
     assert_eq!(sprite.tags[0].direction, TagDirection::Forward);
     assert_eq!(sprite.tags[0].from, FrameIndex::new(0));
     assert_eq!(sprite.tags[0].to, FrameIndex::new(1));
+    assert_eq!(
+        sprite.tags[0].color,
+        Rgba {
+            r: 200,
+            g: 30,
+            b: 30,
+            a: 255
+        }
+    );
     assert_eq!(sprite.tags[1].name, "wave");
     assert_eq!(sprite.tags[1].direction, TagDirection::Pingpong);
     assert_eq!(sprite.tags[1].repeats, 3);
+    assert_eq!(
+        sprite.tags[1].color,
+        Rgba {
+            r: 30,
+            g: 60,
+            b: 220,
+            a: 255
+        }
+    );
 }
 
-// Palette round-trip is covered by `aseprite-writer`'s integration tests
-// against `parse_raw_file`. The high-level `aseprite-loader` API used by
-// `read_aseprite` drops RGBA palettes (see STATUS.md), so a write→read
-// pass through this adapter cannot currently observe them.
+#[test]
+fn palette_round_trips_colors_and_names() {
+    let palette = Palette::from_entries(vec![
+        PaletteEntry::new(Rgba::new(10, 20, 30, 255)),
+        PaletteEntry::with_name(Rgba::new(200, 100, 50, 128), "ink"),
+        PaletteEntry::new(Rgba::new(0, 0, 0, 0)),
+    ]);
+    let sprite = Sprite::builder(1, 1)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .add_frame(Frame::default())
+        .palette(palette.clone())
+        .build()
+        .unwrap();
+    let cels = CelMap::new();
+
+    let AsepriteReadOutput { sprite: read, .. } = round_trip(&sprite, &cels);
+    assert_eq!(read.palette, palette);
+}
 
 #[test]
 fn tilemap_round_trips_layer_tileset_and_cel() {
@@ -442,7 +485,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     let plain = Slice {
         id: SliceId::new(0),
         name: "hitbox".into(),
-        color: Rgba::WHITE,
+        color: Rgba::new(200, 30, 40, 255),
         keys: vec![SliceKey {
             frame: FrameIndex::new(0),
             bounds: Rect::new(1, 2, 3, 4),
@@ -453,7 +496,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     let panel = Slice {
         id: SliceId::new(1),
         name: "panel".into(),
-        color: Rgba::WHITE,
+        color: Rgba::new(10, 20, 30, 128),
         keys: vec![
             SliceKey {
                 frame: FrameIndex::new(0),
@@ -490,4 +533,115 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
     assert_eq!(sprite.slices[0].keys, plain.keys);
     assert_eq!(sprite.slices[1].name, panel.name);
     assert_eq!(sprite.slices[1].keys, panel.keys);
+    // Overlay color round-trips through the trailing User Data chunk
+    // (0x2020), including a non-opaque alpha.
+    assert_eq!(sprite.slices[0].color, plain.color);
+    assert_eq!(sprite.slices[1].color, panel.color);
+}
+
+#[test]
+fn reordered_layers_round_trip_with_cels_intact() {
+    // M13.4: a reorder permutes `sprite.layers` but keeps each
+    // `LayerId`; the write adapter maps ids → current position, so a
+    // round-trip must preserve z-order *and* keep every cel attached to
+    // its own layer. On reload ids are renumbered by position (the
+    // format stores no editor id), so we assert by name + pixel content.
+    let mut bg = Layer::image(LayerId::new(0), "bg");
+    bg.opacity = 255;
+    let fg = Layer::image(LayerId::new(1), "fg");
+    let sprite = Sprite::builder(2, 2)
+        .add_layer(bg) // z 0 (bottom)
+        .add_layer(fg) // z 1 (top)
+        .add_frame(Frame::new(100))
+        .build()
+        .unwrap();
+    let mut cels = CelMap::new();
+    // bg: red at (0,0); fg: green at (1,1) — distinct, non-overlapping.
+    cels.insert(Cel {
+        layer: LayerId::new(0),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Image(rgba_buffer(
+            2,
+            2,
+            flat_pixels(&[
+                rgba(200, 0, 0, 255),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+            ]),
+        )),
+    });
+    cels.insert(Cel {
+        layer: LayerId::new(1),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Image(rgba_buffer(
+            2,
+            2,
+            flat_pixels(&[
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 0, 0, 0),
+                rgba(0, 200, 0, 255),
+            ]),
+        )),
+    });
+
+    // Move bg (id 0) up past fg → layer order becomes [fg, bg].
+    let mut sprite = sprite;
+    MoveLayer::new(LayerId::new(0), MoveDirection::Up)
+        .apply(&mut sprite, &mut cels)
+        .expect("reorder");
+    assert_eq!(
+        sprite
+            .layers
+            .iter()
+            .map(|l| l.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fg", "bg"],
+    );
+
+    let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
+
+    // Z-order survived: bottom is now "fg", top is "bg".
+    assert_eq!(sprite.layers[0].name, "fg");
+    assert_eq!(sprite.layers[1].name, "bg");
+
+    // Each cel still belongs to its own (reordered) layer.
+    let fg_id = sprite.layers[0].id;
+    let bg_id = sprite.layers[1].id;
+    let CelData::Image(fg_buf) = &cels.get(fg_id, FrameIndex::new(0)).expect("fg cel").data else {
+        panic!("fg cel is not an image");
+    };
+    let CelData::Image(bg_buf) = &cels.get(bg_id, FrameIndex::new(0)).expect("bg cel").data else {
+        panic!("bg cel is not an image");
+    };
+    // fg kept its green at (1,1); bg kept its red at (0,0). Byte offset
+    // of (1,1) in a 2-wide RGBA buffer is (2 + 1) * 4 = 12.
+    assert_eq!(&fg_buf.data[12..16], &[0, 200, 0, 255]);
+    assert_eq!(&bg_buf.data[0..4], &[200, 0, 0, 255]);
+}
+
+#[test]
+fn zero_frame_sprite_fails_to_write_instead_of_emitting_invalid_file() {
+    // `SpriteBuilder::build` permits a frameless sprite (a valid
+    // in-memory Pincel object), but the Aseprite format requires at least
+    // one frame. The writer must reject it with a clear error rather than
+    // emit a header that readers can't parse.
+    let sprite = Sprite::builder(8, 8)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .build()
+        .unwrap();
+    assert!(sprite.frames.is_empty());
+    let cels = CelMap::new();
+    let mut bytes = Vec::new();
+    let err = write_aseprite(&sprite, &cels, &mut bytes).unwrap_err();
+    assert!(
+        err.to_string().contains("zero frames"),
+        "expected a zero-frames error, got: {err}"
+    );
+    assert!(bytes.is_empty(), "nothing written on rejection");
 }

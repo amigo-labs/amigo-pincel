@@ -16,6 +16,12 @@ pub enum WriteError {
         max: u64,
     },
 
+    /// `AseFile::frames` is empty. The Aseprite format requires at least
+    /// one frame; a zero-frame file writes a header that the reader
+    /// (e.g. `aseprite-loader`) refuses to parse.
+    #[error("file has zero frames (at least one is required)")]
+    NoFrames,
+
     /// String length exceeds the on-disk u16 prefix.
     #[error("string '{preview}' is too long ({len} bytes > 65535)")]
     StringTooLong { preview: String, len: usize },

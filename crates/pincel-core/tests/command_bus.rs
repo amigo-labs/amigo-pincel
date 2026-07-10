@@ -131,7 +131,10 @@ fn history_cap_drops_oldest_entries() {
     let (mut sprite, mut cels) = doc_with_layer_and_frame();
     let mut bus = Bus::with_capacity(2);
 
+    // Seal between executes so each SetPixel stays its own entry (they
+    // would otherwise merge into one stroke).
     for x in 0..3 {
+        bus.seal();
         bus.execute(
             SetPixel::new(LayerId::new(1), FrameIndex::new(0), x, 0, Rgba::WHITE).into(),
             &mut sprite,
@@ -145,4 +148,80 @@ fn history_cap_drops_oldest_entries() {
     assert!(bus.undo(&mut sprite, &mut cels));
     assert!(bus.undo(&mut sprite, &mut cels));
     assert!(!bus.undo(&mut sprite, &mut cels));
+}
+
+#[test]
+fn execute_merges_consecutive_set_pixels_into_one_undo_entry() {
+    let (mut sprite, mut cels) = doc_with_layer_and_frame();
+    let mut bus = Bus::new();
+
+    for x in 0..4 {
+        bus.execute(
+            SetPixel::new(LayerId::new(1), FrameIndex::new(0), x, 0, Rgba::WHITE).into(),
+            &mut sprite,
+            &mut cels,
+        )
+        .expect("execute");
+    }
+    assert_eq!(bus.undo_depth(), 1, "one stroke, one entry");
+
+    // Undoing the single entry restores every pixel of the stroke.
+    assert!(bus.undo(&mut sprite, &mut cels));
+    let cel = cels.get(LayerId::new(1), FrameIndex::new(0)).unwrap();
+    let pincel_core::CelData::Image(buf) = &cel.data else {
+        unreachable!()
+    };
+    assert!(buf.data.iter().all(|&b| b == 0), "stroke fully undone");
+}
+
+#[test]
+fn seal_prevents_merge_across_strokes() {
+    let (mut sprite, mut cels) = doc_with_layer_and_frame();
+    let mut bus = Bus::new();
+
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 0, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("stroke 1");
+    bus.seal();
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 1, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("stroke 2");
+    assert_eq!(bus.undo_depth(), 2, "sealed strokes stay separate");
+}
+
+#[test]
+fn undo_seals_history_against_merging() {
+    let (mut sprite, mut cels) = doc_with_layer_and_frame();
+    let mut bus = Bus::new();
+
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 0, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("stroke 1");
+    bus.seal();
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 1, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("stroke 2");
+    assert!(bus.undo(&mut sprite, &mut cels));
+    assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+    // A paint right after undo/redo must not coalesce into the restored
+    // stroke-2 entry.
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 2, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("stroke 3");
+    assert_eq!(bus.undo_depth(), 3);
 }
