@@ -6,6 +6,7 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import LayersPanel from './lib/components/LayersPanel.svelte';
+  import PalettePanel from './lib/components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
@@ -2422,6 +2423,16 @@
         activeSliceId = sliceId;
         if (sliceId !== null) tool = 'slice';
         dirty = true;
+      }}
+    />
+    <PalettePanel
+      {doc}
+      rev={docRev}
+      activeColor={color}
+      onPick={(packed) => {
+        // The color picker has no alpha control, so drop the palette
+        // entry's alpha to `#RRGGBB` (unpackColor) to match.
+        color = unpackColor(packed);
       }}
     />
   </section>
