@@ -21,6 +21,7 @@
     onActivate,
     onToggleVisible,
     onRename,
+    onAddLayer,
   }: {
     doc: Document | null;
     rev?: number;
@@ -29,6 +30,7 @@
     onActivate?: (layerId: number) => void;
     onToggleVisible?: (layerId: number, visible: boolean) => void;
     onRename?: (layerId: number, name: string) => void;
+    onAddLayer?: () => void;
   } = $props();
 
   type LayerRow = {
@@ -116,6 +118,15 @@
 >
   <header class="flex items-center justify-between">
     <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Layers</h2>
+    <button
+      type="button"
+      class="panel-btn"
+      onclick={() => onAddLayer?.()}
+      disabled={!doc}
+      aria-label="Add layer"
+    >
+      + Layer
+    </button>
   </header>
 
   {#if layers.length === 0}

@@ -1062,6 +1062,36 @@
     }
   }
 
+  function addLayer() {
+    if (!doc) return;
+    try {
+      const id = doc.addLayer(`Layer ${doc.layerCount + 1}`);
+      activeLayerId = id;
+      // Route the paint tools to the freshly created layer.
+      doc.setActiveLayer(id);
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    } catch (err) {
+      status = `add layer failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function addFrame() {
+    if (!doc) return;
+    try {
+      // 100 ms matches the default frame duration from a fresh document.
+      const idx = doc.addFrame(100);
+      dirty = true;
+      syncMeta();
+      // Step to the new frame so it's immediately viewable / paintable.
+      setFrame(idx);
+      docRev += 1;
+    } catch (err) {
+      status = `add frame failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   function resetDocViewState() {
     dirty = true;
     syncMeta();
@@ -2400,6 +2430,7 @@
           status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
         }
       }}
+      onAddLayer={addLayer}
     />
     <TilesetPanel
       {doc}
@@ -2449,9 +2480,9 @@
       </span>
       <span>·</span>
       <span>{canvasW}×{canvasH}</span>
-      {#if frameCount > 1}
-        <span>·</span>
-        <span class="flex items-center gap-1" role="group" aria-label="Frame">
+      <span>·</span>
+      <span class="flex items-center gap-1" role="group" aria-label="Frame">
+        {#if frameCount > 1}
           <button
             class="toolbar-btn"
             onclick={() => setFrame(currentFrame - 1)}
@@ -2469,8 +2500,13 @@
           >
             ▶
           </button>
-        </span>
-      {/if}
+        {:else}
+          <span>frame 1/1</span>
+        {/if}
+        <button class="toolbar-btn" onclick={addFrame} aria-label="Add frame" title="Add frame">
+          +
+        </button>
+      </span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
     {/if}
