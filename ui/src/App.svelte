@@ -2431,6 +2431,18 @@
         }
       }}
       onAddLayer={addLayer}
+      onRemoveLayer={(layerId) => {
+        if (!doc) return;
+        try {
+          doc.removeLayer(layerId);
+          if (activeLayerId === layerId) activeLayerId = null;
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
     />
     <TilesetPanel
       {doc}
