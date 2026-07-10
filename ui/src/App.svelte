@@ -105,6 +105,9 @@
   // Active backend, surfaced in the footer (M12.5). `'none'` until the
   // renderer is selected.
   let backend = $state<RenderBackend | 'none'>('none');
+
+  // Release version stamped in by the release workflow; `dev` locally.
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
   // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
   // fallback so WebGPU can be A/B'd against it on the same build.
   const forceCanvas2d =
@@ -2475,6 +2478,8 @@
       <span>·</span>
       <span>{backend}</span>
     {/if}
+    <span>·</span>
+    <span title="Pincel version">{appVersion}</span>
     {#if probeOn}
       <span>·</span>
       <span class="text-emerald-400">
