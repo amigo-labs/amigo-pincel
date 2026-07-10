@@ -7,6 +7,7 @@ mod add_tile;
 mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
+mod clear_region;
 mod dirty;
 mod draw_ellipse;
 mod draw_line;
@@ -31,6 +32,7 @@ pub use add_tile::AddTile;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
+pub use clear_region::ClearRegion;
 pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
@@ -97,6 +99,7 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
     SetLayerName(SetLayerName),
@@ -126,6 +129,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
             Self::SetLayerName(c) => c.apply(doc, cels),
@@ -151,6 +155,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
             Self::SetLayerName(c) => c.revert(doc, cels),
@@ -200,6 +205,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.dirty_region(),
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
+            Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
             Self::SetLayerName(c) => c.dirty_region(),
@@ -282,6 +288,12 @@ impl From<AddLayer> for AnyCommand {
 impl From<RemoveLayer> for AnyCommand {
     fn from(c: RemoveLayer) -> Self {
         Self::RemoveLayer(c)
+    }
+}
+
+impl From<ClearRegion> for AnyCommand {
+    fn from(c: ClearRegion) -> Self {
+        Self::ClearRegion(c)
     }
 }
 
