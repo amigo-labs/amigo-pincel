@@ -1,10 +1,12 @@
 //! `compose()` — the single composition entry point. See `docs/specs/pincel.md` §4.
 //!
-//! M3 implements the minimum useful path: visible image layers in z-order
-//! with the `Normal` blend mode, RGBA color mode only. Group layers hold no
-//! pixels and are skipped (their visibility gates their children — see
-//! [`effectively_visible`]). Indexed color, non-Normal blend modes, linked
-//! cels, onion skin, and overlays all return [`RenderError`] for now.
+//! Composites visible image and tilemap layers in z-order, RGBA color mode
+//! only. All separable blend modes render via the W3C compositing formula;
+//! the four non-separable HSL modes fall back to `Normal` (spec §15
+//! Decision Log, 2026-07-09 — see [`blend_pixel_into`]). Group layers hold
+//! no pixels and are skipped (their visibility gates their children — see
+//! [`effectively_visible`]). Indexed color, linked cels, onion skin, and
+//! overlays still return [`RenderError`].
 
 use thiserror::Error;
 
@@ -218,9 +220,10 @@ pub fn compose(
 }
 
 /// Composite every selected layer at `request.frame` into `dst`, which is
-/// sized to `viewport.width * viewport.height * 4` bytes. Non-Normal blend
-/// modes, linked cels, and mismatched cel kinds raise [`RenderError`] — see
-/// the per-arm comments below.
+/// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
+/// under its own blend mode (see [`blend_pixel_into`]); linked cels and
+/// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
+/// below.
 fn composite_visible_layers(
     dst: &mut [u8],
     sprite: &Sprite,
