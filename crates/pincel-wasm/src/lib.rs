@@ -1138,6 +1138,43 @@ impl Document {
         Ok(new_id)
     }
 
+    // ---- Palette read surface ---------------------------------------
+
+    /// Number of entries in the document's palette. Zero for a fresh
+    /// `Document::new` (which seeds no palette) and for opened files
+    /// that carry none. RGBA palettes are recovered on open from the
+    /// `0x2019` chunk (see `pincel_core::aseprite_read`), so this
+    /// reflects whatever the source file stored.
+    #[wasm_bindgen(getter, js_name = paletteCount)]
+    pub fn palette_count(&self) -> u32 {
+        self.sprite.palette.len() as u32
+    }
+
+    /// Color of the palette entry at `index` (`0..paletteCount`),
+    /// packed as `0xRRGGBBAA`. Errors when `index` is out of range.
+    #[wasm_bindgen(js_name = paletteColor)]
+    pub fn palette_color(&self, index: u32) -> Result<u32, String> {
+        self.sprite
+            .palette
+            .colors
+            .get(index as usize)
+            .map(|e| e.rgba.to_u32())
+            .ok_or_else(|| format!("palette index {index} out of range"))
+    }
+
+    /// Display name of the palette entry at `index`, or an empty string
+    /// when the entry is unnamed. Errors when `index` is out of range so
+    /// callers can distinguish "unnamed" from "no such entry".
+    #[wasm_bindgen(js_name = paletteName)]
+    pub fn palette_name(&self, index: u32) -> Result<String, String> {
+        self.sprite
+            .palette
+            .colors
+            .get(index as usize)
+            .map(|e| e.name.clone().unwrap_or_default())
+            .ok_or_else(|| format!("palette index {index} out of range"))
+    }
+
     // ---- M9.4: slice surface ----------------------------------------
 
     /// Number of slices in the document.
@@ -1549,6 +1586,44 @@ mod tests {
         assert_eq!(reopened.height(), 8);
         assert_eq!(reopened.layer_count(), 1);
         assert_eq!(reopened.frame_count(), 1);
+    }
+
+    // ---- Palette read surface ----
+
+    /// A fresh document seeds no palette, so the panel shows an empty
+    /// state until a file with a palette is opened.
+    #[test]
+    fn palette_count_is_zero_for_fresh_document() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.palette_count(), 0);
+        assert!(doc.palette_color(0).is_err());
+        assert!(doc.palette_name(0).is_err());
+    }
+
+    #[test]
+    fn palette_getters_read_colors_and_names() {
+        use pincel_core::{Palette, PaletteEntry};
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.palette = Palette::from_entries(vec![
+            PaletteEntry::with_name(Rgba::new(0x12, 0x34, 0x56, 0x78), "shadow"),
+            PaletteEntry::new(Rgba::new(0xff, 0xff, 0xff, 0xff)),
+        ]);
+        assert_eq!(doc.palette_count(), 2);
+        assert_eq!(doc.palette_color(0).unwrap(), 0x1234_5678);
+        assert_eq!(doc.palette_color(1).unwrap(), 0xffff_ffff);
+        assert_eq!(doc.palette_name(0).unwrap(), "shadow");
+        // An unnamed entry reads back as an empty string, distinct from
+        // the out-of-range error.
+        assert_eq!(doc.palette_name(1).unwrap(), "");
+    }
+
+    #[test]
+    fn palette_getters_error_out_of_range() {
+        use pincel_core::{Palette, PaletteEntry};
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.sprite.palette = Palette::from_entries(vec![PaletteEntry::new(Rgba::new(1, 2, 3, 4))]);
+        assert!(doc.palette_color(1).is_err());
+        assert!(doc.palette_name(1).is_err());
     }
 
     #[test]
