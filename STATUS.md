@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-07-09_
+_Last updated: 2026-07-10_
 
 **Branch:** `claude/app-audit-fixes-vkp6jg` — app-wide audit & deep-fixup
 batch (T1–T17): compose() now renders grouped files and all separable
@@ -163,6 +163,25 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-07-10 — Palette / swatch panel (branch
+  `claude/continue-work-ve96hl`).** Picked up the first deferred audit
+  feature: palettes have round-tripped since T3 but nothing displayed
+  them. Two commits. `pincel-wasm` gains a read surface —
+  `paletteCount` (getter), `paletteColor(index)` (packed `0xRRGGBBAA`),
+  `paletteName(index)` (entry name, empty when unnamed) — mirroring the
+  slice getters and erroring on out-of-range so callers separate
+  "unnamed" from "no such entry". 3 host tests (empty default, color +
+  name reads, out-of-range). UI: new `PalettePanel.svelte` (spec §6
+  panel layout) mounted as the fourth right-side panel after Slices;
+  reads through the getters behind `docRev`, renders an auto-fill grid
+  of clickable swatches, highlights the swatch matching the current
+  foreground color, and on click sets the toolbar color via
+  `unpackColor` (alpha dropped to `#RRGGBB` to match the picker). A
+  fresh document seeds no palette (empty-state hint); opened files
+  recover their palette on load, so swatches populate then. Gates
+  green: 140 wasm host tests, `cargo clippy`/`fmt` for `pincel-wasm`,
+  `pnpm check`/`lint`/`build`.
 
 - **2026-07-09 — Audit & deep-fixup 2 (this branch).** Repo-wide audit
   (core / UI / DX+website) followed by a T1–T17 fix batch. Core:
@@ -439,10 +458,12 @@ the findings don't get lost — each is scoped and ready to pick up:
 
 **Features (each its own task/PR):**
 
-- **Palette / swatch panel UI** — palettes now survive the round-trip
-  (T3), but nothing displays them. Needs wasm getters
-  (`paletteCount` / `paletteColor(i)` / names) + a swatch row or panel;
-  clicking a swatch sets the foreground color.
+- **Palette / swatch panel UI** — _done 2026-07-10_
+  (`claude/continue-work-ve96hl`). `paletteCount` / `paletteColor(i)` /
+  `paletteName(i)` wasm getters + `PalettePanel.svelte` swatch grid;
+  clicking a swatch sets the foreground color. Follow-ups still open:
+  seeding a default palette on `New` (which default? DB16/DB32 —
+  product decision), editing/adding palette entries, and reordering.
 - **addLayer / addFrame / removeLayer through wasm + UI** — the core
   commands exist and are tested, but aren't exposed; the Layers panel
   can't create layers and there's no way to add frames.
