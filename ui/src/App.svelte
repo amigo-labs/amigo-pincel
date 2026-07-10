@@ -6,6 +6,7 @@
   import TilesetPanel from './lib/components/TilesetPanel.svelte';
   import SlicesPanel from './lib/components/SlicesPanel.svelte';
   import LayersPanel from './lib/components/LayersPanel.svelte';
+  import PalettePanel from './lib/components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
@@ -104,6 +105,9 @@
   // Active backend, surfaced in the footer (M12.5). `'none'` until the
   // renderer is selected.
   let backend = $state<RenderBackend | 'none'>('none');
+
+  // Release version stamped in by the release workflow; `dev` locally.
+  const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
   // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
   // fallback so WebGPU can be A/B'd against it on the same build.
   const forceCanvas2d =
@@ -127,6 +131,9 @@
   let stageH = $state(0);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
+  // Foreground alpha (0–255). The native <input type="color"> has no
+  // alpha channel, so it's a separate slider; packColor folds it in.
+  let alpha = $state(255);
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
@@ -743,6 +750,7 @@
       try {
         const picked = doc.pickColor(currentFrame, point.x, point.y);
         color = unpackColor(picked);
+        alpha = picked & 0xff;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error('pickColor failed', err);
@@ -753,7 +761,7 @@
     try {
       // The wasm eraser ignores the `color` arg, but we still pass
       // the packed foreground so the JS surface stays uniform.
-      doc.applyTool(tool, point.x, point.y, packColor(color));
+      doc.applyTool(tool, point.x, point.y, packColor(color, alpha));
     } catch (err) {
       // Drags that leave the canvas raise PixelOutOfBounds; that is
       // expected and silenced. Anything else (missing layer, unknown
@@ -830,7 +838,7 @@
     const point = spriteCoord(e);
     if (!point) return;
     try {
-      doc.applyBucket(point.x, point.y, packColor(color));
+      doc.applyBucket(point.x, point.y, packColor(color, alpha));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('applyBucket failed', err);
@@ -854,7 +862,7 @@
     try {
       if (activeSliceId === null) {
         const autoName = `Slice ${doc.sliceCount + 1}`;
-        const packed = packColor(color);
+        const packed = packColor(color, alpha);
         const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
         activeSliceId = newId;
       } else {
@@ -991,7 +999,7 @@
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
-      const packed = packColor(color);
+      const packed = packColor(color, alpha);
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
@@ -1055,6 +1063,36 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       status = `frame switch failed: ${msg}`;
+    }
+  }
+
+  function addLayer() {
+    if (!doc) return;
+    try {
+      const id = doc.addLayer(`Layer ${doc.layerCount + 1}`);
+      activeLayerId = id;
+      // Route the paint tools to the freshly created layer.
+      doc.setActiveLayer(id);
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    } catch (err) {
+      status = `add layer failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function addFrame() {
+    if (!doc) return;
+    try {
+      // 100 ms matches the default frame duration from a fresh document.
+      const idx = doc.addFrame(100);
+      dirty = true;
+      syncMeta();
+      // Step to the new frame so it's immediately viewable / paintable.
+      setFrame(idx);
+      docRev += 1;
+    } catch (err) {
+      status = `add frame failed: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
 
@@ -1609,6 +1647,21 @@
     doc?.setSelection(0, 0, canvasW, canvasH);
   }
 
+  // Delete/Backspace: clear the pixels inside the marquee (the marquee
+  // stays, Aseprite-style). Recompose rides the dirty-rect event.
+  function deleteSelectionPixels() {
+    if (!doc || !selection) return;
+    try {
+      if (doc.deleteSelection()) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      }
+    } catch (err) {
+      status = `delete failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -1633,6 +1686,16 @@
         deselect();
         return;
       }
+    }
+    if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      doc &&
+      selection &&
+      !isEditableTarget(e.target)
+    ) {
+      e.preventDefault();
+      deleteSelectionPixels();
+      return;
     }
     // Editor accelerators on the web build. On Tauri the native menu
     // already owns Cmd/Ctrl+N/O/S/Z/Y — handling them here too would
@@ -2282,6 +2345,18 @@
         class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
       />
     </label>
+    <label class="ml-1 flex items-center gap-1 text-xs text-neutral-400" title="Foreground alpha">
+      <span>α</span>
+      <input
+        type="range"
+        min="0"
+        max="255"
+        bind:value={alpha}
+        class="w-16 cursor-pointer"
+        aria-label="Foreground alpha"
+      />
+      <span class="w-7 tabular-nums text-neutral-500">{alpha}</span>
+    </label>
     <button
       class="toolbar-btn ml-2"
       onclick={undo}
@@ -2396,6 +2471,19 @@
           status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
         }
       }}
+      onAddLayer={addLayer}
+      onRemoveLayer={(layerId) => {
+        if (!doc) return;
+        try {
+          doc.removeLayer(layerId);
+          if (activeLayerId === layerId) activeLayerId = null;
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
     />
     <TilesetPanel
       {doc}
@@ -2424,6 +2512,17 @@
         dirty = true;
       }}
     />
+    <PalettePanel
+      {doc}
+      rev={docRev}
+      activeColor={color}
+      onPick={(packed) => {
+        // Set both the RGB (via the picker) and the alpha slider from
+        // the palette entry so a swatch's transparency carries over.
+        color = unpackColor(packed);
+        alpha = packed & 0xff;
+      }}
+    />
   </section>
 
   <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
@@ -2435,9 +2534,9 @@
       </span>
       <span>·</span>
       <span>{canvasW}×{canvasH}</span>
-      {#if frameCount > 1}
-        <span>·</span>
-        <span class="flex items-center gap-1" role="group" aria-label="Frame">
+      <span>·</span>
+      <span class="flex items-center gap-1" role="group" aria-label="Frame">
+        {#if frameCount > 1}
           <button
             class="toolbar-btn"
             onclick={() => setFrame(currentFrame - 1)}
@@ -2455,8 +2554,13 @@
           >
             ▶
           </button>
-        </span>
-      {/if}
+        {:else}
+          <span>frame 1/1</span>
+        {/if}
+        <button class="toolbar-btn" onclick={addFrame} aria-label="Add frame" title="Add frame">
+          +
+        </button>
+      </span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
     {/if}
@@ -2464,6 +2568,8 @@
       <span>·</span>
       <span>{backend}</span>
     {/if}
+    <span>·</span>
+    <span title="Pincel version">{appVersion}</span>
     {#if probeOn}
       <span>·</span>
       <span class="text-emerald-400">

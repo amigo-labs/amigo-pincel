@@ -1,14 +1,57 @@
 # Status
 
-_Last updated: 2026-07-09_
+_Last updated: 2026-07-10_
 
-**Branch:** `claude/app-audit-fixes-vkp6jg` — app-wide audit & deep-fixup
-batch (T1–T17): compose() now renders grouped files and all separable
-blend modes, RGBA palettes round-trip, pencil strokes are single undo
-entries (`Bus::seal` / wasm `endStroke`), the web build has Ctrl/Cmd
-accelerators + unsaved-changes protection + a frame stepper, and the CI /
-docs / website drift is cleaned up. Details in the "Recent work" entry
-below.
+**Branch:** `claude/continue-work-ve96hl` (PR #48) — toward-release batch:
+release automation (push to `main` → versioned GitHub Release), palette
+panel, layer/frame create + remove, delete-selection, alpha picker, macOS
+icon. Details in the newest "Recent work" entry.
+
+## Remaining to release (single source of truth)
+
+Everything below is either buildable by me or blocked on you. Phase-2 /
+non-goals (indexed painting, lasso/magic-wand, auto-tilemap, custom
+brushes, filters, scripting, text tool, collaboration) are out of scope.
+
+### 🔓 Needs you (blocks the actual published release)
+
+- **Merge PR #48 to `main`** — activates the release pipeline; the first
+  push then publishes `v0.1.0`.
+- **Add repo secrets** for the guarded deploy/publish jobs (optional but
+  needed for a live app / npm): `CLOUDFLARE_API_TOKEN` +
+  `CLOUDFLARE_ACCOUNT_ID` (web deploy), `NPM_TOKEN` (npm publish). Without
+  them those jobs skip cleanly. See `docs/RELEASING.md`.
+- **Decide web host / production domain** (spec §14 Q1 / open Q3).
+  Default wired: Cloudflare (`ui/wrangler.toml`, project `pincel-app`).
+  `website/src/lib/config.ts::siteUrl` is the placeholder `pincel.app`.
+- **Confirm** the Cloudflare `amigo-pincel` project uses `wrangler.toml`
+  (root dir `/`) for the marketing site.
+
+### 🖥️ Needs your hardware (spec §16 exit criteria)
+
+- 60 fps @ 256×256 / zoom 32 on M1 / mid-tier Windows (F2 probe is built).
+- Lighthouse PWA score ≥ 90.
+- Cross-validate a Pincel-saved file in upstream Aseprite; `amigo_assets`
+  loads a Pincel tilemap.
+- Real Tauri installs on Windows/macOS/Linux (run the manual
+  `release-desktop` workflow; macOS icon now present).
+
+### 🔨 Codeable next (in-sandbox, not yet done)
+
+- **Timeline / playback** (spec §5): per-frame duration, tag lanes, onion
+  skin, play/pause. Biggest remaining feature.
+- **Playwright interaction tests** (spec M5 exit criterion; §7.4).
+- **Touch pinch-zoom** (tablet target, §17.4).
+- **Palette editing** (add/edit/reorder entries; seed a default palette
+  on `New` — needs a default-palette decision).
+- **Round-trip fidelity** (small, codec): header grid/aspect/color_count,
+  extra layer flags, cel `z_index`, user-data on layers/cels/tags.
+- **App.svelte decomposition** (~2,500 lines → overlay-painter, file-ops,
+  pointer/tool controller, keyboard map). Own refactor PR.
+- **Security**: 10 Dependabot alerts on `main` (2 high, 6 moderate, 2
+  low) — audit before release.
+
+Detail on each item lives in the sections further down.
 
 ## M13 — Layers panel + reorder (complete)
 
@@ -163,6 +206,73 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-07-10 — removeLayer + delete-selection + alpha (branch
+  `claude/continue-work-ve96hl`).** Follow-on to the layer/frame batch,
+  closing three more deferred items. **removeLayer:** core `RemoveLayer`
+  removes a layer and, for a group, its whole contiguous subtree, plus
+  the cels those layers own — one undoable unit (revert splices layers
+  back at their z-position and restores cels). wasm `removeLayer` clears a
+  dangling active target; LayersPanel gains a per-row "✕" (disabled at
+  the last layer). **delete-selection:** core `ClearRegion` clears a
+  sprite-rect's pixels to transparent (tolerant no-op on missing cel /
+  off-cel rect; reuses move_selection_content's pixel helpers, now
+  pub(crate)); wasm `deleteSelection`; Delete/Backspace key handler. The
+  marquee stays after delete (Aseprite behavior). **alpha:** an α slider
+  (0–255) folds into `packColor`, so all paint tools honor transparency;
+  the eyedropper and palette-pick set it from the sampled pixel. Also
+  committed the macOS `icon.icns`. Gates green: 292 core + 149 wasm host
+  tests, `cargo clippy`/`fmt`, `pnpm check`/`lint`/`build`.
+
+- **2026-07-10 — Release automation + layer/frame creation (branch
+  `claude/continue-work-ve96hl`).** Toward-release batch on top of the
+  palette panel. **Release CI:** new `.github/workflows/release.yml` —
+  every push to `main` computes the next tag-based SemVer (patch bump on
+  push; patch/minor/major on manual dispatch; first release `v0.1.0`),
+  runs the Rust test gate, builds the optimized wasm + web bundle, and
+  creates the git tag + a GitHub Release with auto notes and the PWA
+  bundle attached. Versioning is tag-based (no commit-back → no
+  self-trigger loop). Outward-facing steps are **guarded on secret
+  presence** so nothing publishes without opt-in: `deploy-web`
+  (Cloudflare, `CLOUDFLARE_API_TOKEN`; `ui/wrangler.toml` defines the
+  `pincel-app` Worker) and `publish-npm` (`pincel-wasm`, `NPM_TOKEN`).
+  Desktop binaries are a separate **manual** workflow
+  (`release-desktop.yml`, 3-OS Tauri matrix) since the macOS icon is
+  still missing. `wasm-pack`'s bundled `wasm-opt` is disabled for the
+  release profile (it downloads binaryen from GitHub and fails in
+  firewalled runners); CI installs binaryen via apt and runs `wasm-opt
+  -O3` explicitly. `VITE_APP_VERSION` is stamped into the build and shown
+  in the footer. Full docs in `docs/RELEASING.md`. **Layer/frame
+  creation:** wasm `addLayer(name)` / `addFrame(durationMs)` route the
+  existing (tested) `AddLayer` / `AddFrame` core commands through the
+  undo bus; the drawing tools now auto-create an empty image cel at the
+  target `(layer, frame)` on first paint (`ensure_paint_cel`), so fresh
+  layers/frames are immediately paintable — this also resolves the
+  standing "MissingCel on empty targets" open question. UI: LayersPanel
+  "+ Layer" button (activates the new layer) and an always-visible footer
+  frame group with a "+" that appends and steps to the new frame. 5 new
+  host tests. Gates green (150 wasm host tests; `cargo clippy`/`fmt`;
+  `pnpm check`/`lint`/`build`). Still open: `removeLayer` (needs a new
+  core command with cel/group undo) and a real timeline (spec §5).
+
+- **2026-07-10 — Palette / swatch panel (branch
+  `claude/continue-work-ve96hl`).** Picked up the first deferred audit
+  feature: palettes have round-tripped since T3 but nothing displayed
+  them. Two commits. `pincel-wasm` gains a read surface —
+  `paletteCount` (getter), `paletteColor(index)` (packed `0xRRGGBBAA`),
+  `paletteName(index)` (entry name, empty when unnamed) — mirroring the
+  slice getters and erroring on out-of-range so callers separate
+  "unnamed" from "no such entry". 3 host tests (empty default, color +
+  name reads, out-of-range). UI: new `PalettePanel.svelte` (spec §6
+  panel layout) mounted as the fourth right-side panel after Slices;
+  reads through the getters behind `docRev`, renders an auto-fill grid
+  of clickable swatches, highlights the swatch matching the current
+  foreground color, and on click sets the toolbar color via
+  `unpackColor` (alpha dropped to `#RRGGBB` to match the picker). A
+  fresh document seeds no palette (empty-state hint); opened files
+  recover their palette on load, so swatches populate then. Gates
+  green: 140 wasm host tests, `cargo clippy`/`fmt` for `pincel-wasm`,
+  `pnpm check`/`lint`/`build`.
 
 - **2026-07-09 — Audit & deep-fixup 2 (this branch).** Repo-wide audit
   (core / UI / DX+website) followed by a T1–T17 fix batch. Core:
@@ -439,21 +549,28 @@ the findings don't get lost — each is scoped and ready to pick up:
 
 **Features (each its own task/PR):**
 
-- **Palette / swatch panel UI** — palettes now survive the round-trip
-  (T3), but nothing displays them. Needs wasm getters
-  (`paletteCount` / `paletteColor(i)` / names) + a swatch row or panel;
-  clicking a swatch sets the foreground color.
-- **addLayer / addFrame / removeLayer through wasm + UI** — the core
-  commands exist and are tested, but aren't exposed; the Layers panel
-  can't create layers and there's no way to add frames.
-- **Timeline / playback** — T12 ships only a frame stepper. Per-frame
-  duration display, tag lanes, onion skin, and play/pause are the spec's
-  §5 timeline; frame add/remove belongs with it.
-- **Delete / Backspace clears selection pixels** — needs a core
-  `ClearRegion`-style command; Escape/Ctrl+A/Ctrl+D landed, this didn't.
-- **Alpha in the color picker** — `packColor` still pins alpha to 0xff;
-  the native `<input type="color">` has no alpha control.
-- **Touch pinch-zoom** — pre-existing gap, still open.
+- **Palette / swatch panel UI** — _done 2026-07-10_
+  (`claude/continue-work-ve96hl`). `paletteCount` / `paletteColor(i)` /
+  `paletteName(i)` wasm getters + `PalettePanel.svelte` swatch grid;
+  clicking a swatch sets the foreground color. Follow-ups still open:
+  seeding a default palette on `New` (which default? DB16/DB32 —
+  product decision), editing/adding palette entries, and reordering.
+- **addLayer / addFrame / removeLayer through wasm + UI** — _done
+  2026-07-10_ (`claude/continue-work-ve96hl`): wasm `addLayer` /
+  `addFrame` / `removeLayer` + LayersPanel "+ Layer" / per-row "✕" and
+  footer "+ Frame"; paint auto-creates cels on new layers/frames; core
+  `RemoveLayer` removes the layer's cels (and a group's subtree),
+  undoable.
+- **Timeline / playback** — _still open._ T12 ships only a frame stepper
+  (+ the new "+ Frame"). Per-frame duration display, tag lanes, onion
+  skin, and play/pause are the spec's §5 timeline.
+- **Delete / Backspace clears selection pixels** — _done 2026-07-10_:
+  core `ClearRegion` + wasm `deleteSelection` + Delete/Backspace key
+  handler.
+- **Alpha in the color picker** — _done 2026-07-10_: α slider (0–255)
+  threads through `packColor`; eyedropper + palette-pick set it from the
+  sampled pixel.
+- **Touch pinch-zoom** — _still open._ pre-existing gap.
 
 **Round-trip fidelity (small, codec):**
 
@@ -496,7 +613,11 @@ the findings don't get lost — each is scoped and ready to pick up:
 - **Tile Editor tool routing** — Only direct click-paint is wired. Routing Line / Rect / Bucket through the tile-pixel target needs a tile-pixel sister command per tool (Phase 2).
 - **Auto-tile mode** — Painting on a tilemap that auto-creates / reuses tiles stays Phase 2 (spec §5.3 / §13.2).
 
-- **macOS `icon.icns`** — M11.1 ships PNG + ICO icons generated from `ui/public/favicon.svg`. The macOS bundle target needs `icon.icns`; `pnpm exec tauri icon ui/public/favicon.svg` regenerates the full platform set in one shot. Land alongside the first macOS build attempt (M11.4 or release prep).
+- **macOS `icon.icns`** — _resolved 2026-07-10._ Generated via `tauri
+  icon ui/public/favicon.svg` and committed at `src-tauri/icons/icon.icns`,
+  referenced in `tauri.conf.json` bundle.icon. The manual `release-desktop`
+  workflow's macOS leg can now bundle; first real run is the verification
+  (dev env here is headless).
 - **Spec §11.4 `isTauri` global** — _resolved 2026-06-10._ Spec snippet now probes both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (v1 / `withGlobalTauri`), matching `ui/src/lib/platform/isTauri()`.
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
@@ -504,7 +625,13 @@ the findings don't get lost — each is scoped and ready to pick up:
 - **Stable LayerIds** — IDs assigned by source-file position today. Stable for read-only sessions but conflicts with spec's "stable id" promise once a reorder command exists. Revisit when reorder lands.
 - **Mid-list AddFrame** — Append-only today. Mid-list insertion needs a `FrameIndex` remap on cel map / `Tag` / `Slice` refs. Defer until a tool needs it.
 - **Indexed-mode painting** — `SetPixel` is RGBA-only. Indexed needs either a payload enum or a separate command. Land when indexed `compose()` lands.
-- **Auto-create cels on empty targets** — `MissingCel` today. Decide when Pencil hits the case in practice.
+- **Auto-create cels on empty targets** — _resolved 2026-07-10._ The
+  drawing tools (pencil/eraser, line, rect, ellipse, bucket) now
+  auto-create an empty RGBA cel at the target `(layer, frame)` on first
+  paint via `Document::ensure_paint_cel` (wasm). The insert is not
+  bus-routed — an empty cel composes to nothing, so leaving it after a
+  stroke undo is harmless and matches Aseprite's auto-cel behavior. This
+  is what makes `addLayer` / `addFrame` results immediately paintable.
 - **`compose()` allocation** — Allocates output buffer per call. Spec §4.1 wants pre-allocated scratch. Fold into M12.
 - **`dirty_hint` not wired** — Accepted but ignored. Needs dirty-rect tracking (spec §4.3). Defer to M12.
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
@@ -519,7 +646,12 @@ the findings don't get lost — each is scoped and ready to pick up:
   pinch-zoom. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
 - **`pincel-wasm` link order** — _resolved 2026-06-10._ The root `README.md` and CLAUDE.md §10 document that `pnpm wasm:build` must run before `pnpm install`; CI already encoded the order.
-- **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
+- **`wasm-opt` dev profile disabled** — _resolved 2026-07-10._ Both the
+  `dev` and `release` `wasm-pack` profiles now disable the bundled
+  `wasm-opt` (it downloads binaryen from GitHub and fails in
+  sandboxed/firewalled runners). The release workflow installs binaryen
+  via apt and runs `wasm-opt -O3` on the pkg wasm as an explicit step
+  instead. See `.github/workflows/release.yml` + `docs/RELEASING.md`.
 
 ## Deferred Aseprite chunks
 

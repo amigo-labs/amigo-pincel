@@ -21,6 +21,8 @@
     onActivate,
     onToggleVisible,
     onRename,
+    onAddLayer,
+    onRemoveLayer,
   }: {
     doc: Document | null;
     rev?: number;
@@ -29,6 +31,8 @@
     onActivate?: (layerId: number) => void;
     onToggleVisible?: (layerId: number, visible: boolean) => void;
     onRename?: (layerId: number, name: string) => void;
+    onAddLayer?: () => void;
+    onRemoveLayer?: (layerId: number) => void;
   } = $props();
 
   type LayerRow = {
@@ -116,6 +120,15 @@
 >
   <header class="flex items-center justify-between">
     <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Layers</h2>
+    <button
+      type="button"
+      class="panel-btn"
+      onclick={() => onAddLayer?.()}
+      disabled={!doc}
+      aria-label="Add layer"
+    >
+      + Layer
+    </button>
   </header>
 
   {#if layers.length === 0}
@@ -193,6 +206,16 @@
               ▼
             </button>
           </div>
+          <button
+            type="button"
+            class="layer-remove shrink-0"
+            onclick={() => onRemoveLayer?.(layer.id)}
+            disabled={layers.length <= 1}
+            aria-label={`Remove ${layer.name}`}
+            title={layers.length <= 1 ? 'Cannot remove the last layer' : 'Remove layer'}
+          >
+            ✕
+          </button>
         </li>
       {/each}
     </ul>
@@ -229,6 +252,19 @@
     color: rgb(229 229 229);
   }
   .layer-move:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+  .layer-remove {
+    line-height: 1;
+    padding: 0 0.25rem;
+    font-size: 0.7rem;
+    color: rgb(115 115 115);
+  }
+  .layer-remove:hover:not(:disabled) {
+    color: rgb(248 113 113);
+  }
+  .layer-remove:disabled {
     opacity: 0.3;
     cursor: not-allowed;
   }

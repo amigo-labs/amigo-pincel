@@ -7,6 +7,7 @@ mod add_tile;
 mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
+mod clear_region;
 mod dirty;
 mod draw_ellipse;
 mod draw_line;
@@ -16,6 +17,7 @@ mod fill_region;
 mod move_layer;
 mod move_selection_content;
 mod place_tile;
+mod remove_layer;
 mod remove_slice;
 mod set_layer_name;
 mod set_layer_visible;
@@ -30,6 +32,7 @@ pub use add_tile::AddTile;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
+pub use clear_region::ClearRegion;
 pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
@@ -39,6 +42,7 @@ pub use fill_region::FillRegion;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
+pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_visible::SetLayerVisible;
@@ -95,11 +99,13 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
     SetLayerName(SetLayerName),
     SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
+    RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
     AddTile(AddTile),
@@ -123,11 +129,13 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
             Self::SetLayerName(c) => c.apply(doc, cels),
             Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
+            Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
@@ -147,11 +155,13 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
             Self::SetLayerName(c) => c.revert(doc, cels),
             Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
+            Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
@@ -195,11 +205,13 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.dirty_region(),
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
+            Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
             Self::SetLayerName(c) => c.dirty_region(),
             Self::SetLayerVisible(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
+            Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
@@ -270,6 +282,18 @@ impl From<SetLayerName> for AnyCommand {
 impl From<AddLayer> for AnyCommand {
     fn from(c: AddLayer) -> Self {
         Self::AddLayer(c)
+    }
+}
+
+impl From<RemoveLayer> for AnyCommand {
+    fn from(c: RemoveLayer) -> Self {
+        Self::RemoveLayer(c)
+    }
+}
+
+impl From<ClearRegion> for AnyCommand {
+    fn from(c: ClearRegion) -> Self {
+        Self::ClearRegion(c)
     }
 }
 
