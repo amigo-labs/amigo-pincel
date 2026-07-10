@@ -164,6 +164,37 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
+- **2026-07-10 — Release automation + layer/frame creation (branch
+  `claude/continue-work-ve96hl`).** Toward-release batch on top of the
+  palette panel. **Release CI:** new `.github/workflows/release.yml` —
+  every push to `main` computes the next tag-based SemVer (patch bump on
+  push; patch/minor/major on manual dispatch; first release `v0.1.0`),
+  runs the Rust test gate, builds the optimized wasm + web bundle, and
+  creates the git tag + a GitHub Release with auto notes and the PWA
+  bundle attached. Versioning is tag-based (no commit-back → no
+  self-trigger loop). Outward-facing steps are **guarded on secret
+  presence** so nothing publishes without opt-in: `deploy-web`
+  (Cloudflare, `CLOUDFLARE_API_TOKEN`; `ui/wrangler.toml` defines the
+  `pincel-app` Worker) and `publish-npm` (`pincel-wasm`, `NPM_TOKEN`).
+  Desktop binaries are a separate **manual** workflow
+  (`release-desktop.yml`, 3-OS Tauri matrix) since the macOS icon is
+  still missing. `wasm-pack`'s bundled `wasm-opt` is disabled for the
+  release profile (it downloads binaryen from GitHub and fails in
+  firewalled runners); CI installs binaryen via apt and runs `wasm-opt
+  -O3` explicitly. `VITE_APP_VERSION` is stamped into the build and shown
+  in the footer. Full docs in `docs/RELEASING.md`. **Layer/frame
+  creation:** wasm `addLayer(name)` / `addFrame(durationMs)` route the
+  existing (tested) `AddLayer` / `AddFrame` core commands through the
+  undo bus; the drawing tools now auto-create an empty image cel at the
+  target `(layer, frame)` on first paint (`ensure_paint_cel`), so fresh
+  layers/frames are immediately paintable — this also resolves the
+  standing "MissingCel on empty targets" open question. UI: LayersPanel
+  "+ Layer" button (activates the new layer) and an always-visible footer
+  frame group with a "+" that appends and steps to the new frame. 5 new
+  host tests. Gates green (150 wasm host tests; `cargo clippy`/`fmt`;
+  `pnpm check`/`lint`/`build`). Still open: `removeLayer` (needs a new
+  core command with cel/group undo) and a real timeline (spec §5).
+
 - **2026-07-10 — Palette / swatch panel (branch
   `claude/continue-work-ve96hl`).** Picked up the first deferred audit
   feature: palettes have round-tripped since T3 but nothing displayed
@@ -464,9 +495,13 @@ the findings don't get lost — each is scoped and ready to pick up:
   clicking a swatch sets the foreground color. Follow-ups still open:
   seeding a default palette on `New` (which default? DB16/DB32 —
   product decision), editing/adding palette entries, and reordering.
-- **addLayer / addFrame / removeLayer through wasm + UI** — the core
-  commands exist and are tested, but aren't exposed; the Layers panel
-  can't create layers and there's no way to add frames.
+- **addLayer / addFrame / removeLayer through wasm + UI** — _addLayer +
+  addFrame done 2026-07-10_ (`claude/continue-work-ve96hl`): wasm
+  `addLayer`/`addFrame` + LayersPanel "+ Layer" and footer "+ Frame"
+  buttons; paint auto-creates cels on the new layer/frame. **removeLayer
+  still open** — needs a new core `RemoveLayer` command that also removes
+  the layer's cels across all frames (and a group's subtree) and restores
+  them on revert; then wasm + a LayersPanel remove button.
 - **Timeline / playback** — T12 ships only a frame stepper. Per-frame
   duration display, tag lanes, onion skin, and play/pause are the spec's
   §5 timeline; frame add/remove belongs with it.
@@ -525,7 +560,13 @@ the findings don't get lost — each is scoped and ready to pick up:
 - **Stable LayerIds** — IDs assigned by source-file position today. Stable for read-only sessions but conflicts with spec's "stable id" promise once a reorder command exists. Revisit when reorder lands.
 - **Mid-list AddFrame** — Append-only today. Mid-list insertion needs a `FrameIndex` remap on cel map / `Tag` / `Slice` refs. Defer until a tool needs it.
 - **Indexed-mode painting** — `SetPixel` is RGBA-only. Indexed needs either a payload enum or a separate command. Land when indexed `compose()` lands.
-- **Auto-create cels on empty targets** — `MissingCel` today. Decide when Pencil hits the case in practice.
+- **Auto-create cels on empty targets** — _resolved 2026-07-10._ The
+  drawing tools (pencil/eraser, line, rect, ellipse, bucket) now
+  auto-create an empty RGBA cel at the target `(layer, frame)` on first
+  paint via `Document::ensure_paint_cel` (wasm). The insert is not
+  bus-routed — an empty cel composes to nothing, so leaving it after a
+  stroke undo is harmless and matches Aseprite's auto-cel behavior. This
+  is what makes `addLayer` / `addFrame` results immediately paintable.
 - **`compose()` allocation** — Allocates output buffer per call. Spec §4.1 wants pre-allocated scratch. Fold into M12.
 - **`dirty_hint` not wired** — Accepted but ignored. Needs dirty-rect tracking (spec §4.3). Defer to M12.
 - **`pincel-wasm` error type** — Returns `Result<_, String>` for host-target testability. Migrate to `JsError` once `wasm-pack test --node` lands.
@@ -540,7 +581,12 @@ the findings don't get lost — each is scoped and ready to pick up:
   pinch-zoom. Cosmetic; not blocking.
 - **Selection in undo stack** — `selection` lives on `Sprite` directly, not through a command. Aseprite tracks selection in undo; Pincel does not. Revisit if "select → drag → undo" UX needs the marquee back.
 - **`pincel-wasm` link order** — _resolved 2026-06-10._ The root `README.md` and CLAUDE.md §10 document that `pnpm wasm:build` must run before `pnpm install`; CI already encoded the order.
-- **`wasm-opt` dev profile disabled** — `pincel-wasm/Cargo.toml` `dev` profile disables `wasm-opt` because the bundled downloader fails in the dev env. `release` profile keeps it on. Pin a system `wasm-opt` and point `wasm-pack` at it via `WASM_OPT_PATH` in CI when the deploy story lands.
+- **`wasm-opt` dev profile disabled** — _resolved 2026-07-10._ Both the
+  `dev` and `release` `wasm-pack` profiles now disable the bundled
+  `wasm-opt` (it downloads binaryen from GitHub and fails in
+  sandboxed/firewalled runners). The release workflow installs binaryen
+  via apt and runs `wasm-opt -O3` on the pkg wasm as an explicit step
+  instead. See `.github/workflows/release.yml` + `docs/RELEASING.md`.
 
 ## Deferred Aseprite chunks
 
