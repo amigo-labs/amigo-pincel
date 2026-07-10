@@ -101,13 +101,14 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
         frames.push(Frame::new(frame.duration));
     }
 
-    let palette = build_palette(&file);
     let tags = file.tags.iter().map(map_tag).collect::<Vec<_>>();
-    // `parse_file` discards `Chunk::Tileset` and `Chunk::Slice` entries.
-    // A second pass via `parse_raw_file` recovers both; the raw parser
-    // is cheap (no decompression on this pass) and the per-tileset
-    // image decode happens lazily inside `build_tileset`.
-    let (tilesets, slices) = extract_tilesets_and_slices(bytes)?;
+    // `parse_file` discards `Chunk::Tileset` and `Chunk::Slice` entries,
+    // and only populates `file.palette` for Indexed color depth — so for
+    // the RGBA files this adapter accepts, the palette must also come from
+    // the raw pass. A second pass via `parse_raw_file` recovers all three;
+    // the raw parser is cheap (no decompression on this pass) and the
+    // per-tileset image decode happens lazily inside `build_tileset`.
+    let (tilesets, slices, palette) = extract_raw_chunks(bytes)?;
 
     let mut sprite_builder =
         Sprite::builder(u32::from(file.header.width), u32::from(file.header.height))
@@ -230,25 +231,6 @@ fn map_tag(tag: &AseTag<'_>) -> Tag {
         color: Rgba { r, g, b, a: 255 },
         repeats: tag.animation_repeat,
     }
-}
-
-fn build_palette(file: &AseFile<'_>) -> crate::document::Palette {
-    let Some(parsed) = file.palette.as_ref() else {
-        return crate::document::Palette::default();
-    };
-    let entries = parsed
-        .colors
-        .iter()
-        .map(|c| {
-            PaletteEntry::new(Rgba {
-                r: c.red,
-                g: c.green,
-                b: c.blue,
-                a: c.alpha,
-            })
-        })
-        .collect();
-    crate::document::Palette::from_entries(entries)
 }
 
 fn build_cels(
@@ -374,12 +356,24 @@ fn decode_tilemap_cel(
 }
 
 /// Re-parse `bytes` via `parse_raw_file` and pull out every
-/// [`Chunk::Tileset`] and [`Chunk::Slice`] across all frames. The
-/// high-level [`parse_file`] used by [`AsepriteFile::load`] discards
-/// both (see `aseprite-loader` 0.4.2 `file.rs`), so the raw pass is the
-/// only path that surfaces them. The order they appeared in the source
-/// file is preserved.
-fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>), CodecError> {
+/// [`Chunk::Tileset`], [`Chunk::Slice`], and [`Chunk::Palette`] across all
+/// frames. The high-level [`parse_file`] used by [`AsepriteFile::load`]
+/// discards tilesets and slices and only fills `file.palette` for Indexed
+/// color depth (see `aseprite-loader` 0.4.2 `file.rs`), so the raw pass is
+/// the only path that surfaces them for RGBA files. The order tilesets and
+/// slices appeared in the source file is preserved.
+///
+/// Palette folding: each `0x2019` chunk overwrites the entry range it
+/// declares (`first_color_index ..= last_color_index`), later chunks
+/// winning — matching the loader's own multi-frame palette semantics.
+/// Slots below `first_color_index` that no chunk ever wrote default to
+/// transparent. Entry names are recovered here too — the raw chunk is the
+/// only source that carries them. Legacy palette chunks (`0x0004` /
+/// `0x0011`) are not folded; Aseprite always writes `0x2019` alongside
+/// them and our own writer emits only `0x2019`.
+fn extract_raw_chunks(
+    bytes: &[u8],
+) -> Result<(Vec<Tileset>, Vec<Slice>, crate::document::Palette), CodecError> {
     // `parse_raw_file` independently validates the header magic and frame
     // envelopes; we run it after `parse_file` succeeded in the caller so
     // the cost is a second header / chunk walk (no decompression). Any
@@ -389,6 +383,7 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
     let mut tilesets = Vec::new();
     let mut slices = Vec::new();
+    let mut palette_entries: Vec<PaletteEntry> = Vec::new();
     // Index of the most recent slice, eligible to receive a trailing User
     // Data chunk's color. Aseprite attaches User Data to the immediately
     // preceding chunk, so any non-slice / non-user-data chunk clears it.
@@ -424,11 +419,35 @@ fn extract_tilesets_and_slices(bytes: &[u8]) -> Result<(Vec<Tileset>, Vec<Slice>
                     }
                     pending_slice = None;
                 }
+                Chunk::Palette(p) => {
+                    let first = usize::from(*p.indices.start());
+                    let needed = first + p.entries.len();
+                    if palette_entries.len() < needed {
+                        palette_entries.resize(needed, PaletteEntry::new(Rgba::TRANSPARENT));
+                    }
+                    for (offset, entry) in p.entries.iter().enumerate() {
+                        let rgba = Rgba::new(
+                            entry.color.red,
+                            entry.color.green,
+                            entry.color.blue,
+                            entry.color.alpha,
+                        );
+                        palette_entries[first + offset] = match entry.name {
+                            Some(name) => PaletteEntry::with_name(rgba, name),
+                            None => PaletteEntry::new(rgba),
+                        };
+                    }
+                    pending_slice = None;
+                }
                 _ => pending_slice = None,
             }
         }
     }
-    Ok((tilesets, slices))
+    Ok((
+        tilesets,
+        slices,
+        crate::document::Palette::from_entries(palette_entries),
+    ))
 }
 
 /// Hydrate a single loader [`SliceChunkRef`] (see

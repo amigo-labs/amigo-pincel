@@ -346,12 +346,17 @@ Quick reference. All commands run from repo root unless noted.
 ### Rust workspace
 
 ```bash
-cargo check                                  # all crates, fast
+cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy --workspace -- -D warnings
+cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
+
+# `--workspace` clippy/test include pincel-tauri, which needs the GTK /
+# WebKit system libraries — absent from most dev containers. CI checks
+# pincel-tauri in a dedicated job; scope local clippy/test to the three
+# library crates as above.
 ```
 
 ### WASM
@@ -387,7 +392,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy --workspace -- -D warnings && cargo test --workspace && cd ui && pnpm lint && pnpm check && pnpm build
+cargo fmt && cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p aseprite-writer -p pincel-wasm && cd ui && pnpm lint && pnpm check && pnpm build
 ```
 
 If any step fails, do not commit.

@@ -25,7 +25,7 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddSlice, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
+    AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus, Cel, CelData, CelMap,
     ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex,
     Layer, LayerId, LayerKind, MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer,
     PlaceTile, Rect, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
@@ -53,6 +53,11 @@ pub struct Document {
     /// falls back to the lowest-z image layer; a non-image / unknown
     /// selection also falls back. See [`Document::paint_target_layer`].
     active_layer: Option<LayerId>,
+    /// Frame the UI is currently viewing and editing. All pixel paths
+    /// (pencil/eraser, line, rect, ellipse, bucket, move-selection)
+    /// target this frame. Set via [`Document::set_current_frame`];
+    /// starts at frame 0 for every fresh / opened document.
+    current_frame: FrameIndex,
 }
 
 #[wasm_bindgen]
@@ -89,6 +94,7 @@ impl Document {
             bus: Bus::new(),
             events: EventQueue::new(),
             active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -106,6 +112,7 @@ impl Document {
             bus: Bus::new(),
             events: EventQueue::new(),
             active_layer: None,
+            current_frame: FrameIndex::new(0),
         })
     }
 
@@ -277,6 +284,29 @@ impl Document {
         self.sprite.frames.len() as u32
     }
 
+    /// Frame the UI is currently viewing / editing (0-based). All paint
+    /// paths target it. See [`Document::set_current_frame`].
+    #[wasm_bindgen(getter, js_name = currentFrame)]
+    pub fn current_frame(&self) -> u32 {
+        self.current_frame.0
+    }
+
+    /// Switch the current frame. Rejects an index at or past
+    /// `frameCount`. Enqueues a `dirty-canvas` event so the UI
+    /// recomposes onto the newly-selected frame.
+    #[wasm_bindgen(js_name = setCurrentFrame)]
+    pub fn set_current_frame(&mut self, frame: u32) -> Result<(), String> {
+        if frame >= self.frame_count() {
+            return Err(format!(
+                "frame {frame} out of range (frameCount {})",
+                self.frame_count()
+            ));
+        }
+        self.current_frame = FrameIndex::new(frame);
+        self.events.push(Event::dirty_canvas());
+        Ok(())
+    }
+
     /// Composite the requested frame at the given integer zoom over the
     /// full sprite canvas, with the default `Visible` layer filter and
     /// no overlays / onion skin.
@@ -289,22 +319,7 @@ impl Document {
     /// Output dimensions are `width * zoom` × `height * zoom` and the
     /// pixel buffer is row-major non-premultiplied RGBA8.
     pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
-        let mut request = ComposeRequest::full(
-            FrameIndex::new(frame),
-            self.sprite.width,
-            self.sprite.height,
-        );
-        request.zoom = zoom;
-        let mut pixels = Vec::new();
-        let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose: {e}"))?;
-        Ok(ComposeFrame {
-            width: result.width,
-            height: result.height,
-            dirty_x: result.dirty_rect.x,
-            dirty_y: result.dirty_rect.y,
-            pixels,
-        })
+        self.compose_impl(frame, zoom, None)
     }
 
     /// Composite a sub-rect of the sprite at the given integer zoom.
@@ -329,16 +344,28 @@ impl Document {
         dw: u32,
         dh: u32,
     ) -> Result<ComposeFrame, String> {
+        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)))
+    }
+
+    /// Shared body of [`Document::compose`] / [`Document::compose_dirty`]:
+    /// a full-canvas request at `zoom`, optionally narrowed by a
+    /// `dirty_hint` rect.
+    fn compose_impl(
+        &self,
+        frame: u32,
+        zoom: u32,
+        dirty_hint: Option<Rect>,
+    ) -> Result<ComposeFrame, String> {
         let mut request = ComposeRequest::full(
             FrameIndex::new(frame),
             self.sprite.width,
             self.sprite.height,
         );
         request.zoom = zoom;
-        request.dirty_hint = Some(Rect::new(dx, dy, dw, dh));
+        request.dirty_hint = dirty_hint;
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose dirty: {e}"))?;
+            .map_err(|e| format!("failed to compose: {e}"))?;
         Ok(ComposeFrame {
             width: result.width,
             height: result.height,
@@ -375,22 +402,12 @@ impl Document {
     #[wasm_bindgen(js_name = applyTool)]
     pub fn apply_tool(&mut self, tool_id: &str, x: i32, y: i32, color: u32) -> Result<(), String> {
         let rgba = match tool_id {
-            "pencil" => Rgba {
-                r: ((color >> 24) & 0xff) as u8,
-                g: ((color >> 16) & 0xff) as u8,
-                b: ((color >> 8) & 0xff) as u8,
-                a: (color & 0xff) as u8,
-            },
-            "eraser" => Rgba {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            },
+            "pencil" => Rgba::from_u32(color),
+            "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -425,14 +442,9 @@ impl Document {
         y1: i32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -471,14 +483,9 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -516,14 +523,9 @@ impl Document {
         color: u32,
         fill: bool,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -554,14 +556,9 @@ impl Document {
     /// event into a single recompose.
     #[wasm_bindgen(js_name = applyBucket)]
     pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -640,6 +637,17 @@ impl Document {
             }
         }
         Ok(redone)
+    }
+
+    /// Close the current paint gesture: the next command pushed onto the
+    /// undo bus starts a fresh entry instead of merging into the last one.
+    /// The UI calls this on pointer-up / pointer-cancel so consecutive
+    /// pencil / eraser strokes stay separate undo steps while the pixels
+    /// *within* one drag coalesce into a single entry. Idempotent; calling
+    /// it with no stroke in flight is harmless.
+    #[wasm_bindgen(js_name = endStroke)]
+    pub fn end_stroke(&mut self) {
+        self.bus.seal();
     }
 
     /// Number of commands available to undo.
@@ -758,7 +766,7 @@ impl Document {
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
         let layer = self.paint_target_layer()?;
-        let frame = FrameIndex::new(0);
+        let frame = self.current_frame;
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -1094,12 +1102,7 @@ impl Document {
         y: u32,
         color: u32,
     ) -> Result<(), String> {
-        let rgba = Rgba {
-            r: ((color >> 24) & 0xff) as u8,
-            g: ((color >> 16) & 0xff) as u8,
-            b: ((color >> 8) & 0xff) as u8,
-            a: (color & 0xff) as u8,
-        };
+        let rgba = Rgba::from_u32(color);
         let cmd = SetTilePixel::new(TilesetId::new(tileset_id), tile_id, x, y, rgba);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -1114,23 +1117,23 @@ impl Document {
     /// can be edited via [`Document::set_tile_pixel`] immediately
     /// without first crossing the boundary again to learn the size.
     ///
-    /// Not undoable in this slice — tile-image insertion is treated
-    /// like [`Document::new`]'s bootstrap cels: the editing commands
-    /// targeting the tile join the bus, the container does not.
+    /// Routes an [`AddTile`] command through the undo bus, so the
+    /// insertion is undoable and executing it clears the redo stack
+    /// (a stale redo could otherwise replay onto a diverged tileset).
     /// Errors when the tileset id is unknown.
     #[wasm_bindgen(js_name = addTile)]
     pub fn add_tile(&mut self, tileset_id: u32) -> Result<u32, String> {
         let tileset = self
             .sprite
             .tilesets
-            .iter_mut()
+            .iter()
             .find(|t| t.id.0 == tileset_id)
             .ok_or_else(|| format!("unknown tileset id {tileset_id}"))?;
-        let (tile_w, tile_h) = tileset.tile_size;
         let new_id = tileset.tiles.len() as u32;
-        tileset.tiles.push(pincel_core::TileImage {
-            pixels: PixelBuffer::empty(tile_w, tile_h, ColorMode::Rgba),
-        });
+        let cmd = AddTile::new(TilesetId::new(tileset_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add tile: {e}"))?;
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
     }
@@ -1666,6 +1669,7 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x0a141eff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("pencil", 1, 0, 0x28323cff)
             .expect("pencil ok");
         assert_eq!(doc.bus.undo_depth(), 2);
@@ -1674,6 +1678,84 @@ mod tests {
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 1, 0), [0, 0, 0, 0]);
         assert_eq!(pixel_at(&pixels, 4, 0, 0), [10, 20, 30, 255]);
+    }
+
+    /// Two-frame single-layer document, built through the codec since
+    /// the wasm surface has no addFrame yet.
+    fn two_frame_doc() -> Document {
+        let sprite = Sprite::builder(4, 4)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_frame(Frame::new(100))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        let mut cels = CelMap::new();
+        for f in 0..2 {
+            cels.insert(Cel::image(
+                LayerId::new(0),
+                FrameIndex::new(f),
+                PixelBuffer::empty(4, 4, ColorMode::Rgba),
+            ));
+        }
+        let mut bytes = Vec::new();
+        write_aseprite(&sprite, &cels, &mut bytes).expect("write");
+        Document::open_aseprite(&bytes).expect("open")
+    }
+
+    #[test]
+    fn set_current_frame_routes_painting_to_that_frame() {
+        let mut doc = two_frame_doc();
+        assert_eq!(doc.frame_count(), 2);
+        doc.set_current_frame(1).expect("frame 1 exists");
+        assert_eq!(doc.current_frame(), 1);
+        doc.apply_tool("pencil", 0, 0, 0xff0000ff).expect("pencil");
+        let f1 = doc.compose(1, 1).expect("compose f1");
+        assert_eq!(pixel_at(&f1.pixels(), 4, 0, 0), [255, 0, 0, 255]);
+        let f0 = doc.compose(0, 1).expect("compose f0");
+        assert_eq!(pixel_at(&f0.pixels(), 4, 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn set_current_frame_rejects_out_of_range() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.set_current_frame(1).is_err());
+        assert_eq!(doc.current_frame(), 0);
+    }
+
+    #[test]
+    fn apply_tool_drag_then_end_stroke_is_single_undo_entry() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        for x in 0..4 {
+            doc.apply_tool("pencil", x, 0, 0xffffffff).expect("pencil");
+        }
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 1, "one drag, one entry");
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        assert!(
+            frame.pixels().iter().all(|&b| b == 0),
+            "whole stroke undone at once"
+        );
+    }
+
+    #[test]
+    fn two_strokes_are_two_undo_entries() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xffffffff).expect("pencil");
+        doc.apply_tool("pencil", 1, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        doc.apply_tool("pencil", 2, 0, 0xffffffff).expect("pencil");
+        doc.end_stroke();
+        assert_eq!(doc.undo_depth(), 2);
+        assert!(doc.undo());
+        let frame = doc.compose(0, 1).expect("compose ok");
+        let pixels = frame.pixels();
+        assert_eq!(pixel_at(&pixels, 4, 2, 0), [0, 0, 0, 0], "stroke 2 undone");
+        assert_eq!(
+            pixel_at(&pixels, 4, 0, 0),
+            [255, 255, 255, 255],
+            "stroke 1 intact"
+        );
     }
 
     #[test]
@@ -1694,12 +1776,14 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("dims");
         doc.apply_tool("pencil", 2, 1, 0xff0000ff)
             .expect("pencil ok");
+        doc.end_stroke();
         doc.apply_tool("eraser", 2, 1, 0x00000000)
             .expect("eraser ok");
         let frame = doc.compose(0, 1).expect("compose ok");
         let pixels = frame.pixels();
         assert_eq!(pixel_at(&pixels, 4, 2, 1), [0, 0, 0, 0]);
-        // The eraser is its own command, so it joins the bus.
+        // The eraser gesture is sealed off from the pencil stroke, so it
+        // joins the bus as its own entry.
         assert_eq!(doc.bus.undo_depth(), 2);
     }
 
@@ -2795,6 +2879,36 @@ mod tests {
         let bytes = doc.tile_pixels(ts_id, tile_id).expect("tilePixels");
         assert_eq!(bytes.len(), 2 * 2 * 4);
         assert!(bytes.iter().all(|b| *b == 0));
+    }
+
+    #[test]
+    fn add_tile_joins_undo_bus() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        let depth = doc.undo_depth();
+        doc.add_tile(ts_id).expect("addTile");
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert!(doc.undo());
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+    }
+
+    #[test]
+    fn add_tile_clears_redo_stack() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
+        doc.add_tile(ts_id).expect("addTile 0");
+        assert!(doc.undo(), "undo the first tile");
+        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        // A fresh execute must drop the pending redo entry.
+        doc.add_tile(ts_id).expect("addTile again");
+        assert!(
+            !doc.redo().expect("redo"),
+            "redo stack cleared by the new command"
+        );
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
     }
 
     // ---- M9.4 slice surface ------------------------------------------

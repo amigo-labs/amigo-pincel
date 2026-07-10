@@ -8,9 +8,9 @@
 
 use pincel_core::{
     AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, PixelBuffer, Rect, Rgba, Slice, SliceId,
-    SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset, TilesetId, read_aseprite,
-    write_aseprite,
+    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, Palette, PaletteEntry, PixelBuffer, Rect,
+    Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
+    TilesetId, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -318,10 +318,24 @@ fn tags_round_trip_with_directions() {
     );
 }
 
-// Palette round-trip is covered by `aseprite-writer`'s integration tests
-// against `parse_raw_file`. The high-level `aseprite-loader` API used by
-// `read_aseprite` drops RGBA palettes (see STATUS.md), so a write→read
-// pass through this adapter cannot currently observe them.
+#[test]
+fn palette_round_trips_colors_and_names() {
+    let palette = Palette::from_entries(vec![
+        PaletteEntry::new(Rgba::new(10, 20, 30, 255)),
+        PaletteEntry::with_name(Rgba::new(200, 100, 50, 128), "ink"),
+        PaletteEntry::new(Rgba::new(0, 0, 0, 0)),
+    ]);
+    let sprite = Sprite::builder(1, 1)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .add_frame(Frame::default())
+        .palette(palette.clone())
+        .build()
+        .unwrap();
+    let cels = CelMap::new();
+
+    let AsepriteReadOutput { sprite: read, .. } = round_trip(&sprite, &cels);
+    assert_eq!(read.palette, palette);
+}
 
 #[test]
 fn tilemap_round_trips_layer_tileset_and_cel() {

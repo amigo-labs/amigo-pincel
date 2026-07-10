@@ -1,11 +1,15 @@
-# CI gate mirroring the pre-commit checks in CLAUDE.md §10.
+# CI gate for the repo (see CLAUDE.md §10 for the per-crate commands;
+# CI scopes Rust clippy/test to the three library crates — pincel-tauri
+# only gets `cargo check` since its GTK/WebKit deps make test/clippy
+# runs expensive for a thin shell).
 #
 # The Rust core crates (pincel-core, aseprite-writer, pincel-wasm) build
 # without system libraries, so they run in a fast, dependency-free job.
 # The Tauri shell (pincel-tauri) needs GTK/WebKit system libraries, so it
 # gets its own job that installs them. The UI job builds the wasm package
 # first (a local `link:` dependency) before linting, type-checking, and
-# building the Svelte frontend.
+# building the Svelte frontend. The website job gates the marketing site
+# that Cloudflare Workers Builds deploys straight from `main`.
 
 name: CI
 
@@ -71,7 +75,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
-          version: latest
+          # Pinned: `latest` lets a new wasm-pack release break builds
+          # unannounced.
+          version: 'v0.13.1'
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -82,6 +88,31 @@ jobs:
           cache-dependency-path: ui/pnpm-lock.yaml
       - name: build wasm package
         run: pnpm wasm:build
+      - name: install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        run: pnpm lint
+      - name: type-check
+        run: pnpm check
+      - name: build
+        run: pnpm build
+
+  website:
+    name: website (lint / check / build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
       - name: install dependencies
         run: pnpm install --frozen-lockfile
       - name: lint
