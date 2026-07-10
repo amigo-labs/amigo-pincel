@@ -57,6 +57,12 @@ export default defineConfig({
         // single asset; precaching it is the difference between
         // "offline reload works" and "white screen".
         globPatterns: ['**/*.{js,css,html,wasm,svg,webmanifest}'],
+        // Workbox refuses to precache files over 2 MiB by default. The
+        // unoptimized dev-profile wasm (CI builds it via `pnpm
+        // wasm:build --dev`; wasm-opt is disabled there) sits just
+        // above that, and excluding it would break offline entirely —
+        // give it headroom instead.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],
