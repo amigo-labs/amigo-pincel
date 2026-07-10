@@ -28,9 +28,9 @@ use pincel_core::{
     AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus,
     Cel, CelData, CelMap, ColorMode, ComposeRequest, DrawEllipse, DrawLine, DrawRectangle,
     FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveDirection, MoveLayer,
-    MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveSlice, Rgba, SetLayerName,
-    SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
-    TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
+    MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer, RemoveSlice, Rgba,
+    SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey,
+    Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -304,6 +304,32 @@ impl Document {
             .map_err(|e| format!("failed to add layer: {e}"))?;
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
+    }
+
+    /// Remove the layer `layer_id` (and, if it is a group, its whole
+    /// subtree) along with the cels those layers own, routed through the
+    /// undo bus as one [`RemoveLayer`] step (undo restores the layer(s)
+    /// and cels at their original z-position).
+    ///
+    /// If the removed layer was the active paint target — directly or as
+    /// a child of a removed group — the active layer is cleared so the
+    /// paint-target fallback resolves again. Emits `dirty-canvas`. Errors
+    /// when `layer_id` is unknown.
+    #[wasm_bindgen(js_name = removeLayer)]
+    pub fn remove_layer(&mut self, layer_id: u32) -> Result<(), String> {
+        let cmd = RemoveLayer::new(LayerId::new(layer_id));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to remove layer: {e}"))?;
+        // Drop a now-dangling active-layer reference (covers both the
+        // directly-removed layer and any child of a removed group).
+        if let Some(active) = self.active_layer {
+            if self.sprite.layer(active).is_none() {
+                self.active_layer = None;
+            }
+        }
+        self.events.push(Event::dirty_canvas());
+        Ok(())
     }
 
     /// Number of frames in the document.
@@ -1725,6 +1751,28 @@ mod tests {
         assert_eq!(doc.layer_count(), 1);
         assert!(doc.redo().expect("redo"));
         assert_eq!(doc.layer_count(), 2);
+    }
+
+    #[test]
+    fn remove_layer_drops_it_clears_active_and_undoes() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let id = doc.add_layer("extra").expect("add");
+        doc.set_active_layer(id);
+        assert_eq!(doc.layer_count(), 2);
+        doc.remove_layer(id).expect("remove");
+        assert_eq!(doc.layer_count(), 1);
+        // Active target fell back to the surviving image layer (id 0).
+        assert_eq!(doc.paint_target_layer_id(), 0);
+        // Undo restores the removed layer.
+        assert!(doc.undo());
+        assert_eq!(doc.layer_count(), 2);
+        assert_eq!(doc.layer_name(id), "extra");
+    }
+
+    #[test]
+    fn remove_layer_rejects_unknown_id() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        assert!(doc.remove_layer(999).is_err());
     }
 
     #[test]
