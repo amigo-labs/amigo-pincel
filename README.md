@@ -6,9 +6,39 @@ UI ship two ways: as an installable PWA (WebAssembly) and as a native
 desktop app (Tauri 2). It reads and writes the `.aseprite` file format,
 including tilemaps, tilesets, slices, and animation tags.
 
+> **Status:** Phase 1, pre-1.0. See [`STATUS.md`](STATUS.md) for current
+> milestone state.
+
 - **What to build** lives in the spec: [`docs/specs/pincel.md`](docs/specs/pincel.md)
 - **How to build it** lives in the working agreement: [`CLAUDE.md`](CLAUDE.md)
 - **Current state / next task**: [`STATUS.md`](STATUS.md)
+
+## Why Pincel
+
+- **`.aseprite` is the source of truth.** No proprietary format, no
+  lock-in. Open files in Aseprite or any tool in that ecosystem
+  (Godot import, LDtk, Phaser, custom engines).
+- **Game-asset workflow first.** First-class tilemaps with tileset
+  editing, slices with 9-patch + pivots, animation tags. Engine
+  hot-reload via file watching (`amigo_assets`).
+- **Document state in pure Rust memory.** The canvas is render-target
+  only — never a data source. Avoids the architectural failure mode
+  that forced Piskel into a multi-year rewrite (browser
+  anti-fingerprinting silently corrupting canvas readbacks).
+- **PWA-first, mobile-aware.** Modern `PointerEvent` end-to-end, pen
+  pressure / tilt from day one, pinch-to-zoom standard. iPad with
+  Apple Pencil is a reference target.
+- **Embeddable.** `@amigo-labs/pincel` ships as an npm package with a
+  stable public API from Phase 1 — embed Pincel into level editors,
+  asset pipelines, or other tools.
+
+## Try it
+
+- **Web (PWA):** https://pincel.amigo-labs.dev/app
+- **Desktop installers:** see the latest [GitHub release][releases]
+  for Windows / macOS / Linux builds.
+
+[releases]: https://github.com/amigo-labs/amigo-pincel/releases/latest
 
 ## Repository layout
 

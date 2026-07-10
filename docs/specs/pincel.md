@@ -631,13 +631,29 @@ The native build uses these instead of the File System Access API. `pincel-core`
 ### 11.4 Capability Detection in UI
 
 ```typescript
-// Tauri 2 exposes `__TAURI_INTERNALS__`; `__TAURI__` only exists with the
-// v1-compat `withGlobalTauri` flag. Probe both (ui/src/lib/platform/).
-const isTauri = '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
-const fs = isTauri ? tauriFsAdapter : webFsAdapter;
+function isTauri(): boolean {
+  if (typeof window === 'undefined') return false; // SSR guard
+  const w = window as Window & {
+    __TAURI_INTERNALS__?: unknown;
+    __TAURI__?: unknown;
+  };
+  return (
+    typeof w.__TAURI_INTERNALS__ !== 'undefined' ||
+    typeof w.__TAURI__ !== 'undefined'
+  );
+}
+
+const fs = isTauri() ? tauriFsAdapter : webFsAdapter;
 ```
 
 Single FS interface, two adapters. UI never branches on platform beyond this.
+
+Tauri 2 exposes the runtime as `__TAURI_INTERNALS__`; the legacy
+`__TAURI__` global is checked only as a v1 fallback. `typeof … !==
+'undefined'` is used instead of `'x' in window` so the check reports
+false when the property exists but the runtime hasn't populated it
+yet. The probe lives in
+[`ui/src/lib/platform/index.ts`](../../ui/src/lib/platform/index.ts).
 
 ---
 
@@ -734,6 +750,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-05-07 | Scripting deferred; if needed later, downloader pattern (rquickjs + SWC + TS) | Consistent with amigo-labs tooling; out-of-scope for Phase 1 |
 | 2026-05-07 | Document state lives exclusively in Rust memory; canvas / WebGPU is render-target only | Avoids the architectural failure mode that forced Piskel into a multi-year rewrite (Piskel #1245). Browser canvas anti-fingerprinting (Brave today, others tomorrow) corrupts pixel readbacks; in-memory state is immune. |
 | 2026-05-07 | `pincel-wasm` ships as npm-importable package with documented public API from Phase 1 | Embedding is a recurring Piskel community ask (#1229, #1246). Designing the boundary in early avoids retrofit. |
+| 2026-05-26 | §11.4 `isTauri` check accepts both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (Tauri 1) | The spec originally specified only `__TAURI__`, but Tauri 2 renamed the global. The shipping implementation in `ui/src/lib/platform/index.ts` accepts both so the same probe works against either runtime. Spec aligned with the implementation. |
 | 2026-05-31 | Add `@webgpu/types` as a UI devDependency (M12.5) | Type-only, dev-only, W3C `gpuweb`-maintained. TypeScript's bundled `lib.dom` still omits WebGPU types, so the §4.4 WebGPU adapter can't typecheck without it. No runtime bundle impact. |
 | 2026-05-31 | Layer reorder (M13) is a sibling block-swap, group-atomic | `MoveLayer { Up \| Down }` swaps a layer's whole subtree with the adjacent sibling's subtree, so a group moves with its children and no layer crosses a group boundary. Preserves the flat-Vec contiguity invariant that `validate_layer_order` enforces, keeping write round-trips lossless. Cross-group / arbitrary drag-and-drop reorder is deferred (needs reparenting + a richer command). |
 | 2026-07-09 | `compose()` skips group layers and propagates group visibility to children | A group entry in the flat layer Vec carries no pixels; erroring on it made every grouped file unrenderable. Hiding a group hides its subtree (Aseprite semantics). Group opacity / blend-mode folding (render children into a temp buffer) stays Phase 2. |
