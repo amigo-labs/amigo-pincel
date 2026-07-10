@@ -131,6 +131,9 @@
   let stageH = $state(0);
   let doc = $state<Document | null>(null);
   let color = $state('#f87171');
+  // Foreground alpha (0–255). The native <input type="color"> has no
+  // alpha channel, so it's a separate slider; packColor folds it in.
+  let alpha = $state(255);
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
@@ -747,6 +750,7 @@
       try {
         const picked = doc.pickColor(currentFrame, point.x, point.y);
         color = unpackColor(picked);
+        alpha = picked & 0xff;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error('pickColor failed', err);
@@ -757,7 +761,7 @@
     try {
       // The wasm eraser ignores the `color` arg, but we still pass
       // the packed foreground so the JS surface stays uniform.
-      doc.applyTool(tool, point.x, point.y, packColor(color));
+      doc.applyTool(tool, point.x, point.y, packColor(color, alpha));
     } catch (err) {
       // Drags that leave the canvas raise PixelOutOfBounds; that is
       // expected and silenced. Anything else (missing layer, unknown
@@ -834,7 +838,7 @@
     const point = spriteCoord(e);
     if (!point) return;
     try {
-      doc.applyBucket(point.x, point.y, packColor(color));
+      doc.applyBucket(point.x, point.y, packColor(color, alpha));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('applyBucket failed', err);
@@ -858,7 +862,7 @@
     try {
       if (activeSliceId === null) {
         const autoName = `Slice ${doc.sliceCount + 1}`;
-        const packed = packColor(color);
+        const packed = packColor(color, alpha);
         const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
         activeSliceId = newId;
       } else {
@@ -995,7 +999,7 @@
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
-      const packed = packColor(color);
+      const packed = packColor(color, alpha);
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
@@ -2341,6 +2345,18 @@
         class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
       />
     </label>
+    <label class="ml-1 flex items-center gap-1 text-xs text-neutral-400" title="Foreground alpha">
+      <span>α</span>
+      <input
+        type="range"
+        min="0"
+        max="255"
+        bind:value={alpha}
+        class="w-16 cursor-pointer"
+        aria-label="Foreground alpha"
+      />
+      <span class="w-7 tabular-nums text-neutral-500">{alpha}</span>
+    </label>
     <button
       class="toolbar-btn ml-2"
       onclick={undo}
@@ -2501,9 +2517,10 @@
       rev={docRev}
       activeColor={color}
       onPick={(packed) => {
-        // The color picker has no alpha control, so drop the palette
-        // entry's alpha to `#RRGGBB` (unpackColor) to match.
+        // Set both the RGB (via the picker) and the alpha slider from
+        // the palette entry so a swatch's transparency carries over.
         color = unpackColor(packed);
+        alpha = packed & 0xff;
       }}
     />
   </section>
