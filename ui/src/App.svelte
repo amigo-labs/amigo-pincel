@@ -1643,6 +1643,21 @@
     doc?.setSelection(0, 0, canvasW, canvasH);
   }
 
+  // Delete/Backspace: clear the pixels inside the marquee (the marquee
+  // stays, Aseprite-style). Recompose rides the dirty-rect event.
+  function deleteSelectionPixels() {
+    if (!doc || !selection) return;
+    try {
+      if (doc.deleteSelection()) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      }
+    } catch (err) {
+      status = `delete failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -1667,6 +1682,16 @@
         deselect();
         return;
       }
+    }
+    if (
+      (e.key === 'Delete' || e.key === 'Backspace') &&
+      doc &&
+      selection &&
+      !isEditableTarget(e.target)
+    ) {
+      e.preventDefault();
+      deleteSelectionPixels();
+      return;
     }
     // Editor accelerators on the web build. On Tauri the native menu
     // already owns Cmd/Ctrl+N/O/S/Z/Y — handling them here too would
