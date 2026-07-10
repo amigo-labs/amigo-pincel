@@ -80,12 +80,11 @@ The package is published with `--access public` at the release version.
 
 Manual: Actions → *Release Desktop* → *Run workflow*, passing an existing
 release tag (e.g. `v0.1.0`). Installers for Linux / macOS / Windows are
-attached to that release. Before it passes cleanly on macOS:
-
-- Generate the icon set and commit `src-tauri/icons/icon.icns`:
-  `pnpm --dir ui exec tauri icon public/favicon.svg`.
-- (Optional) add signing/notarization secrets for shippable binaries;
-  unsigned builds compile but warn on first launch.
+attached to that release. The macOS `icon.icns` is committed, so all
+three legs have their icons; the first manual run is the verification
+(the dev env here is headless). Optional: add signing/notarization
+secrets for shippable binaries — unsigned builds compile but warn on
+first launch.
 
 ## Changing the defaults
 

@@ -1,17 +1,16 @@
 # Desktop (Tauri) binaries — MANUAL trigger only.
 #
-# Kept separate from release.yml on purpose: a native 3-OS matrix is slow
-# and, until the macOS `icon.icns` is added (STATUS.md open question), the
-# macOS leg can fail. Running it manually means a red desktop build never
-# blocks the automatic web release. Trigger it from the Actions tab and
-# point it at an existing release tag (created by release.yml); the built
-# installers are attached to that release.
+# Kept separate from release.yml on purpose: a native 3-OS matrix is slow,
+# and running it manually means a red desktop build never blocks the
+# automatic web release. Trigger it from the Actions tab and point it at
+# an existing release tag (created by release.yml); the built installers
+# are attached to that release.
 #
-# Prerequisites before this reliably passes on all three OSes:
-#   * macOS: generate the full icon set — `pnpm --dir ui exec tauri icon
-#     public/favicon.svg` — and commit `src-tauri/icons/icon.icns`.
-#   * (optional) code signing / notarization secrets for shippable macOS
-#     + Windows builds; unsigned binaries build fine but warn on launch.
+# The macOS `icon.icns` is now committed, so all three legs have their
+# icons. Not yet exercised on real runners (this repo's dev env is
+# headless) — the first manual run is the verification. Optional next
+# step: code signing / notarization secrets for shippable macOS + Windows
+# builds; unsigned binaries build fine but warn on launch.
 
 name: Release Desktop
 

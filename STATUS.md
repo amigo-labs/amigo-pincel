@@ -552,7 +552,11 @@ the findings don't get lost — each is scoped and ready to pick up:
 - **Tile Editor tool routing** — Only direct click-paint is wired. Routing Line / Rect / Bucket through the tile-pixel target needs a tile-pixel sister command per tool (Phase 2).
 - **Auto-tile mode** — Painting on a tilemap that auto-creates / reuses tiles stays Phase 2 (spec §5.3 / §13.2).
 
-- **macOS `icon.icns`** — M11.1 ships PNG + ICO icons generated from `ui/public/favicon.svg`. The macOS bundle target needs `icon.icns`; `pnpm exec tauri icon ui/public/favicon.svg` regenerates the full platform set in one shot. Land alongside the first macOS build attempt (M11.4 or release prep).
+- **macOS `icon.icns`** — _resolved 2026-07-10._ Generated via `tauri
+  icon ui/public/favicon.svg` and committed at `src-tauri/icons/icon.icns`,
+  referenced in `tauri.conf.json` bundle.icon. The manual `release-desktop`
+  workflow's macOS leg can now bundle; first real run is the verification
+  (dev env here is headless).
 - **Spec §11.4 `isTauri` global** — _resolved 2026-06-10._ Spec snippet now probes both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (v1 / `withGlobalTauri`), matching `ui/src/lib/platform/isTauri()`.
 
 - **M6.7** — Human-driven cross-validation: open hand-crafted fixture in Pincel, paint, save, reopen in upstream Aseprite. Programmatic round-trip is pinned by `crates/pincel-wasm/tests/paint_save_open_roundtrip.rs`.
