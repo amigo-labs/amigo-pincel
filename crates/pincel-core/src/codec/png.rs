@@ -741,9 +741,10 @@ mod tests {
     }
 
     #[test]
-    fn export_rejects_non_normal_blend_mode_with_render_error() {
+    fn export_rejects_not_yet_implemented_blend_mode_with_render_error() {
         let mut layer = Layer::image(LayerId::new(0), "art");
-        layer.blend_mode = BlendMode::Multiply;
+        // Any mode `render::blend` has not implemented yet; retarget as modes land.
+        layer.blend_mode = BlendMode::Luminosity;
         let sprite = Sprite::builder(2, 2)
             .add_layer(layer)
             .add_frame(Frame::new(100))
@@ -763,7 +764,7 @@ mod tests {
                 frame_err,
                 ExportError::Render(RenderError::UnsupportedBlendMode {
                     layer: LayerId(0),
-                    mode: BlendMode::Multiply
+                    mode: BlendMode::Luminosity
                 })
             ),
             "unexpected error: {frame_err}"

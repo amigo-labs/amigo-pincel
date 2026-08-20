@@ -6,8 +6,9 @@
 //! and overlays all return [`RenderError`] for now. The `dirty_hint` field
 //! on the request is accepted and currently ignored.
 
-use crate::document::{BlendMode, CelData, CelMap, ColorMode, Layer, LayerKind, Sprite};
+use crate::document::{CelData, CelMap, ColorMode, Layer, LayerKind, Sprite};
 
+use super::blend::{BlendParams, is_implemented};
 use super::error::RenderError;
 use super::image_layer::composite_image_cel;
 use super::request::{ComposeRequest, ComposeResult, LayerFilter, Overlays};
@@ -55,7 +56,7 @@ pub fn compose(
         if let LayerKind::Group = layer.kind {
             return Err(RenderError::UnsupportedLayerKind { layer: layer.id });
         }
-        if !matches!(layer.blend_mode, BlendMode::Normal) {
+        if !is_implemented(layer.blend_mode) {
             return Err(RenderError::UnsupportedBlendMode {
                 layer: layer.id,
                 mode: layer.blend_mode,
@@ -64,6 +65,7 @@ pub fn compose(
         let Some(cel) = cels.get(layer.id, request.frame) else {
             continue;
         };
+        let blend = BlendParams::new(layer.blend_mode, layer.opacity, cel.opacity);
         match (&layer.kind, &cel.data) {
             (LayerKind::Image, CelData::Image(pixels)) => {
                 if pixels.color_mode != sprite.color_mode {
@@ -79,14 +81,7 @@ pub fn compose(
                         frame: request.frame,
                     });
                 }
-                composite_image_cel(
-                    &mut buffer,
-                    vp,
-                    cel.position,
-                    pixels,
-                    layer.opacity,
-                    cel.opacity,
-                );
+                composite_image_cel(&mut buffer, vp, cel.position, pixels, blend);
             }
             (
                 LayerKind::Tilemap { tileset_id },
@@ -113,8 +108,7 @@ pub fn compose(
                     layer.id,
                     request.frame,
                     sprite.color_mode,
-                    layer.opacity,
-                    cel.opacity,
+                    blend,
                 )?;
             }
             (_, CelData::Linked(_)) => {
@@ -198,7 +192,9 @@ fn layer_included(layer: &Layer, filter: &LayerFilter) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::{Cel, CelData, Frame, FrameIndex, Layer, LayerId, PixelBuffer, Sprite};
+    use crate::document::{
+        BlendMode, Cel, CelData, Frame, FrameIndex, Layer, LayerId, PixelBuffer, Sprite,
+    };
     use crate::geometry::Rect;
     use crate::render::test_support::{full_req, one_layer_sprite, solid};
 
@@ -351,9 +347,12 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_normal_blend_mode() {
+    fn rejects_not_yet_implemented_blend_mode() {
+        // Names a mode `blend::is_implemented` still rejects, so this keeps
+        // covering the error path while modes land group by group. Retarget it
+        // when `Luminosity` lands; delete it only once every mode is in.
         let mut layer = Layer::image(LayerId::new(3), "bg");
-        layer.blend_mode = BlendMode::Multiply;
+        layer.blend_mode = BlendMode::Luminosity;
         let sprite = Sprite::builder(1, 1)
             .add_layer(layer)
             .add_frame(Frame::default())
@@ -364,7 +363,7 @@ mod tests {
             compose(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
             RenderError::UnsupportedBlendMode {
                 layer: LayerId::new(3),
-                mode: BlendMode::Multiply,
+                mode: BlendMode::Luminosity,
             }
         );
     }

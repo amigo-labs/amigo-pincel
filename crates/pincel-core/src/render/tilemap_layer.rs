@@ -4,7 +4,7 @@
 use crate::document::{ColorMode, FrameIndex, LayerId, PixelBuffer, TileRef, Tileset};
 use crate::geometry::Rect;
 
-use super::blend::{blend_normal_into, mul_u8};
+use super::blend::{BlendParams, blend_into, mul_u8};
 use super::error::RenderError;
 
 /// Composite a tilemap cel into the viewport buffer. Iterates the grid in
@@ -24,8 +24,7 @@ pub(super) fn composite_tilemap_cel(
     layer_id: LayerId,
     frame: FrameIndex,
     sprite_color_mode: ColorMode,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    blend: BlendParams,
 ) -> Result<(), RenderError> {
     let (tile_w, tile_h) = tileset.tile_size;
     if tile_w == 0 || tile_h == 0 {
@@ -90,8 +89,7 @@ pub(super) fn composite_tilemap_cel(
                 (tile_x, tile_y),
                 &tile.pixels,
                 tile_ref,
-                layer_opacity,
-                cel_opacity,
+                blend,
             );
         }
     }
@@ -109,11 +107,9 @@ fn composite_transformed_tile(
     tile_pos: (i32, i32),
     src: &PixelBuffer,
     tile_ref: TileRef,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    blend: BlendParams,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
-    if combined_opacity == 0 {
+    if blend.opacity == 0 {
         return;
     }
 
@@ -174,8 +170,9 @@ fn composite_transformed_tile(
             }
             let s = (sy as usize) * src_stride + (sx as usize) * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
-            let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            let sa = mul_u8(src.data[s + 3], blend.opacity);
+            blend_into(
+                blend.mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],

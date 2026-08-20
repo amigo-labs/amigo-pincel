@@ -3,18 +3,16 @@
 use crate::document::PixelBuffer;
 use crate::geometry::Rect;
 
-use super::blend::{blend_normal_into, mul_u8};
+use super::blend::{BlendParams, blend_into, mul_u8};
 
 pub(super) fn composite_image_cel(
     dst: &mut [u8],
     viewport: Rect,
     cel_pos: (i32, i32),
     src: &PixelBuffer,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    blend: BlendParams,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
-    if combined_opacity == 0 {
+    if blend.opacity == 0 {
         return;
     }
 
@@ -47,8 +45,9 @@ pub(super) fn composite_image_cel(
         for x in x_start..x_end {
             let s = src_row + (x - cel_x) as usize * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
-            let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            let sa = mul_u8(src.data[s + 3], blend.opacity);
+            blend_into(
+                blend.mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],
