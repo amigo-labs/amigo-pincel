@@ -274,6 +274,38 @@ Each milestone is a sequence of S/M tasks. Plan the tasks before starting the mi
 - Tables for any structured comparison
 - One blank line above and below code blocks and tables
 
+### 6.4 Line endings
+
+`.gitattributes` at repo root owns line endings. `* text=auto eol=lf` means:
+
+- **LF in the index and LF in the working tree, on every platform.** Not "LF in
+  the repo, CRLF on Windows" — both sides match byte-for-byte, so a checkout can
+  never produce a whitespace-only diff.
+- **`core.autocrlf` and `core.eol` are irrelevant here.** Don't set them, don't
+  ask contributors to set them, and never resolve line-ending noise by changing a
+  git config: attributes override both, and a config change only fixes the one
+  machine it ran on. (The Windows Git installer writes `core.autocrlf=true` into
+  the *system* config, which is exactly the kind of invisible per-machine state
+  this file removes.)
+- **Binary types are listed explicitly** in `.gitattributes` (`binary` =
+  `-text -diff`). Add a new binary extension to that list in the same commit
+  that first adds such a file — `.aseprite` fixtures above all: content
+  detection is a heuristic, and a line-ending-mangled fixture is a silently
+  failing test, not a compile error.
+
+If `git status` ever reports a batch of files as modified with equal insertion
+and deletion counts and no visible content change, the working tree has drifted
+from the attributes. Re-apply them:
+
+```bash
+git rm --cached -r . && git reset --hard
+```
+
+That empties the index so every entry counts as new, then rewrites the working
+tree through the attribute filters. It discards uncommitted work — commit or
+stash first. `git checkout-index -a -f` does *not* do the job: it skips entries
+whose cached stat still matches, which is every entry in exactly this situation.
+
 ---
 
 ## 7. Testing Requirements
@@ -463,6 +495,7 @@ These don't need to exist on day one. Add them when you've implemented the secon
 docs/specs/pincel.md          The spec — what to build
 CLAUDE.md                     This file — how to build it
 STATUS.md                     Current session state, next task
+.gitattributes                Line endings (§6.4) — LF in index and working tree
 .claude/skills/               Project-specific skill recipes
 
 crates/pincel-core/           Pure logic, no I/O, no platform
@@ -480,4 +513,4 @@ src-tauri/                    Native shell
 
 ---
 
-*Last updated: 2026-05-07. Amend in place via PR. Significant changes get a Decision Log entry in `docs/specs/pincel.md` §15.*
+*Last updated: 2026-08-20. Amend in place via PR. Significant changes get a Decision Log entry in `docs/specs/pincel.md` §15.*
