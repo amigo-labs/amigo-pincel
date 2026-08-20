@@ -59,7 +59,21 @@ export function openDb(): Promise<IDBDatabase> {
           });
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // Close the connection on a foreign version-change so a
+        // future schema upgrade (DB_VERSION bump) in another tab
+        // isn't blocked by this tab's stale handle. Clearing
+        // `openPromise` lets the next call reopen at the new
+        // version. The reopen itself is on-demand — there's no
+        // active autosave or recents read here that needs to
+        // resume.
+        db.onversionchange = () => {
+          db.close();
+          openPromise = null;
+        };
+        resolve(db);
+      };
       req.onerror = () => reject(req.error ?? new Error('IDB open failed'));
       req.onblocked = () =>
         reject(new Error('IDB open blocked by another tab'));
