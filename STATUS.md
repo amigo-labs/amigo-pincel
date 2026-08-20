@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-05-12_
+_Last updated: 2026-08-20_
 
 **Branch:** `claude/continue-from-status-T3QCr` · M10.1 + M10.2
 complete (FSA open / save adapter with download fallback,
@@ -12,11 +12,32 @@ dropdown surfacing FSA-handle-bearing entries).
 
 ## Next task
 
-**M10.3** — Autosave timer (every 30 s) writing `(docId, ts,
-name, bytes)` rows into the `autosave_snapshots` store from
-M10.2, plus a recovery dialog that appears on app start if the
-most recent snapshot for any known doc is newer than its last
-successful save. See CLAUDE.md §4 / spec §10.3.
+**The renderer, before M10.3.** `compose()` refuses more real
+`.aseprite` files than it accepts: 18 of 19 blend modes, indexed
+and grayscale color, linked cels, and group layers all fail. Those
+files read and write fine, they just cannot be displayed —
+autosaving documents the app cannot show is the wrong order. Three
+independent tracks, one `git worktree` each (the `compose.rs` split
+in `4ea5608` exists to make them mergeable separately):
+
+1. Blend modes — `render/blend.rs`, u8 / sRGB per Aseprite, not
+   f32 / linear. No Aseprite-generated reference fixtures exist, so
+   tests ship marked provisional.
+2. Indexed + grayscale in the compose path. Pulls in the parked
+   `SetPixel` decision (payload enum vs. separate command) — decide
+   it in the Decision Log first.
+3. Linked cels + group layers (visibility and opacity inherit,
+   arbitrary nesting depth).
+
+Then onion skin + overlays, which `ComposeRequest` already carries
+fields for.
+
+**M10.3 and M10.4 are parked on purpose**, not forgotten: both are
+pure UI work in the current shell, and the shared-shell design
+question (one Pincel app with Pixel / Paint modes over the separate
+`amigo-fineliner` core) may replace that shell. Decide the mode
+question, then build them once. Backlog and full prompts in
+`NEXT-PROMPTS.md`.
 
 ## Milestone status
 
@@ -35,6 +56,7 @@ successful save. See CLAUDE.md §4 / spec §10.3.
 | M10       | 🟡     | PWA polish — split into M10.1–M10.4 below                                                                                                                                                  |
 | M11       | ⬜     | Tauri build                                                                                                                                                                                |
 | M12       | ⬜     | Performance pass                                                                                                                                                                           |
+| §7.3      | 🟡     | PNG / atlas export (spec §7.3) — out of band, ahead of the M-order. Core + wasm done, no UI entry point                                                                                    |
 
 ### M8.7 sub-tasks
 
@@ -61,6 +83,28 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 
 ## Recent work
 
+- **2026-08-20 — PNG / atlas export (spec §7.3), out of band.** New
+  `pincel-core::codec::png` (919 lines) exports composed pixels as RGBA8 PNG:
+  `export_frame_png(sprite, cels, frame)` for a single frame at zoom 1 over the
+  full canvas, and `export_atlas_png(sprite, cels, &AtlasOptions)` for a
+  fixed-cell grid sprite sheet with an optional tag filter. Every cell is the
+  full canvas, placed row-major in playback order, so a frame lives at
+  `row * columns + column`; cells past the last frame stay transparent. There is
+  no trimming, no rotation and no bin-packing — the grid is the contract.
+  `AtlasOutput` pairs the PNG bytes with an `AtlasManifest` (atlas and cell
+  dimensions, grid shape, one `{frame, x, y, w, h, tag}` entry per frame),
+  serialized by a hand-rolled `to_json()` because `pincel-core` carries no
+  serialization dependency (CLAUDE.md §5.1). Seven `ExportError` variants cover
+  a zero column count, an unknown or malformed tag range, an empty frame
+  selection, an atlas too large to address, and the pass-through of `RenderError`
+  / encoder failure. Limits are inherited from `compose()` verbatim and widen
+  with it: RGBA only, `Normal` blend only, no group layers, no linked cels.
+  `pincel-wasm` exposes `Document::exportPng(frame)` and
+  `Document::exportAtlas(columns, tag?)`; the latter returns an `AtlasExport`
+  handle with `png` / `manifest` getters so the bytes stay in WASM memory until
+  JS asks. New dependency `png = "0.18"` via `[workspace.dependencies]`.
+  21 unit tests in `codec/png.rs` + 10 in `pincel-wasm`; workspace baseline 429,
+  clippy clean. **No UI entry point exists yet** — see Open questions.
 - **2026-05-12 — M10.2 (this branch).** New `ui/src/lib/idb/` module group lays the IndexedDB substrate that M10.3 (autosave + recovery) and the recents UX in this commit both depend on. `db.ts` opens `pincel` v1 with three stores: `prefs` (keyPath `key`, simple k/v), `recent_files` (keyPath `id`, index `by_openedAt`), `autosave_snapshots` (composite keyPath `[docId, ts]`; schema-only in M10.2). The shared `openDb()` caches its open promise so concurrent first-touches collapse to one IDB open request, and clears the cache on rejection so a subsequent call retries. Helpers `idbRequest` + `transactionDone` wrap the request / transaction lifecycles. `recent-files.ts` upserts with prior-`addedAt` preservation, then evicts past `MAX_RECENTS = 8` inside the same readwrite transaction by walking the `by_openedAt` index in ascending order and dropping the overflow tail. `prefs.ts` is the minimal `getPref` / `setPref` / `removePref` k/v surface — included now since CLAUDE.md §9 bans `localStorage`. App.svelte adds `docId = $state<string>(crypto.randomUUID())` (refreshed on `New` / `Open`, preserved on `Open Recent` so re-opens count as the same doc and M10.3 snapshots survive page reloads), `recordRecent()` upserts after each successful open / save / save-as when both `recentsAvailable` and `saveTarget.handle` are set, and a `Recent…` toolbar dropdown (FSA + IDB-capable browsers only) lists the eight most-recent FSA-handle-bearing files; clicking re-opens via `ensureReadWritePermission` + `handle.getFile()`. UI gates green: `pnpm check`, `pnpm lint`, `pnpm build`.
 - **2026-05-12 — M10.1 (this branch).** New `ui/src/lib/fs/index.ts` (~210 lines) encapsulates file open / save behind one surface. `hasFsAccess()` probes `window.showOpenFilePicker`; `pickAndOpen()` runs the FSA picker when available (retaining the returned `FileSystemFileHandle`) and otherwise spawns a hidden `<input type="file">` that cleans itself up on `change` / `cancel`. `saveBytes(bytes, target, opts)` writes through `target.handle` in place when present and writable (gating on `queryPermission` / `requestPermission({ mode: 'readwrite' })`), prompts `showSaveFilePicker` when FSA is available but no handle is bound, and falls back to a Blob + anchor download otherwise; user-cancelled save-as returns the original target unchanged. The signatures pin `Uint8Array<ArrayBuffer>` (not `ArrayBufferLike`) so callers copy through `new Uint8Array(doc.saveAseprite())` before invoking — required by lib.dom's typing of FSA `write()` and `Blob`. `App.svelte` drops the previous hidden `<input>` element, replaces the inline `openFile` / `save` with `openDoc` / `save({ forceAs? })`, and adds a `saveTarget = $state<SaveTarget>` carrying `{name, handle}` across the session (reset on `newDoc`, refreshed on every successful open / save-as). Toolbar label switches `Save` ↔ `Save As (download)` per `hasFsAccess()`; an extra `Save As…` button is rendered only on FSA-capable browsers. UI gates green: `pnpm check`, `pnpm lint`, `pnpm build`.
 - **2026-05-12 — M9.4 (prior branch).** New `pincel-wasm::Document` slice surface: `addSlice` / `removeSlice` / `setSliceKey` route through the M9.3 commands plus a `slice_key(&self, slice_id, key_index)` helper backing 14 read getters (`sliceCount`, `sliceIdAt`, `sliceName`, `sliceColor`, `sliceKeyCount`, and per-field key getters for bounds / center / pivot). `setSliceKey` accepts `Option<i32>` / `Option<u32>` for the center quartet and pivot pair, mapping `None` to "no center" / "no pivot" on the wasm side and rejecting partial sets so JS never silently drops fields. 16 new unit tests cover happy path, monotonic id assignment, undo round-trip, sorted-frame insertion, center / pivot round-trip, partial-quartet rejection, unknown-id rejection, empty-bounds rejection, and the unknown-id getter defaults. New `SlicesPanel.svelte` (~360 lines) mounts as a second sidebar; props match the M8.7a `TilesetPanel` shape (`doc`, `rev`, `activeSliceId`, `onChange`, `onActivate`). Each row owns a color swatch + name (both clickable to activate), an "×" remove button, X / Y / W / H number inputs, and toggleable 9-patch / pivot fieldsets with cX/cY/cW/cH and pX/pY inputs. `App.svelte` grows a `slice` `Tool` variant joined to the existing drag-shape pipeline; release commits via `addSlice` (no active slice) or `setSliceKey` preserving center / pivot (active slice). New `paintActiveSliceOverlay` paints the active slice's frame-0 marching ants, plus `paintRectOutline` for the 9-patch center (in the slice's editor color) and `paintPivotCrosshair` for the pivot. `reconcileActiveSlice` clears the local `activeSliceId` after an undo / redo strips the referenced slice. Marching-ants animation now also pulses while `activeSliceId !== null` so the overlay reads as live. UI gates green: `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`.
@@ -84,7 +128,7 @@ All gates green on this branch:
 - `cargo check --workspace`, `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`
 - `pnpm install`, `pnpm check`, `pnpm lint`, `pnpm build`, `pnpm wasm:build`
 
-`cargo fmt --all --check` has pre-existing drift in `crates/pincel-wasm/src/lib.rs` — to clean up in a standalone fmt-only commit (out of scope for the current slice per CLAUDE.md §9).
+`cargo fmt --all --check` has pre-existing drift in six files (9 hunks), measured 2026-08-20: `aseprite-writer/src/error.rs`, `aseprite-writer/src/write.rs`, and `pincel-core/src/command/{add_tilemap_layer,remove_slice,set_slice_key,set_tile_pixel}.rs`. `pincel-wasm/src/lib.rs`, named here previously, is clean now. To clean up in a standalone fmt-only commit (out of scope for the current slice per CLAUDE.md §9).
 
 ## Website (Cloudflare Workers Builds)
 
@@ -99,6 +143,15 @@ Human action still needed:
 
 ## Open questions (still actionable)
 
+- **Export UI** — `Document::exportPng` / `exportAtlas` have no caller. Needs
+  "Export PNG" / "Export Atlas" menu entries, a column-count + tag-filter dialog,
+  and output through `ui/src/lib/fs/index.ts` with the manifest written as a
+  second file beside the PNG. Blocked on the shared-shell mode question, or the
+  menu gets built twice.
+- **Atlas manifest is not Aseprite `--data`** — spec §7.3 promises a
+  `--data`-compatible sidecar (frame durations, tags, slice rects) for LDtk /
+  Phaser interop; the shipped shape has grid dimensions and per-frame source
+  rects only. Grow it, emit both, or amend §7.3. Spec Open Question 6.
 - **Per-tile dirty events** — `setTilePixel` emits `dirty-canvas` today; a `dirty-tile-pixel` variant carrying `(tileset_id, tile_id, rect)` lands alongside the M12 dirty-rect refinement.
 - **Explicit active layer** — Stamp tool auto-picks the topmost tilemap layer bound to the active tileset. A Layers panel + explicit active-layer selector lands when a reorder command needs it (M9 follow-up).
 - **Tile Editor tool routing** — Only direct click-paint is wired. Routing Line / Rect / Bucket through the tile-pixel target needs a tile-pixel sister command per tool (Phase 2).
