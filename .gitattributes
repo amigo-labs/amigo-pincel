@@ -1,0 +1,35 @@
+# Line endings are settled here — once, for the whole repository — and not by
+# each machine's `core.autocrlf` / `core.eol`. Those live outside the repo (on
+# Windows the Git installer writes `core.autocrlf=true` into the system config),
+# so without this file the checked-out bytes depend on who cloned where: the
+# index holds LF, a Windows working tree holds CRLF, and the moment that
+# per-machine setting is off, `git status` reports every text file as modified
+# with identical insertion and deletion counts and no content change.
+#
+# Convention: LF in the index AND LF in the working tree, on every platform.
+# See CLAUDE.md §6.4.
+#
+# `text=auto` lets Git detect text vs. binary and normalize text to LF on the
+# way in; `eol=lf` pins the checkout side to LF as well, so index and working
+# tree agree byte-for-byte everywhere. Binary types below are listed explicitly
+# anyway — content detection is a heuristic, and a mangled `.aseprite` fixture
+# is a silently broken test, not a compile error.
+
+*               text=auto eol=lf
+
+# Binary payloads — byte-exact, never line-ending-converted, never diffed as text.
+*.aseprite      binary
+*.ase           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.webp          binary
+*.ico           binary
+*.wasm          binary
+*.woff          binary
+*.woff2         binary
+*.ttf           binary
+*.otf           binary
+*.pdf           binary
+*.zip           binary
