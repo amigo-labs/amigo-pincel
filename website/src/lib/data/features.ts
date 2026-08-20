@@ -18,11 +18,11 @@ export const featureSections: FeatureSection[] = [
     icon: 'brush',
     heading: 'The Canvas',
     description:
-      'Smooth zoom and pan up to 64×, with pixel-perfect rendering. Configurable grid, symmetry guides, and a reference layer for tracing or comparing.',
+      'Smooth zoom and pan up to 64×, with pixel-perfect rendering. Cursor-anchored wheel zoom, auto-fit on open, and WebGPU rendering with a Canvas2D fallback.',
     shortcuts: [
       { keys: '+ / -', label: 'zoom' },
       { keys: 'Space + drag', label: 'pan' },
-      { keys: 'G', label: 'toggle grid' },
+      { keys: '0', label: 'fit to view' },
     ],
   },
   {
@@ -45,18 +45,16 @@ export const featureSections: FeatureSection[] = [
     icon: 'tile',
     heading: 'Layers',
     description:
-      'Image layers, group layers, blend modes, opacity, lock, and visibility. The full Aseprite layer model — round-trips through Pincel and back into Aseprite without loss.',
+      'Image layers, group layers, blend modes, opacity, and visibility. The Aseprite layer model — round-trips through Pincel and back into Aseprite without loss.',
   },
   {
     id: 'animation',
     icon: 'frame',
     heading: 'Frames & Animation',
     description:
-      'Timeline with per-frame duration, named tags, onion skin, and ping-pong playback. Tag your states (idle, walk, attack) and export as a sprite sheet with sidecar JSON.',
-    shortcuts: [
-      { keys: '◀ / ▶', label: 'prev/next frame' },
-      { keys: 'O', label: 'onion skin' },
-    ],
+      'Frame stepping today; the full timeline with per-frame duration, named tags, onion skin, ping-pong playback, and sprite-sheet export is in the works. Tags already survive the round-trip.',
+    shortcuts: [{ keys: '◀ / ▶', label: 'prev/next frame' }],
+    status: 'in-progress',
   },
   {
     id: 'tilemaps',
@@ -79,21 +77,23 @@ export const featureSections: FeatureSection[] = [
     icon: 'palette',
     heading: 'Palette',
     description:
-      'Indexed color mode with named entries, palette swap, and import/export. PICO-8, NES, GameBoy, and DB32 presets included. Or roll your own and share it.',
+      'Indexed color mode with named entries, palette swap, and import/export. PICO-8, NES, GameBoy, and DB32 presets planned. Palettes already survive the .aseprite round-trip.',
+    status: 'in-progress',
   },
   {
     id: 'file-format',
     icon: 'file',
     heading: 'File Format',
     description:
-      'Aseprite read and write are the source of truth. PNG export and sprite-sheet export with sidecar JSON for engine pickup. No proprietary format lock-in, ever.',
+      'Aseprite read and write are the source of truth. PNG and sprite-sheet export with sidecar JSON are on the roadmap. No proprietary format lock-in, ever.',
   },
   {
     id: 'tablet',
     icon: 'tablet',
     heading: 'Tablet & Pen',
     description:
-      'Pointer events with pressure, tilt, and twist where the device supports them. Two-finger pan, pinch-to-zoom, and on-screen modifier keys make it usable on iPad.',
+      'Pointer events with pressure, tilt, and twist where the device supports them. Two-finger pan, pinch-to-zoom, and on-screen modifier keys to make it usable on iPad.',
+    status: 'planned',
   },
   {
     id: 'pwa',

@@ -19,7 +19,7 @@ mod write;
 pub use error::WriteError;
 pub use file::{
     AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, NinePatch, PaletteChunk,
-    PaletteEntry, Pivot, SliceChunk, SliceKey, Tag, TilesetChunk,
+    PaletteEntry, Pivot, SliceChunk, SliceKey, Tag, TilesetChunk, UserData,
 };
 pub use types::{
     AnimationDirection, BlendMode, Color, ColorDepth, LayerFlags, LayerType, PaletteEntryFlags,

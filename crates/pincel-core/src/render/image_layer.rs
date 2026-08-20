@@ -1,19 +1,22 @@
-//! Image-cel composition path. See `docs/specs/pincel.md` §4.
+//! The image-cel composition path. See `docs/specs/pincel.md` §4.
 
-use crate::document::PixelBuffer;
+use crate::document::{BlendMode, PixelBuffer};
 use crate::geometry::Rect;
 
-use super::blend::{blend_normal_into, mul_u8};
+use super::blend::{blend_pixel_into, mul_u8};
 
+/// Composite one image cel into the viewport buffer. `dst` is sized to
+/// `viewport.width * viewport.height * 4` bytes; only the intersection of
+/// the cel rect and the viewport is touched. `combined_opacity` is the
+/// layer opacity already folded with the cel opacity.
 pub(super) fn composite_image_cel(
     dst: &mut [u8],
     viewport: Rect,
     cel_pos: (i32, i32),
     src: &PixelBuffer,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
     if combined_opacity == 0 {
         return;
     }
@@ -48,7 +51,8 @@ pub(super) fn composite_image_cel(
             let s = src_row + (x - cel_x) as usize * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
             let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            blend_pixel_into(
+                blend_mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],
@@ -63,9 +67,9 @@ pub(super) fn composite_image_cel(
 mod tests {
     use super::*;
     use crate::document::{Cel, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId, Sprite};
-    use crate::render::compose::compose;
-    use crate::render::request::ComposeRequest;
-    use crate::render::test_support::{full_req, one_layer_sprite, solid};
+
+    use super::super::request::ComposeRequest;
+    use super::super::test_support::{compose_owned, full_req, one_layer_sprite, solid};
 
     #[test]
     fn opaque_cel_matches_source() {
@@ -77,7 +81,7 @@ mod tests {
             solid(2, 2, [10, 20, 30, 255]),
         ));
 
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         assert_eq!((r.width, r.height), (2, 2));
         assert_eq!(r.pixels, [10u8, 20, 30, 255].repeat(4));
     }
@@ -97,7 +101,7 @@ mod tests {
             FrameIndex::new(0),
             solid(1, 1, [255, 0, 0, 255]),
         ));
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         // mul_u8(128, 255) = 128, so out alpha = 128 over transparent backdrop.
         assert_eq!(r.pixels, vec![255, 0, 0, 128]);
     }
@@ -113,7 +117,7 @@ mod tests {
         cel.opacity = 64;
         let mut cels = CelMap::new();
         cels.insert(cel);
-        let r = compose(&sprite, &cels, &full_req(1, 1)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap();
         // mul_u8(255, 64) → (255*64 + 127)/255 = 16447/255 = 64.
         assert_eq!(r.pixels[3], 64);
     }
@@ -129,7 +133,7 @@ mod tests {
         cel.position = (-1, -1);
         let mut cels = CelMap::new();
         cels.insert(cel);
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         // Cel covers sprite coords (-1..1, -1..1); only pixel (0,0) is inside the canvas.
         assert_eq!(&r.pixels[0..4], &[100, 100, 100, 255]);
         assert_eq!(&r.pixels[4..8], &[0, 0, 0, 0]); // (1, 0) is outside cel
@@ -152,7 +156,7 @@ mod tests {
             viewport: Rect::new(2, 2, 2, 2),
             ..ComposeRequest::full(FrameIndex::new(0), 4, 4)
         };
-        let r = compose(&sprite, &cels, &req).unwrap();
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (2, 2));
         assert_eq!(&r.pixels[0..4], &[255, 0, 0, 255]);
         assert_eq!(&r.pixels[4..8], &[255, 255, 255, 255]);

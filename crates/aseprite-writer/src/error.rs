@@ -16,6 +16,12 @@ pub enum WriteError {
         max: u64,
     },
 
+    /// `AseFile::frames` is empty. The Aseprite format requires at least
+    /// one frame; a zero-frame file writes a header that the reader
+    /// (e.g. `aseprite-loader`) refuses to parse.
+    #[error("file has zero frames (at least one is required)")]
+    NoFrames,
+
     /// String length exceeds the on-disk u16 prefix.
     #[error("string '{preview}' is too long ({len} bytes > 65535)")]
     StringTooLong { preview: String, len: usize },
@@ -92,14 +98,8 @@ pub enum WriteError {
 
     /// Slice keys are not sorted ascending by `frame`, or two keys share
     /// the same frame.
-    #[error(
-        "slice '{name}' keys are not strictly ascending by frame ({prev} followed by {next})"
-    )]
-    SliceKeysNotMonotonic {
-        name: String,
-        prev: u32,
-        next: u32,
-    },
+    #[error("slice '{name}' keys are not strictly ascending by frame ({prev} followed by {next})")]
+    SliceKeysNotMonotonic { name: String, prev: u32, next: u32 },
 
     /// Slice keys disagree about which optional fields are present. Aseprite
     /// stores `NINE_PATCH` / `PIVOT` as chunk-level flags, so every key must

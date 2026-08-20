@@ -17,11 +17,16 @@
 // transaction surface we touch is small enough to wrap inline.
 
 const DB_NAME = 'pincel';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export const STORE_PREFS = 'prefs';
 export const STORE_RECENT_FILES = 'recent_files';
 export const STORE_AUTOSAVE = 'autosave_snapshots';
+// v2 split — metadata-only sibling of `autosave_snapshots`. The
+// recovery probe walks this on boot so it never pays the IO cost of
+// reading the (potentially multi-MB) bytes payload until the user
+// actually clicks Recover.
+export const STORE_AUTOSAVE_META = 'autosave_meta';
 
 let openPromise: Promise<IDBDatabase> | null = null;
 
@@ -42,8 +47,9 @@ export function openDb(): Promise<IDBDatabase> {
         return;
       }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
+      req.onupgradeneeded = (event) => {
         const db = req.result;
+        const upgradeTx = req.transaction;
         if (!db.objectStoreNames.contains(STORE_PREFS)) {
           db.createObjectStore(STORE_PREFS, { keyPath: 'key' });
         }
@@ -57,6 +63,41 @@ export function openDb(): Promise<IDBDatabase> {
           db.createObjectStore(STORE_AUTOSAVE, {
             keyPath: ['docId', 'ts'],
           });
+        }
+        if (!db.objectStoreNames.contains(STORE_AUTOSAVE_META)) {
+          db.createObjectStore(STORE_AUTOSAVE_META, {
+            keyPath: ['docId', 'ts'],
+          });
+        }
+        // Backfill `autosave_meta` from existing `autosave_snapshots`
+        // rows when migrating v1 → v2. New installs (oldVersion === 0)
+        // skip this branch — they create both stores empty above.
+        if (
+          event.oldVersion >= 1 &&
+          event.oldVersion < 2 &&
+          upgradeTx &&
+          db.objectStoreNames.contains(STORE_AUTOSAVE)
+        ) {
+          const bytesStore = upgradeTx.objectStore(STORE_AUTOSAVE);
+          const metaStore = upgradeTx.objectStore(STORE_AUTOSAVE_META);
+          const cursorReq = bytesStore.openCursor();
+          cursorReq.onsuccess = () => {
+            const c = cursorReq.result;
+            if (!c) return;
+            const v = c.value as {
+              docId: string;
+              ts: number;
+              name: string;
+              bytes: Uint8Array;
+            };
+            metaStore.put({
+              docId: v.docId,
+              ts: v.ts,
+              name: v.name,
+              byteLength: v.bytes.length,
+            });
+            c.continue();
+          };
         }
       };
       req.onsuccess = () => {

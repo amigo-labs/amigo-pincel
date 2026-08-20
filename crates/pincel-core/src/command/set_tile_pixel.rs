@@ -45,13 +45,14 @@ impl Command for SetTilePixel {
             .iter_mut()
             .find(|t| t.id == self.tileset)
             .ok_or(CommandError::UnknownTileset(self.tileset.0))?;
-        let tile = tileset
-            .tiles
-            .get_mut(self.tile_id as usize)
-            .ok_or(CommandError::UnknownTile {
-                tileset: self.tileset.0,
-                tile_id: self.tile_id,
-            })?;
+        let tile =
+            tileset
+                .tiles
+                .get_mut(self.tile_id as usize)
+                .ok_or(CommandError::UnknownTile {
+                    tileset: self.tileset.0,
+                    tile_id: self.tile_id,
+                })?;
         if !matches!(tile.pixels.color_mode, ColorMode::Rgba) {
             return Err(CommandError::UnsupportedColorMode);
         }

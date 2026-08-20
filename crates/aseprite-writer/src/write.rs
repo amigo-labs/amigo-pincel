@@ -21,7 +21,7 @@ use crate::bytes::{
 use crate::error::WriteError;
 use crate::file::{
     AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, SliceChunk, Tag,
-    TilesetChunk,
+    TilesetChunk, UserData,
 };
 use crate::types::{LayerType, PaletteEntryFlags};
 
@@ -37,6 +37,12 @@ const CHUNK_TYPE_TAGS: u16 = 0x2018;
 const CHUNK_TYPE_PALETTE: u16 = 0x2019;
 const CHUNK_TYPE_SLICE: u16 = 0x2022;
 const CHUNK_TYPE_TILESET: u16 = 0x2023;
+const CHUNK_TYPE_USER_DATA: u16 = 0x2020;
+
+/// `UserDataFlags::HAS_TEXT` — a note string follows the flag word.
+const USER_DATA_FLAG_TEXT: u32 = 0x1;
+/// `UserDataFlags::HAS_COLOR` — a `BYTE[4]` RGBA color follows.
+const USER_DATA_FLAG_COLOR: u32 = 0x2;
 
 const CEL_TYPE_LINKED: u16 = 1;
 const CEL_TYPE_COMPRESSED_IMAGE: u16 = 2;
@@ -61,6 +67,9 @@ const SLICE_FLAG_PIVOT: u32 = 0x2;
 /// sizes this is well within budget; very large sprites should use a
 /// streaming writer (not yet implemented — see `STATUS.md`).
 pub fn write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError> {
+    if file.frames.is_empty() {
+        return Err(WriteError::NoFrames);
+    }
     let frame_count: u16 = file
         .frames
         .len()
@@ -122,6 +131,15 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 chunks.push(encode_chunk(CHUNK_TYPE_SLICE, |buf| {
                     write_slice_body(buf, slice, flags)
                 })?);
+                // A trailing User Data chunk attaches to the slice above
+                // (Aseprite's "previous chunk" rule), carrying its color.
+                if let Some(ud) = &slice.user_data {
+                    if ud.text.is_some() || ud.color.is_some() {
+                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                            write_user_data_body(buf, ud)
+                        })?);
+                    }
+                }
             }
         }
         for cel in &frame.cels {
@@ -537,16 +555,16 @@ fn write_tileset_body<W: Write>(w: &mut W, tileset: &TilesetChunk) -> Result<(),
 /// frame_number`, `LONG x`, `LONG y`, `DWORD width`, `DWORD height`,
 /// followed conditionally by a `NinePatch` and / or `Pivot` block based on
 /// the chunk-level flags. Caller must pass the validated flag word.
-fn write_slice_body<W: Write>(
-    w: &mut W,
-    slice: &SliceChunk,
-    flags: u32,
-) -> Result<(), WriteError> {
-    let key_count: u32 = slice.keys.len().try_into().map_err(|_| WriteError::TooMany {
-        what: "slice keys",
-        count: slice.keys.len() as u64,
-        max: u32::MAX as u64,
-    })?;
+fn write_slice_body<W: Write>(w: &mut W, slice: &SliceChunk, flags: u32) -> Result<(), WriteError> {
+    let key_count: u32 = slice
+        .keys
+        .len()
+        .try_into()
+        .map_err(|_| WriteError::TooMany {
+            what: "slice keys",
+            count: slice.keys.len() as u64,
+            max: u32::MAX as u64,
+        })?;
     write_dword(w, key_count)?;
     write_dword(w, flags)?;
     write_zeros(w, 4)?; // reserved
@@ -570,6 +588,32 @@ fn write_slice_body<W: Write>(
             let pv = key.pivot.expect("pivot present (validated)");
             write_long(w, pv.x)?;
             write_long(w, pv.y)?;
+        }
+    }
+    Ok(())
+}
+
+/// Emit a User Data chunk body (`0x2020`).
+///
+/// On-disk layout: `DWORD flags`, then (if `HAS_TEXT`) a `STRING`, then
+/// (if `HAS_COLOR`) `BYTE[4]` RGBA. Property maps (`0x4`) are never
+/// emitted, so the corresponding flag bit stays clear. The caller only
+/// invokes this when at least one field is present.
+fn write_user_data_body<W: Write>(w: &mut W, ud: &UserData) -> Result<(), WriteError> {
+    let mut flags = 0u32;
+    if ud.text.is_some() {
+        flags |= USER_DATA_FLAG_TEXT;
+    }
+    if ud.color.is_some() {
+        flags |= USER_DATA_FLAG_COLOR;
+    }
+    write_dword(w, flags)?;
+    if let Some(text) = &ud.text {
+        write_string(w, text)?;
+    }
+    if let Some(color) = &ud.color {
+        for byte in color {
+            write_byte(w, *byte)?;
         }
     }
     Ok(())
@@ -649,6 +693,25 @@ mod tests {
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
         assert!(matches!(err, WriteError::TooMany { what: "frames", .. }));
+    }
+
+    #[test]
+    fn write_rejects_zero_frames() {
+        // A zero-frame file writes a header claiming 0 frames, which
+        // readers reject. Refuse it up front rather than emit garbage.
+        let file = AseFile {
+            header: Header::new(8, 8, ColorDepth::Rgba),
+            layers: Vec::new(),
+            palette: None,
+            tags: Vec::new(),
+            tilesets: Vec::new(),
+            slices: Vec::new(),
+            frames: Vec::new(),
+        };
+        let mut buf = Vec::new();
+        let err = write(&file, &mut buf).unwrap_err();
+        assert!(matches!(err, WriteError::NoFrames));
+        assert!(buf.is_empty(), "nothing written on rejection");
     }
 
     #[test]
@@ -878,6 +941,7 @@ mod tests {
                 nine_patch: None,
                 pivot: None,
             }],
+            user_data: None,
         }
     }
 
@@ -887,6 +951,7 @@ mod tests {
         let slice = SliceChunk {
             name: "empty".into(),
             keys: Vec::new(),
+            user_data: None,
         };
         let err = validate_slice(&slice).unwrap_err();
         assert!(matches!(err, WriteError::SliceWithoutKeys { .. }));
@@ -929,6 +994,7 @@ mod tests {
                     pivot: None,
                 },
             ],
+            user_data: None,
         };
         let err = validate_slice(&slice).unwrap_err();
         assert!(matches!(
@@ -970,6 +1036,7 @@ mod tests {
                     pivot: None,
                 },
             ],
+            user_data: None,
         };
         let err = validate_slice(&slice).unwrap_err();
         assert!(matches!(
@@ -1032,6 +1099,10 @@ mod tests {
                             pivot: Some(crate::file::Pivot { x: -1, y: -1 }),
                         },
                     ],
+                    user_data: Some(UserData {
+                        text: None,
+                        color: Some([10, 20, 30, 40]),
+                    }),
                 },
             ],
             frames: vec![Frame::new(100), Frame::new(100)],
@@ -1057,7 +1128,10 @@ mod tests {
         assert!(hitbox.flags.is_empty());
         assert_eq!(hitbox.slice_keys.len(), 1);
         let k = &hitbox.slice_keys[0];
-        assert_eq!((k.frame_number, k.x, k.y, k.width, k.height), (0, 1, 2, 3, 4));
+        assert_eq!(
+            (k.frame_number, k.x, k.y, k.width, k.height),
+            (0, 1, 2, 3, 4)
+        );
         assert!(k.nine_patch.is_none());
         assert!(k.pivot.is_none());
 
@@ -1075,5 +1149,23 @@ mod tests {
         assert_eq!((pv.x, pv.y), (-1, -1));
         let np = k1.nine_patch.expect("nine_patch on panel key 1");
         assert_eq!((np.x, np.y, np.width, np.height), (3, 3, 8, 8));
+
+        // The panel's color rides in a User Data chunk emitted right
+        // after its slice chunk. The hitbox slice carries no user data,
+        // so exactly one User Data chunk is present.
+        let user_data: Vec<_> = raw.frames[0]
+            .chunks
+            .iter()
+            .filter_map(|c| match c {
+                Chunk::UserData(ud) => Some(ud),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(user_data.len(), 1, "one User Data chunk (panel color)");
+        let color = user_data[0].color.expect("panel user-data color");
+        assert_eq!(
+            (color.red, color.green, color.blue, color.alpha),
+            (10, 20, 30, 40)
+        );
     }
 }

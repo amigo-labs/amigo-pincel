@@ -1,11 +1,10 @@
 //! Composition pipeline. See `docs/specs/pincel.md` §4.
 //!
-//! M3 covers the RGBA color mode and image cels with the `Normal` blend
-//! mode. Tilemap layers, group layers, indexed color, linked cels, non-Normal
-//! blend modes, onion skin, and decoration overlays all raise
-//! [`RenderError`] and arrive in later milestones. The `dirty_hint` field
-//! on the request is accepted but currently ignored (Phase 1.5, see spec
-//! §4.3).
+//! Covers the RGBA color mode, image cels and tilemap cels, and every
+//! separable blend mode (the four non-separable HSL modes fall back to
+//! `Normal` — spec §15 Decision Log, 2026-07-09). Indexed color, linked
+//! cels, onion skin, and decoration overlays all raise [`RenderError`] and
+//! arrive in later milestones.
 
 mod blend;
 mod compose;

@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/aseprite-writer", "crates/pincel-core", "crates/pincel-wasm"]
+members = [
+  "crates/aseprite-writer",
+  "crates/pincel-core",
+  "crates/pincel-wasm",
+  "src-tauri",
+]
 resolver = "3"
 
 [workspace.package]
@@ -11,6 +16,7 @@ rust-version = "1.85"
 [workspace.dependencies]
 aseprite-loader = "0.4.2"
 aseprite-writer = { version = "0.1.0", path = "crates/aseprite-writer" }
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
 flate2 = "1"
 pincel-core = { version = "0.1.0", path = "crates/pincel-core" }
 png = "0.18"

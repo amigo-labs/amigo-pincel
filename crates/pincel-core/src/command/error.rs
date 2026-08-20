@@ -122,4 +122,15 @@ pub enum CommandError {
     /// [`crate::SetSliceKey`].
     #[error("slice key for frame {frame:?} has an empty bounds rect {bounds:?}")]
     EmptySliceBounds { frame: FrameIndex, bounds: Rect },
+
+    /// The targeted layer does not exist on the sprite. Emitted by
+    /// [`crate::MoveLayer`].
+    #[error("unknown layer id {0}")]
+    UnknownLayer(u32),
+
+    /// The layer is already the top-/bottom-most among its siblings, so
+    /// it cannot move further in the requested direction. Emitted by
+    /// [`crate::MoveLayer`].
+    #[error("layer id {0} is already at the edge of its sibling group")]
+    LayerAtEdge(u32),
 }

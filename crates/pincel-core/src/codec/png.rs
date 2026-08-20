@@ -198,12 +198,12 @@ pub struct AtlasOutput {
 ///
 /// # Limitations
 ///
-/// Inherited from `compose()`: the sprite must use [`crate::ColorMode::Rgba`]
-/// and every composited layer must use [`crate::BlendMode::Normal`]. Indexed
-/// or grayscale color, any non-`Normal` blend mode, a group layer, or a linked
-/// cel fails with [`ExportError::Render`] carrying the underlying
-/// [`RenderError`]. Image and tilemap layers both compose. Export does not
-/// work around these limits — it widens automatically as `compose()` does.
+/// Inherited from `compose()`: the sprite must use [`crate::ColorMode::Rgba`].
+/// Indexed or grayscale color and linked cels fail with
+/// [`ExportError::Render`] carrying the underlying [`RenderError`]. Image and
+/// tilemap layers both compose, under every separable blend mode (the four
+/// non-separable HSL modes render as `Normal`). Export does not work around
+/// these limits — it widens automatically as `compose()` does.
 ///
 /// # Errors
 ///
@@ -215,8 +215,9 @@ pub fn export_frame_png(
     frame: FrameIndex,
 ) -> Result<Vec<u8>, ExportError> {
     let request = ComposeRequest::full(frame, sprite.width, sprite.height);
-    let composed = compose(sprite, cels, &request)?;
-    encode_rgba8(&composed.pixels, composed.width, composed.height)
+    let mut pixels = Vec::new();
+    let composed = compose(sprite, cels, &request, &mut pixels)?;
+    encode_rgba8(&pixels, composed.width, composed.height)
 }
 
 /// Pack frames into a fixed-cell grid atlas and encode it as an RGBA8 PNG,
@@ -285,6 +286,9 @@ pub fn export_atlas_png(
     let atlas_stride = (width as usize) * 4;
     let cell_stride = (cell_w as usize) * 4;
     let mut frames = Vec::with_capacity(selected.len());
+    // One scratch buffer for the whole loop: `compose()` writes into a
+    // caller-owned `Vec` and every cell is the same size.
+    let mut cell = Vec::new();
 
     for (slot, &frame) in selected.iter().enumerate() {
         let slot = u32::try_from(slot).unwrap_or(u32::MAX);
@@ -294,14 +298,14 @@ pub fn export_atlas_png(
         let origin_y = row * cell_h;
 
         let request = ComposeRequest::full(frame, cell_w, cell_h);
-        let composed = compose(sprite, cels, &request)?;
+        compose(sprite, cels, &request, &mut cell)?;
 
         // `compose()` with `ComposeRequest::full` at zoom 1 yields exactly
         // `cell_w * cell_h * 4` bytes, so the row copies below are in bounds.
         for y in 0..cell_h as usize {
             let src = y * cell_stride;
             let dst = (origin_y as usize + y) * atlas_stride + (origin_x as usize) * 4;
-            atlas[dst..dst + cell_stride].copy_from_slice(&composed.pixels[src..src + cell_stride]);
+            atlas[dst..dst + cell_stride].copy_from_slice(&cell[src..src + cell_stride]);
         }
 
         frames.push(AtlasFrame {
@@ -466,13 +470,15 @@ mod tests {
 
     /// The pixels `compose()` produces for one frame at zoom 1.
     fn composed_pixels(sprite: &Sprite, cels: &CelMap, frame: u32) -> Vec<u8> {
+        let mut pixels = Vec::new();
         compose(
             sprite,
             cels,
             &ComposeRequest::full(FrameIndex::new(frame), sprite.width, sprite.height),
+            &mut pixels,
         )
-        .expect("compose succeeds")
-        .pixels
+        .expect("compose succeeds");
+        pixels
     }
 
     /// Extract the `col`,`row` cell of an atlas as a tight RGBA8 buffer.
@@ -741,7 +747,9 @@ mod tests {
     }
 
     #[test]
-    fn export_rejects_non_normal_blend_mode_with_render_error() {
+    fn export_exports_non_normal_blend_mode_like_compose() {
+        // `compose()` renders every separable blend mode (spec §4), so export
+        // inherits that rather than refusing the sprite.
         let mut layer = Layer::image(LayerId::new(0), "art");
         layer.blend_mode = BlendMode::Multiply;
         let sprite = Sprite::builder(2, 2)
@@ -756,28 +764,12 @@ mod tests {
             solid(2, 2, [1, 2, 3, 255]),
         ));
 
-        let frame_err =
-            export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect_err("blend mode refused");
-        assert!(
-            matches!(
-                frame_err,
-                ExportError::Render(RenderError::UnsupportedBlendMode {
-                    layer: LayerId(0),
-                    mode: BlendMode::Multiply
-                })
-            ),
-            "unexpected error: {frame_err}"
-        );
+        let png = export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect("frame exports");
+        let (w, h, pixels) = decode(&png);
+        assert_eq!((w, h), (2, 2));
+        assert_eq!(pixels, composed_pixels(&sprite, &cels, 0));
 
-        let atlas_err = export_atlas_png(&sprite, &cels, &AtlasOptions::new(1))
-            .expect_err("blend mode refused");
-        assert!(
-            matches!(
-                atlas_err,
-                ExportError::Render(RenderError::UnsupportedBlendMode { .. })
-            ),
-            "unexpected error: {atlas_err}"
-        );
+        export_atlas_png(&sprite, &cels, &AtlasOptions::new(1)).expect("atlas exports");
     }
 
     #[test]
@@ -806,21 +798,30 @@ mod tests {
     }
 
     #[test]
-    fn export_rejects_group_layer_with_render_error() {
+    fn export_composes_group_layers_like_compose() {
+        // `compose()` skips group layers and renders their children (spec §4),
+        // so a group no longer fails the export.
+        let group = Layer::group(LayerId::new(0), "folder");
+        let mut child = Layer::image(LayerId::new(1), "art");
+        child.parent = Some(LayerId::new(0));
         let sprite = Sprite::builder(2, 2)
-            .add_layer(Layer::group(LayerId::new(0), "folder"))
+            .add_layer(group)
+            .add_layer(child)
             .add_frame(Frame::new(100))
             .build()
             .expect("sprite builds");
-        let err = export_frame_png(&sprite, &CelMap::new(), FrameIndex::new(0))
-            .expect_err("group layer refused");
-        assert!(
-            matches!(
-                err,
-                ExportError::Render(RenderError::UnsupportedLayerKind { layer: LayerId(0) })
-            ),
-            "unexpected error: {err}"
-        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            solid(2, 2, [10, 20, 30, 255]),
+        ));
+
+        let png = export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect("frame exports");
+        let (w, h, pixels) = decode(&png);
+        assert_eq!((w, h), (2, 2));
+        assert_eq!(pixels, composed_pixels(&sprite, &cels, 0));
+        assert_eq!(&pixels[..4], &[10, 20, 30, 255]);
     }
 
     #[test]

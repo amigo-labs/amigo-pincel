@@ -1,0 +1,23 @@
+# Cloudflare config for the Pincel *editor* (the PWA), deployed by the
+# guarded `deploy-web` job in .github/workflows/release.yml.
+#
+# This is separate from the repo-root wrangler.toml, which Cloudflare's
+# Git integration uses to build & serve the marketing site (project
+# `amigo-pincel`). The editor is a distinct Worker project (`pincel-app`)
+# whose static assets are the prebuilt `ui/dist/` bundle — the release
+# workflow builds it and hands it to `wrangler deploy`, so there is no
+# `[build]` step here.
+#
+# The deploy job only runs when the `CLOUDFLARE_API_TOKEN` (and
+# `CLOUDFLARE_ACCOUNT_ID`) repo secrets are set; without them it is
+# skipped, so this file is inert until you opt in. See docs/RELEASING.md.
+
+name = "pincel-app"
+compatibility_date = "2026-05-07"
+
+# Serve the prebuilt SPA. `single-page-application` returns index.html for
+# any unmatched path so client-side routing and deep links resolve; this
+# also matches the PWA's root scope (start_url / scope = "/").
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"

@@ -27,8 +27,11 @@ export interface RecentFile {
   /** Display name. For FSA opens this is `handle.name` at open time;
    *  for fallback opens it's the original `File.name`. */
   name: string;
-  /** Persistable FSA handle, or `null` on fallback browsers. */
+  /** Persistable FSA handle, or `null` on fallback / Tauri. */
   handle: FileSystemFileHandle | null;
+  /** Absolute on-disk path. Set on the Tauri desktop branch; `null`
+   *  on web (FSA persists the handle instead). */
+  path: string | null;
   /** Wall-clock ms when this entry was first inserted. */
   addedAt: number;
   /** Wall-clock ms of the most recent open / save that touched the
@@ -40,6 +43,7 @@ export interface RecentFileInput {
   id: string;
   name: string;
   handle: FileSystemFileHandle | null;
+  path: string | null;
 }
 
 /** Insert or refresh a recent-files entry. Preserves any prior
@@ -57,6 +61,7 @@ export async function upsertRecent(
     id: input.id,
     name: input.name,
     handle: input.handle,
+    path: input.path,
     addedAt: prior?.addedAt ?? now,
     openedAt: now,
   };
@@ -82,7 +87,9 @@ export async function upsertRecent(
   return entry;
 }
 
-/** List recents, newest-opened first. Capped at `MAX_RECENTS`. */
+/** List recents, newest-opened first. Capped at `MAX_RECENTS`.
+ *  Migrates pre-M11.2 rows that lack a `path` field by treating it as
+ *  `null` — IDB returns `undefined` for missing properties. */
 export async function listRecents(): Promise<RecentFile[]> {
   const db = await openDb();
   const tx = db.transaction(STORE_RECENT_FILES, 'readonly');
@@ -91,7 +98,8 @@ export async function listRecents(): Promise<RecentFile[]> {
   return all
     .slice()
     .sort((a, b) => b.openedAt - a.openedAt)
-    .slice(0, MAX_RECENTS);
+    .slice(0, MAX_RECENTS)
+    .map((r) => ({ ...r, path: r.path ?? null }));
 }
 
 /** Drop a single entry by id. No-op if the id is unknown. */

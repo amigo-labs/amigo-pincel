@@ -37,15 +37,17 @@ fn end_to_end_two_layer_sprite_composes_to_expected_pixels() {
     top.position = (1, 1);
     cels.insert(top);
 
+    let mut pixels = Vec::new();
     let result = compose(
         &sprite,
         &cels,
         &ComposeRequest::full(FrameIndex::new(0), 4, 4),
+        &mut pixels,
     )
     .expect("compose succeeds");
 
     assert_eq!((result.width, result.height), (4, 4));
-    assert_eq!(result.pixels.len(), 4 * 4 * 4);
+    assert_eq!(pixels.len(), 4 * 4 * 4);
 
     // Build the expected 4×4 RGBA buffer.
     let mut expected = vec![0u8; 4 * 4 * 4];
@@ -61,7 +63,7 @@ fn end_to_end_two_layer_sprite_composes_to_expected_pixels() {
             expected[idx..idx + 4].copy_from_slice(&rgba);
         }
     }
-    assert_eq!(result.pixels, expected);
+    assert_eq!(pixels, expected);
 }
 
 #[test]
@@ -89,11 +91,12 @@ fn viewport_subregion_with_zoom_returns_zoomed_subregion() {
         zoom: 4,
         ..ComposeRequest::full(FrameIndex::new(0), 4, 4)
     };
-    let result = compose(&sprite, &cels, &req).expect("compose succeeds");
+    let mut pixels = Vec::new();
+    let result = compose(&sprite, &cels, &req, &mut pixels).expect("compose succeeds");
 
     assert_eq!((result.width, result.height), (8, 8));
     // All pixels in the zoomed sub-region should match the source value 200.
-    for px in result.pixels.chunks_exact(4) {
+    for px in pixels.chunks_exact(4) {
         assert_eq!(px, &[200, 200, 200, 255]);
     }
 }
@@ -119,19 +122,22 @@ fn frame_navigation_picks_per_frame_cel_data() {
         solid(1, 1, [0, 20, 0, 255]),
     ));
 
-    let r0 = compose(
+    let mut pixels = Vec::new();
+    compose(
         &sprite,
         &cels,
         &ComposeRequest::full(FrameIndex::new(0), 1, 1),
+        &mut pixels,
     )
     .unwrap();
-    let r1 = compose(
+    assert_eq!(pixels, vec![10, 0, 0, 255]);
+
+    compose(
         &sprite,
         &cels,
         &ComposeRequest::full(FrameIndex::new(1), 1, 1),
+        &mut pixels,
     )
     .unwrap();
-
-    assert_eq!(r0.pixels, vec![10, 0, 0, 255]);
-    assert_eq!(r1.pixels, vec![0, 20, 0, 255]);
+    assert_eq!(pixels, vec![0, 20, 0, 255]);
 }

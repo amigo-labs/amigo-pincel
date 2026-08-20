@@ -1,10 +1,9 @@
-//! Tilemap-cel composition path, including the per-tile flip / rotate
-//! handling. See `docs/specs/pincel.md` §4.
+//! The tilemap-cel composition path. See `docs/specs/pincel.md` §4 and §8.
 
-use crate::document::{ColorMode, FrameIndex, LayerId, PixelBuffer, TileRef, Tileset};
+use crate::document::{BlendMode, ColorMode, FrameIndex, LayerId, PixelBuffer, TileRef, Tileset};
 use crate::geometry::Rect;
 
-use super::blend::{blend_normal_into, mul_u8};
+use super::blend::{blend_pixel_into, mul_u8};
 use super::error::RenderError;
 
 /// Composite a tilemap cel into the viewport buffer. Iterates the grid in
@@ -12,6 +11,9 @@ use super::error::RenderError;
 /// (honoring `flip_x`, `flip_y`, and `rotate_90`) at its sprite-coord
 /// position. Tile id `0` is the Aseprite empty / transparent tile and is
 /// skipped without consulting the tileset.
+// Private helper with a single call site in `compose()`; the arguments are
+// the already-unpacked pieces of that caller's loop state, so bundling them
+// into a one-off struct would only add indirection.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn composite_tilemap_cel(
     dst: &mut [u8],
@@ -24,8 +26,8 @@ pub(super) fn composite_tilemap_cel(
     layer_id: LayerId,
     frame: FrameIndex,
     sprite_color_mode: ColorMode,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) -> Result<(), RenderError> {
     let (tile_w, tile_h) = tileset.tile_size;
     if tile_w == 0 || tile_h == 0 {
@@ -90,8 +92,8 @@ pub(super) fn composite_tilemap_cel(
                 (tile_x, tile_y),
                 &tile.pixels,
                 tile_ref,
-                layer_opacity,
-                cel_opacity,
+                combined_opacity,
+                blend_mode,
             );
         }
     }
@@ -109,10 +111,9 @@ fn composite_transformed_tile(
     tile_pos: (i32, i32),
     src: &PixelBuffer,
     tile_ref: TileRef,
-    layer_opacity: u8,
-    cel_opacity: u8,
+    combined_opacity: u8,
+    blend_mode: BlendMode,
 ) {
-    let combined_opacity = mul_u8(layer_opacity, cel_opacity);
     if combined_opacity == 0 {
         return;
     }
@@ -175,7 +176,8 @@ fn composite_transformed_tile(
             let s = (sy as usize) * src_stride + (sx as usize) * 4;
             let d = dst_row + (x - vp_x) as usize * 4;
             let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_normal_into(
+            blend_pixel_into(
+                blend_mode,
                 &mut dst[d..d + 4],
                 src.data[s],
                 src.data[s + 1],
@@ -188,45 +190,14 @@ fn composite_transformed_tile(
 
 #[cfg(test)]
 mod tests {
-    // ---------- M8.2 tilemap compose ----------
-
     use super::*;
-    use crate::document::{Cel, CelData, CelMap, Frame, Layer, Sprite, TileImage, TilesetId};
-    use crate::render::compose::compose;
-    use crate::render::test_support::{full_req, solid};
+    use crate::document::{
+        Cel, CelData, CelMap, Frame, Layer, LayerId, Sprite, TileImage, TilesetId,
+    };
 
-    /// Two-tile tileset: tile 0 is the Aseprite empty tile (transparent),
-    /// tile 1 is a solid colored tile.
-    fn two_tile_tileset(id: u32, tile_size: u32, color: [u8; 4]) -> Tileset {
-        let mut ts = Tileset::new(TilesetId::new(id), "tiles", (tile_size, tile_size));
-        ts.tiles.push(TileImage {
-            pixels: PixelBuffer::empty(tile_size, tile_size, ColorMode::Rgba),
-        });
-        ts.tiles.push(TileImage {
-            pixels: solid(tile_size, tile_size, color),
-        });
-        ts
-    }
-
-    fn tilemap_cel(
-        layer: LayerId,
-        grid_w: u32,
-        grid_h: u32,
-        tiles: Vec<TileRef>,
-        position: (i32, i32),
-    ) -> Cel {
-        Cel {
-            layer,
-            frame: FrameIndex::new(0),
-            position,
-            opacity: 255,
-            data: CelData::Tilemap {
-                grid_w,
-                grid_h,
-                tiles,
-            },
-        }
-    }
+    use super::super::test_support::{
+        compose_owned, full_req, solid, tilemap_cel, two_tile_tileset,
+    };
 
     #[test]
     fn tilemap_renders_tile_at_grid_position() {
@@ -251,7 +222,7 @@ mod tests {
             ],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         let red = [255, 0, 0, 255];
         let blank = [0, 0, 0, 0];
         // Row 0: red red blank blank
@@ -302,7 +273,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Mirrored along x: columns swap.
         // (0, 0) green, (1, 0) red, (0, 1) green, (1, 1) red.
         assert_eq!(&r.pixels[0..4], &[0, 255, 0, 255]);
@@ -344,7 +315,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Top row should now be green, bottom row red.
         assert_eq!(&r.pixels[0..4], &[0, 255, 0, 255]);
         assert_eq!(&r.pixels[4..8], &[0, 255, 0, 255]);
@@ -391,7 +362,7 @@ mod tests {
             }],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         // Expected: C A / D B
         assert_eq!(&r.pixels[0..4], &c);
         assert_eq!(&r.pixels[4..8], &a);
@@ -415,7 +386,7 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
             RenderError::TilesetNotFound {
                 layer: LayerId::new(0),
                 tileset: TilesetId::new(7),
@@ -440,34 +411,11 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
             RenderError::TileIdOutOfRange {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
                 tile_id: 42,
-            }
-        );
-    }
-
-    #[test]
-    fn tilemap_image_cel_on_tilemap_layer_errors() {
-        let sprite = Sprite::builder(2, 2)
-            .add_layer(Layer::tilemap(LayerId::new(0), "tm", TilesetId::new(0)))
-            .add_frame(Frame::default())
-            .add_tileset(two_tile_tileset(0, 2, [10, 20, 30, 255]))
-            .build()
-            .unwrap();
-        let mut cels = CelMap::new();
-        cels.insert(Cel::image(
-            LayerId::new(0),
-            FrameIndex::new(0),
-            solid(2, 2, [255, 0, 0, 255]),
-        ));
-        assert_eq!(
-            compose(&sprite, &cels, &full_req(2, 2)).unwrap_err(),
-            RenderError::CelTypeMismatch {
-                layer: LayerId::new(0),
-                frame: FrameIndex::new(0),
             }
         );
     }
@@ -502,7 +450,7 @@ mod tests {
             (0, 0),
         ));
         assert_eq!(
-            compose(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
             RenderError::NonSquareRotateUnsupported {
                 layer: LayerId::new(0),
                 tileset: TilesetId::new(0),
@@ -534,7 +482,7 @@ mod tests {
             vec![TileRef::EMPTY],
             (0, 0),
         ));
-        let r = compose(&sprite, &cels, &full_req(2, 2)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
         assert!(r.pixels.iter().all(|&v| v == 0));
     }
 
@@ -562,7 +510,7 @@ mod tests {
             },
         });
         assert_eq!(
-            compose(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
             RenderError::MalformedCelBuffer {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
@@ -586,7 +534,7 @@ mod tests {
             vec![TileRef::new(1)],
             (2, 2),
         ));
-        let r = compose(&sprite, &cels, &full_req(4, 4)).unwrap();
+        let r = compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap();
         // Tile is at sprite (2..4, 2..4); rest is transparent.
         let row_bytes = 4 * 4;
         let cell = [10, 20, 30, 255];

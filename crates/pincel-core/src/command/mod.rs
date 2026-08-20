@@ -3,17 +3,24 @@
 mod add_frame;
 mod add_layer;
 mod add_slice;
+mod add_tile;
 mod add_tilemap_layer;
 mod add_tileset;
 mod bus;
+mod clear_region;
+mod dirty;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
 mod error;
 mod fill_region;
+mod move_layer;
 mod move_selection_content;
 mod place_tile;
+mod remove_layer;
 mod remove_slice;
+mod set_layer_name;
+mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
 mod set_tile_pixel;
@@ -21,17 +28,24 @@ mod set_tile_pixel;
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
 pub use add_slice::AddSlice;
+pub use add_tile::AddTile;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
+pub use clear_region::ClearRegion;
+pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
+pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
+pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
+pub use set_layer_name::SetLayerName;
+pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
@@ -60,6 +74,19 @@ pub trait Command {
     {
         false
     }
+
+    /// Report what the most recent successful [`apply`](Self::apply) or
+    /// [`revert`](Self::revert) changed. The bus relays this to consumers
+    /// (the wasm event layer in particular) so the UI render adapter can
+    /// pass it as `compose()`'s `dirty_hint` and blit only the dirty
+    /// sub-rect (spec §4.3).
+    ///
+    /// Defaults to [`DirtyRegion::Canvas`] — safe-but-coarse for any
+    /// command that has not yet been refined. The high-frequency paint
+    /// commands override this in subsequent M12.3 slices.
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::Canvas
+    }
 }
 
 /// Bus-level command variant. Each variant wraps a concrete [`Command`]
@@ -72,10 +99,16 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
+    MoveLayer(MoveLayer),
+    SetLayerName(SetLayerName),
+    SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
+    RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     AddTileset(AddTileset),
+    AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
     PlaceTile(PlaceTile),
     SetTilePixel(SetTilePixel),
@@ -96,10 +129,16 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
+            Self::MoveLayer(c) => c.apply(doc, cels),
+            Self::SetLayerName(c) => c.apply(doc, cels),
+            Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
+            Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
+            Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
             Self::PlaceTile(c) => c.apply(doc, cels),
             Self::SetTilePixel(c) => c.apply(doc, cels),
@@ -116,10 +155,16 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
+            Self::MoveLayer(c) => c.revert(doc, cels),
+            Self::SetLayerName(c) => c.revert(doc, cels),
+            Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
+            Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
+            Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
             Self::PlaceTile(c) => c.revert(doc, cels),
             Self::SetTilePixel(c) => c.revert(doc, cels),
@@ -140,6 +185,7 @@ impl AnyCommand {
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
+            (Self::AddTile(a), Self::AddTile(b)) => a.merge(b),
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
             (Self::PlaceTile(a), Self::PlaceTile(b)) => a.merge(b),
             (Self::SetTilePixel(a), Self::SetTilePixel(b)) => a.merge(b),
@@ -147,6 +193,34 @@ impl AnyCommand {
             (Self::RemoveSlice(a), Self::RemoveSlice(b)) => a.merge(b),
             (Self::SetSliceKey(a), Self::SetSliceKey(b)) => a.merge(b),
             _ => false,
+        }
+    }
+
+    /// Forward [`Command::dirty_region`] through the enum dispatch so the
+    /// bus can surface a per-command dirty rect to its callers.
+    pub fn dirty_region(&self) -> DirtyRegion {
+        match self {
+            Self::SetPixel(c) => c.dirty_region(),
+            Self::DrawLine(c) => c.dirty_region(),
+            Self::DrawRectangle(c) => c.dirty_region(),
+            Self::DrawEllipse(c) => c.dirty_region(),
+            Self::FillRegion(c) => c.dirty_region(),
+            Self::ClearRegion(c) => c.dirty_region(),
+            Self::MoveSelectionContent(c) => c.dirty_region(),
+            Self::MoveLayer(c) => c.dirty_region(),
+            Self::SetLayerName(c) => c.dirty_region(),
+            Self::SetLayerVisible(c) => c.dirty_region(),
+            Self::AddLayer(c) => c.dirty_region(),
+            Self::RemoveLayer(c) => c.dirty_region(),
+            Self::AddFrame(c) => c.dirty_region(),
+            Self::AddTileset(c) => c.dirty_region(),
+            Self::AddTile(c) => c.dirty_region(),
+            Self::AddTilemapLayer(c) => c.dirty_region(),
+            Self::PlaceTile(c) => c.dirty_region(),
+            Self::SetTilePixel(c) => c.dirty_region(),
+            Self::AddSlice(c) => c.dirty_region(),
+            Self::RemoveSlice(c) => c.dirty_region(),
+            Self::SetSliceKey(c) => c.dirty_region(),
         }
     }
 }
@@ -187,9 +261,39 @@ impl From<MoveSelectionContent> for AnyCommand {
     }
 }
 
+impl From<MoveLayer> for AnyCommand {
+    fn from(c: MoveLayer) -> Self {
+        Self::MoveLayer(c)
+    }
+}
+
+impl From<SetLayerVisible> for AnyCommand {
+    fn from(c: SetLayerVisible) -> Self {
+        Self::SetLayerVisible(c)
+    }
+}
+
+impl From<SetLayerName> for AnyCommand {
+    fn from(c: SetLayerName) -> Self {
+        Self::SetLayerName(c)
+    }
+}
+
 impl From<AddLayer> for AnyCommand {
     fn from(c: AddLayer) -> Self {
         Self::AddLayer(c)
+    }
+}
+
+impl From<RemoveLayer> for AnyCommand {
+    fn from(c: RemoveLayer) -> Self {
+        Self::RemoveLayer(c)
+    }
+}
+
+impl From<ClearRegion> for AnyCommand {
+    fn from(c: ClearRegion) -> Self {
+        Self::ClearRegion(c)
     }
 }
 
@@ -202,6 +306,12 @@ impl From<AddFrame> for AnyCommand {
 impl From<AddTileset> for AnyCommand {
     fn from(c: AddTileset) -> Self {
         Self::AddTileset(c)
+    }
+}
+
+impl From<AddTile> for AnyCommand {
+    fn from(c: AddTile) -> Self {
+        Self::AddTile(c)
     }
 }
 

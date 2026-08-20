@@ -56,9 +56,7 @@ impl Command for SetSliceKey {
         // Keys are sorted by `frame` ascending. `partition_point` lands
         // either on an existing key with the same frame (replace) or on
         // the slot where the new key belongs (insert).
-        let index = slice
-            .keys
-            .partition_point(|k| k.frame < self.new_key.frame);
+        let index = slice.keys.partition_point(|k| k.frame < self.new_key.frame);
         if slice
             .keys
             .get(index)
@@ -143,10 +141,7 @@ mod tests {
     fn apply_inserts_new_key_at_sorted_position() {
         let (mut sprite, mut cels) = doc_with(slice_with_keys(
             1,
-            vec![
-                key(0, Rect::new(0, 0, 4, 4)),
-                key(5, Rect::new(1, 1, 4, 4)),
-            ],
+            vec![key(0, Rect::new(0, 0, 4, 4)), key(5, Rect::new(1, 1, 4, 4))],
         ));
         let mut cmd = SetSliceKey::new(SliceId::new(1), key(2, Rect::new(7, 7, 3, 3)));
         cmd.apply(&mut sprite, &mut cels).expect("apply");
@@ -176,10 +171,7 @@ mod tests {
     fn revert_after_insert_removes_inserted_key() {
         let (mut sprite, mut cels) = doc_with(slice_with_keys(
             1,
-            vec![
-                key(0, Rect::new(0, 0, 4, 4)),
-                key(5, Rect::new(1, 1, 4, 4)),
-            ],
+            vec![key(0, Rect::new(0, 0, 4, 4)), key(5, Rect::new(1, 1, 4, 4))],
         ));
         let mut cmd = SetSliceKey::new(SliceId::new(1), key(2, Rect::new(7, 7, 3, 3)));
         cmd.apply(&mut sprite, &mut cels).expect("apply");

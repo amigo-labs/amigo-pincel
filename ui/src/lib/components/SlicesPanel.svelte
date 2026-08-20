@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { packColor, unpackColor } from '../color';
   import type { Document } from '../core';
 
   // The wasm `Document` is the source of truth for slice state. The
@@ -123,20 +124,6 @@
     formError = null;
   }
 
-  // `<input type="color">` returns `#RRGGBB`; the wasm surface wants
-  // a packed `0xRRGGBBAA`. Mirrors `App.svelte::packColor`.
-  function packHex(hex: string, alpha = 0xff): number {
-    const rgb = Number.parseInt(hex.slice(1), 16);
-    return ((rgb << 8) | (alpha & 0xff)) >>> 0;
-  }
-
-  // Inverse of `packHex` — drops the alpha channel to render in a
-  // color input. The overlay alpha is preserved on the wasm side.
-  function unpackHex(rgba: number): string {
-    const rgb = (rgba >>> 8) & 0xffffff;
-    return '#' + rgb.toString(16).padStart(6, '0');
-  }
-
   function submitForm(e: SubmitEvent) {
     e.preventDefault();
     if (!doc) return;
@@ -148,7 +135,7 @@
     const w = doc.width || 16;
     const h = doc.height || 16;
     try {
-      const id = doc.addSlice(name, 0, 0, w, h, packHex(formColor));
+      const id = doc.addSlice(name, 0, 0, w, h, packColor(formColor));
       onActivate?.(id);
     } catch (err) {
       formError = err instanceof Error ? err.message : String(err);
@@ -324,7 +311,7 @@
             <button
               type="button"
               class="color-swatch shrink-0"
-              style:background-color={unpackHex(s.color)}
+              style:background-color={unpackColor(s.color)}
               onclick={() => activate(s.id)}
               aria-label={`Activate slice ${s.name}`}
               aria-pressed={active}
@@ -527,27 +514,6 @@
 </aside>
 
 <style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-    font-size: 0.75rem;
-    color: rgb(229 229 229);
-  }
-  .panel-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .panel-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .panel-btn-primary {
-    background-color: rgb(55 65 81);
-    border-color: rgb(115 115 115);
-  }
-  .panel-btn-primary:hover:not(:disabled) {
-    background-color: rgb(75 85 99);
-  }
   .color-swatch {
     width: 1rem;
     height: 1rem;

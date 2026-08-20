@@ -1,6 +1,10 @@
-// Browser file-system adapter for Pincel's open / save flow.
+// File-system adapter for Pincel's open / save flow.
 //
-// Two implementations behind one surface:
+// Three implementations behind one surface:
+//   * Tauri desktop (M11.2): native OS dialogs from
+//     `@tauri-apps/plugin-dialog` + `invoke()` into the Rust commands
+//     `read_file_bytes` / `write_file_bytes`. `SaveTarget.path` is the
+//     absolute path on disk; subsequent saves write through it.
 //   * Chromium-based browsers (window.showOpenFilePicker exists) use
 //     the File System Access API. `pickAndOpen` returns a
 //     FileSystemFileHandle that subsequent saves can write through
@@ -8,7 +12,10 @@
 //   * Everywhere else (Firefox, Safari) we fall back to <input
 //     type="file"> for open and Blob + anchor download for save.
 //
-// See docs/specs/pincel.md §10.2.
+// See docs/specs/pincel.md §10.2 + §11.
+import { invoke } from '@tauri-apps/api/core';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { isTauri } from '../platform';
 
 interface FilePickerAcceptType {
   description?: string;
@@ -60,15 +67,21 @@ export interface OpenedFile {
   /** Present only on FSA-capable browsers. Lets a later save write
    *  back to the same on-disk file without prompting the user. */
   handle: FileSystemFileHandle | null;
+  /** Absolute on-disk path. Set by the Tauri branch; `null` everywhere
+   *  else. Lets a later save write through the Rust FS commands. */
+  path: string | null;
 }
 
 export interface SaveTarget {
   /** Display / suggested-name string. Always set; defaults to e.g.
    *  `pincel.aseprite` for a never-saved document. */
   name: string;
-  /** When non-null, the next save writes here in place; otherwise the
-   *  next save prompts a picker (FSA) or downloads (fallback). */
+  /** When non-null, the next save writes here in place (FSA path);
+   *  otherwise the next save prompts a picker or downloads. */
   handle: FileSystemFileHandle | null;
+  /** When non-null, the next save writes through the Rust
+   *  `write_file_bytes` command (Tauri path). */
+  path: string | null;
 }
 
 /** True when the current browser exposes `window.showOpenFilePicker`,
@@ -127,6 +140,7 @@ export function ensureReadPermission(
 
 /** Prompt the user to pick a sprite file. Returns `null` on cancel. */
 export async function pickAndOpen(): Promise<OpenedFile | null> {
+  if (isTauri()) return pickAndOpenTauri();
   const fs = fsAccess();
   if (fs.showOpenFilePicker) {
     try {
@@ -138,13 +152,36 @@ export async function pickAndOpen(): Promise<OpenedFile | null> {
       if (!handle) return null;
       const file = await handle.getFile();
       const bytes = new Uint8Array(await file.arrayBuffer());
-      return { name: file.name, bytes, handle };
+      return { name: file.name, bytes, handle, path: null };
     } catch (err) {
       if (isUserCancel(err)) return null;
       throw err;
     }
   }
   return openViaInput();
+}
+
+/** Tauri-only: native open dialog + IPC read. */
+async function pickAndOpenTauri(): Promise<OpenedFile | null> {
+  const picked = await openDialog({
+    multiple: false,
+    filters: [{ name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] }],
+  });
+  if (typeof picked !== 'string') return null;
+  // The Tauri command returns `Vec<u8>` which Tauri 2 serializes as a
+  // JSON array of numbers; we accept either that or an ArrayBuffer
+  // depending on transport. Normalize to a Uint8Array.
+  const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
+    path: picked,
+  });
+  const bytes =
+    raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+  return { name: basename(picked), bytes, handle: null, path: picked };
+}
+
+function basename(p: string): string {
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return i >= 0 ? p.slice(i + 1) : p;
 }
 
 function openViaInput(): Promise<OpenedFile | null> {
@@ -165,7 +202,7 @@ function openViaInput(): Promise<OpenedFile | null> {
       }
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        settle({ name: file.name, bytes, handle: null });
+        settle({ name: file.name, bytes, handle: null, path: null });
       } catch (err) {
         fail(err);
       }
@@ -247,6 +284,7 @@ export async function saveBytes(
   target: SaveTarget,
   opts: { forceAs?: boolean } = {},
 ): Promise<SaveTarget> {
+  if (isTauri()) return saveBytesTauri(bytes, target, opts);
   const fs = fsAccess();
   const forceAs = opts.forceAs ?? false;
 
@@ -267,7 +305,7 @@ export async function saveBytes(
         types: ASEPRITE_TYPES,
       });
       await writeHandle(handle, bytes);
-      return { name: handle.name, handle };
+      return { name: handle.name, handle, path: null };
     } catch (err) {
       if (isUserCancel(err)) return target;
       throw err;
@@ -275,6 +313,30 @@ export async function saveBytes(
   }
   saveViaDownload(target.name, bytes);
   return target;
+}
+
+/** Tauri-only: native save dialog + IPC write. */
+async function saveBytesTauri(
+  bytes: Uint8Array<ArrayBuffer>,
+  target: SaveTarget,
+  opts: { forceAs?: boolean },
+): Promise<SaveTarget> {
+  const forceAs = opts.forceAs ?? false;
+  let path = !forceAs && target.path ? target.path : null;
+  if (!path) {
+    const picked = await saveDialog({
+      defaultPath: target.name,
+      filters: [{ name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] }],
+    });
+    if (typeof picked !== 'string') return target;
+    path = picked;
+  }
+  // Tauri 2 takes `Vec<u8>` as a numeric array over the IPC bridge.
+  await invoke('write_file_bytes', {
+    path,
+    bytes: Array.from(bytes),
+  });
+  return { name: basename(path), handle: null, path };
 }
 
 async function writeHandle(

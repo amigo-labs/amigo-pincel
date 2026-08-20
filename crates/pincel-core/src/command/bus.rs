@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use crate::document::{CelMap, Sprite};
 
 use super::AnyCommand;
+use super::dirty::DirtyRegion;
 use super::error::CommandError;
 
 /// Default cap on the undo stack (matches `docs/specs/pincel.md` §6.2).
@@ -21,6 +22,14 @@ pub struct Bus {
     undo: VecDeque<AnyCommand>,
     redo: Vec<AnyCommand>,
     cap: usize,
+    /// The [`DirtyRegion`] reported by the most recent successful
+    /// `execute` / `undo` / `redo`. Stays as the last value across
+    /// subsequent no-op calls so the caller can read it after the fact
+    /// without changing the existing return-shape API.
+    last_dirty: DirtyRegion,
+    /// When set, the next `execute` skips the merge-with-top attempt (and
+    /// clears the flag). See [`Bus::seal`].
+    sealed: bool,
 }
 
 impl Bus {
@@ -35,7 +44,19 @@ impl Bus {
             undo: VecDeque::new(),
             redo: Vec::new(),
             cap,
+            last_dirty: DirtyRegion::None,
+            sealed: false,
         }
+    }
+
+    /// Seal the current history top: the next [`Bus::execute`] will push a
+    /// fresh entry instead of merging into it. Callers use this to delimit
+    /// gestures — e.g. the UI seals on pointer-up so two pencil strokes
+    /// stay two undo entries even though consecutive `SetPixel`s merge.
+    /// `undo` / `redo` seal implicitly so a new command never coalesces
+    /// into restored history.
+    pub fn seal(&mut self) {
+        self.sealed = true;
     }
 
     /// Apply `cmd` and push it onto the undo stack. The redo stack is cleared
@@ -47,13 +68,16 @@ impl Bus {
         cels: &mut CelMap,
     ) -> Result<(), CommandError> {
         cmd.apply(doc, cels)?;
+        self.last_dirty = cmd.dirty_region();
         self.redo.clear();
 
         if self.cap == 0 {
             return Ok(());
         }
 
-        if let Some(top) = self.undo.back_mut() {
+        if self.sealed {
+            self.sealed = false;
+        } else if let Some(top) = self.undo.back_mut() {
             if top.merge(&cmd) {
                 return Ok(());
             }
@@ -72,7 +96,9 @@ impl Bus {
             return false;
         };
         cmd.revert(doc, cels);
+        self.last_dirty = cmd.dirty_region();
         self.redo.push(cmd);
+        self.sealed = true;
         true
     }
 
@@ -83,7 +109,9 @@ impl Bus {
             return Ok(false);
         };
         cmd.apply(doc, cels)?;
+        self.last_dirty = cmd.dirty_region();
         self.undo.push_back(cmd);
+        self.sealed = true;
         Ok(true)
     }
 
@@ -95,6 +123,13 @@ impl Bus {
     /// Number of commands available to redo.
     pub fn redo_depth(&self) -> usize {
         self.redo.len()
+    }
+
+    /// [`DirtyRegion`] reported by the most recent successful
+    /// `execute` / `undo` / `redo`. Returns [`DirtyRegion::None`] for a
+    /// fresh bus that has never applied a command.
+    pub fn last_dirty_region(&self) -> DirtyRegion {
+        self.last_dirty
     }
 }
 

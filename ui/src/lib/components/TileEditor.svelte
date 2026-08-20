@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { packColor } from '../color';
   import type { Document } from '../core';
 
   // Inline Tileset Editor sub-mode (CLAUDE.md M8.7d, spec §5.3).
@@ -62,14 +63,6 @@
     const image = new ImageData(clamped, tileW, tileH);
     ctx.putImageData(image, 0, 0);
   });
-
-  function packColor(css: string): number {
-    if (css.length !== 7 || css[0] !== '#') return 0xff_00_00_ff;
-    const r = parseInt(css.slice(1, 3), 16);
-    const g = parseInt(css.slice(3, 5), 16);
-    const b = parseInt(css.slice(5, 7), 16);
-    return ((r & 0xff) << 24) | ((g & 0xff) << 16) | ((b & 0xff) << 8) | 0xff;
-  }
 
   function tileCoord(e: PointerEvent): { x: number; y: number } | null {
     if (!canvas) return null;

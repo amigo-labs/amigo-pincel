@@ -14,8 +14,11 @@
   const {
     title,
     description,
-    ogImage = '/og/default.svg',
-    ogImageType = 'image/svg+xml',
+    // PNG, not SVG — Twitter/Facebook/LinkedIn crawlers don't render
+    // SVG og:images, so link previews came up blank. The PNG is
+    // rasterized from static/og/default.svg (1200×630).
+    ogImage = '/og/default.png',
+    ogImageType = 'image/png',
     noindex = false,
     jsonLd = null,
   }: Props = $props();

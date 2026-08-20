@@ -49,6 +49,30 @@ impl Rect {
             && x < i64::from(self.x) + i64::from(self.width)
             && y < i64::from(self.y) + i64::from(self.height)
     }
+
+    /// Intersection of `self` and `other` as an axis-aligned rectangle.
+    /// Returns an empty rect (zero width or height) when they do not
+    /// overlap; the empty rect's `x` / `y` are clamped to the overlap's
+    /// nominal origin so callers can still address it.
+    pub fn intersect(&self, other: Rect) -> Rect {
+        let ax = i64::from(self.x);
+        let ay = i64::from(self.y);
+        let aw = i64::from(self.width);
+        let ah = i64::from(self.height);
+        let bx = i64::from(other.x);
+        let by = i64::from(other.y);
+        let bw = i64::from(other.width);
+        let bh = i64::from(other.height);
+
+        let x0 = ax.max(bx);
+        let y0 = ay.max(by);
+        let x1 = (ax + aw).min(bx + bw);
+        let y1 = (ay + ah).min(by + bh);
+
+        let w = (x1 - x0).max(0) as u32;
+        let h = (y1 - y0).max(0) as u32;
+        Rect::new(x0 as i32, y0 as i32, w, h)
+    }
 }
 
 #[cfg(test)]
@@ -76,5 +100,42 @@ mod tests {
     #[test]
     fn point_origin_is_zero_zero() {
         assert_eq!(Point::ORIGIN, Point::new(0, 0));
+    }
+
+    #[test]
+    fn rect_intersect_fully_inside_returns_inner() {
+        let outer = Rect::new(0, 0, 10, 10);
+        let inner = Rect::new(2, 3, 4, 5);
+        assert_eq!(outer.intersect(inner), inner);
+        assert_eq!(inner.intersect(outer), inner);
+    }
+
+    #[test]
+    fn rect_intersect_partial_overlap_returns_overlap() {
+        let a = Rect::new(0, 0, 10, 10);
+        let b = Rect::new(5, 5, 10, 10);
+        assert_eq!(a.intersect(b), Rect::new(5, 5, 5, 5));
+    }
+
+    #[test]
+    fn rect_intersect_no_overlap_returns_empty() {
+        let a = Rect::new(0, 0, 4, 4);
+        let b = Rect::new(10, 10, 4, 4);
+        assert!(a.intersect(b).is_empty());
+    }
+
+    #[test]
+    fn rect_intersect_touching_edges_returns_empty() {
+        let a = Rect::new(0, 0, 4, 4);
+        // b starts exactly where a ends (exclusive upper bound).
+        let b = Rect::new(4, 0, 4, 4);
+        assert!(a.intersect(b).is_empty());
+    }
+
+    #[test]
+    fn rect_intersect_negative_coordinates_clamp_correctly() {
+        let a = Rect::new(-5, -5, 10, 10);
+        let b = Rect::new(0, 0, 10, 10);
+        assert_eq!(a.intersect(b), Rect::new(0, 0, 5, 5));
     }
 }

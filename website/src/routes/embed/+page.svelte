@@ -51,8 +51,8 @@ const bytes = await pincel.saveAseprite();`;
           <PixelIcon name="plug" size={64} />
           <p>Live embed loads here at launch.</p>
           <p class="muted">
-            For now, try the full editor at
-            <a href="/app">/app</a>.
+            The editor itself isn't published yet — follow along on
+            <a href="https://github.com/amigo-labs/amigo-pincel">GitHub</a>.
           </p>
         </div>
       </div>
@@ -111,8 +111,8 @@ const bytes = await pincel.saveAseprite();`;
       <PixelIcon name="github" size={16} />
       Source on GitHub
     </a>
-    <a class="btn-pixel btn-pixel--secondary" href="/app">
-      Try the editor first
+    <a class="btn-pixel btn-pixel--secondary" href="/features">
+      See what's coming
       <PixelIcon name="arrow-right" size={16} />
     </a>
   </section>

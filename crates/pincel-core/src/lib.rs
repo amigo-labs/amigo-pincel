@@ -16,9 +16,10 @@ pub use codec::{
     ExportError, export_atlas_png, export_frame_png, read_aseprite, write_aseprite,
 };
 pub use command::{
-    AddFrame, AddLayer, AddSlice, AddTilemapLayer, AddTileset, AnyCommand, Bus, Command,
-    CommandError, DrawEllipse, DrawLine, DrawRectangle, FillRegion, MoveSelectionContent,
-    PlaceTile, RemoveSlice, SetPixel, SetSliceKey, SetTilePixel,
+    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AnyCommand, Bus,
+    ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
+    FillRegion, MoveDirection, MoveLayer, MoveSelectionContent, PlaceTile, RemoveLayer,
+    RemoveSlice, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel,
 };
 
 pub use document::{

@@ -2,7 +2,7 @@
 
 use thiserror::Error;
 
-use crate::document::{BlendMode, ColorMode, FrameIndex, LayerId, TilesetId};
+use crate::document::{ColorMode, FrameIndex, LayerId, TilesetId};
 
 use super::compose::MAX_ZOOM;
 
@@ -24,14 +24,6 @@ pub enum RenderError {
     /// `frame` did not refer to a frame in the sprite.
     #[error("unknown frame index: {frame:?}")]
     UnknownFrame { frame: FrameIndex },
-
-    /// A layer's content cannot be composed in this milestone.
-    #[error("unsupported layer kind on layer {layer:?}")]
-    UnsupportedLayerKind { layer: LayerId },
-
-    /// A layer's blend mode is not yet implemented.
-    #[error("unsupported blend mode {mode:?} on layer {layer:?}")]
-    UnsupportedBlendMode { layer: LayerId, mode: BlendMode },
 
     /// A linked cel was encountered. Linked cels share data with another
     /// frame's cel; M3 does not follow links — the loader (M4) is the layer

@@ -282,27 +282,6 @@
 </aside>
 
 <style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-    font-size: 0.75rem;
-    color: rgb(229 229 229);
-  }
-  .panel-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .panel-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .panel-btn-primary {
-    background-color: rgb(55 65 81);
-    border-color: rgb(115 115 115);
-  }
-  .panel-btn-primary:hover:not(:disabled) {
-    background-color: rgb(75 85 99);
-  }
   .tile-btn {
     padding: 0;
     border: 1px solid transparent;

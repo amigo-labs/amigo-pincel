@@ -346,12 +346,17 @@ Quick reference. All commands run from repo root unless noted.
 ### Rust workspace
 
 ```bash
-cargo check                                  # all crates, fast
+cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy --workspace -- -D warnings
+cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
+
+# `--workspace` clippy/test include pincel-tauri, which needs the GTK /
+# WebKit system libraries — absent from most dev containers. CI checks
+# pincel-tauri in a dedicated job; scope local clippy/test to the three
+# library crates as above.
 ```
 
 ### WASM
@@ -365,26 +370,29 @@ wasm-pack build --target web --release       # produces pkg/
 
 ```bash
 cd ui
+pnpm wasm:build                              # build crates/pincel-wasm/pkg — required before install
 pnpm install
 pnpm dev                                     # Vite dev server
 pnpm build                                   # production bundle
-pnpm test                                    # unit tests (Vitest)
-pnpm test:e2e                                # Playwright (later phases)
+pnpm check                                   # svelte-check (type-check)
 pnpm lint
 ```
+
+UI unit tests (Vitest) and Playwright e2e are not set up yet — they land
+with the Phase 2 test investment (§7.4).
 
 ### Tauri
 
 ```bash
-cd src-tauri
-pnpm tauri dev                               # native dev
-pnpm tauri build                             # release binary
+cd ui
+pnpm tauri:dev                               # native dev
+pnpm tauri:build                             # release binary
 ```
 
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy --workspace -- -D warnings && cargo test --workspace && cd ui && pnpm lint && pnpm test
+cargo fmt && cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p aseprite-writer -p pincel-wasm && cd ui && pnpm lint && pnpm check && pnpm build
 ```
 
 If any step fails, do not commit.
@@ -470,10 +478,15 @@ crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer, cdylib
 
 ui/                           Svelte 5 + Vite frontend (PWA + Tauri)
+ui/src/App.svelte             App shell: toolbar, canvas, tool input, state
 ui/src/lib/core/              WASM adapter
 ui/src/lib/render/            WebGPU + Canvas2D adapters
-ui/src/lib/tools/             Tool input handlers
-ui/src/lib/components/        Svelte components
+ui/src/lib/components/        Svelte components (panels, dialogs)
+ui/src/lib/fs/                File open/save (FSA / download / Tauri)
+ui/src/lib/idb/               IndexedDB: prefs, recents, autosave
+ui/src/lib/menu/              Native menu bridge (Tauri)
+ui/src/lib/platform/          Host detection (isTauri)
+ui/src/lib/view/              Viewport helpers (fit/zoom)
 
 src-tauri/                    Native shell
 ```
