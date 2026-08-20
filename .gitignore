@@ -24,6 +24,9 @@ node_modules
 /src-tauri/target
 /src-tauri/gen
 
+# Claude Code worktrees (project skills under .claude/skills/ stay tracked)
+/.claude/worktrees
+
 # Editor / OS
 .DS_Store
 Thumbs.db
