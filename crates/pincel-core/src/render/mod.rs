@@ -7,8 +7,16 @@
 //! on the request is accepted but currently ignored (Phase 1.5, see spec
 //! §4.3).
 
+mod blend;
 mod compose;
+mod error;
+mod image_layer;
 mod request;
+mod tilemap_layer;
 
-pub use compose::{RenderError, compose};
+#[cfg(test)]
+mod test_support;
+
+pub use compose::compose;
+pub use error::RenderError;
 pub use request::{ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays};

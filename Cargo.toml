@@ -13,6 +13,7 @@ aseprite-loader = "0.4.2"
 aseprite-writer = { version = "0.1.0", path = "crates/aseprite-writer" }
 flate2 = "1"
 pincel-core = { version = "0.1.0", path = "crates/pincel-core" }
+png = "0.18"
 thiserror = "2"
 wasm-bindgen = "0.2"
 

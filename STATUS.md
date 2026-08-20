@@ -20,21 +20,21 @@ successful save. See CLAUDE.md §4 / spec §10.3.
 
 ## Milestone status
 
-| ID | Status | Scope |
-|----|--------|-------|
-| M1 | ✅ | `pincel-core` skeleton — Sprite / Layer / Frame / Cel / Palette types, SpriteBuilder |
-| M2 | ✅ | Commands + linear undo bus (cap 100) — SetPixel, AddLayer, AddFrame |
-| M3 | ✅ | `compose()` for image layers — RGBA, source-over, viewport+zoom |
-| M4 | ✅ | `aseprite-loader` read adapter (RGBA only) |
-| M5 | ✅ | `aseprite-writer` crate + write adapter (header / layer / palette / tags / cel) |
-| M6 | ✅ | `pincel-wasm` + minimal Svelte UI (open / Pencil / save). M6.7 human cross-validation deferred. |
-| M7 | ✅ | Tools — Eraser, Eyedropper, Line, Rect, Rect-Fill, Ellipse, Ellipse-Fill, Bucket, Move (pan + selection-content drag), Selection (Rect) + marching-ants overlay |
-| M8.1–M8.6 | ✅ | Tilemap pipeline below the UI — core accessors, compose path (rotate→flip_x→flip_y), AddTileset / PlaceTile commands, aseprite_read + aseprite_write tileset+tilemap, wasm tileset surface |
-| M8.7 | ✅ | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below |
-| M9 | ✅ | Slice support — split into M9.1–M9.4 below |
-| M10 | 🟡 | PWA polish — split into M10.1–M10.4 below |
-| M11 | ⬜ | Tauri build |
-| M12 | ⬜ | Performance pass |
+| ID        | Status | Scope                                                                                                                                                                                      |
+| --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M1        | ✅     | `pincel-core` skeleton — Sprite / Layer / Frame / Cel / Palette types, SpriteBuilder                                                                                                       |
+| M2        | ✅     | Commands + linear undo bus (cap 100) — SetPixel, AddLayer, AddFrame                                                                                                                        |
+| M3        | ✅     | `compose()` for image layers — RGBA, source-over, viewport+zoom                                                                                                                            |
+| M4        | ✅     | `aseprite-loader` read adapter (RGBA only)                                                                                                                                                 |
+| M5        | ✅     | `aseprite-writer` crate + write adapter (header / layer / palette / tags / cel)                                                                                                            |
+| M6        | ✅     | `pincel-wasm` + minimal Svelte UI (open / Pencil / save). M6.7 human cross-validation deferred.                                                                                            |
+| M7        | ✅     | Tools — Eraser, Eyedropper, Line, Rect, Rect-Fill, Ellipse, Ellipse-Fill, Bucket, Move (pan + selection-content drag), Selection (Rect) + marching-ants overlay                            |
+| M8.1–M8.6 | ✅     | Tilemap pipeline below the UI — core accessors, compose path (rotate→flip_x→flip_y), AddTileset / PlaceTile commands, aseprite_read + aseprite_write tileset+tilemap, wasm tileset surface |
+| M8.7      | ✅     | UI: Tileset Panel + Tilemap Stamp tool + Tileset Editor sub-mode — split into M8.7a–d below                                                                                                |
+| M9        | ✅     | Slice support — split into M9.1–M9.4 below                                                                                                                                                 |
+| M10       | 🟡     | PWA polish — split into M10.1–M10.4 below                                                                                                                                                  |
+| M11       | ⬜     | Tauri build                                                                                                                                                                                |
+| M12       | ⬜     | Performance pass                                                                                                                                                                           |
 
 ### M8.7 sub-tasks
 
