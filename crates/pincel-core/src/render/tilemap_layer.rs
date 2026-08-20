@@ -33,10 +33,15 @@ pub(super) fn composite_tilemap_cel(
     if tile_w == 0 || tile_h == 0 {
         return Ok(());
     }
-    // Compute the expected tile-vector length in `usize` so the multiply
-    // can't overflow on a 64-bit target. Reject corrupt cels rather than
-    // index into a wrongly-sized buffer.
-    let expected_len = (grid_w as usize) * (grid_h as usize);
+    // `grid_w * grid_h` overflows `usize` on a 32-bit target (wasm32 is
+    // the one we ship), so multiply checked and treat an overflowing grid
+    // as a corrupt cel rather than indexing a wrongly-sized buffer.
+    let Some(expected_len) = (grid_w as usize).checked_mul(grid_h as usize) else {
+        return Err(RenderError::MalformedCelBuffer {
+            layer: layer_id,
+            frame,
+        });
+    };
     if tiles.len() != expected_len {
         return Err(RenderError::MalformedCelBuffer {
             layer: layer_id,
@@ -511,6 +516,37 @@ mod tests {
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            RenderError::MalformedCelBuffer {
+                layer: LayerId::new(0),
+                frame: FrameIndex::new(0),
+            }
+        );
+    }
+
+    #[test]
+    fn tilemap_grid_whose_tile_count_overflows_usize_errors() {
+        // 0x10000 * 0x10000 == 2^32, which wraps to 0 in a 32-bit `usize`
+        // (wasm32). Without the checked multiply the empty tile vector would
+        // then look well-formed and the grid walk would index out of bounds.
+        let tileset = two_tile_tileset(0, 2, [255, 0, 0, 255]);
+        let mut dst = vec![0u8; 4 * 4 * 4];
+        let err = composite_tilemap_cel(
+            &mut dst,
+            Rect::new(0, 0, 4, 4),
+            (0, 0),
+            0x10000,
+            0x10000,
+            &[],
+            &tileset,
+            LayerId::new(0),
+            FrameIndex::new(0),
+            ColorMode::Rgba,
+            255,
+            BlendMode::Normal,
+        )
+        .expect_err("an overflowing grid is a corrupt cel");
+        assert_eq!(
+            err,
             RenderError::MalformedCelBuffer {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
