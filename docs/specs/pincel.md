@@ -451,6 +451,8 @@ Two modes:
 
 Sprite-sheet export emits an optional sidecar JSON describing frame durations, tags, and slice rects. Format follows Aseprite's `--data` JSON output for ecosystem compatibility (LDtk, Phaser, etc. consume this format).
 
+Implemented in `pincel-core::codec::png` as of 2026-08-20 — but the shipped sidecar is a smaller custom shape, not Aseprite `--data`, and carries neither frame durations nor slice rects. See Section 15 (2026-08-20) and Open Question 6.
+
 ### 7.4 Engine Build Pipeline
 
 Pincel does **not** export to `.ait` directly. The engine's existing `amigo_assets` pipeline reads `.aseprite` files and produces engine-internal formats. Pincel's only contract with the engine is: produce a valid `.aseprite` file at a known location.
@@ -716,6 +718,7 @@ Out of scope indefinitely. Local-first by design.
 3. **PWA deployment target**: GitHub Pages? A subdomain on amigo-labs infrastructure? Affects COOP/COEP for SharedArrayBuffer.
 4. **Tauri auto-update**: Tauri 2's update plugin requires a signed-update server. Do we run one, or push releases via GitHub-Releases-only and require manual update?
 5. **Touch/pen UX on tablets**: iPad with Apple Pencil is a real target for pixel art. PWA-on-iPad gives us pen pressure via `PointerEvent`. Tauri-on-iPad doesn't exist (Tauri mobile is Android-first; iOS support is alpha). Decide whether iPad is "PWA only" officially.
+6. **Atlas manifest format**: Section 7.3 promises an Aseprite `--data`-compatible sidecar for LDtk / Phaser interop. The shipped `AtlasManifest` is a smaller custom shape — grid dimensions plus one `{frame, x, y, w, h, tag}` entry per frame — with no frame durations and no slice rects. Grow it into `--data` compatibility, emit both, or amend Section 7.3? Blocks nothing today; blocks the claim of ecosystem compatibility.
 
 ---
 
@@ -732,6 +735,9 @@ Out of scope indefinitely. Local-first by design.
 | 2026-05-07 | Scripting deferred; if needed later, downloader pattern (rquickjs + SWC + TS) | Consistent with amigo-labs tooling; out-of-scope for Phase 1 |
 | 2026-05-07 | Document state lives exclusively in Rust memory; canvas / WebGPU is render-target only | Avoids the architectural failure mode that forced Piskel into a multi-year rewrite (Piskel #1245). Browser canvas anti-fingerprinting (Brave today, others tomorrow) corrupts pixel readbacks; in-memory state is immune. |
 | 2026-05-07 | `pincel-wasm` ships as npm-importable package with documented public API from Phase 1 | Embedding is a recurring Piskel community ask (#1229, #1246). Designing the boundary in early avoids retrofit. |
+| 2026-08-20 | `png = "0.18"` as the PNG encoder for `pincel-core::codec::png` | Backfilled: the dependency landed in `4ea5608` without this entry, which CLAUDE.md §3.3 / §9 require. Pure Rust, so `wasm32-unknown-unknown` builds with no C toolchain — `image` or a `libpng` binding would break the WASM target. `MIT OR Apache-2.0`, matching the workspace. Adds exactly one new crate to the lock (`fdeflate`); `flate2`, `miniz_oxide`, `crc32fast` and `bitflags` were already there via the Aseprite codec. The alternative — hand-rolling an encoder on the `flate2` we already carry — was rejected as reimplementing a solved, security-relevant format. |
+| 2026-08-20 | PNG is export-only; `.aseprite` stays the sole import format | Keeps one source-of-truth format (Sections 7.1 / 7.4). A PNG import path would have to infer layers, frames and tags from a flat image, and there is no correct answer to infer. |
+| 2026-08-20 | Atlas layout is a fixed-cell grid — no trimming, no rotation, no bin-packing — and the manifest is hand-rolled JSON | Every cell is the full canvas, so an engine addresses a frame as `row * columns + column` without consulting the sidecar at all; that is what an animation sampler wants. Hand-rolled rather than `serde` because `pincel-core` carries no serialization dependency (CLAUDE.md §5.1) and the shape is too small to justify one. Deviates from Section 7.3 — see Open Question 6. |
 
 ---
 
