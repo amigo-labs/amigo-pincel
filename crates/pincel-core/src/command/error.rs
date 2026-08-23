@@ -133,4 +133,9 @@ pub enum CommandError {
     /// [`crate::MoveLayer`].
     #[error("layer id {0} is already at the edge of its sibling group")]
     LayerAtEdge(u32),
+
+    /// The targeted frame index is past the end of `Sprite::frames`.
+    /// Emitted by [`crate::SetFrameDuration`].
+    #[error("unknown frame index {0}")]
+    UnknownFrame(u32),
 }
