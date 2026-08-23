@@ -25,12 +25,13 @@ pub use events::Event;
 
 use events::EventQueue;
 use pincel_core::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput, Bus,
-    Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse, DrawLine,
-    DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind, MoveDirection,
-    MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer, RemoveSlice, Rgba,
-    SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey,
-    Sprite, TileRef, Tileset, TilesetId, compose, read_aseprite, write_aseprite,
+    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput,
+    AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse,
+    DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
+    MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer,
+    RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice,
+    SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, export_atlas_png,
+    export_frame_png, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -128,6 +129,49 @@ impl Document {
         write_aseprite(&self.sprite, &self.cels, &mut buf)
             .map_err(|e| format!("failed to save Aseprite: {e}"))?;
         Ok(buf.into_boxed_slice())
+    }
+
+    /// Encode one frame as an RGBA8 PNG.
+    ///
+    /// Mirrors `pincel_core::export_frame_png`: the frame is composed at
+    /// zoom 1 over the full canvas with the default `Visible` layer filter
+    /// and no overlays, then encoded. The returned `Box<[u8]>` is
+    /// materialized as a freshly-allocated `Uint8Array` on the JS side.
+    ///
+    /// `frame` is a 0-based frame index. Errors surface the underlying
+    /// `pincel-core` message: an out-of-range frame, or a sprite the
+    /// renderer refuses (non-RGBA color mode, non-`Normal` blend mode,
+    /// group layer, linked cel).
+    #[wasm_bindgen(js_name = exportPng)]
+    pub fn export_png(&self, frame: u32) -> Result<Box<[u8]>, String> {
+        let bytes = export_frame_png(&self.sprite, &self.cels, FrameIndex::new(frame))
+            .map_err(|e| format!("failed to export PNG: {e}"))?;
+        Ok(bytes.into_boxed_slice())
+    }
+
+    /// Pack frames into a grid atlas PNG and return it with its manifest.
+    ///
+    /// Mirrors `pincel_core::export_atlas_png`. `columns` is the requested
+    /// grid width in cells, clamped down to the number of exported frames;
+    /// rows are derived. `tag`, when given, restricts the export to the
+    /// frames of that animation tag — pass `undefined` / `null` to export
+    /// every frame.
+    ///
+    /// The result carries the PNG bytes and the manifest as a JSON string
+    /// (`AtlasExport.png` / `AtlasExport.manifest`); the manifest lists each
+    /// frame's source rect so an engine can slice the atlas apart. Errors
+    /// surface the underlying `pincel-core` message: zero columns, an
+    /// unknown tag, a frameless sprite, or anything the renderer refuses.
+    #[wasm_bindgen(js_name = exportAtlas)]
+    pub fn export_atlas(&self, columns: u32, tag: Option<String>) -> Result<AtlasExport, String> {
+        let mut opts = AtlasOptions::new(columns);
+        opts.tag = tag;
+        let output = export_atlas_png(&self.sprite, &self.cels, &opts)
+            .map_err(|e| format!("failed to export atlas: {e}"))?;
+        Ok(AtlasExport {
+            manifest: output.manifest.to_json(),
+            png: output.png,
+        })
     }
 
     /// Canvas width in pixels.
@@ -1678,6 +1722,35 @@ impl ComposeFrame {
     #[wasm_bindgen(getter)]
     pub fn pixels(&self) -> Box<[u8]> {
         self.pixels.clone().into_boxed_slice()
+    }
+}
+
+/// An exported texture atlas: the PNG bytes plus the manifest that says
+/// where each frame landed.
+///
+/// Compound results cross the boundary as an owned handle with getters
+/// (same shape as [`ComposeFrame`]) rather than a plain JS object, so the
+/// bytes stay in WASM memory until JS asks for them.
+#[wasm_bindgen]
+pub struct AtlasExport {
+    png: Vec<u8>,
+    manifest: String,
+}
+
+#[wasm_bindgen]
+impl AtlasExport {
+    /// Fresh `Uint8Array` copy of the encoded PNG bytes.
+    #[wasm_bindgen(getter)]
+    pub fn png(&self) -> Box<[u8]> {
+        self.png.clone().into_boxed_slice()
+    }
+
+    /// The atlas manifest as a JSON string: atlas / cell dimensions, the
+    /// grid shape, and one `{frame, x, y, w, h, tag}` entry per exported
+    /// frame. Callers `JSON.parse` this.
+    #[wasm_bindgen(getter)]
+    pub fn manifest(&self) -> String {
+        self.manifest.clone()
     }
 }
 
@@ -3410,6 +3483,143 @@ mod tests {
         let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
         let events = doc.drain_events();
         assert!(events.iter().any(|e| e.kind() == "dirty-canvas"));
+    }
+
+    // ---- PNG export surface tests --------------------------------------
+
+    use pincel_core::Tag;
+
+    /// The eight-byte PNG file signature.
+    const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+
+    /// A document with `frames` transparent frames on the bootstrapped
+    /// layer. `Document` has no `addFrame` binding yet, so the extra frames
+    /// and their cels are pushed straight onto the owned state.
+    fn doc_with_frames(width: u32, height: u32, frames: u32) -> Document {
+        let mut doc = Document::new(width, height).expect("dims");
+        for i in 1..frames {
+            doc.sprite.frames.push(Frame::new(100));
+            doc.cels.insert(Cel::image(
+                DEFAULT_LAYER_ID,
+                FrameIndex::new(i),
+                PixelBuffer::empty(width, height, ColorMode::Rgba),
+            ));
+        }
+        doc
+    }
+
+    #[test]
+    fn export_png_returns_bytes_with_png_signature() {
+        let doc = Document::new(4, 3).expect("dims");
+        let bytes = doc.export_png(0).expect("export ok");
+        assert_eq!(&bytes[..8], &PNG_SIGNATURE);
+    }
+
+    #[test]
+    fn export_png_matches_core_export() {
+        let doc = Document::new(5, 2).expect("dims");
+        let expected = export_frame_png(&doc.sprite, &doc.cels, FrameIndex::new(0))
+            .expect("core export ok")
+            .into_boxed_slice();
+        assert_eq!(doc.export_png(0).expect("export ok"), expected);
+    }
+
+    #[test]
+    fn export_png_reflects_painted_pixels() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let blank = doc.export_png(0).expect("export ok");
+        doc.apply_tool("pencil", 1, 1, 0xff00_00ff).expect("paint");
+        let painted = doc.export_png(0).expect("export ok");
+        assert_ne!(blank, painted);
+    }
+
+    #[test]
+    fn export_png_rejects_unknown_frame() {
+        let doc = Document::new(4, 4).expect("dims");
+        let err = doc.export_png(9).expect_err("frame 9 does not exist");
+        assert!(err.starts_with("failed to export PNG"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_packs_every_frame_into_the_requested_grid() {
+        let doc = doc_with_frames(4, 2, 3);
+        let atlas = doc.export_atlas(2, None).expect("export ok");
+        assert_eq!(&atlas.png()[..8], &PNG_SIGNATURE);
+        // 3 frames over 2 columns → 2 rows, so 8x4 pixels.
+        let manifest = atlas.manifest();
+        assert!(
+            manifest.starts_with(
+                "{\"width\":8,\"height\":4,\"columns\":2,\"rows\":2,\
+                 \"frameWidth\":4,\"frameHeight\":2,\"frames\":["
+            ),
+            "manifest: {manifest}"
+        );
+        assert!(
+            manifest.contains("{\"frame\":2,\"x\":0,\"y\":2,\"w\":4,\"h\":2,\"tag\":null}"),
+            "manifest: {manifest}"
+        );
+    }
+
+    #[test]
+    fn export_atlas_clamps_columns_to_frame_count() {
+        let doc = Document::new(3, 3).expect("dims");
+        let manifest = doc.export_atlas(8, None).expect("export ok").manifest();
+        assert!(
+            manifest.starts_with("{\"width\":3,\"height\":3,\"columns\":1,\"rows\":1,"),
+            "manifest: {manifest}"
+        );
+    }
+
+    #[test]
+    fn export_atlas_with_tag_exports_only_that_tags_frames() {
+        let mut doc = doc_with_frames(2, 2, 4);
+        doc.sprite
+            .tags
+            .push(Tag::new("walk", FrameIndex::new(1), FrameIndex::new(2)));
+        let manifest = doc
+            .export_atlas(4, Some("walk".to_string()))
+            .expect("export ok")
+            .manifest();
+        assert!(
+            manifest.starts_with("{\"width\":4,\"height\":2,\"columns\":2,\"rows\":1,"),
+            "manifest: {manifest}"
+        );
+        assert!(manifest.contains("\"frame\":1,"), "manifest: {manifest}");
+        assert!(manifest.contains("\"frame\":2,"), "manifest: {manifest}");
+        assert!(!manifest.contains("\"frame\":0,"), "manifest: {manifest}");
+        assert!(!manifest.contains("\"frame\":3,"), "manifest: {manifest}");
+        assert!(
+            manifest.contains("\"tag\":\"walk\""),
+            "manifest: {manifest}"
+        );
+    }
+
+    #[test]
+    fn export_atlas_rejects_zero_columns() {
+        let doc = Document::new(4, 4).expect("dims");
+        let err = match doc.export_atlas(0, None) {
+            Err(e) => e,
+            Ok(_) => panic!("a zero column count should be rejected"),
+        };
+        assert!(err.starts_with("failed to export atlas"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_rejects_unknown_tag() {
+        let doc = Document::new(4, 4).expect("dims");
+        let err = match doc.export_atlas(1, Some("nope".to_string())) {
+            Err(e) => e,
+            Ok(_) => panic!("an unknown tag name should be rejected"),
+        };
+        assert!(err.contains("not found"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_of_a_single_frame_document_matches_frame_export() {
+        // A 1x1 grid atlas is the same image as the single-frame export.
+        let doc = Document::new(6, 4).expect("dims");
+        let atlas = doc.export_atlas(1, None).expect("export ok");
+        assert_eq!(atlas.png(), doc.export_png(0).expect("export ok"));
     }
 
     // ---- M13.2: layer reorder surface ---------------------------------

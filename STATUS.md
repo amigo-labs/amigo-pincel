@@ -1,11 +1,12 @@
 # Status
 
-_Last updated: 2026-08-21_
+_Last updated: 2026-08-23_
 
-**Branch:** `claude/offener-pr-fortsetzen-yunxn3` — M14 timeline /
-playback, task breakdown below. In flight alongside it: PR #50
-(`[pincel-core] PNG export (spec §7.3)`), green and mergeable, waiting on
-the maintainer to confirm the new `png` dependency.
+**Branch:** `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
+/ playback, task breakdown below. Landed just before it on `main`: PR #50
+— PNG export (spec §7.3) in `pincel-core` + `pincel-wasm`, and the
+`render` module split into `blend` / `error` / `image_layer` /
+`tilemap_layer`. Details in the newest "Recent work" entry.
 
 ## Remaining to release (single source of truth)
 
@@ -45,6 +46,10 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
   compositing) and §9.2 (the timeline strip in the layout). Earlier
   STATUS entries cited "§5", which is the tool system — that reference
   was wrong.
+- **PNG export UI** (spec §7.3): the core + wasm surface has landed
+  (`exportPng` / `exportAtlas`); the File-menu entries, the sprite-sheet
+  options dialog, and writing the sidecar JSON alongside the atlas are
+  still open.
 - **Playwright interaction tests** (spec M5 exit criterion; §7.4).
 - **Touch pinch-zoom** (tablet target, §17.4).
 - **Palette editing** (add/edit/reorder entries; seed a default palette
@@ -262,6 +267,27 @@ Auto-tile mode (paint-on-tilemap = auto reuse / create tiles) stays Phase 2 per 
 - [x] **M10.4** — `vite-plugin-pwa@^1.3.0` + `workbox-precaching@^7.4.1` devDependencies (spec §10.1 mandates `injectManifest` so this counts as spec-approved). `vite.config.ts` registers `VitePWA` with `strategies: 'injectManifest'`, `srcDir: 'src'`, `filename: 'sw.ts'`, `registerType: 'autoUpdate'`, and an explicit `injectManifest.globPatterns` widened to cover `.wasm` (the wasm-pack output goes into `dist/assets/`). Custom `src/sw.ts` (~30 lines) routes the manifest through `precacheAndRoute(self.__WB_MANIFEST)` and calls `skipWaiting` / `clients.claim` so a fresh deploy activates without a tab close. Built SW precaches 7 unique URLs totalling ~1.9 MiB (WASM is the dominant entry). `manifest.webmanifest` carries `Pincel` name / short name / description, `display: standalone`, `#0a0a0a` background + theme colors, and a single SVG icon at `purpose: "any maskable"` reused from the website favicon. `index.html` gains `<meta name="theme-color">`, description, and the SVG favicon link; the registration script is injected automatically.
 
 ## Recent work
+
+- **2026-08-20 — PNG export + render module split (branch
+  `claude/continue-from-status-T3QCr`).** Implements spec §7.3 below the
+  UI. **Core:** `codec/png.rs` adds `export_frame_png` (one frame, zoom 1)
+  and `export_atlas_png` (fixed-cell grid atlas, row-major in playback
+  order, optional tag filter) returning the PNG bytes plus an
+  `AtlasManifest` serialized as the §7.3 sidecar JSON. Encoding goes
+  through the `png` crate — new dependency, Decision Log entry
+  2026-08-20. **wasm:** `Document::exportPng(frame)` and
+  `exportAtlas(columns, tag?)` (the latter returning an
+  `AtlasExport { png, manifest }`). **Refactor:** `render/compose.rs` was
+  ~2,100 lines with every path and its tests in one file; it is now
+  `blend.rs` (the W3C separable formula + `Normal` fast path),
+  `error.rs` (`RenderError`), `image_layer.rs`, `tilemap_layer.rs`, and a
+  `test_support.rs` of shared fixtures, with `compose.rs` keeping the
+  entry point, layer walk, dirty-rect handling and upscale. Behavior is
+  unchanged — the test bodies moved verbatim next to the code they cover.
+  Also fixed: the tilemap grid length now uses `checked_mul`, so a corrupt
+  `grid_w * grid_h` that overflows 32-bit `usize` (wasm32) reports
+  `MalformedCelBuffer` instead of wrapping. Gates green: 313 core + 159
+  wasm host tests, `cargo clippy -D warnings`, `cargo fmt`.
 
 - **2026-07-10 — removeLayer + delete-selection + alpha (branch
   `claude/continue-work-ve96hl`).** Follow-on to the layer/frame batch,

@@ -11,7 +11,10 @@ pub mod error;
 pub mod geometry;
 pub mod render;
 
-pub use codec::{AsepriteReadOutput, CodecError, read_aseprite, write_aseprite};
+pub use codec::{
+    AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
+    ExportError, export_atlas_png, export_frame_png, read_aseprite, write_aseprite,
+};
 pub use command::{
     AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AnyCommand, Bus,
     ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
