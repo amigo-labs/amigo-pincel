@@ -1,11 +1,12 @@
 # Status
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-08-23_
 
-**Branch:** `claude/continue-from-status-T3QCr` (PR #50) — PNG export
-(spec §7.3) in `pincel-core` + `pincel-wasm`, and the `render` module
-split into `blend` / `error` / `image_layer` / `tilemap_layer`. Details in
-the newest "Recent work" entry.
+**Branch:** `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
+/ playback, task breakdown below. Landed just before it on `main`: PR #50
+— PNG export (spec §7.3) in `pincel-core` + `pincel-wasm`, and the
+`render` module split into `blend` / `error` / `image_layer` /
+`tilemap_layer`. Details in the newest "Recent work" entry.
 
 ## Remaining to release (single source of truth)
 
@@ -38,8 +39,13 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **Timeline / playback** (spec §5): per-frame duration, tag lanes, onion
-  skin, play/pause. Biggest remaining feature.
+- **Timeline / playback** — _in progress, see M14 below._ Per-frame
+  duration, tag lanes, onion skin, play/pause. Biggest remaining
+  feature. The spec has no single "timeline" section: the pieces are
+  §3.3 (`Frame::duration_ms`), §3.6 (tags), §4.2 (onion-skin
+  compositing) and §9.2 (the timeline strip in the layout). Earlier
+  STATUS entries cited "§5", which is the tool system — that reference
+  was wrong.
 - **PNG export UI** (spec §7.3): the core + wasm surface has landed
   (`exportPng` / `exportAtlas`); the File-menu entries, the sprite-sheet
   options dialog, and writing the sidecar JSON alongside the atlas are
@@ -56,6 +62,57 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
   low) — audit before release.
 
 Detail on each item lives in the sections further down.
+
+## M14 — Timeline / playback (in progress)
+
+Post-M13 feature. The spec spreads the timeline across §3.3
+(`Frame::duration_ms`), §3.6 (`Tag`, `TagDirection`), §4.2 (onion-skin
+compositing rule) and §9.2 (timeline strip in the layout) — there is no
+single §-section for it. Sized XL by CLAUDE.md §3.2, so it is split into
+seven M-sized tasks; each is one session and one PR-able unit.
+
+What already exists on `main`: `Frame { duration_ms }`, `Tag` /
+`TagDirection` document types, the `OnionSkin` request struct, and
+`AddFrame` + the wasm `addFrame` / `frameCount` / `currentFrame` /
+`setCurrentFrame` surface. `compose()` currently *rejects* an onion-skin
+request with `RenderError::OnionSkinUnsupported`. There are no tag
+commands and no timeline UI.
+
+- [x] **M14.1** — core `SetFrameDuration` command: sets a frame's
+  `duration_ms`, captures the prior value for `revert`, merges
+  consecutive edits to the same frame into one undo entry (a duration
+  spinner emits one command per tick). Reports `DirtyRegion::None` —
+  duration is playback metadata and changes nothing in the composite.
+  New `CommandError::UnknownFrame`; wired into `AnyCommand`. 7 unit
+  tests.
+- [ ] **M14.2** — core `RemoveFrame` command. Must re-key the cel map:
+  `CelKey` is `(LayerId, FrameIndex)`, so removing frame *n* shifts
+  every cel at frame > *n* down by one, and `revert` shifts back and
+  restores the removed frames' cels. Tag ranges clamp to the new frame
+  count. This is the fiddliest core task in M14 — cel re-keying has no
+  precedent in the existing commands.
+- [ ] **M14.3** — core tag commands: `AddTag`, `RemoveTag`,
+  `SetTagRange`, `SetTagName`, `SetTagDirection`. Range validation
+  (`from <= to`, both inside the frame count) and the §3.6
+  identifier-like name warning.
+- [ ] **M14.4** — onion skin in `compose()`. Drop
+  `RenderError::OnionSkinUnsupported`; render `frames_back` previous
+  frames tinted red and `frames_forward` next frames tinted blue at
+  `previous_alpha` / `next_alpha` under the current frame, per §4.2.
+  Snapshot tests against known RGBA bytes.
+- [ ] **M14.5** — wasm surface for the above: `setFrameDuration`,
+  `removeFrame`, the five tag mutators, tag read getters, and
+  onion-skin parameters threaded into the `compose` call.
+- [ ] **M14.6** — `TimelinePanel.svelte` mounted along the bottom edge
+  per the §9.2 layout: frame strip with per-frame duration, current-frame
+  selection, add / remove frame, replacing the existing toolbar stepper.
+- [ ] **M14.7** — tag lanes + onion-skin controls in the panel, then
+  playback: play / pause, loop, and the four `TagDirection` modes
+  (Forward / Reverse / Pingpong / PingpongReverse) driven by a rAF timer
+  honoring each frame's `duration_ms`.
+
+Order matters: M14.2 and M14.3 are independent of each other, M14.4 is
+independent of both, M14.5 needs 14.1–14.4, and 14.6/14.7 need 14.5.
 
 ## M13 — Layers panel + reorder (complete)
 
@@ -586,9 +643,9 @@ the findings don't get lost — each is scoped and ready to pick up:
   footer "+ Frame"; paint auto-creates cels on new layers/frames; core
   `RemoveLayer` removes the layer's cels (and a group's subtree),
   undoable.
-- **Timeline / playback** — _still open._ T12 ships only a frame stepper
-  (+ the new "+ Frame"). Per-frame duration display, tag lanes, onion
-  skin, and play/pause are the spec's §5 timeline.
+- **Timeline / playback** — _in progress (M14)._ T12 ships only a frame
+  stepper (+ the new "+ Frame"). Per-frame duration display, tag lanes,
+  onion skin, and play/pause are the M14 breakdown.
 - **Delete / Backspace clears selection pixels** — _done 2026-07-10_:
   core `ClearRegion` + wasm `deleteSelection` + Delete/Backspace key
   handler.

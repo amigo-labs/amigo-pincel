@@ -19,6 +19,7 @@ mod move_selection_content;
 mod place_tile;
 mod remove_layer;
 mod remove_slice;
+mod set_frame_duration;
 mod set_layer_name;
 mod set_layer_visible;
 mod set_pixel;
@@ -44,6 +45,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
+pub use set_frame_duration::SetFrameDuration;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
@@ -107,6 +109,7 @@ pub enum AnyCommand {
     AddLayer(AddLayer),
     RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
+    SetFrameDuration(SetFrameDuration),
     AddTileset(AddTileset),
     AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
@@ -137,6 +140,7 @@ impl AnyCommand {
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
+            Self::SetFrameDuration(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
@@ -163,6 +167,7 @@ impl AnyCommand {
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
+            Self::SetFrameDuration(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
@@ -184,6 +189,7 @@ impl AnyCommand {
             (Self::MoveSelectionContent(a), Self::MoveSelectionContent(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
+            (Self::SetFrameDuration(a), Self::SetFrameDuration(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
             (Self::AddTile(a), Self::AddTile(b)) => a.merge(b),
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
@@ -213,6 +219,7 @@ impl AnyCommand {
             Self::AddLayer(c) => c.dirty_region(),
             Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
+            Self::SetFrameDuration(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
             Self::AddTilemapLayer(c) => c.dirty_region(),
@@ -300,6 +307,12 @@ impl From<ClearRegion> for AnyCommand {
 impl From<AddFrame> for AnyCommand {
     fn from(c: AddFrame) -> Self {
         Self::AddFrame(c)
+    }
+}
+
+impl From<SetFrameDuration> for AnyCommand {
+    fn from(c: SetFrameDuration) -> Self {
+        Self::SetFrameDuration(c)
     }
 }
 
