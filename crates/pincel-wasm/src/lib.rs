@@ -22,6 +22,7 @@
 mod effects;
 mod events;
 mod layer_ops;
+mod selection_ops;
 mod transforms;
 
 pub use effects::effect_names;
@@ -849,7 +850,7 @@ impl Document {
         }
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
-        let cmd = ClearRegion::new(layer, frame, sel);
+        let cmd = ClearRegion::new(layer, frame, sel).masked();
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to delete selection: {e}"))?;

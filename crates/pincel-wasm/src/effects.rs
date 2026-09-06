@@ -79,16 +79,30 @@ impl Document {
                 dirty: None,
             });
         }
-        // Keep the original outside the selection: copy the affected rows'
-        // spans from the effect output into a clone of the source.
+        // Keep the original outside the selection: copy the affected
+        // pixels from the effect output into a clone of the source — whole
+        // row spans for a rect selection, per covered pixel for a shaped one.
         let mut merged = buffer.data.clone();
         let stride = buffer.width as usize * 4;
         let x0 = (inter.x - cel_rect.x) as usize * 4;
         let span = inter.width as usize * 4;
+        let mask = self.sprite.selection_mask.as_ref();
         for row in 0..inter.height as usize {
             let y = (inter.y - cel_rect.y) as usize + row;
             let start = y * stride + x0;
-            merged[start..start + span].copy_from_slice(&out[start..start + span]);
+            match mask {
+                None => merged[start..start + span].copy_from_slice(&out[start..start + span]),
+                Some(m) => {
+                    for col in 0..inter.width as usize {
+                        let sx = inter.x + col as i32;
+                        let sy = inter.y + row as i32;
+                        if m.contains(sx, sy) {
+                            let i = start + col * 4;
+                            merged[i..i + 4].copy_from_slice(&out[i..i + 4]);
+                        }
+                    }
+                }
+            }
         }
         Ok(EffectRun {
             layer,
