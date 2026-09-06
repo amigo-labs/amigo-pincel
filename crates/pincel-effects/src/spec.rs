@@ -298,7 +298,7 @@ impl EffectSpec {
                 }
             }
             "curves" => {
-                if p.len() < 3 || (p.len() - 1) % 2 != 0 {
+                if p.len() < 3 || !(p.len() - 1).is_multiple_of(2) {
                     return Err(EffectError::ParamCount {
                         effect: name.to_owned(),
                         expected: 3,
