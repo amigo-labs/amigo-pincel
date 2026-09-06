@@ -356,9 +356,11 @@ mod tests {
     #[test]
     fn stroke_off_canvas_returns_none() {
         let doc = Document::new(10, 10).unwrap();
-        assert!(black_pencil(4)
-            .stroke(0, &[Point::new(-50.0, -50.0)], &doc)
-            .is_none());
+        assert!(
+            black_pencil(4)
+                .stroke(0, &[Point::new(-50.0, -50.0)], &doc)
+                .is_none()
+        );
     }
 
     #[test]

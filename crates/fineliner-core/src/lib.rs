@@ -35,12 +35,12 @@ pub use document::{
 pub use error::DocumentError;
 pub use geometry::{Point, Rect, Size};
 pub use render::{compose, compose_over};
-pub use selection::{apply_mode, magic_wand, SelectionMask, SelectionMode};
+pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand};
 pub use tools::{
-    delete_selection, Brush, BrushShape, DashPattern, Eraser, EraserMode, Eyedropper, Fill,
-    FillOptions, Move, Pencil, SampleSize, SampleSource, Shape, ShapeMode, ShapeStyle, Shapes,
-    Text, TextAlign, TextStyle,
+    Brush, BrushShape, DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Move,
+    Pencil, SampleSize, SampleSource, Shape, ShapeMode, ShapeStyle, Shapes, Text, TextAlign,
+    TextStyle, delete_selection,
 };
 pub use transform::{
-    flip_horizontal, flip_vertical, rotate_180, rotate_90_ccw, rotate_90_cw, scale, Interpolation,
+    Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,
 };

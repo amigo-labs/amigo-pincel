@@ -487,12 +487,10 @@ impl ShapeGeom {
     ) -> (f32, f32) {
         let draws_outline = matches!(mode, ShapeMode::Outline | ShapeMode::FillAndOutline);
         // Dashed stroke: band around the nearest on-segment, common to all kinds.
-        if draws_outline {
-            if let Some(segs) = dash {
-                let stroke = band_coverage(min_dist_segments(px, py, segs), half_stroke, aa);
-                let fill = self.fill_coverage(px, py, mode, aa);
-                return (fill, stroke);
-            }
+        if draws_outline && let Some(segs) = dash {
+            let stroke = band_coverage(min_dist_segments(px, py, segs), half_stroke, aa);
+            let fill = self.fill_coverage(px, py, mode, aa);
+            return (fill, stroke);
         }
         match self {
             // A line has no interior: it always strokes, whatever the mode.
@@ -821,9 +819,11 @@ mod tests {
             a: Point::new(-50.0, -50.0),
             b: Point::new(-30.0, -30.0),
         };
-        assert!(Shapes::new(shape, fill_style(Color::BLACK))
-            .draw(0, &doc)
-            .is_none());
+        assert!(
+            Shapes::new(shape, fill_style(Color::BLACK))
+                .draw(0, &doc)
+                .is_none()
+        );
     }
 
     #[test]

@@ -9,8 +9,8 @@
 //! verbatim — structural merges are infrequent, so the clone cost is
 //! acceptable (spec §7.1).
 
-use super::snapshot::{restore, snapshot, DocSnapshot};
 use super::Command;
+use super::snapshot::{DocSnapshot, restore, snapshot};
 use crate::color::{BlendMode, Color};
 use crate::document::{Document, Layer};
 use crate::error::DocumentError;

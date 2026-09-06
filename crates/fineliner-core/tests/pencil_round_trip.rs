@@ -6,7 +6,7 @@
 
 use fineliner_core::codec::{decode, to_png_bytes};
 use fineliner_core::command::Command;
-use fineliner_core::{compose, Brush, Color, Document, Pencil, Point};
+use fineliner_core::{Brush, Color, Document, Pencil, Point, compose};
 
 /// Builds a PNG of a solid white WxH image.
 fn white_png(w: u32, h: u32) -> Vec<u8> {
@@ -60,10 +60,11 @@ fn paint_then_undo_then_export_matches_original() {
     let exported = to_png_bytes(&compose(doc.layers()), 6).unwrap();
     let back = decode(&exported).unwrap();
     // Every pixel back to white after undo.
-    assert!(back
-        .data()
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .all(|p| p == &[255, 255, 255, 255]));
+    assert!(
+        back.data()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| p == &[255, 255, 255, 255])
+    );
 }

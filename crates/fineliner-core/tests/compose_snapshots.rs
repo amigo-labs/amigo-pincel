@@ -4,7 +4,7 @@
 //! change to blend math, opacity handling, or codec round-trips shows up as a
 //! reviewable snapshot diff under `tests/snapshots/`.
 
-use fineliner_core::{codec, compose, BlendMode, Color, ImageBuffer, Layer};
+use fineliner_core::{BlendMode, Color, ImageBuffer, Layer, codec, compose};
 
 /// A 4×4 buffer with a deterministic per-pixel gradient.
 fn gradient(alpha: u8) -> ImageBuffer {

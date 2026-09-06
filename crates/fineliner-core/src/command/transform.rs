@@ -8,13 +8,13 @@
 //! dimensions. Canvas transforms clear any selection (its geometry no longer
 //! matches); the prior selection is restored on undo.
 
-use super::snapshot::{restore, snapshot, DocSnapshot};
 use super::Command;
+use super::snapshot::{DocSnapshot, restore, snapshot};
 use crate::document::{CanvasSize, Document, ImageBuffer};
 use crate::error::DocumentError;
 use crate::selection::SelectionMask;
 use crate::transform::{
-    flip_horizontal, flip_vertical, rotate_180, rotate_90_ccw, rotate_90_cw, scale, Interpolation,
+    Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,
 };
 use std::any::Any;
 

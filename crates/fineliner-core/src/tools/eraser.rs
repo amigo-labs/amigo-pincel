@@ -5,7 +5,7 @@
 //! reduces the layer's alpha (respecting existing alpha); erasing to the
 //! background color composites that color over the pixels.
 
-use super::{src_over, Brush};
+use super::{Brush, src_over};
 use crate::color::Color;
 use crate::command::SetPixels;
 use crate::document::Document;
@@ -160,8 +160,10 @@ mod tests {
     #[test]
     fn erase_off_canvas_returns_none() {
         let doc = opaque_doc(10, 10);
-        assert!(eraser(4, 1.0, EraserMode::ToTransparent)
-            .stroke(0, &[Point::new(-50.0, -50.0)], &doc)
-            .is_none());
+        assert!(
+            eraser(4, 1.0, EraserMode::ToTransparent)
+                .stroke(0, &[Point::new(-50.0, -50.0)], &doc)
+                .is_none()
+        );
     }
 }

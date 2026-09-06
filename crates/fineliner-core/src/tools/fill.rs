@@ -122,11 +122,11 @@ impl Fill {
                     if mask[i] {
                         return;
                     }
-                    if let Some(c) = sample.get_pixel(nx, ny) {
-                        if c.within_tolerance(seed_color, tol) {
-                            mask[i] = true;
-                            stack.push((nx, ny));
-                        }
+                    if let Some(c) = sample.get_pixel(nx, ny)
+                        && c.within_tolerance(seed_color, tol)
+                    {
+                        mask[i] = true;
+                        stack.push((nx, ny));
                     }
                 };
                 if x > 0 {
@@ -145,10 +145,10 @@ impl Fill {
         } else {
             for y in 0..h {
                 for x in 0..w {
-                    if let Some(c) = sample.get_pixel(x, y) {
-                        if c.within_tolerance(seed_color, tol) {
-                            mask[idx(x, y)] = true;
-                        }
+                    if let Some(c) = sample.get_pixel(x, y)
+                        && c.within_tolerance(seed_color, tol)
+                    {
+                        mask[idx(x, y)] = true;
                     }
                 }
             }
@@ -306,12 +306,16 @@ mod tests {
     #[test]
     fn fill_seed_off_canvas_returns_none() {
         let doc = Document::new(4, 4).unwrap();
-        assert!(red_fill(FillOptions::default())
-            .fill(0, Point::new(-1.0, 0.0), &doc)
-            .is_none());
-        assert!(red_fill(FillOptions::default())
-            .fill(0, Point::new(4.0, 0.0), &doc)
-            .is_none());
+        assert!(
+            red_fill(FillOptions::default())
+                .fill(0, Point::new(-1.0, 0.0), &doc)
+                .is_none()
+        );
+        assert!(
+            red_fill(FillOptions::default())
+                .fill(0, Point::new(4.0, 0.0), &doc)
+                .is_none()
+        );
     }
 
     #[test]

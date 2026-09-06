@@ -112,10 +112,10 @@ impl UndoStack {
     /// dropping the oldest command.
     pub fn push(&mut self, cmd: Box<dyn Command>) {
         self.redo.clear();
-        if let Some(top) = self.undo.last_mut() {
-            if top.merge_with(cmd.as_ref()) {
-                return;
-            }
+        if let Some(top) = self.undo.last_mut()
+            && top.merge_with(cmd.as_ref())
+        {
+            return;
         }
         self.undo.push(cmd);
         if self.undo.len() > self.capacity {

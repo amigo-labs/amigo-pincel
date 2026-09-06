@@ -2,8 +2,8 @@
 //! formats, `decode(encode(x))` must reproduce the pixels exactly for
 //! arbitrary buffer contents and dimensions.
 
-use fineliner_core::codec::{decode, to_bmp_bytes, to_png_bytes};
 use fineliner_core::ImageBuffer;
+use fineliner_core::codec::{decode, to_bmp_bytes, to_png_bytes};
 use proptest::prelude::*;
 
 /// An arbitrary small buffer: 1–16 × 1–16 with arbitrary RGBA bytes.

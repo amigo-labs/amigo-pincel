@@ -62,11 +62,11 @@ pub fn magic_wand(
                 if visited[i] {
                     return;
                 }
-                if let Some(c) = buffer.get_pixel(nx, ny) {
-                    if c.within_tolerance(seed_color, tolerance) {
-                        visited[i] = true;
-                        stack.push((nx, ny));
-                    }
+                if let Some(c) = buffer.get_pixel(nx, ny)
+                    && c.within_tolerance(seed_color, tolerance)
+                {
+                    visited[i] = true;
+                    stack.push((nx, ny));
                 }
             };
             if x > 0 {
@@ -85,10 +85,10 @@ pub fn magic_wand(
     } else {
         for y in 0..h {
             for x in 0..w {
-                if let Some(c) = buffer.get_pixel(x, y) {
-                    if c.within_tolerance(seed_color, tolerance) {
-                        mask.set(x, y, 255);
-                    }
+                if let Some(c) = buffer.get_pixel(x, y)
+                    && c.within_tolerance(seed_color, tolerance)
+                {
+                    mask.set(x, y, 255);
                 }
             }
         }
@@ -169,15 +169,17 @@ mod tests {
     #[test]
     fn magic_wand_off_canvas_returns_none() {
         let doc = Document::new(4, 4).unwrap();
-        assert!(magic_wand(
-            &doc,
-            0,
-            Point::new(-1.0, 0.0),
-            0,
-            true,
-            SampleSource::CurrentLayer
-        )
-        .is_none());
+        assert!(
+            magic_wand(
+                &doc,
+                0,
+                Point::new(-1.0, 0.0),
+                0,
+                true,
+                SampleSource::CurrentLayer
+            )
+            .is_none()
+        );
     }
 
     #[test]

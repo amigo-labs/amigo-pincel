@@ -2,7 +2,7 @@
 //! and idempotent — running it twice on identical input yields identical output.
 
 use fineliner_core::color::BlendMode;
-use fineliner_core::{compose, Color, ImageBuffer, Layer};
+use fineliner_core::{Color, ImageBuffer, Layer, compose};
 use proptest::prelude::*;
 
 const MODES: [BlendMode; 12] = [
