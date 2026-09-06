@@ -159,4 +159,9 @@ pub enum CommandError {
     /// Compositing failed while building a merged / flattened cel.
     #[error("compose failed: {0}")]
     Render(String),
+
+    /// A region-based command (transform, reframe, scale) was given an
+    /// empty rect or zero target size.
+    #[error("the target region is empty")]
+    EmptyRegion,
 }

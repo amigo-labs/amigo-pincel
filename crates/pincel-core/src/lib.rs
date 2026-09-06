@@ -16,12 +16,13 @@ pub use codec::{
     ExportError, export_atlas_png, export_frame_png, read_aseprite, write_aseprite,
 };
 pub use command::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AnyCommand, Bus,
+    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand, Bus,
     ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
-    DuplicateLayer, FillRegion, FlattenImage, MergeDown, MoveDirection, MoveLayer,
-    MoveSelectionContent, PlaceTile, RemoveLayer, RemoveSlice, ReplaceCelPixels, SetFrameDuration,
-    SetLayerBlendMode, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel, SetSliceKey,
-    SetTilePixel,
+    DuplicateLayer, FillRegion, FlattenImage, Interpolation, MergeDown, MoveDirection, MoveLayer,
+    MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas, RemoveLayer, RemoveSlice,
+    ReplaceCelPixels, ScaleImage, SetFrameDuration, SetLayerBlendMode, SetLayerName,
+    SetLayerOpacity, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, TransformCanvas,
+    TransformCel,
 };
 
 pub use document::{

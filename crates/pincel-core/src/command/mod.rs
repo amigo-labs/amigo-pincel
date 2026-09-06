@@ -20,9 +20,11 @@ mod merge_down;
 mod move_layer;
 mod move_selection_content;
 mod place_tile;
+mod reframe_canvas;
 mod remove_layer;
 mod remove_slice;
 mod replace_cel_pixels;
+mod scale_image;
 mod set_frame_duration;
 mod set_layer_blend_mode;
 mod set_layer_name;
@@ -31,6 +33,9 @@ mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
 mod set_tile_pixel;
+mod transform_canvas;
+mod transform_cel;
+mod transform_support;
 
 pub use add_frame::AddFrame;
 pub use add_layer::AddLayer;
@@ -52,9 +57,11 @@ pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
+pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use replace_cel_pixels::ReplaceCelPixels;
+pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
 pub use set_layer_blend_mode::SetLayerBlendMode;
 pub use set_layer_name::SetLayerName;
@@ -63,6 +70,9 @@ pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
+pub use transform_canvas::TransformCanvas;
+pub use transform_cel::TransformCel;
+pub use transform_support::{Interpolation, Orientation};
 
 use crate::document::{CelMap, Sprite};
 
@@ -136,6 +146,10 @@ pub enum AnyCommand {
     SetLayerBlendMode(SetLayerBlendMode),
     MergeDown(MergeDown),
     FlattenImage(FlattenImage),
+    TransformCel(TransformCel),
+    TransformCanvas(TransformCanvas),
+    ReframeCanvas(ReframeCanvas),
+    ScaleImage(ScaleImage),
 }
 
 impl AnyCommand {
@@ -168,6 +182,10 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.apply(doc, cels),
             Self::SetSliceKey(c) => c.apply(doc, cels),
             Self::ReplaceCelPixels(c) => c.apply(doc, cels),
+            Self::ScaleImage(c) => c.apply(doc, cels),
+            Self::ReframeCanvas(c) => c.apply(doc, cels),
+            Self::TransformCanvas(c) => c.apply(doc, cels),
+            Self::TransformCel(c) => c.apply(doc, cels),
             Self::SetLayerOpacity(c) => c.apply(doc, cels),
             Self::SetLayerBlendMode(c) => c.apply(doc, cels),
             Self::MergeDown(c) => c.apply(doc, cels),
@@ -201,6 +219,10 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.revert(doc, cels),
             Self::SetSliceKey(c) => c.revert(doc, cels),
             Self::ReplaceCelPixels(c) => c.revert(doc, cels),
+            Self::ScaleImage(c) => c.revert(doc, cels),
+            Self::ReframeCanvas(c) => c.revert(doc, cels),
+            Self::TransformCanvas(c) => c.revert(doc, cels),
+            Self::TransformCel(c) => c.revert(doc, cels),
             Self::SetLayerOpacity(c) => c.revert(doc, cels),
             Self::SetLayerBlendMode(c) => c.revert(doc, cels),
             Self::MergeDown(c) => c.revert(doc, cels),
@@ -260,6 +282,10 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.dirty_region(),
             Self::SetSliceKey(c) => c.dirty_region(),
             Self::ReplaceCelPixels(c) => c.dirty_region(),
+            Self::ScaleImage(c) => c.dirty_region(),
+            Self::ReframeCanvas(c) => c.dirty_region(),
+            Self::TransformCanvas(c) => c.dirty_region(),
+            Self::TransformCel(c) => c.dirty_region(),
             Self::SetLayerOpacity(c) => c.dirty_region(),
             Self::SetLayerBlendMode(c) => c.dirty_region(),
             Self::MergeDown(c) => c.dirty_region(),
@@ -434,5 +460,29 @@ impl From<SetLayerBlendMode> for AnyCommand {
 impl From<SetLayerOpacity> for AnyCommand {
     fn from(c: SetLayerOpacity) -> Self {
         Self::SetLayerOpacity(c)
+    }
+}
+
+impl From<TransformCel> for AnyCommand {
+    fn from(c: TransformCel) -> Self {
+        Self::TransformCel(c)
+    }
+}
+
+impl From<TransformCanvas> for AnyCommand {
+    fn from(c: TransformCanvas) -> Self {
+        Self::TransformCanvas(c)
+    }
+}
+
+impl From<ReframeCanvas> for AnyCommand {
+    fn from(c: ReframeCanvas) -> Self {
+        Self::ReframeCanvas(c)
+    }
+}
+
+impl From<ScaleImage> for AnyCommand {
+    fn from(c: ScaleImage) -> Self {
+        Self::ScaleImage(c)
     }
 }
