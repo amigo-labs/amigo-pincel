@@ -2611,6 +2611,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pincel-effects"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "pincel-tauri"
 version = "0.1.0"
 dependencies = [

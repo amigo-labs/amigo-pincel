@@ -1,0 +1,14 @@
+[package]
+name = "pincel-effects"
+version = "0.1.0"
+description = "Stateless image effects and adjustments for Pincel (blur, sharpen, distort, noise, colour adjustments)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

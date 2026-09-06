@@ -74,7 +74,7 @@ git clone https://github.com/amigo-labs/amigo-pincel
 cd amigo-pincel
 
 # 1. Rust core — check the library crates build and pass tests
-cargo test -p pincel-core -p aseprite-writer -p pincel-wasm
+cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm
 
 # 2. Build the wasm package (creates crates/pincel-wasm/pkg/)
 cd ui
@@ -92,8 +92,8 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 | Command | Where | What |
 |---------|-------|------|
 | `cargo check` | repo root | build all Rust crates (needs GTK/WebKit libs for `pincel-tauri`) |
-| `cargo test -p pincel-core -p aseprite-writer -p pincel-wasm` | repo root | test the library crates (what CI runs) |
-| `cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
+| `cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm` | repo root | test the library crates (what CI runs) |
+| `cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
 | `cargo fmt` | repo root | format |
 | `pnpm wasm:build` | `ui/` | dev wasm build into `crates/pincel-wasm/pkg/` |
 | `pnpm dev` | `ui/` | Vite dev server |
