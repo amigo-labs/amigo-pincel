@@ -10,6 +10,9 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
+  import EffectDialog from './lib/components/EffectDialog.svelte';
+  import EffectsMenu from './lib/components/EffectsMenu.svelte';
+  import { effectById, type EffectDef } from './lib/effects/catalog';
   import {
     ensureReadPermission,
     hasFsAccess,
@@ -1404,6 +1407,67 @@
     }
   }
 
+  // Effects / adjustments (Fineliner parity). `effectOpen` renders the
+  // parameter dialog; the dialog drives `previewEffectParams` on every
+  // change and `applyEffectParams` on OK. Preview draws the would-be
+  // composite straight into the renderer without touching the wasm
+  // document; Cancel (or an empty params preview) recomposes the truth.
+  let effectOpen = $state<EffectDef | null>(null);
+
+  function openEffect(id: string) {
+    if (!doc) return;
+    const def = effectById(id);
+    if (!def) {
+      status = `unknown effect: ${id}`;
+      return;
+    }
+    effectOpen = def;
+  }
+
+  function previewEffectParams(params: number[]) {
+    if (!doc || !renderer || !effectOpen) return;
+    if (params.length === 0 && effectOpen.params.length > 0) {
+      recompose();
+      return;
+    }
+    try {
+      const frame = doc.previewEffect(effectOpen.id, Float64Array.from(params), 1);
+      try {
+        renderer.draw(frame);
+      } finally {
+        frame.free();
+      }
+      paintOverlays();
+    } catch (err) {
+      status = `preview failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function applyEffectParams(params: number[]) {
+    if (!doc || !effectOpen) return;
+    const def = effectOpen;
+    effectOpen = null;
+    try {
+      if (doc.applyEffect(def.id, Float64Array.from(params))) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+        status = `${def.label} applied`;
+      } else {
+        status = `${def.label}: selection is outside the layer, nothing changed`;
+        recompose();
+      }
+    } catch (err) {
+      status = `${def.label} failed: ${err instanceof Error ? err.message : String(err)}`;
+      recompose();
+    }
+  }
+
+  function cancelEffect() {
+    effectOpen = null;
+    recompose();
+  }
+
   function undo() {
     if (!doc) return;
     try {
@@ -2373,6 +2437,7 @@
     >
       Redo
     </button>
+    <EffectsMenu disabled={!doc || fileOpBusy || effectOpen !== null} onPick={openEffect} />
   </header>
 
   <section class="flex flex-1 overflow-hidden">
@@ -2596,6 +2661,18 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if effectOpen}
+  {#key effectOpen.id}
+    <EffectDialog
+      def={effectOpen}
+      hasSelection={selection !== null}
+      onPreview={previewEffectParams}
+      onApply={applyEffectParams}
+      onCancel={cancelEffect}
+    />
+  {/key}
 {/if}
 
 {#if newDocOpen}
