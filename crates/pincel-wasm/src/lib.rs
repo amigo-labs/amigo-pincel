@@ -377,10 +377,10 @@ impl Document {
             .map_err(|e| format!("failed to remove layer: {e}"))?;
         // Drop a now-dangling active-layer reference (covers both the
         // directly-removed layer and any child of a removed group).
-        if let Some(active) = self.active_layer {
-            if self.sprite.layer(active).is_none() {
-                self.active_layer = None;
-            }
+        if let Some(active) = self.active_layer
+            && self.sprite.layer(active).is_none()
+        {
+            self.active_layer = None;
         }
         self.events.push(Event::dirty_canvas());
         Ok(())
@@ -743,10 +743,8 @@ impl Document {
     /// follow-up).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
-        if undone {
-            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
-                self.events.push(ev);
-            }
+        if undone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
         }
         undone
     }
@@ -763,10 +761,8 @@ impl Document {
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
-        if redone {
-            if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
-                self.events.push(ev);
-            }
+        if redone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
+            self.events.push(ev);
         }
         Ok(redone)
     }
@@ -1129,13 +1125,13 @@ impl Document {
     /// layer (legacy behavior). Errors only when the document has no
     /// image layer at all.
     fn paint_target_layer(&self) -> Result<LayerId, String> {
-        if let Some(id) = self.active_layer {
-            if matches!(
+        if let Some(id) = self.active_layer
+            && matches!(
                 self.sprite.layer(id).map(|l| &l.kind),
                 Some(LayerKind::Image)
-            ) {
-                return Ok(id);
-            }
+            )
+        {
+            return Ok(id);
         }
         self.sprite
             .layers
