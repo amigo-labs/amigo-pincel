@@ -21,9 +21,11 @@
 
 mod effects;
 mod events;
+mod layer_ops;
 
 pub use effects::effect_names;
 pub use events::Event;
+pub use layer_ops::blend_mode_names;
 
 use events::EventQueue;
 use pincel_core::{
