@@ -20,6 +20,8 @@
     ensureReadPermission,
     hasFsAccess,
     pickAndOpen,
+    isPngBytes,
+    saveExport,
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
@@ -1403,15 +1405,20 @@
     }
     if (!opened) return;
     try {
-      const next = Document.openAseprite(opened.bytes);
+      // A PNG opens as a fresh single-layer sprite; its save target is a
+      // sibling .aseprite (never the PNG itself), so the first Save asks.
+      const png = isPngBytes(opened.bytes);
+      const next = png ? Document.openPng(opened.bytes) : Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
       resetDocViewState();
-      saveTarget = {
-        name: opened.name,
-        handle: opened.handle,
-        path: opened.path,
-      };
+      saveTarget = png
+        ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
+        : {
+            name: opened.name,
+            handle: opened.handle,
+            path: opened.path,
+          };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
@@ -1740,9 +1747,55 @@
           if (doc.cropToSelection()) afterImageCommand('cropped to selection');
           else status = 'crop: no selection inside the canvas';
           break;
+        case 'file:import_png':
+          void importPngLayer();
+          break;
+        case 'file:export_png':
+          void exportPng();
+          break;
       }
     } catch (err) {
       status = `image command failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // Import a PNG as a new layer on top of the current document.
+  async function importPngLayer() {
+    if (!doc || fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      const opened = await pickAndOpen();
+      if (!opened || !doc) return;
+      if (!isPngBytes(opened.bytes)) {
+        status = 'import: not a PNG file';
+        return;
+      }
+      const name = opened.name.replace(/\.png$/i, '');
+      const id = doc.importPngAsLayer(opened.bytes, name);
+      activeLayerId = id;
+      afterImageCommand(`imported ${opened.name} as a layer`);
+    } catch (err) {
+      status = `import failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  // Export the current frame's visible composite as a PNG (spec §7.3).
+  async function exportPng() {
+    if (!doc || fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      const bytes = new Uint8Array(doc.exportPng(currentFrame));
+      const base = saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
+      const suffix = frameCount > 1 ? `-${currentFrame + 1}` : '';
+      if (await saveExport(bytes, `${base}${suffix}.png`)) {
+        status = `exported PNG · ${bytes.length} bytes`;
+      }
+    } catch (err) {
+      status = `export failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      fileOpBusy = false;
     }
   }
 

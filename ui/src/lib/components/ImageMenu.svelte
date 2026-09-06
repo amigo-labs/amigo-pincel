@@ -15,7 +15,9 @@
     | 'canvas:rotate_180'
     | 'canvas:resize'
     | 'canvas:scale'
-    | 'canvas:crop';
+    | 'canvas:crop'
+    | 'file:import_png'
+    | 'file:export_png';
 
   let {
     disabled = false,
@@ -52,6 +54,13 @@
         { id: 'canvas:resize', label: 'Resize Canvas…' },
         { id: 'canvas:scale', label: 'Scale Image…' },
         { id: 'canvas:crop', label: 'Crop to Selection', needsSelection: true },
+      ],
+    },
+    {
+      title: 'Import / Export',
+      items: [
+        { id: 'file:import_png', label: 'Import PNG as Layer…' },
+        { id: 'file:export_png', label: 'Export Frame as PNG…' },
       ],
     },
   ];

@@ -61,6 +61,33 @@ const ASEPRITE_TYPES: FilePickerAcceptType[] = [
   },
 ];
 
+// Open accepts sprites and PNG images (Fineliner parity: a PNG opens as
+// a new single-layer document or imports as a layer; the caller sniffs
+// the bytes to route).
+const OPEN_TYPES: FilePickerAcceptType[] = [
+  ...ASEPRITE_TYPES,
+  { description: 'PNG image', accept: { 'image/png': ['.png'] } },
+];
+
+const PNG_TYPES: FilePickerAcceptType[] = [
+  { description: 'PNG image', accept: { 'image/png': ['.png'] } },
+];
+
+/** `true` when `bytes` start with the PNG signature. */
+export function isPngBytes(bytes: Uint8Array): boolean {
+  return (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  );
+}
+
 export interface OpenedFile {
   name: string;
   bytes: Uint8Array;
@@ -145,7 +172,7 @@ export async function pickAndOpen(): Promise<OpenedFile | null> {
   if (fs.showOpenFilePicker) {
     try {
       const handles = await fs.showOpenFilePicker({
-        types: ASEPRITE_TYPES,
+        types: OPEN_TYPES,
         multiple: false,
       });
       const handle = handles[0];
@@ -165,7 +192,11 @@ export async function pickAndOpen(): Promise<OpenedFile | null> {
 async function pickAndOpenTauri(): Promise<OpenedFile | null> {
   const picked = await openDialog({
     multiple: false,
-    filters: [{ name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] }],
+    filters: [
+      { name: 'Aseprite sprite or PNG', extensions: ['aseprite', 'ase', 'png'] },
+      { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
+      { name: 'PNG image', extensions: ['png'] },
+    ],
   });
   if (typeof picked !== 'string') return null;
   // The Tauri command returns `Vec<u8>` which Tauri 2 serializes as a
@@ -188,7 +219,7 @@ function openViaInput(): Promise<OpenedFile | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.aseprite,.ase';
+    input.accept = '.aseprite,.ase,.png';
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -363,4 +394,41 @@ function saveViaDownload(name: string, bytes: Uint8Array<ArrayBuffer>): void {
   // Defer the revoke: some browsers cancel the download if the blob
   // URL is revoked synchronously after `.click()`.
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * Write an exported file (e.g. a PNG) through a save picker / native
+ * dialog / download, always prompting for a location (exports never
+ * overwrite the document's own file). Returns `false` when the user
+ * cancelled.
+ */
+export async function saveExport(
+  bytes: Uint8Array<ArrayBuffer>,
+  suggestedName: string,
+): Promise<boolean> {
+  if (isTauri()) {
+    const picked = await saveDialog({
+      defaultPath: suggestedName,
+      filters: [{ name: 'PNG image', extensions: ['png'] }],
+    });
+    if (typeof picked !== 'string') return false;
+    await invoke('write_file_bytes', { path: picked, bytes: Array.from(bytes) });
+    return true;
+  }
+  const fs = fsAccess();
+  if (fs.showSaveFilePicker) {
+    try {
+      const handle = await fs.showSaveFilePicker({
+        suggestedName,
+        types: PNG_TYPES,
+      });
+      await writeHandle(handle, bytes);
+      return true;
+    } catch (err) {
+      if (isUserCancel(err)) return false;
+      throw err;
+    }
+  }
+  saveViaDownload(suggestedName, bytes);
+  return true;
 }
