@@ -492,7 +492,7 @@
       const dx = moveSelStart && moveSelPreview ? moveSelPreview.x - moveSelStart.x : 0;
       const dy = moveSelStart && moveSelPreview ? moveSelPreview.y - moveSelStart.y : 0;
       if (selectionMaskBytes) {
-        paintMaskMarquee(overlay, selectionMaskBytes, canvasW, canvasH, marchPhase, dx, dy);
+        paintMaskMarquee(overlay, selectionMaskBytes, canvasW, canvasH, marchPhase, dx, dy, selection);
       } else {
         paintSelectionMarquee(
           overlay,

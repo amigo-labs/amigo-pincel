@@ -501,7 +501,9 @@ function* bresenham(
  * pixel that borders an unselected one (or the canvas edge) gets a dot,
  * alternating white / black along a checkerboard so the ants crawl when
  * `phase` advances. `mask` is `w × h` coverage bytes in sprite space;
- * `dx` / `dy` shift the drawing (Move-tool ghost).
+ * `dx` / `dy` shift the drawing (Move-tool ghost). `bounds` (the
+ * selection's bounding box) limits the scan to the pixels that can be
+ * selected, so a small selection on a large canvas stays cheap.
  */
 export function paintMaskMarquee(
   canvas: HTMLCanvasElement,
@@ -511,14 +513,19 @@ export function paintMaskMarquee(
   phase: number,
   dx = 0,
   dy = 0,
+  bounds: { x: number; y: number; w: number; h: number } | null = null,
 ): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   const phaseN = ((phase % 4) + 4) % 4;
   const inside = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < w && y < h && (mask[y * w + x] ?? 0) !== 0;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
+  const x0 = Math.max(0, bounds ? bounds.x : 0);
+  const y0 = Math.max(0, bounds ? bounds.y : 0);
+  const x1 = Math.min(w, bounds ? bounds.x + bounds.w : w);
+  const y1 = Math.min(h, bounds ? bounds.y + bounds.h : h);
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
       if (!inside(x, y)) continue;
       if (inside(x - 1, y) && inside(x + 1, y) && inside(x, y - 1) && inside(x, y + 1)) continue;
       const px = x + dx;

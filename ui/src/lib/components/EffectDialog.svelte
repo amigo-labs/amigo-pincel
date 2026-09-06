@@ -113,7 +113,7 @@
               step={p.step}
               bind:value={values[p.key]}
               class="w-16 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
-              aria-label="{p.label} value"
+              aria-label={`${p.label} value`}
             />
           </span>
         </label>
@@ -130,8 +130,10 @@
         <label class="flex items-center justify-between gap-2 text-xs text-neutral-300">
           <span>{p.label}</span>
           <select
-            bind:value={values[p.key]}
+            value={values[p.key]}
+            onchange={(e) => (values[p.key] = Number(e.currentTarget.value))}
             class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+            aria-label={p.label}
           >
             {#each p.options as opt, i (opt)}
               <option value={i}>{opt}</option>

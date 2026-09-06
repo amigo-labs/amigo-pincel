@@ -37,7 +37,9 @@ impl DuplicateLayer {
     }
 }
 
-/// Smallest layer id not in use on `doc`.
+/// Next free layer id: one past the highest id in use (`0` for an empty
+/// stack). Ids are never recycled, matching the wasm `addLayer` scheme, so
+/// a redo after undoing an unrelated add cannot alias a live layer.
 pub(crate) fn next_layer_id(doc: &Sprite) -> Result<LayerId, CommandError> {
     match doc.layers.iter().map(|l| l.id.0).max() {
         None => Ok(LayerId::new(0)),
