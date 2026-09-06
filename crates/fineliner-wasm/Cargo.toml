@@ -1,0 +1,44 @@
+[package]
+name = "fineliner-wasm"
+version = "0.1.0"
+description = "WebAssembly bindings for Pincel's Image mode core (fineliner-core; wasm-bindgen / wasm-pack target)"
+# Imported from amigo-fineliner@01eef70 at edition 2021; the 2024 flip is a
+# separate commit.
+edition = "2021"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+fineliner-core = { workspace = true }
+pincel-effects = { workspace = true }
+# Enables uuid's JS getrandom backend so v4 UUIDs work under wasm32.
+uuid = { workspace = true, features = ["js"] }
+wasm-bindgen = { workspace = true }
+js-sys = "0.3"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+
+[dependencies.web-sys]
+version = "0.3"
+features = ["console"]
+
+[dev-dependencies]
+ts-rs = { version = "12", features = ["serde-compat", "no-serde-warnings"] }
+
+[lints]
+workspace = true
+
+# Same policy as pincel-wasm: wasm-pack's bundled binaryen download fails in
+# sandboxed builds, so CI runs a system `wasm-opt` after the build instead
+# (see .github/workflows/release.yml).
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

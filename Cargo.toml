@@ -2,6 +2,7 @@
 members = [
   "crates/aseprite-writer",
   "crates/fineliner-core",
+  "crates/fineliner-wasm",
   "crates/pincel-core",
   "crates/pincel-effects",
   "crates/pincel-wasm",
