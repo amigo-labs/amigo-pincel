@@ -2537,6 +2537,66 @@
         }
       }}
       onAddLayer={addLayer}
+      onSetOpacity={(layerId, opacity, commit) => {
+        if (!doc) return;
+        try {
+          doc.setLayerOpacity(layerId, opacity);
+          if (commit) doc.endStroke();
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `layer opacity failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onSetBlendMode={(layerId, mode) => {
+        if (!doc) return;
+        try {
+          doc.setLayerBlendMode(layerId, mode);
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `layer blend mode failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onDuplicate={(layerId) => {
+        if (!doc) return;
+        try {
+          const id = doc.duplicateLayer(layerId);
+          activeLayerId = id;
+          doc.setActiveLayer(id);
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `duplicate layer failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onMergeDown={(layerId) => {
+        if (!doc) return;
+        try {
+          doc.mergeDown(layerId);
+          activeLayerId = doc.paintTargetLayer();
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `merge down failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onFlatten={() => {
+        if (!doc) return;
+        try {
+          const id = doc.flattenImage();
+          activeLayerId = id;
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `flatten failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
       onRemoveLayer={(layerId) => {
         if (!doc) return;
         try {
