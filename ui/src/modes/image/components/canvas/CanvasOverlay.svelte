@@ -24,7 +24,7 @@
     const w = editor.width;
     const h = editor.height;
     const sel = (x: number, y: number): boolean =>
-      x >= 0 && y >= 0 && x < w && y < h && mask[y * w + x] >= 128;
+      x >= 0 && y >= 0 && x < w && y < h && (mask[y * w + x] ?? 0) >= 128;
     const path = new Path2D();
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
@@ -60,8 +60,11 @@
     }
     const pts = preview.points;
     const path = new Path2D();
+    const [a, b] = pts;
+    if (a === undefined || b === undefined) {
+      return null;
+    }
     if ((preview.shape === 'rect' || preview.shape === 'ellipse') && pts.length === 2) {
-      const [a, b] = pts;
       const x = Math.min(a[0], b[0]);
       const y = Math.min(a[1], b[1]);
       const w = Math.abs(b[0] - a[0]);
@@ -72,9 +75,9 @@
         path.ellipse(x + w / 2, y + hh / 2, w / 2, hh / 2, 0, 0, Math.PI * 2);
       }
     } else {
-      path.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) {
-        path.lineTo(pts[i][0], pts[i][1]);
+      path.moveTo(a[0], a[1]);
+      for (const p of pts.slice(1)) {
+        path.lineTo(p[0], p[1]);
       }
       if (preview.shape === 'lasso') {
         path.closePath();

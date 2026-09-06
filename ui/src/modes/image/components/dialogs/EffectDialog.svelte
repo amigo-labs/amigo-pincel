@@ -25,7 +25,11 @@
   function initial(f: Field): Value {
     const rec = base as unknown as Record<string, Value | Value[]>;
     const v = rec[f.key];
-    return f.index === undefined ? (v as Value) : (v as Value[])[f.index];
+    const value = f.index === undefined ? (v as Value) : (v as Value[])[f.index];
+    if (value === undefined) {
+      throw new Error(`effect ${def.label}: field ${fieldId(f)} missing from make()`);
+    }
+    return value;
   }
 
   // `base` carries the effect type plus any non-UI fields (e.g. radial centre).
@@ -41,6 +45,9 @@
     const cmd = structuredClone(base) as unknown as Record<string, Value | Value[]>;
     for (const f of def.fields) {
       const v = params[fieldId(f)];
+      if (v === undefined) {
+        continue; // every field is seeded by initial(); unreachable in practice
+      }
       if (f.index === undefined) {
         cmd[f.key] = v;
       } else {

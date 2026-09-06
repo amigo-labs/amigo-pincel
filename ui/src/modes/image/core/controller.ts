@@ -24,10 +24,11 @@ import { editor, tool } from '../stores/editor.svelte';
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
-  if (!m) {
+  const [, r, g, b] = m ?? [];
+  if (r === undefined || g === undefined || b === undefined) {
     return [0, 0, 0];
   }
-  return [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  return [parseInt(r, 16), parseInt(g, 16), parseInt(b, 16)];
 }
 
 /** Formats RGB bytes as a #RRGGBB string. */
@@ -563,10 +564,11 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
     return;
   }
   const rgba = core.pickColor(editor.handle, x, y, tool.eyedropperSample, tool.sampleSize);
-  if (rgba.length < 3) {
+  const [r, g, b] = rgba;
+  if (r === undefined || g === undefined || b === undefined) {
     return; // off-canvas
   }
-  const hex = rgbToHex(rgba[0], rgba[1], rgba[2]);
+  const hex = rgbToHex(r, g, b);
   if (toBackground) {
     tool.background = hex;
   } else {

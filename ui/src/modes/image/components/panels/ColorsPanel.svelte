@@ -14,9 +14,9 @@
   });
 
   function onHexInput(): void {
-    const m = /^#?([0-9a-f]{6})$/i.exec(hexText.trim());
-    if (m) {
-      tool.foreground = `#${m[1].toLowerCase()}`;
+    const hex = /^#?([0-9a-f]{6})$/i.exec(hexText.trim())?.[1];
+    if (hex !== undefined) {
+      tool.foreground = `#${hex.toLowerCase()}`;
     }
   }
 </script>

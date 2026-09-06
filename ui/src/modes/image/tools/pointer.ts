@@ -185,8 +185,8 @@ export function attachTools(
 
     if (tool.kind === 'polygon_lasso') {
       // Click near the first vertex closes the polygon.
-      if (polygonPoints.length >= 3) {
-        const first = polygonPoints[0];
+      const first = polygonPoints[0];
+      if (polygonPoints.length >= 3 && first !== undefined) {
         const near = Math.hypot(point[0] - first[0], point[1] - first[1]) < 8;
         if (near) {
           commitPolygon();

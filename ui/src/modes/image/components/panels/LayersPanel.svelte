@@ -37,7 +37,7 @@
   ];
 
   // Display order is top-to-bottom, i.e. the reverse of core storage order.
-  const displayIndices = $derived(editor.layers.map((_, i) => editor.layers.length - 1 - i));
+  const displayLayers = $derived(editor.layers.map((layer, i) => ({ layer, i })).reverse());
 
   let editingIndex = $state<number | null>(null);
   let editingName = $state('');
@@ -76,8 +76,7 @@
 
   <!-- Layer list, top-to-bottom display order. -->
   <ul class="min-h-0 flex-1 overflow-auto px-2 py-2">
-    {#each displayIndices as i (editor.layers[i].id)}
-      {@const layer = editor.layers[i]}
+    {#each displayLayers as { layer, i } (layer.id)}
       <li
         class="mb-1 rounded border p-1.5"
         class:border-[var(--fl-accent)]={i === editor.activeLayer}
