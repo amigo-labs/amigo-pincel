@@ -21,6 +21,7 @@
 
 mod effects;
 mod events;
+mod import;
 mod layer_ops;
 mod selection_ops;
 mod shapes;
