@@ -69,6 +69,8 @@
     | 'rectangle-fill'
     | 'ellipse'
     | 'ellipse-fill'
+    | 'rounded-rect'
+    | 'polygon-shape'
     | 'selection-rect'
     | 'selection-ellipse'
     | 'selection-lasso'
@@ -94,6 +96,8 @@
       t === 'rectangle-fill' ||
       t === 'ellipse' ||
       t === 'ellipse-fill' ||
+      t === 'rounded-rect' ||
+      t === 'polygon-shape' ||
       t === 'selection-rect' ||
       t === 'selection-ellipse' ||
       t === 'slice'
@@ -147,6 +151,18 @@
   // Foreground alpha (0–255). The native <input type="color"> has no
   // alpha channel, so it's a separate slider; packColor folds it in.
   let alpha = $state(255);
+  // Shape tool options (Fineliner parity): stroke width, paint mode,
+  // fill colour (the main colour is the stroke), corner radius for the
+  // rounded rectangle and side count for the polygon.
+  type ShapeMode = 'outline' | 'fill' | 'fill_outline';
+  let strokeWidth = $state(1);
+  let shapeMode = $state<ShapeMode>('outline');
+  let fillColor = $state('#ffffff');
+  let cornerRadius = $state(4);
+  let polygonSides = $state(6);
+  function isShapeTool(t: Tool): boolean {
+    return t === 'rectangle' || t === 'ellipse' || t === 'rounded-rect' || t === 'polygon-shape';
+  }
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
@@ -444,6 +460,8 @@
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
       } else if (dragTool === 'ellipse-fill') {
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'rounded-rect' || dragTool === 'polygon-shape') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
       } else if (dragTool === 'selection-ellipse') {
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, '#ffffff', false);
       } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
@@ -637,7 +655,9 @@
       (dragTool === 'rectangle' ||
         dragTool === 'rectangle-fill' ||
         dragTool === 'ellipse' ||
-        dragTool === 'ellipse-fill')
+        dragTool === 'ellipse-fill' ||
+        dragTool === 'rounded-rect' ||
+        dragTool === 'polygon-shape')
     ) {
       const dx = dragPreview.x - dragStart.x;
       const dy = dragPreview.y - dragStart.y;
@@ -1196,12 +1216,30 @@
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
-        } else if (dragTool === 'rectangle') {
-          doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, false);
+        } else if (isShapeTool(dragTool)) {
+          const kind =
+            dragTool === 'rectangle'
+              ? 'rectangle'
+              : dragTool === 'ellipse'
+                ? 'ellipse'
+                : dragTool === 'rounded-rect'
+                  ? 'rounded_rectangle'
+                  : 'polygon';
+          const param = dragTool === 'rounded-rect' ? cornerRadius : polygonSides;
+          doc.applyShape(
+            kind,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            shapeMode,
+            Math.max(1, Math.round(strokeWidth)),
+            packed,
+            packColor(fillColor, alpha),
+            param,
+          );
         } else if (dragTool === 'rectangle-fill') {
           doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, true);
-        } else if (dragTool === 'ellipse') {
-          doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, false);
         } else if (dragTool === 'ellipse-fill') {
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
         } else if (dragTool === 'selection-rect') {
@@ -1955,7 +1993,7 @@
     i: ['eyedropper'],
     g: ['bucket'],
     l: ['line'],
-    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
+    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill', 'rounded-rect', 'polygon-shape'],
     m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
     w: ['selection-wand'],
     v: ['move'],
@@ -2619,6 +2657,24 @@
       </button>
       <button
         class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'rounded-rect'}
+        aria-pressed={tool === 'rounded-rect'}
+        title="Rounded Rectangle (U)"
+        onclick={() => (tool = 'rounded-rect')}
+      >
+        Round Rect
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'polygon-shape'}
+        aria-pressed={tool === 'polygon-shape'}
+        title="Polygon shape (U)"
+        onclick={() => (tool = 'polygon-shape')}
+      >
+        N-gon
+      </button>
+      <button
+        class="toolbar-btn"
         class:toolbar-btn-active={tool === 'selection-rect'}
         aria-pressed={tool === 'selection-rect'}
         title="Selection (M)"
@@ -2789,6 +2845,67 @@
           <option value="layer">Layer</option>
           <option value="composite">Composite</option>
         </select>
+      </span>
+    {/if}
+    {#if isShapeTool(tool)}
+      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Shape options">
+        <label class="flex items-center gap-1">
+          <span>Stroke</span>
+          <input
+            type="number"
+            min="1"
+            max="64"
+            bind:value={strokeWidth}
+            class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            aria-label="Stroke width"
+          />
+        </label>
+        <select
+          bind:value={shapeMode}
+          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          aria-label="Shape mode"
+        >
+          <option value="outline">Outline</option>
+          <option value="fill">Fill</option>
+          <option value="fill_outline">Fill + Outline</option>
+        </select>
+        {#if shapeMode !== 'outline'}
+          <label class="flex items-center gap-1">
+            <span>Fill</span>
+            <input
+              type="color"
+              bind:value={fillColor}
+              class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+              aria-label="Fill color"
+            />
+          </label>
+        {/if}
+        {#if tool === 'rounded-rect'}
+          <label class="flex items-center gap-1">
+            <span>Radius</span>
+            <input
+              type="number"
+              min="0"
+              max="256"
+              bind:value={cornerRadius}
+              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              aria-label="Corner radius"
+            />
+          </label>
+        {/if}
+        {#if tool === 'polygon-shape'}
+          <label class="flex items-center gap-1">
+            <span>Sides</span>
+            <input
+              type="number"
+              min="3"
+              max="64"
+              bind:value={polygonSides}
+              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              aria-label="Polygon sides"
+            />
+          </label>
+        {/if}
       </span>
     {/if}
   </header>
