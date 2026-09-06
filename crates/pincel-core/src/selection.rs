@@ -118,6 +118,71 @@ impl SelectionMask {
         m
     }
 
+    /// Filled rectangle with corners rounded by `radius` pixels (clamped to
+    /// half the shorter side), pixel-centre test.
+    pub fn rounded_rect(width: u32, height: u32, rect: Rect, radius: f64) -> Self {
+        let mut m = Self::empty(width, height);
+        if rect.is_empty() {
+            return m;
+        }
+        let r = radius
+            .max(0.0)
+            .min(f64::from(rect.width.min(rect.height)) / 2.0);
+        let x0 = f64::from(rect.x);
+        let y0 = f64::from(rect.y);
+        let x1 = x0 + f64::from(rect.width);
+        let y1 = y0 + f64::from(rect.height);
+        let clip = rect.intersect(Rect::new(0, 0, width, height));
+        for y in 0..clip.height {
+            for x in 0..clip.width {
+                let px = clip.x as u32 + x;
+                let py = clip.y as u32 + y;
+                let cx = f64::from(px) + 0.5;
+                let cy = f64::from(py) + 0.5;
+                // Distance to the inner (corner-centre) box; inside when
+                // within `r` of it.
+                let dx = (x0 + r - cx).max(cx - (x1 - r)).max(0.0);
+                let dy = (y0 + r - cy).max(cy - (y1 - r)).max(0.0);
+                if dx * dx + dy * dy <= r * r {
+                    m.set(px, py, true);
+                }
+            }
+        }
+        m
+    }
+
+    /// Regular `sides`-gon inscribed in `rect`, first vertex pointing up
+    /// (rotated by `rotation_deg` clockwise). Fewer than three sides
+    /// selects nothing.
+    pub fn regular_polygon(
+        width: u32,
+        height: u32,
+        rect: Rect,
+        sides: u32,
+        rotation_deg: f64,
+    ) -> Self {
+        if sides < 3 || rect.is_empty() {
+            return Self::empty(width, height);
+        }
+        let rx = f64::from(rect.width) / 2.0;
+        let ry = f64::from(rect.height) / 2.0;
+        let cx = f64::from(rect.x) + rx;
+        let cy = f64::from(rect.y) + ry;
+        let points: Vec<(i32, i32)> = (0..sides)
+            .map(|i| {
+                let a = -std::f64::consts::FRAC_PI_2
+                    + rotation_deg.to_radians()
+                    + f64::from(i) * std::f64::consts::TAU / f64::from(sides);
+                // Map to pixel indices; the polygon rasteriser tests pixel
+                // centres, so vertices sit on centres too.
+                let vx = cx + (rx - 0.5) * a.cos();
+                let vy = cy + (ry - 0.5) * a.sin();
+                ((vx - 0.5).round() as i32, (vy - 0.5).round() as i32)
+            })
+            .collect();
+        Self::polygon(width, height, &points)
+    }
+
     /// Filled polygon through `points` (sprite space, implicitly closed),
     /// even-odd rule on pixel centres. Fewer than three points selects
     /// nothing.
@@ -499,6 +564,22 @@ mod tests {
         assert!(!m.contains(2, 2));
         let t = SelectionMask::rect(3, 1, Rect::new(0, 0, 2, 1)).translated(2, 0);
         assert_eq!(selected(&t), vec![(2, 0)]);
+    }
+
+    #[test]
+    fn rounded_rect_and_regular_polygon() {
+        let rr = SelectionMask::rounded_rect(6, 6, Rect::new(0, 0, 6, 6), 2.0);
+        assert!(!rr.contains(0, 0), "corner rounded off");
+        assert!(rr.contains(1, 1));
+        assert!(rr.contains(3, 0));
+        assert_eq!(rr.bounds(), Some(Rect::new(0, 0, 6, 6)));
+        let square = SelectionMask::rounded_rect(4, 4, Rect::new(0, 0, 4, 4), 0.0);
+        assert!(square.is_rect());
+        let tri = SelectionMask::regular_polygon(9, 9, Rect::new(0, 0, 9, 9), 3, 0.0);
+        assert!(tri.contains(4, 0), "apex at the top centre");
+        assert!(!tri.contains(0, 0));
+        assert!(tri.contains(4, 4));
+        assert!(SelectionMask::regular_polygon(4, 4, Rect::new(0, 0, 4, 4), 2, 0.0).is_empty());
     }
 
     #[test]

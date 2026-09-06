@@ -12,6 +12,7 @@ mod dirty;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
+mod draw_shape;
 mod duplicate_layer;
 mod error;
 mod fill_region;
@@ -49,6 +50,7 @@ pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
+pub use draw_shape::{DrawShape, ShapeKind, ShapeMode, ShapeStyle};
 pub use duplicate_layer::DuplicateLayer;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
@@ -150,6 +152,7 @@ pub enum AnyCommand {
     TransformCanvas(TransformCanvas),
     ReframeCanvas(ReframeCanvas),
     ScaleImage(ScaleImage),
+    DrawShape(DrawShape),
 }
 
 impl AnyCommand {
@@ -182,6 +185,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.apply(doc, cels),
             Self::SetSliceKey(c) => c.apply(doc, cels),
             Self::ReplaceCelPixels(c) => c.apply(doc, cels),
+            Self::DrawShape(c) => c.apply(doc, cels),
             Self::ScaleImage(c) => c.apply(doc, cels),
             Self::ReframeCanvas(c) => c.apply(doc, cels),
             Self::TransformCanvas(c) => c.apply(doc, cels),
@@ -219,6 +223,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.revert(doc, cels),
             Self::SetSliceKey(c) => c.revert(doc, cels),
             Self::ReplaceCelPixels(c) => c.revert(doc, cels),
+            Self::DrawShape(c) => c.revert(doc, cels),
             Self::ScaleImage(c) => c.revert(doc, cels),
             Self::ReframeCanvas(c) => c.revert(doc, cels),
             Self::TransformCanvas(c) => c.revert(doc, cels),
@@ -282,6 +287,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.dirty_region(),
             Self::SetSliceKey(c) => c.dirty_region(),
             Self::ReplaceCelPixels(c) => c.dirty_region(),
+            Self::DrawShape(c) => c.dirty_region(),
             Self::ScaleImage(c) => c.dirty_region(),
             Self::ReframeCanvas(c) => c.dirty_region(),
             Self::TransformCanvas(c) => c.dirty_region(),
@@ -484,5 +490,11 @@ impl From<ReframeCanvas> for AnyCommand {
 impl From<ScaleImage> for AnyCommand {
     fn from(c: ScaleImage) -> Self {
         Self::ScaleImage(c)
+    }
+}
+
+impl From<DrawShape> for AnyCommand {
+    fn from(c: DrawShape) -> Self {
+        Self::DrawShape(c)
     }
 }
