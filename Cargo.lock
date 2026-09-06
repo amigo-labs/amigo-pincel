@@ -2635,6 +2635,7 @@ name = "pincel-wasm"
 version = "0.1.0"
 dependencies = [
  "pincel-core",
+ "pincel-effects",
  "wasm-bindgen",
 ]
 

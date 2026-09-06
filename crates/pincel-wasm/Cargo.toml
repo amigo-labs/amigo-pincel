@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pincel-core = { workspace = true }
+pincel-effects = { workspace = true }
 wasm-bindgen = { workspace = true }
 
 [lints]

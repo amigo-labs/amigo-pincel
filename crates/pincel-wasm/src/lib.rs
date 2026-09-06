@@ -19,8 +19,10 @@
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod effects;
 mod events;
 
+pub use effects::effect_names;
 pub use events::Event;
 
 use events::EventQueue;
