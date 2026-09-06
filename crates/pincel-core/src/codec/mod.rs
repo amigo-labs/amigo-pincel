@@ -17,6 +17,6 @@ pub use aseprite_read::{AsepriteReadOutput, read_aseprite};
 pub use aseprite_write::write_aseprite;
 pub use error::CodecError;
 pub use png::{
-    AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, ExportError, export_atlas_png,
-    export_frame_png,
+    AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, ExportError, ImportError, ImportedImage,
+    export_atlas_png, export_frame_png, import_png,
 };
