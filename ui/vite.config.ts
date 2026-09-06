@@ -56,7 +56,7 @@ export default defineConfig({
         // emits into `assets/`. The wasm bundle is the heaviest
         // single asset; precaching it is the difference between
         // "offline reload works" and "white screen".
-        globPatterns: ['**/*.{js,css,html,wasm,svg,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,wasm,svg,webmanifest,ttf}'],
         // Workbox refuses to precache files over 2 MiB by default. The
         // unoptimized dev-profile wasm (CI builds it via `pnpm
         // wasm:build --dev`; wasm-opt is disabled there) sits just

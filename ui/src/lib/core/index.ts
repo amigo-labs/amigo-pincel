@@ -10,6 +10,7 @@ import init, {
   Document,
   blendModeNames,
   effectNames,
+  registerFont,
   type ComposeFrame,
   type Event as PincelEvent,
 } from 'pincel-wasm';
@@ -21,7 +22,7 @@ import init, {
 import wasmUrl from 'pincel-wasm/pincel_wasm_bg.wasm?url';
 
 export type { ComposeFrame, PincelEvent };
-export { Document, blendModeNames, effectNames };
+export { Document, blendModeNames, effectNames, registerFont };
 
 let initPromise: Promise<void> | null = null;
 

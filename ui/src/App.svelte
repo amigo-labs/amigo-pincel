@@ -14,6 +14,8 @@
   import EffectsMenu from './lib/components/EffectsMenu.svelte';
   import ImageMenu, { type ImageAction } from './lib/components/ImageMenu.svelte';
   import SelectMenu, { type SelectAction } from './lib/components/SelectMenu.svelte';
+  import TextDialog, { type TextParams } from './lib/components/TextDialog.svelte';
+  import { loadDefaultFont } from './lib/text/font';
   import ResizeDialog, { type ResizeMode, type ResizeResult } from './lib/components/ResizeDialog.svelte';
   import { effectById, type EffectDef } from './lib/effects/catalog';
   import {
@@ -78,6 +80,7 @@
     | 'selection-lasso'
     | 'selection-polygon'
     | 'selection-wand'
+    | 'text'
     | 'move'
     | 'tilemap-stamp'
     | 'slice';
@@ -899,6 +902,11 @@
     }
     if (tool === 'selection-wand') {
       commitWand(e);
+      return;
+    }
+    if (tool === 'text') {
+      const point = spriteCoord(e);
+      if (point && !textAnchor) void openTextAt(point);
       return;
     }
     if (isDragShapeTool(tool)) {
@@ -1815,6 +1823,90 @@
     }
   }
 
+  // Text tool (Fineliner parity): a click anchors the dialog; the dialog
+  // previews through previewText and commits with drawText. The font is
+  // fetched and registered on first use.
+  let textAnchor = $state<{ x: number; y: number } | null>(null);
+  let textFontId: number | null = null;
+
+  async function openTextAt(point: { x: number; y: number }) {
+    if (!doc) return;
+    try {
+      textFontId = await loadDefaultFont();
+      textAnchor = point;
+    } catch (err) {
+      status = `text font failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function previewTextParams(p: TextParams) {
+    if (!doc || !renderer || !textAnchor || textFontId === null) return;
+    if (p.text.length === 0) {
+      recompose();
+      return;
+    }
+    try {
+      const frame = doc.previewText(
+        textFontId,
+        p.text,
+        textAnchor.x,
+        textAnchor.y,
+        p.size,
+        packColor(color, alpha),
+        p.bold,
+        p.italic,
+        p.antiAlias,
+        p.align,
+        1,
+      );
+      try {
+        renderer.draw(frame);
+      } finally {
+        frame.free();
+      }
+      paintOverlays();
+    } catch (err) {
+      status = `text preview failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function applyTextParams(p: TextParams) {
+    if (!doc || !textAnchor || textFontId === null) return;
+    const anchor = textAnchor;
+    textAnchor = null;
+    try {
+      const placed = doc.drawText(
+        textFontId,
+        p.text,
+        anchor.x,
+        anchor.y,
+        p.size,
+        packColor(color, alpha),
+        p.bold,
+        p.italic,
+        p.antiAlias,
+        p.align,
+      );
+      if (placed) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+        status = 'text placed';
+      } else {
+        status = 'text: nothing landed on the canvas';
+        recompose();
+      }
+    } catch (err) {
+      status = `text failed: ${err instanceof Error ? err.message : String(err)}`;
+      recompose();
+    }
+  }
+
+  function cancelText() {
+    textAnchor = null;
+    recompose();
+  }
+
   function undo() {
     if (!doc) return;
     try {
@@ -2049,6 +2141,7 @@
     u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill', 'rounded-rect', 'polygon-shape'],
     m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
     w: ['selection-wand'],
+    t: ['text'],
     v: ['move'],
   };
 
@@ -2773,6 +2866,15 @@
       </button>
       <button
         class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'text'}
+        aria-pressed={tool === 'text'}
+        title="Text (T) — click to place"
+        onclick={() => (tool = 'text')}
+      >
+        Text
+      </button>
+      <button
+        class="toolbar-btn"
         class:toolbar-btn-active={tool === 'move'}
         aria-pressed={tool === 'move'}
         title="Move (V)"
@@ -3257,6 +3359,16 @@
       onCancel={() => (resizeOpen = null)}
     />
   {/key}
+{/if}
+
+{#if textAnchor}
+  <TextDialog
+    x={textAnchor.x}
+    y={textAnchor.y}
+    onPreview={previewTextParams}
+    onApply={applyTextParams}
+    onCancel={cancelText}
+  />
 {/if}
 
 {#if effectOpen}
