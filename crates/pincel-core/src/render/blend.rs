@@ -13,7 +13,7 @@ use crate::document::BlendMode;
 /// (Hue / Saturation / Color / Luminosity) render as Normal in Phase 1 —
 /// see the spec §15 Decision Log (2026-07-09). Everything else goes through
 /// the W3C separable-blend compositing formula.
-pub(super) fn blend_pixel_into(mode: BlendMode, dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
+pub(crate) fn blend_pixel_into(mode: BlendMode, dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
     match mode {
         BlendMode::Normal
         | BlendMode::Hue
@@ -190,7 +190,7 @@ fn blend_normal_into(dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
 }
 
 #[inline]
-pub(super) fn mul_u8(a: u8, b: u8) -> u8 {
+pub(crate) fn mul_u8(a: u8, b: u8) -> u8 {
     (((u16::from(a)) * (u16::from(b)) + 127) / 255) as u8
 }
 

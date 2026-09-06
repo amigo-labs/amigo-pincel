@@ -411,6 +411,97 @@ fn escape_json(value: &str) -> String {
     out
 }
 
+/// Errors raised by the PNG import path.
+#[derive(Debug, Error)]
+pub enum ImportError {
+    /// The bytes are not a PNG the decoder can read.
+    #[error("png decode failed: {0}")]
+    Decode(String),
+    /// The decoder produced a colour layout this importer does not handle.
+    #[error("unsupported png colour layout {0:?}")]
+    UnsupportedLayout(String),
+}
+
+/// A decoded raster image, straight-alpha RGBA8, row-major.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedImage {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// Decode a PNG byte stream into RGBA8 (spec §7.3 counterpart for import;
+/// Fineliner parity). Every PNG colour type and bit depth is normalised —
+/// palette, grayscale, 16-bit, and tRNS transparency all expand to 8-bit
+/// straight-alpha RGBA. Animated PNGs yield their first frame.
+///
+/// # Errors
+///
+/// [`ImportError::Decode`] for malformed or truncated input;
+/// [`ImportError::UnsupportedLayout`] if the decoder hands back a layout
+/// other than 8-bit gray / gray+alpha / RGB / RGBA (not expected after
+/// normalisation, kept as a guard rather than a panic).
+pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
+    let mut decoder = ::png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(::png::Transformations::normalize_to_color8());
+    let mut reader = decoder
+        .read_info()
+        .map_err(|e| ImportError::Decode(e.to_string()))?;
+    let size = reader
+        .output_buffer_size()
+        .ok_or_else(|| ImportError::Decode("image too large to buffer".to_owned()))?;
+    let mut buf = vec![0u8; size];
+    let info = reader
+        .next_frame(&mut buf)
+        .map_err(|e| ImportError::Decode(e.to_string()))?;
+    buf.truncate(info.buffer_size());
+    if info.bit_depth != ::png::BitDepth::Eight {
+        return Err(ImportError::UnsupportedLayout(format!(
+            "{:?} {:?}",
+            info.color_type, info.bit_depth
+        )));
+    }
+    let pixel_count = info.width as usize * info.height as usize;
+    let rgba = match info.color_type {
+        ::png::ColorType::Rgba => buf,
+        ::png::ColorType::Rgb => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for px in buf.chunks_exact(3) {
+                out.extend_from_slice(&[px[0], px[1], px[2], 255]);
+            }
+            out
+        }
+        ::png::ColorType::Grayscale => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for &g in &buf {
+                out.extend_from_slice(&[g, g, g, 255]);
+            }
+            out
+        }
+        ::png::ColorType::GrayscaleAlpha => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for px in buf.chunks_exact(2) {
+                out.extend_from_slice(&[px[0], px[0], px[0], px[1]]);
+            }
+            out
+        }
+        other => return Err(ImportError::UnsupportedLayout(format!("{other:?}"))),
+    };
+    if rgba.len() != pixel_count * 4 {
+        return Err(ImportError::Decode(format!(
+            "decoded {} bytes for {}x{} pixels",
+            rgba.len(),
+            info.width,
+            info.height
+        )));
+    }
+    Ok(ImportedImage {
+        width: info.width,
+        height: info.height,
+        rgba,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -916,5 +1007,91 @@ mod tests {
         let opts = AtlasOptions::new(3).with_tag("run");
         assert_eq!(opts.columns, 3);
         assert_eq!(opts.tag.as_deref(), Some("run"));
+    }
+
+    fn encode_with(
+        color: ::png::ColorType,
+        depth: ::png::BitDepth,
+        w: u32,
+        h: u32,
+        data: &[u8],
+    ) -> Vec<u8> {
+        let mut out = Vec::new();
+        {
+            let mut enc = ::png::Encoder::new(&mut out, w, h);
+            enc.set_color(color);
+            enc.set_depth(depth);
+            let mut writer = enc.write_header().expect("header");
+            writer.write_image_data(data).expect("data");
+        }
+        out
+    }
+
+    #[test]
+    fn import_png_round_trips_an_exported_frame() {
+        let (sprite, cels) = striped_sprite(2, 2, 1, Vec::new());
+        let bytes = export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect("export");
+        let img = import_png(&bytes).expect("import");
+        assert_eq!((img.width, img.height), (2, 2));
+        assert_eq!(img.rgba, composed_pixels(&sprite, &cels, 0));
+    }
+
+    #[test]
+    fn import_png_normalises_rgb_gray_and_palette_to_rgba() {
+        let rgb = encode_with(
+            ::png::ColorType::Rgb,
+            ::png::BitDepth::Eight,
+            2,
+            1,
+            &[1, 2, 3, 4, 5, 6],
+        );
+        assert_eq!(
+            import_png(&rgb).unwrap().rgba,
+            vec![1, 2, 3, 255, 4, 5, 6, 255]
+        );
+        let gray = encode_with(
+            ::png::ColorType::Grayscale,
+            ::png::BitDepth::Eight,
+            1,
+            1,
+            &[9],
+        );
+        assert_eq!(import_png(&gray).unwrap().rgba, vec![9, 9, 9, 255]);
+        let ga = encode_with(
+            ::png::ColorType::GrayscaleAlpha,
+            ::png::BitDepth::Eight,
+            1,
+            1,
+            &[7, 8],
+        );
+        assert_eq!(import_png(&ga).unwrap().rgba, vec![7, 7, 7, 8]);
+        let mut palette = Vec::new();
+        {
+            let mut enc = ::png::Encoder::new(&mut palette, 1, 1);
+            enc.set_color(::png::ColorType::Indexed);
+            enc.set_depth(::png::BitDepth::Eight);
+            enc.set_palette(vec![10, 20, 30]);
+            let mut writer = enc.write_header().expect("header");
+            writer.write_image_data(&[0]).expect("data");
+        }
+        assert_eq!(import_png(&palette).unwrap().rgba, vec![10, 20, 30, 255]);
+        let sixteen = encode_with(
+            ::png::ColorType::Rgba,
+            ::png::BitDepth::Sixteen,
+            1,
+            1,
+            &[255, 255, 0, 0, 0, 0, 128, 0],
+        );
+        let px = import_png(&sixteen).unwrap().rgba;
+        assert_eq!(px[0], 255);
+        assert_eq!(px[3], 128);
+    }
+
+    #[test]
+    fn import_png_rejects_garbage() {
+        assert!(matches!(
+            import_png(&[1, 2, 3]),
+            Err(ImportError::Decode(_))
+        ));
     }
 }

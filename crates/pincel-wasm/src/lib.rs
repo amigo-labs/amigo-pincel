@@ -19,9 +19,19 @@
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod effects;
 mod events;
+mod import;
+mod layer_ops;
+mod selection_ops;
+mod shapes;
+mod text;
+mod transforms;
 
+pub use effects::effect_names;
 pub use events::Event;
+pub use layer_ops::blend_mode_names;
+pub use text::register_font;
 
 use events::EventQueue;
 use pincel_core::{
@@ -844,7 +854,7 @@ impl Document {
         }
         let layer = self.paint_target_layer()?;
         let frame = self.current_frame;
-        let cmd = ClearRegion::new(layer, frame, sel);
+        let cmd = ClearRegion::new(layer, frame, sel).masked();
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to delete selection: {e}"))?;

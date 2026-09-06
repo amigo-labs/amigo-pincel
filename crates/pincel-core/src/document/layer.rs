@@ -39,6 +39,61 @@ pub enum BlendMode {
     Divide = 18,
 }
 
+impl BlendMode {
+    /// Every blend mode, in file-format order.
+    pub const ALL: [BlendMode; 19] = [
+        BlendMode::Normal,
+        BlendMode::Multiply,
+        BlendMode::Screen,
+        BlendMode::Overlay,
+        BlendMode::Darken,
+        BlendMode::Lighten,
+        BlendMode::ColorDodge,
+        BlendMode::ColorBurn,
+        BlendMode::HardLight,
+        BlendMode::SoftLight,
+        BlendMode::Difference,
+        BlendMode::Exclusion,
+        BlendMode::Hue,
+        BlendMode::Saturation,
+        BlendMode::Color,
+        BlendMode::Luminosity,
+        BlendMode::Addition,
+        BlendMode::Subtract,
+        BlendMode::Divide,
+    ];
+
+    /// Stable snake_case wire name (used across the wasm boundary).
+    pub const fn name(self) -> &'static str {
+        match self {
+            BlendMode::Normal => "normal",
+            BlendMode::Multiply => "multiply",
+            BlendMode::Screen => "screen",
+            BlendMode::Overlay => "overlay",
+            BlendMode::Darken => "darken",
+            BlendMode::Lighten => "lighten",
+            BlendMode::ColorDodge => "color_dodge",
+            BlendMode::ColorBurn => "color_burn",
+            BlendMode::HardLight => "hard_light",
+            BlendMode::SoftLight => "soft_light",
+            BlendMode::Difference => "difference",
+            BlendMode::Exclusion => "exclusion",
+            BlendMode::Hue => "hue",
+            BlendMode::Saturation => "saturation",
+            BlendMode::Color => "color",
+            BlendMode::Luminosity => "luminosity",
+            BlendMode::Addition => "addition",
+            BlendMode::Subtract => "subtract",
+            BlendMode::Divide => "divide",
+        }
+    }
+
+    /// Inverse of [`BlendMode::name`]; `None` for an unknown name.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|m| m.name() == name)
+    }
+}
+
 /// What kind of content a layer holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayerKind {
@@ -125,5 +180,13 @@ mod tests {
         assert_eq!(BlendMode::Normal as u16, 0);
         assert_eq!(BlendMode::Multiply as u16, 1);
         assert_eq!(BlendMode::Divide as u16, 18);
+    }
+
+    #[test]
+    fn blend_mode_names_round_trip() {
+        for m in BlendMode::ALL {
+            assert_eq!(BlendMode::from_name(m.name()), Some(m));
+        }
+        assert_eq!(BlendMode::from_name("nope"), None);
     }
 }

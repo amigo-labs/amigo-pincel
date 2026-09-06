@@ -349,7 +349,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -392,7 +392,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p aseprite-writer -p pincel-wasm && cd ui && pnpm lint && pnpm check && pnpm build
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm && cd ui && pnpm lint && pnpm check && pnpm build
 ```
 
 If any step fails, do not commit.
@@ -474,6 +474,7 @@ STATUS.md                     Current session state, next task
 .claude/skills/               Project-specific skill recipes
 
 crates/pincel-core/           Pure logic, no I/O, no platform
+crates/pincel-effects/        Stateless effects + adjustments (vendored from amigo-fineliner)
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer, cdylib
 

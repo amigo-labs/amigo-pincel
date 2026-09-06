@@ -10,10 +10,20 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
+  import EffectDialog from './lib/components/EffectDialog.svelte';
+  import EffectsMenu from './lib/components/EffectsMenu.svelte';
+  import ImageMenu, { type ImageAction } from './lib/components/ImageMenu.svelte';
+  import SelectMenu, { type SelectAction } from './lib/components/SelectMenu.svelte';
+  import TextDialog, { type TextParams } from './lib/components/TextDialog.svelte';
+  import { loadDefaultFont } from './lib/text/font';
+  import ResizeDialog, { type ResizeMode, type ResizeResult } from './lib/components/ResizeDialog.svelte';
+  import { effectById, type EffectDef } from './lib/effects/catalog';
   import {
     ensureReadPermission,
     hasFsAccess,
     pickAndOpen,
+    isPngBytes,
+    saveExport,
     saveBytes,
     type SaveTarget,
   } from './lib/fs';
@@ -39,6 +49,8 @@
     paintPivotCrosshair,
     paintRectOutline,
     paintRectanglePreview,
+    paintMaskMarquee,
+    paintPolylinePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
   import { Canvas2DRenderer } from './lib/render/canvas2d-renderer';
@@ -61,7 +73,14 @@
     | 'rectangle-fill'
     | 'ellipse'
     | 'ellipse-fill'
+    | 'rounded-rect'
+    | 'polygon-shape'
     | 'selection-rect'
+    | 'selection-ellipse'
+    | 'selection-lasso'
+    | 'selection-polygon'
+    | 'selection-wand'
+    | 'text'
     | 'move'
     | 'tilemap-stamp'
     | 'slice';
@@ -82,7 +101,10 @@
       t === 'rectangle-fill' ||
       t === 'ellipse' ||
       t === 'ellipse-fill' ||
+      t === 'rounded-rect' ||
+      t === 'polygon-shape' ||
       t === 'selection-rect' ||
+      t === 'selection-ellipse' ||
       t === 'slice'
     );
   }
@@ -134,6 +156,18 @@
   // Foreground alpha (0–255). The native <input type="color"> has no
   // alpha channel, so it's a separate slider; packColor folds it in.
   let alpha = $state(255);
+  // Shape tool options (Fineliner parity): stroke width, paint mode,
+  // fill colour (the main colour is the stroke), corner radius for the
+  // rounded rectangle and side count for the polygon.
+  type ShapeMode = 'outline' | 'fill' | 'fill_outline';
+  let strokeWidth = $state(1);
+  let shapeMode = $state<ShapeMode>('outline');
+  let fillColor = $state('#ffffff');
+  let cornerRadius = $state(4);
+  let polygonSides = $state(6);
+  function isShapeTool(t: Tool): boolean {
+    return t === 'rectangle' || t === 'ellipse' || t === 'rounded-rect' || t === 'polygon-shape';
+  }
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
@@ -258,6 +292,31 @@
   let dragStart: { x: number; y: number } | null = null;
   let dragPreview: { x: number; y: number } | null = null;
   let dragTool: Tool | null = null;
+  // Selection-combination mode captured on pointerdown for the marquee
+  // gestures (Shift = add, Alt = subtract, Shift+Alt = intersect).
+  let dragSelMode: SelectionMode = 'replace';
+  type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';
+  // Freehand lasso in flight: sprite points collected while the button
+  // is down; committed as a polygon on release.
+  let lassoPoints: { x: number; y: number }[] | null = null;
+  // Polygonal lasso: click places a vertex, double-click / Enter closes,
+  // Escape cancels. `polyHover` is the floating edge to the cursor.
+  let polyPoints = $state<{ x: number; y: number }[] | null>(null);
+  let polyHover: { x: number; y: number } | null = null;
+  // Magic-wand options (toolbar row when the wand is active).
+  let wandTolerance = $state(0);
+  let wandContiguous = $state(true);
+  let wandSample = $state<'layer' | 'composite'>('layer');
+  // Coverage bytes of a shaped (non-rect) selection for the overlay;
+  // `null` while the selection is a plain rect or absent.
+  let selectionMaskBytes: Uint8Array | null = null;
+
+  function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
+    if (e.shiftKey && e.altKey) return 'intersect';
+    if (e.shiftKey) return 'add';
+    if (e.altKey) return 'subtract';
+    return 'replace';
+  }
   // Whether Shift was held during the most recent pointer event in an
   // in-flight Rectangle drag. The Rust command takes raw corners — the
   // square constraint is purely a UI affordance applied to the live
@@ -360,6 +419,7 @@
   function syncSelection() {
     if (!doc || !doc.hasSelection) {
       selection = null;
+      selectionMaskBytes = null;
       return;
     }
     selection = {
@@ -368,6 +428,7 @@
       w: doc.selectionWidth,
       h: doc.selectionHeight,
     };
+    selectionMaskBytes = doc.selectionIsRect ? null : doc.selectionMask();
   }
 
   function recompose() {
@@ -404,6 +465,10 @@
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
       } else if (dragTool === 'ellipse-fill') {
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'rounded-rect' || dragTool === 'polygon-shape') {
+        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
+      } else if (dragTool === 'selection-ellipse') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, '#ffffff', false);
       } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
         // Inclusive-corner marquee preview: matches the rect that
         // `commitSelection` / `commitSliceDrag` will hand to the wasm
@@ -415,13 +480,20 @@
         const maxY = Math.max(dragStart.y, end.y);
         paintSelectionMarquee(overlay, minX, minY, maxX - minX + 1, maxY - minY + 1, marchPhase);
       }
+    } else if (lassoPoints || polyPoints) {
+      // Lasso / polygon in progress: outline so far plus the floating
+      // edge to the cursor (polygon) — closed back to the start.
+      paintPolylinePreview(overlay, lassoPoints ?? polyPoints ?? [], polyPoints ? polyHover : null, true);
     } else if (selection) {
       // No marquee drag in flight. A live Move-tool selection drag paints
       // a ghost marquee at the translated position (the pixels snap into
-      // place on release); otherwise paint the committed marquee.
-      if (moveSelStart && moveSelPreview) {
-        const dx = moveSelPreview.x - moveSelStart.x;
-        const dy = moveSelPreview.y - moveSelStart.y;
+      // place on release); otherwise paint the committed marquee. Shaped
+      // selections trace the mask edge instead of the bounding rect.
+      const dx = moveSelStart && moveSelPreview ? moveSelPreview.x - moveSelStart.x : 0;
+      const dy = moveSelStart && moveSelPreview ? moveSelPreview.y - moveSelStart.y : 0;
+      if (selectionMaskBytes) {
+        paintMaskMarquee(overlay, selectionMaskBytes, canvasW, canvasH, marchPhase, dx, dy, selection);
+      } else {
         paintSelectionMarquee(
           overlay,
           selection.x + dx,
@@ -430,8 +502,6 @@
           selection.h,
           marchPhase,
         );
-      } else {
-        paintSelectionMarquee(overlay, selection.x, selection.y, selection.w, selection.h, marchPhase);
       }
     }
     // Tilemap Stamp tool: tile grid + hovered cell, drawn after the
@@ -590,7 +660,9 @@
       (dragTool === 'rectangle' ||
         dragTool === 'rectangle-fill' ||
         dragTool === 'ellipse' ||
-        dragTool === 'ellipse-fill')
+        dragTool === 'ellipse-fill' ||
+        dragTool === 'rounded-rect' ||
+        dragTool === 'polygon-shape')
     ) {
       const dx = dragPreview.x - dragStart.x;
       const dy = dragPreview.y - dragStart.y;
@@ -804,6 +876,39 @@
       panStartOffset = { x: panX, y: panY };
       return;
     }
+    if (tool === 'selection-lasso') {
+      const point = spriteCoord(e);
+      if (!point) return;
+      lassoPoints = [point];
+      dragSelMode = selectionModeFor(e);
+      dirty = true;
+      return;
+    }
+    if (tool === 'selection-polygon') {
+      const point = spriteCoord(e);
+      if (!point) return;
+      if (!polyPoints) {
+        polyPoints = [point];
+        dragSelMode = selectionModeFor(e);
+      } else if (e.detail >= 2) {
+        commitPolygon();
+        return;
+      } else {
+        polyPoints = [...polyPoints, point];
+      }
+      polyHover = point;
+      dirty = true;
+      return;
+    }
+    if (tool === 'selection-wand') {
+      commitWand(e);
+      return;
+    }
+    if (tool === 'text') {
+      const point = spriteCoord(e);
+      if (point && !textAnchor) void openTextAt(point);
+      return;
+    }
     if (isDragShapeTool(tool)) {
       const point = spriteCoord(e);
       if (!point) return;
@@ -811,6 +916,7 @@
       dragPreview = point;
       dragTool = tool;
       dragShift = e.shiftKey;
+      dragSelMode = selectionModeFor(e);
       dirty = true;
       return;
     }
@@ -915,7 +1021,7 @@
   // off-canvas extents from leaking visually.
   function commitSelection(x0: number, y0: number, x1: number, y1: number) {
     if (!doc) return;
-    if (x0 === x1 && y0 === y1) {
+    if (x0 === x1 && y0 === y1 && dragSelMode === 'replace') {
       doc.clearSelection();
       return;
     }
@@ -923,7 +1029,100 @@
     const minY = Math.min(y0, y1);
     const w = Math.abs(x1 - x0) + 1;
     const h = Math.abs(y1 - y0) + 1;
-    doc.setSelection(minX, minY, w, h);
+    doc.selectRect(minX, minY, w, h, dragSelMode);
+  }
+
+  // Ellipse marquee: same inclusive-corner gesture as the rect, combined
+  // per the modifier mode captured on pointerdown.
+  function commitEllipseSelection(x0: number, y0: number, x1: number, y1: number) {
+    if (!doc) return;
+    if (x0 === x1 && y0 === y1 && dragSelMode === 'replace') {
+      doc.clearSelection();
+      return;
+    }
+    const minX = Math.min(x0, x1);
+    const minY = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    doc.selectEllipse(minX, minY, w, h, dragSelMode);
+  }
+
+  // Lasso / polygon commit. Fewer than three vertices is a click: in
+  // replace mode that deselects (like the rect click), otherwise nothing.
+  function commitPolygonPoints(pts: { x: number; y: number }[], mode: SelectionMode) {
+    if (!doc) return;
+    try {
+      if (pts.length < 3) {
+        if (mode === 'replace') doc.clearSelection();
+        return;
+      }
+      const flat = new Int32Array(pts.length * 2);
+      pts.forEach((p, i) => {
+        flat[i * 2] = p.x;
+        flat[i * 2 + 1] = p.y;
+      });
+      doc.selectPolygon(flat, mode);
+    } catch (err) {
+      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function commitPolygon() {
+    const pts = polyPoints;
+    polyPoints = null;
+    polyHover = null;
+    if (pts) commitPolygonPoints(pts, dragSelMode);
+    dirty = true;
+  }
+
+  function cancelPolygon() {
+    polyPoints = null;
+    polyHover = null;
+    lassoPoints = null;
+    dirty = true;
+  }
+
+  function commitWand(e: PointerEvent) {
+    if (!doc) return;
+    const point = spriteCoord(e);
+    if (!point) return;
+    try {
+      doc.selectWand(
+        point.x,
+        point.y,
+        Math.max(0, Math.min(255, Math.round(wandTolerance))),
+        wandContiguous,
+        wandSample,
+        selectionModeFor(e),
+      );
+    } catch (err) {
+      status = `wand failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function selectAction(action: SelectAction) {
+    if (!doc) return;
+    try {
+      switch (action) {
+        case 'all':
+          selectAll();
+          break;
+        case 'none':
+          deselect();
+          break;
+        case 'invert':
+          doc.invertSelection();
+          break;
+        case 'expand':
+          doc.expandSelection(1);
+          break;
+        case 'contract':
+          doc.contractSelection(1);
+          break;
+      }
+    } catch (err) {
+      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -936,6 +1135,23 @@
       const point = spriteCoord(e);
       if (!point) return;
       moveSelPreview = point;
+      dirty = true;
+      return;
+    }
+    if (lassoPoints) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      const last = lassoPoints[lassoPoints.length - 1];
+      if (!last || last.x !== point.x || last.y !== point.y) {
+        lassoPoints.push(point);
+        dirty = true;
+      }
+      return;
+    }
+    if (polyPoints) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      polyHover = point;
       dirty = true;
       return;
     }
@@ -996,6 +1212,13 @@
       syncMeta();
       return;
     }
+    if (lassoPoints && doc) {
+      const pts = lassoPoints;
+      lassoPoints = null;
+      commitPolygonPoints(pts, dragSelMode);
+      dirty = true;
+      return;
+    }
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
@@ -1003,16 +1226,36 @@
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
-        } else if (dragTool === 'rectangle') {
-          doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, false);
+        } else if (isShapeTool(dragTool)) {
+          const kind =
+            dragTool === 'rectangle'
+              ? 'rectangle'
+              : dragTool === 'ellipse'
+                ? 'ellipse'
+                : dragTool === 'rounded-rect'
+                  ? 'rounded_rectangle'
+                  : 'polygon';
+          const param = dragTool === 'rounded-rect' ? cornerRadius : polygonSides;
+          doc.applyShape(
+            kind,
+            dragStart.x,
+            dragStart.y,
+            end.x,
+            end.y,
+            shapeMode,
+            Math.max(1, Math.round(strokeWidth)),
+            packed,
+            packColor(fillColor, alpha),
+            param,
+          );
         } else if (dragTool === 'rectangle-fill') {
           doc.applyRectangle(dragStart.x, dragStart.y, end.x, end.y, packed, true);
-        } else if (dragTool === 'ellipse') {
-          doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, false);
         } else if (dragTool === 'ellipse-fill') {
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
         } else if (dragTool === 'selection-rect') {
           commitSelection(dragStart.x, dragStart.y, end.x, end.y);
+        } else if (dragTool === 'selection-ellipse') {
+          commitEllipseSelection(dragStart.x, dragStart.y, end.x, end.y);
         } else if (dragTool === 'slice') {
           commitSliceDrag(dragStart.x, dragStart.y, end.x, end.y);
         }
@@ -1170,15 +1413,20 @@
     }
     if (!opened) return;
     try {
-      const next = Document.openAseprite(opened.bytes);
+      // A PNG opens as a fresh single-layer sprite; its save target is a
+      // sibling .aseprite (never the PNG itself), so the first Save asks.
+      const png = isPngBytes(opened.bytes);
+      const next = png ? Document.openPng(opened.bytes) : Document.openAseprite(opened.bytes);
       disposeDoc();
       doc = next;
       resetDocViewState();
-      saveTarget = {
-        name: opened.name,
-        handle: opened.handle,
-        path: opened.path,
-      };
+      saveTarget = png
+        ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
+        : {
+            name: opened.name,
+            handle: opened.handle,
+            path: opened.path,
+          };
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
@@ -1404,6 +1652,261 @@
     }
   }
 
+  // Effects / adjustments (Fineliner parity). `effectOpen` renders the
+  // parameter dialog; the dialog drives `previewEffectParams` on every
+  // change and `applyEffectParams` on OK. Preview draws the would-be
+  // composite straight into the renderer without touching the wasm
+  // document; Cancel (or an empty params preview) recomposes the truth.
+  let effectOpen = $state<EffectDef | null>(null);
+
+  function openEffect(id: string) {
+    if (!doc) return;
+    const def = effectById(id);
+    if (!def) {
+      status = `unknown effect: ${id}`;
+      return;
+    }
+    effectOpen = def;
+  }
+
+  function previewEffectParams(params: number[]) {
+    if (!doc || !renderer || !effectOpen) return;
+    if (params.length === 0 && effectOpen.params.length > 0) {
+      recompose();
+      return;
+    }
+    try {
+      const frame = doc.previewEffect(effectOpen.id, Float64Array.from(params), 1);
+      try {
+        renderer.draw(frame);
+      } finally {
+        frame.free();
+      }
+      paintOverlays();
+    } catch (err) {
+      status = `preview failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function applyEffectParams(params: number[]) {
+    if (!doc || !effectOpen) return;
+    const def = effectOpen;
+    effectOpen = null;
+    try {
+      if (doc.applyEffect(def.id, Float64Array.from(params))) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+        status = `${def.label} applied`;
+      } else {
+        status = `${def.label}: selection is outside the layer, nothing changed`;
+        recompose();
+      }
+    } catch (err) {
+      status = `${def.label} failed: ${err instanceof Error ? err.message : String(err)}`;
+      recompose();
+    }
+  }
+
+  function cancelEffect() {
+    effectOpen = null;
+    recompose();
+  }
+
+  // Image menu (Fineliner parity): layer / canvas flips and rotations,
+  // resize, scale, crop. Canvas-level commands change the sprite size;
+  // `syncMeta` re-reads it and the dirty-canvas event repaints.
+  let resizeOpen = $state<ResizeMode | null>(null);
+
+  function afterImageCommand(label: string) {
+    dirty = true;
+    syncMeta();
+    docRev += 1;
+    status = label;
+  }
+
+  function imageAction(action: ImageAction) {
+    if (!doc) return;
+    try {
+      switch (action) {
+        case 'layer:flip_horizontal':
+        case 'layer:flip_vertical':
+        case 'layer:rotate_90_cw':
+        case 'layer:rotate_90_ccw':
+        case 'layer:rotate_180':
+          doc.transformLayer(action.slice('layer:'.length));
+          afterImageCommand('layer transformed');
+          break;
+        case 'canvas:flip_horizontal':
+        case 'canvas:flip_vertical':
+        case 'canvas:rotate_90_cw':
+        case 'canvas:rotate_90_ccw':
+        case 'canvas:rotate_180':
+          doc.transformCanvas(action.slice('canvas:'.length));
+          afterImageCommand('canvas transformed');
+          break;
+        case 'canvas:resize':
+          resizeOpen = 'resize';
+          break;
+        case 'canvas:scale':
+          resizeOpen = 'scale';
+          break;
+        case 'canvas:crop':
+          if (doc.cropToSelection()) afterImageCommand('cropped to selection');
+          else status = 'crop: no selection inside the canvas';
+          break;
+        case 'file:import_png':
+          void importPngLayer();
+          break;
+        case 'file:export_png':
+          void exportPng();
+          break;
+      }
+    } catch (err) {
+      status = `image command failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // Import a PNG as a new layer on top of the current document.
+  async function importPngLayer() {
+    if (!doc || fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      const opened = await pickAndOpen();
+      if (!opened || !doc) return;
+      if (!isPngBytes(opened.bytes)) {
+        status = 'import: not a PNG file';
+        return;
+      }
+      const name = opened.name.replace(/\.png$/i, '');
+      const id = doc.importPngAsLayer(opened.bytes, name);
+      activeLayerId = id;
+      afterImageCommand(`imported ${opened.name} as a layer`);
+    } catch (err) {
+      status = `import failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  // Export the current frame's visible composite as a PNG (spec §7.3).
+  async function exportPng() {
+    if (!doc || fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      const bytes = new Uint8Array(doc.exportPng(currentFrame));
+      const base = saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
+      const suffix = frameCount > 1 ? `-${currentFrame + 1}` : '';
+      if (await saveExport(bytes, `${base}${suffix}.png`)) {
+        status = `exported PNG · ${bytes.length} bytes`;
+      }
+    } catch (err) {
+      status = `export failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  function submitResize(result: ResizeResult) {
+    resizeOpen = null;
+    if (!doc) return;
+    try {
+      if (result.mode === 'resize') {
+        doc.resizeCanvas(result.width, result.height, result.anchor);
+        afterImageCommand(`canvas resized to ${result.width}×${result.height}`);
+      } else {
+        doc.scaleImage(result.width, result.height, result.interpolation);
+        afterImageCommand(`image scaled to ${result.width}×${result.height}`);
+      }
+    } catch (err) {
+      status = `resize failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // Text tool (Fineliner parity): a click anchors the dialog; the dialog
+  // previews through previewText and commits with drawText. The font is
+  // fetched and registered on first use.
+  let textAnchor = $state<{ x: number; y: number } | null>(null);
+  let textFontId: number | null = null;
+
+  async function openTextAt(point: { x: number; y: number }) {
+    if (!doc) return;
+    try {
+      textFontId = await loadDefaultFont();
+      textAnchor = point;
+    } catch (err) {
+      status = `text font failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function previewTextParams(p: TextParams) {
+    if (!doc || !renderer || !textAnchor || textFontId === null) return;
+    if (p.text.length === 0) {
+      recompose();
+      return;
+    }
+    try {
+      const frame = doc.previewText(
+        textFontId,
+        p.text,
+        textAnchor.x,
+        textAnchor.y,
+        p.size,
+        packColor(color, alpha),
+        p.bold,
+        p.italic,
+        p.antiAlias,
+        p.align,
+        1,
+      );
+      try {
+        renderer.draw(frame);
+      } finally {
+        frame.free();
+      }
+      paintOverlays();
+    } catch (err) {
+      status = `text preview failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function applyTextParams(p: TextParams) {
+    if (!doc || !textAnchor || textFontId === null) return;
+    const anchor = textAnchor;
+    textAnchor = null;
+    try {
+      const placed = doc.drawText(
+        textFontId,
+        p.text,
+        anchor.x,
+        anchor.y,
+        p.size,
+        packColor(color, alpha),
+        p.bold,
+        p.italic,
+        p.antiAlias,
+        p.align,
+      );
+      if (placed) {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+        status = 'text placed';
+      } else {
+        status = 'text: nothing landed on the canvas';
+        recompose();
+      }
+    } catch (err) {
+      status = `text failed: ${err instanceof Error ? err.message : String(err)}`;
+      recompose();
+    }
+  }
+
+  function cancelText() {
+    textAnchor = null;
+    recompose();
+  }
+
   function undo() {
     if (!doc) return;
     try {
@@ -1569,7 +2072,10 @@
       // recompose path stays idle.
       if (
         selection ||
-        (dragStart && (dragTool === 'selection-rect' || dragTool === 'slice')) ||
+        (dragStart &&
+          (dragTool === 'selection-rect' || dragTool === 'selection-ellipse' || dragTool === 'slice')) ||
+        lassoPoints ||
+        polyPoints ||
         moveSelStart ||
         activeSliceId !== null
       ) {
@@ -1632,8 +2138,10 @@
     i: ['eyedropper'],
     g: ['bucket'],
     l: ['line'],
-    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
-    m: ['selection-rect'],
+    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill', 'rounded-rect', 'polygon-shape'],
+    m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
+    w: ['selection-wand'],
+    t: ['text'],
     v: ['move'],
   };
 
@@ -1644,7 +2152,7 @@
   }
 
   function selectAll() {
-    doc?.setSelection(0, 0, canvasW, canvasH);
+    doc?.selectAll();
   }
 
   // Delete/Backspace: clear the pixels inside the marquee (the marquee
@@ -1682,10 +2190,30 @@
         newDocOpen = false;
         return;
       }
+      if (polyPoints || lassoPoints) {
+        cancelPolygon();
+        return;
+      }
       if (selection && !isEditableTarget(e.target)) {
         deselect();
         return;
       }
+    }
+    if (e.key === 'Enter' && polyPoints && !isEditableTarget(e.target)) {
+      e.preventDefault();
+      commitPolygon();
+      return;
+    }
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.shiftKey &&
+      e.key.toLowerCase() === 'i' &&
+      doc &&
+      !isEditableTarget(e.target)
+    ) {
+      e.preventDefault();
+      doc.invertSelection();
+      return;
     }
     if (
       (e.key === 'Delete' || e.key === 'Backspace') &&
@@ -2275,12 +2803,75 @@
       </button>
       <button
         class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'rounded-rect'}
+        aria-pressed={tool === 'rounded-rect'}
+        title="Rounded Rectangle (U)"
+        onclick={() => (tool = 'rounded-rect')}
+      >
+        Round Rect
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'polygon-shape'}
+        aria-pressed={tool === 'polygon-shape'}
+        title="Polygon shape (U)"
+        onclick={() => (tool = 'polygon-shape')}
+      >
+        N-gon
+      </button>
+      <button
+        class="toolbar-btn"
         class:toolbar-btn-active={tool === 'selection-rect'}
         aria-pressed={tool === 'selection-rect'}
         title="Selection (M)"
         onclick={() => (tool = 'selection-rect')}
       >
         Select
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-ellipse'}
+        aria-pressed={tool === 'selection-ellipse'}
+        title="Ellipse Select (M)"
+        onclick={() => (tool = 'selection-ellipse')}
+      >
+        Ellipse Sel
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-lasso'}
+        aria-pressed={tool === 'selection-lasso'}
+        title="Lasso (M) — drag freehand"
+        onclick={() => (tool = 'selection-lasso')}
+      >
+        Lasso
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-polygon'}
+        aria-pressed={tool === 'selection-polygon'}
+        title="Polygon Select (M) — click vertices, double-click or Enter to close"
+        onclick={() => (tool = 'selection-polygon')}
+      >
+        Polygon
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-wand'}
+        aria-pressed={tool === 'selection-wand'}
+        title="Magic Wand (W) — Shift adds, Alt subtracts"
+        onclick={() => (tool = 'selection-wand')}
+      >
+        Wand
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'text'}
+        aria-pressed={tool === 'text'}
+        title="Text (T) — click to place"
+        onclick={() => (tool = 'text')}
+      >
+        Text
       </button>
       <button
         class="toolbar-btn"
@@ -2373,6 +2964,105 @@
     >
       Redo
     </button>
+    <EffectsMenu disabled={!doc || fileOpBusy || effectOpen !== null} onPick={openEffect} />
+    <ImageMenu
+      disabled={!doc || fileOpBusy || effectOpen !== null}
+      hasSelection={selection !== null}
+      onAction={imageAction}
+    />
+    <SelectMenu
+      disabled={!doc || fileOpBusy || effectOpen !== null}
+      hasSelection={selection !== null}
+      onAction={selectAction}
+    />
+    {#if tool === 'selection-wand'}
+      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Wand options">
+        <label class="flex items-center gap-1">
+          <span>Tolerance</span>
+          <input
+            type="number"
+            min="0"
+            max="255"
+            bind:value={wandTolerance}
+            class="w-14 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            aria-label="Wand tolerance"
+          />
+        </label>
+        <label class="flex items-center gap-1">
+          <input type="checkbox" bind:checked={wandContiguous} aria-label="Contiguous" />
+          <span>Contiguous</span>
+        </label>
+        <select
+          bind:value={wandSample}
+          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          aria-label="Wand sample source"
+        >
+          <option value="layer">Layer</option>
+          <option value="composite">Composite</option>
+        </select>
+      </span>
+    {/if}
+    {#if isShapeTool(tool)}
+      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Shape options">
+        <label class="flex items-center gap-1">
+          <span>Stroke</span>
+          <input
+            type="number"
+            min="1"
+            max="64"
+            bind:value={strokeWidth}
+            class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            aria-label="Stroke width"
+          />
+        </label>
+        <select
+          bind:value={shapeMode}
+          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          aria-label="Shape mode"
+        >
+          <option value="outline">Outline</option>
+          <option value="fill">Fill</option>
+          <option value="fill_outline">Fill + Outline</option>
+        </select>
+        {#if shapeMode !== 'outline'}
+          <label class="flex items-center gap-1">
+            <span>Fill</span>
+            <input
+              type="color"
+              bind:value={fillColor}
+              class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+              aria-label="Fill color"
+            />
+          </label>
+        {/if}
+        {#if tool === 'rounded-rect'}
+          <label class="flex items-center gap-1">
+            <span>Radius</span>
+            <input
+              type="number"
+              min="0"
+              max="256"
+              bind:value={cornerRadius}
+              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              aria-label="Corner radius"
+            />
+          </label>
+        {/if}
+        {#if tool === 'polygon-shape'}
+          <label class="flex items-center gap-1">
+            <span>Sides</span>
+            <input
+              type="number"
+              min="3"
+              max="64"
+              bind:value={polygonSides}
+              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              aria-label="Polygon sides"
+            />
+          </label>
+        {/if}
+      </span>
+    {/if}
   </header>
 
   <section class="flex flex-1 overflow-hidden">
@@ -2472,6 +3162,66 @@
         }
       }}
       onAddLayer={addLayer}
+      onSetOpacity={(layerId, opacity, commit) => {
+        if (!doc) return;
+        try {
+          doc.setLayerOpacity(layerId, opacity);
+          if (commit) doc.endStroke();
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `layer opacity failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onSetBlendMode={(layerId, mode) => {
+        if (!doc) return;
+        try {
+          doc.setLayerBlendMode(layerId, mode);
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `layer blend mode failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onDuplicate={(layerId) => {
+        if (!doc) return;
+        try {
+          const id = doc.duplicateLayer(layerId);
+          activeLayerId = id;
+          doc.setActiveLayer(id);
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `duplicate layer failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onMergeDown={(layerId) => {
+        if (!doc) return;
+        try {
+          doc.mergeDown(layerId);
+          activeLayerId = doc.paintTargetLayer();
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `merge down failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
+      onFlatten={() => {
+        if (!doc) return;
+        try {
+          const id = doc.flattenImage();
+          activeLayerId = id;
+          dirty = true;
+          syncMeta();
+          docRev += 1;
+        } catch (err) {
+          status = `flatten failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }}
       onRemoveLayer={(layerId) => {
         if (!doc) return;
         try {
@@ -2596,6 +3346,41 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if resizeOpen}
+  {#key resizeOpen}
+    <ResizeDialog
+      mode={resizeOpen}
+      width={canvasW}
+      height={canvasH}
+      maxSize={MAX_DOC_SIZE}
+      onSubmit={submitResize}
+      onCancel={() => (resizeOpen = null)}
+    />
+  {/key}
+{/if}
+
+{#if textAnchor}
+  <TextDialog
+    x={textAnchor.x}
+    y={textAnchor.y}
+    onPreview={previewTextParams}
+    onApply={applyTextParams}
+    onCancel={cancelText}
+  />
+{/if}
+
+{#if effectOpen}
+  {#key effectOpen.id}
+    <EffectDialog
+      def={effectOpen}
+      hasSelection={selection !== null}
+      onPreview={previewEffectParams}
+      onApply={applyEffectParams}
+      onCancel={cancelEffect}
+    />
+  {/key}
 {/if}
 
 {#if newDocOpen}

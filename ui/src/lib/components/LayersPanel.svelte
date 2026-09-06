@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Document } from '../core';
+  import { blendModeNames, type Document } from '../core';
 
   // Layers panel (M13.3). The wasm `Document` is the source of truth;
   // the panel reads the layer stack through the M8.7 / M13.2 surface
@@ -23,6 +23,11 @@
     onRename,
     onAddLayer,
     onRemoveLayer,
+    onSetOpacity,
+    onSetBlendMode,
+    onDuplicate,
+    onMergeDown,
+    onFlatten,
   }: {
     doc: Document | null;
     rev?: number;
@@ -33,6 +38,12 @@
     onRename?: (layerId: number, name: string) => void;
     onAddLayer?: () => void;
     onRemoveLayer?: (layerId: number) => void;
+    /** Live opacity edit; `commit` is true on the final value of a drag. */
+    onSetOpacity?: (layerId: number, opacity: number, commit: boolean) => void;
+    onSetBlendMode?: (layerId: number, mode: string) => void;
+    onDuplicate?: (layerId: number) => void;
+    onMergeDown?: (layerId: number) => void;
+    onFlatten?: () => void;
   } = $props();
 
   type LayerRow = {
@@ -40,6 +51,8 @@
     name: string;
     kind: string;
     visible: boolean;
+    opacity: number;
+    blendMode: string;
   };
 
   // Bottom-to-top z-order from the document, then reversed so the panel
@@ -61,6 +74,8 @@
         name: doc.layerName(id),
         kind: doc.layerKind(id),
         visible: doc.layerVisible(id),
+        opacity: doc.layerOpacity(id),
+        blendMode: doc.layerBlendMode(id),
       });
     }
     list.reverse();
@@ -68,6 +83,22 @@
   });
 
   let error = $state<string | null>(null);
+
+  // Properties row for the active layer (Fineliner parity): opacity
+  // slider, blend-mode select, duplicate / merge-down. Blend-mode names
+  // come from the wasm module so the list can never drift from core.
+  const active = $derived(layers.find((l) => l.id === activeLayerId) ?? null);
+  const activeIndex = $derived(active ? layers.indexOf(active) : -1);
+  const blendModes = $derived.by<string[]>(() => (doc ? blendModeNames() : []));
+  const canMergeDown = $derived.by(() => {
+    if (!active || active.kind !== 'image') return false;
+    const below = layers[activeIndex + 1];
+    return below !== undefined && below.kind === 'image';
+  });
+
+  function blendLabel(name: string): string {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   // Inline-rename state: the layer id whose name is being edited, plus
   // the draft text. Double-click a name to start; Enter / blur commits,
@@ -120,15 +151,26 @@
 >
   <header class="flex items-center justify-between">
     <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Layers</h2>
-    <button
-      type="button"
-      class="panel-btn"
-      onclick={() => onAddLayer?.()}
-      disabled={!doc}
-      aria-label="Add layer"
-    >
-      + Layer
-    </button>
+    <span class="flex gap-1">
+      <button
+        type="button"
+        class="panel-btn"
+        onclick={() => onFlatten?.()}
+        disabled={!doc || layers.length < 2}
+        title="Flatten all visible layers into one"
+      >
+        Flatten
+      </button>
+      <button
+        type="button"
+        class="panel-btn"
+        onclick={() => onAddLayer?.()}
+        disabled={!doc}
+        aria-label="Add layer"
+      >
+        + Layer
+      </button>
+    </span>
   </header>
 
   {#if layers.length === 0}
@@ -219,6 +261,61 @@
         </li>
       {/each}
     </ul>
+  {/if}
+
+  {#if active}
+    <div
+      class="flex flex-col gap-2 rounded border border-neutral-800 bg-neutral-900/60 p-2 text-xs"
+      aria-label="Layer properties"
+    >
+      <label class="flex items-center gap-2 text-neutral-300">
+        <span class="w-14 shrink-0">Opacity</span>
+        <input
+          type="range"
+          min="0"
+          max="255"
+          value={active.opacity}
+          class="min-w-0 flex-1 cursor-pointer"
+          aria-label="Layer opacity"
+          oninput={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), false)}
+          onchange={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), true)}
+        />
+        <span class="w-8 text-right tabular-nums text-neutral-500">{active.opacity}</span>
+      </label>
+      <label class="flex items-center gap-2 text-neutral-300">
+        <span class="w-14 shrink-0">Blend</span>
+        <select
+          class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          value={active.blendMode}
+          aria-label="Layer blend mode"
+          onchange={(e) => onSetBlendMode?.(active.id, e.currentTarget.value)}
+        >
+          {#each blendModes as mode (mode)}
+            <option value={mode}>{blendLabel(mode)}</option>
+          {/each}
+        </select>
+      </label>
+      <div class="flex gap-1">
+        <button
+          type="button"
+          class="panel-btn"
+          onclick={() => onDuplicate?.(active.id)}
+          disabled={active.kind === 'group'}
+          title="Duplicate layer"
+        >
+          Duplicate
+        </button>
+        <button
+          type="button"
+          class="panel-btn"
+          onclick={() => onMergeDown?.(active.id)}
+          disabled={!canMergeDown}
+          title={canMergeDown ? 'Merge into the layer below' : 'Needs an image layer directly below'}
+        >
+          Merge Down
+        </button>
+      </div>
+    </div>
   {/if}
 
   {#if error}

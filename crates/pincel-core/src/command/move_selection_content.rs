@@ -20,6 +20,7 @@
 
 use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, Rgba, Sprite};
 use crate::geometry::Rect;
+use crate::selection::SelectionMask;
 
 use super::Command;
 use super::dirty::DirtyRegion;
@@ -48,6 +49,8 @@ pub struct MoveSelectionContent {
 struct AppliedState {
     /// The `Sprite::selection` value before `apply`, restored verbatim.
     prior_selection: Option<Rect>,
+    /// The shaped mask before `apply` (moved with the pixels).
+    prior_mask: Option<SelectionMask>,
     /// `(local_x, local_y, prior pixel)` for every source pixel that
     /// was cleared. Replayed after `overwritten_dest` so overlapping
     /// pixels end up at their original color.
@@ -140,9 +143,16 @@ impl Command for MoveSelectionContent {
         // capture the original destination pixels before any writes.
         let mut moved: Vec<(u32, u32, Rgba)> = Vec::new();
 
+        let mask = doc.selection_mask.as_ref();
         if let Some((sx, sy, sw, sh)) = src_local {
             for ly in sy..sy + sh {
                 for lx in sx..sx + sw {
+                    // Shaped selection: only the covered pixels travel.
+                    if let Some(m) = mask
+                        && !m.contains(cel_pos.0 + lx as i32, cel_pos.1 + ly as i32)
+                    {
+                        continue;
+                    }
                     let prior = read_pixel(buffer, lx, ly);
                     cleared_source.push(PriorPixel {
                         local_x: lx,
@@ -199,6 +209,7 @@ impl Command for MoveSelectionContent {
         // `set_selection`, but the original-selection emptiness check
         // above already ruled that out.
         let prior_selection = doc.selection;
+        let prior_mask = doc.selection_mask.take();
         let translated = Rect::new(
             selection.x.saturating_add(self.delta_x),
             selection.y.saturating_add(self.delta_y),
@@ -206,9 +217,13 @@ impl Command for MoveSelectionContent {
             selection.height,
         );
         doc.set_selection(translated);
+        if let Some(m) = &prior_mask {
+            doc.selection_mask = Some(m.translated(self.delta_x, self.delta_y));
+        }
 
         self.state = Some(AppliedState {
             prior_selection,
+            prior_mask,
             cleared_source,
             overwritten_dest,
         });
@@ -239,6 +254,7 @@ impl Command for MoveSelectionContent {
             }
         }
         doc.selection = state.prior_selection;
+        doc.selection_mask = state.prior_mask;
     }
 
     fn dirty_region(&self) -> DirtyRegion {

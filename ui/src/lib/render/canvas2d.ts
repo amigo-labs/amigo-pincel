@@ -495,3 +495,70 @@ function* bresenham(
     }
   }
 }
+
+/**
+ * Paint marching ants around an arbitrary selection mask: every selected
+ * pixel that borders an unselected one (or the canvas edge) gets a dot,
+ * alternating white / black along a checkerboard so the ants crawl when
+ * `phase` advances. `mask` is `w × h` coverage bytes in sprite space;
+ * `dx` / `dy` shift the drawing (Move-tool ghost). `bounds` (the
+ * selection's bounding box) limits the scan to the pixels that can be
+ * selected, so a small selection on a large canvas stays cheap.
+ */
+export function paintMaskMarquee(
+  canvas: HTMLCanvasElement,
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  phase: number,
+  dx = 0,
+  dy = 0,
+  bounds: { x: number; y: number; w: number; h: number } | null = null,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const phaseN = ((phase % 4) + 4) % 4;
+  const inside = (x: number, y: number): boolean =>
+    x >= 0 && y >= 0 && x < w && y < h && (mask[y * w + x] ?? 0) !== 0;
+  const x0 = Math.max(0, bounds ? bounds.x : 0);
+  const y0 = Math.max(0, bounds ? bounds.y : 0);
+  const x1 = Math.min(w, bounds ? bounds.x + bounds.w : w);
+  const y1 = Math.min(h, bounds ? bounds.y + bounds.h : h);
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      if (!inside(x, y)) continue;
+      if (inside(x - 1, y) && inside(x + 1, y) && inside(x, y - 1) && inside(x, y + 1)) continue;
+      const px = x + dx;
+      const py = y + dy;
+      if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
+      const slot = (x + y + phaseN) & 0x3;
+      ctx.fillStyle = slot < 2 ? '#ffffff' : '#000000';
+      ctx.fillRect(px, py, 1, 1);
+    }
+  }
+}
+
+/**
+ * Paint an in-progress lasso / polygon outline: 1-px lines between
+ * consecutive `points`, optionally back to the start (`closed`) or on to
+ * a floating `cursor` vertex.
+ */
+export function paintPolylinePreview(
+  canvas: HTMLCanvasElement,
+  points: { x: number; y: number }[],
+  cursor: { x: number; y: number } | null,
+  closed: boolean,
+): void {
+  if (points.length === 0) return;
+  const pts = cursor ? [...points, cursor] : points;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (a && b) paintLinePreview(canvas, a.x, a.y, b.x, b.y, '#ffffff');
+  }
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  if (closed && first && last && pts.length > 2) {
+    paintLinePreview(canvas, last.x, last.y, first.x, first.y, '#ffffff');
+  }
+}

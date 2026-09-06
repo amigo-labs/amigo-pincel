@@ -39,9 +39,9 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
       - name: clippy
-        run: cargo clippy -p pincel-core -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
+        run: cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
       - name: test
-        run: cargo test -p pincel-core -p aseprite-writer -p pincel-wasm
+        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm
 
   tauri:
     name: tauri shell (check)

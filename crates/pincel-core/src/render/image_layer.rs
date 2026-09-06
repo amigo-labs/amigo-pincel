@@ -9,7 +9,7 @@ use super::blend::{blend_pixel_into, mul_u8};
 /// `viewport.width * viewport.height * 4` bytes; only the intersection of
 /// the cel rect and the viewport is touched. `combined_opacity` is the
 /// layer opacity already folded with the cel opacity.
-pub(super) fn composite_image_cel(
+pub(crate) fn composite_image_cel(
     dst: &mut [u8],
     viewport: Rect,
     cel_pos: (i32, i32),
