@@ -1,8 +1,10 @@
 # Status
 
-_Last updated: 2026-08-23_
+_Last updated: 2026-09-06_
 
-**Branch:** `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
+**Branch:** `claude/pinsel-fineliner-funktionen-pn9u3q` (PR #52) — M15
+Fineliner feature parity, complete on the branch; see the M15 section.
+Before it: `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
 / playback, task breakdown below. Landed just before it on `main`: PR #50
 — PNG export (spec §7.3) in `pincel-core` + `pincel-wasm`, and the
 `render` module split into `blend` / `error` / `image_layer` /
@@ -62,6 +64,66 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
   low) — audit before release.
 
 Detail on each item lives in the sections further down.
+
+## M15 — Fineliner feature parity (branch complete, PR #52)
+
+Brings the sister project's editor feature set into Pincel (Fineliner is
+on a maintenance hold with the stated plan of becoming one mode of a
+unified app). Nine blocks, each core → wasm → UI with its own commits;
+every block passed the full gate plus a Playwright smoke run against the
+built UI before it was pushed. Decision Log entries 2026-09-06 (vendored
+effects crate; `ab_glyph` + Liberation Sans for text).
+
+- [x] **F1 `crates/pincel-effects`** — `fineliner-effects` vendored (blur
+  ×4, sharpen ×2, distort ×3, noise ×2, nine colour adjustments; pixel
+  math unchanged, `as_chunks` → `chunks_exact` for the 1.85 MSRV) plus a
+  serde-free `EffectSpec` (name + `f64` parameter vector). CI / README /
+  CLAUDE.md gate the crate.
+- [x] **F2 effects plumbing** — core `ReplaceCelPixels` (undoable
+  whole-cel swap); wasm `applyEffect` / `previewEffect` / `effectNames`,
+  restricted to the selection (rect or shaped).
+- [x] **F3 effects UI** — Effects… / Adjust… menus, parameter dialog with
+  rAF-coalesced live preview (`ui/src/lib/effects/catalog.ts` mirrors the
+  wire order; Curves is five fixed-x sliders).
+- [x] **F4 layer properties** — `SetLayerOpacity` (slider ticks merge),
+  `SetLayerBlendMode` (+ `BlendMode::name/from_name`), `DuplicateLayer`,
+  `MergeDown` (upper layer's opacity / blend baked with the compose
+  math), `FlattenImage`; Layers panel properties row + Flatten.
+- [x] **F5 transforms** — `TransformCel` (flip / rotate the cel, or the
+  selection about its centre), `TransformCanvas` (all cels + slice keys,
+  quarter turns swap dims), `ReframeCanvas` (resize with 9-point
+  `Anchor`, crop to selection), `ScaleImage` (nearest / bilinear /
+  bicubic, premultiplied); Image… menu + Resize / Scale dialog.
+- [x] **F6 shaped selections** — `selection::SelectionMask` (rect /
+  ellipse / polygon / wand builders, replace / add / subtract / intersect,
+  invert, expand / contract, translate) beside the bounding-box rect;
+  delete / move / effects / text honour it. Tools: Ellipse Sel, Lasso,
+  Polygon (Enter / double-click closes), Wand (tolerance, contiguous,
+  layer / composite sample); Shift / Alt / Shift+Alt modes; Select… menu;
+  marching ants trace the mask edge.
+- [x] **F7 styled shapes** — `DrawShape` (rectangle / rounded rectangle /
+  ellipse / regular polygon; outline / fill / fill+outline; stroke width
+  via mask contraction); shape options row, Round Rect and N-gon tools.
+- [x] **F8 PNG I/O** — core `import_png` (any colour type → RGBA8); wasm
+  `openPng` / `importPngAsLayer`; Open… accepts PNG, Image… menu gains
+  Import PNG as Layer… and Export Frame as PNG… (first UI for the §7.3
+  exporter).
+- [x] **F9 text** — `DrawText` via `ab_glyph` (kerning, alignment,
+  faux-bold / italic, optional anti-alias, selection clipping); wasm
+  `registerFont` / `drawText` / `previewText`; Text tool with a live
+  preview dialog; Liberation Sans (SIL OFL 1.1) under `ui/public/fonts`
+  and as a core test fixture, precached by the service worker.
+
+Deliberately not ported: JPEG / WebP / BMP / GIF / TIFF codecs (would
+need the `image` crate — PNG covers the game-asset workflow), soft /
+textured brushes, clone / smudge / gradient (Fineliner's M13 never
+shipped either), Free Transform (Phase 2 on both sides).
+
+Known limits worth a follow-up: tilemap layers reject canvas rotate /
+scale (the grid would need re-tiling); `MergeDown` / `TransformCanvas` /
+`ReframeCanvas` / `ScaleImage` / `FlattenImage` store whole-cel-map
+priors, so undo memory scales with the document; the wand samples the
+active layer or the composite only.
 
 ## M14 — Timeline / playback (in progress)
 
