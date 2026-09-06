@@ -13,6 +13,7 @@
   import EffectDialog from './lib/components/EffectDialog.svelte';
   import EffectsMenu from './lib/components/EffectsMenu.svelte';
   import ImageMenu, { type ImageAction } from './lib/components/ImageMenu.svelte';
+  import SelectMenu, { type SelectAction } from './lib/components/SelectMenu.svelte';
   import ResizeDialog, { type ResizeMode, type ResizeResult } from './lib/components/ResizeDialog.svelte';
   import { effectById, type EffectDef } from './lib/effects/catalog';
   import {
@@ -44,6 +45,8 @@
     paintPivotCrosshair,
     paintRectOutline,
     paintRectanglePreview,
+    paintMaskMarquee,
+    paintPolylinePreview,
     paintSelectionMarquee,
   } from './lib/render/canvas2d';
   import { Canvas2DRenderer } from './lib/render/canvas2d-renderer';
@@ -67,6 +70,10 @@
     | 'ellipse'
     | 'ellipse-fill'
     | 'selection-rect'
+    | 'selection-ellipse'
+    | 'selection-lasso'
+    | 'selection-polygon'
+    | 'selection-wand'
     | 'move'
     | 'tilemap-stamp'
     | 'slice';
@@ -88,6 +95,7 @@
       t === 'ellipse' ||
       t === 'ellipse-fill' ||
       t === 'selection-rect' ||
+      t === 'selection-ellipse' ||
       t === 'slice'
     );
   }
@@ -263,6 +271,31 @@
   let dragStart: { x: number; y: number } | null = null;
   let dragPreview: { x: number; y: number } | null = null;
   let dragTool: Tool | null = null;
+  // Selection-combination mode captured on pointerdown for the marquee
+  // gestures (Shift = add, Alt = subtract, Shift+Alt = intersect).
+  let dragSelMode: SelectionMode = 'replace';
+  type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';
+  // Freehand lasso in flight: sprite points collected while the button
+  // is down; committed as a polygon on release.
+  let lassoPoints: { x: number; y: number }[] | null = null;
+  // Polygonal lasso: click places a vertex, double-click / Enter closes,
+  // Escape cancels. `polyHover` is the floating edge to the cursor.
+  let polyPoints = $state<{ x: number; y: number }[] | null>(null);
+  let polyHover: { x: number; y: number } | null = null;
+  // Magic-wand options (toolbar row when the wand is active).
+  let wandTolerance = $state(0);
+  let wandContiguous = $state(true);
+  let wandSample = $state<'layer' | 'composite'>('layer');
+  // Coverage bytes of a shaped (non-rect) selection for the overlay;
+  // `null` while the selection is a plain rect or absent.
+  let selectionMaskBytes: Uint8Array | null = null;
+
+  function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
+    if (e.shiftKey && e.altKey) return 'intersect';
+    if (e.shiftKey) return 'add';
+    if (e.altKey) return 'subtract';
+    return 'replace';
+  }
   // Whether Shift was held during the most recent pointer event in an
   // in-flight Rectangle drag. The Rust command takes raw corners — the
   // square constraint is purely a UI affordance applied to the live
@@ -365,6 +398,7 @@
   function syncSelection() {
     if (!doc || !doc.hasSelection) {
       selection = null;
+      selectionMaskBytes = null;
       return;
     }
     selection = {
@@ -373,6 +407,7 @@
       w: doc.selectionWidth,
       h: doc.selectionHeight,
     };
+    selectionMaskBytes = doc.selectionIsRect ? null : doc.selectionMask();
   }
 
   function recompose() {
@@ -409,6 +444,8 @@
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
       } else if (dragTool === 'ellipse-fill') {
         paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
+      } else if (dragTool === 'selection-ellipse') {
+        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, '#ffffff', false);
       } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
         // Inclusive-corner marquee preview: matches the rect that
         // `commitSelection` / `commitSliceDrag` will hand to the wasm
@@ -420,13 +457,20 @@
         const maxY = Math.max(dragStart.y, end.y);
         paintSelectionMarquee(overlay, minX, minY, maxX - minX + 1, maxY - minY + 1, marchPhase);
       }
+    } else if (lassoPoints || polyPoints) {
+      // Lasso / polygon in progress: outline so far plus the floating
+      // edge to the cursor (polygon) — closed back to the start.
+      paintPolylinePreview(overlay, lassoPoints ?? polyPoints ?? [], polyPoints ? polyHover : null, true);
     } else if (selection) {
       // No marquee drag in flight. A live Move-tool selection drag paints
       // a ghost marquee at the translated position (the pixels snap into
-      // place on release); otherwise paint the committed marquee.
-      if (moveSelStart && moveSelPreview) {
-        const dx = moveSelPreview.x - moveSelStart.x;
-        const dy = moveSelPreview.y - moveSelStart.y;
+      // place on release); otherwise paint the committed marquee. Shaped
+      // selections trace the mask edge instead of the bounding rect.
+      const dx = moveSelStart && moveSelPreview ? moveSelPreview.x - moveSelStart.x : 0;
+      const dy = moveSelStart && moveSelPreview ? moveSelPreview.y - moveSelStart.y : 0;
+      if (selectionMaskBytes) {
+        paintMaskMarquee(overlay, selectionMaskBytes, canvasW, canvasH, marchPhase, dx, dy);
+      } else {
         paintSelectionMarquee(
           overlay,
           selection.x + dx,
@@ -435,8 +479,6 @@
           selection.h,
           marchPhase,
         );
-      } else {
-        paintSelectionMarquee(overlay, selection.x, selection.y, selection.w, selection.h, marchPhase);
       }
     }
     // Tilemap Stamp tool: tile grid + hovered cell, drawn after the
@@ -809,6 +851,34 @@
       panStartOffset = { x: panX, y: panY };
       return;
     }
+    if (tool === 'selection-lasso') {
+      const point = spriteCoord(e);
+      if (!point) return;
+      lassoPoints = [point];
+      dragSelMode = selectionModeFor(e);
+      dirty = true;
+      return;
+    }
+    if (tool === 'selection-polygon') {
+      const point = spriteCoord(e);
+      if (!point) return;
+      if (!polyPoints) {
+        polyPoints = [point];
+        dragSelMode = selectionModeFor(e);
+      } else if (e.detail >= 2) {
+        commitPolygon();
+        return;
+      } else {
+        polyPoints = [...polyPoints, point];
+      }
+      polyHover = point;
+      dirty = true;
+      return;
+    }
+    if (tool === 'selection-wand') {
+      commitWand(e);
+      return;
+    }
     if (isDragShapeTool(tool)) {
       const point = spriteCoord(e);
       if (!point) return;
@@ -816,6 +886,7 @@
       dragPreview = point;
       dragTool = tool;
       dragShift = e.shiftKey;
+      dragSelMode = selectionModeFor(e);
       dirty = true;
       return;
     }
@@ -920,7 +991,7 @@
   // off-canvas extents from leaking visually.
   function commitSelection(x0: number, y0: number, x1: number, y1: number) {
     if (!doc) return;
-    if (x0 === x1 && y0 === y1) {
+    if (x0 === x1 && y0 === y1 && dragSelMode === 'replace') {
       doc.clearSelection();
       return;
     }
@@ -928,7 +999,100 @@
     const minY = Math.min(y0, y1);
     const w = Math.abs(x1 - x0) + 1;
     const h = Math.abs(y1 - y0) + 1;
-    doc.setSelection(minX, minY, w, h);
+    doc.selectRect(minX, minY, w, h, dragSelMode);
+  }
+
+  // Ellipse marquee: same inclusive-corner gesture as the rect, combined
+  // per the modifier mode captured on pointerdown.
+  function commitEllipseSelection(x0: number, y0: number, x1: number, y1: number) {
+    if (!doc) return;
+    if (x0 === x1 && y0 === y1 && dragSelMode === 'replace') {
+      doc.clearSelection();
+      return;
+    }
+    const minX = Math.min(x0, x1);
+    const minY = Math.min(y0, y1);
+    const w = Math.abs(x1 - x0) + 1;
+    const h = Math.abs(y1 - y0) + 1;
+    doc.selectEllipse(minX, minY, w, h, dragSelMode);
+  }
+
+  // Lasso / polygon commit. Fewer than three vertices is a click: in
+  // replace mode that deselects (like the rect click), otherwise nothing.
+  function commitPolygonPoints(pts: { x: number; y: number }[], mode: SelectionMode) {
+    if (!doc) return;
+    try {
+      if (pts.length < 3) {
+        if (mode === 'replace') doc.clearSelection();
+        return;
+      }
+      const flat = new Int32Array(pts.length * 2);
+      pts.forEach((p, i) => {
+        flat[i * 2] = p.x;
+        flat[i * 2 + 1] = p.y;
+      });
+      doc.selectPolygon(flat, mode);
+    } catch (err) {
+      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function commitPolygon() {
+    const pts = polyPoints;
+    polyPoints = null;
+    polyHover = null;
+    if (pts) commitPolygonPoints(pts, dragSelMode);
+    dirty = true;
+  }
+
+  function cancelPolygon() {
+    polyPoints = null;
+    polyHover = null;
+    lassoPoints = null;
+    dirty = true;
+  }
+
+  function commitWand(e: PointerEvent) {
+    if (!doc) return;
+    const point = spriteCoord(e);
+    if (!point) return;
+    try {
+      doc.selectWand(
+        point.x,
+        point.y,
+        Math.max(0, Math.min(255, Math.round(wandTolerance))),
+        wandContiguous,
+        wandSample,
+        selectionModeFor(e),
+      );
+    } catch (err) {
+      status = `wand failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function selectAction(action: SelectAction) {
+    if (!doc) return;
+    try {
+      switch (action) {
+        case 'all':
+          selectAll();
+          break;
+        case 'none':
+          deselect();
+          break;
+        case 'invert':
+          doc.invertSelection();
+          break;
+        case 'expand':
+          doc.expandSelection(1);
+          break;
+        case 'contract':
+          doc.contractSelection(1);
+          break;
+      }
+    } catch (err) {
+      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
   }
 
   function onPointerMove(e: PointerEvent) {
@@ -941,6 +1105,23 @@
       const point = spriteCoord(e);
       if (!point) return;
       moveSelPreview = point;
+      dirty = true;
+      return;
+    }
+    if (lassoPoints) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      const last = lassoPoints[lassoPoints.length - 1];
+      if (!last || last.x !== point.x || last.y !== point.y) {
+        lassoPoints.push(point);
+        dirty = true;
+      }
+      return;
+    }
+    if (polyPoints) {
+      const point = spriteCoord(e);
+      if (!point) return;
+      polyHover = point;
       dirty = true;
       return;
     }
@@ -1001,6 +1182,13 @@
       syncMeta();
       return;
     }
+    if (lassoPoints && doc) {
+      const pts = lassoPoints;
+      lassoPoints = null;
+      commitPolygonPoints(pts, dragSelMode);
+      dirty = true;
+      return;
+    }
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
@@ -1018,6 +1206,8 @@
           doc.applyEllipse(dragStart.x, dragStart.y, end.x, end.y, packed, true);
         } else if (dragTool === 'selection-rect') {
           commitSelection(dragStart.x, dragStart.y, end.x, end.y);
+        } else if (dragTool === 'selection-ellipse') {
+          commitEllipseSelection(dragStart.x, dragStart.y, end.x, end.y);
         } else if (dragTool === 'slice') {
           commitSliceDrag(dragStart.x, dragStart.y, end.x, end.y);
         }
@@ -1699,7 +1889,10 @@
       // recompose path stays idle.
       if (
         selection ||
-        (dragStart && (dragTool === 'selection-rect' || dragTool === 'slice')) ||
+        (dragStart &&
+          (dragTool === 'selection-rect' || dragTool === 'selection-ellipse' || dragTool === 'slice')) ||
+        lassoPoints ||
+        polyPoints ||
         moveSelStart ||
         activeSliceId !== null
       ) {
@@ -1763,7 +1956,8 @@
     g: ['bucket'],
     l: ['line'],
     u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill'],
-    m: ['selection-rect'],
+    m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
+    w: ['selection-wand'],
     v: ['move'],
   };
 
@@ -1774,7 +1968,7 @@
   }
 
   function selectAll() {
-    doc?.setSelection(0, 0, canvasW, canvasH);
+    doc?.selectAll();
   }
 
   // Delete/Backspace: clear the pixels inside the marquee (the marquee
@@ -1812,10 +2006,30 @@
         newDocOpen = false;
         return;
       }
+      if (polyPoints || lassoPoints) {
+        cancelPolygon();
+        return;
+      }
       if (selection && !isEditableTarget(e.target)) {
         deselect();
         return;
       }
+    }
+    if (e.key === 'Enter' && polyPoints && !isEditableTarget(e.target)) {
+      e.preventDefault();
+      commitPolygon();
+      return;
+    }
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.shiftKey &&
+      e.key.toLowerCase() === 'i' &&
+      doc &&
+      !isEditableTarget(e.target)
+    ) {
+      e.preventDefault();
+      doc.invertSelection();
+      return;
     }
     if (
       (e.key === 'Delete' || e.key === 'Backspace') &&
@@ -2414,6 +2628,42 @@
       </button>
       <button
         class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-ellipse'}
+        aria-pressed={tool === 'selection-ellipse'}
+        title="Ellipse Select (M)"
+        onclick={() => (tool = 'selection-ellipse')}
+      >
+        Ellipse Sel
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-lasso'}
+        aria-pressed={tool === 'selection-lasso'}
+        title="Lasso (M) — drag freehand"
+        onclick={() => (tool = 'selection-lasso')}
+      >
+        Lasso
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-polygon'}
+        aria-pressed={tool === 'selection-polygon'}
+        title="Polygon Select (M) — click vertices, double-click or Enter to close"
+        onclick={() => (tool = 'selection-polygon')}
+      >
+        Polygon
+      </button>
+      <button
+        class="toolbar-btn"
+        class:toolbar-btn-active={tool === 'selection-wand'}
+        aria-pressed={tool === 'selection-wand'}
+        title="Magic Wand (W) — Shift adds, Alt subtracts"
+        onclick={() => (tool = 'selection-wand')}
+      >
+        Wand
+      </button>
+      <button
+        class="toolbar-btn"
         class:toolbar-btn-active={tool === 'move'}
         aria-pressed={tool === 'move'}
         title="Move (V)"
@@ -2509,6 +2759,38 @@
       hasSelection={selection !== null}
       onAction={imageAction}
     />
+    <SelectMenu
+      disabled={!doc || fileOpBusy || effectOpen !== null}
+      hasSelection={selection !== null}
+      onAction={selectAction}
+    />
+    {#if tool === 'selection-wand'}
+      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Wand options">
+        <label class="flex items-center gap-1">
+          <span>Tolerance</span>
+          <input
+            type="number"
+            min="0"
+            max="255"
+            bind:value={wandTolerance}
+            class="w-14 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            aria-label="Wand tolerance"
+          />
+        </label>
+        <label class="flex items-center gap-1">
+          <input type="checkbox" bind:checked={wandContiguous} aria-label="Contiguous" />
+          <span>Contiguous</span>
+        </label>
+        <select
+          bind:value={wandSample}
+          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          aria-label="Wand sample source"
+        >
+          <option value="layer">Layer</option>
+          <option value="composite">Composite</option>
+        </select>
+      </span>
+    {/if}
   </header>
 
   <section class="flex flex-1 overflow-hidden">
