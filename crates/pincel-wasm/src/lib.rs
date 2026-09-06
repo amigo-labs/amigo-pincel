@@ -23,6 +23,7 @@ mod effects;
 mod events;
 mod layer_ops;
 mod selection_ops;
+mod shapes;
 mod transforms;
 
 pub use effects::effect_names;
