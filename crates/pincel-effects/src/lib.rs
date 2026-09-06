@@ -33,6 +33,7 @@ mod effect;
 mod error;
 mod image;
 mod kernel;
+mod spec;
 
 pub mod adjust;
 pub mod blur;
@@ -43,3 +44,4 @@ pub mod sharpen;
 pub use effect::Effect;
 pub use error::EffectError;
 pub use image::EffectImage;
+pub use spec::{EFFECT_NAMES, EffectSpec};
