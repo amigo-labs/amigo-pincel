@@ -19,6 +19,7 @@ mod move_selection_content;
 mod place_tile;
 mod remove_layer;
 mod remove_slice;
+mod replace_cel_pixels;
 mod set_frame_duration;
 mod set_layer_name;
 mod set_layer_visible;
@@ -45,6 +46,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
+pub use replace_cel_pixels::ReplaceCelPixels;
 pub use set_frame_duration::SetFrameDuration;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_visible::SetLayerVisible;
@@ -118,6 +120,7 @@ pub enum AnyCommand {
     AddSlice(AddSlice),
     RemoveSlice(RemoveSlice),
     SetSliceKey(SetSliceKey),
+    ReplaceCelPixels(ReplaceCelPixels),
 }
 
 impl AnyCommand {
@@ -149,6 +152,7 @@ impl AnyCommand {
             Self::AddSlice(c) => c.apply(doc, cels),
             Self::RemoveSlice(c) => c.apply(doc, cels),
             Self::SetSliceKey(c) => c.apply(doc, cels),
+            Self::ReplaceCelPixels(c) => c.apply(doc, cels),
         }
     }
 
@@ -176,6 +180,7 @@ impl AnyCommand {
             Self::AddSlice(c) => c.revert(doc, cels),
             Self::RemoveSlice(c) => c.revert(doc, cels),
             Self::SetSliceKey(c) => c.revert(doc, cels),
+            Self::ReplaceCelPixels(c) => c.revert(doc, cels),
         }
     }
 
@@ -228,6 +233,7 @@ impl AnyCommand {
             Self::AddSlice(c) => c.dirty_region(),
             Self::RemoveSlice(c) => c.dirty_region(),
             Self::SetSliceKey(c) => c.dirty_region(),
+            Self::ReplaceCelPixels(c) => c.dirty_region(),
         }
     }
 }
@@ -361,5 +367,11 @@ impl From<RemoveSlice> for AnyCommand {
 impl From<SetSliceKey> for AnyCommand {
     fn from(c: SetSliceKey) -> Self {
         Self::SetSliceKey(c)
+    }
+}
+
+impl From<ReplaceCelPixels> for AnyCommand {
+    fn from(c: ReplaceCelPixels) -> Self {
+        Self::ReplaceCelPixels(c)
     }
 }

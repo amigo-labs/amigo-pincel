@@ -138,4 +138,9 @@ pub enum CommandError {
     /// Emitted by [`crate::SetFrameDuration`].
     #[error("unknown frame index {0}")]
     UnknownFrame(u32),
+
+    /// A replacement pixel buffer does not match the cel buffer's byte
+    /// length. Emitted by `ReplaceCelPixels`.
+    #[error("replacement buffer is {got} bytes but the cel buffer is {expected} bytes")]
+    BufferLengthMismatch { expected: usize, got: usize },
 }
