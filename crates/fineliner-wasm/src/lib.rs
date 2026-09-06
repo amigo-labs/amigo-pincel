@@ -12,10 +12,10 @@ use fineliner_core::command::{
     SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
 };
 use fineliner_core::{
-    apply_mode, compose, delete_selection, magic_wand, BlendMode, Brush, BrushShape, Color,
-    DashPattern, Document, Eraser, EraserMode, Eyedropper, Fill, FillOptions, ImageBuffer,
-    Interpolation, Move, Pencil, Point, Rect, SampleSize, SampleSource, SelectionMask,
-    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle,
+    BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
+    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, Rect, SampleSize,
+    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text,
+    TextAlign, TextStyle, apply_mode, compose, delete_selection, magic_wand,
 };
 use pincel_effects::adjust::{
     BrightnessContrast, ColorBalance, CurveChannel, Curves, Grayscale, GrayscaleMethod,
@@ -29,8 +29,8 @@ use pincel_effects::{Effect, EffectImage};
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
+use wasm_bindgen::prelude::*;
 
 thread_local! {
     /// Open documents by handle. Handles are never reused, so a stale handle

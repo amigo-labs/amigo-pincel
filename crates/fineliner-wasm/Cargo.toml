@@ -2,9 +2,7 @@
 name = "fineliner-wasm"
 version = "0.1.0"
 description = "WebAssembly bindings for Pincel's Image mode core (fineliner-core; wasm-bindgen / wasm-pack target)"
-# Imported from amigo-fineliner@01eef70 at edition 2021; the 2024 flip is a
-# separate commit.
-edition = "2021"
+edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
