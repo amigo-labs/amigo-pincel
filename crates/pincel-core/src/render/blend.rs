@@ -190,7 +190,7 @@ fn blend_normal_into(dst: &mut [u8], sr: u8, sg: u8, sb: u8, sa: u8) {
 }
 
 #[inline]
-pub(super) fn mul_u8(a: u8, b: u8) -> u8 {
+pub(crate) fn mul_u8(a: u8, b: u8) -> u8 {
     (((u16::from(a)) * (u16::from(b)) + 127) / 255) as u8
 }
 

@@ -12,8 +12,11 @@ mod dirty;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
+mod duplicate_layer;
 mod error;
 mod fill_region;
+mod flatten_image;
+mod merge_down;
 mod move_layer;
 mod move_selection_content;
 mod place_tile;
@@ -21,7 +24,9 @@ mod remove_layer;
 mod remove_slice;
 mod replace_cel_pixels;
 mod set_frame_duration;
+mod set_layer_blend_mode;
 mod set_layer_name;
+mod set_layer_opacity;
 mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
@@ -39,8 +44,11 @@ pub use dirty::DirtyRegion;
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
+pub use duplicate_layer::DuplicateLayer;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
+pub use flatten_image::FlattenImage;
+pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
@@ -48,7 +56,9 @@ pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use replace_cel_pixels::ReplaceCelPixels;
 pub use set_frame_duration::SetFrameDuration;
+pub use set_layer_blend_mode::SetLayerBlendMode;
 pub use set_layer_name::SetLayerName;
+pub use set_layer_opacity::SetLayerOpacity;
 pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
@@ -121,6 +131,11 @@ pub enum AnyCommand {
     RemoveSlice(RemoveSlice),
     SetSliceKey(SetSliceKey),
     ReplaceCelPixels(ReplaceCelPixels),
+    DuplicateLayer(DuplicateLayer),
+    SetLayerOpacity(SetLayerOpacity),
+    SetLayerBlendMode(SetLayerBlendMode),
+    MergeDown(MergeDown),
+    FlattenImage(FlattenImage),
 }
 
 impl AnyCommand {
@@ -153,6 +168,11 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.apply(doc, cels),
             Self::SetSliceKey(c) => c.apply(doc, cels),
             Self::ReplaceCelPixels(c) => c.apply(doc, cels),
+            Self::SetLayerOpacity(c) => c.apply(doc, cels),
+            Self::SetLayerBlendMode(c) => c.apply(doc, cels),
+            Self::MergeDown(c) => c.apply(doc, cels),
+            Self::FlattenImage(c) => c.apply(doc, cels),
+            Self::DuplicateLayer(c) => c.apply(doc, cels),
         }
     }
 
@@ -181,6 +201,11 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.revert(doc, cels),
             Self::SetSliceKey(c) => c.revert(doc, cels),
             Self::ReplaceCelPixels(c) => c.revert(doc, cels),
+            Self::SetLayerOpacity(c) => c.revert(doc, cels),
+            Self::SetLayerBlendMode(c) => c.revert(doc, cels),
+            Self::MergeDown(c) => c.revert(doc, cels),
+            Self::FlattenImage(c) => c.revert(doc, cels),
+            Self::DuplicateLayer(c) => c.revert(doc, cels),
         }
     }
 
@@ -203,6 +228,7 @@ impl AnyCommand {
             (Self::AddSlice(a), Self::AddSlice(b)) => a.merge(b),
             (Self::RemoveSlice(a), Self::RemoveSlice(b)) => a.merge(b),
             (Self::SetSliceKey(a), Self::SetSliceKey(b)) => a.merge(b),
+            (Self::SetLayerOpacity(a), Self::SetLayerOpacity(b)) => a.merge(b),
             _ => false,
         }
     }
@@ -234,6 +260,11 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.dirty_region(),
             Self::SetSliceKey(c) => c.dirty_region(),
             Self::ReplaceCelPixels(c) => c.dirty_region(),
+            Self::SetLayerOpacity(c) => c.dirty_region(),
+            Self::SetLayerBlendMode(c) => c.dirty_region(),
+            Self::MergeDown(c) => c.dirty_region(),
+            Self::FlattenImage(c) => c.dirty_region(),
+            Self::DuplicateLayer(c) => c.dirty_region(),
         }
     }
 }
@@ -373,5 +404,35 @@ impl From<SetSliceKey> for AnyCommand {
 impl From<ReplaceCelPixels> for AnyCommand {
     fn from(c: ReplaceCelPixels) -> Self {
         Self::ReplaceCelPixels(c)
+    }
+}
+
+impl From<DuplicateLayer> for AnyCommand {
+    fn from(c: DuplicateLayer) -> Self {
+        Self::DuplicateLayer(c)
+    }
+}
+
+impl From<FlattenImage> for AnyCommand {
+    fn from(c: FlattenImage) -> Self {
+        Self::FlattenImage(c)
+    }
+}
+
+impl From<MergeDown> for AnyCommand {
+    fn from(c: MergeDown) -> Self {
+        Self::MergeDown(c)
+    }
+}
+
+impl From<SetLayerBlendMode> for AnyCommand {
+    fn from(c: SetLayerBlendMode) -> Self {
+        Self::SetLayerBlendMode(c)
+    }
+}
+
+impl From<SetLayerOpacity> for AnyCommand {
+    fn from(c: SetLayerOpacity) -> Self {
+        Self::SetLayerOpacity(c)
     }
 }

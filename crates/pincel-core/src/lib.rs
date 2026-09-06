@@ -18,9 +18,10 @@ pub use codec::{
 pub use command::{
     AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AnyCommand, Bus,
     ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
-    FillRegion, MoveDirection, MoveLayer, MoveSelectionContent, PlaceTile, RemoveLayer,
-    RemoveSlice, ReplaceCelPixels, SetFrameDuration, SetLayerName, SetLayerVisible, SetPixel,
-    SetSliceKey, SetTilePixel,
+    DuplicateLayer, FillRegion, FlattenImage, MergeDown, MoveDirection, MoveLayer,
+    MoveSelectionContent, PlaceTile, RemoveLayer, RemoveSlice, ReplaceCelPixels, SetFrameDuration,
+    SetLayerBlendMode, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel, SetSliceKey,
+    SetTilePixel,
 };
 
 pub use document::{

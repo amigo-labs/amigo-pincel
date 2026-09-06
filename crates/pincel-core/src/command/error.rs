@@ -143,4 +143,20 @@ pub enum CommandError {
     /// length. Emitted by `ReplaceCelPixels`.
     #[error("replacement buffer is {got} bytes but the cel buffer is {expected} bytes")]
     BufferLengthMismatch { expected: usize, got: usize },
+
+    /// The command does not support the targeted layer's kind (e.g.
+    /// duplicating or merging a group layer). Emitted by
+    /// [`crate::DuplicateLayer`] and [`crate::MergeDown`].
+    #[error("layer id {0} has a kind this command does not support")]
+    UnsupportedLayerKind(u32),
+
+    /// `MergeDown` found no mergeable image layer directly below the
+    /// target (bottom of the stack, a different parent, or a non-image
+    /// layer).
+    #[error("layer id {0} has no image layer directly below it to merge into")]
+    NoMergeTarget(u32),
+
+    /// Compositing failed while building a merged / flattened cel.
+    #[error("compose failed: {0}")]
+    Render(String),
 }
