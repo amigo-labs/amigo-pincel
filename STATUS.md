@@ -2,8 +2,10 @@
 
 _Last updated: 2026-09-06_
 
-**Branch:** `claude/pinsel-fineliner-funktionen-pn9u3q` (PR #52) — M15
-Fineliner feature parity, complete on the branch; see the M15 section.
+**Branch:** `claude/pinsel-fineliner-funktionen-pn9u3q` (reset from `main`
+after PR #52 merged) — M16 two cores, one shell: Image mode (Fineliner)
+inside Pincel, in progress; see the M16 section. Before it: PR #52 — M15
+Fineliner feature parity (merged 2026-09-06).
 Before it: `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
 / playback, task breakdown below. Landed just before it on `main`: PR #50
 — PNG export (spec §7.3) in `pincel-core` + `pincel-wasm`, and the
@@ -65,7 +67,68 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
 
 Detail on each item lives in the sections further down.
 
-## M15 — Fineliner feature parity (branch complete, PR #52)
+## M16 — Two cores, one shell (in progress)
+
+One app, two modes: Pixel (Pincel) and Image (Fineliner, paint.net-style).
+Decided 2026-09-06 (spec §15 "Two cores, one shell"): the Fineliner crates
+join this workspace, `pincel-effects` serves both cores, one Svelte shell
+mounts either editor and lazy-loads its wasm module. Mode = property of the
+document (`.aseprite` → Pixel; PNG/JPEG/WebP/BMP/GIF/TIFF → Image; New
+dialog offers both). Product name stays Pincel; `amigo-fineliner` is
+archived at the end (user-confirmed step). Plan: two cores are not merged
+(different document models, blend maths, undo, wasm ABI).
+
+Phase 0 — workspace prep
+- [x] MSRV 1.85 → 1.88; workspace deps uuid / image / serde / serde_json /
+  fineliner-core; MSRV-gated clippy fixes (let-chains, `is_multiple_of`)
+- [x] Decision Log row + spec §1.1 "Two modes" + §9.2 shell note
+- [x] This section
+
+Phase 1 — Rust crates
+- [ ] `crates/fineliner-core` imported from `amigo-fineliner@01eef70`
+- [ ] `crates/fineliner-wasm` imported, depends on `pincel-effects`,
+  ts-rs out_dir → `ui/src/modes/image/core/generated`
+- [ ] `.gitignore` pkg dir; wasm-pack build works (uuid `js` backend)
+- [ ] Edition 2024 flip for both imported crates
+- [ ] CI rust job + CLAUDE.md commands cover the two crates
+
+Phase 2 — UI build + image-mode code
+- [ ] `fineliner-wasm` as `link:` dep; `pnpm wasm:build` builds both;
+  preinstall guard + vite `fs.allow`
+- [ ] Fineliner `ui/src/lib/*` → `ui/src/modes/image/*`, `App.svelte` →
+  `ImageEditor.svelte`; adapter loads via package + `?url`; prettier pass
+- [ ] Type-clean under Pincel's stricter tsconfig; `--fl-*` theme vars
+
+Phase 3 — shell
+- [ ] `lib/fs`: `sniffFormat` / `formatFromName`, image OPEN_TYPES,
+  `saveExport(format)`
+- [ ] `lib/shell`: session store, `EditorProps`, `StartScreen`,
+  `NewDocumentDialog`
+- [ ] `App.svelte` → `modes/pixel/PixelEditor.svelte` (pure move, then
+  shell props; internal New dialog + menu wiring removed)
+- [ ] `ImageEditor` on `EditorProps` + `lib/fs` open/export
+- [ ] Thin `App.svelte`: start screen, mode routing, `{#key}` remount,
+  lazy `import()`, Tauri menu + `open-file` owned here
+- [ ] Recents carry `mode`; menu handlers split shell / editor
+- [ ] Playwright smoke `extra-modes.mjs` (both modes, lazy wasm request)
+
+Phase 4 — Tauri / PWA / release
+- [ ] `tauri.conf.json` fileAssociations for the image formats
+- [ ] PWA manifest text; both wasm files precached (check `dist/sw.js`)
+- [ ] `release.yml`: `wasm-opt` for `fineliner_wasm_bg.wasm`
+
+Phase 5 — docs + archive
+- [ ] README / CLAUDE.md / this file; image-mode recents
+- [ ] Archive `amigo-fineliner` (disable its release workflow first;
+  Cloudflare project off; repo archived) — only after user confirmation
+
+Follow-ups (not in M16): `.fln` layered project save for Image mode
+(spec-only in Fineliner too); Image-mode autosave / recovery;
+PixelEditor decomposition; pixel-only components under `modes/pixel/`;
+renaming the `fineliner-*` crates; dedupe the two Liberation Sans test
+fixtures; unify the TS effect catalogs; website copy.
+
+## M15 — Fineliner feature parity (merged, PR #52)
 
 Brings the sister project's editor feature set into Pincel (Fineliner is
 on a maintenance hold with the stated plan of becoming one mode of a
