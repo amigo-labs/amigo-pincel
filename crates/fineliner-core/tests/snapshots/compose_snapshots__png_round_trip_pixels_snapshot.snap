@@ -1,0 +1,8 @@
+---
+source: crates/fineliner-core/tests/compose_snapshots.rs
+expression: hex_rows(&back)
+---
+000080b4 3c0080b4 780080b4 b40080b4 
+003c80b4 3c3c80b4 783c80b4 b43c80b4 
+007880b4 3c7880b4 787880b4 b47880b4 
+00b480b4 3cb480b4 78b480b4 b4b480b4

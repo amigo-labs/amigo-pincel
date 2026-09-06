@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/aseprite-writer",
+  "crates/fineliner-core",
   "crates/pincel-core",
   "crates/pincel-effects",
   "crates/pincel-wasm",
