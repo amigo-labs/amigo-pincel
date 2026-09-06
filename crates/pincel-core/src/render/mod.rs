@@ -20,5 +20,5 @@ pub use compose::compose;
 pub use error::RenderError;
 pub use request::{ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays};
 
-pub(crate) use blend::mul_u8;
+pub(crate) use blend::{blend_pixel_into, mul_u8};
 pub(crate) use image_layer::composite_image_cel;

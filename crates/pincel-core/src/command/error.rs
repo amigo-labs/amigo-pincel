@@ -164,4 +164,9 @@ pub enum CommandError {
     /// empty rect or zero target size.
     #[error("the target region is empty")]
     EmptyRegion,
+
+    /// The supplied font bytes could not be parsed. Emitted by
+    /// [`crate::DrawText`].
+    #[error("font parse failed: {0}")]
+    Font(String),
 }

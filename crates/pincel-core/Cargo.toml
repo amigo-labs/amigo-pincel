@@ -11,6 +11,7 @@ rust-version.workspace = true
 aseprite-loader = { workspace = true }
 aseprite-writer = { workspace = true }
 png = { workspace = true }
+ab_glyph = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]

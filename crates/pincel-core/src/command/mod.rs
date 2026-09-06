@@ -13,6 +13,7 @@ mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
 mod draw_shape;
+mod draw_text;
 mod duplicate_layer;
 mod error;
 mod fill_region;
@@ -51,6 +52,7 @@ pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
 pub use draw_shape::{DrawShape, ShapeKind, ShapeMode, ShapeStyle};
+pub use draw_text::{DrawText, TextAlign, TextStyle};
 pub use duplicate_layer::DuplicateLayer;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
@@ -153,6 +155,7 @@ pub enum AnyCommand {
     ReframeCanvas(ReframeCanvas),
     ScaleImage(ScaleImage),
     DrawShape(DrawShape),
+    DrawText(DrawText),
 }
 
 impl AnyCommand {
@@ -185,6 +188,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.apply(doc, cels),
             Self::SetSliceKey(c) => c.apply(doc, cels),
             Self::ReplaceCelPixels(c) => c.apply(doc, cels),
+            Self::DrawText(c) => c.apply(doc, cels),
             Self::DrawShape(c) => c.apply(doc, cels),
             Self::ScaleImage(c) => c.apply(doc, cels),
             Self::ReframeCanvas(c) => c.apply(doc, cels),
@@ -223,6 +227,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.revert(doc, cels),
             Self::SetSliceKey(c) => c.revert(doc, cels),
             Self::ReplaceCelPixels(c) => c.revert(doc, cels),
+            Self::DrawText(c) => c.revert(doc, cels),
             Self::DrawShape(c) => c.revert(doc, cels),
             Self::ScaleImage(c) => c.revert(doc, cels),
             Self::ReframeCanvas(c) => c.revert(doc, cels),
@@ -287,6 +292,7 @@ impl AnyCommand {
             Self::RemoveSlice(c) => c.dirty_region(),
             Self::SetSliceKey(c) => c.dirty_region(),
             Self::ReplaceCelPixels(c) => c.dirty_region(),
+            Self::DrawText(c) => c.dirty_region(),
             Self::DrawShape(c) => c.dirty_region(),
             Self::ScaleImage(c) => c.dirty_region(),
             Self::ReframeCanvas(c) => c.dirty_region(),
@@ -496,5 +502,11 @@ impl From<ScaleImage> for AnyCommand {
 impl From<DrawShape> for AnyCommand {
     fn from(c: DrawShape) -> Self {
         Self::DrawShape(c)
+    }
+}
+
+impl From<DrawText> for AnyCommand {
+    fn from(c: DrawText) -> Self {
+        Self::DrawText(c)
     }
 }
