@@ -71,7 +71,7 @@ export default defineConfig({
   server: {
     strictPort: true,
     fs: {
-      allow: ['../crates/pincel-wasm/pkg'],
+      allow: ['../crates/pincel-wasm/pkg', '../crates/fineliner-wasm/pkg'],
     },
   },
 });
