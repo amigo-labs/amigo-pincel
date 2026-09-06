@@ -158,7 +158,7 @@
 
 <svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
 
-<div class="flex h-screen flex-col bg-[var(--fl-app-bg)] text-neutral-200">
+<div class="flex h-full flex-col bg-[var(--fl-app-bg)] text-neutral-200">
   <!-- Top action bar -->
   <header
     class="flex items-center gap-2 border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1.5 text-sm"

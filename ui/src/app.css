@@ -1,5 +1,15 @@
 @import 'tailwindcss';
 
+/* Image-mode palette (Fineliner spec §16.9). The editor under
+   src/modes/image/ styles itself with these variables; Pixel mode uses
+   Tailwind's neutral scale directly. */
+:root {
+  --fl-app-bg: #1e1e1e;
+  --fl-panel-bg: #252526;
+  --fl-panel-border: #3c3c3c;
+  --fl-accent: #0078d4;
+}
+
 @layer base {
   html,
   body,
