@@ -105,7 +105,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
       - name: gate — rust core tests
-        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm
+        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm
       - name: build wasm package (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
