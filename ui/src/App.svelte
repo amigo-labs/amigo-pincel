@@ -12,6 +12,8 @@
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import EffectDialog from './lib/components/EffectDialog.svelte';
   import EffectsMenu from './lib/components/EffectsMenu.svelte';
+  import ImageMenu, { type ImageAction } from './lib/components/ImageMenu.svelte';
+  import ResizeDialog, { type ResizeMode, type ResizeResult } from './lib/components/ResizeDialog.svelte';
   import { effectById, type EffectDef } from './lib/effects/catalog';
   import {
     ensureReadPermission,
@@ -1468,6 +1470,70 @@
     recompose();
   }
 
+  // Image menu (Fineliner parity): layer / canvas flips and rotations,
+  // resize, scale, crop. Canvas-level commands change the sprite size;
+  // `syncMeta` re-reads it and the dirty-canvas event repaints.
+  let resizeOpen = $state<ResizeMode | null>(null);
+
+  function afterImageCommand(label: string) {
+    dirty = true;
+    syncMeta();
+    docRev += 1;
+    status = label;
+  }
+
+  function imageAction(action: ImageAction) {
+    if (!doc) return;
+    try {
+      switch (action) {
+        case 'layer:flip_horizontal':
+        case 'layer:flip_vertical':
+        case 'layer:rotate_90_cw':
+        case 'layer:rotate_90_ccw':
+        case 'layer:rotate_180':
+          doc.transformLayer(action.slice('layer:'.length));
+          afterImageCommand('layer transformed');
+          break;
+        case 'canvas:flip_horizontal':
+        case 'canvas:flip_vertical':
+        case 'canvas:rotate_90_cw':
+        case 'canvas:rotate_90_ccw':
+        case 'canvas:rotate_180':
+          doc.transformCanvas(action.slice('canvas:'.length));
+          afterImageCommand('canvas transformed');
+          break;
+        case 'canvas:resize':
+          resizeOpen = 'resize';
+          break;
+        case 'canvas:scale':
+          resizeOpen = 'scale';
+          break;
+        case 'canvas:crop':
+          if (doc.cropToSelection()) afterImageCommand('cropped to selection');
+          else status = 'crop: no selection inside the canvas';
+          break;
+      }
+    } catch (err) {
+      status = `image command failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function submitResize(result: ResizeResult) {
+    resizeOpen = null;
+    if (!doc) return;
+    try {
+      if (result.mode === 'resize') {
+        doc.resizeCanvas(result.width, result.height, result.anchor);
+        afterImageCommand(`canvas resized to ${result.width}×${result.height}`);
+      } else {
+        doc.scaleImage(result.width, result.height, result.interpolation);
+        afterImageCommand(`image scaled to ${result.width}×${result.height}`);
+      }
+    } catch (err) {
+      status = `resize failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
   function undo() {
     if (!doc) return;
     try {
@@ -2438,6 +2504,11 @@
       Redo
     </button>
     <EffectsMenu disabled={!doc || fileOpBusy || effectOpen !== null} onPick={openEffect} />
+    <ImageMenu
+      disabled={!doc || fileOpBusy || effectOpen !== null}
+      hasSelection={selection !== null}
+      onAction={imageAction}
+    />
   </header>
 
   <section class="flex flex-1 overflow-hidden">
@@ -2721,6 +2792,19 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if resizeOpen}
+  {#key resizeOpen}
+    <ResizeDialog
+      mode={resizeOpen}
+      width={canvasW}
+      height={canvasH}
+      maxSize={MAX_DOC_SIZE}
+      onSubmit={submitResize}
+      onCancel={() => (resizeOpen = null)}
+    />
+  {/key}
 {/if}
 
 {#if effectOpen}
