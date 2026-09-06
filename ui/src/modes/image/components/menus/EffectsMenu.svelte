@@ -30,7 +30,10 @@
 
   {#if open}
     <!-- Backdrop closes the menu on an outside click. -->
-    <button class="fixed inset-0 z-40 cursor-default" aria-label="Close menu" onclick={() => (open = false)}
+    <button
+      class="fixed inset-0 z-40 cursor-default"
+      aria-label="Close menu"
+      onclick={() => (open = false)}
     ></button>
     <div
       class="absolute left-0 top-8 z-50 max-h-[70vh] w-52 overflow-y-auto rounded border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] py-1 text-sm shadow-xl"
@@ -39,9 +42,14 @@
         {#if i > 0}
           <div class="my-1 border-t border-[var(--fl-panel-border)]"></div>
         {/if}
-        <div class="px-3 py-0.5 text-xs uppercase tracking-wide text-neutral-500">{group.group}</div>
+        <div class="px-3 py-0.5 text-xs uppercase tracking-wide text-neutral-500">
+          {group.group}
+        </div>
         {#each group.items as item (item.label)}
-          <button class="block w-full px-3 py-1 text-left hover:bg-neutral-700" onclick={() => choose(item)}>
+          <button
+            class="block w-full px-3 py-1 text-left hover:bg-neutral-700"
+            onclick={() => choose(item)}
+          >
             {item.label}
           </button>
         {/each}

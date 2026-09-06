@@ -49,7 +49,8 @@ export type _UnknownEffects = AssertNever<Exclude<EffHandTag, EffGenTag>>;
 
 /** A field name Rust does not know is silently dropped by serde — reject it. */
 export type _UnknownEffectFields = AssertNever<
-  { [K in EffHandTag & EffGenTag]: Exclude<keyof EffHandOf<K>, keyof EffGenOf<K>> }[EffHandTag & EffGenTag]
+  { [K in EffHandTag & EffGenTag]: Exclude<keyof EffHandOf<K>, keyof EffGenOf<K>> }[EffHandTag &
+    EffGenTag]
 >;
 
 /** Effect field types must be assignable to the generated ones. */

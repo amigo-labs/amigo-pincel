@@ -221,7 +221,8 @@
         class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--fl-accent)] bg-transparent p-0 leading-none outline-none"
         style="left: {textEntry.cx}px; top: {textEntry.cy}px; transform: translateX({entryShift}); text-align: {tool.textAlign}; font-size: {tool.fontSize}px; color: {tool.foreground}; font-family: 'Liberation Sans', Arial, sans-serif; font-weight: {tool.textBold
           ? 'bold'
-          : 'normal'}; font-style: {tool.textItalic ? 'italic' : 'normal'}; min-width: 4ch;"></textarea>
+          : 'normal'}; font-style: {tool.textItalic ? 'italic' : 'normal'}; min-width: 4ch;"
+      ></textarea>
     {/if}
   </div>
 
@@ -246,7 +247,9 @@
         onclick={() => setZoom(view.zoom * 1.25)}
         aria-label="Zoom in">+</button
       >
-      <button class="rounded px-2 py-0.5 hover:bg-neutral-700" onclick={() => setZoom(1)}>1:1</button>
+      <button class="rounded px-2 py-0.5 hover:bg-neutral-700" onclick={() => setZoom(1)}
+        >1:1</button
+      >
     </div>
   {/if}
 </div>

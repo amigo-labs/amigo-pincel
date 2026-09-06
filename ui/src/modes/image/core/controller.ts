@@ -175,12 +175,24 @@ function applySelection(cmd: SelectionCommand): void {
 }
 
 /** Selects a rectangle (canvas space) combined per `mode`. */
-export function selectRectangle(x: number, y: number, w: number, h: number, mode: SelectionMode): void {
+export function selectRectangle(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  mode: SelectionMode,
+): void {
   applySelection({ type: 'select_rectangle', x, y, w, h, mode, feather: tool.selectionFeather });
 }
 
 /** Selects an ellipse inscribed in the rectangle (canvas space), per `mode`. */
-export function selectEllipse(x: number, y: number, w: number, h: number, mode: SelectionMode): void {
+export function selectEllipse(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  mode: SelectionMode,
+): void {
   applySelection({ type: 'select_ellipse', x, y, w, h, mode, feather: tool.selectionFeather });
 }
 
@@ -453,7 +465,11 @@ export async function openFile(file: File): Promise<void> {
  * `strokeId` ties segments of one pointer drag together so they collapse into a
  * single undo step; a fresh id per drag keeps distinct strokes separate.
  * `useBackground` paints the background color (right-button, spec §9.2). */
-export function paintStroke(points: Array<[number, number]>, strokeId: number, useBackground = false): void {
+export function paintStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  useBackground = false,
+): void {
   if (editor.handle === null || points.length === 0) {
     return;
   }

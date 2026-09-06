@@ -9,7 +9,15 @@ import { editor } from '../../stores/editor.svelte';
  * `key` names the command field; an optional `index` targets one element of an
  * array-valued field (e.g. a color-balance tone range). */
 export type Field =
-  | { key: string; index?: number; label: string; kind: 'range'; min: number; max: number; step: number }
+  | {
+      key: string;
+      index?: number;
+      label: string;
+      kind: 'range';
+      min: number;
+      max: number;
+      step: number;
+    }
   | {
       key: string;
       index?: number;
@@ -57,7 +65,10 @@ export const EFFECT_GROUPS: EffectGroup[] = [
       {
         label: 'Motion Blur…',
         title: 'Motion Blur',
-        fields: [{ key: 'distance', label: 'Distance', kind: 'range', min: 1, max: 500, step: 1 }, ANGLE],
+        fields: [
+          { key: 'distance', label: 'Distance', kind: 'range', min: 1, max: 500, step: 1 },
+          ANGLE,
+        ],
         make: () => ({ type: 'motion_blur', distance: 20, angle: 0 }),
       },
       {
@@ -141,7 +152,10 @@ export const EFFECT_GROUPS: EffectGroup[] = [
       {
         label: 'Relief…',
         title: 'Relief',
-        fields: [ANGLE, { key: 'amount', label: 'Amount', kind: 'range', min: 1, max: 10, step: 1 }],
+        fields: [
+          ANGLE,
+          { key: 'amount', label: 'Amount', kind: 'range', min: 1, max: 10, step: 1 },
+        ],
         make: () => ({ type: 'relief', angle: 135, amount: 5 }),
       },
     ],

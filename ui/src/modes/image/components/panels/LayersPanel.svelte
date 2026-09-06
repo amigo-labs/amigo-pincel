@@ -66,7 +66,9 @@
   }
 </script>
 
-<div class="flex min-h-0 flex-1 flex-col border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)]">
+<div
+  class="flex min-h-0 flex-1 flex-col border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)]"
+>
   <div class="flex items-center justify-between px-3 pt-3">
     <h2 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Layers</h2>
     <span class="text-xs text-neutral-500">{editor.layers.length}</span>
@@ -168,7 +170,9 @@
 
   <!-- Action buttons (spec §16.5). -->
   <div class="grid grid-cols-4 gap-1 border-t border-[var(--fl-panel-border)] p-2 text-xs">
-    <button class="rounded py-1 hover:bg-neutral-700" title="Add layer" onclick={addLayer}>＋</button>
+    <button class="rounded py-1 hover:bg-neutral-700" title="Add layer" onclick={addLayer}
+      >＋</button
+    >
     <button
       class="rounded py-1 hover:bg-neutral-700"
       title="Duplicate layer"
@@ -192,10 +196,18 @@
     >
       🗑
     </button>
-    <button class="col-span-2 rounded py-1 hover:bg-neutral-700" title="Merge visible" onclick={mergeVisible}>
+    <button
+      class="col-span-2 rounded py-1 hover:bg-neutral-700"
+      title="Merge visible"
+      onclick={mergeVisible}
+    >
       Merge visible
     </button>
-    <button class="col-span-2 rounded py-1 hover:bg-neutral-700" title="Flatten image" onclick={flattenImage}>
+    <button
+      class="col-span-2 rounded py-1 hover:bg-neutral-700"
+      title="Flatten image"
+      onclick={flattenImage}
+    >
       Flatten
     </button>
   </div>

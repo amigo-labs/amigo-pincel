@@ -158,7 +158,12 @@ export type SelectionCommand =
       mode: SelectionMode;
       feather: number;
     }
-  | { type: 'select_polygon'; points: Array<[number, number]>; mode: SelectionMode; feather: number }
+  | {
+      type: 'select_polygon';
+      points: Array<[number, number]>;
+      mode: SelectionMode;
+      feather: number;
+    }
   | {
       type: 'select_wand';
       layer: number;
@@ -279,10 +284,22 @@ export type EffectCommand =
   | { type: 'emboss'; angle: number; elevation: number; relief: number }
   | { type: 'edge_detect'; algorithm: EdgeAlgorithm; amount: number }
   | { type: 'relief'; angle: number; amount: number }
-  | { type: 'add_noise'; amount: number; noise_type: NoiseType; channels: NoiseChannels; seed: number }
+  | {
+      type: 'add_noise';
+      amount: number;
+      noise_type: NoiseType;
+      channels: NoiseChannels;
+      seed: number;
+    }
   | { type: 'reduce_noise'; radius: number }
   | { type: 'brightness_contrast'; brightness: number; contrast: number; enhanced: boolean }
-  | { type: 'hue_saturation'; hue: number; saturation: number; lightness: number; colorize: boolean }
+  | {
+      type: 'hue_saturation';
+      hue: number;
+      saturation: number;
+      lightness: number;
+      colorize: boolean;
+    }
   | { type: 'curves'; channel: CurveChannel; points: Array<[number, number]> }
   | {
       type: 'levels';
@@ -344,8 +361,13 @@ export const core = {
   previewEffect: (handle: number, layer: number, effect: EffectCommand): Uint8ClampedArray =>
     preview_effect(handle, layer, JSON.stringify(effect)),
   /** Samples a color; returns RGBA bytes, or an empty array if off-canvas. */
-  pickColor: (handle: number, x: number, y: number, sample: SampleSource, size: number): Uint8Array =>
-    pick_color(handle, x, y, sample, size),
+  pickColor: (
+    handle: number,
+    x: number,
+    y: number,
+    sample: SampleSource,
+    size: number,
+  ): Uint8Array => pick_color(handle, x, y, sample, size),
   /** Selects the active layer (UI state, not undoable). */
   setActiveLayer: (handle: number, index: number): void => set_active_layer(handle, index),
   /** Selection coverage bytes (canvas-sized, row-major), or empty if none. */

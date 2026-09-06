@@ -43,7 +43,10 @@
 
   {#if open !== null}
     <!-- Backdrop closes the menu on an outside click. -->
-    <button class="fixed inset-0 z-40 cursor-default" aria-label="Close menu" onclick={() => (open = null)}
+    <button
+      class="fixed inset-0 z-40 cursor-default"
+      aria-label="Close menu"
+      onclick={() => (open = null)}
     ></button>
   {/if}
 
