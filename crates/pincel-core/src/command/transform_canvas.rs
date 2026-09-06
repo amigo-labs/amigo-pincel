@@ -30,6 +30,7 @@ struct Prior {
     cels: CelMap,
     slices: Vec<Slice>,
     selection: Option<Rect>,
+    selection_mask: Option<crate::selection::SelectionMask>,
 }
 
 impl TransformCanvas {
@@ -78,6 +79,7 @@ impl Command for TransformCanvas {
             cels: std::mem::replace(cels, new_cels),
             slices: std::mem::replace(&mut doc.slices, new_slices),
             selection: doc.selection.take(),
+            selection_mask: doc.selection_mask.take(),
         };
         if self.op.swaps_axes() {
             doc.width = h;
@@ -96,6 +98,7 @@ impl Command for TransformCanvas {
         *cels = p.cels;
         doc.slices = p.slices;
         doc.selection = p.selection;
+        doc.selection_mask = p.selection_mask;
     }
 }
 

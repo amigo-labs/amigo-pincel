@@ -10,6 +10,7 @@ pub mod document;
 pub mod error;
 pub mod geometry;
 pub mod render;
+pub mod selection;
 
 pub use codec::{
     AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
@@ -35,3 +36,4 @@ pub use geometry::{Point, Rect};
 pub use render::{
     ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays, RenderError, compose,
 };
+pub use selection::{SelectionMask, SelectionMode};

@@ -39,6 +39,9 @@ pub struct ClearRegion {
     cleared: Option<Vec<PriorPixel>>,
     /// Cel-local dirty bbox from the last apply, preserved across revert.
     dirty_bbox: Option<Rect>,
+    /// When set, pixels outside the sprite's shaped selection mask (if
+    /// one is active) are left alone — `rect` is then the mask's bounds.
+    masked: bool,
 }
 
 impl ClearRegion {
@@ -49,7 +52,15 @@ impl ClearRegion {
             rect,
             cleared: None,
             dirty_bbox: None,
+            masked: false,
         }
+    }
+
+    /// Honour the sprite's shaped selection mask (see
+    /// `Sprite::selection_mask`) in addition to `rect`.
+    pub fn masked(mut self) -> Self {
+        self.masked = true;
+        self
     }
 
     /// Number of pixels cleared by the most recent `apply` (0 before
@@ -60,7 +71,12 @@ impl ClearRegion {
 }
 
 impl Command for ClearRegion {
-    fn apply(&mut self, _doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
+    fn apply(&mut self, doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
+        let mask = if self.masked {
+            doc.selection_mask.as_ref()
+        } else {
+            None
+        };
         // Missing cel → nothing to clear (successful no-op).
         let Some(cel) = cels.get_mut(self.layer, self.frame) else {
             self.cleared = Some(Vec::new());
@@ -84,6 +100,11 @@ impl Command for ClearRegion {
         {
             for ly in sy..sy + sh {
                 for lx in sx..sx + sw {
+                    if let Some(m) = mask
+                        && !m.contains(cel_pos.0 + lx as i32, cel_pos.1 + ly as i32)
+                    {
+                        continue;
+                    }
                     let prior = read_pixel(buffer, lx, ly);
                     // Skip already-transparent pixels so undo of a delete
                     // over mostly-empty space stays cheap.

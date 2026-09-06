@@ -27,6 +27,7 @@ use std::collections::BTreeSet;
 
 use crate::error::DocumentError;
 use crate::geometry::Rect;
+use crate::selection::SelectionMask;
 
 /// Free-form metadata associated with a sprite.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -67,6 +68,11 @@ pub struct Sprite {
     /// should prefer [`Sprite::has_selection`], which treats an empty stored
     /// rect as "no selection".
     pub selection: Option<Rect>,
+    /// Per-pixel coverage for a non-rectangular selection (ellipse, lasso,
+    /// wand, …). `None` means the selection is exactly [`Sprite::selection`].
+    /// When `Some`, [`Sprite::selection`] is the mask's bounding box.
+    /// Transient editor state like the rect; see `crate::selection`.
+    pub selection_mask: Option<SelectionMask>,
 }
 
 impl Sprite {
@@ -79,11 +85,54 @@ impl Sprite {
     /// height) clears the selection instead of storing a degenerate marquee.
     pub fn set_selection(&mut self, rect: Rect) {
         self.selection = if rect.is_empty() { None } else { Some(rect) };
+        self.selection_mask = None;
+    }
+
+    /// Replace the selection with a shaped `mask`. The bounding box lands
+    /// in [`Sprite::selection`]; a mask that is a plain rectangle is stored
+    /// as the rect alone (no mask), an empty mask clears the selection.
+    pub fn set_selection_mask(&mut self, mask: SelectionMask) {
+        match mask.bounds() {
+            None => self.clear_selection(),
+            Some(bounds) => {
+                self.selection = Some(bounds);
+                self.selection_mask = if mask.is_rect() { None } else { Some(mask) };
+            }
+        }
     }
 
     /// Drop the active marquee selection, if any.
     pub fn clear_selection(&mut self) {
         self.selection = None;
+        self.selection_mask = None;
+    }
+
+    /// `true` when sprite pixel `(x, y)` is inside the active selection
+    /// (rect or shaped mask). `false` with no selection.
+    pub fn selection_contains(&self, x: i32, y: i32) -> bool {
+        match (&self.selection_mask, self.selection) {
+            (Some(mask), _) => mask.contains(x, y),
+            (None, Some(r)) => {
+                !r.is_empty()
+                    && x >= r.x
+                    && y >= r.y
+                    && i64::from(x) < i64::from(r.x) + i64::from(r.width)
+                    && i64::from(y) < i64::from(r.y) + i64::from(r.height)
+            }
+            (None, None) => false,
+        }
+    }
+
+    /// The active selection as a canvas-sized mask (materialising a rect
+    /// selection on demand), or `None` when nothing is selected.
+    pub fn selection_as_mask(&self) -> Option<SelectionMask> {
+        match (&self.selection_mask, self.selection) {
+            (Some(mask), _) => Some(mask.clone()),
+            (None, Some(r)) if !r.is_empty() => {
+                Some(SelectionMask::rect(self.width, self.height, r))
+            }
+            _ => None,
+        }
     }
 
     /// `true` when a non-empty marquee selection is active. An empty stored
@@ -210,6 +259,7 @@ impl SpriteBuilder {
             slices: self.slices,
             metadata: self.metadata,
             selection: None,
+            selection_mask: None,
         })
     }
 }

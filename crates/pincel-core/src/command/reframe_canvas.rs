@@ -95,6 +95,7 @@ struct Prior {
     cels: CelMap,
     slices: Vec<Slice>,
     selection: Option<Rect>,
+    selection_mask: Option<crate::selection::SelectionMask>,
 }
 
 impl ReframeCanvas {
@@ -179,6 +180,7 @@ impl Command for ReframeCanvas {
             cels: std::mem::replace(cels, new_cels),
             slices: std::mem::replace(&mut doc.slices, new_slices),
             selection: doc.selection.take(),
+            selection_mask: doc.selection_mask.take(),
         });
         doc.width = self.rect.width;
         doc.height = self.rect.height;
@@ -194,6 +196,7 @@ impl Command for ReframeCanvas {
         *cels = p.cels;
         doc.slices = p.slices;
         doc.selection = p.selection;
+        doc.selection_mask = p.selection_mask;
     }
 }
 

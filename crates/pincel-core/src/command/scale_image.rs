@@ -28,6 +28,7 @@ struct Prior {
     cels: CelMap,
     slices: Vec<Slice>,
     selection: Option<Rect>,
+    selection_mask: Option<crate::selection::SelectionMask>,
 }
 
 impl ScaleImage {
@@ -103,6 +104,7 @@ impl Command for ScaleImage {
             cels: std::mem::replace(cels, new_cels),
             slices: std::mem::replace(&mut doc.slices, new_slices),
             selection: doc.selection.take(),
+            selection_mask: doc.selection_mask.take(),
         });
         doc.width = self.width;
         doc.height = self.height;
@@ -118,6 +120,7 @@ impl Command for ScaleImage {
         *cels = p.cels;
         doc.slices = p.slices;
         doc.selection = p.selection;
+        doc.selection_mask = p.selection_mask;
     }
 }
 
