@@ -217,7 +217,7 @@ impl SelectionMask {
                 }
             }
             xs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            for pair in xs.chunks_exact(2) {
+            for pair in xs.as_chunks::<2>().0 {
                 let start = (pair[0] - 0.5).ceil().max(0.0) as i64;
                 let end = (pair[1] - 0.5).floor().min(f64::from(width) - 1.0) as i64;
                 for px in start..=end {

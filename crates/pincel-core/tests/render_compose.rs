@@ -7,7 +7,7 @@ use pincel_core::{
 
 fn solid(w: u32, h: u32, rgba: [u8; 4]) -> PixelBuffer {
     let mut buf = PixelBuffer::empty(w, h, ColorMode::Rgba);
-    for px in buf.data.chunks_exact_mut(4) {
+    for px in buf.data.as_chunks_mut::<4>().0 {
         px.copy_from_slice(&rgba);
     }
     buf
@@ -96,7 +96,7 @@ fn viewport_subregion_with_zoom_returns_zoomed_subregion() {
 
     assert_eq!((result.width, result.height), (8, 8));
     // All pixels in the zoomed sub-region should match the source value 200.
-    for px in pixels.chunks_exact(4) {
+    for px in pixels.as_chunks::<4>().0 {
         assert_eq!(px, &[200, 200, 200, 255]);
     }
 }

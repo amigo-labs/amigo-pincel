@@ -35,7 +35,7 @@ pub(super) fn compose_owned(
 
 pub(super) fn solid(w: u32, h: u32, rgba: [u8; 4]) -> PixelBuffer {
     let mut buf = PixelBuffer::empty(w, h, ColorMode::Rgba);
-    for px in buf.data.chunks_exact_mut(4) {
+    for px in buf.data.as_chunks_mut::<4>().0 {
         px.copy_from_slice(&rgba);
     }
     buf

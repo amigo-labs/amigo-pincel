@@ -339,7 +339,7 @@ fn decode_tilemap_cel(
     let mut buf = vec![0u8; expected_bytes];
     decompress(data, &mut buf).map_err(|e| CodecError::TilemapDecode(format!("{e:?}")))?;
     let mut tiles = Vec::with_capacity(tile_count);
-    for chunk in buf.chunks_exact(4) {
+    for chunk in buf.as_chunks::<4>().0 {
         let raw = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         tiles.push(TileRef {
             tile_id: raw & masks.tile_id,

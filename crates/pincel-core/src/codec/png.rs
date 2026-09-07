@@ -466,7 +466,7 @@ pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
         ::png::ColorType::Rgba => buf,
         ::png::ColorType::Rgb => {
             let mut out = Vec::with_capacity(pixel_count * 4);
-            for px in buf.chunks_exact(3) {
+            for px in buf.as_chunks::<3>().0 {
                 out.extend_from_slice(&[px[0], px[1], px[2], 255]);
             }
             out
@@ -480,7 +480,7 @@ pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
         }
         ::png::ColorType::GrayscaleAlpha => {
             let mut out = Vec::with_capacity(pixel_count * 4);
-            for px in buf.chunks_exact(2) {
+            for px in buf.as_chunks::<2>().0 {
                 out.extend_from_slice(&[px[0], px[0], px[0], px[1]]);
             }
             out
@@ -516,7 +516,7 @@ mod tests {
     /// A solid-color RGBA buffer.
     fn solid(w: u32, h: u32, rgba: [u8; 4]) -> PixelBuffer {
         let mut buf = PixelBuffer::empty(w, h, ColorMode::Rgba);
-        for px in buf.data.chunks_exact_mut(4) {
+        for px in buf.data.as_chunks_mut::<4>().0 {
             px.copy_from_slice(&rgba);
         }
         buf

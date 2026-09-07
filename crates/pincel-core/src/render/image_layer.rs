@@ -144,7 +144,7 @@ mod tests {
         let sprite = one_layer_sprite(4, 4, 1);
         let mut buf = PixelBuffer::empty(4, 4, ColorMode::Rgba);
         // Mark pixel (2, 2) red, the rest white.
-        for px in buf.data.chunks_exact_mut(4) {
+        for px in buf.data.as_chunks_mut::<4>().0 {
             px.copy_from_slice(&[255, 255, 255, 255]);
         }
         let idx = (2 * 4 + 2) * 4;
