@@ -649,11 +649,8 @@ fn tilemap_cel_roundtrips_through_loader() {
 
     let mut buf = vec![0u8; 4 * 4];
     decompress(data, &mut buf).expect("tilemap zlib data decompresses");
-    let mut iter = buf.chunks_exact(4);
-    let read = |it: &mut std::slice::ChunksExact<'_, u8>| {
-        let c = it.next().unwrap();
-        u32::from_le_bytes([c[0], c[1], c[2], c[3]])
-    };
+    let mut iter = buf.as_chunks::<4>().0.iter();
+    let read = |it: &mut std::slice::Iter<'_, [u8; 4]>| u32::from_le_bytes(*it.next().unwrap());
     assert_eq!(read(&mut iter), 0);
     assert_eq!(read(&mut iter), 1);
     assert_eq!(read(&mut iter), 1 | X_FLIP_MASK);
