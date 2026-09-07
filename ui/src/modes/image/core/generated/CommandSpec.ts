@@ -5,7 +5,7 @@
  *
  * The TypeScript mirror of this enum is generated from it via ts-rs
  * (ADR-014): `cargo test -p fineliner-wasm export_command_spec` writes
- * `ui/src/lib/core/generated/CommandSpec.ts`, and the UI's command types are
+ * `ui/src/modes/image/core/generated/CommandSpec.ts`, and the UI's command types are
  * checked against it at `pnpm check` time.
  */
 export type CommandSpec = { "type": "pencil_stroke", layer: number, size: number, color: [number, number, number, number], opacity: number, shape: string, hardness: number, points: Array<[number, number]>, 
