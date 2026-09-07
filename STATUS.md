@@ -3,8 +3,9 @@
 _Last updated: 2026-09-06_
 
 **Branch:** `claude/pinsel-fineliner-funktionen-pn9u3q` (reset from `main`
-after PR #52 merged) — M16 two cores, one shell: Image mode (Fineliner)
-inside Pincel, in progress; see the M16 section. Before it: PR #52 — M15
+after PR #52 merged) — PR #53, M16 two cores, one shell: Image mode
+(Fineliner) inside Pincel, complete on the branch bar the user-confirmed
+archive step; see the M16 section. Before it: PR #52 — M15
 Fineliner feature parity (merged 2026-09-06).
 Before it: `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
 / playback, task breakdown below. Landed just before it on `main`: PR #50
@@ -67,7 +68,7 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
 
 Detail on each item lives in the sections further down.
 
-## M16 — Two cores, one shell (in progress)
+## M16 — Two cores, one shell (branch complete, PR #53)
 
 One app, two modes: Pixel (Pincel) and Image (Fineliner, paint.net-style).
 Decided 2026-09-06 (spec §15 "Two cores, one shell"): the Fineliner crates
@@ -118,7 +119,8 @@ Phase 4 — Tauri / PWA / release
 - [x] `release.yml`: `wasm-opt` for `fineliner_wasm_bg.wasm`
 
 Phase 5 — docs + archive
-- [ ] README / CLAUDE.md / this file; image-mode recents
+- [x] README / CLAUDE.md / this file; image-mode recents (opened files
+  with an FSA handle / Tauri path land on the start screen's Recent list)
 - [ ] Archive `amigo-fineliner` (disable its release workflow first;
   Cloudflare project off; repo archived) — only after user confirmation
 
