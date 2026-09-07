@@ -39,9 +39,11 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
       - name: clippy
-        run: cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm --all-targets -- -D warnings
+        run: cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm --all-targets -- -D warnings
       - name: test
-        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm
+        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm
+      - name: generated TS bindings are current (image mode, ts-rs)
+        run: git diff --exit-code -- ui/src/modes/image/core/generated/
 
   tauri:
     name: tauri shell (check)

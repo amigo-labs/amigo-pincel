@@ -78,7 +78,12 @@ impl EffectImage {
     /// gamma (sRGB) space — effects operate on sRGB samples (see [`crate`]).
     pub fn to_premultiplied_f32(&self) -> Vec<f32> {
         let mut out = vec![0.0f32; self.data.len()];
-        for (dst, px) in out.chunks_exact_mut(4).zip(self.data.chunks_exact(4)) {
+        for (dst, px) in out
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(self.data.as_chunks::<4>().0)
+        {
             let a = px[3] as f32 / 255.0;
             dst[0] = (px[0] as f32 / 255.0) * a;
             dst[1] = (px[1] as f32 / 255.0) * a;
@@ -95,7 +100,12 @@ impl EffectImage {
     pub fn from_premultiplied_f32(width: u32, height: u32, data: &[f32]) -> Self {
         debug_assert_eq!(data.len(), width as usize * height as usize * 4);
         let mut out = vec![0u8; width as usize * height as usize * 4];
-        for (dst, px) in out.chunks_exact_mut(4).zip(data.chunks_exact(4)) {
+        for (dst, px) in out
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(data.as_chunks::<4>().0)
+        {
             let a = px[3].clamp(0.0, 1.0);
             let inv = if a > 0.0 { 1.0 / a } else { 0.0 };
             dst[0] = to_u8((px[0] * inv).clamp(0.0, 1.0));
@@ -212,7 +222,7 @@ mod tests {
             .collect();
         let src = EffectImage::from_rgba8(4, 4, data).unwrap();
         let down = src.resized(2, 2);
-        for px in down.data().chunks_exact(4) {
+        for px in down.data().as_chunks::<4>().0 {
             assert_eq!(px, &[90, 40, 200, 255]);
         }
     }

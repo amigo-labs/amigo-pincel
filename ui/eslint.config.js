@@ -29,6 +29,8 @@ export default ts.config(
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'pkg/', '.svelte-kit/'],
+    // src/modes/image/core/generated/ is committed ts-rs output (fineliner-wasm);
+    // CI fails on a dirty diff, so lint does not touch it.
+    ignores: ['dist/', 'node_modules/', 'pkg/', '.svelte-kit/', 'src/modes/image/core/generated/'],
   },
 );

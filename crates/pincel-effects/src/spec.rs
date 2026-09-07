@@ -298,7 +298,7 @@ impl EffectSpec {
                 }
             }
             "curves" => {
-                if p.len() < 3 || (p.len() - 1) % 2 != 0 {
+                if p.len() < 3 || !(p.len() - 1).is_multiple_of(2) {
                     return Err(EffectError::ParamCount {
                         effect: name.to_owned(),
                         expected: 3,
@@ -313,7 +313,9 @@ impl EffectSpec {
                     _ => CurveChannel::Composite,
                 };
                 let points = p[1..]
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|xy| [f(xy[0]), f(xy[1])])
                     .collect();
                 Self::Curves { channel, points }

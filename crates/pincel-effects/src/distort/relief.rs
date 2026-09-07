@@ -92,7 +92,7 @@ mod tests {
         );
         let out = Relief::new(0.0, 8.0).apply(&src);
         assert_ne!(out, src);
-        for px in out.data().chunks_exact(4) {
+        for px in out.data().as_chunks::<4>().0 {
             assert_eq!(px[3], 255);
         }
     }

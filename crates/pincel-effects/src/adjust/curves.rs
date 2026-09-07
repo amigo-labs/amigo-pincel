@@ -113,7 +113,7 @@ impl Effect for Curves {
     fn apply(&self, src: &EffectImage) -> EffectImage {
         let lut = build_lut(&self.points);
         let mut out = src.data().to_vec();
-        for px in out.chunks_exact_mut(4) {
+        for px in out.as_chunks_mut::<4>().0 {
             match self.channel {
                 CurveChannel::Composite => {
                     px[0] = lut[px[0] as usize];

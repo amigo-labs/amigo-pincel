@@ -399,7 +399,12 @@ mod tests {
         let CelData::Image(b) = &cels.get(L, F).unwrap().data else {
             unreachable!()
         };
-        b.data.chunks_exact(4).filter(|p| p[3] > 0).count()
+        b.data
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[3] > 0)
+            .count()
     }
 
     fn style(size: f32) -> TextStyle {
@@ -431,7 +436,13 @@ mod tests {
         let CelData::Image(b) = &c.get(L, F).unwrap().data else {
             unreachable!()
         };
-        assert!(b.data.chunks_exact(4).all(|p| p[3] == 0 || p[3] == 255));
+        assert!(
+            b.data
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| p[3] == 0 || p[3] == 255)
+        );
         let (mut s, mut c) = doc(64, 32);
         let aa = TextStyle {
             anti_alias: true,
@@ -443,7 +454,13 @@ mod tests {
         let CelData::Image(b) = &c.get(L, F).unwrap().data else {
             unreachable!()
         };
-        assert!(b.data.chunks_exact(4).any(|p| p[3] > 0 && p[3] < 255));
+        assert!(
+            b.data
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .any(|p| p[3] > 0 && p[3] < 255)
+        );
     }
 
     #[test]

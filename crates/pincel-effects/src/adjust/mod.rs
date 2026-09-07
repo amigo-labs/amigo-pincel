@@ -31,7 +31,7 @@ use crate::image::EffectImage;
 /// preserves alpha.
 pub(crate) fn map_rgb(src: &EffectImage, f: impl Fn([f32; 3]) -> [f32; 3]) -> EffectImage {
     let mut out = src.data().to_vec();
-    for px in out.chunks_exact_mut(4) {
+    for px in out.as_chunks_mut::<4>().0 {
         let rgb = [
             px[0] as f32 / 255.0,
             px[1] as f32 / 255.0,

@@ -1,4 +1,4 @@
-// preinstall guard: the UI declares `pincel-wasm: link:../crates/pincel-wasm/pkg`,
+// preinstall guard: the UI declares `<crate>: link:../crates/<crate>/pkg` for both wasm crates,
 // so `pnpm install` before `pnpm wasm:build` fails with a cryptic link error.
 // Fail early with a clear message instead.
 //
@@ -8,11 +8,17 @@
 // in an infinite wasm-pack loop.
 import { existsSync } from 'node:fs';
 
-if (!existsSync(new URL('../../crates/pincel-wasm/pkg/package.json', import.meta.url))) {
+// One wasm-pack package per editor mode (Pixel: pincel-wasm, Image:
+// fineliner-wasm); `pnpm wasm:build` builds both.
+const missing = ['pincel-wasm', 'fineliner-wasm'].filter(
+  (crate) => !existsSync(new URL(`../../crates/${crate}/pkg/package.json`, import.meta.url)),
+);
+
+if (missing.length > 0) {
   console.error(
-    '\npincel-ui: crates/pincel-wasm/pkg is missing.\n' +
+    `\npincel-ui: crates/${missing.join('/pkg and crates/')}/pkg is missing.\n` +
       'Run "pnpm wasm:build" before "pnpm install" — the UI links the generated\n' +
-      'wasm package (needs wasm-pack and the wasm32-unknown-unknown target).\n',
+      'wasm packages (needs wasm-pack and the wasm32-unknown-unknown target).\n',
   );
   process.exit(1);
 }

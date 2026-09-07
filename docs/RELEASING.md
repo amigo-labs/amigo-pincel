@@ -45,8 +45,9 @@ at publish time.
 | `publish-npm` | `NPM_TOKEN` set | npm secret | Publishes `pincel-wasm` to npm at the release version |
 
 The wasm optimization step installs `binaryen` from apt and runs
-`wasm-opt -O3` explicitly. wasm-pack's own bundled `wasm-opt` is disabled
-in `crates/pincel-wasm/Cargo.toml` because it downloads binaryen from
+`wasm-opt -O3` explicitly on both wasm packages (`pincel-wasm` for Pixel
+mode, `fineliner-wasm` for Image mode). wasm-pack's own bundled `wasm-opt`
+is disabled in both crates' `Cargo.toml` because it downloads binaryen from
 GitHub at build time, which fails in sandboxed/firewalled runners.
 
 ## One-time setup to enable the guarded steps

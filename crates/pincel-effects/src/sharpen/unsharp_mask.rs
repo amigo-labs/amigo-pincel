@@ -48,7 +48,12 @@ impl Effect for UnsharpMask {
             .to_premultiplied_f32();
         let threshold = self.threshold / 255.0;
         let mut out = src_pm.clone();
-        for (o, low) in out.chunks_exact_mut(4).zip(low_pm.chunks_exact(4)) {
+        for (o, low) in out
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(low_pm.as_chunks::<4>().0)
+        {
             // Gate on the luminance difference so flat areas / noise stay put.
             if (luma(o) - luma(low)).abs() < threshold {
                 continue;

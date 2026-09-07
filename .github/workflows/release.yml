@@ -105,7 +105,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
       - name: gate — rust core tests
-        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm
+        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm
       - name: build wasm package (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
@@ -114,8 +114,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y binaryen
-          wasm="crates/pincel-wasm/pkg/pincel_wasm_bg.wasm"
-          wasm-opt -O3 -o "$wasm" "$wasm"
+          for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/fineliner-wasm/pkg/fineliner_wasm_bg.wasm; do
+            wasm-opt -O3 -o "$wasm" "$wasm"
+          done
           ls -lh "$wasm"
       - name: install ui dependencies
         working-directory: ui
@@ -193,8 +194,9 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y binaryen
-          wasm="crates/pincel-wasm/pkg/pincel_wasm_bg.wasm"
-          wasm-opt -O3 -o "$wasm" "$wasm"
+          for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/fineliner-wasm/pkg/fineliner_wasm_bg.wasm; do
+            wasm-opt -O3 -o "$wasm" "$wasm"
+          done
           ls -lh "$wasm"
       - name: stamp package version
         working-directory: crates/pincel-wasm/pkg

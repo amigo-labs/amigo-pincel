@@ -1,0 +1,8 @@
+---
+source: crates/fineliner-core/tests/compose_snapshots.rs
+expression: "hex_rows(&compose(&[bottom, mid, top]))"
+---
+00006dff 2e006dff 65006dff a6006dff 
+002e6dff 2e2e6dff 652e6dff a62e6dff 
+00656dff 2e656dff 65656dff a6656dff 
+00a66dff 2ea66dff 65a66dff a6a66dff

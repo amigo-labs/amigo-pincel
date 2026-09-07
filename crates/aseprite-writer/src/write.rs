@@ -133,12 +133,12 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 })?);
                 // A trailing User Data chunk attaches to the slice above
                 // (Aseprite's "previous chunk" rule), carrying its color.
-                if let Some(ud) = &slice.user_data {
-                    if ud.text.is_some() || ud.color.is_some() {
-                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
-                            write_user_data_body(buf, ud)
-                        })?);
-                    }
+                if let Some(ud) = &slice.user_data
+                    && (ud.text.is_some() || ud.color.is_some())
+                {
+                    chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                        write_user_data_body(buf, ud)
+                    })?);
                 }
             }
         }

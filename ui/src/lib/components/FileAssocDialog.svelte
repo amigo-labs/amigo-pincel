@@ -1,5 +1,6 @@
 <script lang="ts">
-  // First-launch advisory dialog for `.aseprite` file associations.
+  // First-launch advisory dialog for the file associations (`.aseprite`
+  // sprites and the Image-mode raster formats).
   // On Tauri the install bundle registers the type at the OS level —
   // on macOS LaunchServices, on Windows the installer, on Linux the
   // `.desktop` file. We can't programmatically force Pincel to be the
@@ -25,12 +26,15 @@
 >
   <div class="w-full max-w-lg rounded border border-neutral-700 bg-neutral-900 p-6 shadow-xl">
     <h2 id="fileassoc-title" class="mb-3 text-lg font-semibold">
-      Open .aseprite files with Pincel
+      Open sprites and images with Pincel
     </h2>
     <p class="mb-3 text-sm text-neutral-300">
-      Pincel can edit Aseprite-format sprites. To make it the default
-      handler for <code class="text-neutral-100">.aseprite</code> and
-      <code class="text-neutral-100">.ase</code> files on your system:
+      Pincel edits Aseprite-format sprites (Pixel mode) and PNG, JPEG, WebP, BMP, GIF and TIFF
+      images (Image mode). To make it the default handler for <code class="text-neutral-100"
+        >.aseprite</code
+      >
+      /
+      <code class="text-neutral-100">.ase</code> — and, if you like, for the image types — on your system:
     </p>
     {#if platform === 'macos'}
       <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
@@ -42,7 +46,7 @@
       <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
         <li>Open Settings → Apps → Default apps.</li>
         <li>Search for ".aseprite" and pick Pincel from the list.</li>
-        <li>Repeat for ".ase".</li>
+        <li>Repeat for ".ase" and any image types you want Pincel to open.</li>
       </ol>
     {:else if platform === 'linux'}
       <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
@@ -52,15 +56,15 @@
           >.
         </li>
         <li>
-          If your distro doesn't pick up new MIME types automatically,
-          run <code class="text-neutral-100">update-desktop-database</code>
+          If your distro doesn't pick up new MIME types automatically, run <code
+            class="text-neutral-100">update-desktop-database</code
+          >
           afterward.
         </li>
       </ol>
     {:else}
       <p class="mb-4 text-sm text-neutral-400">
-        Steps depend on your OS — consult its documentation for setting
-        default file handlers.
+        Steps depend on your OS — consult its documentation for setting default file handlers.
       </p>
     {/if}
     <label class="mb-4 flex items-center gap-2 text-sm text-neutral-300">
@@ -68,9 +72,7 @@
       Don't show this again
     </label>
     <div class="flex justify-end">
-      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}>
-        Got it
-      </button>
+      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}> Got it </button>
     </div>
   </div>
 </div>

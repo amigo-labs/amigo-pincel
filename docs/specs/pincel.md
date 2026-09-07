@@ -2,7 +2,7 @@
 
 > **Status:** Draft, Specification v0.1
 > **Type:** Living Document
-> **Last updated:** 2026-05-07
+> **Last updated:** 2026-09-06
 > **Owner:** Daniel Rück / amigo-labs
 
 ---
@@ -17,6 +17,8 @@ Pincel is a pixel-art editor at the feature level of Aseprite, focused on **game
 - A **native desktop app** via Tauri (sharing the same UI codebase)
 
 The two builds share one Svelte UI and one Rust core. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
+
+**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates `fineliner-core` / `fineliner-wasm` live in this workspace). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
 
 ### 1.2 Engine Interop Strategy
 
@@ -539,6 +541,8 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 
 Right-side panels are reorderable, collapsible, and dock-tabbable. Layout state persists per-document type.
 
+The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents), the New-document dialog with a mode choice, file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
+
 ### 9.3 WASM Boundary Contract
 
 **State stays in Rust.** The UI never holds a serialized document. It calls thin methods:
@@ -759,6 +763,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-08-20 | Add the `png` crate (0.18) as a `pincel-core` dependency for the §7.3 PNG export | Export needs a real PNG encoder — deflate streams, per-chunk CRCs, IHDR/IDAT framing. Hand-rolling that inside `pincel-core` would be a second codec to maintain with no upside. `png` is the de-facto Rust choice (MIT OR Apache-2.0, `image-rs`-maintained), compiles for `wasm32-unknown-unknown`, and its only transitive deps are `crc32fast` / `flate2` / `miniz_oxide` (already in the tree via `aseprite-loader`) plus `fdeflate`. Encoder-only in the library; the decoder is used in tests to read back what we wrote. |
 | 2026-09-06 | Fineliner feature parity: vendor `fineliner-effects` into this workspace as `crates/pincel-effects` (no `pincel-core` dependency, `thiserror` only) | The sister project `amigo-fineliner` is on a maintenance hold with the stated plan of becoming one mode of a unified app; its effect / adjustment set (blur ×4, sharpen ×2, distort ×3, noise ×2, nine colour adjustments) is the first block of that parity work. A git dependency on the private sibling repo would break `wasm-pack` and CI without extra credentials, so the crate is copied verbatim (pixel math unchanged; `as_chunks` reverted to `chunks_exact` for the 1.85 MSRV). Effects run per cel via an undoable whole-buffer command in `pincel-core`, keeping the effects crate platform- and document-free. |
 | 2026-09-06 | Add `ab_glyph` (0.2) to `pincel-core` for the Text tool; the caller supplies the font bytes, and the app ships Liberation Sans (SIL OFL 1.1) | Fineliner parity block: text is rasterised to pixels on commit (no vector layer), mirroring Fineliner's ADR-012. `ab_glyph` is pure Rust, wasm-safe and has a tiny dependency tree (`ab_glyph_rasterizer`, `owned_ttf_parser`); core never touches the file system or system fonts, so §5.1's no-platform-deps rule holds. Bold / italic are synthesised (smear / shear) because Phase 1 ships one face. The same font is committed as a core test fixture. |
+| 2026-09-06 | Two cores, one shell: `fineliner-core` and `fineliner-wasm` (from `amigo-fineliner@01eef70`) join this workspace unchanged in name; `pincel-effects` serves both cores and `fineliner-effects` is retired; one Svelte shell hosts Pixel and Image mode and lazy-loads the mode's wasm module. Inherited runtime deps: `uuid` (v4 + `js` backend), `image` 0.25 (png/jpeg/webp/bmp/gif/tiff, no default features), `serde`, `serde_json`, `serde-wasm-bindgen`, `js-sys`, `web-sys`, `console_error_panic_hook`; dev deps `ts-rs`, `insta`, `proptest`. MSRV 1.85 → 1.88. | The user wants one app with a pixel-art mode and a paint.net-style image mode. The two cores are not two views of one model: Pincel's `Sprite` is sparse per-cel storage with frames / palette / tilesets / slices and u8 sRGB blending for Aseprite parity; Fineliner's `Document` is a dense canvas-sized layer stack with f32 linear-light blending, a 999-layer / 32767 px envelope and a JSON `CommandSpec` wasm ABI with ts-rs-generated TypeScript. Merging them means one side rewrites its compositor and undo system; keeping both behind one shell preserves every shipped behaviour and test (728 + 282 Rust tests) and costs one extra lazily-loaded wasm bundle. Copying instead of `git subtree` keeps the Pincel tree free of Fineliner's workflows / deploy config; history stays in the archived repo. The effects crate is the one genuine fork (pixel math identical), so it is deduplicated first. MSRV 1.88 lets the vendored code use `slice::as_chunks` as upstream does. |
 
 ---
 

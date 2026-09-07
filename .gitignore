@@ -5,6 +5,7 @@ Cargo.lock.bak
 
 # WASM build output
 /crates/pincel-wasm/pkg
+/crates/fineliner-wasm/pkg
 
 # Node / UI
 /ui/node_modules

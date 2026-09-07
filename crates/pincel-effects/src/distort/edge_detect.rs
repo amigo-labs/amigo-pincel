@@ -102,7 +102,7 @@ mod tests {
             EdgeAlgorithm::Laplacian,
         ] {
             let out = EdgeDetect::new(algo, 100.0).apply(&src);
-            for px in out.data().chunks_exact(4) {
+            for px in out.data().as_chunks::<4>().0 {
                 assert_eq!([px[0], px[1], px[2]], [0, 0, 0]);
                 assert_eq!(px[3], 255);
             }
@@ -114,7 +114,14 @@ mod tests {
         // A step edge produces bright pixels at the seam column.
         let src = gray_columns(&[0, 0, 255, 255], 3);
         let out = EdgeDetect::new(EdgeAlgorithm::Sobel, 100.0).apply(&src);
-        let brightest = out.data().chunks_exact(4).map(|p| p[0]).max().unwrap();
+        let brightest = out
+            .data()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|p| p[0])
+            .max()
+            .unwrap();
         assert!(
             brightest > 100,
             "seam produced a bright edge ({})",
@@ -126,6 +133,6 @@ mod tests {
     fn amount_zero_is_black() {
         let src = gray_columns(&[0, 255, 0, 255], 3);
         let out = EdgeDetect::new(EdgeAlgorithm::Sobel, 0.0).apply(&src);
-        assert!(out.data().chunks_exact(4).all(|p| p[0] == 0));
+        assert!(out.data().as_chunks::<4>().0.iter().all(|p| p[0] == 0));
     }
 }

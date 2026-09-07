@@ -77,10 +77,10 @@ impl Bus {
 
         if self.sealed {
             self.sealed = false;
-        } else if let Some(top) = self.undo.back_mut() {
-            if top.merge(&cmd) {
-                return Ok(());
-            }
+        } else if let Some(top) = self.undo.back_mut()
+            && top.merge(&cmd)
+        {
+            return Ok(());
         }
 
         self.undo.push_back(cmd);

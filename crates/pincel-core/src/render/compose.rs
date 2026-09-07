@@ -630,7 +630,7 @@ mod tests {
         let r = compose_owned(&sprite, &cels, &req).unwrap();
         assert_eq!((r.width, r.height), (6, 6));
         assert_eq!(r.pixels.len(), 6 * 6 * 4);
-        for px in r.pixels.chunks_exact(4) {
+        for px in r.pixels.as_chunks::<4>().0 {
             assert_eq!(px, &[50, 60, 70, 255]);
         }
     }

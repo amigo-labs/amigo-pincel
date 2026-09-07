@@ -1,8 +1,11 @@
-//! Stateless image effects and adjustments for Pincel.
+//! Stateless image effects and adjustments for Pincel — both the Pixel mode
+//! (`pincel-core` / `pincel-wasm`) and the Image mode (`fineliner-core` /
+//! `fineliner-wasm`) run their effects through this one crate.
 //!
-//! Vendored from the sister project `amigo-fineliner` (`fineliner-effects`,
-//! 2026-09) so Pincel carries the Fineliner effect set; see
-//! `docs/specs/pincel.md` §15 for the decision. The pixel math is unchanged.
+//! Originally `fineliner-effects` in the sister project `amigo-fineliner`;
+//! vendored here 2026-09 and made the single copy when the Fineliner crates
+//! joined this workspace (`docs/specs/pincel.md` §15, "Two cores, one
+//! shell"). The pixel math is unchanged from upstream.
 //!
 //! This crate is independent of `pincel-core`: every effect is a
 //! pure function from an [`EffectImage`] to a new [`EffectImage`], with no
