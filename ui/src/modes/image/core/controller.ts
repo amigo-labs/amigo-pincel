@@ -20,6 +20,7 @@ import {
   type EffectCommand,
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
+import { saveExport, type ExportFormat } from '../../../lib/fs';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -446,19 +447,24 @@ export async function newDocument(width: number, height: number): Promise<void> 
   syncInfo();
 }
 
-/** Opens an encoded image file as a new single-layer document. */
-export async function openFile(file: File): Promise<void> {
+/** Opens already-read image bytes as a new single-layer document. `name`
+ * seeds the export file name; `mime` is a hint for the decoder. */
+export async function openBytes(bytes: Uint8Array, name: string, mime: string): Promise<void> {
   await initCore();
-  const bytes = new Uint8Array(await file.arrayBuffer());
   // Decode before closing the current document: a corrupt file must not
   // destroy the open document or leave `editor.handle` pointing at a closed slot.
-  const handle = core.openImage(bytes, file.type || 'image/png');
+  const handle = core.openImage(bytes, mime || 'image/png');
   if (editor.handle !== null) {
     core.closeDocument(editor.handle);
   }
   editor.handle = handle;
-  exportStem = file.name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
+  exportStem = name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
   syncInfo();
+}
+
+/** Opens an encoded image file as a new single-layer document. */
+export async function openFile(file: File): Promise<void> {
+  await openBytes(new Uint8Array(await file.arrayBuffer()), file.name, file.type);
 }
 
 /** Applies a pencil stroke over the given canvas-space points.
@@ -598,44 +604,30 @@ export function redo(): void {
   }
 }
 
-/** Encoded-export formats (spec §13.2; WebP is lossless per ADR-007). */
-export type ExportFormat = 'png' | 'jpeg' | 'webp';
+export type { ExportFormat };
 
-/** Exports the composite in `format` and triggers a browser download.
+/** Exports the composite in `format` through the shared file layer
+ * (FSA save picker / Tauri dialog / download). Resolves `false` when the
+ * user cancelled the picker.
  *
  * `quality` (1–100) applies to JPEG only; PNG and WebP are lossless. */
-export function exportImage(format: ExportFormat = 'png', quality = 90): void {
+export async function exportImage(format: ExportFormat = 'png', quality = 90): Promise<boolean> {
   if (editor.handle === null) {
-    return;
+    return false;
   }
   let bytes: Uint8Array;
-  let mime: string;
   switch (format) {
     case 'jpeg':
       bytes = core.exportJpeg(editor.handle, Math.min(100, Math.max(1, Math.round(quality))));
-      mime = 'image/jpeg';
       break;
     case 'webp':
       bytes = core.exportWebp(editor.handle);
-      mime = 'image/webp';
       break;
     case 'png':
       bytes = core.exportPng(editor.handle, 6);
-      mime = 'image/png';
       break;
   }
-  // Copy into a fresh ArrayBuffer so the Blob owns standalone memory.
-  const blob = new Blob([bytes.slice()], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${exportStem}.${format === 'jpeg' ? 'jpg' : format}`;
-  document.body.appendChild(a);
-  a.click();
-  // Defer cleanup so the browser has started the download (avoids a WebKit
-  // race where revoking synchronously cancels it).
-  setTimeout(() => {
-    a.remove();
-    URL.revokeObjectURL(url);
-  }, 0);
+  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
+  const name = `${exportStem}.${format === 'jpeg' ? 'jpg' : format}`;
+  return saveExport(new Uint8Array(bytes), name, format);
 }

@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import type { EditorProps } from '../../lib/shell/types';
   import { editor, tool, ui, resetColors, swapColors, type ToolKind } from './stores/editor.svelte';
   import {
     newDocument,
-    openFile,
+    openBytes,
     exportImage,
     undo,
     redo,
@@ -24,7 +25,18 @@
   import { ADJUSTMENT_GROUPS } from './components/menus/adjustments';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
 
-  let fileInput: HTMLInputElement;
+  // Shell contract (src/App.svelte mounts one editor per session): the
+  // document to open / create on mount, and the callbacks the shell
+  // serves — New / Open dialogs, dirty mirror, native-menu items.
+  let {
+    initialFile,
+    initialNew,
+    onRequestNew,
+    onRequestOpen,
+    onDirtyChange,
+    registerMenuHandlers,
+  }: EditorProps = $props();
+
   let loadError = $state<string | null>(null);
   let exportOpen = $state(false);
   let jpegDialogOpen = $state(false);
@@ -36,14 +48,14 @@
     { format: 'webp', label: 'WebP (lossless)' },
   ];
 
-  function runExport(format: ExportFormat): void {
+  function runExport(format: ExportFormat, quality?: number): void {
     exportOpen = false;
     // JPEG is lossy: ask for the quality first (spec §13.2).
-    if (format === 'jpeg') {
+    if (format === 'jpeg' && quality === undefined) {
       jpegDialogOpen = true;
       return;
     }
-    exportImage(format);
+    exportImage(format, quality).catch((e) => (loadError = `Export failed: ${String(e)}`));
   }
 
   // Single-key tool shortcuts (spec §9.2, §16.2). M and L cycle their pair.
@@ -73,24 +85,25 @@
   };
 
   onMount(() => {
-    // Start with a blank white-ish canvas so the demo is immediately usable.
-    newDocument(800, 600).catch((e) => (loadError = String(e)));
+    // Open what the shell handed over: an already-read file, or a blank
+    // canvas of the requested size.
+    const start = initialFile
+      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime)
+      : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
+    start.catch((e) => (loadError = `Could not open image: ${String(e)}`));
+    registerMenuHandlers({
+      'menu:save': () => runExport('png'),
+      'menu:undo': undo,
+      'menu:redo': redo,
+    });
+    return () => registerMenuHandlers(null);
   });
 
-  async function onFileChosen(e: Event): Promise<void> {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
-    loadError = null;
-    try {
-      await openFile(file);
-    } catch (err) {
-      loadError = `Could not open image: ${String(err)}`;
-    }
-    input.value = '';
-  }
+  // Mirror the dirty state to the shell (its guards for mode switches,
+  // native New / Open and open-file events). `canUndo` is the dirty proxy.
+  $effect(() => {
+    onDirtyChange(editor.canUndo);
+  });
 
   function onKeydown(e: KeyboardEvent): void {
     // Ignore shortcuts while typing in a field (text-entry overlay included)
@@ -163,16 +176,12 @@
   <header
     class="flex items-center gap-2 border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1.5 text-sm"
   >
-    <span class="mr-3 font-semibold text-[var(--fl-accent)]">Fineliner</span>
-    <button
-      class="rounded px-2 py-1 hover:bg-neutral-700"
-      onclick={() => newDocument(800, 600).catch((e) => (loadError = String(e)))}
-    >
-      New
-    </button>
-    <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={() => fileInput.click()}>
-      Open…
-    </button>
+    <span class="mr-3 font-semibold tracking-wide">Pincel</span>
+    <span class="mr-3 rounded border border-[var(--fl-panel-border)] px-1.5 text-xs text-[var(--fl-accent)]">
+      Image
+    </span>
+    <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestNew}>New</button>
+    <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestOpen}>Open…</button>
     <div class="relative">
       <button
         class="rounded px-2 py-1 hover:bg-neutral-700"
@@ -221,13 +230,6 @@
     <TransformMenu />
     <EffectsMenu />
     <EffectsMenu label="Adjustments" groups={ADJUSTMENT_GROUPS} />
-    <input
-      bind:this={fileInput}
-      type="file"
-      accept="image/png,image/jpeg,image/webp,image/bmp,image/gif,image/tiff"
-      class="hidden"
-      onchange={onFileChosen}
-    />
   </header>
 
   <div class="flex min-h-0 flex-1">
@@ -261,7 +263,7 @@
   <ExportDialog
     onApply={(quality) => {
       jpegDialogOpen = false;
-      exportImage('jpeg', quality);
+      runExport('jpeg', quality);
     }}
     onClose={() => (jpegDialogOpen = false)}
   />

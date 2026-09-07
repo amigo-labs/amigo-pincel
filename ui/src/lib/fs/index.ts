@@ -158,6 +158,12 @@ export function formatFromName(name: string): FileFormat | null {
   }
 }
 
+/** MIME type guessed from a file name; `''` when the extension is unknown. */
+export function mimeFromName(name: string): string {
+  const format = formatFromName(name);
+  return format === null ? '' : mimeFor(format);
+}
+
 /** MIME type for a raster `FileFormat` (what the Image-mode decoder is told). */
 export function mimeFor(format: FileFormat): string {
   switch (format) {
@@ -190,6 +196,9 @@ export function isPngBytes(bytes: Uint8Array): boolean {
 export interface OpenedFile {
   name: string;
   bytes: Uint8Array;
+  /** MIME type as reported by the picker / `File`, or derived from the
+   *  extension; `''` when unknown. Hint for the Image-mode decoder. */
+  mime: string;
   /** Present only on FSA-capable browsers. Lets a later save write
    *  back to the same on-disk file without prompting the user. */
   handle: FileSystemFileHandle | null;
@@ -278,7 +287,7 @@ export async function pickAndOpen(): Promise<OpenedFile | null> {
       if (!handle) return null;
       const file = await handle.getFile();
       const bytes = new Uint8Array(await file.arrayBuffer());
-      return { name: file.name, bytes, handle, path: null };
+      return { name: file.name, bytes, mime: file.type, handle, path: null };
     } catch (err) {
       if (isUserCancel(err)) return null;
       throw err;
@@ -306,7 +315,7 @@ async function pickAndOpenTauri(): Promise<OpenedFile | null> {
   });
   const bytes =
     raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
-  return { name: basename(picked), bytes, handle: null, path: picked };
+  return { name: basename(picked), bytes, mime: mimeFromName(picked), handle: null, path: picked };
 }
 
 function basename(p: string): string {
@@ -332,7 +341,7 @@ function openViaInput(): Promise<OpenedFile | null> {
       }
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        settle({ name: file.name, bytes, handle: null, path: null });
+        settle({ name: file.name, bytes, mime: file.type, handle: null, path: null });
       } catch (err) {
         fail(err);
       }

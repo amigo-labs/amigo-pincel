@@ -8,8 +8,6 @@
   import LayersPanel from '../../lib/components/LayersPanel.svelte';
   import PalettePanel from '../../lib/components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
-  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import FileAssocDialog from '../../lib/components/FileAssocDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
   import EffectsMenu from '../../lib/components/EffectsMenu.svelte';
   import ImageMenu, { type ImageAction } from '../../lib/components/ImageMenu.svelte';
@@ -20,15 +18,19 @@
   import { effectById, type EffectDef } from '../../lib/effects/catalog';
   import {
     ensureReadPermission,
+    formatFromName,
     hasFsAccess,
     pickAndOpen,
     isPngBytes,
     saveExport,
     saveBytes,
+    sniffFormat,
+    type OpenedFile,
     type SaveTarget,
   } from '../../lib/fs';
+  import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
-  import { syncRecentMenu, wireNativeMenu } from '../../lib/menu';
+  import { syncRecentMenu } from '../../lib/menu';
   import { isTauri } from '../../lib/platform';
   import { isIdbAvailable } from '../../lib/idb/db';
   import {
@@ -58,6 +60,19 @@
   import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
   import { fitZoom } from '../../lib/view/fit';
   import { packColor, unpackColor } from '../../lib/color';
+
+  // Shell contract (src/App.svelte mounts one editor per session): the
+  // document to open / create on mount, and the callbacks the shell
+  // serves — New dialog, foreign-format re-routing, dirty mirror, and
+  // the native-menu items this editor handles.
+  let {
+    initialFile,
+    initialNew,
+    onRequestNew,
+    onOpenForeign,
+    onDirtyChange,
+    registerMenuHandlers,
+  }: EditorProps = $props();
 
   // The wasm `Document` is the source of truth for sprite state
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
@@ -228,11 +243,8 @@
   // moves into the list on open and returns to the trigger on close.
   let recentsTrigger = $state<HTMLButtonElement | null>(null);
   let recentsMenu = $state<HTMLUListElement | null>(null);
-  // "New document" dialog: size inputs, defaults matching the historical
-  // 64×64. Clamped to 1..=4096 on create.
-  let newDocOpen = $state(false);
-  let newDocW = $state(64);
-  let newDocH = $state(64);
+  // Canvas size cap for new / resized documents (the shell's New
+  // dialog shares it).
   const MAX_DOC_SIZE = 4096;
 
   // Pending destructive action awaiting the user's unsaved-changes
@@ -268,22 +280,10 @@
   // and the user can retry or pick a different snapshot. Keyed by
   // `docId` so independent rows don't share an error slot.
   let recoveryErrors = $state<Record<string, string>>({});
-  // First-launch file-association dialog (Tauri-only). Visible once
-  // per install; "Don't show again" persists the pref.
-  const FILE_ASSOC_PREF = 'fileAssocPromptShown';
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
   const COLOR_PREF = 'lastColor';
   let colorPrefLoaded = false;
-  let fileAssocOpen = $state(false);
-  const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
-    if (typeof navigator === 'undefined') return 'unknown';
-    const ua = navigator.userAgent;
-    if (/Mac/i.test(ua)) return 'macos';
-    if (/Win/i.test(ua)) return 'windows';
-    if (/Linux/i.test(ua)) return 'linux';
-    return 'unknown';
-  })();
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
   // is the live endpoint; both are sprite-space. `dragTool` snapshots
@@ -1371,25 +1371,11 @@
     pending?.run();
   }
 
+  // The New dialog lives in the shell (it offers both editor modes and
+  // runs the unsaved-changes guard from the mirrored dirty state).
   function openNewDialog() {
     if (fileOpBusy) return;
-    newDocOpen = true;
-  }
-
-  function newDoc(width = 64, height = 64) {
-    // Don't free the document under an in-flight open / save.
-    if (fileOpBusy) return;
-    const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(width)));
-    const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(height)));
-    newDocOpen = false;
-    disposeDoc();
-    doc = new Document(w, h);
-    resetDocViewState();
-    saveTarget = { name: DEFAULT_FILE_NAME, handle: null, path: null };
-    docId = crypto.randomUUID();
-    lastWriteUndoDepth = doc.undoDepth;
-    lastSavedUndoDepth = doc.undoDepth;
-    status = `new ${w}×${h} document`;
+    onRequestNew();
   }
 
   async function openDoc() {
@@ -1412,6 +1398,20 @@
       return;
     }
     if (!opened) return;
+    // Anything that is neither a sprite nor a PNG belongs to the Image
+    // mode; the shell re-routes it (unknown bytes fall through so the
+    // codec error below names the problem).
+    const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
+    if (format !== null && format !== 'aseprite' && format !== 'png') {
+      onOpenForeign(opened);
+      return;
+    }
+    await openOpened(opened);
+  }
+
+  // Replace the current document with the already-read `opened` file
+  // (Open…, or the shell's initial file on mount).
+  async function openOpened(opened: OpenedFile) {
     try {
       // A PNG opens as a fresh single-layer sprite; its save target is a
       // sibling .aseprite (never the PNG itself), so the first Save asks.
@@ -1590,6 +1590,7 @@
         name: saveTarget.name,
         handle: saveTarget.handle,
         path: saveTarget.path,
+        mode: 'pixel',
       });
       recents = await listRecents();
     } catch (err) {
@@ -2186,10 +2187,6 @@
         confirmState = null;
         return;
       }
-      if (newDocOpen) {
-        newDocOpen = false;
-        return;
-      }
       if (polyPoints || lassoPoints) {
         cancelPolygon();
         return;
@@ -2363,7 +2360,9 @@
           renderer = r;
           backend = r.backend;
         }
-        doc = new Document(64, 64);
+        const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.width ?? 64)));
+        const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.height ?? 64)));
+        doc = new Document(w, h);
         syncMeta();
         fitView();
         syncSelection();
@@ -2372,6 +2371,16 @@
         lastSavedUndoDepth = doc.undoDepth;
         status = 'ready';
         rafHandle = requestAnimationFrame(tick);
+        // The shell hands over a file it already read (start screen,
+        // drag-and-drop, file association, Open Recent).
+        if (initialFile) {
+          fileOpBusy = true;
+          try {
+            await openOpened(initialFile);
+          } finally {
+            fileOpBusy = false;
+          }
+        }
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -2432,63 +2441,17 @@
         void autosaveTick();
       }, AUTOSAVE_INTERVAL_MS);
     }
-    // Native menu wiring (Tauri only). The Rust side emits a "menu"
-    // event with the item id as payload; we dispatch into local
-    // handlers. The unlisten fn is stored so cleanup tears it down
-    // before the window unloads. Best-effort: a wire failure logs but
-    // doesn't block the app — the toolbar buttons stay available.
-    let unlistenMenu: UnlistenFn | null = null;
-    let unlistenOpenFile: UnlistenFn | null = null;
-    if (tauriHost) {
-      wireNativeMenu({
-        'menu:new': () => guardUnsaved(openNewDialog),
-        'menu:open': () => guardUnsaved(() => void openDoc()),
-        'menu:save': () => save(),
-        'menu:saveAs': () => save({ forceAs: true }),
-        'menu:undo': undo,
-        'menu:redo': redo,
-        'menu:zoomIn': zoomIn,
-        'menu:zoomOut': zoomOut,
-        'menu:resetZoom': resetView,
-        recent: openRecentById,
-      })
-        .then((fn) => {
-          if (cancelled) {
-            fn();
-            return;
-          }
-          unlistenMenu = fn;
-        })
-        .catch((err: unknown) => {
-          console.error('wireNativeMenu failed', err);
-        });
-      // Open-file events from Rust: file-association double-click,
-      // CLI arg, macOS RunEvent::Opened, single-instance forward.
-      listen<string>('open-file', (e) => {
-        if (typeof e.payload === 'string') void openByPath(e.payload);
-      })
-        .then((fn) => {
-          if (cancelled) {
-            fn();
-            return;
-          }
-          unlistenOpenFile = fn;
-        })
-        .catch((err: unknown) => {
-          console.error('open-file listen failed', err);
-        });
-      // First-launch file-association advisory. Best-effort: a missing
-      // IDB or a getPref failure silently skips the dialog.
-      if (autosaveAvailable) {
-        getPref(FILE_ASSOC_PREF)
-          .then((shown) => {
-            if (!cancelled && !shown) fileAssocOpen = true;
-          })
-          .catch((err: unknown) => {
-            console.error('getPref fileAssoc failed', err);
-          });
-      }
-    }
+    // Native-menu items this editor serves (Tauri only; the shell owns
+    // New / Open / Open Recent and the open-file events).
+    registerMenuHandlers({
+      'menu:save': () => save(),
+      'menu:saveAs': () => save({ forceAs: true }),
+      'menu:undo': undo,
+      'menu:redo': redo,
+      'menu:zoomIn': zoomIn,
+      'menu:zoomOut': zoomOut,
+      'menu:resetZoom': resetView,
+    });
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
@@ -2496,8 +2459,7 @@
         clearInterval(autosaveTimer);
         autosaveTimer = null;
       }
-      if (unlistenMenu) unlistenMenu();
-      if (unlistenOpenFile) unlistenOpenFile();
+      registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
@@ -2509,46 +2471,6 @@
       disposeDoc();
     };
   });
-
-  // Look a recent up by id and route through `openRecent`.
-  // Native-menu Recent items only know the id; the full RecentFile
-  // lives in the local `recents` state.
-  function openRecentById(id: string) {
-    const r = recents.find((row) => row.id === id);
-    if (r) void openRecent(r);
-  }
-
-  // Tauri-only: open a sprite by absolute path. Used by the
-  // `open-file` event (file-association double-click, CLI arg) and
-  // by `openRecent` when the recent carries a path.
-  async function openByPath(path: string) {
-    if (fileOpBusy) return;
-    fileOpBusy = true;
-    try {
-      const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
-        path,
-      });
-      const bytes =
-        raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
-      const next = Document.openAseprite(bytes);
-      disposeDoc();
-      doc = next;
-      resetDocViewState();
-      const name = path.replace(/^.*[/\\]/, '');
-      saveTarget = { name, handle: null, path };
-      docId = crypto.randomUUID();
-      lastWriteUndoDepth = doc.undoDepth;
-      lastSavedUndoDepth = doc.undoDepth;
-      status = `opened ${name} · ${doc.width}×${doc.height}`;
-      await clearAutosave();
-      await recordRecent();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      status = `open-file failed: ${msg}`;
-    } finally {
-      fileOpBusy = false;
-    }
-  }
 
   // Open/close the recent-files dropdown. Opening moves focus onto the
   // first entry (next frame, once the list is in the DOM); closing
@@ -2592,15 +2514,6 @@
     }
   }
 
-  function dismissFileAssoc(dontShowAgain: boolean) {
-    fileAssocOpen = false;
-    if (dontShowAgain) {
-      setPref(FILE_ASSOC_PREF, true).catch((err: unknown) => {
-        console.error('setPref fileAssoc failed', err);
-      });
-    }
-  }
-
   // Close the recent-files dropdown on any pointer press outside the
   // menu and its trigger. Focus is left where the user clicked (unlike
   // the Escape path, which restores it to the trigger).
@@ -2628,6 +2541,12 @@
   // Reflect the document identity + dirty state in the tab title.
   $effect(() => {
     document.title = `${isDirty ? '● ' : ''}${saveTarget.name} – Pincel`;
+  });
+
+  // Mirror the dirty state to the shell (its guards for mode switches,
+  // native New / Open and open-file events).
+  $effect(() => {
+    onDirtyChange(isDirty);
   });
 
   // Warn before the tab closes with unsaved edits. Autosave (30 s
@@ -2660,9 +2579,7 @@
 <main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
   <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={() => guardUnsaved(openNewDialog)} disabled={fileOpBusy}>
-      New
-    </button>
+    <button class="toolbar-btn" onclick={openNewDialog} disabled={fileOpBusy}>New</button>
     <button
       class="toolbar-btn"
       onclick={() => guardUnsaved(() => void openDoc())}
@@ -3344,10 +3261,6 @@
   />
 {/if}
 
-{#if fileAssocOpen}
-  <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
-{/if}
-
 {#if resizeOpen}
   {#key resizeOpen}
     <ResizeDialog
@@ -3381,63 +3294,6 @@
       onCancel={cancelEffect}
     />
   {/key}
-{/if}
-
-{#if newDocOpen}
-  <div
-    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-    role="dialog"
-    aria-modal="true"
-    aria-label="New document"
-  >
-    <form
-      class="w-72 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
-      onsubmit={(e) => {
-        e.preventDefault();
-        newDoc(newDocW, newDocH);
-      }}
-    >
-      <p class="font-semibold">New document</p>
-      <div class="mt-3 flex items-center gap-2">
-        <label class="flex items-center gap-1 text-xs text-neutral-400">
-          W
-          <input
-            type="number"
-            min="1"
-            max={MAX_DOC_SIZE}
-            step="1"
-            inputmode="numeric"
-            bind:value={newDocW}
-            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
-          />
-        </label>
-        <span class="text-neutral-500">×</span>
-        <label class="flex items-center gap-1 text-xs text-neutral-400">
-          H
-          <input
-            type="number"
-            min="1"
-            max={MAX_DOC_SIZE}
-            step="1"
-            inputmode="numeric"
-            bind:value={newDocH}
-            class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
-          />
-        </label>
-        <span class="text-xs text-neutral-500">px</span>
-      </div>
-      <div class="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          class="toolbar-btn"
-          onclick={() => (newDocOpen = false)}
-        >
-          Cancel
-        </button>
-        <button type="submit" class="toolbar-btn toolbar-btn-active">Create</button>
-      </div>
-    </form>
-  </div>
 {/if}
 
 {#if confirmState}

@@ -16,6 +16,7 @@ import {
   openDb,
   transactionDone,
 } from './db';
+import type { EditorMode } from '../shell/types';
 
 /** Per-entry cap. 8 is plenty for a recents menu. */
 export const MAX_RECENTS = 8;
@@ -37,6 +38,9 @@ export interface RecentFile {
   /** Wall-clock ms of the most recent open / save that touched the
    *  on-disk file. Drives LRU eviction and the menu order. */
   openedAt: number;
+  /** Editor the file belongs to. Rows written before the two-mode
+   *  shell lack it and read back as `'pixel'`. */
+  mode: EditorMode;
 }
 
 export interface RecentFileInput {
@@ -44,6 +48,7 @@ export interface RecentFileInput {
   name: string;
   handle: FileSystemFileHandle | null;
   path: string | null;
+  mode: EditorMode;
 }
 
 /** Insert or refresh a recent-files entry. Preserves any prior
@@ -64,6 +69,7 @@ export async function upsertRecent(
     path: input.path,
     addedAt: prior?.addedAt ?? now,
     openedAt: now,
+    mode: input.mode,
   };
   const tx = db.transaction(STORE_RECENT_FILES, 'readwrite');
   const store = tx.objectStore(STORE_RECENT_FILES);
@@ -89,7 +95,8 @@ export async function upsertRecent(
 
 /** List recents, newest-opened first. Capped at `MAX_RECENTS`.
  *  Migrates pre-M11.2 rows that lack a `path` field by treating it as
- *  `null` — IDB returns `undefined` for missing properties. */
+ *  `null`, and pre-M16 rows that lack `mode` as `'pixel'` — IDB
+ *  returns `undefined` for missing properties. */
 export async function listRecents(): Promise<RecentFile[]> {
   const db = await openDb();
   const tx = db.transaction(STORE_RECENT_FILES, 'readonly');
@@ -99,7 +106,7 @@ export async function listRecents(): Promise<RecentFile[]> {
     .slice()
     .sort((a, b) => b.openedAt - a.openedAt)
     .slice(0, MAX_RECENTS)
-    .map((r) => ({ ...r, path: r.path ?? null }));
+    .map((r) => ({ ...r, path: r.path ?? null, mode: r.mode ?? 'pixel' }));
 }
 
 /** Drop a single entry by id. No-op if the id is unknown. */
