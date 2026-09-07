@@ -38,15 +38,74 @@
       "icons/icon.ico"
     ],
     "category": "GraphicsAndDesign",
-    "shortDescription": "Pixel-art editor for game asset creation.",
-    "longDescription": "Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation. The native desktop build shares one Svelte UI and one Rust core with the PWA.",
+    "shortDescription": "Pixel-art and image editor.",
+    "longDescription": "Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation, plus a paint.net-style image editor for everyday raster work (PNG, JPEG, WebP, BMP, GIF, TIFF). The native desktop build shares one Svelte UI and the two Rust cores with the PWA.",
     "fileAssociations": [
       {
-        "ext": ["aseprite", "ase"],
+        "ext": [
+          "aseprite",
+          "ase"
+        ],
         "name": "Aseprite Sprite",
         "description": "Aseprite pixel-art sprite",
         "role": "Editor",
         "mimeType": "application/x-aseprite"
+      },
+      {
+        "ext": [
+          "png"
+        ],
+        "name": "PNG Image",
+        "description": "PNG image",
+        "role": "Editor",
+        "mimeType": "image/png"
+      },
+      {
+        "ext": [
+          "jpg",
+          "jpeg"
+        ],
+        "name": "JPEG Image",
+        "description": "JPEG image",
+        "role": "Editor",
+        "mimeType": "image/jpeg"
+      },
+      {
+        "ext": [
+          "webp"
+        ],
+        "name": "WebP Image",
+        "description": "WebP image",
+        "role": "Editor",
+        "mimeType": "image/webp"
+      },
+      {
+        "ext": [
+          "bmp"
+        ],
+        "name": "BMP Image",
+        "description": "BMP image",
+        "role": "Editor",
+        "mimeType": "image/bmp"
+      },
+      {
+        "ext": [
+          "gif"
+        ],
+        "name": "GIF Image",
+        "description": "GIF image",
+        "role": "Editor",
+        "mimeType": "image/gif"
+      },
+      {
+        "ext": [
+          "tif",
+          "tiff"
+        ],
+        "name": "TIFF Image",
+        "description": "TIFF image",
+        "role": "Editor",
+        "mimeType": "image/tiff"
       }
     ]
   }
