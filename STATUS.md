@@ -85,37 +85,37 @@ Phase 0 — workspace prep
 - [x] This section
 
 Phase 1 — Rust crates
-- [ ] `crates/fineliner-core` imported from `amigo-fineliner@01eef70`
-- [ ] `crates/fineliner-wasm` imported, depends on `pincel-effects`,
+- [x] `crates/fineliner-core` imported from `amigo-fineliner@01eef70`
+- [x] `crates/fineliner-wasm` imported, depends on `pincel-effects`,
   ts-rs out_dir → `ui/src/modes/image/core/generated`
-- [ ] `.gitignore` pkg dir; wasm-pack build works (uuid `js` backend)
-- [ ] Edition 2024 flip for both imported crates
-- [ ] CI rust job + CLAUDE.md commands cover the two crates
+- [x] `.gitignore` pkg dir; wasm-pack build works (uuid `js` backend)
+- [x] Edition 2024 flip for both imported crates
+- [x] CI rust job + CLAUDE.md commands cover the two crates
 
 Phase 2 — UI build + image-mode code
-- [ ] `fineliner-wasm` as `link:` dep; `pnpm wasm:build` builds both;
+- [x] `fineliner-wasm` as `link:` dep; `pnpm wasm:build` builds both;
   preinstall guard + vite `fs.allow`
-- [ ] Fineliner `ui/src/lib/*` → `ui/src/modes/image/*`, `App.svelte` →
+- [x] Fineliner `ui/src/lib/*` → `ui/src/modes/image/*`, `App.svelte` →
   `ImageEditor.svelte`; adapter loads via package + `?url`; prettier pass
-- [ ] Type-clean under Pincel's stricter tsconfig; `--fl-*` theme vars
+- [x] Type-clean under Pincel's stricter tsconfig; `--fl-*` theme vars
 
 Phase 3 — shell
-- [ ] `lib/fs`: `sniffFormat` / `formatFromName`, image OPEN_TYPES,
+- [x] `lib/fs`: `sniffFormat` / `formatFromName`, image OPEN_TYPES,
   `saveExport(format)`
-- [ ] `lib/shell`: session store, `EditorProps`, `StartScreen`,
+- [x] `lib/shell`: session store, `EditorProps`, `StartScreen`,
   `NewDocumentDialog`
-- [ ] `App.svelte` → `modes/pixel/PixelEditor.svelte` (pure move, then
+- [x] `App.svelte` → `modes/pixel/PixelEditor.svelte` (pure move, then
   shell props; internal New dialog + menu wiring removed)
-- [ ] `ImageEditor` on `EditorProps` + `lib/fs` open/export
-- [ ] Thin `App.svelte`: start screen, mode routing, `{#key}` remount,
+- [x] `ImageEditor` on `EditorProps` + `lib/fs` open/export
+- [x] Thin `App.svelte`: start screen, mode routing, `{#key}` remount,
   lazy `import()`, Tauri menu + `open-file` owned here
-- [ ] Recents carry `mode`; menu handlers split shell / editor
-- [ ] Playwright smoke `extra-modes.mjs` (both modes, lazy wasm request)
+- [x] Recents carry `mode`; menu handlers split shell / editor
+- [x] Playwright smoke `smoke-modes.mjs` (both modes, guard, PNG drop, lazy wasm request)
 
 Phase 4 — Tauri / PWA / release
-- [ ] `tauri.conf.json` fileAssociations for the image formats
-- [ ] PWA manifest text; both wasm files precached (check `dist/sw.js`)
-- [ ] `release.yml`: `wasm-opt` for `fineliner_wasm_bg.wasm`
+- [x] `tauri.conf.json` fileAssociations for the image formats
+- [x] PWA manifest text; both wasm files precached (15 entries, 10.8 MiB dev; per-file cap 8 MiB holds)
+- [x] `release.yml`: `wasm-opt` for `fineliner_wasm_bg.wasm`
 
 Phase 5 — docs + archive
 - [ ] README / CLAUDE.md / this file; image-mode recents
