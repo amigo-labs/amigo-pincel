@@ -313,7 +313,9 @@ impl EffectSpec {
                     _ => CurveChannel::Composite,
                 };
                 let points = p[1..]
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|xy| [f(xy[0]), f(xy[1])])
                     .collect();
                 Self::Curves { channel, points }

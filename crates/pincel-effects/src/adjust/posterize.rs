@@ -40,7 +40,7 @@ mod tests {
         let src =
             EffectImage::from_rgba8(2, 1, vec![10, 130, 200, 255, 60, 128, 250, 255]).unwrap();
         let out = Posterize::new(2).apply(&src);
-        for px in out.data().chunks_exact(4) {
+        for px in out.data().as_chunks::<4>().0 {
             for &c in &px[0..3] {
                 assert!(c == 0 || c == 255, "got {c}");
             }

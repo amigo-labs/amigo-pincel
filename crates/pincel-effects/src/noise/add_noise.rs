@@ -97,7 +97,7 @@ impl Effect for AddNoise {
             NoiseType::Uniform => (rng.next_f32() * 2.0 - 1.0) * strength,
             NoiseType::Gaussian => rng.next_gaussian() * strength,
         };
-        for px in out.chunks_exact_mut(4) {
+        for px in out.as_chunks_mut::<4>().0 {
             match self.channels {
                 NoiseChannels::Monochromatic => {
                     let d = sample(&mut rng);
@@ -164,7 +164,7 @@ mod tests {
         let src = solid(8, 8, [128, 128, 128, 200]);
         let out = AddNoise::new(50, NoiseType::Uniform, NoiseChannels::Rgb, 7).apply(&src);
         assert_ne!(out, src);
-        assert!(out.data().chunks_exact(4).all(|p| p[3] == 200));
+        assert!(out.data().as_chunks::<4>().0.iter().all(|p| p[3] == 200));
     }
 
     #[test]
@@ -173,7 +173,7 @@ mod tests {
         let src = solid(8, 8, [128, 128, 128, 255]);
         let out =
             AddNoise::new(30, NoiseType::Uniform, NoiseChannels::Monochromatic, 99).apply(&src);
-        for px in out.data().chunks_exact(4) {
+        for px in out.data().as_chunks::<4>().0 {
             assert_eq!(px[0], px[1]);
             assert_eq!(px[1], px[2]);
         }

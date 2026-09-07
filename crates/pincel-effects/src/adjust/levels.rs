@@ -74,7 +74,7 @@ impl Effect for Levels {
     fn apply(&self, src: &EffectImage) -> EffectImage {
         let lut = self.build_lut();
         let mut out = src.data().to_vec();
-        for px in out.chunks_exact_mut(4) {
+        for px in out.as_chunks_mut::<4>().0 {
             match self.channel {
                 LevelsChannel::Composite => {
                     px[0] = lut[px[0] as usize];

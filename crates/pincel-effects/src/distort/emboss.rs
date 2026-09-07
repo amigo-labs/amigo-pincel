@@ -87,7 +87,7 @@ mod tests {
         let src = gray_columns(&[100, 100, 100, 100], 4);
         let out = Emboss::new(135.0, 45.0, 5.0).apply(&src);
         let first = &out.data()[0..4];
-        for px in out.data().chunks_exact(4) {
+        for px in out.data().as_chunks::<4>().0 {
             assert_eq!(px[0], px[1]);
             assert_eq!(px[1], px[2]);
             assert_eq!(px[3], 255);
@@ -101,7 +101,7 @@ mod tests {
         // dark pixel around the seam, unlike the flat baseline.
         let src = gray_columns(&[60, 60, 200, 200], 3);
         let out = Emboss::new(0.0, 30.0, 6.0).apply(&src);
-        let grays: Vec<u8> = out.data().chunks_exact(4).map(|p| p[0]).collect();
+        let grays: Vec<u8> = out.data().as_chunks::<4>().0.iter().map(|p| p[0]).collect();
         let max = *grays.iter().max().unwrap();
         let min = *grays.iter().min().unwrap();
         assert!(max > min, "edge produced contrast ({} vs {})", max, min);
