@@ -1,10 +1,20 @@
 # Pincel
 
 Pincel is a pixel-art editor for game asset creation, aiming at the feature
-level of [Aseprite](https://www.aseprite.org/). One Rust core and one Svelte
-UI ship two ways: as an installable PWA (WebAssembly) and as a native
-desktop app (Tauri 2). It reads and writes the `.aseprite` file format,
-including tilemaps, tilesets, slices, and animation tags.
+level of [Aseprite](https://www.aseprite.org/) — and, since M16, a
+paint.net-style image editor in the same app. One Svelte UI and two Rust
+cores ship two ways: as an installable PWA (WebAssembly) and as a native
+desktop app (Tauri 2).
+
+- **Pixel mode** reads and writes the `.aseprite` file format, including
+  tilemaps, tilesets, slices, and animation tags.
+- **Image mode** (formerly the sister project `amigo-fineliner`) edits
+  layered raster images with soft brushes, selections, effects and
+  adjustments; it opens PNG / JPEG / WebP / BMP / GIF / TIFF and exports
+  PNG / JPEG / WebP.
+
+The mode follows the document: `.aseprite` opens in Pixel mode, images open
+in Image mode, and the New dialog offers both.
 
 > **Status:** Phase 1, pre-1.0. See [`STATUS.md`](STATUS.md) for current
 > milestone state.
@@ -43,12 +53,18 @@ including tilemaps, tilesets, slices, and animation tags.
 ## Repository layout
 
 ```
-crates/pincel-core/      Pure logic: document model, commands + undo,
+crates/pincel-core/      Pixel mode core: document model, commands + undo,
                          compose(), aseprite codec. No I/O, no platform deps.
+crates/fineliner-core/   Image mode core: layered RGBA documents, brush
+                         engine, selections, transforms, image codecs.
+crates/pincel-effects/   Effects + adjustments shared by both cores.
 crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
                          independent of Pincel types.
-crates/pincel-wasm/      wasm-bindgen bindings (cdylib); built into pkg/.
-ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview).
+crates/pincel-wasm/      wasm-bindgen bindings for pincel-core (cdylib).
+crates/fineliner-wasm/   wasm-bindgen bindings for fineliner-core (cdylib).
+ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
+                         src/App.svelte is the two-mode shell,
+                         src/modes/pixel/ and src/modes/image/ the editors.
 src-tauri/               Native desktop shell (Tauri 2).
 website/                 Marketing site (deployed via Cloudflare Workers).
 docs/specs/              Design specifications.
@@ -76,7 +92,7 @@ cd amigo-pincel
 # 1. Rust core — check the library crates build and pass tests
 cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm
 
-# 2. Build the wasm package (creates crates/pincel-wasm/pkg/)
+# 2. Build the wasm packages (creates crates/{pincel,fineliner}-wasm/pkg/)
 cd ui
 pnpm wasm:build
 
@@ -95,7 +111,7 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 | `cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm` | repo root | test the library crates (what CI runs) |
 | `cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
 | `cargo fmt` | repo root | format |
-| `pnpm wasm:build` | `ui/` | dev wasm build into `crates/pincel-wasm/pkg/` |
+| `pnpm wasm:build` | `ui/` | dev wasm builds into `crates/pincel-wasm/pkg/` and `crates/fineliner-wasm/pkg/` |
 | `pnpm dev` | `ui/` | Vite dev server |
 | `pnpm lint` / `pnpm check` / `pnpm build` | `ui/` | ESLint / svelte-check / production bundle |
 | `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |
