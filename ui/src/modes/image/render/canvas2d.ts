@@ -36,7 +36,7 @@ export function drawComposite(
   canvas: HTMLCanvasElement,
   width: number,
   height: number,
-  rgba: Uint8ClampedArray,
+  rgba: Uint8ClampedArray<ArrayBuffer>,
 ): void {
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
@@ -52,10 +52,9 @@ export function drawComposite(
   if (!offCtx) {
     return;
   }
-  // Copy into an ArrayBuffer-backed view so ImageData accepts it (the WASM
-  // return type is backed by ArrayBufferLike).
-  const pixels = new Uint8ClampedArray(rgba);
-  offCtx.putImageData(new ImageData(pixels, width, height), 0, 0);
+  // `rgba` is already an ArrayBuffer-backed copy (the wasm adapter narrows the
+  // type), so ImageData takes it directly — no per-frame copy.
+  offCtx.putImageData(new ImageData(rgba, width, height), 0, 0);
 
   ctx.imageSmoothingEnabled = false;
   paintCheckerboard(ctx, width, height);

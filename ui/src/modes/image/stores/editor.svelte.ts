@@ -26,7 +26,7 @@ export const editor = $state({
   revision: 0,
   /** A live effect preview composite that overrides the canvas while an effect
    * dialog is open; `null` shows the real composite (spec §11 live preview). */
-  previewComposite: null as Uint8ClampedArray | null,
+  previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
 });
 
 /** Transient UI chrome state (not document state). */
@@ -43,6 +43,13 @@ export const view = $state({
   panY: 0,
   fit: true,
 });
+
+/** Largest canvas edge the UI lets the user create / resize / scale to.
+ * The core accepts 32767, but browsers cap 2D canvases well below that
+ * (Chromium refuses > 16384 per side / ~268 M px; Safari less), and a
+ * 32767² RGBA composite alone is 4 GiB. 8192² (256 MiB per composite)
+ * is the safe envelope until the renderer tiles. */
+export const MAX_CANVAS_DIM = 8192;
 
 /** Zoom limits (spec §6.4: fit to 6400 %-ish). */
 export const MIN_ZOOM = 0.02;

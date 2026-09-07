@@ -44,8 +44,7 @@
     if (!sctx) {
       return;
     }
-    // Copy into an ArrayBuffer-backed view so ImageData accepts it.
-    sctx.putImageData(new ImageData(new Uint8ClampedArray(rgba), DIM, DIM), 0, 0);
+    sctx.putImageData(new ImageData(rgba, DIM, DIM), 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(scratch, 0, 0);
   }

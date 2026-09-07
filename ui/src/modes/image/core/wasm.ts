@@ -351,15 +351,23 @@ export const core = {
   createDocument: (width: number, height: number): number => create_document(width, height),
   openImage: (data: Uint8Array, mime: string): number => open_image(data, mime),
   closeDocument: (handle: number): void => close_document(handle),
-  composite: (handle: number): Uint8ClampedArray => composite(handle),
+  // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
+  // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
+  // them without a second copy per frame.
+  composite: (handle: number): Uint8ClampedArray<ArrayBuffer> =>
+    composite(handle) as Uint8ClampedArray<ArrayBuffer>,
   applyCommand: (handle: number, command: ToolCommand): void =>
     apply_command(handle, JSON.stringify(command)),
   /** Applies an effect to a layer's pixels as one undoable step (spec §11). */
   applyEffect: (handle: number, layer: number, effect: EffectCommand): void =>
     apply_effect(handle, layer, JSON.stringify(effect)),
   /** Composites the document with `effect` previewed on `layer`; no mutation. */
-  previewEffect: (handle: number, layer: number, effect: EffectCommand): Uint8ClampedArray =>
-    preview_effect(handle, layer, JSON.stringify(effect)),
+  previewEffect: (
+    handle: number,
+    layer: number,
+    effect: EffectCommand,
+  ): Uint8ClampedArray<ArrayBuffer> =>
+    preview_effect(handle, layer, JSON.stringify(effect)) as Uint8ClampedArray<ArrayBuffer>,
   /** Samples a color; returns RGBA bytes, or an empty array if off-canvas. */
   pickColor: (
     handle: number,
@@ -373,8 +381,8 @@ export const core = {
   /** Selection coverage bytes (canvas-sized, row-major), or empty if none. */
   selectionMask: (handle: number): Uint8ClampedArray => get_selection_mask(handle),
   /** Returns a 32×32 RGBA8 thumbnail of the layer with the given id. */
-  layerThumbnail: (handle: number, layerId: string): Uint8ClampedArray =>
-    get_layer_thumbnail(handle, layerId),
+  layerThumbnail: (handle: number, layerId: string): Uint8ClampedArray<ArrayBuffer> =>
+    get_layer_thumbnail(handle, layerId) as Uint8ClampedArray<ArrayBuffer>,
   undo: (handle: number): boolean => undo(handle),
   redo: (handle: number): boolean => redo(handle),
   exportPng: (handle: number, compression: number): Uint8Array => export_png(handle, compression),

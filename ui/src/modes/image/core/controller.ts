@@ -156,7 +156,7 @@ export function selectLayer(index: number): void {
  * Returns null (rather than throwing) if the id no longer exists — a thumbnail
  * component can still be mounted for a layer that was just deleted or reordered.
  */
-export function layerThumbnail(layerId: string): Uint8ClampedArray | null {
+export function layerThumbnail(layerId: string): Uint8ClampedArray<ArrayBuffer> | null {
   if (editor.handle === null) {
     return null;
   }
@@ -583,7 +583,7 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
 }
 
 /** Reads the current composite as RGBA8 for rendering. */
-export function readComposite(): Uint8ClampedArray | null {
+export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
   if (editor.handle === null) {
     return null;
   }
