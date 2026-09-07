@@ -61,17 +61,116 @@ const ASEPRITE_TYPES: FilePickerAcceptType[] = [
   },
 ];
 
-// Open accepts sprites and PNG images (Fineliner parity: a PNG opens as
-// a new single-layer document or imports as a layer; the caller sniffs
-// the bytes to route).
-const OPEN_TYPES: FilePickerAcceptType[] = [
-  ...ASEPRITE_TYPES,
-  { description: 'PNG image', accept: { 'image/png': ['.png'] } },
-];
-
 const PNG_TYPES: FilePickerAcceptType[] = [
   { description: 'PNG image', accept: { 'image/png': ['.png'] } },
 ];
+
+const JPEG_TYPES: FilePickerAcceptType[] = [
+  { description: 'JPEG image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } },
+];
+
+const WEBP_TYPES: FilePickerAcceptType[] = [
+  { description: 'WebP image', accept: { 'image/webp': ['.webp'] } },
+];
+
+// Every raster format the Image mode decodes (fineliner-core codec).
+const IMAGE_TYPES: FilePickerAcceptType[] = [
+  ...PNG_TYPES,
+  ...JPEG_TYPES,
+  ...WEBP_TYPES,
+  { description: 'BMP image', accept: { 'image/bmp': ['.bmp'] } },
+  { description: 'GIF image', accept: { 'image/gif': ['.gif'] } },
+  { description: 'TIFF image', accept: { 'image/tiff': ['.tif', '.tiff'] } },
+];
+
+// Open accepts sprites (Pixel mode) and raster images (Image mode; a
+// PNG opened from inside Pixel mode still becomes a sprite / layer).
+// The caller sniffs the bytes to route — see `sniffFormat`.
+const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...IMAGE_TYPES];
+
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
+const OPEN_EXTENSIONS = ['aseprite', 'ase', ...IMAGE_EXTENSIONS];
+
+/** File formats the app opens; decides which editor mode a file lands in. */
+export type FileFormat = 'aseprite' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
+
+/** Encoded-export formats of the Image mode (WebP is lossless). */
+export type ExportFormat = 'png' | 'jpeg' | 'webp';
+
+const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
+  png: PNG_TYPES,
+  jpeg: JPEG_TYPES,
+  webp: WEBP_TYPES,
+};
+
+const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
+  png: { name: 'PNG image', extensions: ['png'] },
+  jpeg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
+  webp: { name: 'WebP image', extensions: ['webp'] },
+};
+
+function startsWith(bytes: Uint8Array, sig: number[], offset = 0): boolean {
+  if (bytes.length < offset + sig.length) return false;
+  return sig.every((b, i) => bytes[offset + i] === b);
+}
+
+/** Detect the container format from the leading bytes; `null` when no
+ *  known signature matches (fall back to `formatFromName`). */
+export function sniffFormat(bytes: Uint8Array): FileFormat | null {
+  // Aseprite header: DWORD file size, then WORD magic 0xA5E0 (LE).
+  if (bytes.length >= 6 && bytes[4] === 0xe0 && bytes[5] === 0xa5) return 'aseprite';
+  if (isPngBytes(bytes)) return 'png';
+  if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'jpeg';
+  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+    return 'webp';
+  }
+  if (startsWith(bytes, [0x42, 0x4d])) return 'bmp';
+  if (startsWith(bytes, [0x47, 0x49, 0x46, 0x38])) return 'gif';
+  if (startsWith(bytes, [0x49, 0x49, 0x2a, 0x00]) || startsWith(bytes, [0x4d, 0x4d, 0x00, 0x2a])) {
+    return 'tiff';
+  }
+  return null;
+}
+
+/** Detect the format from a file name's extension; `null` when unknown. */
+export function formatFromName(name: string): FileFormat | null {
+  const ext = name.toLowerCase().replace(/^.*\./, '');
+  switch (ext) {
+    case 'aseprite':
+    case 'ase':
+      return 'aseprite';
+    case 'png':
+      return 'png';
+    case 'jpg':
+    case 'jpeg':
+      return 'jpeg';
+    case 'webp':
+      return 'webp';
+    case 'bmp':
+      return 'bmp';
+    case 'gif':
+      return 'gif';
+    case 'tif':
+    case 'tiff':
+      return 'tiff';
+    default:
+      return null;
+  }
+}
+
+/** MIME type for a raster `FileFormat` (what the Image-mode decoder is told). */
+export function mimeFor(format: FileFormat): string {
+  switch (format) {
+    case 'aseprite':
+      return 'application/x-aseprite';
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'tiff':
+      return 'image/tiff';
+    default:
+      return `image/${format}`;
+  }
+}
 
 /** `true` when `bytes` start with the PNG signature. */
 export function isPngBytes(bytes: Uint8Array): boolean {
@@ -165,7 +264,7 @@ export function ensureReadPermission(
   return ensurePermission(handle, 'read');
 }
 
-/** Prompt the user to pick a sprite file. Returns `null` on cancel. */
+/** Prompt the user to pick a sprite or image file. Returns `null` on cancel. */
 export async function pickAndOpen(): Promise<OpenedFile | null> {
   if (isTauri()) return pickAndOpenTauri();
   const fs = fsAccess();
@@ -193,9 +292,9 @@ async function pickAndOpenTauri(): Promise<OpenedFile | null> {
   const picked = await openDialog({
     multiple: false,
     filters: [
-      { name: 'Aseprite sprite or PNG', extensions: ['aseprite', 'ase', 'png'] },
+      { name: 'All supported files', extensions: OPEN_EXTENSIONS },
       { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
-      { name: 'PNG image', extensions: ['png'] },
+      { name: 'Images', extensions: IMAGE_EXTENSIONS },
     ],
   });
   if (typeof picked !== 'string') return null;
@@ -219,7 +318,7 @@ function openViaInput(): Promise<OpenedFile | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.aseprite,.ase,.png';
+    input.accept = OPEN_EXTENSIONS.map((e) => `.${e}`).join(',');
     input.style.display = 'none';
     document.body.appendChild(input);
 
@@ -397,19 +496,20 @@ function saveViaDownload(name: string, bytes: Uint8Array<ArrayBuffer>): void {
 }
 
 /**
- * Write an exported file (e.g. a PNG) through a save picker / native
- * dialog / download, always prompting for a location (exports never
- * overwrite the document's own file). Returns `false` when the user
- * cancelled.
+ * Write an exported file (PNG by default; the Image mode also exports
+ * JPEG / WebP) through a save picker / native dialog / download, always
+ * prompting for a location (exports never overwrite the document's own
+ * file). Returns `false` when the user cancelled.
  */
 export async function saveExport(
   bytes: Uint8Array<ArrayBuffer>,
   suggestedName: string,
+  format: ExportFormat = 'png',
 ): Promise<boolean> {
   if (isTauri()) {
     const picked = await saveDialog({
       defaultPath: suggestedName,
-      filters: [{ name: 'PNG image', extensions: ['png'] }],
+      filters: [EXPORT_FILTERS[format]],
     });
     if (typeof picked !== 'string') return false;
     await invoke('write_file_bytes', { path: picked, bytes: Array.from(bytes) });
@@ -420,7 +520,7 @@ export async function saveExport(
     try {
       const handle = await fs.showSaveFilePicker({
         suggestedName,
-        types: PNG_TYPES,
+        types: EXPORT_TYPES[format],
       });
       await writeHandle(handle, bytes);
       return true;
