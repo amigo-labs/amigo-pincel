@@ -124,7 +124,7 @@ Phase 5 — docs + archive
 - [ ] Archive `amigo-fineliner` (disable its release workflow first;
   Cloudflare project off; repo archived) — only after user confirmation
 
-Follow-ups (not in M16): `.fln` layered project save for Image mode
+Follow-ups (not in M16): tiled / viewport-sized rendering in Image mode so canvases above `MAX_CANVAS_DIM` (8192, the browser-safe cap the UI enforces) become editable; `.fln` layered project save for Image mode
 (spec-only in Fineliner too); Image-mode autosave / recovery;
 PixelEditor decomposition; pixel-only components under `modes/pixel/`;
 renaming the `fineliner-*` crates; dedupe the two Liberation Sans test

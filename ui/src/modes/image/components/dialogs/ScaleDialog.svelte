@@ -1,7 +1,7 @@
 <script lang="ts">
   // Scale Image dialog (spec §10.5, §16): width/height with optional
   // proportion lock and an interpolation choice. Scales all layers together.
-  import { editor } from '../../stores/editor.svelte';
+  import { editor, MAX_CANVAS_DIM } from '../../stores/editor.svelte';
   import type { Interpolation } from '../../core/wasm';
   import Modal from './Modal.svelte';
 
@@ -28,9 +28,12 @@
     }
   }
 
+  // Typed values can exceed the input's max; clamp to the renderer's envelope.
+  const clamp = (v: number): number => Math.min(MAX_CANVAS_DIM, Math.round(v));
+
   function apply(): void {
     if (width > 0 && height > 0) {
-      onApply(Math.round(width), Math.round(height), interpolation);
+      onApply(clamp(width), clamp(height), interpolation);
     }
   }
 </script>
@@ -41,7 +44,7 @@
     <input
       type="number"
       min="1"
-      max="32767"
+      max={MAX_CANVAS_DIM}
       bind:value={width}
       oninput={onWidthInput}
       class="w-24 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)] px-2 py-1"
@@ -52,7 +55,7 @@
     <input
       type="number"
       min="1"
-      max="32767"
+      max={MAX_CANVAS_DIM}
       bind:value={height}
       oninput={onHeightInput}
       class="w-24 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)] px-2 py-1"
