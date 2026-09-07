@@ -36,7 +36,7 @@ export default defineConfig({
       manifest: {
         name: 'Pincel',
         short_name: 'Pincel',
-        description: 'Pixel-art editor for game asset creation.',
+        description: 'Pixel-art editor for game asset creation, plus a paint.net-style image editor.',
         start_url: '/',
         scope: '/',
         display: 'standalone',
@@ -58,12 +58,12 @@ export default defineConfig({
         // "offline reload works" and "white screen".
         globPatterns: ['**/*.{js,css,html,wasm,svg,webmanifest,ttf}'],
         // Workbox refuses to precache files over 2 MiB by default. The
-        // unoptimized dev-profile wasm (CI builds it via `pnpm
-        // wasm:build --dev`; wasm-opt is disabled there) is well above
-        // that — ~4.8 MB on the stable toolchain since the effects and
-        // text crates joined (M15) — and excluding it would break
-        // offline entirely; give it headroom instead. The release wasm
-        // that ships stays far below this.
+        // unoptimized dev-profile wasm files (CI builds them via `pnpm
+        // wasm:build --dev`; wasm-opt is disabled there) are well above
+        // that — ~3.9 MB (pincel-wasm) and ~6.5 MB (fineliner-wasm) on
+        // the stable toolchain — and excluding them would break offline
+        // entirely; give them headroom instead (the limit is per file).
+        // The release wasm that ships stays far below this.
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
     }),
