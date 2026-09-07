@@ -218,7 +218,13 @@ mod tests {
 
     fn opaque(doc: &Document) -> usize {
         let frame = doc.compose(0, 1).expect("compose");
-        frame.pixels().chunks_exact(4).filter(|p| p[3] > 0).count()
+        frame
+            .pixels()
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[3] > 0)
+            .count()
     }
 
     #[test]
@@ -237,7 +243,7 @@ mod tests {
                 font, "Hi", 2, 2, 20.0, 0xFFFFFFFF, false, false, false, "left", 1,
             )
             .expect("preview");
-        assert!(preview.pixels().chunks_exact(4).any(|p| p[3] > 0));
+        assert!(preview.pixels().as_chunks::<4>().0.iter().any(|p| p[3] > 0));
         assert_eq!(opaque(&doc), 0, "preview did not paint");
         assert_eq!(doc.undo_depth(), 0);
         assert!(
@@ -261,7 +267,7 @@ mod tests {
                 font, "A", 0, 0, 20.0, 0xFF00FFFF, false, false, false, "left", 1,
             )
             .expect("preview");
-        assert!(preview.pixels().chunks_exact(4).any(|p| p[3] > 0));
+        assert!(preview.pixels().as_chunks::<4>().0.iter().any(|p| p[3] > 0));
         assert!(
             doc.draw_text(
                 font, "A", 0, 0, 20.0, 0xFF00FFFF, false, false, false, "left"

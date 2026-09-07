@@ -61,7 +61,12 @@ impl Document {
     #[wasm_bindgen(js_name = selectPolygon)]
     pub fn select_polygon(&mut self, points: &[i32], mode: &str) -> Result<(), String> {
         let mode = parse_mode(mode)?;
-        let pts: Vec<(i32, i32)> = points.chunks_exact(2).map(|p| (p[0], p[1])).collect();
+        let pts: Vec<(i32, i32)> = points
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|p| (p[0], p[1]))
+            .collect();
         let (w, h) = (self.sprite.width, self.sprite.height);
         let shape = SelectionMask::polygon(w, h, &pts);
         self.combine_selection(shape, mode);
