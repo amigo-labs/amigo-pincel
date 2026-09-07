@@ -24,6 +24,10 @@
   import EffectsMenu from './components/menus/EffectsMenu.svelte';
   import { ADJUSTMENT_GROUPS } from './components/menus/adjustments';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
+  import { hasFsAccess } from '../../lib/fs';
+  import { isIdbAvailable } from '../../lib/idb/db';
+  import { upsertRecent } from '../../lib/idb/recent-files';
+  import { isTauri } from '../../lib/platform';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
@@ -84,11 +88,30 @@
     text: 'Text',
   };
 
+  // Recents need something a re-open can use: an FSA handle (web) or a
+  // path (Tauri). Same gate as the Pixel editor / the shell.
+  const recentsAvailable = (hasFsAccess() || isTauri()) && isIdbAvailable();
+
+  async function recordRecent(): Promise<void> {
+    if (!recentsAvailable || !initialFile || (!initialFile.handle && !initialFile.path)) return;
+    try {
+      await upsertRecent({
+        id: crypto.randomUUID(),
+        name: initialFile.name,
+        handle: initialFile.handle,
+        path: initialFile.path,
+        mode: 'image',
+      });
+    } catch (err) {
+      console.error('upsertRecent failed', err);
+    }
+  }
+
   onMount(() => {
     // Open what the shell handed over: an already-read file, or a blank
     // canvas of the requested size.
     const start = initialFile
-      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime)
+      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime).then(recordRecent)
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
     start.catch((e) => (loadError = `Could not open image: ${String(e)}`));
     registerMenuHandlers({
@@ -177,7 +200,9 @@
     class="flex items-center gap-2 border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1.5 text-sm"
   >
     <span class="mr-3 font-semibold tracking-wide">Pincel</span>
-    <span class="mr-3 rounded border border-[var(--fl-panel-border)] px-1.5 text-xs text-[var(--fl-accent)]">
+    <span
+      class="mr-3 rounded border border-[var(--fl-panel-border)] px-1.5 text-xs text-[var(--fl-accent)]"
+    >
       Image
     </span>
     <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestNew}>New</button>
