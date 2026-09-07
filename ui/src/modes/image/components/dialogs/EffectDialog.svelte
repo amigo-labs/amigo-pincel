@@ -67,7 +67,12 @@
     timer = setTimeout(() => previewEffect(cmd), 120);
   });
 
-  onMount(() => () => clearTimeout(timer));
+  // Unmounting for any reason (Apply / Cancel, but also an editor remount or
+  // mode switch) must drop the preview, or it would leak into later renders.
+  onMount(() => () => {
+    clearTimeout(timer);
+    clearEffectPreview();
+  });
 
   function apply(): void {
     clearTimeout(timer);
