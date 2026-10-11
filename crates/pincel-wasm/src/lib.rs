@@ -1272,6 +1272,8 @@ impl Document {
                     grid_h,
                     tiles: vec![TileRef::EMPTY; tile_count],
                 },
+                user_data: None,
+                z_index: 0,
             })
             .collect();
         let cmd = AddTilemapLayer::new(layer, seeded);
@@ -3073,6 +3075,8 @@ mod tests {
                 grid_h: 2,
                 tiles: vec![TileRef::EMPTY; 4],
             },
+            user_data: None,
+            z_index: 0,
         });
         // Drain the events the bootstrap produced so the per-test
         // assertions can match the per-method emissions exactly.
