@@ -1389,6 +1389,9 @@ struct DocumentInfo {
     active_layer: usize,
     can_undo: bool,
     can_redo: bool,
+    /// Entries on the undo stack; lets the UI tell whether a gesture
+    /// pushed one (e.g. to roll back a stroke a pinch interrupted).
+    undo_depth: usize,
     /// Whether a selection is currently active (`Some` mask in the document).
     has_selection: bool,
     /// Layers ordered bottom (index 0) to top, matching core storage order.
@@ -1419,6 +1422,7 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
             active_layer: bus.document.active_layer_index(),
             can_undo: bus.history.can_undo(),
             can_redo: bus.history.can_redo(),
+            undo_depth: bus.history.undo_depth(),
             has_selection: bus.document.selection.is_some(),
             layers,
         };
