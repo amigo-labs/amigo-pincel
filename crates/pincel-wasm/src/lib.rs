@@ -26,6 +26,7 @@ mod layer_ops;
 mod selection_ops;
 mod shapes;
 mod text;
+mod timeline;
 mod transforms;
 
 pub use effects::effect_names;
@@ -38,10 +39,10 @@ use pincel_core::{
     AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput,
     AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse,
     DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer,
-    RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice,
-    SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, export_atlas_png,
-    export_frame_png, read_aseprite, write_aseprite,
+    MoveDirection, MoveLayer, MoveSelectionContent, OnionSkin, PixelBuffer, PlaceTile, Rect,
+    RemoveLayer, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
+    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose,
+    export_atlas_png, export_frame_png, read_aseprite, write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -69,6 +70,10 @@ pub struct Document {
     /// target this frame. Set via [`Document::set_current_frame`];
     /// starts at frame 0 for every fresh / opened document.
     current_frame: FrameIndex,
+    /// Onion-skin settings applied by [`Document::compose`]; `None` is
+    /// off. View state, not part of the document. See
+    /// [`Document::set_onion_skin`].
+    onion_skin: Option<OnionSkin>,
 }
 
 #[wasm_bindgen]
@@ -106,6 +111,7 @@ impl Document {
             events: EventQueue::new(),
             active_layer: None,
             current_frame: FrameIndex::new(0),
+            onion_skin: None,
         })
     }
 
@@ -124,6 +130,7 @@ impl Document {
             events: EventQueue::new(),
             active_layer: None,
             current_frame: FrameIndex::new(0),
+            onion_skin: None,
         })
     }
 
@@ -435,8 +442,9 @@ impl Document {
     }
 
     /// Composite the requested frame at the given integer zoom over the
-    /// full sprite canvas, with the default `Visible` layer filter and
-    /// no overlays / onion skin.
+    /// full sprite canvas, with the default `Visible` layer filter, no
+    /// overlays, and the onion skin configured via
+    /// [`Document::set_onion_skin`].
     ///
     /// Mirrors `pincel_core::compose` with [`ComposeRequest::full`] —
     /// viewport, layer-filter, onion-skin, and overlay knobs land in a
@@ -490,6 +498,7 @@ impl Document {
         );
         request.zoom = zoom;
         request.dirty_hint = dirty_hint;
+        request.onion_skin = self.onion_skin;
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
@@ -743,6 +752,7 @@ impl Document {
     /// follow-up).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
+        self.clamp_current_frame();
         if undone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
@@ -761,6 +771,7 @@ impl Document {
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
+        self.clamp_current_frame();
         if redone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
