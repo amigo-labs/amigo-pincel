@@ -14,6 +14,7 @@ image = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ab_glyph = { workspace = true }
+zip = { workspace = true }
 
 [dev-dependencies]
 insta = "1"

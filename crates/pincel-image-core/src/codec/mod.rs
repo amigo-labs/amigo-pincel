@@ -17,6 +17,10 @@ use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::codecs::webp::WebPEncoder;
 use image::{ExtendedColorType, ImageEncoder};
 use std::io::{Cursor, Write};
+pub mod ora;
+
+pub use ora::{OraError, from_ora_bytes, to_ora_bytes};
+
 use thiserror::Error;
 
 /// Errors from decoding or encoding image data.
