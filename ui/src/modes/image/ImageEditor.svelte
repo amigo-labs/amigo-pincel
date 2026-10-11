@@ -116,6 +116,7 @@
     start.catch((e) => (loadError = `Could not open image: ${String(e)}`));
     registerMenuHandlers({
       'menu:save': () => runExport('png'),
+      'menu:exportPng': () => runExport('png'),
       'menu:undo': undo,
       'menu:redo': redo,
     });

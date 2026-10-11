@@ -17,7 +17,8 @@
     | 'canvas:scale'
     | 'canvas:crop'
     | 'file:import_png'
-    | 'file:export_png';
+    | 'file:export_png'
+    | 'file:export_sheet';
 
   let {
     disabled = false,
@@ -61,6 +62,7 @@
       items: [
         { id: 'file:import_png', label: 'Import PNG as Layer…' },
         { id: 'file:export_png', label: 'Export Frame as PNG…' },
+        { id: 'file:export_sheet', label: 'Export Sprite Sheet…' },
       ],
     },
   ];

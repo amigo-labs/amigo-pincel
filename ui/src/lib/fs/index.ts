@@ -95,18 +95,23 @@ const OPEN_EXTENSIONS = ['aseprite', 'ase', ...IMAGE_EXTENSIONS];
 export type FileFormat = 'aseprite' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
 
 /** Encoded-export formats of the Image mode (WebP is lossless). */
-export type ExportFormat = 'png' | 'jpeg' | 'webp';
+/** Raster formats the Image mode exports. */
+export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
+/** Everything `saveExport` can write: images plus JSON sidecars. */
+export type ExportFormat = ImageExportFormat | 'json';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
   jpeg: JPEG_TYPES,
   webp: WEBP_TYPES,
+  json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
 };
 
 const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
   png: { name: 'PNG image', extensions: ['png'] },
   jpeg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
   webp: { name: 'WebP image', extensions: ['webp'] },
+  json: { name: 'JSON data', extensions: ['json'] },
 };
 
 function startsWith(bytes: Uint8Array, sig: number[], offset = 0): boolean {

@@ -7,6 +7,7 @@
   import SlicesPanel from '../../lib/components/SlicesPanel.svelte';
   import LayersPanel from '../../lib/components/LayersPanel.svelte';
   import TimelinePanel from './components/TimelinePanel.svelte';
+  import SpriteSheetDialog, { type SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
   import {
     advance,
     startCursor,
@@ -1848,6 +1849,9 @@
         case 'file:export_png':
           void exportPng();
           break;
+        case 'file:export_sheet':
+          openSheetDialog();
+          break;
       }
     } catch (err) {
       status = `image command failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -1889,6 +1893,53 @@
       }
     } catch (err) {
       status = `export failed: ${err instanceof Error ? err.message : String(err)}`;
+    } finally {
+      fileOpBusy = false;
+    }
+  }
+
+  // Export Sprite Sheet (spec §7.3): the atlas PNG, then optionally the
+  // Aseprite `--data` JSON sidecar named after it. Each file goes through
+  // its own save prompt (a browser cannot write two files in one).
+  let sheetOpen = $state(false);
+
+  function openSheetDialog() {
+    if (doc && !fileOpBusy) sheetOpen = true;
+  }
+
+  const sheetTags = $derived.by(() => {
+    void docRev;
+    if (!doc) return [];
+    const out: { name: string; from: number; to: number }[] = [];
+    for (let i = 0; i < doc.tagCount; i++) {
+      out.push({ name: doc.tagName(i), from: doc.tagFrom(i), to: doc.tagTo(i) });
+    }
+    return out;
+  });
+
+  async function exportSheet(options: SpriteSheetOptions) {
+    sheetOpen = false;
+    if (!doc || fileOpBusy) return;
+    fileOpBusy = true;
+    try {
+      const base = saveTarget.name.replace(/\.(aseprite|ase)$/i, '') + (options.tag ? `-${options.tag}` : '');
+      const atlas = doc.exportAtlas(options.columns, options.tag ?? undefined, `${base}.png`);
+      let png: Uint8Array<ArrayBuffer>;
+      let data: string;
+      try {
+        png = new Uint8Array(atlas.png);
+        data = atlas.data;
+      } finally {
+        atlas.free();
+      }
+      if (!(await saveExport(png, `${base}.png`))) return;
+      if (options.data) {
+        const json = new TextEncoder().encode(data);
+        await saveExport(new Uint8Array(json), `${base}.json`, 'json');
+      }
+      status = `exported sprite sheet · ${png.length} bytes`;
+    } catch (err) {
+      status = `sheet export failed: ${err instanceof Error ? err.message : String(err)}`;
     } finally {
       fileOpBusy = false;
     }
@@ -2545,6 +2596,8 @@
     registerMenuHandlers({
       'menu:save': () => save(),
       'menu:saveAs': () => save({ forceAs: true }),
+      'menu:exportPng': () => void exportPng(),
+      'menu:exportSheet': openSheetDialog,
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': zoomIn,
@@ -3353,6 +3406,17 @@
       void discardSnapshot(targetDocId);
     }}
     onDismiss={closeRecovery}
+  />
+{/if}
+
+{#if sheetOpen && doc}
+  <SpriteSheetDialog
+    {frameCount}
+    tags={sheetTags}
+    frameWidth={canvasW}
+    frameHeight={canvasH}
+    onSubmit={(o) => void exportSheet(o)}
+    onCancel={() => (sheetOpen = false)}
   />
 {/if}
 

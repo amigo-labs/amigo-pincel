@@ -20,7 +20,7 @@ import {
   type EffectCommand,
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
-import { saveExport, type ExportFormat } from '../../../lib/fs';
+import { saveExport, type ImageExportFormat as ExportFormat } from '../../../lib/fs';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
