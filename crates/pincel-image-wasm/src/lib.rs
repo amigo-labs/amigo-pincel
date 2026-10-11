@@ -109,6 +109,26 @@ pub fn open_image(data: &[u8], _mime_type: &str) -> Result<u32, JsError> {
     Ok(insert(CommandBus::new(doc)))
 }
 
+/// Opens an OpenRaster (`.ora`) project — the Image mode's layered save
+/// format (spec §15, 2026-10-11) — and returns its handle.
+#[wasm_bindgen]
+pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
+    let doc =
+        pincel_image_core::codec::from_ora_bytes(data).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(insert(CommandBus::new(doc)))
+}
+
+/// Serializes the document as an OpenRaster (`.ora`) project with every
+/// layer, its opacity, blend mode, visibility and lock. `compression` is
+/// the 0–9 PNG level for the layer images (autosave uses a fast one).
+#[wasm_bindgen]
+pub fn save_project(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        pincel_image_core::codec::to_ora_bytes(&bus.document, compression)
+            .map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
 /// Releases the document for `handle`. The handle is never reused.
 #[wasm_bindgen]
 pub fn close_document(handle: u32) {
@@ -1523,5 +1543,29 @@ mod ts_bindings {
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
         EffectSpec::export_all(&cfg).expect("export EffectSpec bindings");
+    }
+}
+
+#[cfg(test)]
+mod project_tests {
+    use super::*;
+
+    #[test]
+    fn save_project_then_open_project_keeps_the_layers() {
+        let mut doc = Document::new(5, 4).expect("doc");
+        doc.add_layer("Top").expect("layer");
+        let handle = insert(CommandBus::new(doc));
+        let bytes = save_project(handle, 1).expect("save");
+        let reopened = open_project(&bytes).expect("open");
+        let names: Vec<String> = with_bus(reopened, |bus| {
+            Ok(bus
+                .document
+                .layers()
+                .iter()
+                .map(|l| l.name.clone())
+                .collect())
+        })
+        .expect("read");
+        assert_eq!(names, vec!["Layer 1".to_string(), "Top".to_string()]);
     }
 }
