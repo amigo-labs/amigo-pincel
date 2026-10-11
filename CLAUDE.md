@@ -305,7 +305,7 @@ fn add_layer_with_existing_name_returns_err() { … }
 
 ### 7.4 UI Tests
 
-Phase 2 concern. Use Playwright when added. Each tool has a happy-path interaction test minimum.
+Playwright (`@playwright/test`, set up 2026-10-11) under `ui/e2e/`, run against the built bundle via `vite preview` at `/app/` (`ui/playwright.config.ts`). Shared helpers (start screen, New dialog, canvas drags) live in `ui/e2e/helpers.ts`. Each tool has a happy-path interaction test minimum; every UI block adds at least one spec. Tests may inspect the DOM and screenshots; app code still never reads canvas pixels (§9).
 
 ### 7.5 Test Performance
 
@@ -382,10 +382,12 @@ pnpm dev                                     # Vite dev server
 pnpm build                                   # production bundle
 pnpm check                                   # svelte-check (type-check)
 pnpm lint
+pnpm test:e2e                                # Playwright, needs `pnpm build` first (§7.4)
 ```
 
-UI unit tests (Vitest) and Playwright e2e are not set up yet — they land
-with the Phase 2 test investment (§7.4).
+UI unit tests (Vitest) are not set up yet. Locally Playwright uses the
+preinstalled Chromium (`PLAYWRIGHT_BROWSERS_PATH`); CI runs
+`pnpm exec playwright install --with-deps chromium`.
 
 ### Tauri
 
@@ -398,7 +400,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm && cd ui && pnpm lint && pnpm check && pnpm build
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.

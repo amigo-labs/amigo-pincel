@@ -64,7 +64,7 @@ jobs:
         run: cargo check -p pincel-tauri
 
   ui:
-    name: ui (lint / check / build)
+    name: ui (lint / check / build / e2e)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -98,6 +98,21 @@ jobs:
         run: pnpm check
       - name: build
         run: pnpm build
+      # Playwright drives the built bundle through `vite preview`
+      # (ui/playwright.config.ts). Browsers are not cached: the
+      # chromium download is ~1 min and the cache key would have to
+      # track the exact @playwright/test version anyway.
+      - name: install playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: e2e
+        run: pnpm test:e2e
+      - name: upload playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: ui/playwright-report
+          retention-days: 7
 
   website:
     name: website (lint / check / build)
