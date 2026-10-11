@@ -20,6 +20,9 @@
     selectLayer,
   } from '../../core/controller';
   import LayerThumbnail from './LayerThumbnail.svelte';
+  import Icon from '../../../../lib/components/icons/Icon.svelte';
+  import IconButton from '../../../../lib/components/layout/IconButton.svelte';
+  import Panel from '../../../../lib/components/layout/Panel.svelte';
 
   const BLEND_MODES: Array<{ value: BlendMode; label: string }> = [
     { value: 'normal', label: 'Normal' },
@@ -66,16 +69,33 @@
   }
 </script>
 
-<div
-  class="flex min-h-0 flex-1 flex-col border-b border-pc-border bg-pc-panel"
->
-  <div class="flex items-center justify-between px-3 pt-3">
-    <h2 class="text-xs font-semibold uppercase tracking-wide text-pc-faint">Layers</h2>
-    <span class="text-xs text-pc-faint">{editor.layers.length}</span>
-  </div>
+<Panel count={editor.layers.length} bodyClass="flex flex-col">
+  {#snippet actions()}
+    <IconButton icon="plus" label="Add layer" size="sm" onclick={addLayer} />
+    <IconButton
+      icon="duplicate"
+      label="Duplicate layer"
+      size="sm"
+      onclick={() => duplicateLayer(editor.activeLayer)}
+    />
+    <IconButton
+      icon="merge-down"
+      label="Merge down"
+      size="sm"
+      disabled={editor.activeLayer === 0}
+      onclick={() => mergeDown(editor.activeLayer)}
+    />
+    <IconButton
+      icon="trash"
+      label="Delete layer"
+      size="sm"
+      disabled={editor.layers.length <= 1}
+      onclick={() => deleteLayer(editor.activeLayer)}
+    />
+  {/snippet}
 
   <!-- Layer list, top-to-bottom display order. -->
-  <ul class="min-h-0 flex-1 overflow-auto px-2 py-2">
+  <ul class="min-h-0 flex-1 overflow-auto px-2 pb-2">
     {#each displayLayers as { layer, i } (layer.id)}
       <li
         class="mb-1 rounded border p-1.5"
@@ -94,22 +114,22 @@
       >
         <div class="flex items-center gap-1.5">
           <button
-            class="text-sm leading-none"
+            class="text-pc-muted hover:text-pc-text"
             title={layer.visible ? 'Hide layer' : 'Show layer'}
             aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
             aria-pressed={layer.visible}
             onclick={() => setLayerVisible(i, !layer.visible)}
           >
-            {layer.visible ? '👁' : '🙈'}
+            <Icon name={layer.visible ? 'eye' : 'eye-off'} size={15} />
           </button>
           <button
-            class="text-sm leading-none"
+            class="text-pc-muted hover:text-pc-text"
             title={layer.locked ? 'Unlock layer' : 'Lock layer'}
             aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
             aria-pressed={layer.locked}
             onclick={() => setLayerLocked(i, !layer.locked)}
           >
-            {layer.locked ? '🔒' : '🔓'}
+            <Icon name={layer.locked ? 'lock' : 'unlock'} size={15} />
           </button>
           <LayerThumbnail layerId={layer.id} />
           <div class="min-w-0 flex-1">
@@ -167,47 +187,9 @@
     {/each}
   </ul>
 
-  <!-- Action buttons (spec §16.5). -->
-  <div class="grid grid-cols-4 gap-1 border-t border-pc-border p-2 text-xs">
-    <button class="rounded py-1 hover:bg-pc-hover" title="Add layer" onclick={addLayer}
-      >＋</button
-    >
-    <button
-      class="rounded py-1 hover:bg-pc-hover"
-      title="Duplicate layer"
-      onclick={() => duplicateLayer(editor.activeLayer)}
-    >
-      ⧉
-    </button>
-    <button
-      class="rounded py-1 hover:bg-pc-hover disabled:opacity-40"
-      title="Merge down"
-      disabled={editor.activeLayer === 0}
-      onclick={() => mergeDown(editor.activeLayer)}
-    >
-      ⤓
-    </button>
-    <button
-      class="rounded py-1 hover:bg-pc-hover disabled:opacity-40"
-      title="Delete layer"
-      disabled={editor.layers.length <= 1}
-      onclick={() => deleteLayer(editor.activeLayer)}
-    >
-      🗑
-    </button>
-    <button
-      class="col-span-2 rounded py-1 hover:bg-pc-hover"
-      title="Merge visible"
-      onclick={mergeVisible}
-    >
-      Merge visible
-    </button>
-    <button
-      class="col-span-2 rounded py-1 hover:bg-pc-hover"
-      title="Flatten image"
-      onclick={flattenImage}
-    >
-      Flatten
-    </button>
+  <!-- Whole-stack actions (spec §16.5); per-layer ones sit in the header. -->
+  <div class="flex gap-1 px-2 pb-2 text-xs">
+    <button class="panel-btn flex-1" onclick={mergeVisible}>Merge visible</button>
+    <button class="panel-btn flex-1" onclick={flattenImage}>Flatten</button>
   </div>
-</div>
+</Panel>

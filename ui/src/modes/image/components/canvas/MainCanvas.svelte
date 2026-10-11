@@ -1,6 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { editor, tool, view, MIN_ZOOM, MAX_ZOOM } from '../../stores/editor.svelte';
+  import {
+    editor,
+    tool,
+    view,
+    viewCommands,
+    MIN_ZOOM,
+    MAX_ZOOM,
+  } from '../../stores/editor.svelte';
+  import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
+  import { isTypingTarget } from '../../../../lib/shell/shortcuts';
   import { readCompositeRegion, renderText, undo } from '../../core/controller';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
@@ -94,6 +103,12 @@
       e.stopPropagation();
       return;
     }
+    if (spaceDown && e.button === 0 && editor.handle !== null) {
+      e.stopPropagation();
+      e.preventDefault();
+      startPan(e);
+      return;
+    }
     gestureUndoDepth = editor.undoDepth;
   }
 
@@ -116,18 +131,35 @@
     if (pinched) e.stopPropagation();
   }
 
-  // Middle-button drag pans (the tool dispatcher ignores button 1).
-  let panning = false;
+  // Middle-button drag, or any drag with Space held, pans (the tool
+  // dispatcher ignores button 1; a Space drag is stopped in the capture
+  // phase so tools never see it). Same gesture as Pixel mode.
+  let panning = $state(false);
+  let spaceDown = $state(false);
   let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+  function onSpace(e: KeyboardEvent): void {
+    if (e.code !== 'Space' || isTypingTarget(e.target)) return;
+    if (e.type === 'keydown') {
+      e.preventDefault();
+      spaceDown = true;
+    } else {
+      spaceDown = false;
+    }
+  }
+
+  function startPan(e: PointerEvent): void {
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
+    viewport.setPointerCapture(e.pointerId);
+  }
 
   function onPointerDown(e: PointerEvent): void {
     if (e.button !== 1 || editor.handle === null) {
       return;
     }
     e.preventDefault();
-    panning = true;
-    panStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
-    viewport.setPointerCapture(e.pointerId);
+    startPan(e);
   }
 
   function onPointerMove(e: PointerEvent): void {
@@ -198,10 +230,16 @@
     shapes: 'crosshair',
     text: 'text',
   };
-  const cursor = $derived(toolCursors[tool.kind] ?? 'default');
+  const cursor = $derived(
+    panning ? 'grabbing' : spaceDown ? 'grab' : (toolCursors[tool.kind] ?? 'default'),
+  );
   const stageTransform = $derived(`translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`);
 
   onMount(() => {
+    viewCommands.zoomIn = () => setZoom(view.zoom * 1.25);
+    viewCommands.zoomOut = () => setZoom(view.zoom / 1.25);
+    viewCommands.fit = fitView;
+    viewCommands.actual = () => setZoom(1);
     const detach = attachTools(surface, redraw, placeText);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
@@ -235,6 +273,8 @@
     redraw();
   });
 </script>
+
+<svelte:window onkeydown={onSpace} onkeyup={onSpace} onblur={() => (spaceDown = false)} />
 
 <div
   bind:this={viewport}
@@ -294,30 +334,16 @@
 
   <CanvasOverlay />
 
-  <!-- Zoom controls (spec §6.4). -->
+  <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
   {#if editor.handle !== null}
-    <div
-      class="absolute bottom-3 right-3 flex items-center gap-1 rounded border border-pc-border bg-pc-panel/90 px-1 py-0.5 text-xs shadow-lg"
-    >
-      <button
-        class="rounded px-2 py-0.5 hover:bg-pc-hover"
-        onclick={() => setZoom(view.zoom / 1.25)}
-        aria-label="Zoom out">−</button
-      >
-      <button
-        class="w-14 rounded px-1 py-0.5 text-center tabular-nums hover:bg-pc-hover"
-        onclick={fitView}
-      >
-        {Math.round(view.zoom * 100)}%
-      </button>
-      <button
-        class="rounded px-2 py-0.5 hover:bg-pc-hover"
-        onclick={() => setZoom(view.zoom * 1.25)}
-        aria-label="Zoom in">+</button
-      >
-      <button class="rounded px-2 py-0.5 hover:bg-pc-hover" onclick={() => setZoom(1)}
-        >1:1</button
-      >
-    </div>
+    <ZoomControl
+      label={`${Math.round(view.zoom * 100)}%`}
+      onZoomIn={() => setZoom(view.zoom * 1.25)}
+      onZoomOut={() => setZoom(view.zoom / 1.25)}
+      onFit={fitView}
+      onActual={() => setZoom(1)}
+      canZoomIn={view.zoom < MAX_ZOOM}
+      canZoomOut={view.zoom > MIN_ZOOM}
+    />
   {/if}
 </div>

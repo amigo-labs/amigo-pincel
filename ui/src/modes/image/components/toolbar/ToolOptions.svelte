@@ -23,9 +23,7 @@
   const isShapeSelect = $derived(shapeSelectTools.has(tool.kind));
 </script>
 
-<div
-  class="flex items-center gap-6 border-b border-pc-border bg-pc-panel px-4 py-2 text-sm"
->
+<div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
   {#if tool.kind === 'pencil' || tool.kind === 'eraser'}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">Size</span>

@@ -188,3 +188,12 @@ export function resetColors(): void {
   tool.foreground = '#000000';
   tool.background = '#ffffff';
 }
+
+/** View commands the menus and shortcuts call; `MainCanvas` installs the
+ *  real implementations on mount (it owns the viewport size). */
+export const viewCommands = {
+  zoomIn: (): void => {},
+  zoomOut: (): void => {},
+  fit: (): void => {},
+  actual: (): void => {},
+};
