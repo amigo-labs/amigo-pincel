@@ -17,6 +17,7 @@
     constrainEndpoint,
     isDragShapeTool,
     isShapeTool,
+    linePoints,
     toolForKey,
     type Tool,
   } from './tools';
@@ -655,6 +656,10 @@
     }
   }
 
+  // Last pixel a pencil / eraser drag painted; the next sample paints the
+  // line from here so fast strokes stay connected. Reset per press.
+  let lastPaint: { x: number; y: number } | null = null;
+
   function paintAt(e: PointerEvent) {
     if (!doc) return;
     // Drag-shape tools (Line, Rectangle, …) have their own press /
@@ -679,10 +684,24 @@
       }
       return;
     }
+    const from = lastPaint;
+    lastPaint = point;
+    // Pixels after the first of the segment from the previous sample (the
+    // first was painted then); a fresh press paints just the point.
+    const pixels = from ? linePoints(from, point).slice(1) : [point];
+    const packed = packColor(color, alpha);
     try {
-      // The wasm eraser ignores the `color` arg, but we still pass
-      // the packed foreground so the JS surface stays uniform.
-      doc.applyTool(tool, point.x, point.y, packColor(color, alpha));
+      for (const p of pixels) {
+        try {
+          // The wasm eraser ignores the `color` arg, but we still pass
+          // the packed foreground so the JS surface stays uniform.
+          doc.applyTool(tool, p.x, p.y, packed);
+        } catch (err) {
+          // A segment may cross the canvas edge: skip off-canvas pixels.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!msg.includes('pixel out of bounds')) throw err;
+        }
+      }
     } catch (err) {
       // Drags that leave the canvas raise PixelOutOfBounds; that is
       // expected and silenced. Anything else (missing layer, unknown
@@ -793,6 +812,7 @@
       return;
     }
     painting = true;
+    lastPaint = null;
     paintAt(e);
   }
 

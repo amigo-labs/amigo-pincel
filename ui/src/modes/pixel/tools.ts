@@ -109,3 +109,31 @@ export function constrainEndpoint(tool: Tool, start: Point, preview: Point, shif
   const side = Math.max(Math.abs(dx), Math.abs(dy));
   return { x: start.x + side * (dx < 0 ? -1 : 1), y: start.y + side * (dy < 0 ? -1 : 1) };
 }
+
+/**
+ * Every pixel on the Bresenham line from `a` to `b`, both ends included.
+ * Pencil / eraser drags paint it between consecutive pointer samples so
+ * a fast stroke stays connected.
+ */
+export function linePoints(a: Point, b: Point): Point[] {
+  const out: Point[] = [];
+  let { x, y } = a;
+  const dx = Math.abs(b.x - a.x);
+  const dy = -Math.abs(b.y - a.y);
+  const sx = a.x < b.x ? 1 : -1;
+  const sy = a.y < b.y ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    out.push({ x, y });
+    if (x === b.x && y === b.y) return out;
+    const e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
