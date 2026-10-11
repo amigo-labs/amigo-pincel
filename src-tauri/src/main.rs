@@ -120,6 +120,16 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
 
+    // Export items: the mounted editor serves them (Pixel mode both,
+    // Image mode the PNG export); unserved ids are ignored by the shell.
+    let export_png_item = MenuItemBuilder::with_id("menu:exportPng", "Export as PNG\u{2026}")
+        .accelerator("CmdOrCtrl+E")
+        .build(app)?;
+    let export_sheet_item =
+        MenuItemBuilder::with_id("menu:exportSheet", "Export Sprite Sheet\u{2026}")
+            .accelerator("CmdOrCtrl+Shift+E")
+            .build(app)?;
+
     let file = SubmenuBuilder::new(app, "File")
         .item(&new_item)
         .item(&open_item)
@@ -127,6 +137,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .separator()
         .item(&save_item)
         .item(&save_as_item)
+        .separator()
+        .item(&export_png_item)
+        .item(&export_sheet_item)
         .separator()
         .item(&PredefinedMenuItem::quit(app, Some("Quit"))?)
         .build()?;
