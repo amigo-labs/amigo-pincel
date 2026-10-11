@@ -454,7 +454,7 @@ This is a deliberate choice: every icon on the site is dogfood proof.
 - **Styling:** Tailwind 4 with custom theme matching the design tokens above
 - **Components:** shadcn-svelte where needed; custom-built for anything pixel-themed
 - **Hosting:** Cloudflare static edge (the repo's existing project uses Workers Builds with `[assets]`; see §12 2026-05-11). Alternative: GitHub Pages if zero-vendor-lock is preferred.
-- **Domain:** `pincel.app` if available, else `pincel.amigo-labs.dev`. (Decision deferred; check DNS.)
+- **Domain:** `pincel.amigo-labs.dev` (decided 2026-10-11, see §12). The editor is served at `/app/` on the same host by its own Worker.
 
 ### 6.2 Build & Deploy
 
@@ -609,6 +609,7 @@ No machine translation. Every translation is reviewed by a native speaker.
 | 2026-05-07 | SvelteKit + adapter-static, Cloudflare Pages | Same stack as the editor UI; static deploy is fast and cheap; matches amigo-labs tooling |
 | 2026-05-07 | No analytics by default; if added, self-hosted Plausible only | Privacy-first stance; GDPR clean without banners; aligns with no-tracking-no-account product principle |
 | 2026-05-07 | All icons drawn in Pincel itself | Dogfooding proof; custom identity; no icon-font dependency |
+| 2026-10-11 | Domain `pincel.amigo-labs.dev`; the editor at `/app/` is a separate Worker routed on the same host, not a SvelteKit route | Keeps the single-hostname `/app` decision of 2026-05-07 while the editor ships as its own bundle (Rust/wasm build in GitHub Actions, not in Workers Builds). The `/app` placeholder route is removed; CTAs link to `/app/` with `rel="external"` (full page load, skipped by the prerender crawler). |
 | 2026-05-07 | English-only at launch; German Phase 2 | Audience is English-speaking primarily; German is the natural second locale via amigo-labs context |
 | 2026-05-07 | Honest comparison table including where Aseprite wins | Trust-building with the skeptical audience; "we beat them at everything" tables are widely distrusted |
 | 2026-05-07 | `/app` is a separate Vite entry, isolated bundle | Marketing site stays fast; editor route doesn't drag down the home page |
@@ -638,7 +639,7 @@ No machine translation. Every translation is reviewed by a native speaker.
 
 ## 14. Open Questions
 
-1. **Domain:** `pincel.app` (likely taken or expensive) vs. `pincel.amigo-labs.dev` (subdomain, free, less brandable). Check availability.
+1. ~~**Domain**~~ — resolved 2026-10-11: `pincel.amigo-labs.dev` (see §12).
 2. **Hero animation source:** is it a hand-crafted scene, or a stylized rendering of "the editor itself in motion"? Both work; the choice affects how technical the hero feels vs. how artsy.
 3. **Showcase / community gallery:** Phase 3, but should we collect submissions from launch (low-key Form / Bluesky tag) so we have material when we build it?
 4. **Newsletter / RSS:** RSS is cheap (just expose `/changelog` as a feed); newsletter has ongoing maintenance cost. RSS yes, newsletter no, until proven needed.
