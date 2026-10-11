@@ -18,13 +18,14 @@ pub use codec::{
     read_aseprite, write_aseprite,
 };
 pub use command::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand, Bus,
-    ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
+    AddFrame, AddLayer, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand,
+    Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
     DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, Interpolation, MergeDown,
     MoveDirection, MoveLayer, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas,
-    RemoveLayer, RemoveSlice, ReplaceCelPixels, ScaleImage, SetFrameDuration, SetLayerBlendMode,
-    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, ShapeKind,
-    ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
+    RemoveFrame, RemoveLayer, RemoveSlice, RemoveTag, ReplaceCelPixels, ScaleImage,
+    SetFrameDuration, SetLayerBlendMode, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel,
+    SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode,
+    ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{

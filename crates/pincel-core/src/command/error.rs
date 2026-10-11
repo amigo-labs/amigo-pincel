@@ -169,4 +169,24 @@ pub enum CommandError {
     /// [`crate::DrawText`].
     #[error("font parse failed: {0}")]
     Font(String),
+
+    /// The sprite would be left without frames. Emitted by
+    /// [`crate::RemoveFrame`].
+    #[error("cannot remove the last remaining frame")]
+    LastFrame,
+
+    /// No tag exists at the targeted index in `Sprite::tags`. Emitted by
+    /// the tag commands ([`crate::RemoveTag`], [`crate::SetTagRange`], …).
+    #[error("unknown tag index {0}")]
+    UnknownTag(usize),
+
+    /// A tag range is inverted (`from > to`) or reaches past the last
+    /// frame. Emitted by [`crate::AddTag`] and [`crate::SetTagRange`].
+    #[error("invalid tag range {from}..={to} for {frames} frames")]
+    InvalidTagRange { from: u32, to: u32, frames: usize },
+
+    /// A tag name is empty. Emitted by [`crate::AddTag`] and
+    /// [`crate::SetTagName`].
+    #[error("tag name must not be empty")]
+    EmptyTagName,
 }

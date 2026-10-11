@@ -23,6 +23,7 @@ mod move_layer;
 mod move_selection_content;
 mod place_tile;
 mod reframe_canvas;
+mod remove_frame;
 mod remove_layer;
 mod remove_slice;
 mod replace_cel_pixels;
@@ -35,6 +36,7 @@ mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
 mod set_tile_pixel;
+mod tag_ops;
 mod transform_canvas;
 mod transform_cel;
 mod transform_support;
@@ -62,6 +64,7 @@ pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
 pub use place_tile::PlaceTile;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
+pub use remove_frame::RemoveFrame;
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use replace_cel_pixels::ReplaceCelPixels;
@@ -74,6 +77,7 @@ pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
+pub use tag_ops::{AddTag, RemoveTag, SetTagDirection, SetTagName, SetTagRange};
 pub use transform_canvas::TransformCanvas;
 pub use transform_cel::TransformCel;
 pub use transform_support::{Interpolation, Orientation};
@@ -136,6 +140,12 @@ pub enum AnyCommand {
     RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     SetFrameDuration(SetFrameDuration),
+    RemoveFrame(RemoveFrame),
+    AddTag(AddTag),
+    RemoveTag(RemoveTag),
+    SetTagRange(SetTagRange),
+    SetTagName(SetTagName),
+    SetTagDirection(SetTagDirection),
     AddTileset(AddTileset),
     AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
@@ -179,6 +189,12 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::SetFrameDuration(c) => c.apply(doc, cels),
+            Self::RemoveFrame(c) => c.apply(doc, cels),
+            Self::AddTag(c) => c.apply(doc, cels),
+            Self::RemoveTag(c) => c.apply(doc, cels),
+            Self::SetTagRange(c) => c.apply(doc, cels),
+            Self::SetTagName(c) => c.apply(doc, cels),
+            Self::SetTagDirection(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
@@ -218,6 +234,12 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::SetFrameDuration(c) => c.revert(doc, cels),
+            Self::RemoveFrame(c) => c.revert(doc, cels),
+            Self::AddTag(c) => c.revert(doc, cels),
+            Self::RemoveTag(c) => c.revert(doc, cels),
+            Self::SetTagRange(c) => c.revert(doc, cels),
+            Self::SetTagName(c) => c.revert(doc, cels),
+            Self::SetTagDirection(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
@@ -252,6 +274,8 @@ impl AnyCommand {
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             (Self::SetFrameDuration(a), Self::SetFrameDuration(b)) => a.merge(b),
+            (Self::SetTagRange(a), Self::SetTagRange(b)) => a.merge(b),
+            (Self::SetTagName(a), Self::SetTagName(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
             (Self::AddTile(a), Self::AddTile(b)) => a.merge(b),
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
@@ -283,6 +307,12 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::SetFrameDuration(c) => c.dirty_region(),
+            Self::RemoveFrame(c) => c.dirty_region(),
+            Self::AddTag(c) => c.dirty_region(),
+            Self::RemoveTag(c) => c.dirty_region(),
+            Self::SetTagRange(c) => c.dirty_region(),
+            Self::SetTagName(c) => c.dirty_region(),
+            Self::SetTagDirection(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
             Self::AddTilemapLayer(c) => c.dirty_region(),
@@ -304,6 +334,42 @@ impl AnyCommand {
             Self::FlattenImage(c) => c.dirty_region(),
             Self::DuplicateLayer(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<RemoveFrame> for AnyCommand {
+    fn from(c: RemoveFrame) -> Self {
+        Self::RemoveFrame(c)
+    }
+}
+
+impl From<AddTag> for AnyCommand {
+    fn from(c: AddTag) -> Self {
+        Self::AddTag(c)
+    }
+}
+
+impl From<RemoveTag> for AnyCommand {
+    fn from(c: RemoveTag) -> Self {
+        Self::RemoveTag(c)
+    }
+}
+
+impl From<SetTagRange> for AnyCommand {
+    fn from(c: SetTagRange) -> Self {
+        Self::SetTagRange(c)
+    }
+}
+
+impl From<SetTagName> for AnyCommand {
+    fn from(c: SetTagName) -> Self {
+        Self::SetTagName(c)
+    }
+}
+
+impl From<SetTagDirection> for AnyCommand {
+    fn from(c: SetTagDirection) -> Self {
+        Self::SetTagDirection(c)
     }
 }
 
