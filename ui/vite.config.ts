@@ -21,7 +21,23 @@ import { VitePWA } from 'vite-plugin-pwa';
 //     would never match anything.
 //   * `server.strictPort` makes Vite fail loudly if 5173 is taken so
 //     Tauri's `devUrl` never points at the wrong process.
+//
+// Base path: the web build is served at https://pincel.amigo-labs.dev/app/
+// (the marketing site owns `/`; docs/specs/pincel.md §15, 2026-10-11), so
+// it is built with `base: '/app/'` into `dist/app/` — the nested folder is
+// what lets the `pincel-app` Worker route `pincel.amigo-labs.dev/app*`
+// serve it (ui/wrangler.toml). The Tauri CLI sets `TAURI_ENV_PLATFORM` for
+// its before-dev / before-build commands; the native shell loads the bundle
+// from its own origin, so it keeps the root base and `dist/`.
+const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM);
+const base = isTauri ? '/' : '/app/';
+
 export default defineConfig({
+  base,
+  build: {
+    outDir: isTauri ? 'dist' : 'dist/app',
+    emptyOutDir: true,
+  },
   clearScreen: false,
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   plugins: [
@@ -37,8 +53,8 @@ export default defineConfig({
         name: 'Pincel',
         short_name: 'Pincel',
         description: 'Pixel-art editor for game asset creation, plus a paint.net-style image editor.',
-        start_url: '/',
-        scope: '/',
+        start_url: base,
+        scope: base,
         display: 'standalone',
         background_color: '#0a0a0a',
         theme_color: '#0a0a0a',

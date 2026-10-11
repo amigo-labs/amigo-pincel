@@ -62,12 +62,23 @@ a separate Worker project (`pincel-app`, `ui/wrangler.toml`). To enable:
 2. Add repo secrets:
    - `CLOUDFLARE_API_TOKEN`
    - `CLOUDFLARE_ACCOUNT_ID`
-3. (Optional) Map a custom domain to the `pincel-app` Worker.
+3. Make sure `pincel.amigo-labs.dev` resolves through Cloudflare: the
+   marketing site's `amigo-pincel` Worker owns the hostname as a *Custom
+   Domain* (dashboard → Workers → amigo-pincel → Settings → Domains &
+   Routes). The editor Worker declares the route
+   `pincel.amigo-labs.dev/app*` (zone `amigo-labs.dev`) in
+   `ui/wrangler.toml`; `wrangler deploy` creates it, and a route takes
+   precedence over a Custom Domain on the same hostname, so `/app*` goes
+   to the editor and everything else to the site.
 
-Until then the editor is available only as the release's downloadable
-bundle. The marketing site's `/app` link still points at a placeholder
-(product decision — see STATUS.md) until the editor's public URL is
-decided.
+The editor is served at **https://pincel.amigo-labs.dev/app/**. The web
+build uses `base: '/app/'` and writes into `ui/dist/app/` (Workers static
+assets match the full request path), so the release zip and the
+`web-dist` artifact both contain an `app/` folder. The Tauri build keeps
+the root base (`ui/vite.config.ts` keys on `TAURI_ENV_PLATFORM`).
+
+Until the secrets are set the editor is available only as the release's
+downloadable bundle.
 
 ### npm publish (`pincel-wasm`)
 

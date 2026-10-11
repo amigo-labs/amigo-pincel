@@ -98,7 +98,7 @@ pnpm wasm:build
 
 # 3. Install UI dependencies and start the dev server
 pnpm install
-pnpm dev          # → http://localhost:5173
+pnpm dev          # → http://localhost:5173/app/ (web base path; Tauri dev serves /)
 ```
 
 For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).

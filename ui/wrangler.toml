@@ -15,9 +15,22 @@
 name = "pincel-app"
 compatibility_date = "2026-05-07"
 
-# Serve the prebuilt SPA. `single-page-application` returns index.html for
-# any unmatched path so client-side routing and deep links resolve; this
-# also matches the PWA's root scope (start_url / scope = "/").
+# The editor lives at https://pincel.amigo-labs.dev/app/ (the marketing
+# site's Worker owns the rest of the hostname via its Custom Domain; a
+# route runs before a Custom Domain on the same host, so this route wins
+# for `/app*`). `workers_dev = false`: the route is the only entry point.
+workers_dev = false
+routes = [
+  { pattern = "pincel.amigo-labs.dev/app*", zone_name = "amigo-labs.dev" },
+]
+
+# Serve the prebuilt bundle. Workers static assets match the full request
+# path, so the Vite web build writes into `dist/app/` (ui/vite.config.ts,
+# `base: '/app/'`) and the asset root stays `dist/`. `/app` redirects to
+# `/app/` and serves `app/index.html` via the default trailing-slash
+# handling. The editor has no client-side routes, so unmatched paths get a
+# plain 404 rather than an SPA fallback (which would look for a root
+# `index.html` that does not exist).
 [assets]
 directory = "./dist"
-not_found_handling = "single-page-application"
+not_found_handling = "none"
