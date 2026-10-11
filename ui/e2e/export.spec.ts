@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { createDocument } from './helpers';
+import { createDocument, menu } from './helpers';
 
 // Force the download fallback: the File System Access picker would open a
 // native dialog the test cannot drive.
@@ -20,8 +20,7 @@ test('sprite sheet export writes the PNG and the Aseprite JSON', async ({ page }
   await timeline.getByLabel('Tag editor').getByLabel('Tag to').fill('2');
   await timeline.getByLabel('Tag editor').getByLabel('Tag to').press('Enter');
 
-  await page.getByRole('button', { name: 'Image…' }).click();
-  await page.getByRole('menuitem', { name: 'Export Sprite Sheet…' }).click();
+  await menu(page, 'File', 'Export', 'Sprite Sheet…');
   const dialog = page.getByRole('dialog', { name: 'Export sprite sheet' });
   await dialog.getByLabel('Columns').fill('3');
   await expect(dialog.getByText('3 × 1 cells · 24×8 px')).toBeVisible();

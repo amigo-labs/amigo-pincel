@@ -25,8 +25,8 @@ test('image mode: a canvas wider than 8192 px opens, renders and paints', async 
   await expect(undo).toBeEnabled({ timeout: 30_000 });
 
   // 1:1 zoom re-renders just the visible rect.
-  await page.getByRole('button', { name: '1:1' }).click();
-  await expect(page.getByRole('button', { name: '100%' })).toBeVisible();
+  await page.getByRole('button', { name: 'Actual size' }).click();
+  await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveText('100%');
 });
 
 test('image mode: the New dialog clamps an oversized canvas to the area limit', async ({

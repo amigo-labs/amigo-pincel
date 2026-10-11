@@ -55,3 +55,19 @@ export async function drag(
   await page.mouse.move(x1, y1, { steps: 4 });
   await page.mouse.up();
 }
+
+/**
+ * Runs a menu-bar command: `menu(page, 'File', 'Export', 'PNG')` opens
+ * File, then the Export submenu, then clicks PNG.
+ */
+export async function menu(page: Page, top: string, ...path: string[]): Promise<void> {
+  await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
+  let scope = top;
+  for (const label of path) {
+    await page
+      .getByRole('menu', { name: scope, exact: true })
+      .getByRole('menuitem', { name: label, exact: true })
+      .click();
+    scope = label;
+  }
+}

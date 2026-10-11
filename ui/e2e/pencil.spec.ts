@@ -10,7 +10,7 @@ test('pixel mode: a fast pencil stroke stays connected', async ({ page }) => {
     [box.x + ((px + 0.5) * box.width) / 16, box.y + ((py + 0.5) * box.height) / 16] as const;
 
   await page.getByTitle('Pencil (B)').click();
-  const color = page.getByLabel('Color', { exact: true });
+  const color = page.getByLabel('Foreground color', { exact: true });
   await color.fill('#00ff00');
   // One jump from (1, 1) to (14, 14): no pointer samples in between.
   await page.mouse.move(...at(1, 1));

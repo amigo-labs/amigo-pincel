@@ -3,7 +3,7 @@ import { createDocument } from './helpers';
 
 test('palette: DB32 by default, add / recolor / move / delete with undo', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  const panel = page.getByRole('complementary', { name: 'Palette' });
+  const panel = page.getByRole('region', { name: 'Palette' });
   const swatches = panel.getByRole('group', { name: 'Palette colors' }).getByRole('button');
   await expect(swatches).toHaveCount(32);
 

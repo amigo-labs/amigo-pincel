@@ -34,7 +34,7 @@ test('pixel mode: two-finger pinch zooms in and paints nothing', async ({ page }
 
 test('image mode: two-finger pinch zooms in and paints nothing', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 48 });
-  const readout = page.getByRole('button', { name: /^\d+%$/ });
+  const readout = page.getByRole('button', { name: 'Fit to window' });
   const before = Number((await readout.textContent())?.replace('%', ''));
   await pinchOut(page, imageCanvas(page));
   await expect
