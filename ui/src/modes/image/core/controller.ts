@@ -645,6 +645,22 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
 }
 
 /** Reads the current composite as RGBA8 for rendering. */
+/** Composites the document rect `(x, y, w, h)` at `outW × outH` for the
+ *  viewport renderer; `null` when no document is open. */
+export function readCompositeRegion(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  outW: number,
+  outH: number,
+): Uint8ClampedArray<ArrayBuffer> | null {
+  if (editor.handle === null) {
+    return null;
+  }
+  return core.compositeRegion(editor.handle, x, y, w, h, outW, outH);
+}
+
 export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
   if (editor.handle === null) {
     return null;

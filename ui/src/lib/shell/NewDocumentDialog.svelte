@@ -1,10 +1,10 @@
 <script lang="ts">
   // "New document" dialog of the shell: choose the editor mode and the
   // canvas size. Pixel sprites keep the historical 64×64 default and the
-  // 4096 cap; images default to 800×600 and are capped at the browser-safe
-  // edge the image renderer can draw (see MAX_CANVAS_DIM).
+  // 4096 cap; images default to 800×600 and are capped by the edge / area
+  // limits of the image core's memory (see MAX_CANVAS_DIM / clampCanvasSize).
   import type { EditorMode, NewDocParams } from './types';
-  import { MAX_CANVAS_DIM } from '../../modes/image/stores/editor.svelte';
+  import { MAX_CANVAS_DIM, clampCanvasSize } from '../../modes/image/stores/editor.svelte';
 
   let {
     initialMode,
@@ -43,7 +43,9 @@
 
   function submit() {
     const max = LIMITS[mode].max;
-    onCreate({ mode, width: clamp(width, max), height: clamp(height, max) });
+    const [w, h] =
+      mode === 'image' ? clampCanvasSize(width, height) : [clamp(width, max), clamp(height, max)];
+    onCreate({ mode, width: w, height: h });
   }
 
   // Keys typed in the dialog must not reach the mounted editor's

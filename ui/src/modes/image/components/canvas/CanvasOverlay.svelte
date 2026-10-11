@@ -4,7 +4,13 @@
   // a separate, non-interactive canvas layered exactly over the main canvas, so
   // the document's pixels are never touched (ADR-001).
   import { onMount } from 'svelte';
-  import { editor, selectionPreview, shapePreview } from '../../stores/editor.svelte';
+  import { editor, selectionPreview, shapePreview, view } from '../../stores/editor.svelte';
+
+  // Marching ants for the committed selection and the in-progress
+  // selection / shape gestures. The overlay covers the viewport (not the
+  // document) and draws the document-space paths through the view
+  // transform, so lines stay one device pixel wide at every zoom and the
+  // backing store never exceeds the viewport (spec §8.5).
   import { selectionMask } from '../../core/controller';
 
   let canvas: HTMLCanvasElement;
@@ -126,13 +132,14 @@
   }
 
   /** Strokes a path as marching ants: solid black under an offset white dash. */
-  function marchingAnts(ctx: CanvasRenderingContext2D, path: Path2D): void {
-    ctx.lineWidth = 1;
+  function marchingAnts(ctx: CanvasRenderingContext2D, path: Path2D, unit: number): void {
+    // `unit` is one device pixel in document units.
+    ctx.lineWidth = unit;
     ctx.setLineDash([]);
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.stroke(path);
-    ctx.setLineDash([4, 4]);
-    ctx.lineDashOffset = -dashOffset;
+    ctx.setLineDash([4 * unit, 4 * unit]);
+    ctx.lineDashOffset = -dashOffset * unit;
     ctx.strokeStyle = '#ffffff';
     ctx.stroke(path);
     ctx.setLineDash([]);
@@ -146,17 +153,28 @@
     if (!ctx) {
       return;
     }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    const ch = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    const scale = view.zoom * dpr;
+    ctx.setTransform(scale, 0, 0, scale, view.panX * dpr, view.panY * dpr);
+    const unit = 1 / scale;
     if (selectionPath) {
-      marchingAnts(ctx, selectionPath);
+      marchingAnts(ctx, selectionPath, unit);
     }
     const preview = buildPreviewPath();
     if (preview) {
-      marchingAnts(ctx, preview);
+      marchingAnts(ctx, preview, unit);
     }
     const shape = buildShapePath();
     if (shape) {
-      marchingAnts(ctx, shape);
+      marchingAnts(ctx, shape, unit);
     }
   }
 
@@ -192,15 +210,12 @@
   });
 
   // Match the backing store to the document size.
+  // Redraw when the view pans / zooms (the paths are in document space).
   $effect(() => {
-    if (canvas) {
-      if (canvas.width !== editor.width) {
-        canvas.width = editor.width;
-      }
-      if (canvas.height !== editor.height) {
-        canvas.height = editor.height;
-      }
-    }
+    void view.zoom;
+    void view.panX;
+    void view.panY;
+    if (!running) draw();
   });
 
   // Rebuild the committed selection boundary whenever the document mutates.
@@ -210,8 +225,4 @@
   });
 </script>
 
-<canvas
-  bind:this={canvas}
-  class="pointer-events-none absolute left-0 top-0 h-full w-full"
-  style="image-rendering: pixelated;"
-></canvas>
+<canvas bind:this={canvas} class="pointer-events-none absolute inset-0 h-full w-full"></canvas>

@@ -8,6 +8,7 @@ import initWasm, {
   save_project,
   close_document,
   composite,
+  composite_region,
   apply_command,
   apply_effect,
   preview_effect,
@@ -357,11 +358,24 @@ export const core = {
   /** Opens an OpenRaster (`.ora`) project with all its layers. */
   openProject: (data: Uint8Array): number => open_project(data),
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
-  saveProject: (handle: number, compression: number): Uint8Array => save_project(handle, compression),
+  saveProject: (handle: number, compression: number): Uint8Array =>
+    save_project(handle, compression),
   closeDocument: (handle: number): void => close_document(handle),
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
   // them without a second copy per frame.
+  /** Composites the canvas rect `(x, y, w, h)` resampled to `outW × outH`
+   *  (viewport rendering; an empty array when the rect misses the canvas). */
+  compositeRegion: (
+    handle: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    outW: number,
+    outH: number,
+  ): Uint8ClampedArray<ArrayBuffer> =>
+    composite_region(handle, x, y, w, h, outW, outH) as Uint8ClampedArray<ArrayBuffer>,
   composite: (handle: number): Uint8ClampedArray<ArrayBuffer> =>
     composite(handle) as Uint8ClampedArray<ArrayBuffer>,
   applyCommand: (handle: number, command: ToolCommand): void =>

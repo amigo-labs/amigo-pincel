@@ -1,13 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { editor, tool, view, MIN_ZOOM, MAX_ZOOM } from '../../stores/editor.svelte';
-  import { readComposite, renderText, undo } from '../../core/controller';
+  import { readCompositeRegion, renderText, undo } from '../../core/controller';
   import { PinchTracker } from '../../../../lib/view/pinch';
-  import { drawComposite } from '../../render/canvas2d';
+  import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
   import { attachTools, gestureControl } from '../../tools/pointer';
   import CanvasOverlay from './CanvasOverlay.svelte';
 
+  // `canvas` is the viewport-sized render target; `surface` is a backing-
+  // store-free element covering the document inside the transformed stage
+  // — tools take their pointer coordinates from it.
   let canvas: HTMLCanvasElement;
+  let surface: HTMLDivElement;
   let viewport: HTMLDivElement;
 
   // In-progress text entry (Text tool). `cx`/`cy` are canvas-space; the floating
@@ -20,10 +24,9 @@
       return;
     }
     // An open effect dialog overrides the canvas with its live preview.
-    const rgba = editor.previewComposite ?? readComposite();
-    if (rgba) {
-      drawComposite(canvas, editor.width, editor.height, rgba);
-    }
+    const preview = editor.previewComposite;
+    const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
+    drawViewport(canvas, editor.width, editor.height, view, sample);
   }
 
   /** Fits the document to the viewport and centres it (spec §6.4). */
@@ -199,12 +202,13 @@
   const stageTransform = $derived(`translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`);
 
   onMount(() => {
-    const detach = attachTools(canvas, redraw, placeText);
+    const detach = attachTools(surface, redraw, placeText);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
       if (view.fit) {
         fitView();
       }
+      redraw();
     });
     ro.observe(viewport);
     return () => {
@@ -213,10 +217,15 @@
     };
   });
 
-  // Recompose whenever the document mutates; fit a freshly opened document.
+  // Recompose whenever the document mutates or the view moves (only the
+  // visible rect is composited); fit a freshly opened document.
   let lastHandle: number | null = null;
   $effect(() => {
     void editor.revision;
+    void editor.previewComposite;
+    void view.zoom;
+    void view.panX;
+    void view.panY;
     if (editor.handle !== lastHandle) {
       lastHandle = editor.handle;
       if (editor.handle !== null) {
@@ -241,25 +250,33 @@
   onpointercancel={onPointerUp}
   role="presentation"
 >
+  <canvas
+    bind:this={canvas}
+    class="pointer-events-none absolute inset-0 h-full w-full"
+    style="image-rendering: pixelated;"
+  ></canvas>
+
   {#if editor.handle === null}
     <p class="absolute inset-0 flex items-center justify-center text-sm text-neutral-500">
       Open an image or create a new document to start.
     </p>
   {/if}
 
-  <!-- The stage holds the canvas + overlay; the view transform zooms/pans both
-       together, and pointer coords stay correct via getBoundingClientRect. -->
+  <!-- The stage carries the view transform: the pointer surface and the text
+       entry live in document pixels inside it (pointer coords come from the
+       surface's getBoundingClientRect). Pixels are drawn by the viewport-sized
+       canvas above, the marching ants by the overlay below. -->
   <div
     class="absolute left-0 top-0 origin-top-left"
     style="transform: {stageTransform}; {editor.handle === null ? 'display:none' : ''}"
   >
-    <canvas
-      bind:this={canvas}
+    <div
+      bind:this={surface}
       class="block shadow-2xl shadow-black/60"
+      role="img"
       aria-label="Image canvas"
-      style="width: {editor.width}px; height: {editor.height}px; image-rendering: pixelated; cursor: {cursor};"
-    ></canvas>
-    <CanvasOverlay />
+      style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
+    ></div>
     {#if textEntry}
       <textarea
         use:autofocus
@@ -274,6 +291,8 @@
       ></textarea>
     {/if}
   </div>
+
+  <CanvasOverlay />
 
   <!-- Zoom controls (spec §6.4). -->
   {#if editor.handle !== null}

@@ -13,14 +13,21 @@ import {
   selectWand,
   drawShape,
 } from '../core/controller';
-import { tool, selectionPreview, shapePreview, type ToolKind } from '../stores/editor.svelte';
+import {
+  editor,
+  tool,
+  selectionPreview,
+  shapePreview,
+  type ToolKind,
+} from '../stores/editor.svelte';
 import type { SelectionMode, ShapeKind } from '../core/wasm';
 
-/** Converts a pointer event into canvas-pixel coordinates. */
-function toCanvasPoint(canvas: HTMLCanvasElement, e: PointerEvent): [number, number] {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+/** Converts a pointer event into document-pixel coordinates. `surface` is
+ *  the element that covers the document on screen (any size / transform). */
+function toCanvasPoint(surface: HTMLElement, e: PointerEvent): [number, number] {
+  const rect = surface.getBoundingClientRect();
+  const scaleX = editor.width / rect.width;
+  const scaleY = editor.height / rect.height;
   return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
 }
 
@@ -93,7 +100,7 @@ function constrainShape(
  * after each mutation so the canvas stays live.
  */
 export function attachTools(
-  canvas: HTMLCanvasElement,
+  canvas: HTMLElement,
   redraw: () => void,
   onPlaceText?: (cx: number, cy: number, e: PointerEvent) => void,
 ): () => void {

@@ -1,7 +1,7 @@
 <script lang="ts">
   // Resize Canvas dialog (spec §10.4, §16): width/height + 9-grid anchor. Does
   // not scale content; layers are padded/cropped per the anchor.
-  import { editor, MAX_CANVAS_DIM } from '../../stores/editor.svelte';
+  import { editor, MAX_CANVAS_DIM, clampCanvasSize } from '../../stores/editor.svelte';
   import type { ResizeAnchor } from '../../core/wasm';
   import Modal from './Modal.svelte';
 
@@ -28,12 +28,11 @@
     'bottom_right',
   ];
 
-  // Typed values can exceed the input's max; clamp to the renderer's envelope.
-  const clamp = (v: number): number => Math.min(MAX_CANVAS_DIM, Math.round(v));
+  // Typed values can exceed the input's max; clamp to the edge / area limits.
 
   function apply(): void {
     if (width > 0 && height > 0) {
-      onApply(clamp(width), clamp(height), anchor);
+      onApply(...clampCanvasSize(width, height), anchor);
     }
   }
 </script>

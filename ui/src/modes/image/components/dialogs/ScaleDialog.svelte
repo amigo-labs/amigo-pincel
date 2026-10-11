@@ -1,7 +1,7 @@
 <script lang="ts">
   // Scale Image dialog (spec §10.5, §16): width/height with optional
   // proportion lock and an interpolation choice. Scales all layers together.
-  import { editor, MAX_CANVAS_DIM } from '../../stores/editor.svelte';
+  import { editor, MAX_CANVAS_DIM, clampCanvasSize } from '../../stores/editor.svelte';
   import type { Interpolation } from '../../core/wasm';
   import Modal from './Modal.svelte';
 
@@ -28,12 +28,11 @@
     }
   }
 
-  // Typed values can exceed the input's max; clamp to the renderer's envelope.
-  const clamp = (v: number): number => Math.min(MAX_CANVAS_DIM, Math.round(v));
+  // Typed values can exceed the input's max; clamp to the edge / area limits.
 
   function apply(): void {
     if (width > 0 && height > 0) {
-      onApply(clamp(width), clamp(height), interpolation);
+      onApply(...clampCanvasSize(width, height), interpolation);
     }
   }
 </script>
