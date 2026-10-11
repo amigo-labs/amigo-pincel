@@ -35,23 +35,15 @@ interface SaveFilePickerOptions {
 }
 
 interface FsAccessWindow {
-  showOpenFilePicker?: (
-    opts?: OpenFilePickerOptions,
-  ) => Promise<FileSystemFileHandle[]>;
-  showSaveFilePicker?: (
-    opts?: SaveFilePickerOptions,
-  ) => Promise<FileSystemFileHandle>;
+  showOpenFilePicker?: (opts?: OpenFilePickerOptions) => Promise<FileSystemFileHandle[]>;
+  showSaveFilePicker?: (opts?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>;
 }
 
 type FsPermissionMode = 'read' | 'readwrite';
 
 interface FsHandlePermissioned {
-  queryPermission?: (descriptor: {
-    mode: FsPermissionMode;
-  }) => Promise<PermissionState>;
-  requestPermission?: (descriptor: {
-    mode: FsPermissionMode;
-  }) => Promise<PermissionState>;
+  queryPermission?: (descriptor: { mode: FsPermissionMode }) => Promise<PermissionState>;
+  requestPermission?: (descriptor: { mode: FsPermissionMode }) => Promise<PermissionState>;
 }
 
 const ASEPRITE_TYPES: FilePickerAcceptType[] = [
@@ -59,6 +51,10 @@ const ASEPRITE_TYPES: FilePickerAcceptType[] = [
     description: 'Aseprite sprite',
     accept: { 'application/octet-stream': ['.aseprite', '.ase'] },
   },
+];
+
+const ORA_TYPES: FilePickerAcceptType[] = [
+  { description: 'OpenRaster image', accept: { 'image/openraster': ['.ora'] } },
 ];
 
 const PNG_TYPES: FilePickerAcceptType[] = [
@@ -86,13 +82,27 @@ const IMAGE_TYPES: FilePickerAcceptType[] = [
 // Open accepts sprites (Pixel mode) and raster images (Image mode; a
 // PNG opened from inside Pixel mode still becomes a sprite / layer).
 // The caller sniffs the bytes to route — see `sniffFormat`.
-const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...IMAGE_TYPES];
+const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...ORA_TYPES, ...IMAGE_TYPES];
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
-const OPEN_EXTENSIONS = ['aseprite', 'ase', ...IMAGE_EXTENSIONS];
+const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
 
-/** File formats the app opens; decides which editor mode a file lands in. */
-export type FileFormat = 'aseprite' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
+/** File formats the app opens; decides which editor mode a file lands in.
+ *  `ora` is OpenRaster, the Image mode's layered project format. */
+export type FileFormat = 'aseprite' | 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
+
+/** Project formats `saveBytes` writes: one per editor mode. */
+export type ProjectFormat = 'aseprite' | 'ora';
+
+const PROJECT_TYPES: Record<ProjectFormat, FilePickerAcceptType[]> = {
+  aseprite: ASEPRITE_TYPES,
+  ora: ORA_TYPES,
+};
+
+const PROJECT_FILTERS: Record<ProjectFormat, { name: string; extensions: string[] }> = {
+  aseprite: { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
+  ora: { name: 'OpenRaster image', extensions: ['ora'] },
+};
 
 /** Encoded-export formats of the Image mode (WebP is lossless). */
 /** Raster formats the Image mode exports. */
@@ -124,9 +134,18 @@ function startsWith(bytes: Uint8Array, sig: number[], offset = 0): boolean {
 export function sniffFormat(bytes: Uint8Array): FileFormat | null {
   // Aseprite header: DWORD file size, then WORD magic 0xA5E0 (LE).
   if (bytes.length >= 6 && bytes[4] === 0xe0 && bytes[5] === 0xa5) return 'aseprite';
+  // OpenRaster: a ZIP whose first, stored entry is `mimetype` holding
+  // `image/openraster` (name at offset 30, data right after it).
+  if (startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) && bytes.length >= 54) {
+    const ascii = (from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to));
+    if (ascii(30, 38) === 'mimetype' && ascii(38, 54) === 'image/openraster') return 'ora';
+  }
   if (isPngBytes(bytes)) return 'png';
   if (startsWith(bytes, [0xff, 0xd8, 0xff])) return 'jpeg';
-  if (startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+  if (
+    startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+    startsWith(bytes, [0x57, 0x45, 0x42, 0x50], 8)
+  ) {
     return 'webp';
   }
   if (startsWith(bytes, [0x42, 0x4d])) return 'bmp';
@@ -144,6 +163,8 @@ export function formatFromName(name: string): FileFormat | null {
     case 'aseprite':
     case 'ase':
       return 'aseprite';
+    case 'ora':
+      return 'ora';
     case 'png':
       return 'png';
     case 'jpg':
@@ -174,6 +195,8 @@ export function mimeFor(format: FileFormat): string {
   switch (format) {
     case 'aseprite':
       return 'application/x-aseprite';
+    case 'ora':
+      return 'image/openraster';
     case 'jpeg':
       return 'image/jpeg';
     case 'tiff':
@@ -228,10 +251,7 @@ export interface SaveTarget {
  *  i.e. supports in-place save. Used to drive UI labels. */
 export function hasFsAccess(): boolean {
   if (typeof window === 'undefined') return false;
-  return (
-    typeof (window as Window & FsAccessWindow).showOpenFilePicker ===
-    'function'
-  );
+  return typeof (window as Window & FsAccessWindow).showOpenFilePicker === 'function';
 }
 
 function fsAccess(): FsAccessWindow {
@@ -263,18 +283,14 @@ async function ensurePermission(
  *  saves. Returns true when granted (already or on prompt); false on
  *  denial. Safe on browsers without permission APIs — returns true
  *  (those browsers don't gate access). */
-export function ensureReadWritePermission(
-  handle: FileSystemFileHandle,
-): Promise<boolean> {
+export function ensureReadWritePermission(handle: FileSystemFileHandle): Promise<boolean> {
   return ensurePermission(handle, 'readwrite');
 }
 
 /** Ask the FSA handle for read permission. Use before reading a
  *  persisted handle (e.g. opening a recent file); the user can deny
  *  write access without blocking the open. */
-export function ensureReadPermission(
-  handle: FileSystemFileHandle,
-): Promise<boolean> {
+export function ensureReadPermission(handle: FileSystemFileHandle): Promise<boolean> {
   return ensurePermission(handle, 'read');
 }
 
@@ -308,6 +324,7 @@ async function pickAndOpenTauri(): Promise<OpenedFile | null> {
     filters: [
       { name: 'All supported files', extensions: OPEN_EXTENSIONS },
       { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
+      { name: 'OpenRaster image', extensions: ['ora'] },
       { name: 'Images', extensions: IMAGE_EXTENSIONS },
     ],
   });
@@ -318,8 +335,7 @@ async function pickAndOpenTauri(): Promise<OpenedFile | null> {
   const raw = await invoke<number[] | ArrayBuffer>('read_file_bytes', {
     path: picked,
   });
-  const bytes =
-    raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
+  const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw);
   return { name: basename(picked), bytes, mime: mimeFromName(picked), handle: null, path: picked };
 }
 
@@ -426,17 +442,14 @@ export async function saveBytes(
   // before invoking, which narrows the buffer type.
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,
-  opts: { forceAs?: boolean } = {},
+  opts: { forceAs?: boolean; format?: ProjectFormat } = {},
 ): Promise<SaveTarget> {
   if (isTauri()) return saveBytesTauri(bytes, target, opts);
+  const format = opts.format ?? 'aseprite';
   const fs = fsAccess();
   const forceAs = opts.forceAs ?? false;
 
-  if (
-    !forceAs &&
-    target.handle &&
-    typeof target.handle.createWritable === 'function'
-  ) {
+  if (!forceAs && target.handle && typeof target.handle.createWritable === 'function') {
     if (await ensureReadWritePermission(target.handle)) {
       await writeHandle(target.handle, bytes);
       return target;
@@ -446,7 +459,7 @@ export async function saveBytes(
     try {
       const handle = await fs.showSaveFilePicker({
         suggestedName: target.name,
-        types: ASEPRITE_TYPES,
+        types: PROJECT_TYPES[format],
       });
       await writeHandle(handle, bytes);
       return { name: handle.name, handle, path: null };
@@ -463,14 +476,14 @@ export async function saveBytes(
 async function saveBytesTauri(
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,
-  opts: { forceAs?: boolean },
+  opts: { forceAs?: boolean; format?: ProjectFormat },
 ): Promise<SaveTarget> {
   const forceAs = opts.forceAs ?? false;
   let path = !forceAs && target.path ? target.path : null;
   if (!path) {
     const picked = await saveDialog({
       defaultPath: target.name,
-      filters: [{ name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] }],
+      filters: [PROJECT_FILTERS[opts.format ?? 'aseprite']],
     });
     if (typeof picked !== 'string') return target;
     path = picked;

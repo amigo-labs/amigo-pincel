@@ -4,6 +4,8 @@
 import initWasm, {
   create_document,
   open_image,
+  open_project,
+  save_project,
   close_document,
   composite,
   apply_command,
@@ -352,6 +354,10 @@ export async function initCore(): Promise<void> {
 export const core = {
   createDocument: (width: number, height: number): number => create_document(width, height),
   openImage: (data: Uint8Array, mime: string): number => open_image(data, mime),
+  /** Opens an OpenRaster (`.ora`) project with all its layers. */
+  openProject: (data: Uint8Array): number => open_project(data),
+  /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
+  saveProject: (handle: number, compression: number): Uint8Array => save_project(handle, compression),
   closeDocument: (handle: number): void => close_document(handle),
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take

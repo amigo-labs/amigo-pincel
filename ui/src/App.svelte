@@ -92,7 +92,7 @@
     shellError = null;
     const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
     if (format === null) {
-      shellError = `${opened.name}: not a supported file (sprite or PNG / JPEG / WebP / BMP / GIF / TIFF)`;
+      shellError = `${opened.name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)`;
       return;
     }
     launch(detectMode(format), { file: opened, create: null });

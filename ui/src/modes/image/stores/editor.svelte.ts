@@ -20,6 +20,9 @@ export const editor = $state({
   canRedo: false,
   /** Entries on the undo stack (mirrored from the core). */
   undoDepth: 0,
+  /** `undoDepth` at the last save / open: the document is dirty while
+   *  the two differ. */
+  savedUndoDepth: 0,
   /** Layers ordered bottom (index 0) to top, mirrored from the core. */
   layers: [] as LayerInfo[],
   /** Whether a selection is currently active (mirrored from the core). */

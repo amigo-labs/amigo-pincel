@@ -75,7 +75,7 @@
       >
         <span class="text-base font-semibold">New image</span>
         <span class="text-xs text-neutral-400">
-          Layers, soft brushes, selections, effects. Exports PNG / JPEG / WebP.
+          Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.
         </span>
       </button>
     </div>
@@ -83,7 +83,7 @@
     <div class="mt-4 flex items-center gap-2">
       <button class="toolbar-btn" onclick={onOpen} disabled={busy}>Open…</button>
       <span class="text-xs text-neutral-500">
-        .aseprite opens in Pixel mode; PNG, JPEG, WebP, BMP, GIF and TIFF open in Image mode.
+        .aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF and TIFF open in Image mode.
       </span>
     </div>
 

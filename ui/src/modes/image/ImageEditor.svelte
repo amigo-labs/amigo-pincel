@@ -6,6 +6,10 @@
     newDocument,
     openBytes,
     exportImage,
+    saveProject,
+    projectBytes,
+    projectName,
+    markUnsaved,
     undo,
     redo,
     selectAll,
@@ -27,6 +31,15 @@
   import { hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { upsertRecent } from '../../lib/idb/recent-files';
+  import {
+    latestSnapshot,
+    listLatestSnapshots,
+    removeSnapshots,
+    writeSnapshot,
+    type AutosaveSnapshotMeta,
+  } from '../../lib/idb/autosave';
+  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
+  import type { SaveTarget } from '../../lib/fs';
   import { isTauri } from '../../lib/platform';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
@@ -92,14 +105,16 @@
   // path (Tauri). Same gate as the Pixel editor / the shell.
   const recentsAvailable = (hasFsAccess() || isTauri()) && isIdbAvailable();
 
-  async function recordRecent(): Promise<void> {
-    if (!recentsAvailable || !initialFile || (!initialFile.handle && !initialFile.path)) return;
+  async function recordRecent(
+    file: Pick<SaveTarget, 'name' | 'handle' | 'path'> | null,
+  ): Promise<void> {
+    if (!recentsAvailable || !file || (!file.handle && !file.path)) return;
     try {
       await upsertRecent({
-        id: crypto.randomUUID(),
-        name: initialFile.name,
-        handle: initialFile.handle,
-        path: initialFile.path,
+        id: docId,
+        name: file.name,
+        handle: file.handle,
+        path: file.path,
         mode: 'image',
       });
     } catch (err) {
@@ -107,26 +122,117 @@
     }
   }
 
+  // Save / Save As write the OpenRaster project (spec §15, 2026-10-11);
+  // Export stays the flat PNG / JPEG / WebP path.
+  let saving = false;
+  async function save(forceAs = false): Promise<void> {
+    if (saving || editor.handle === null) return;
+    saving = true;
+    try {
+      const target = await saveProject(forceAs);
+      lastWriteDepth = editor.undoDepth;
+      await clearAutosave();
+      await recordRecent(target);
+    } catch (e) {
+      loadError = `Save failed: ${String(e)}`;
+    } finally {
+      saving = false;
+    }
+  }
+
+  // Autosave (Pixel-mode parity, M10.3): every 30 s, an OpenRaster
+  // snapshot of an edited document goes to the shared IDB store, tagged
+  // `mode: 'image'`; a save or a fresh open drops it. On mount, snapshots
+  // left by an earlier session are offered for recovery.
+  const AUTOSAVE_INTERVAL_MS = 30_000;
+  const autosaveAvailable = isIdbAvailable();
+  let docId: string = crypto.randomUUID();
+  let lastWriteDepth = 0;
+  let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
+  let recoveryErrors = $state<Record<string, string>>({});
+
+  async function clearAutosave(): Promise<void> {
+    if (!autosaveAvailable) return;
+    try {
+      await removeSnapshots(docId);
+    } catch (err) {
+      console.error('autosave clear failed', err);
+    }
+  }
+
+  async function autosaveTick(): Promise<void> {
+    if (!autosaveAvailable || saving || editor.handle === null) return;
+    if (editor.undoDepth === lastWriteDepth || editor.undoDepth === editor.savedUndoDepth) return;
+    const depth = editor.undoDepth;
+    try {
+      const bytes = projectBytes(true);
+      if (bytes === null) return;
+      await writeSnapshot(docId, projectName(), bytes, 'image');
+      lastWriteDepth = depth;
+    } catch (err) {
+      console.error('autosave failed', err);
+      loadError = `Autosave failed: ${String(err)}`;
+    }
+  }
+
+  async function recover(meta: AutosaveSnapshotMeta): Promise<void> {
+    try {
+      const full = await latestSnapshot(meta.docId);
+      if (!full) throw new Error('snapshot bytes not found');
+      await openBytes(full.bytes, meta.name, 'image/openraster');
+      docId = meta.docId;
+      markUnsaved();
+      lastWriteDepth = editor.undoDepth;
+      recoverySnapshots = [];
+    } catch (err) {
+      recoveryErrors = { ...recoveryErrors, [meta.docId]: String(err) };
+    }
+  }
+
+  async function discardSnapshot(id: string): Promise<void> {
+    try {
+      await removeSnapshots(id);
+      recoverySnapshots = recoverySnapshots.filter((s) => s.docId !== id);
+    } catch (err) {
+      recoveryErrors = { ...recoveryErrors, [id]: String(err) };
+    }
+  }
+
   onMount(() => {
     // Open what the shell handed over: an already-read file, or a blank
     // canvas of the requested size.
     const start = initialFile
-      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime).then(recordRecent)
+      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime, initialFile).then(() =>
+          recordRecent(initialFile),
+        )
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
     start.catch((e) => (loadError = `Could not open image: ${String(e)}`));
+    let timer: ReturnType<typeof setInterval> | null = null;
+    if (autosaveAvailable) {
+      listLatestSnapshots('image')
+        .then((snaps) => (recoverySnapshots = snaps))
+        .catch((err: unknown) => console.error('autosave probe failed', err));
+      timer = setInterval(() => void autosaveTick(), AUTOSAVE_INTERVAL_MS);
+    }
     registerMenuHandlers({
-      'menu:save': () => runExport('png'),
+      'menu:save': () => void save(),
+      'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
       'menu:undo': undo,
       'menu:redo': redo,
     });
-    return () => registerMenuHandlers(null);
+    return () => {
+      if (timer !== null) clearInterval(timer);
+      registerMenuHandlers(null);
+    };
   });
 
+  const dirty = $derived(editor.undoDepth !== editor.savedUndoDepth);
+
   // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events). `canUndo` is the dirty proxy.
+  // native New / Open and open-file events): edits since the last save.
   $effect(() => {
-    onDirtyChange(editor.canUndo);
+    onDirtyChange(dirty);
   });
 
   function onKeydown(e: KeyboardEvent): void {
@@ -156,6 +262,9 @@
     } else if (ctrl && e.shiftKey && key === 'i') {
       e.preventDefault();
       invertSelection();
+    } else if (ctrl && key === 's') {
+      e.preventDefault();
+      void save(e.shiftKey);
     } else if (ctrl && key === 'e') {
       e.preventDefault();
       exportOpen = !exportOpen;
@@ -182,10 +291,9 @@
     }
   }
 
-  // Warn before discarding edits on reload/close. `canUndo` is the dirty
-  // proxy: any applied command leaves history behind.
+  // Warn before discarding edits on reload/close.
   function onBeforeUnload(e: BeforeUnloadEvent): void {
-    if (editor.canUndo) {
+    if (dirty) {
       e.preventDefault();
       // Legacy browsers gate the confirmation prompt on a set returnValue.
       e.returnValue = '';
@@ -208,6 +316,16 @@
     </span>
     <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestNew}>New</button>
     <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestOpen}>Open…</button>
+    <button
+      class="rounded px-2 py-1 hover:bg-neutral-700"
+      onclick={() => void save()}
+      title="Save as OpenRaster (.ora) — keeps layers (Ctrl+S)">Save</button
+    >
+    <button
+      class="rounded px-2 py-1 hover:bg-neutral-700"
+      onclick={() => void save(true)}
+      title="Save to a new .ora file (Ctrl+Shift+S)">Save As…</button
+    >
     <div class="relative">
       <button
         class="rounded px-2 py-1 hover:bg-neutral-700"
@@ -271,7 +389,12 @@
         class="flex items-center justify-between border-t border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1 text-xs text-neutral-400"
       >
         <span>{toolLabels[tool.kind]}</span>
-        <span>{editor.width} × {editor.height} · sRGB</span>
+        <span
+          >{projectName()}{#if dirty}<span class="text-amber-400" title="unsaved changes">
+              ●</span
+            >{/if}
+          · {editor.width} × {editor.height} · sRGB</span
+        >
         <span>{loadError ?? 'Ready'}</span>
       </footer>
     </div>
@@ -284,6 +407,16 @@
     </aside>
   </div>
 </div>
+
+{#if recoverySnapshots.length > 0}
+  <RecoveryDialog
+    snapshots={recoverySnapshots}
+    errors={recoveryErrors}
+    onRecover={(snap) => void recover(snap)}
+    onDiscard={(id) => void discardSnapshot(id)}
+    onDismiss={() => (recoverySnapshots = [])}
+  />
+{/if}
 
 {#if jpegDialogOpen}
   <ExportDialog
