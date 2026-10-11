@@ -41,8 +41,9 @@ use pincel_core::{
     DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
     MoveDirection, MoveLayer, MoveSelectionContent, OnionSkin, PixelBuffer, PlaceTile, Rect,
     RemoveLayer, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
-    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose,
-    export_atlas_png, export_frame_png, read_aseprite, write_aseprite,
+    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId,
+    aseprite_sheet_json, compose, export_atlas_png, export_frame_png, read_aseprite,
+    write_aseprite,
 };
 use wasm_bindgen::prelude::*;
 
@@ -176,16 +177,26 @@ impl Document {
     ///
     /// The result carries the PNG bytes and the manifest as a JSON string
     /// (`AtlasExport.png` / `AtlasExport.manifest`); the manifest lists each
-    /// frame's source rect so an engine can slice the atlas apart. Errors
+    /// frame's source rect so an engine can slice the atlas apart.
+    /// `AtlasExport.data` is the same sheet described in Aseprite's
+    /// `--data` JSON (frame durations, tags, slices — spec §7.3), whose
+    /// `meta.image` names `image_name` (default `"sheet.png"`). Errors
     /// surface the underlying `pincel-core` message: zero columns, an
     /// unknown tag, a frameless sprite, or anything the renderer refuses.
     #[wasm_bindgen(js_name = exportAtlas)]
-    pub fn export_atlas(&self, columns: u32, tag: Option<String>) -> Result<AtlasExport, String> {
+    pub fn export_atlas(
+        &self,
+        columns: u32,
+        tag: Option<String>,
+        image_name: Option<String>,
+    ) -> Result<AtlasExport, String> {
         let mut opts = AtlasOptions::new(columns);
         opts.tag = tag;
         let output = export_atlas_png(&self.sprite, &self.cels, &opts)
             .map_err(|e| format!("failed to export atlas: {e}"))?;
+        let image = image_name.unwrap_or_else(|| "sheet.png".to_owned());
         Ok(AtlasExport {
+            data: aseprite_sheet_json(&self.sprite, &output.manifest, &image),
             manifest: output.manifest.to_json(),
             png: output.png,
         })
@@ -1752,6 +1763,7 @@ impl ComposeFrame {
 pub struct AtlasExport {
     png: Vec<u8>,
     manifest: String,
+    data: String,
 }
 
 #[wasm_bindgen]
@@ -1768,6 +1780,13 @@ impl AtlasExport {
     #[wasm_bindgen(getter)]
     pub fn manifest(&self) -> String {
         self.manifest.clone()
+    }
+
+    /// The sheet in Aseprite's `--data` JSON layout (spec §7.3): the
+    /// sidecar file engines that read Aseprite sheets expect.
+    #[wasm_bindgen(getter)]
+    pub fn data(&self) -> String {
+        self.data.clone()
     }
 }
 
@@ -3560,7 +3579,7 @@ mod tests {
     #[test]
     fn export_atlas_packs_every_frame_into_the_requested_grid() {
         let doc = doc_with_frames(4, 2, 3);
-        let atlas = doc.export_atlas(2, None).expect("export ok");
+        let atlas = doc.export_atlas(2, None, None).expect("export ok");
         assert_eq!(&atlas.png()[..8], &PNG_SIGNATURE);
         // 3 frames over 2 columns → 2 rows, so 8x4 pixels.
         let manifest = atlas.manifest();
@@ -3578,9 +3597,24 @@ mod tests {
     }
 
     #[test]
+    fn export_atlas_data_is_aseprite_sheet_json() {
+        let doc = doc_with_frames(4, 2, 3);
+        let atlas = doc
+            .export_atlas(3, None, Some("hero.png".into()))
+            .expect("export ok");
+        let data = atlas.data();
+        assert!(data.contains("\"filename\":\"hero 2\""), "data: {data}");
+        assert!(data.contains("\"image\":\"hero.png\""), "data: {data}");
+        assert!(data.contains("\"duration\":"), "data: {data}");
+    }
+
+    #[test]
     fn export_atlas_clamps_columns_to_frame_count() {
         let doc = Document::new(3, 3).expect("dims");
-        let manifest = doc.export_atlas(8, None).expect("export ok").manifest();
+        let manifest = doc
+            .export_atlas(8, None, None)
+            .expect("export ok")
+            .manifest();
         assert!(
             manifest.starts_with("{\"width\":3,\"height\":3,\"columns\":1,\"rows\":1,"),
             "manifest: {manifest}"
@@ -3594,7 +3628,7 @@ mod tests {
             .tags
             .push(Tag::new("walk", FrameIndex::new(1), FrameIndex::new(2)));
         let manifest = doc
-            .export_atlas(4, Some("walk".to_string()))
+            .export_atlas(4, Some("walk".to_string()), None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3614,7 +3648,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_zero_columns() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(0, None) {
+        let err = match doc.export_atlas(0, None, None) {
             Err(e) => e,
             Ok(_) => panic!("a zero column count should be rejected"),
         };
@@ -3624,7 +3658,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_unknown_tag() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(1, Some("nope".to_string())) {
+        let err = match doc.export_atlas(1, Some("nope".to_string()), None) {
             Err(e) => e,
             Ok(_) => panic!("an unknown tag name should be rejected"),
         };
@@ -3635,7 +3669,7 @@ mod tests {
     fn export_atlas_of_a_single_frame_document_matches_frame_export() {
         // A 1x1 grid atlas is the same image as the single-frame export.
         let doc = Document::new(6, 4).expect("dims");
-        let atlas = doc.export_atlas(1, None).expect("export ok");
+        let atlas = doc.export_atlas(1, None, None).expect("export ok");
         assert_eq!(atlas.png(), doc.export_png(0).expect("export ok"));
     }
 
