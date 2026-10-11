@@ -36,13 +36,14 @@ pub use text::register_font;
 
 use events::EventQueue;
 use pincel_core::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput,
-    AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse,
-    DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    MoveDirection, MoveLayer, MoveSelectionContent, OnionSkin, PixelBuffer, PlaceTile, Rect,
-    RemoveLayer, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey,
-    SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId,
-    aseprite_sheet_json, compose, export_atlas_png, export_frame_png, read_aseprite,
+    AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTile, AddTilemapLayer, AddTileset,
+    AsepriteReadOutput, AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode,
+    ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer,
+    LayerId, LayerKind, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
+    OnionSkin, Palette, PaletteEntry, PixelBuffer, PlaceTile, Rect, RemoveLayer,
+    RemovePaletteEntry, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPaletteColor,
+    SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
+    TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png, read_aseprite,
     write_aseprite,
 };
 use wasm_bindgen::prelude::*;
@@ -82,8 +83,9 @@ impl Document {
     /// Create an empty RGBA document with the given canvas dimensions.
     ///
     /// The fresh document is bootstrapped so it is paintable out of the
-    /// box: one image layer named `"Layer 1"` (id `0`) and one
-    /// transparent image cel sized to the canvas at frame `0`. The
+    /// box: one image layer named `"Layer 1"` (id `0`), one transparent
+    /// image cel sized to the canvas at frame `0`, and the DB32 palette
+    /// (spec §3.7, Decision Log 2026-10-11). The
     /// single 100 ms frame makes the round-trip through
     /// `aseprite-writer` / `aseprite-loader` produce a parseable file.
     ///
@@ -97,6 +99,7 @@ impl Document {
             .color_mode(ColorMode::Rgba)
             .add_layer(Layer::image(DEFAULT_LAYER_ID, "Layer 1"))
             .add_frame(Frame::new(100))
+            .palette(Palette::db32())
             .build()
             .map_err(|e| format!("failed to build sprite: {e}"))?;
         let mut cels = CelMap::new();
@@ -1374,6 +1377,66 @@ impl Document {
             .ok_or_else(|| format!("palette index {index} out of range"))
     }
 
+    /// Recolour palette entry `index` (`0xRRGGBBAA`). Consecutive calls
+    /// for the same entry merge into one undo entry until
+    /// [`Document::end_stroke`] (colour-picker drags).
+    #[wasm_bindgen(js_name = setPaletteColor)]
+    pub fn set_palette_color(&mut self, index: u32, color: u32) -> Result<(), String> {
+        let cmd = SetPaletteColor::new(index as usize, Rgba::from_u32(color));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set palette color: {e}"))?;
+        Ok(())
+    }
+
+    /// Append a palette entry (`0xRRGGBBAA`) and return its index. One
+    /// undo entry. Errors when the palette already holds 256 entries.
+    #[wasm_bindgen(js_name = addPaletteEntry)]
+    pub fn add_palette_entry(&mut self, color: u32) -> Result<u32, String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                AddPaletteEntry::new(PaletteEntry::new(Rgba::from_u32(color))).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to add palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(self.palette_count() - 1)
+    }
+
+    /// Remove palette entry `index`. One undo entry. Refused for indexed
+    /// documents, whose pixels reference entries by position.
+    #[wasm_bindgen(js_name = removePaletteEntry)]
+    pub fn remove_palette_entry(&mut self, index: u32) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                RemovePaletteEntry::new(index as usize).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to remove palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
+    /// Move palette entry `from` to position `to`. One undo entry.
+    /// Refused for indexed documents.
+    #[wasm_bindgen(js_name = movePaletteEntry)]
+    pub fn move_palette_entry(&mut self, from: u32, to: u32) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                MovePaletteEntry::new(from as usize, to as usize).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to move palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
     // ---- M9.4: slice surface ----------------------------------------
 
     /// Number of slices in the document.
@@ -1826,14 +1889,35 @@ mod tests {
 
     // ---- Palette read surface ----
 
-    /// A fresh document seeds no palette, so the panel shows an empty
-    /// state until a file with a palette is opened.
+    /// A fresh document starts with DB32 (spec §3.7).
     #[test]
-    fn palette_count_is_zero_for_fresh_document() {
+    fn fresh_document_seeds_the_db32_palette() {
         let doc = Document::new(8, 8).expect("dims");
-        assert_eq!(doc.palette_count(), 0);
-        assert!(doc.palette_color(0).is_err());
-        assert!(doc.palette_name(0).is_err());
+        assert_eq!(doc.palette_count(), 32);
+        assert_eq!(doc.palette_color(0).unwrap(), 0x0000_00ff);
+        assert_eq!(doc.palette_color(21).unwrap(), 0xffff_ffff);
+        assert!(doc.palette_color(32).is_err());
+        assert!(doc.palette_name(32).is_err());
+    }
+
+    #[test]
+    fn palette_edits_route_through_undo() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_palette_color(0, 0x1122_33ff).expect("set");
+        doc.set_palette_color(0, 0x4455_66ff).expect("set");
+        doc.end_stroke();
+        assert_eq!(doc.palette_color(0).unwrap(), 0x4455_66ff);
+        assert!(doc.undo());
+        assert_eq!(doc.palette_color(0).unwrap(), 0x0000_00ff, "merged drag");
+        let i = doc.add_palette_entry(0xff00_00ff).expect("add");
+        assert_eq!(i, 32);
+        doc.move_palette_entry(32, 0).expect("move");
+        assert_eq!(doc.palette_color(0).unwrap(), 0xff00_00ff);
+        doc.remove_palette_entry(0).expect("remove");
+        assert_eq!(doc.palette_count(), 32);
+        assert!(doc.undo());
+        assert!(doc.undo());
+        assert_eq!(doc.palette_color(32).unwrap(), 0xff00_00ff);
     }
 
     #[test]
