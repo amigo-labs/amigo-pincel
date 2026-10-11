@@ -239,6 +239,7 @@ Each milestone is a sequence of S/M tasks. Plan the tasks before starting the mi
 - **TypeScript strict mode.** No implicit `any`. No `// @ts-ignore` without an issue link.
 - **State stores:** Svelte 5 runes in `src/lib/stores/`. One store per concern (document, tools, panels, prefs).
 - **WASM bridge:** all Pixel-mode calls go through the `src/lib/core/` adapter and all Image-mode calls through `src/modes/image/core/wasm.ts`; UI never imports `pincel-wasm` / `pincel-image-wasm` directly.
+- **One editor frame:** both editors render through `src/lib/components/layout/EditorFrame.svelte` (menus as data, tool groups, `Panel`-wrapped panels) and style with the `pc-*` theme tokens from `app.css` — no raw `neutral-*` colors, no emoji icons. Keys come from `src/lib/shell/shortcuts.ts`.
 - **Two modes, one shell:** `src/App.svelte` owns the start screen, the New dialog, file → mode routing (`src/lib/fs` `sniffFormat`) and mounts exactly one editor per session — `src/modes/pixel/PixelEditor.svelte` or `src/modes/image/ImageEditor.svelte` — via dynamic `import()`. Editors talk to the shell only through `EditorProps` (`src/lib/shell/types.ts`). Shared layers (`src/lib/fs`, `src/lib/idb`, `src/lib/menu`, `src/lib/platform`) stay mode-agnostic.
 
 ### 5.5 `src-tauri/`
@@ -496,7 +497,10 @@ ui/src/modes/image/           ImageEditor.svelte + its stores / controller / com
 ui/src/lib/core/              WASM adapter (Pixel mode)
 ui/src/modes/image/core/      WASM adapter (Image mode) + generated ts-rs types
 ui/src/lib/render/            WebGPU + Canvas2D adapters
-ui/src/lib/components/        Components both editors / the shell share (effect + recovery dialogs)
+ui/src/lib/components/        Components both editors / the shell share (effect + recovery dialogs, ColorPair)
+ui/src/lib/components/layout/ Shared responsive editor frame: EditorFrame, MenuBar, ToolRail, Panel, ZoomControl
+ui/src/lib/components/icons/  Inline-SVG icon set (no icon dependency)
+ui/src/lib/shell/shortcuts.ts The one keyboard map both modes use (spec §9.4)
 ui/src/modes/pixel/components/ Pixel-only panels, menus, dialogs (timeline, palette, layers, …)
 ui/e2e/                       Playwright specs (§7.4)
 ui/src/lib/fs/                File open/save (FSA / download / Tauri)

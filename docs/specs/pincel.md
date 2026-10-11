@@ -525,25 +525,35 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 
 ### 9.2 Layout
 
-```
-┌────────────────────────────────────────────────────────────────┐
-│  Top Bar: File │ Edit │ Sprite │ Layer │ Frame │ View │ Help   │
-├──────┬──────────────────────────────────────────────┬──────────┤
-│ Tool │                                              │  Layers  │
-│ bar  │                                              ├──────────┤
-│      │            Canvas Viewport                   │ Tilesets │
-│      │                                              ├──────────┤
-│      │           (WebGPU/Canvas2D)                  │  Slices  │
-│      │                                              ├──────────┤
-│      │                                              │ Palette  │
-├──────┴──────────────────────────────────────────────┴──────────┤
-│  Timeline: frames + tags + onion-skin controls                 │
-├────────────────────────────────────────────────────────────────┤
-│  Status: zoom % │ cursor coords │ active color │ doc size      │
-└────────────────────────────────────────────────────────────────┘
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│ Top bar: File Edit Select Image Layer [Frame] Effects Adjustments View │
+│          · document name ● · undo / redo · panels toggle               │
+├──────┬────────────────────────────────────────────────┬────────────────┤
+│ Tool │ Options bar: variants of the active tool group │  Colors        │
+│ rail │ + that tool's options                          ├────────────────┤
+│      ├────────────────────────────────────────────────┤  Palette       │
+│      │                                                ├────────────────┤
+│      │            Canvas viewport                     │  Layers        │
+│      │           (WebGPU / Canvas2D)       [− % + 1:1]├────────────────┤
+│      ├────────────────────────────────────────────────┤  Tilesets ▸    │
+│      │ Timeline: transport · frames · tags · onion    │  Slices ▸      │
+│      ├────────────────────────────────────────────────┤                │
+│      │ Status: doc size · frame · undo depth · status │                │
+└──────┴────────────────────────────────────────────────┴────────────────┘
 ```
 
-Right-side panels are reorderable, collapsible, and dock-tabbable. Layout state persists per-document type.
+Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens.
+
+**Responsive layout.** The frame restructures at Tailwind's `sm` / `lg` widths:
+
+| Window | Menus | Tools | Panels |
+|--------|-------|-------|--------|
+| ≥ 1024 px (desktop) | menu bar | vertical rail | docked sidebar, toggleable |
+| 640–1023 px (tablet) | menu bar (scrolls if needed) | vertical rail | drawer over the canvas |
+| < 640 px (phone) | ☰ sheet with every menu | horizontal strip at the bottom | bottom sheet, one tab per panel (timeline included) |
+
+**Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background.
 
 The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents), the New-document dialog with a mode choice, file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
 
@@ -571,7 +581,7 @@ const events = doc.drainEvents();
 
 ### 9.4 Input Handling
 
-Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map that mirrors Aseprite's defaults where reasonable.
+Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. In the desktop app the native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice.
 
 ---
 
@@ -775,6 +785,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-11 | Rename `fineliner-core` → `pincel-image-core` and `fineliner-wasm` → `pincel-image-wasm` (npm link name, wasm file `pincel_image_wasm_bg.wasm`, CI / release paths follow) | `amigo-fineliner` is archived and Image mode is part of Pincel; the crate names were the last place the product split showed. `pincel-image-*` mirrors the user-facing mode name. Attribution comments that say where code came from keep the old names. |
 | 2026-10-11 | Image-mode project format is **OpenRaster** (`.ora`): ZIP with uncompressed `mimetype`, `stack.xml`, a PNG per layer, `mergedimage.png`, `Thumbnails/thumbnail.png`; opacity / visibility / `svg:*` blend ops / Krita's `edit-locked` / `selected` map the layer properties. New dependency `zip` 9 (`default-features = false`, `deflate-flate2` only → crc32fast, flate2 (already in the tree), indexmap, memchr, typed-path); `stack.xml` is read and written by a small in-crate attribute reader, no XML crate. Image-mode autosave stores the same bytes. | Chosen by the user over a bespoke container and MessagePack + zstd: `.ora` opens directly in GIMP, Krita and MyPaint, so a layered Pincel image is never locked into Pincel. Fineliner's planned `.fln` (ADR-004) was never implemented, so there is nothing to migrate. The pure-Rust deflate backend keeps the wasm build working; stack.xml's flat, attribute-only shape does not justify an XML parser dependency. |
 | 2026-10-11 | One effect wire format for both modes: `pincel-image-wasm` takes `apply_effect` / `preview_effect(handle, layer, name, params: Float64Array)` parsed by `pincel_effects::EffectSpec::from_params`, and both editors build their menus and dialogs from `ui/src/lib/effects/catalog.ts`. The image core's JSON `EffectSpec`, its ts-rs mirror and the Image-mode catalogs / dialog are removed. | The two catalogs drove the same pixel math through two encodings and had drifted: Pixel mode sent Levels / Curves points in 0–255 where the effect expects [0, 1] (fixed in the shared catalog's `toParams`). One table, one dialog and one parser leave nothing to drift. Image mode loses its one-click Curves presets in exchange for the editable 5-point Curves dialog. |
+| 2026-10-11 | One editor frame for both modes: Pixel mode moves onto the menu bar / tool rail / options bar / collapsible panels / status bar Image mode already had (`ui/src/lib/components/layout/`), with one theme, one inline-SVG icon set and one `shortcuts.ts` keymap. The frame is responsive (docked sidebar ≥ 1024 px, drawer 640–1023 px, phone: ☰ menu, bottom tool strip, panel bottom sheet). Pixel mode gains a background color (right button, filled-shape interior, `X` / `D`) and the lasso moves from `M` to `Q` in both modes. No new dependencies. | The two editors had grown apart: Pixel mode was two rows of text buttons over four equal panel columns (on a phone the canvas did not show at all), Image mode a docked layout with emoji icons. One frame makes the modes feel like one app and puts the responsive work in one place. Icons are hand-drawn rather than an icon package to stay dependency-free and to cover Pixel-only tools (tile stamp, slice). `Q` for the lasso (Aseprite's key) frees `M` for the marquee shapes alone and replaces Image mode's `L`, which collides with Pixel mode's line. The background color follows Aseprite and paint.net and Image mode's existing behaviour. |
 
 ---
 

@@ -4,7 +4,9 @@ _Last updated: 2026-10-11_
 
 **Branch:** `ccr-ccba59fa-eq8omt` — PR #55, "work through the open STATUS
 items": every codeable item from the list below the M16 merge is done on
-the branch (section "2026-10-11 — open items sweep"). Before it: PR #53 —
+the branch (section "2026-10-11 — open items sweep"), plus one shared,
+responsive editor frame for both modes (section "2026-10-11 — one
+responsive editor frame"). Before it: PR #53 —
 M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
 `amigo-fineliner` is archived.
 
@@ -38,9 +40,10 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **PixelEditor state store.** `PixelEditor.svelte` is down to ~3,300
-  lines (tools / keymap and the overlay painter are out, pixel-only
-  components live in `modes/pixel/components/`). The rest — file ops,
+- **PixelEditor state store.** `PixelEditor.svelte` is ~3,100 lines
+  (tools, menus, keymap and the overlay painter are out, the chrome is
+  the shared frame, pixel-only components live in
+  `modes/pixel/components/`). The rest — file ops,
   autosave / recovery, the pointer / tool controller — mutate dozens of
   component `$state` fields; extracting them cleanly needs those fields
   in a `pixel-editor.svelte.ts` store first. Own refactor PR; the e2e
@@ -54,10 +57,48 @@ collaboration) are out of scope.
   (unchanged behaviour, now on the shared catalog).
 - **Palette presets / import / export** (PICO-8, NES, Game Boy; `.gpl`).
 - **Pen pressure / tilt** and on-screen modifier keys for iPad (§17.4).
+  The phone / tablet layout is done; Shift / Alt constraints (square
+  shapes, add / subtract selection) still need a keyboard.
+- **Layers panel parity.** Both modes now share the panel chrome, but
+  the Layers panel bodies still differ (Image: thumbnails, drag-reorder,
+  lock; Pixel: kind badge, up / down buttons, properties row).
 - **Aseprite round-trip, remaining:** user-data property maps and tag
   directions > 3 are still dropped (spec §7.1).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-11 — one responsive editor frame (PR #55)
+
+User decisions: own inline-SVG icons (no icon package), tablet fully
+supported and phone usable, unify layout + theme, menus + shortcuts and
+add a background color to Pixel mode. Spec §9.2 / §9.4 and §15
+(2026-10-11, "One editor frame for both modes").
+
+- [x] **Theme + icons** — `pc-*` color tokens in `app.css` `@theme`
+  (replace `--fl-*` and raw neutrals), `lib/components/icons/` (~55
+  hand-drawn 24 px strokes).
+- [x] **Shared chrome** — `lib/components/layout/`: `EditorFrame`
+  (wide: docked sidebar; medium: drawer; narrow: ☰ menu sheet, bottom
+  tool strip, panel bottom sheet with tabs), data-driven `MenuBar`
+  (dropdowns with submenus, keyboard navigation), `ToolRail` +
+  `ToolVariants` (tool groups, variants in the options bar), `Panel` /
+  `PanelHost` (collapsible, persisted per mode in IDB prefs),
+  `ZoomControl`, `IconButton`; `lib/components/ColorPair`;
+  `lib/effects/menu.ts`.
+- [x] **One keymap** — `lib/shell/shortcuts.ts` (spec §9.4); menus and
+  tooltips print from it. Image mode gains `+ - 0 1` zoom and Space-pan;
+  the lasso is `Q` in both modes; the Tauri menu's accelerators are
+  left to the native menu in both editors.
+- [x] **Image mode** on the frame (ToolBar / TransformMenu / EffectsMenu
+  removed). **Pixel mode** on the frame: `modes/pixel/menus.ts`, tool
+  groups in `tools.ts`, panels on `Panel`, timeline as a bottom panel;
+  Select / Image / Effects dropdown components and the Recent… dropdown
+  removed (File ▸ Open Recent).
+- [x] **Background color in Pixel mode** — right button paints / fills /
+  samples with it, filled shapes use it, `X` / `D`, palette right-click.
+- [x] **e2e** — `responsive.spec` (phone / tablet / desktop),
+  `shortcuts.spec` (both modes); existing specs drive the menu bar via
+  `helpers.menu()`. 19 specs green.
 
 ## 2026-10-11 — open items sweep (PR #55)
 
