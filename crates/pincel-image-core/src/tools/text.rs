@@ -286,10 +286,11 @@ mod tests {
     use crate::geometry::Rect;
     use crate::selection::SelectionMask;
 
-    /// Liberation Sans (SIL OFL 1.1) — a test fixture; see the LICENSE alongside.
+    /// Liberation Sans (SIL OFL 1.1) — the workspace's one copy of the test
+    /// font lives with `pincel-core`'s fixtures (LICENSE alongside).
     const FONT: &[u8] = include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/LiberationSans-Regular.ttf"
+        "/../pincel-core/tests/fixtures/LiberationSans-Regular.ttf"
     ));
 
     fn style(size: f32) -> TextStyle {
