@@ -7,6 +7,19 @@
   import SlicesPanel from './components/SlicesPanel.svelte';
   import LayersPanel from './components/LayersPanel.svelte';
   import TimelinePanel from './components/TimelinePanel.svelte';
+  import {
+    clearOverlay as clearOverlayLayer,
+    overlayIsIdle,
+    paintOverlays as paintOverlayLayer,
+    type OverlayState,
+  } from './overlay-painter';
+  import {
+    constrainEndpoint,
+    isDragShapeTool,
+    isShapeTool,
+    toolForKey,
+    type Tool,
+  } from './tools';
   import { PinchTracker, type PinchFrame } from '../../lib/view/pinch';
   import SpriteSheetDialog, { type SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
   import {
@@ -56,16 +69,6 @@
     upsertRecent,
     type RecentFile,
   } from '../../lib/idb/recent-files';
-  import {
-    paintEllipsePreview,
-    paintLinePreview,
-    paintPivotCrosshair,
-    paintRectOutline,
-    paintRectanglePreview,
-    paintMaskMarquee,
-    paintPolylinePreview,
-    paintSelectionMarquee,
-  } from '../../lib/render/canvas2d';
   import { Canvas2DRenderer } from '../../lib/render/canvas2d-renderer';
   import type { CanvasRenderer, RenderBackend } from '../../lib/render/types';
   import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
@@ -89,52 +92,6 @@
   // (CLAUDE.md §9 — "canvas-as-source-of-truth" anti-pattern). The UI
   // holds an opaque handle, paints with `applyTool`, and re-renders by
   // calling `compose()` and blitting the resulting `ComposeFrame`.
-  type Tool =
-    | 'pencil'
-    | 'eraser'
-    | 'eyedropper'
-    | 'bucket'
-    | 'line'
-    | 'rectangle'
-    | 'rectangle-fill'
-    | 'ellipse'
-    | 'ellipse-fill'
-    | 'rounded-rect'
-    | 'polygon-shape'
-    | 'selection-rect'
-    | 'selection-ellipse'
-    | 'selection-lasso'
-    | 'selection-polygon'
-    | 'selection-wand'
-    | 'text'
-    | 'move'
-    | 'tilemap-stamp'
-    | 'slice';
-
-  // Tools that use the press / drag / release pipeline (a start point
-  // captured on `pointerdown`, a live endpoint tracked on
-  // `pointermove`, committed on `pointerup`). The Selection (Rect)
-  // tool shares the same shape so a Shift constraint / mid-drag
-  // pre-empt can be added uniformly; its release path commits via
-  // `setSelection` / `clearSelection` rather than the paint commands.
-  // The Slice tool reuses the same shape — release commits via
-  // `addSlice` (no active slice) or `setSliceKey` (preserving the
-  // active slice's center / pivot).
-  function isDragShapeTool(t: Tool): boolean {
-    return (
-      t === 'line' ||
-      t === 'rectangle' ||
-      t === 'rectangle-fill' ||
-      t === 'ellipse' ||
-      t === 'ellipse-fill' ||
-      t === 'rounded-rect' ||
-      t === 'polygon-shape' ||
-      t === 'selection-rect' ||
-      t === 'selection-ellipse' ||
-      t === 'slice'
-    );
-  }
-
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 64;
   // CSS px of breathing room left on each edge when auto-fitting a
@@ -191,9 +148,6 @@
   let fillColor = $state('#ffffff');
   let cornerRadius = $state(4);
   let polygonSides = $state(6);
-  function isShapeTool(t: Tool): boolean {
-    return t === 'rectangle' || t === 'ellipse' || t === 'rounded-rect' || t === 'polygon-shape';
-  }
   let tool = $state<Tool>('pencil');
   let undoDepth = $state(0);
   let redoDepth = $state(0);
@@ -460,94 +414,48 @@
     paintOverlays();
   }
 
-  // Clear the overlay layer and repaint whatever transient furniture is
-  // currently live. Runs on the full recompose path (the dirty fast path
-  // only fires when nothing here would paint, per `canRecomposeDirty`).
+  // Snapshot of everything the overlay layer paints from
+  // (overlay-painter.ts).
+  function overlayState(): OverlayState {
+    return {
+      doc,
+      tool,
+      color,
+      marchPhase,
+      canvasW,
+      canvasH,
+      drag:
+        dragStart && dragPreview && dragTool
+          ? { tool: dragTool, start: dragStart, end: constrainedEndpoint() }
+          : null,
+      polyline:
+        lassoPoints || polyPoints
+          ? { points: lassoPoints ?? polyPoints ?? [], hover: polyPoints ? polyHover : null }
+          : null,
+      selection,
+      selectionMask: selectionMaskBytes,
+      moveDelta:
+        moveSelStart && moveSelPreview
+          ? { x: moveSelPreview.x - moveSelStart.x, y: moveSelPreview.y - moveSelStart.y }
+          : { x: 0, y: 0 },
+      stampTile,
+      stampHover,
+      activeSliceId,
+    };
+  }
+
+  // Repaint the overlay layer on the full recompose path (the dirty fast
+  // path only fires when nothing would paint, per `canRecomposeDirty`).
   function paintOverlays() {
-    if (!overlay) return;
-    const ctx = overlay.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, overlay.width, overlay.height);
-    if (dragStart && dragPreview && dragTool) {
-      // In-flight drag-shape preview. On release we commit through the
-      // matching wasm method and the composed cel surfaces the same
-      // pixels naturally; the next paint clears this preview.
-      const end = constrainedEndpoint();
-      if (dragTool === 'line') {
-        paintLinePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color);
-      } else if (dragTool === 'rectangle') {
-        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
-      } else if (dragTool === 'rectangle-fill') {
-        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
-      } else if (dragTool === 'ellipse') {
-        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
-      } else if (dragTool === 'ellipse-fill') {
-        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, true);
-      } else if (dragTool === 'rounded-rect' || dragTool === 'polygon-shape') {
-        paintRectanglePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, color, false);
-      } else if (dragTool === 'selection-ellipse') {
-        paintEllipsePreview(overlay, dragStart.x, dragStart.y, end.x, end.y, '#ffffff', false);
-      } else if (dragTool === 'selection-rect' || dragTool === 'slice') {
-        // Inclusive-corner marquee preview: matches the rect that
-        // `commitSelection` / `commitSliceDrag` will hand to the wasm
-        // side on release. Slice drags reuse the marching marquee so the
-        // gesture matches the active-slice overlay being edited.
-        const minX = Math.min(dragStart.x, end.x);
-        const maxX = Math.max(dragStart.x, end.x);
-        const minY = Math.min(dragStart.y, end.y);
-        const maxY = Math.max(dragStart.y, end.y);
-        paintSelectionMarquee(overlay, minX, minY, maxX - minX + 1, maxY - minY + 1, marchPhase);
-      }
-    } else if (lassoPoints || polyPoints) {
-      // Lasso / polygon in progress: outline so far plus the floating
-      // edge to the cursor (polygon) — closed back to the start.
-      paintPolylinePreview(overlay, lassoPoints ?? polyPoints ?? [], polyPoints ? polyHover : null, true);
-    } else if (selection) {
-      // No marquee drag in flight. A live Move-tool selection drag paints
-      // a ghost marquee at the translated position (the pixels snap into
-      // place on release); otherwise paint the committed marquee. Shaped
-      // selections trace the mask edge instead of the bounding rect.
-      const dx = moveSelStart && moveSelPreview ? moveSelPreview.x - moveSelStart.x : 0;
-      const dy = moveSelStart && moveSelPreview ? moveSelPreview.y - moveSelStart.y : 0;
-      if (selectionMaskBytes) {
-        paintMaskMarquee(overlay, selectionMaskBytes, canvasW, canvasH, marchPhase, dx, dy, selection);
-      } else {
-        paintSelectionMarquee(
-          overlay,
-          selection.x + dx,
-          selection.y + dy,
-          selection.w,
-          selection.h,
-          marchPhase,
-        );
-      }
-    }
-    // Tilemap Stamp tool: tile grid + hovered cell, drawn after the
-    // marquee so a marquee + stamp combo keeps both visible.
-    if (tool === 'tilemap-stamp' && stampTile && doc) {
-      paintTileGridOverlay();
-    }
-    // Active slice overlay last so its geometry stays above the grid /
-    // marquee when several overlays would otherwise compete.
-    if (doc && activeSliceId !== null) {
-      paintActiveSliceOverlay();
-    }
+    if (overlay) paintOverlayLayer(overlay, overlayState());
   }
 
-  // Wipe the overlay layer. Used by the dirty fast path so a preview /
-  // marquee painted on the previous full frame can't linger once the
-  // overlay sources go inactive (the base sub-rect blit leaves the
-  // overlay untouched).
   function clearOverlay() {
-    if (!overlay) return;
-    const ctx = overlay.getContext('2d');
-    ctx?.clearRect(0, 0, overlay.width, overlay.height);
+    if (overlay) clearOverlayLayer(overlay);
   }
 
-  // Sub-rect blit path (M12.4). Only safe when none of the overlay
-  // sources are live, since the overlay paints would otherwise stale
-  // out on the parts of the canvas this call leaves untouched. The
-  // caller (`tick`) checks `canRecomposeDirty()` before routing here.
+  // Sub-rect blit path (M12.4). Only safe when no overlay source is live;
+  // `tick` checks `canRecomposeDirty()` before routing here.
   function recomposeDirty(rect: { x: number; y: number; w: number; h: number }) {
     if (!doc || !renderer) return;
     const frame = doc.composeDirty(currentFrame, 1, rect.x, rect.y, rect.w, rect.h);
@@ -559,137 +467,14 @@
     clearOverlay();
   }
 
-  // True when no transient overlay is being painted on top of the
-  // composited frame — i.e. a sub-rect blit will not leave stale
-  // overlay pixels behind. Selection marquee, drag shape preview,
-  // tilemap stamp grid, and active-slice marquee all force the full
-  // recompose path.
   function canRecomposeDirty(): boolean {
-    if (selection) return false;
-    if (dragStart || moveSelStart) return false;
-    if (tool === 'tilemap-stamp' && stampTile) return false;
-    if (activeSliceId !== null) return false;
-    return true;
+    return overlayIsIdle(overlayState());
   }
 
-  // Paint marching ants on the active slice's frame-0 bounds, plus
-  // its optional 9-patch center band and pivot crosshair. The wasm
-  // getters that back this run only when `activeSliceId` is set; if
-  // the slice was just removed via undo, the function silently
-  // no-ops via the try/catch wrapping the bounds read.
-  function paintActiveSliceOverlay() {
-    if (!overlay || !doc || activeSliceId === null) return;
-    try {
-      const id = activeSliceId;
-      const keyCount = doc.sliceKeyCount(id);
-      if (keyCount === 0) return;
-      // Prefer the explicit frame-0 key when present, falling back to
-      // key 0 so a slice that only carries a later-frame key still
-      // gets a visible overlay.
-      let keyIndex = 0;
-      for (let k = 0; k < keyCount; k += 1) {
-        if (doc.sliceKeyFrame(id, k) === 0) {
-          keyIndex = k;
-          break;
-        }
-      }
-      const x = doc.sliceKeyX(id, keyIndex);
-      const y = doc.sliceKeyY(id, keyIndex);
-      const w = doc.sliceKeyWidth(id, keyIndex);
-      const h = doc.sliceKeyHeight(id, keyIndex);
-      paintSelectionMarquee(overlay, x, y, w, h, marchPhase);
-      if (doc.sliceKeyHasCenter(id, keyIndex)) {
-        const cx = doc.sliceKeyCenterX(id, keyIndex);
-        const cy = doc.sliceKeyCenterY(id, keyIndex);
-        const cw = doc.sliceKeyCenterWidth(id, keyIndex);
-        const ch = doc.sliceKeyCenterHeight(id, keyIndex);
-        // Reuse the slice's editor color for the center accent so
-        // 9-patch slices read as distinct from the active marquee.
-        const color = sliceColorCss(doc.sliceColor(id));
-        paintRectOutline(overlay!, cx, cy, cw, ch, color);
-      }
-      if (doc.sliceKeyHasPivot(id, keyIndex)) {
-        const px = doc.sliceKeyPivotX(id, keyIndex);
-        const py = doc.sliceKeyPivotY(id, keyIndex);
-        paintPivotCrosshair(overlay!, px, py);
-      }
-    } catch {
-      // Slice disappeared mid-frame (e.g. undo of an addSlice).
-      // `reconcileActiveSlice` runs after undo / redo (the same
-      // place `docRev` bumps) and clears the stale id.
-    }
-  }
-
-  // Drop the slice color's alpha and render `#RRGGBB` so the 2D
-  // context's `fillStyle` accepts it. Alpha is intentionally
-  // dropped — overlays always paint fully opaque to stay legible
-  // against the composed sprite.
-  function sliceColorCss(packed: number): string {
-    const rgb = (packed >>> 8) & 0xffffff;
-    return '#' + rgb.toString(16).padStart(6, '0');
-  }
-
-  // Paint a 1-CSS-pixel grid over the main canvas at the active
-  // stamp tileset's tile_size, then highlight the cell under the
-  // cursor. Coordinates use the canvas's intrinsic pixel space
-  // (`canvas.width`/`height` == sprite dimensions); CSS scaling does
-  // the visual upscale via `image-rendering: pixelated`.
-  function paintTileGridOverlay() {
-    if (!overlay || !doc || !stampTile) return;
-    const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
-    const tileH = doc.tilesetTileHeight(stampTile.tilesetId);
-    if (tileW === 0 || tileH === 0) return;
-    const ctx = overlay.getContext('2d');
-    if (!ctx) return;
-    ctx.save();
-    ctx.strokeStyle = 'rgba(96, 165, 250, 0.5)';
-    ctx.lineWidth = 1;
-    for (let gx = tileW; gx < overlay.width; gx += tileW) {
-      ctx.beginPath();
-      ctx.moveTo(gx + 0.5, 0);
-      ctx.lineTo(gx + 0.5, overlay.height);
-      ctx.stroke();
-    }
-    for (let gy = tileH; gy < overlay.height; gy += tileH) {
-      ctx.beginPath();
-      ctx.moveTo(0, gy + 0.5);
-      ctx.lineTo(overlay.width, gy + 0.5);
-      ctx.stroke();
-    }
-    if (stampHover) {
-      const cellX = Math.floor(stampHover.x / tileW) * tileW;
-      const cellY = Math.floor(stampHover.y / tileH) * tileH;
-      ctx.strokeStyle = 'rgba(59, 130, 246, 0.95)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(cellX + 0.5, cellY + 0.5, tileW - 1, tileH - 1);
-    }
-    ctx.restore();
-  }
-
-  // Sprite-space endpoint for the in-flight drag, after applying any
-  // active modifier constraint (Shift = square for Rectangle, circle
-  // for Ellipse — both forms reduce to a square bbox).
+  // Sprite-space endpoint for the in-flight drag, Shift-constrained.
   function constrainedEndpoint(): { x: number; y: number } {
-    if (!dragStart || !dragPreview) {
-      return { x: 0, y: 0 };
-    }
-    if (
-      dragShift &&
-      (dragTool === 'rectangle' ||
-        dragTool === 'rectangle-fill' ||
-        dragTool === 'ellipse' ||
-        dragTool === 'ellipse-fill' ||
-        dragTool === 'rounded-rect' ||
-        dragTool === 'polygon-shape')
-    ) {
-      const dx = dragPreview.x - dragStart.x;
-      const dy = dragPreview.y - dragStart.y;
-      const side = Math.max(Math.abs(dx), Math.abs(dy));
-      const sx = dx < 0 ? -1 : 1;
-      const sy = dy < 0 ? -1 : 1;
-      return { x: dragStart.x + side * sx, y: dragStart.y + side * sy };
-    }
-    return dragPreview;
+    if (!dragStart || !dragPreview) return { x: 0, y: 0 };
+    return dragTool ? constrainEndpoint(dragTool, dragStart, dragPreview, dragShift) : dragPreview;
   }
 
   // Clamp + apply a new zoom level. Pan offset stays in CSS pixels,
@@ -2328,25 +2113,6 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
   }
 
-  // Single-key tool shortcuts, aligned with Aseprite defaults where they
-  // don't collide. Modifier-bearing presses (Ctrl/Cmd/Alt) are left to
-  // the browser / OS; Shift is tolerated (normalized via toLowerCase).
-  // Each key maps to a tool group. The first press selects the group's
-  // first tool; repeated presses cycle through the group (the Aseprite
-  // pattern — `U` walks the four shape variants).
-  const TOOL_KEYS: Record<string, Tool[]> = {
-    b: ['pencil'],
-    e: ['eraser'],
-    i: ['eyedropper'],
-    g: ['bucket'],
-    l: ['line'],
-    u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill', 'rounded-rect', 'polygon-shape'],
-    m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
-    w: ['selection-wand'],
-    t: ['text'],
-    v: ['move'],
-  };
-
   // Deselect the marquee. The wasm side enqueues a `selection-changed`
   // event, which the next tick drains into a repaint.
   function deselect() {
@@ -2522,14 +2288,10 @@
         togglePlay();
         return;
       }
-      const group = TOOL_KEYS[e.key.toLowerCase()];
-      if (group) {
+      const next = toolForKey(e.key, tool);
+      if (next) {
         e.preventDefault();
-        // `indexOf` is -1 when the current tool isn't in the group, so
-        // the first press lands on the group's first entry. The `??`
-        // only satisfies noUncheckedIndexedAccess — the index is always
-        // in range.
-        tool = group[(group.indexOf(tool) + 1) % group.length] ?? tool;
+        tool = next;
       }
     }
   }
