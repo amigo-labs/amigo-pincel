@@ -2,14 +2,15 @@
 //!
 //! Covers the RGBA color mode, image cels and tilemap cels, and every
 //! separable blend mode (the four non-separable HSL modes fall back to
-//! `Normal` — spec §15 Decision Log, 2026-07-09). Indexed color, linked
-//! cels, onion skin, and decoration overlays all raise [`RenderError`] and
-//! arrive in later milestones.
+//! `Normal` — spec §15 Decision Log, 2026-07-09), plus the onion-skin
+//! pass (spec §4.2). Indexed color, linked cels and decoration overlays
+//! raise [`RenderError`] and arrive in later milestones.
 
 mod blend;
 mod compose;
 mod error;
 mod image_layer;
+mod onion;
 mod request;
 mod tilemap_layer;
 

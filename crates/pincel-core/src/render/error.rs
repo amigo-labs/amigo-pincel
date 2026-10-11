@@ -53,11 +53,6 @@ pub enum RenderError {
     #[error("cel type does not match layer kind on layer {layer:?} frame {frame:?}")]
     CelTypeMismatch { layer: LayerId, frame: FrameIndex },
 
-    /// The request asked for an onion-skin overlay; M3 does not render
-    /// onion skin yet.
-    #[error("onion skin is not yet supported")]
-    OnionSkinUnsupported,
-
     /// The request asked for one or more decoration overlays; M3 does not
     /// render overlays yet.
     #[error("overlays are not yet supported")]
