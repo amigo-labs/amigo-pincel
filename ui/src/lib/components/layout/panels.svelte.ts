@@ -18,6 +18,8 @@ export interface PanelDef {
   placement?: 'side' | 'bottom';
   /** Grows to fill spare sidebar height (long lists such as Layers). */
   grow?: boolean;
+  /** Starts collapsed until the user expands it (rarely used panels). */
+  defaultCollapsed?: boolean;
 }
 
 /** Where and how a panel is currently shown. */

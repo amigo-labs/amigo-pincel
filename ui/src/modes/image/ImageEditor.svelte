@@ -60,6 +60,7 @@
   import { effectMenus } from '../../lib/effects/menu';
   import type { EffectDef } from '../../lib/effects/catalog';
   import {
+    NATIVE_MENU_ACTIONS,
     actionFor,
     hint,
     isTypingTarget,
@@ -96,13 +97,6 @@
   let jpegDialogOpen = $state(false);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   let effectOpen = $state<EffectDef | null>(null);
-
-  // Export formats (spec §13.2; WebP is lossless per ADR-007).
-  const exportFormats: Array<{ format: ExportFormat; label: string }> = [
-    { format: 'png', label: 'PNG' },
-    { format: 'jpeg', label: 'JPEG…' },
-    { format: 'webp', label: 'WebP (lossless)' },
-  ];
 
   function runExport(format: ExportFormat, quality?: number): void {
     // JPEG is lossy: ask for the quality first (spec §13.2).
@@ -269,6 +263,9 @@
       'menu:exportPng': () => runExport('png'),
       'menu:undo': undo,
       'menu:redo': redo,
+      'menu:zoomIn': () => viewCommands.zoomIn(),
+      'menu:zoomOut': () => viewCommands.zoomOut(),
+      'menu:resetZoom': () => viewCommands.fit(),
     });
     return () => {
       if (timer !== null) clearInterval(timer);
@@ -292,6 +289,7 @@
       return;
     }
     const action = actionFor(e);
+    if (action !== null && isTauri() && NATIVE_MENU_ACTIONS.has(action)) return;
     if (action !== null && runShortcut(action)) {
       e.preventDefault();
       return;
@@ -402,6 +400,7 @@
           items: [
             { label: 'PNG', shortcut: hint('export'), run: () => runExport('png') },
             { label: 'JPEG…', run: () => runExport('jpeg') },
+            // Lossless only: no pure-Rust lossy encoder (ADR-007).
             { label: 'WebP (lossless)', run: () => runExport('webp') },
           ],
         },
@@ -535,15 +534,18 @@
     <ToolVariants groups={toolGroups} active={tool.kind} onSelect={(t) => (tool.kind = t)} />
     <ToolOptions />
   {/snippet}
-  {#snippet canvas()}
+  {#snippet viewport()}
     <MainCanvas />
   {/snippet}
-  {#snippet status()}
+  {#snippet statusbar()}
     <span>{toolLabel}</span>
     <span>·</span>
     <span>{editor.width} × {editor.height} · sRGB</span>
-    <span class="flex-1"></span>
-    <span class:text-amber-400={loadError !== null}>{loadError ?? 'Ready'}</span>
+    <span
+      class="min-w-0 flex-1 truncate text-center"
+      class:text-amber-400={loadError !== null}
+      class:text-pc-muted={loadError === null}>{loadError ?? ''}</span
+    >
   {/snippet}
 </EditorFrame>
 

@@ -33,12 +33,14 @@
     tools: Snippet<['vertical' | 'horizontal']>;
     /** Tool options for the active tool. */
     options?: Snippet;
-    canvas: Snippet;
+    /** The canvas viewport. */
+    viewport: Snippet;
     /** Top-bar quick actions (undo / redo). */
     quick?: Snippet;
-    status?: Snippet;
+    /** Status bar content. */
+    statusbar?: Snippet;
   }
-  const { mode, menus, panels, title, dirty = false, tools, options, canvas, quick, status }: Props =
+  const { mode, menus, panels, title, dirty = false, tools, options, viewport: stage, quick, statusbar }: Props =
     $props();
 
   let layout = $state<FrameLayout>({ collapsed: {}, sidebar: true });
@@ -57,8 +59,12 @@
     return stop;
   });
 
-  function toggleCollapsed(id: string): void {
-    layout.collapsed[id] = !(layout.collapsed[id] ?? false);
+  function isCollapsed(p: PanelDef): boolean {
+    return layout.collapsed[p.id] ?? p.defaultCollapsed ?? false;
+  }
+
+  function toggleCollapsed(p: PanelDef): void {
+    layout.collapsed[p.id] = !isCollapsed(p);
     saveLayout(mode, layout);
   }
 
@@ -84,8 +90,8 @@
   <PanelHost
     title={p.title}
     {host}
-    collapsed={layout.collapsed[p.id] ?? false}
-    onToggle={() => toggleCollapsed(p.id)}
+    collapsed={isCollapsed(p)}
+    onToggle={() => toggleCollapsed(p)}
     body={p.body}
   />
 {/snippet}
@@ -94,8 +100,8 @@
   {#each sidePanels as p (p.id)}
     <div
       class="flex min-h-0 flex-col border-b border-pc-border"
-      class:flex-1={p.grow && !(layout.collapsed[p.id] ?? false)}
-      class:shrink-0={!p.grow || (layout.collapsed[p.id] ?? false)}
+      class:flex-1={p.grow && !(isCollapsed(p))}
+      class:shrink-0={!p.grow || (isCollapsed(p))}
     >
       {@render hosted(p, 'side')}
     </div>
@@ -109,7 +115,7 @@
   >
     {#if size === 'narrow'}
       <MenuBar {menus} compact />
-    {:else}
+    {:else if size === 'wide'}
       <span class="mr-1 text-sm font-semibold tracking-wide">Pincel</span>
     {/if}
     <span
@@ -121,7 +127,11 @@
       <MenuBar {menus} />
     {/if}
     <span class="min-w-0 flex-1"></span>
-    <span class="min-w-0 truncate text-xs text-pc-muted" title={dirty ? `${title} — unsaved changes` : title}>
+    <span
+      class="min-w-0 shrink truncate text-xs text-pc-muted"
+      class:max-w-40={size !== 'wide'}
+      title={dirty ? `${title} — unsaved changes` : title}
+    >
       {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
     </span>
     <span class="ml-1 flex items-center">
@@ -151,7 +161,7 @@
         </div>
       {/if}
       <main class="relative min-h-0 flex-1 overflow-hidden">
-        {@render canvas()}
+        {@render stage()}
         {#if size === 'narrow' && sheetPanel}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
@@ -191,11 +201,11 @@
           </div>
         {/each}
       {/if}
-      {#if status && size !== 'narrow'}
+      {#if statusbar && size !== 'narrow'}
         <footer
           class="flex h-7 shrink-0 items-center gap-3 overflow-hidden border-t border-pc-border bg-pc-panel px-3 text-xs whitespace-nowrap text-pc-faint"
         >
-          {@render status()}
+          {@render statusbar()}
         </footer>
       {/if}
     </div>

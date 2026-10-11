@@ -11,14 +11,22 @@
     /** Title when the panel is rendered outside an `EditorFrame`. */
     title?: string;
     /** Small counter next to the title (layers, swatches, …). */
-    count?: number | string;
+    count?: number | string | undefined;
     actions?: Snippet;
     children: Snippet;
     /** Body classes (padding / gap overrides). */
     bodyClass?: string;
+    /** Keep the actions visible while collapsed (timeline transport). */
+    keepActions?: boolean;
   }
-  const { title, count, actions, children, bodyClass = 'flex flex-col gap-2 px-3 pb-3' }: Props =
-    $props();
+  const {
+    title,
+    count,
+    actions,
+    children,
+    bodyClass = 'flex flex-col gap-2 px-3 pb-3',
+    keepActions = false,
+  }: Props = $props();
 
   const slot = panelSlot();
   const name = $derived(slot?.title ?? title ?? '');
@@ -46,7 +54,7 @@
     {:else}
       <span class="flex-1"></span>
     {/if}
-    {#if actions && !collapsed}
+    {#if actions && (keepActions || !collapsed)}
       <div class="flex shrink-0 items-center gap-1">{@render actions()}</div>
     {/if}
   </header>

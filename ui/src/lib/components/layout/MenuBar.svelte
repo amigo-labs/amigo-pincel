@@ -49,6 +49,7 @@
   }
 
   function close(): void {
+    cancelSubClose();
     openId = null;
     sub = null;
   }
@@ -59,7 +60,23 @@
     item.run();
   }
 
+  // Leaving a submenu row for a plain row closes the flyout after a short
+  // grace period, so a pointer travelling diagonally to the flyout across
+  // other rows does not lose it.
+  let subCloseTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function cancelSubClose(): void {
+    if (subCloseTimer !== null) clearTimeout(subCloseTimer);
+    subCloseTimer = null;
+  }
+
+  function scheduleSubClose(): void {
+    cancelSubClose();
+    subCloseTimer = setTimeout(() => (sub = null), 300);
+  }
+
   function openSub(label: string, e: Event): void {
+    cancelSubClose();
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const right = r.right + 220 < window.innerWidth;
     sub = { label, left: right ? r.right - 2 : r.left - 218, top: r.top - 4 };
@@ -158,13 +175,14 @@
         disabled={item.disabled}
         onclick={() => run(item)}
         onpointerenter={() => {
-          if (!compact && depth === 0) sub = null;
+          if (!compact && depth === 0 && sub !== null) scheduleSubClose();
         }}
       >
-        <span class="w-4 shrink-0 text-pc-accent">{item.checked ? '✓' : ''}</span>
+        <span class="w-4 shrink-0 text-pc-accent" aria-hidden="true">{item.checked ? '✓' : ''}</span>
         <span class="flex-1">{item.label}</span>
         {#if item.shortcut}
-          <span class="ml-6 text-xs text-pc-faint">{item.shortcut}</span>
+          <!-- Visual hint only: the accessible name stays the label. -->
+          <span class="ml-6 text-xs text-pc-faint" aria-hidden="true">{item.shortcut}</span>
         {/if}
       </button>
     {/if}
@@ -195,7 +213,7 @@
     {#each menus as m (m.id)}
       <button
         type="button"
-        class="shrink-0 rounded px-2.5 py-1 text-sm whitespace-nowrap hover:bg-pc-hover"
+        class="shrink-0 rounded px-2 py-1 text-sm whitespace-nowrap hover:bg-pc-hover lg:px-2.5"
         class:bg-pc-active={openId === m.id}
         data-menu-trigger={m.id}
         role="menuitem"
@@ -256,6 +274,8 @@
           style:top="{sub.top}px"
           role="menu"
           aria-label={subItem.label}
+          tabindex="-1"
+          onpointerenter={cancelSubClose}
         >
           {@render rows(subItem.items, 1)}
         </div>

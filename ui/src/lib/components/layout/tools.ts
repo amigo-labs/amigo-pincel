@@ -20,7 +20,7 @@ export interface ToolGroup<T extends string = string> {
   id: string;
   label: string;
   /** Single-key shortcut, shown in the tooltip. */
-  shortcut?: string;
+  shortcut?: string | undefined;
   tools: ToolDef<T>[];
 }
 

@@ -18,6 +18,7 @@ export type ShortcutAction =
   | 'save'
   | 'saveAs'
   | 'export'
+  | 'exportSheet'
   | 'undo'
   | 'redo'
   | 'selectAll'
@@ -42,6 +43,7 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   save: [{ key: 's', mod: true }],
   saveAs: [{ key: 's', mod: true, shift: true }],
   export: [{ key: 'e', mod: true }],
+  exportSheet: [{ key: 'e', mod: true, shift: true }],
   undo: [{ key: 'z', mod: true }],
   redo: [
     { key: 'z', mod: true, shift: true },
@@ -82,6 +84,21 @@ export const TOOL_GROUP_KEYS: Record<string, string> = {
   shapes: 'u',
   text: 't',
 };
+
+/**
+ * Chords the native Tauri menu binds as accelerators (src-tauri/src/main.rs).
+ * In the desktop app the editors leave these to the menu so an action never
+ * fires twice; the web build handles them itself.
+ */
+export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<ShortcutAction>([
+  'open',
+  'save',
+  'saveAs',
+  'export',
+  'exportSheet',
+  'undo',
+  'redo',
+]);
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent);
 
