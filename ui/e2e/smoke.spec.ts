@@ -23,7 +23,9 @@ test('pixel mode: a pencil stroke is undoable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled();
 });
 
-test('image mode: a brush stroke is undoable and the pixel wasm is not loaded', async ({ page }) => {
+test('image mode: a brush stroke is undoable and the pixel wasm is not loaded', async ({
+  page,
+}) => {
   const wasmRequests: string[] = [];
   page.on('request', (req) => {
     if (req.url().endsWith('.wasm')) wasmRequests.push(req.url());

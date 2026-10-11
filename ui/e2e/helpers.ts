@@ -13,7 +13,9 @@ export async function createDocument(
   size?: { width: number; height: number },
 ): Promise<void> {
   await gotoStart(page);
-  await page.getByRole('button', { name: mode === 'pixel' ? 'New pixel sprite' : 'New image' }).click();
+  await page
+    .getByRole('button', { name: mode === 'pixel' ? 'New pixel sprite' : 'New image' })
+    .click();
   const dialog = page.getByRole('dialog', { name: 'New document' });
   await expect(dialog).toBeVisible();
   if (size) {
@@ -43,7 +45,8 @@ export async function drag(
 ): Promise<void> {
   const box = await target.boundingBox();
   if (!box) throw new Error('drag target is not visible');
-  const at = ([fx, fy]: [number, number]) => [box.x + box.width * fx, box.y + box.height * fy] as const;
+  const at = ([fx, fy]: [number, number]) =>
+    [box.x + box.width * fx, box.y + box.height * fy] as const;
   const [x0, y0] = at(from);
   const [x1, y1] = at(to);
   await page.mouse.move(x0, y0);
