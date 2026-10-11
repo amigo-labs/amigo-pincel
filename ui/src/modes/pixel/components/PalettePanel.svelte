@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Panel from '../../../lib/components/layout/Panel.svelte';
+  import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
   import type { Document } from '../../../lib/core';
 
@@ -17,12 +19,14 @@
   // current foreground (`addColor`). Edits are undoable wasm commands;
   // `onChange` bumps the parent's `rev`. `activeColor` (the current
   // foreground as `#RRGGBB`) highlights the matching swatch, if any.
+  // Right-clicking a swatch calls `onPickBg` (background color).
   let {
     doc,
     rev = 0,
     activeColor = null,
     addColor = 0x000000ff,
     onPick,
+    onPickBg,
     onChange,
     onError,
   }: {
@@ -32,6 +36,7 @@
     /** Packed `0xRRGGBBAA` appended by `+`. */
     addColor?: number;
     onPick?: (packed: number) => void;
+    onPickBg?: (packed: number) => void;
     onChange?: () => void;
     onError?: (message: string) => void;
   } = $props();
@@ -92,29 +97,19 @@
   const current = $derived(swatches.find((s) => s.index === selected) ?? null);
 </script>
 
-<aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
-  aria-label="Palette"
->
-  <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">Palette</h2>
-    <span class="flex items-center gap-2">
-      {#if swatches.length > 0}
-        <span class="text-xs text-pc-faint">{swatches.length}</span>
-      {/if}
-      <button
-        type="button"
-        class="pal-btn"
-        disabled={!doc || swatches.length >= 256}
-        onclick={() =>
-          edit('add palette entry', (d) => {
-            selected = d.addPaletteEntry(addColor);
-          })}
-        aria-label="Add current color to palette"
-        title="Add the current color">+</button
-      >
-    </span>
-  </header>
+<Panel count={swatches.length > 0 ? swatches.length : undefined}>
+  {#snippet actions()}
+    <IconButton
+      icon="plus"
+      label="Add current color to palette"
+      size="sm"
+      disabled={!doc || swatches.length >= 256}
+      onclick={() =>
+        edit('add palette entry', (d) => {
+          selected = d.addPaletteEntry(addColor);
+        })}
+    />
+  {/snippet}
 
   {#if swatches.length === 0}
     <p class="text-xs text-pc-faint">Empty palette. + adds the current color.</p>
@@ -140,9 +135,13 @@
             selected = s.index;
             onPick?.(s.packed);
           }}
+          oncontextmenu={(e) => {
+            e.preventDefault();
+            onPickBg?.(s.packed);
+          }}
           aria-pressed={isActive}
           aria-label={`Pick color ${s.name || s.css} (entry ${s.index})`}
-          title={s.name ? `${s.name} — ${s.css}` : `${s.css} (entry ${s.index})`}
+          title={`${s.name ? `${s.name} — ${s.css}` : `${s.css} (entry ${s.index})`} · right-click: background`}
         ></button>
       {/each}
     </div>
@@ -189,7 +188,7 @@
       </div>
     {/if}
   {/if}
-</aside>
+</Panel>
 
 <style>
   .palette-grid {

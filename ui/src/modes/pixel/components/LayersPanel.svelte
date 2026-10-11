@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Panel from '../../../lib/components/layout/Panel.svelte';
+  import Icon from '../../../lib/components/icons/Icon.svelte';
+  import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { blendModeNames, type Document } from '../../../lib/core';
 
   // Layers panel (M13.3). The wasm `Document` is the source of truth;
@@ -145,33 +148,19 @@
   }
 </script>
 
-<aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
-  aria-label="Layers"
->
-  <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">Layers</h2>
-    <span class="flex gap-1">
-      <button
-        type="button"
-        class="panel-btn"
-        onclick={() => onFlatten?.()}
-        disabled={!doc || layers.length < 2}
-        title="Flatten all visible layers into one"
-      >
-        Flatten
-      </button>
-      <button
-        type="button"
-        class="panel-btn"
-        onclick={() => onAddLayer?.()}
-        disabled={!doc}
-        aria-label="Add layer"
-      >
-        + Layer
-      </button>
-    </span>
-  </header>
+<Panel>
+  {#snippet actions()}
+    <button
+      type="button"
+      class="panel-btn"
+      onclick={() => onFlatten?.()}
+      disabled={!doc || layers.length < 2}
+      title="Flatten all visible layers into one"
+    >
+      Flatten
+    </button>
+    <IconButton icon="plus" label="Add layer" size="sm" onclick={() => onAddLayer?.()} disabled={!doc} />
+  {/snippet}
 
   {#if layers.length === 0}
     <p class="text-xs text-pc-faint">No layers.</p>
@@ -192,7 +181,7 @@
             aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`}
             title={layer.visible ? 'Hide layer' : 'Show layer'}
           >
-            {layer.visible ? '●' : '○'}
+            <Icon name={layer.visible ? 'eye' : 'eye-off'} size={14} />
           </button>
           {#if editingId === layer.id}
             <!-- svelte-ignore a11y_autofocus -->
@@ -235,7 +224,7 @@
               aria-label={`Move ${layer.name} up`}
               title="Move up"
             >
-              ▲
+              <Icon name="chevron-up" size={11} />
             </button>
             <button
               type="button"
@@ -245,7 +234,7 @@
               aria-label={`Move ${layer.name} down`}
               title="Move down"
             >
-              ▼
+              <Icon name="chevron-down" size={11} />
             </button>
           </div>
           <button
@@ -256,7 +245,7 @@
             aria-label={`Remove ${layer.name}`}
             title={layers.length <= 1 ? 'Cannot remove the last layer' : 'Remove layer'}
           >
-            ✕
+            <Icon name="trash" size={14} />
           </button>
         </li>
       {/each}
@@ -321,12 +310,12 @@
   {#if error}
     <p class="text-xs text-red-400" role="alert">{error}</p>
   {/if}
-</aside>
+</Panel>
 
 <style>
   .layer-active {
-    border-color: rgb(59 130 246);
-    background-color: rgb(30 41 59);
+    border-color: var(--color-pc-accent);
+    background-color: var(--color-pc-active);
   }
   .layer-eye {
     font-size: 0.6rem;

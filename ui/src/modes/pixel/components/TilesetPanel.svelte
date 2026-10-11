@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Panel from '../../../lib/components/layout/Panel.svelte';
+  import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import type { Document } from '../../../lib/core';
   import TileThumbnail from './TileThumbnail.svelte';
 
@@ -148,26 +150,12 @@
   }
 </script>
 
-<aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
-  aria-label="Tilesets"
->
-  <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">
-      Tilesets
-    </h2>
+<Panel>
+  {#snippet actions()}
     {#if !formOpen}
-      <button
-        type="button"
-        class="panel-btn"
-        onclick={openForm}
-        disabled={!doc}
-        aria-label="Add tileset"
-      >
-        + Add
-      </button>
+      <IconButton icon="plus" label="Add tileset" size="sm" onclick={openForm} disabled={!doc} />
     {/if}
-  </header>
+  {/snippet}
 
   {#if formOpen}
     <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
@@ -279,7 +267,7 @@
       {/each}
     </ul>
   {/if}
-</aside>
+</Panel>
 
 <style>
   .tile-btn {

@@ -1,4 +1,7 @@
 <script lang="ts">
+  import IconButton from '../../../lib/components/layout/IconButton.svelte';
+  import Panel from '../../../lib/components/layout/Panel.svelte';
+  import { hint } from '../../../lib/shell/shortcuts';
   import type { Document } from '../../../lib/core';
   import { isIdentifierLike, type OnionSettings, type TagDirection } from '../playback';
 
@@ -148,50 +151,47 @@
   }
 </script>
 
-<section
-  class="flex flex-col gap-1 border-t border-pc-border bg-pc-bg px-3 py-2 text-xs text-pc-text"
-  aria-label="Timeline"
->
-  <div class="flex flex-wrap items-center gap-2">
-    <button
-      class="toolbar-btn min-w-[4.5rem] whitespace-nowrap"
+<Panel keepActions bodyClass="flex flex-col gap-1.5 px-3 pb-2 text-xs text-pc-text">
+  {#snippet actions()}
+    <IconButton
+      icon={playing ? 'pause' : 'play'}
+      label={playing ? 'Pause' : 'Play'}
+      hint={hint('togglePlay')}
+      size="sm"
       onclick={onTogglePlay}
       disabled={!doc || durations.length < 2}
-      aria-label={playing ? 'Pause' : 'Play'}
-      title="Play / pause (Enter)"
-    >
-      {playing ? '❚❚ Pause' : '▶ Play'}
-    </button>
-    <button
-      class="toolbar-btn"
+    />
+    <IconButton
+      icon="chevron-left"
+      label="Previous frame"
+      hint={hint('prevFrame')}
+      size="sm"
       onclick={() => onSelectFrame(currentFrame - 1)}
       disabled={!doc || currentFrame === 0}
-      aria-label="Previous frame"
-      title="Previous frame (,)">◀</button
+    />
+    <span class="min-w-16 text-center text-xs tabular-nums text-pc-muted" aria-live="polite"
+      >frame {currentFrame + 1}/{durations.length}</span
     >
-    <span class="tabular-nums" aria-live="polite">frame {currentFrame + 1}/{durations.length}</span>
-    <button
-      class="toolbar-btn"
+    <IconButton
+      icon="chevron-right"
+      label="Next frame"
+      hint={hint('nextFrame')}
+      size="sm"
       onclick={() => onSelectFrame(currentFrame + 1)}
       disabled={!doc || currentFrame >= durations.length - 1}
-      aria-label="Next frame"
-      title="Next frame (.)">▶</button
-    >
-    <button
-      class="toolbar-btn"
-      onclick={onAddFrame}
-      disabled={!doc}
-      aria-label="Add frame"
-      title="Add frame">+ Frame</button
-    >
-    <button
-      class="toolbar-btn"
+    />
+    <span class="mx-1 h-4 w-px bg-pc-border"></span>
+    <IconButton icon="plus" label="Add frame" size="sm" onclick={onAddFrame} disabled={!doc} />
+    <IconButton
+      icon="minus"
+      label="Remove frame"
+      size="sm"
       onclick={() => onRemoveFrame(currentFrame)}
       disabled={!doc || durations.length < 2}
-      aria-label="Remove frame"
-      title="Remove current frame">− Frame</button
-    >
-    <span class="mx-1 h-4 w-px bg-pc-raised"></span>
+    />
+  {/snippet}
+
+  <div class="flex flex-wrap items-center gap-2">
     <label class="flex items-center gap-1" title="Loop playback over a tag">
       Loop
       <select
@@ -210,13 +210,13 @@
       </select>
     </label>
     <button
-      class="toolbar-btn"
+      class="panel-btn"
       onclick={addTag}
       disabled={!doc}
       aria-label="Add tag"
       title="Tag the current frame">+ Tag</button
     >
-    <span class="mx-1 h-4 w-px bg-pc-raised"></span>
+    <span class="mx-1 h-4 w-px bg-pc-border"></span>
     <label class="flex items-center gap-1">
       <input
         type="checkbox"
@@ -395,37 +395,26 @@
           {/each}
         </select>
       </label>
-      <button class="toolbar-btn" onclick={() => removeTag(editing.index)} aria-label="Delete tag"
+      <button class="panel-btn" onclick={() => removeTag(editing.index)} aria-label="Delete tag"
         >Delete</button
       >
     </div>
   {/if}
-</section>
+</Panel>
 
 <style>
-  .toolbar-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-  }
-  .toolbar-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .toolbar-btn:disabled {
-    opacity: 0.4;
-  }
   .frame-cell {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
     margin-right: 0.25rem;
     border-radius: 0.25rem;
-    border: 1px solid rgb(38 38 38);
+    border: 1px solid var(--color-pc-border);
     padding: 0.125rem;
   }
   .frame-current {
-    border-color: rgb(96 165 250);
-    background-color: rgb(30 41 59);
+    border-color: var(--color-pc-accent);
+    background-color: var(--color-pc-active);
   }
   .tag-bar {
     margin-right: 0.25rem;
