@@ -1646,7 +1646,7 @@
       return;
     }
     try {
-      await writeSnapshot(idAtSnapshot, saveTarget.name, bytes);
+      await writeSnapshot(idAtSnapshot, saveTarget.name, bytes, 'pixel');
       // A New / Open may have swapped the document during the await;
       // its own re-baseline must not be clobbered with our stale depth.
       if (docId === idAtSnapshot) lastWriteUndoDepth = depthAtSnapshot;
@@ -2642,7 +2642,7 @@
     // until `doc` is non-null, so it's safe to arm before
     // `loadCore` resolves.
     if (autosaveAvailable) {
-      listLatestSnapshots()
+      listLatestSnapshots('pixel')
         .then((snaps) => {
           if (cancelled || snaps.length === 0) return;
           recoverySnapshots = snaps;
