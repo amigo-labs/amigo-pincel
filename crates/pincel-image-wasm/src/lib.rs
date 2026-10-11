@@ -24,7 +24,7 @@ use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
     Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, Rect, SampleSize,
     SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text,
-    TextAlign, TextStyle, apply_mode, compose, delete_selection, magic_wand,
+    TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -1362,6 +1362,40 @@ pub fn redo(handle: u32) -> Result<bool, JsError> {
     with_bus(handle, |bus| bus.redo().map_err(to_js))
 }
 
+/// Composites only the canvas rect `(x, y, w, h)` (clipped to the canvas)
+/// and resamples it to `out_w × out_h` — the UI's viewport renderer, so
+/// a canvas larger than any browser canvas still displays (spec §6.4).
+/// Pass the clipped size as `out_w` / `out_h` for 1:1 pixels; smaller
+/// sizes downscale bilinearly (zoomed-out views). Returns RGBA8 rows of
+/// the output size; an empty region yields an empty array.
+#[wasm_bindgen]
+pub fn composite_region(
+    handle: u32,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+    out_w: u32,
+    out_h: u32,
+) -> Result<Clamped<Vec<u8>>, JsError> {
+    with_bus(handle, |bus| {
+        let region = compose_region(bus.document.layers(), Rect::new(x, y, w, h));
+        if region.width() == 0 || region.height() == 0 {
+            return Ok(Clamped(Vec::new()));
+        }
+        let (ow, oh) = (
+            out_w.clamp(1, region.width()),
+            out_h.clamp(1, region.height()),
+        );
+        let out = if (ow, oh) == (region.width(), region.height()) {
+            region
+        } else {
+            scale(&region, ow, oh, Interpolation::Bilinear)
+        };
+        Ok(Clamped(out.into_raw()))
+    })
+}
+
 /// Exports the flattened composite as PNG bytes. `compression` is 0–9.
 #[wasm_bindgen]
 pub fn export_png(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
@@ -1567,5 +1601,22 @@ mod project_tests {
         })
         .expect("read");
         assert_eq!(names, vec!["Layer 1".to_string(), "Top".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod region_tests {
+    use super::*;
+
+    #[test]
+    fn composite_region_crops_and_downscales() {
+        let doc = Document::new(8, 6).expect("doc");
+        let handle = insert(CommandBus::new(doc));
+        let crop = composite_region(handle, 2, 1, 4, 4, 4, 4).expect("crop");
+        assert_eq!(crop.0.len(), 4 * 4 * 4);
+        let small = composite_region(handle, 0, 0, 8, 6, 4, 3).expect("scaled");
+        assert_eq!(small.0.len(), 4 * 3 * 4);
+        let outside = composite_region(handle, 20, 20, 4, 4, 4, 4).expect("empty");
+        assert!(outside.0.is_empty());
     }
 }
