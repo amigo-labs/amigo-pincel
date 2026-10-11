@@ -18,6 +18,8 @@ export const editor = $state({
   activeLayer: 0,
   canUndo: false,
   canRedo: false,
+  /** Entries on the undo stack (mirrored from the core). */
+  undoDepth: 0,
   /** Layers ordered bottom (index 0) to top, mirrored from the core. */
   layers: [] as LayerInfo[],
   /** Whether a selection is currently active (mirrored from the core). */

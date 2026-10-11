@@ -65,6 +65,7 @@ function syncInfo(): void {
   editor.activeLayer = info.active_layer;
   editor.canUndo = info.can_undo;
   editor.canRedo = info.can_redo;
+  editor.undoDepth = info.undo_depth;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
   editor.revision += 1;

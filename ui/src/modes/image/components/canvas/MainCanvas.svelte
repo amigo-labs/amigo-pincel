@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { editor, tool, view, MIN_ZOOM, MAX_ZOOM } from '../../stores/editor.svelte';
-  import { readComposite, renderText } from '../../core/controller';
+  import { readComposite, renderText, undo } from '../../core/controller';
+  import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawComposite } from '../../render/canvas2d';
-  import { attachTools } from '../../tools/pointer';
+  import { attachTools, gestureControl } from '../../tools/pointer';
   import CanvasOverlay from './CanvasOverlay.svelte';
 
   let canvas: HTMLCanvasElement;
@@ -67,6 +68,49 @@
     const rect = viewport.getBoundingClientRect();
     const factor = Math.exp(-e.deltaY * 0.0015);
     zoomAround(view.zoom * factor, e.clientX - rect.left, e.clientY - rect.top);
+  }
+
+  // Two-finger pinch / pan (spec §17.4), handled in the capture phase so
+  // the tool dispatcher on the canvas never sees the gesture. The second
+  // finger cancels the first finger's gesture and rolls back the stroke
+  // it had started; touch input is then ignored until every finger lifts.
+  const pinch = new PinchTracker();
+  let pinchZoom0 = 1;
+  let gestureUndoDepth = 0;
+
+  function onPointerDownCapture(e: PointerEvent): void {
+    if (pinch.down(e)) {
+      e.stopPropagation();
+      gestureControl.cancel();
+      if (editor.undoDepth > gestureUndoDepth) undo();
+      pinchZoom0 = view.zoom;
+      viewport.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (pinch.suppressing) {
+      e.stopPropagation();
+      return;
+    }
+    gestureUndoDepth = editor.undoDepth;
+  }
+
+  function onPointerMoveCapture(e: PointerEvent): void {
+    const f = pinch.move(e);
+    if (f) {
+      e.stopPropagation();
+      const rect = viewport.getBoundingClientRect();
+      zoomAround(pinchZoom0 * f.scale, f.midX - rect.left, f.midY - rect.top);
+      view.panX += f.dx;
+      view.panY += f.dy;
+      return;
+    }
+    if (pinch.suppressing) e.stopPropagation();
+  }
+
+  function onPointerUpCapture(e: PointerEvent): void {
+    const pinched = pinch.suppressing;
+    pinch.up(e);
+    if (pinched) e.stopPropagation();
   }
 
   // Middle-button drag pans (the tool dispatcher ignores button 1).
@@ -185,8 +229,12 @@
 
 <div
   bind:this={viewport}
-  class="relative h-full w-full overflow-hidden bg-[var(--fl-app-bg)]"
+  class="relative h-full w-full touch-none overflow-hidden bg-[var(--fl-app-bg)]"
   onwheel={onWheel}
+  onpointerdowncapture={onPointerDownCapture}
+  onpointermovecapture={onPointerMoveCapture}
+  onpointerupcapture={onPointerUpCapture}
+  onpointercancelcapture={onPointerUpCapture}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}

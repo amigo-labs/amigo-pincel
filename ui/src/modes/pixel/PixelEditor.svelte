@@ -7,6 +7,7 @@
   import SlicesPanel from '../../lib/components/SlicesPanel.svelte';
   import LayersPanel from '../../lib/components/LayersPanel.svelte';
   import TimelinePanel from './components/TimelinePanel.svelte';
+  import { PinchTracker, type PinchFrame } from '../../lib/view/pinch';
   import SpriteSheetDialog, { type SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
   import {
     advance,
@@ -761,6 +762,52 @@
     zoom = next;
   }
 
+  // Two-finger pinch / pan (spec §17.4). A second finger cancels
+  // whatever the first one started (its stroke is undone), then the pair
+  // zooms about its midpoint and pans with it; the canvas ignores touch
+  // input until every finger has lifted.
+  const pinch = new PinchTracker();
+  let pinchZoom0 = 1;
+  let gestureUndoDepth = 0;
+
+  function cancelGesture() {
+    if (painting) {
+      painting = false;
+      doc?.endStroke();
+    }
+    if (doc && doc.undoDepth > gestureUndoDepth) {
+      doc.undo();
+      syncMeta();
+      docRev += 1;
+    }
+    panning = false;
+    panStartClient = null;
+    panStartOffset = null;
+    moveSelStart = null;
+    moveSelPreview = null;
+    lassoPoints = null;
+    dragStart = null;
+    dragPreview = null;
+    dragTool = null;
+    dirty = true;
+  }
+
+  function applyPinch(f: PinchFrame) {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round(pinchZoom0 * f.scale)));
+    if (next !== zoom && rect.width > 0) {
+      // Same anchoring as `onWheel`: keep the sprite pixel under the
+      // fingers' midpoint in place.
+      const ratio = next / zoom;
+      panX += (rect.left + rect.width / 2 - f.midX) * (ratio - 1);
+      panY += (rect.top + rect.height / 2 - f.midY) * (ratio - 1);
+      zoom = next;
+    }
+    panX += f.dx;
+    panY += f.dy;
+  }
+
   function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -864,8 +911,16 @@
   }
 
   function onPointerDown(e: PointerEvent) {
+    if (pinch.down(e)) {
+      canvas?.setPointerCapture(e.pointerId);
+      cancelGesture();
+      pinchZoom0 = zoom;
+      return;
+    }
+    if (pinch.suppressing) return;
     if (e.button !== 0) return;
     canvas?.setPointerCapture(e.pointerId);
+    gestureUndoDepth = doc?.undoDepth ?? 0;
     // Space-drag always pans, regardless of the active tool (spec §5.2
     // — Move tool "Pans canvas with space-drag"). Move-tool press
     // splits on whether a selection is active: with one, drag the
@@ -1143,6 +1198,12 @@
   }
 
   function onPointerMove(e: PointerEvent) {
+    const frame = pinch.move(e);
+    if (frame) {
+      applyPinch(frame);
+      return;
+    }
+    if (pinch.suppressing) return;
     if (panning && panStartClient && panStartOffset) {
       panX = panStartOffset.x + (e.clientX - panStartClient.x);
       panY = panStartOffset.y + (e.clientY - panStartClient.y);
@@ -1205,6 +1266,9 @@
     if (canvas?.hasPointerCapture(e.pointerId)) {
       canvas.releasePointerCapture(e.pointerId);
     }
+    const pinched = pinch.suppressing;
+    pinch.up(e);
+    if (pinched) return;
     if (panning) {
       panning = false;
       panStartClient = null;

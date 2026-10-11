@@ -40,6 +40,8 @@ export interface DocumentInfo {
   active_layer: number;
   can_undo: boolean;
   can_redo: boolean;
+  /** Entries on the undo stack. */
+  undo_depth: number;
   /** Whether a selection is currently active. */
   has_selection: boolean;
   /** Layers ordered bottom (index 0) to top, matching core storage order. */
