@@ -109,16 +109,29 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 chunks.push(encode_chunk(CHUNK_TYPE_LAYER, |buf| {
                     write_layer_body(buf, layer)
                 })?);
+                push_user_data(&mut chunks, layer.user_data.as_ref())?;
             }
             if let Some(palette) = &file.palette {
                 chunks.push(encode_chunk(CHUNK_TYPE_PALETTE, |buf| {
                     write_palette_body(buf, palette)
                 })?);
+                // Aseprite v1.3: a User Data chunk right after the first
+                // frame's palette belongs to the sprite.
+                push_user_data(&mut chunks, file.user_data.as_ref())?;
             }
             if !file.tags.is_empty() {
                 chunks.push(encode_chunk(CHUNK_TYPE_TAGS, |buf| {
                     write_tags_body(buf, &file.tags)
                 })?);
+                // Tag user data is positional: one chunk per tag, in order.
+                if file.tags.iter().any(|t| t.user_data.is_some()) {
+                    for tag in &file.tags {
+                        let ud = tag.user_data.clone().unwrap_or_default();
+                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                            write_user_data_body(buf, &ud)
+                        })?);
+                    }
+                }
             }
             for tileset in &file.tilesets {
                 validate_tileset(tileset)?;
@@ -147,10 +160,24 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
             chunks.push(encode_chunk(CHUNK_TYPE_CEL, |buf| {
                 write_cel_body(buf, cel)
             })?);
+            push_user_data(&mut chunks, cel.user_data.as_ref())?;
         }
         blocks.push(encode_frame(frame, &chunks)?);
     }
     Ok(blocks)
+}
+
+/// Append a User Data chunk for `ud` when it carries text or a color.
+/// Aseprite attaches it to the chunk immediately before it.
+fn push_user_data(chunks: &mut Vec<Vec<u8>>, ud: Option<&UserData>) -> Result<(), WriteError> {
+    if let Some(ud) = ud
+        && (ud.text.is_some() || ud.color.is_some())
+    {
+        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+            write_user_data_body(buf, ud)
+        })?);
+    }
+    Ok(())
 }
 
 fn validate_cel(cel: &CelChunk, file: &AseFile, bytes_per_pixel: u8) -> Result<(), WriteError> {
@@ -597,8 +624,9 @@ fn write_slice_body<W: Write>(w: &mut W, slice: &SliceChunk, flags: u32) -> Resu
 ///
 /// On-disk layout: `DWORD flags`, then (if `HAS_TEXT`) a `STRING`, then
 /// (if `HAS_COLOR`) `BYTE[4]` RGBA. Property maps (`0x4`) are never
-/// emitted, so the corresponding flag bit stays clear. The caller only
-/// invokes this when at least one field is present.
+/// emitted, so the corresponding flag bit stays clear. An empty `ud`
+/// writes a bare zero-flags chunk (used to keep tag user data
+/// positional).
 fn write_user_data_body<W: Write>(w: &mut W, ud: &UserData) -> Result<(), WriteError> {
     let mut flags = 0u32;
     if ud.text.is_some() {
@@ -665,6 +693,7 @@ mod tests {
             tilesets: Vec::new(),
             slices: Vec::new(),
             frames: vec![Frame::new(100)],
+            user_data: None,
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
@@ -686,6 +715,7 @@ mod tests {
             tilesets: Vec::new(),
             slices: Vec::new(),
             frames: Vec::with_capacity(u16::MAX as usize + 1),
+            user_data: None,
         };
         for _ in 0..(u16::MAX as usize + 1) {
             file.frames.push(Frame::new(0));
@@ -707,6 +737,7 @@ mod tests {
             tilesets: Vec::new(),
             slices: Vec::new(),
             frames: Vec::new(),
+            user_data: None,
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -736,6 +767,7 @@ mod tests {
             opacity: 255,
             name: "tiles".into(),
             tileset_index: None,
+            user_data: None,
         };
         let err = write_layer_body(&mut buf, &layer).unwrap_err();
         assert!(matches!(err, WriteError::MissingTilesetIndex { .. }));
@@ -751,6 +783,7 @@ mod tests {
             repeat: 0,
             color: [0, 0, 0],
             name: "bad".into(),
+            user_data: None,
         }];
         let err = write_tags_body(&mut buf, &tags).unwrap_err();
         assert!(matches!(err, WriteError::InvalidTagRange { .. }));
@@ -765,6 +798,7 @@ mod tests {
             opacity: 255,
             name: name.into(),
             tileset_index: None,
+            user_data: None,
         }
     }
 
@@ -791,8 +825,10 @@ mod tests {
                         // 2x2 RGBA = 16 bytes; supply 8.
                         data: vec![0; 8],
                     },
+                    user_data: None,
                 }],
             }],
+            user_data: None,
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -830,8 +866,10 @@ mod tests {
                         height: 1,
                         data: vec![0, 0, 0, 0],
                     },
+                    user_data: None,
                 }],
             }],
+            user_data: None,
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -862,8 +900,10 @@ mod tests {
                     opacity: 255,
                     z_index: 0,
                     content: CelContent::Linked { frame_position: 7 },
+                    user_data: None,
                 }],
             }],
+            user_data: None,
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -907,8 +947,10 @@ mod tests {
                         height: 1,
                         data: vec![0xAA, 0xBB, 0xCC, 0xFF],
                     },
+                    user_data: None,
                 }],
             }],
+            user_data: None,
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
@@ -964,6 +1006,7 @@ mod tests {
             tilesets: Vec::new(),
             slices: vec![slice],
             frames: vec![Frame::new(0)],
+            user_data: None,
         };
         let err = write(&file, &mut buf).unwrap_err();
         assert!(matches!(err, WriteError::SliceWithoutKeys { .. }));
@@ -1106,6 +1149,7 @@ mod tests {
                 },
             ],
             frames: vec![Frame::new(100), Frame::new(100)],
+            user_data: None,
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
