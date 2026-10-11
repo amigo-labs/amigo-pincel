@@ -6,6 +6,15 @@
   import TilesetPanel from '../../lib/components/TilesetPanel.svelte';
   import SlicesPanel from '../../lib/components/SlicesPanel.svelte';
   import LayersPanel from '../../lib/components/LayersPanel.svelte';
+  import TimelinePanel from './components/TimelinePanel.svelte';
+  import {
+    advance,
+    startCursor,
+    type OnionSettings,
+    type PlayCursor,
+    type PlayRange,
+    type TagDirection,
+  } from './playback';
   import PalettePanel from '../../lib/components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -191,6 +200,13 @@
   // for multi-frame documents.
   let currentFrame = $state(0);
   let frameCount = $state(1);
+  // Timeline playback (M14.7). `loopTag` is the tag index playback
+  // loops over (`null` = every frame); `onion` mirrors the wasm-side
+  // onion-skin setting, which is view state and survives New / Open.
+  let playing = $state(false);
+  let loopTag = $state<number | null>(null);
+  let onion = $state<OnionSettings>({ enabled: false, back: 1, forward: 1, alpha: 76 });
+  let playHandle: number | null = null;
   let canvasW = $state(64);
   let canvasH = $state(64);
   let status = $state('initializing…');
@@ -1339,7 +1355,77 @@
     }
   }
 
+  function removeFrame(frame: number) {
+    if (!doc) return;
+    try {
+      doc.removeFrame(frame);
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    } catch (err) {
+      status = `remove frame failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function applyOnion(next: OnionSettings) {
+    onion = next;
+    doc?.setOnionSkin(next.enabled, next.back, next.forward, next.alpha, next.alpha);
+  }
+
+  // The range playback loops over: the chosen tag, or every frame.
+  function playRange(): PlayRange {
+    if (doc && loopTag !== null && loopTag < doc.tagCount) {
+      return {
+        from: doc.tagFrom(loopTag),
+        to: doc.tagTo(loopTag),
+        direction: doc.tagDirection(loopTag) as TagDirection,
+      };
+    }
+    return { from: 0, to: Math.max(0, frameCount - 1), direction: 'forward' };
+  }
+
+  function stopPlayback() {
+    playing = false;
+    if (playHandle !== null) {
+      cancelAnimationFrame(playHandle);
+      playHandle = null;
+    }
+  }
+
+  // rAF-driven playback honouring per-frame durations (spec §3.3) and the
+  // loop tag's direction (§3.6). The clock is wall time, so a slow
+  // compose drops frames rather than slowing the animation down.
+  function togglePlay() {
+    if (playing) {
+      stopPlayback();
+      return;
+    }
+    if (!doc || frameCount < 2) return;
+    playing = true;
+    let cursor: PlayCursor = startCursor(playRange(), currentFrame);
+    setFrame(cursor.frame);
+    let shownAt = performance.now();
+    const step = (now: number) => {
+      if (!playing || !doc) return;
+      const range = playRange();
+      let duration = doc.frameDuration(cursor.frame);
+      // Catch up through as many frames as the elapsed time covers.
+      while (now - shownAt >= duration) {
+        shownAt += duration;
+        cursor = advance(range, cursor);
+        duration = doc.frameDuration(cursor.frame);
+        if (now - shownAt > 1000) shownAt = now; // tab was hidden; resync
+      }
+      if (cursor.frame !== currentFrame) setFrame(cursor.frame);
+      playHandle = requestAnimationFrame(step);
+    };
+    playHandle = requestAnimationFrame(step);
+  }
+
   function resetDocViewState() {
+    stopPlayback();
+    loopTag = null;
+    applyOnion(onion);
     dirty = true;
     syncMeta();
     fitView();
@@ -2308,6 +2394,19 @@
         resetView();
         return;
       }
+      // Timeline: `,` / `.` step frames, Enter plays / pauses (Enter
+      // closes an in-progress polygon first — handled above).
+      if (e.key === ',' || e.key === '.') {
+        e.preventDefault();
+        stopPlayback();
+        setFrame(currentFrame + (e.key === '.' ? 1 : -1));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
       const group = TOOL_KEYS[e.key.toLowerCase()];
       if (group) {
         e.preventDefault();
@@ -2455,6 +2554,7 @@
     return () => {
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
+      stopPlayback();
       if (autosaveTimer !== null) {
         clearInterval(autosaveTimer);
         autosaveTimer = null;
@@ -3192,6 +3292,26 @@
     />
   </section>
 
+  <TimelinePanel
+    {doc}
+    rev={docRev}
+    {currentFrame}
+    {playing}
+    {loopTag}
+    {onion}
+    onSelectFrame={setFrame}
+    onAddFrame={addFrame}
+    onRemoveFrame={removeFrame}
+    onTogglePlay={togglePlay}
+    onLoopTagChange={(t) => (loopTag = t)}
+    onOnionChange={applyOnion}
+    onChange={() => {
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    }}
+    onError={(msg) => (status = msg)}
+  />
   <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
     <span>{status}</span>
     {#if doc}
@@ -3202,32 +3322,7 @@
       <span>·</span>
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
-      <span class="flex items-center gap-1" role="group" aria-label="Frame">
-        {#if frameCount > 1}
-          <button
-            class="toolbar-btn"
-            onclick={() => setFrame(currentFrame - 1)}
-            disabled={currentFrame === 0}
-            aria-label="Previous frame"
-          >
-            ◀
-          </button>
-          <span>frame {currentFrame + 1}/{frameCount}</span>
-          <button
-            class="toolbar-btn"
-            onclick={() => setFrame(currentFrame + 1)}
-            disabled={currentFrame >= frameCount - 1}
-            aria-label="Next frame"
-          >
-            ▶
-          </button>
-        {:else}
-          <span>frame 1/1</span>
-        {/if}
-        <button class="toolbar-btn" onclick={addFrame} aria-label="Add frame" title="Add frame">
-          +
-        </button>
-      </span>
+      <span>frame {currentFrame + 1}/{frameCount}</span>
       <span>·</span>
       <span>undo {undoDepth} / redo {redoDepth}</span>
     {/if}
