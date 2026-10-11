@@ -10,7 +10,7 @@ use pincel_core::{
     AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, Frame, FrameIndex,
     Layer, LayerId, LayerKind, MoveDirection, MoveLayer, Palette, PaletteEntry, PixelBuffer, Rect,
     Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
-    TilesetId, read_aseprite, write_aseprite,
+    TilesetId, UserData, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -63,6 +63,8 @@ fn single_layer_single_frame_round_trips_pixels() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(rgba_buffer(2, 2, pixels.clone())),
+        user_data: None,
+        z_index: 0,
     });
 
     let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
@@ -122,6 +124,8 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(rgba_buffer(2, 2, bg_pixels)),
+        user_data: None,
+        z_index: 0,
     });
     cels.insert(Cel {
         layer: LayerId::new(1),
@@ -129,6 +133,8 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
         position: (1, 2),
         opacity: 200,
         data: CelData::Image(rgba_buffer(1, 1, fx_pixels)),
+        user_data: None,
+        z_index: 0,
     });
 
     let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
@@ -186,6 +192,8 @@ fn group_hierarchy_round_trips_via_child_level() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(opaque_2x2.clone()),
+        user_data: None,
+        z_index: 0,
     });
     cels.insert(Cel {
         layer: LayerId::new(3),
@@ -193,6 +201,8 @@ fn group_hierarchy_round_trips_via_child_level() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(opaque_2x2.clone()),
+        user_data: None,
+        z_index: 0,
     });
     cels.insert(Cel {
         layer: LayerId::new(4),
@@ -200,6 +210,8 @@ fn group_hierarchy_round_trips_via_child_level() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(opaque_2x2),
+        user_data: None,
+        z_index: 0,
     });
 
     let AsepriteReadOutput { sprite, .. } = round_trip(&sprite, &cels);
@@ -232,6 +244,8 @@ fn linked_cel_within_range_round_trips() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Image(rgba_buffer(2, 2, flat_pixels(&[rgba(0, 0, 0, 255); 4]))),
+        user_data: None,
+        z_index: 0,
     });
     cels.insert(Cel {
         layer: LayerId::new(0),
@@ -239,6 +253,8 @@ fn linked_cel_within_range_round_trips() {
         position: (0, 0),
         opacity: 255,
         data: CelData::Linked(FrameIndex::new(0)),
+        user_data: None,
+        z_index: 0,
     });
 
     let AsepriteReadOutput { cels, .. } = round_trip(&sprite, &cels);
@@ -271,6 +287,7 @@ fn tags_round_trip_with_directions() {
                 a: 255,
             },
             repeats: 0,
+            user_data: None,
         })
         .add_tag(Tag {
             name: "wave".into(),
@@ -284,6 +301,7 @@ fn tags_round_trip_with_directions() {
                 a: 255,
             },
             repeats: 3,
+            user_data: None,
         })
         .build()
         .unwrap();
@@ -386,6 +404,8 @@ fn tilemap_round_trips_layer_tileset_and_cel() {
             grid_h: 2,
             tiles: tilemap_cel_tiles,
         },
+        user_data: None,
+        z_index: 0,
     });
 
     let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
@@ -469,6 +489,8 @@ fn tilemap_round_trips_rotate_90_flag() {
             grid_h: 1,
             tiles: vec![rotated],
         },
+        user_data: None,
+        z_index: 0,
     });
     let AsepriteReadOutput { cels, .. } = round_trip(&sprite, &cels);
     let cel = cels
@@ -572,6 +594,8 @@ fn reordered_layers_round_trip_with_cels_intact() {
                 rgba(0, 0, 0, 0),
             ]),
         )),
+        user_data: None,
+        z_index: 0,
     });
     cels.insert(Cel {
         layer: LayerId::new(1),
@@ -588,6 +612,8 @@ fn reordered_layers_round_trip_with_cels_intact() {
                 rgba(0, 200, 0, 255),
             ]),
         )),
+        user_data: None,
+        z_index: 0,
     });
 
     // Move bg (id 0) up past fg → layer order becomes [fg, bg].
@@ -644,4 +670,57 @@ fn zero_frame_sprite_fails_to_write_instead_of_emitting_invalid_file() {
         "expected a zero-frames error, got: {err}"
     );
     assert!(bytes.is_empty(), "nothing written on rejection");
+}
+
+#[test]
+fn header_flags_z_index_and_user_data_round_trip() {
+    let note = |text: &str, c: u8| UserData {
+        text: Some(text.into()),
+        color: Some(Rgba::new(c, c, c, 255)),
+    };
+    let mut layer = Layer::image(LayerId::new(0), "bg");
+    // Lock movement + background + collapsed + reference.
+    layer.extra_flags = 0x4 | 0x8 | 0x20 | 0x40;
+    layer.user_data = Some(note("layer", 1));
+    let mut tag_a = Tag::new("a", FrameIndex::new(0), FrameIndex::new(0));
+    tag_a.user_data = None;
+    let mut tag_b = Tag::new("b", FrameIndex::new(0), FrameIndex::new(0));
+    tag_b.user_data = Some(note("tag b", 2));
+    let mut sprite = Sprite::builder(2, 2)
+        .add_layer(layer)
+        .add_frame(Frame::new(100))
+        .add_tag(tag_a)
+        .add_tag(tag_b)
+        .palette(Palette::from_entries(vec![PaletteEntry::new(Rgba::BLACK)]))
+        .build()
+        .expect("sprite builds");
+    sprite.metadata.pixel_ratio = (2, 1);
+    sprite.metadata.grid = Some(Rect::new(3, 4, 8, 6));
+    sprite.metadata.user_data = Some(note("sprite", 3));
+
+    let mut cels = CelMap::new();
+    let mut cel = Cel::image(
+        LayerId::new(0),
+        FrameIndex::new(0),
+        rgba_buffer(1, 1, flat_pixels(&[rgba(1, 2, 3, 255)])),
+    );
+    cel.z_index = -3;
+    cel.user_data = Some(note("cel", 4));
+    cels.insert(cel.clone());
+
+    let out = round_trip(&sprite, &cels);
+    let s = &out.sprite;
+    assert_eq!(s.metadata.pixel_ratio, (2, 1));
+    assert_eq!(s.metadata.grid, Some(Rect::new(3, 4, 8, 6)));
+    assert_eq!(s.metadata.user_data, Some(note("sprite", 3)));
+    assert_eq!(s.layers[0].extra_flags, 0x4 | 0x8 | 0x20 | 0x40);
+    assert_eq!(s.layers[0].user_data, Some(note("layer", 1)));
+    assert_eq!(s.tags[0].user_data, None);
+    assert_eq!(s.tags[1].user_data, Some(note("tag b", 2)));
+    let back = out
+        .cels
+        .get(LayerId::new(0), FrameIndex::new(0))
+        .expect("cel");
+    assert_eq!(back.z_index, -3);
+    assert_eq!(back.user_data, Some(note("cel", 4)));
 }

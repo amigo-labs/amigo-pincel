@@ -85,6 +85,17 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
         tilesets,
         slices,
         frames,
+        user_data: map_user_data(sprite.metadata.user_data.as_ref()),
+    })
+}
+
+/// Document user data → writer user data; empty becomes `None` so no
+/// chunk is emitted for it.
+fn map_user_data(ud: Option<&crate::document::UserData>) -> Option<AseUserData> {
+    let ud = ud.filter(|u| !u.is_empty())?;
+    Some(AseUserData {
+        text: ud.text.clone(),
+        color: ud.color.map(|c| [c.r, c.g, c.b, c.a]),
     })
 }
 
@@ -134,7 +145,24 @@ fn build_header(sprite: &Sprite) -> Result<Header, CodecError> {
         what: "canvas height",
         value: i64::from(sprite.height),
     })?;
-    Ok(Header::new(width, height, AseColorDepth::Rgba))
+    let mut header = Header::new(width, height, AseColorDepth::Rgba);
+    // Pincel-unedited header fields round-trip from the metadata the
+    // reader filled in (spec §7.1). `(0, 0)` pixel ratios are legacy
+    // "unset" and written as square.
+    let (pw, ph) = sprite.metadata.pixel_ratio;
+    if pw != 0 && ph != 0 {
+        header.pixel_width = pw;
+        header.pixel_height = ph;
+    }
+    if let Some(grid) = sprite.metadata.grid {
+        header.grid_x = i16::try_from(grid.x).unwrap_or(0);
+        header.grid_y = i16::try_from(grid.y).unwrap_or(0);
+        header.grid_width = u16::try_from(grid.width).unwrap_or(16);
+        header.grid_height = u16::try_from(grid.height).unwrap_or(16);
+    }
+    // "Number of colors": the palette size, as Aseprite writes it.
+    header.color_count = u16::try_from(sprite.palette.len()).unwrap_or(256);
+    Ok(header)
 }
 
 fn build_layers(layers: &[Layer]) -> Result<Vec<LayerChunk>, CodecError> {
@@ -166,6 +194,9 @@ fn map_layer(layer: &Layer, child_level: u16) -> Result<LayerChunk, CodecError> 
     if layer.editable {
         flags |= LayerFlags::EDITABLE;
     }
+    // Lock-movement / background / collapsed / reference / prefer-linked
+    // bits are not edited by Pincel but round-trip verbatim.
+    flags |= LayerFlags::from_bits_truncate(layer.extra_flags & !0x3);
     Ok(LayerChunk {
         flags,
         layer_type,
@@ -174,6 +205,7 @@ fn map_layer(layer: &Layer, child_level: u16) -> Result<LayerChunk, CodecError> 
         opacity: layer.opacity,
         name: layer.name.clone(),
         tileset_index,
+        user_data: map_user_data(layer.user_data.as_ref()),
     })
 }
 
@@ -428,6 +460,7 @@ fn map_tag(tag: &Tag) -> Result<AseTag, CodecError> {
         repeat: tag.repeats,
         color: [tag.color.r, tag.color.g, tag.color.b],
         name: tag.name.clone(),
+        user_data: map_user_data(tag.user_data.as_ref()),
     })
 }
 
@@ -593,8 +626,9 @@ fn build_cel_chunk(
         x,
         y,
         opacity: cel.opacity,
-        z_index: 0,
+        z_index: cel.z_index,
         content,
+        user_data: map_user_data(cel.user_data.as_ref()),
     })
 }
 
@@ -757,6 +791,8 @@ mod tests {
             position: (50_000, 0),
             opacity: 255,
             data: CelData::Image(PixelBuffer::empty(1, 1, ColorMode::Rgba)),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -783,6 +819,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Image(PixelBuffer::empty(1, 1, ColorMode::Rgba)),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -802,6 +840,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Linked(FrameIndex::new(7)),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -938,6 +978,8 @@ mod tests {
                     transparent_index: 0,
                 },
             )),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -966,6 +1008,8 @@ mod tests {
                 color_mode: ColorMode::Rgba,
                 data: vec![0; 8],
             }),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -989,6 +1033,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Linked(FrameIndex::new(0)),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -1016,6 +1062,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Image(PixelBuffer::empty(1, 1, ColorMode::Rgba)),
+            user_data: None,
+            z_index: 0,
         });
         cels.insert(Cel {
             layer: LayerId::new(0),
@@ -1025,6 +1073,8 @@ mod tests {
             // points at frame 0 — but frame 0 has nothing yet.
             // Make it a chain: link from frame 0 to frame 1.
             data: CelData::Linked(FrameIndex::new(2)),
+            user_data: None,
+            z_index: 0,
         });
         cels.insert(Cel {
             layer: LayerId::new(0),
@@ -1032,6 +1082,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Linked(FrameIndex::new(1)),
+            user_data: None,
+            z_index: 0,
         });
         let mut buf = Vec::new();
         let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
@@ -1069,6 +1121,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Image(pixels.clone()),
+            user_data: None,
+            z_index: 0,
         });
 
         let mut bytes = Vec::new();

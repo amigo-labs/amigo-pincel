@@ -115,6 +115,13 @@ pub struct Layer {
     pub opacity: u8,
     /// `Some(parent)` if this layer is nested inside a group.
     pub parent: Option<LayerId>,
+    /// Aseprite layer flag bits other than visible / editable (lock
+    /// movement `0x4`, background `0x8`, prefer linked cels `0x10`,
+    /// collapsed `0x20`, reference `0x40`). Not edited by Pincel; kept so
+    /// they round-trip.
+    pub extra_flags: u16,
+    /// Layer user data (spec §7.1).
+    pub user_data: Option<super::UserData>,
 }
 
 impl Layer {
@@ -143,6 +150,8 @@ impl Layer {
             blend_mode: BlendMode::Normal,
             opacity: 255,
             parent: None,
+            extra_flags: 0,
+            user_data: None,
         }
     }
 }

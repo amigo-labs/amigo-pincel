@@ -24,6 +24,8 @@ pub struct Tag {
     pub color: Rgba,
     /// `0` means infinite repeats.
     pub repeats: u16,
+    /// Tag user data (spec §7.1).
+    pub user_data: Option<super::UserData>,
 }
 
 impl Tag {
@@ -36,6 +38,7 @@ impl Tag {
             direction: TagDirection::Forward,
             color: Rgba::WHITE,
             repeats: 0,
+            user_data: None,
         }
     }
 }

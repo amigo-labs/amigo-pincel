@@ -513,6 +513,8 @@ mod tests {
                 grid_h: 2,
                 tiles: vec![TileRef::EMPTY, TileRef::EMPTY], // missing two
             },
+            user_data: None,
+            z_index: 0,
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),

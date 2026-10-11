@@ -83,5 +83,7 @@ pub(super) fn tilemap_cel(
             grid_h,
             tiles,
         },
+        user_data: None,
+        z_index: 0,
     }
 }

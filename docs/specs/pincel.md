@@ -442,6 +442,8 @@ Use **`aseprite-loader`** (`docs.rs/aseprite-loader`) as the primary parser. Rat
 
 A thin adapter in `pincel-core::codec::aseprite_read` translates parser output into Pincel's `Sprite` model. Unsupported chunks (custom user-data extensions, future Aseprite versions) are preserved as opaque blobs and round-tripped on save (`unknown_chunks: Vec<RawChunk>` on each carrier type).
 
+Fields Pincel does not edit but must not lose on open → save (implemented 2026-10-11): the header's pixel aspect ratio and grid (`Metadata::pixel_ratio` / `grid`; `color_count` is re-derived from the palette size), layer flag bits beyond visible / editable (`Layer::extra_flags`), the cel z-index (`Cel::z_index`, stored but not yet applied by `compose()`), and user data — text note + colour — on the sprite, layers, cels and tags (`UserData`). User-data property maps and unknown tag directions (values > 3) are still dropped; the opaque-blob mechanism above remains future work.
+
 ### 7.2 Aseprite Write
 
 Implemented in the **`aseprite-writer`** crate (see Section 8). `pincel-core::codec::aseprite_write` produces a byte stream consumable by `Write`.

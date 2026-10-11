@@ -33,7 +33,7 @@ pub use document::{
     BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId,
     LayerKind, MAX_PALETTE_ENTRIES, Metadata, Palette, PaletteEntry, PathRef, PixelBuffer, Rgba,
     Slice, SliceId, SliceKey, Sprite, SpriteBuilder, Tag, TagDirection, TileImage, TileRef,
-    Tileset, TilesetId,
+    Tileset, TilesetId, UserData,
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect};

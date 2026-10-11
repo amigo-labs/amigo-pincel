@@ -684,6 +684,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Linked(FrameIndex::new(0)),
+            user_data: None,
+            z_index: 0,
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
@@ -754,6 +756,8 @@ mod tests {
                 grid_h: 1,
                 tiles: vec![crate::document::TileRef::EMPTY],
             },
+            user_data: None,
+            z_index: 0,
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),

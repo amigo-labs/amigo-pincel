@@ -113,6 +113,8 @@ mod tests {
                 grid_h: 2,
                 tiles: vec![TileRef::EMPTY; 4],
             },
+            user_data: None,
+            z_index: 0,
         };
         (sprite, CelMap::new(), layer, vec![cel])
     }
@@ -151,6 +153,8 @@ mod tests {
             position: (0, 0),
             opacity: 200,
             data: CelData::Image(PixelBuffer::empty(4, 4, ColorMode::Rgba)),
+            user_data: None,
+            z_index: 0,
         };
         cels.insert(preexisting.clone());
         // Pad the tileset with one stored tile so identity comparisons
