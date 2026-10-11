@@ -11,7 +11,7 @@
 <div class="page">
   <header class="page-head">
     <p class="caption">About</p>
-    <h1 class="h-display">A pixel-art editor with a long view.</h1>
+    <h1 class="h-display">A pixel-art editor — and an image editor — with a long view.</h1>
   </header>
 
   <article class="prose">
@@ -20,7 +20,8 @@
       of game-development tools built in Rust. The flagship is amigo-engine — a deterministic
       ECS-based 2D engine with a built-in level editor, AI asset pipelines, and chiptune music
       tooling. Pincel fills the pixel-art-editor gap in that ecosystem, and stands alone for
-      anyone outside it.
+      anyone outside it. Its Image mode began as the sister project Fineliner, a paint.net-style
+      editor; the two now share one app, one effects engine and one release.
     </p>
 
     <p>

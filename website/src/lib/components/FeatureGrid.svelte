@@ -34,12 +34,18 @@
     {
       icon: 'palette',
       title: 'Palette Workflow',
-      description: 'Indexed color, palette swaps, named colors. Pixel-art done right.',
+      description: 'DB32 out of the box, editable entries, named colors. Pixel-art done right.',
     },
     {
       icon: 'tablet',
       title: 'Tablet & Pen',
-      description: 'Pointer events with pressure, tilt, pinch-to-zoom. Pencil-friendly.',
+      description: 'Pointer events, two-finger pinch-to-zoom and pan. Pencil-friendly.',
+    },
+    {
+      icon: 'brush',
+      title: 'Image Mode',
+      description:
+        'Layers, blend modes, selections, effects for screenshots and photos. Saves .ora.',
     },
     {
       icon: 'offline',

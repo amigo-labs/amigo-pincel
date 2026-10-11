@@ -30,7 +30,7 @@ export const featureSections: FeatureSection[] = [
     icon: 'brush',
     heading: 'Tools',
     description:
-      'Pencil, eraser, bucket, line, rectangle, ellipse, eyedropper, move, and a rectangular selection. Each tool is small, focused, and built around pixel-perfect input.',
+      'Pencil, eraser, bucket, line, rectangles, ellipses, rounded rectangles, polygons, eyedropper, move, text, and rectangle / ellipse / lasso / polygon / magic-wand selections. Each tool is small, focused, and built around pixel-perfect input.',
     shortcuts: [
       { keys: 'B', label: 'pencil' },
       { keys: 'E', label: 'eraser' },
@@ -38,6 +38,7 @@ export const featureSections: FeatureSection[] = [
       { keys: 'I', label: 'eyedropper' },
       { keys: 'V', label: 'move' },
       { keys: 'M', label: 'selection' },
+      { keys: 'U', label: 'shapes' },
     ],
   },
   {
@@ -52,9 +53,11 @@ export const featureSections: FeatureSection[] = [
     icon: 'frame',
     heading: 'Frames & Animation',
     description:
-      'Frame stepping today; the full timeline with per-frame duration, named tags, onion skin, ping-pong playback, and sprite-sheet export is in the works. Tags already survive the round-trip.',
-    shortcuts: [{ keys: '◀ / ▶', label: 'prev/next frame' }],
-    status: 'in-progress',
+      'A timeline with per-frame durations, named tags with forward / reverse / ping-pong playback, onion skin, and sprite-sheet export with Aseprite-format JSON. Everything round-trips through the .aseprite file.',
+    shortcuts: [
+      { keys: ', / .', label: 'prev/next frame' },
+      { keys: 'Enter', label: 'play / pause' },
+    ],
   },
   {
     id: 'tilemaps',
@@ -77,23 +80,29 @@ export const featureSections: FeatureSection[] = [
     icon: 'palette',
     heading: 'Palette',
     description:
-      'Indexed color mode with named entries, palette swap, and import/export. PICO-8, NES, GameBoy, and DB32 presets planned. Palettes already survive the .aseprite round-trip.',
-    status: 'in-progress',
+      'New sprites start with DB32. Recolor, add, delete and drag-reorder entries; named entries survive the .aseprite round-trip. Palette presets and import / export are next.',
   },
   {
     id: 'file-format',
     icon: 'file',
     heading: 'File Format',
     description:
-      'Aseprite read and write are the source of truth. PNG and sprite-sheet export with sidecar JSON are on the roadmap. No proprietary format lock-in, ever.',
+      'Aseprite read and write are the source of truth — layer flags, user data and grid settings survive the trip. PNG frame export and sprite sheets with Aseprite-compatible JSON. Image mode saves OpenRaster (.ora). No proprietary format lock-in, ever.',
   },
   {
     id: 'tablet',
     icon: 'tablet',
     heading: 'Tablet & Pen',
     description:
-      'Pointer events with pressure, tilt, and twist where the device supports them. Two-finger pan, pinch-to-zoom, and on-screen modifier keys to make it usable on iPad.',
-    status: 'planned',
+      'Pointer events throughout, two-finger pan and pinch-to-zoom in both modes. Pressure, tilt and on-screen modifier keys for iPad are next.',
+    status: 'in-progress',
+  },
+  {
+    id: 'image-mode',
+    icon: 'brush',
+    heading: 'Image Mode',
+    description:
+      'A paint.net-style editor in the same app for everything that is not pixel art: PNG, JPEG, WebP, BMP, GIF and TIFF open with layers, blend modes, brushes, shapes, text, selections, transforms, and the full effects and adjustments set. Large canvases render viewport-first. Save as OpenRaster to keep the layers, export flat images.',
   },
   {
     id: 'pwa',

@@ -26,6 +26,12 @@
     { feature: 'Tablet / pen support', pincel: '✅', aseprite: '✅', piskel: '❌' },
     { feature: 'Runs in browser', pincel: '✅', aseprite: '❌', piskel: '✅' },
     {
+      feature: 'Layered photo / screenshot editing',
+      pincel: { mark: '✅', note: 'Image mode' },
+      aseprite: { mark: '❌', note: 'pixel art only' },
+      piskel: '❌',
+    },
+    {
       feature: 'Native desktop app',
       pincel: { mark: '✅', note: 'Tauri' },
       aseprite: '✅',

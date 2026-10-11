@@ -7,14 +7,15 @@
 <section class="hero crt-target">
   <div class="container">
     <div class="copy">
-      <p class="caption">Pixel-art editor · v0.1</p>
+      <p class="caption">Pixel-art &amp; image editor · v0.1</p>
       <h1 class="h-display">
         A pixel-art editor<br />for the web.
       </h1>
       <p class="tagline-sub">
         Aseprite-compatible. Open source. Free. Make sprites, tilemaps, and animations in your
-        browser. Save as <code>.aseprite</code>. Drop into your game. No account, no upload, no
-        catch.
+        browser. Save as <code>.aseprite</code>. Drop into your game. Need to touch up a screenshot
+        or a photo? The Image mode opens PNG, JPEG and WebP with layers and effects. No account, no
+        upload, no catch.
       </p>
       <div class="ctas">
         <a class="btn-pixel" href={appPath} rel="external">
