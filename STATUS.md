@@ -21,17 +21,16 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Merge PR #48 to `main`** — activates the release pipeline; the first
-  push then publishes `v0.1.0`.
 - **Add repo secrets** for the guarded deploy/publish jobs (optional but
   needed for a live app / npm): `CLOUDFLARE_API_TOKEN` +
   `CLOUDFLARE_ACCOUNT_ID` (web deploy), `NPM_TOKEN` (npm publish). Without
   them those jobs skip cleanly. See `docs/RELEASING.md`.
-- **Decide web host / production domain** (spec §14 Q1 / open Q3).
-  Default wired: Cloudflare (`ui/wrangler.toml`, project `pincel-app`).
-  `website/src/lib/config.ts::siteUrl` is the placeholder `pincel.app`.
-- **Confirm** the Cloudflare `amigo-pincel` project uses `wrangler.toml`
-  (root dir `/`) for the marketing site.
+- **Cloudflare hostname** — decided 2026-10-11: site at
+  `https://pincel.amigo-labs.dev/`, editor at `/app/` (spec §15). Wired in
+  code (`siteUrl`, Vite `base`, `ui/wrangler.toml` route). Still yours:
+  attach `pincel.amigo-labs.dev` as Custom Domain of the `amigo-pincel`
+  Worker (root `wrangler.toml`); the editor route is created by the first
+  `deploy-web` run. See `docs/RELEASING.md`.
 
 ### 🖥️ Needs your hardware (spec §16 exit criteria)
 
@@ -121,8 +120,7 @@ Phase 4 — Tauri / PWA / release
 Phase 5 — docs + archive
 - [x] README / CLAUDE.md / this file; image-mode recents (opened files
   with an FSA handle / Tauri path land on the start screen's Recent list)
-- [ ] Archive `amigo-fineliner` (disable its release workflow first;
-  Cloudflare project off; repo archived) — only after user confirmation
+- [x] Archive `amigo-fineliner` — done by the user (2026-10-11)
 
 Follow-ups (not in M16): tiled / viewport-sized rendering in Image mode so canvases above `MAX_CANVAS_DIM` (8192, the browser-safe cap the UI enforces) become editable; `.fln` layered project save for Image mode
 (spec-only in Fineliner too); Image-mode autosave / recovery;
@@ -749,7 +747,7 @@ Per-page compressed payload ~10 KB HTML + ~57 KB shared `_app` (well under the 2
 Human action still needed:
 
 1. Confirm the Cloudflare `amigo-pincel` project's Workers Builds settings don't override `wrangler.toml` (or set: build command from `wrangler.toml`, root directory `/`).
-2. Decide the production domain (spec §14 Q1) and update `website/src/lib/config.ts::siteUrl` if it differs from `https://pincel.app`.
+2. ~~Decide the production domain~~ — done 2026-10-11: `pincel.amigo-labs.dev` (`siteUrl` updated).
 
 ## Deferred from the 2026-07-09 audit (found, deliberately not fixed)
 
