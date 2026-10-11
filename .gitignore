@@ -41,3 +41,5 @@ Thumbs.db
 !.dev.vars.example
 .env*
 !.env.example
+/ui/test-results
+/ui/playwright-report

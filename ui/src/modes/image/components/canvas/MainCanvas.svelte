@@ -208,6 +208,7 @@
     <canvas
       bind:this={canvas}
       class="block shadow-2xl shadow-black/60"
+      aria-label="Image canvas"
       style="width: {editor.width}px; height: {editor.height}px; image-rendering: pixelated; cursor: {cursor};"
     ></canvas>
     <CanvasOverlay />
