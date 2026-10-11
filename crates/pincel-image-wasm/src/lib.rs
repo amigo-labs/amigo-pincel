@@ -4,15 +4,7 @@
 //! thread-local arena, and JS only ever receives composited pixel buffers and
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
-use pincel_effects::adjust::{
-    BrightnessContrast, ColorBalance, CurveChannel, Curves, Grayscale, GrayscaleMethod,
-    HueSaturation, Invert, Levels, LevelsChannel, Posterize, Threshold,
-};
-use pincel_effects::blur::{BoxBlur, GaussianBlur, MotionBlur, RadialBlur, RadialKind};
-use pincel_effects::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
-use pincel_effects::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
-use pincel_effects::sharpen::{Sharpen, UnsharpMask};
-use pincel_effects::{Effect, EffectImage};
+use pincel_effects::{EffectImage, EffectSpec};
 use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
 use pincel_image_core::command::{
     AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
@@ -1007,295 +999,6 @@ pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
     })
 }
 
-/// A JSON-serializable effect from JS (spec §17 `SerializedEffect`).
-///
-/// Like [`CommandSpec`], the TypeScript mirror is generated via ts-rs (ADR-014);
-/// the sub-choices (radial kind, edge algorithm, noise type/channels) cross the
-/// boundary as snake_case strings, matching the tool-option convention.
-#[derive(Debug, Deserialize)]
-#[cfg_attr(test, derive(ts_rs::TS))]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum EffectSpec {
-    /// Gaussian blur, σ = radius / 3.
-    GaussianBlur { radius: f32 },
-    /// Box blur over `width` × `height` (odd) pixels.
-    BoxBlur { width: u32, height: u32 },
-    /// Motion blur along a `distance`-long line at `angle` degrees.
-    MotionBlur { distance: f32, angle: f32 },
-    /// Radial blur about `(center_x, center_y)`; `kind` is `spin` or `zoom`.
-    RadialBlur {
-        amount: f32,
-        center_x: f32,
-        center_y: f32,
-        kind: String,
-    },
-    /// Fixed one-step sharpen (no parameters).
-    Sharpen,
-    /// Unsharp mask: amount (percent), radius (px), threshold (0–255).
-    UnsharpMask {
-        amount: f32,
-        radius: f32,
-        threshold: f32,
-    },
-    /// Emboss lit from `angle`/`elevation` with `relief` steepness.
-    Emboss {
-        angle: f32,
-        elevation: f32,
-        relief: f32,
-    },
-    /// Edge detect; `algorithm` is `sobel`, `prewitt` or `laplacian`.
-    EdgeDetect { algorithm: String, amount: f32 },
-    /// Colour-preserving relief along `angle` with strength `amount`.
-    Relief { angle: f32, amount: f32 },
-    /// Add noise; `noise_type` is `uniform`/`gaussian`, `channels` is
-    /// `rgb`/`monochromatic`.
-    AddNoise {
-        amount: u32,
-        noise_type: String,
-        channels: String,
-        seed: u64,
-    },
-    /// Reduce noise via a median filter of the given radius.
-    ReduceNoise { radius: u32 },
-    /// Brightness/contrast (−150..150 each); `enhanced` uses an S-curve.
-    BrightnessContrast {
-        brightness: f32,
-        contrast: f32,
-        enhanced: bool,
-    },
-    /// Hue/saturation/lightness in HSL; `colorize` sets a single hue.
-    HueSaturation {
-        hue: f32,
-        saturation: f32,
-        lightness: f32,
-        colorize: bool,
-    },
-    /// Per-channel tone curve; `channel` is composite/red/green/blue/alpha.
-    Curves {
-        channel: String,
-        points: Vec<[f32; 2]>,
-    },
-    /// Levels remap; `channel` is composite/red/green/blue.
-    Levels {
-        channel: String,
-        in_black: f32,
-        in_white: f32,
-        gamma: f32,
-        out_black: f32,
-        out_white: f32,
-    },
-    /// Color balance shifts per tone range (each `[cr, mg, yb]`, −100..100).
-    ColorBalance {
-        shadows: [f32; 3],
-        midtones: [f32; 3],
-        highlights: [f32; 3],
-        preserve_luminosity: bool,
-    },
-    /// Invert RGB (no parameters).
-    Invert,
-    /// Grayscale; `method` is luminosity/average/bt709/channel_mixer.
-    Grayscale { method: String, mixer: [f32; 3] },
-    /// Posterize to N levels (2–255).
-    Posterize { levels: u32 },
-    /// Threshold by luminance (0–255).
-    Threshold { threshold: u8 },
-}
-
-/// Parses a radial-blur kind string; defaults to Spin.
-fn parse_radial_kind(s: &str) -> RadialKind {
-    match s {
-        "zoom" => RadialKind::Zoom,
-        _ => RadialKind::Spin,
-    }
-}
-
-/// Parses an edge-detect algorithm string; defaults to Sobel.
-fn parse_edge_algorithm(s: &str) -> EdgeAlgorithm {
-    match s {
-        "prewitt" => EdgeAlgorithm::Prewitt,
-        "laplacian" => EdgeAlgorithm::Laplacian,
-        _ => EdgeAlgorithm::Sobel,
-    }
-}
-
-/// Parses a noise distribution string; defaults to Uniform.
-fn parse_noise_type(s: &str) -> NoiseType {
-    match s {
-        "gaussian" => NoiseType::Gaussian,
-        _ => NoiseType::Uniform,
-    }
-}
-
-/// Parses a noise channels string; defaults to Rgb.
-fn parse_noise_channels(s: &str) -> NoiseChannels {
-    match s {
-        "monochromatic" => NoiseChannels::Monochromatic,
-        _ => NoiseChannels::Rgb,
-    }
-}
-
-/// Parses a curve channel string; defaults to Composite.
-fn parse_curve_channel(s: &str) -> CurveChannel {
-    match s {
-        "red" => CurveChannel::Red,
-        "green" => CurveChannel::Green,
-        "blue" => CurveChannel::Blue,
-        "alpha" => CurveChannel::Alpha,
-        _ => CurveChannel::Composite,
-    }
-}
-
-/// Parses a levels channel string; defaults to Composite.
-fn parse_levels_channel(s: &str) -> LevelsChannel {
-    match s {
-        "red" => LevelsChannel::Red,
-        "green" => LevelsChannel::Green,
-        "blue" => LevelsChannel::Blue,
-        _ => LevelsChannel::Composite,
-    }
-}
-
-/// Parses a grayscale method string; defaults to Luminosity.
-fn parse_grayscale_method(s: &str) -> GrayscaleMethod {
-    match s {
-        "average" => GrayscaleMethod::Average,
-        "bt709" => GrayscaleMethod::Bt709,
-        "channel_mixer" => GrayscaleMethod::ChannelMixer,
-        _ => GrayscaleMethod::Luminosity,
-    }
-}
-
-/// Runs the effect described by `spec` over `src`, returning the result buffer.
-fn run_effect(spec: &EffectSpec, src: &EffectImage) -> EffectImage {
-    match spec {
-        EffectSpec::GaussianBlur { radius } => GaussianBlur::new(*radius).apply(src),
-        EffectSpec::BoxBlur { width, height } => BoxBlur::new(*width, *height).apply(src),
-        EffectSpec::MotionBlur { distance, angle } => MotionBlur::new(*distance, *angle).apply(src),
-        EffectSpec::RadialBlur {
-            amount,
-            center_x,
-            center_y,
-            kind,
-        } => RadialBlur::new(*amount, *center_x, *center_y, parse_radial_kind(kind)).apply(src),
-        EffectSpec::Sharpen => Sharpen.apply(src),
-        EffectSpec::UnsharpMask {
-            amount,
-            radius,
-            threshold,
-        } => UnsharpMask::new(*amount, *radius, *threshold).apply(src),
-        EffectSpec::Emboss {
-            angle,
-            elevation,
-            relief,
-        } => Emboss::new(*angle, *elevation, *relief).apply(src),
-        EffectSpec::EdgeDetect { algorithm, amount } => {
-            EdgeDetect::new(parse_edge_algorithm(algorithm), *amount).apply(src)
-        }
-        EffectSpec::Relief { angle, amount } => Relief::new(*angle, *amount).apply(src),
-        EffectSpec::AddNoise {
-            amount,
-            noise_type,
-            channels,
-            seed,
-        } => AddNoise::new(
-            *amount,
-            parse_noise_type(noise_type),
-            parse_noise_channels(channels),
-            *seed,
-        )
-        .apply(src),
-        EffectSpec::ReduceNoise { radius } => ReduceNoise::new(*radius).apply(src),
-        EffectSpec::BrightnessContrast {
-            brightness,
-            contrast,
-            enhanced,
-        } => {
-            let bc = BrightnessContrast::new(*brightness, *contrast);
-            let bc = if *enhanced { bc.enhanced() } else { bc };
-            bc.apply(src)
-        }
-        EffectSpec::HueSaturation {
-            hue,
-            saturation,
-            lightness,
-            colorize,
-        } => {
-            let hs = HueSaturation::new(*hue, *saturation, *lightness);
-            let hs = if *colorize { hs.colorize() } else { hs };
-            hs.apply(src)
-        }
-        EffectSpec::Curves { channel, points } => {
-            Curves::new(parse_curve_channel(channel), points.clone()).apply(src)
-        }
-        EffectSpec::Levels {
-            channel,
-            in_black,
-            in_white,
-            gamma,
-            out_black,
-            out_white,
-        } => Levels::new(
-            parse_levels_channel(channel),
-            *in_black,
-            *in_white,
-            *gamma,
-            *out_black,
-            *out_white,
-        )
-        .apply(src),
-        EffectSpec::ColorBalance {
-            shadows,
-            midtones,
-            highlights,
-            preserve_luminosity,
-        } => {
-            let cb = ColorBalance::new(*shadows, *midtones, *highlights);
-            let cb = if *preserve_luminosity {
-                cb.preserve_luminosity()
-            } else {
-                cb
-            };
-            cb.apply(src)
-        }
-        EffectSpec::Invert => Invert.apply(src),
-        EffectSpec::Grayscale { method, mixer } => {
-            let g = match parse_grayscale_method(method) {
-                GrayscaleMethod::ChannelMixer => Grayscale::mixer(*mixer),
-                m => Grayscale::new(m),
-            };
-            g.apply(src)
-        }
-        EffectSpec::Posterize { levels } => Posterize::new(*levels).apply(src),
-        EffectSpec::Threshold { threshold } => Threshold::new(*threshold).apply(src),
-    }
-}
-
-/// Human-readable undo label for an effect.
-fn effect_label(spec: &EffectSpec) -> &'static str {
-    match spec {
-        EffectSpec::GaussianBlur { .. } => "Gaussian Blur",
-        EffectSpec::BoxBlur { .. } => "Box Blur",
-        EffectSpec::MotionBlur { .. } => "Motion Blur",
-        EffectSpec::RadialBlur { .. } => "Radial Blur",
-        EffectSpec::Sharpen => "Sharpen",
-        EffectSpec::UnsharpMask { .. } => "Unsharp Mask",
-        EffectSpec::Emboss { .. } => "Emboss",
-        EffectSpec::EdgeDetect { .. } => "Edge Detect",
-        EffectSpec::Relief { .. } => "Relief",
-        EffectSpec::AddNoise { .. } => "Add Noise",
-        EffectSpec::ReduceNoise { .. } => "Reduce Noise",
-        EffectSpec::BrightnessContrast { .. } => "Brightness/Contrast",
-        EffectSpec::HueSaturation { .. } => "Hue/Saturation",
-        EffectSpec::Curves { .. } => "Curves",
-        EffectSpec::Levels { .. } => "Levels",
-        EffectSpec::ColorBalance { .. } => "Color Balance",
-        EffectSpec::Invert => "Invert",
-        EffectSpec::Grayscale { .. } => "Grayscale",
-        EffectSpec::Posterize { .. } => "Posterize",
-        EffectSpec::Threshold { .. } => "Threshold",
-    }
-}
-
 /// Reads the pixels of the layer at `index` into an [`EffectImage`].
 fn layer_effect_image(doc: &Document, index: usize) -> Result<(EffectImage, u32, u32), JsError> {
     let layer = doc
@@ -1308,34 +1011,34 @@ fn layer_effect_image(doc: &Document, index: usize) -> Result<(EffectImage, u32,
     Ok((img, w, h))
 }
 
-/// Applies `effect` to the pixels of the layer at `layer` as one undoable step
-/// (spec §11, §17.5). Effects target a specific layer, never the composite
-/// (§9 invariant). `effect` is a JSON [`EffectSpec`].
+/// Runs the effect `name` with the positional `params` (the shared
+/// `pincel_effects::EffectSpec` wire format, also used by Pixel mode — see
+/// `EFFECT_NAMES` and `ui/src/lib/effects/catalog.ts`) on the layer at
+/// `layer` and commits the result as one undoable `SetPixels` over the canvas.
 #[wasm_bindgen]
-pub fn apply_effect(handle: u32, layer: usize, effect: &str) -> Result<(), JsError> {
-    let spec: EffectSpec =
-        serde_json::from_str(effect).map_err(|e| JsError::new(&e.to_string()))?;
+pub fn apply_effect(handle: u32, layer: usize, name: &str, params: &[f64]) -> Result<(), JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
         let (src, w, h) = layer_effect_image(&bus.document, layer)?;
-        let out = run_effect(&spec, &src);
+        let out = spec.run(&src);
         let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
-        let cmd =
-            SetPixels::new(layer, Rect::new(0, 0, w, h), after).with_label(effect_label(&spec));
+        let cmd = SetPixels::new(layer, Rect::new(0, 0, w, h), after).with_label(spec.label());
         bus.apply(Box::new(cmd)).map_err(to_js)
     })
 }
 
-/// Renders a live preview of `effect` on the layer at `layer`: composites the
-/// document with that layer's pixels replaced, without mutating document state
-/// or the undo stack. Returns canvas-sized RGBA8 (spec §11 live preview).
+/// Renders a live preview of effect `name` / `params` on the layer at
+/// `layer`: composites the document with that layer's pixels replaced,
+/// without mutating document state or the undo stack. Returns canvas-sized
+/// RGBA8 (spec §11 live preview).
 #[wasm_bindgen]
 pub fn preview_effect(
     handle: u32,
     layer: usize,
-    effect: &str,
+    name: &str,
+    params: &[f64],
 ) -> Result<Clamped<Vec<u8>>, JsError> {
-    let spec: EffectSpec =
-        serde_json::from_str(effect).map_err(|e| JsError::new(&e.to_string()))?;
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
         let mut layers = bus.document.layers().to_vec();
         let target = layers
@@ -1344,7 +1047,7 @@ pub fn preview_effect(
         let (w, h) = (target.pixels.width(), target.pixels.height());
         let src = EffectImage::from_rgba8(w, h, target.pixels.data().to_vec())
             .map_err(|e| JsError::new(&e.to_string()))?;
-        let out = run_effect(&spec, &src);
+        let out = spec.run(&src);
         target.pixels = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
         Ok(Clamped(compose(&layers).into_raw()))
     })
@@ -1562,21 +1265,21 @@ mod command_spec_tests {
 
 #[cfg(test)]
 mod ts_bindings {
-    use super::{CommandSpec, EffectSpec};
+    use super::CommandSpec;
     use ts_rs::{Config, TS};
 
-    /// Regenerates the TypeScript mirrors of `CommandSpec` and `EffectSpec`
-    /// (Fineliner ADR-014). CI checks that the committed files under
+    /// Regenerates the TypeScript mirror of `CommandSpec` (Fineliner
+    /// ADR-014). Effects use the shared positional `pincel_effects`
+    /// wire format instead (spec §15, 2026-10-11). CI checks that the committed files under
     /// `ui/src/modes/image/core/generated/` are in sync.
     #[test]
     fn export_command_spec_bindings() {
-        // u64 fields (stroke_id, noise seed) export as `number`: the UI
+        // u64 fields (stroke_id) export as `number`: the UI
         // generates small values, far below Number.MAX_SAFE_INTEGER.
         let cfg = Config::new()
             .with_large_int("number")
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
-        EffectSpec::export_all(&cfg).expect("export EffectSpec bindings");
     }
 }
 
