@@ -496,7 +496,9 @@ ui/src/modes/image/           ImageEditor.svelte + its stores / controller / com
 ui/src/lib/core/              WASM adapter (Pixel mode)
 ui/src/modes/image/core/      WASM adapter (Image mode) + generated ts-rs types
 ui/src/lib/render/            WebGPU + Canvas2D adapters
-ui/src/lib/components/        Svelte components (panels, dialogs)
+ui/src/lib/components/        Components both editors / the shell share (effect + recovery dialogs)
+ui/src/modes/pixel/components/ Pixel-only panels, menus, dialogs (timeline, palette, layers, …)
+ui/e2e/                       Playwright specs (§7.4)
 ui/src/lib/fs/                File open/save (FSA / download / Tauri)
 ui/src/lib/idb/               IndexedDB: prefs, recents, autosave
 ui/src/lib/menu/              Native menu bridge (Tauri)
@@ -508,4 +510,4 @@ src-tauri/                    Native shell
 
 ---
 
-*Last updated: 2026-09-07. Amend in place via PR. Significant changes get a Decision Log entry in `docs/specs/pincel.md` §15.*
+*Last updated: 2026-10-11. Amend in place via PR. Significant changes get a Decision Log entry in `docs/specs/pincel.md` §15.*
