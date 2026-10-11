@@ -2,10 +2,10 @@
   import { onMount } from 'svelte';
   import { Document, loadCore } from '../../lib/core';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
-  import TileEditor from '../../lib/components/TileEditor.svelte';
-  import TilesetPanel from '../../lib/components/TilesetPanel.svelte';
-  import SlicesPanel from '../../lib/components/SlicesPanel.svelte';
-  import LayersPanel from '../../lib/components/LayersPanel.svelte';
+  import TileEditor from './components/TileEditor.svelte';
+  import TilesetPanel from './components/TilesetPanel.svelte';
+  import SlicesPanel from './components/SlicesPanel.svelte';
+  import LayersPanel from './components/LayersPanel.svelte';
   import TimelinePanel from './components/TimelinePanel.svelte';
   import { PinchTracker, type PinchFrame } from '../../lib/view/pinch';
   import SpriteSheetDialog, { type SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
@@ -17,15 +17,15 @@
     type PlayRange,
     type TagDirection,
   } from './playback';
-  import PalettePanel from '../../lib/components/PalettePanel.svelte';
+  import PalettePanel from './components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
-  import EffectsMenu from '../../lib/components/EffectsMenu.svelte';
-  import ImageMenu, { type ImageAction } from '../../lib/components/ImageMenu.svelte';
-  import SelectMenu, { type SelectAction } from '../../lib/components/SelectMenu.svelte';
-  import TextDialog, { type TextParams } from '../../lib/components/TextDialog.svelte';
+  import EffectsMenu from './components/EffectsMenu.svelte';
+  import ImageMenu, { type ImageAction } from './components/ImageMenu.svelte';
+  import SelectMenu, { type SelectAction } from './components/SelectMenu.svelte';
+  import TextDialog, { type TextParams } from './components/TextDialog.svelte';
   import { loadDefaultFont } from '../../lib/text/font';
-  import ResizeDialog, { type ResizeMode, type ResizeResult } from '../../lib/components/ResizeDialog.svelte';
+  import ResizeDialog, { type ResizeMode, type ResizeResult } from './components/ResizeDialog.svelte';
   import { effectById, type EffectDef } from '../../lib/effects/catalog';
   import {
     ensureReadPermission,

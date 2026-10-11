@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Document } from '../core';
+  import type { Document } from '../../../lib/core';
   import TileThumbnail from './TileThumbnail.svelte';
 
   // The wasm `Document` is the source of truth for tileset state. The

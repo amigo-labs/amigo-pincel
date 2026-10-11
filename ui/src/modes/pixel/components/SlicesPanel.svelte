@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { packColor, unpackColor } from '../color';
-  import type { Document } from '../core';
+  import { packColor, unpackColor } from '../../../lib/color';
+  import type { Document } from '../../../lib/core';
 
   // The wasm `Document` is the source of truth for slice state. The
   // panel reads through the M9.4 surface (`sliceCount`, `sliceIdAt`,

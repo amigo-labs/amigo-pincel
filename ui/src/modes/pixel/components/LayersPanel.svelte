@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { blendModeNames, type Document } from '../core';
+  import { blendModeNames, type Document } from '../../../lib/core';
 
   // Layers panel (M13.3). The wasm `Document` is the source of truth;
   // the panel reads the layer stack through the M8.7 / M13.2 surface

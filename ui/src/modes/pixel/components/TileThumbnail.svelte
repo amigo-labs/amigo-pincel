@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Document } from '../core';
+  import type { Document } from '../../../lib/core';
 
   // Paints a single tile from a tileset onto a small Canvas2D element.
   // Tile bytes are fetched through the M8.7b wasm surface

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { packColor, unpackColor } from '../color';
-  import type { Document } from '../core';
+  import { packColor, unpackColor } from '../../../lib/color';
+  import type { Document } from '../../../lib/core';
 
   // Palette panel (spec §6 panel layout). The wasm `Document` is the
   // source of truth; the panel reads the palette through the read

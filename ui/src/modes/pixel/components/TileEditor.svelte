@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { packColor } from '../color';
-  import type { Document } from '../core';
+  import { packColor } from '../../../lib/color';
+  import type { Document } from '../../../lib/core';
 
   // Inline Tileset Editor sub-mode (CLAUDE.md M8.7d, spec §5.3).
   //

@@ -4,7 +4,7 @@
     EFFECT_MENU_GROUPS,
     GROUP_LABELS,
     type EffectGroup,
-  } from '../effects/catalog';
+  } from '../../../lib/effects/catalog';
 
   // Two dropdown triggers — "Effects" (blur / sharpen / distort / noise)
   // and "Adjust" (colour adjustments). Picking an entry calls `onPick`
