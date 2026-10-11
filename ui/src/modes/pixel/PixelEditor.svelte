@@ -3336,6 +3336,13 @@
       {doc}
       rev={docRev}
       activeColor={color}
+      addColor={packColor(color, alpha)}
+      onChange={() => {
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      }}
+      onError={(msg) => (status = msg)}
       onPick={(packed) => {
         // Set both the RGB (via the picker) and the alpha slider from
         // the palette entry so a swatch's transparency carries over.
