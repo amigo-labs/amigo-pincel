@@ -14,8 +14,8 @@ pub mod selection;
 
 pub use codec::{
     AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
-    ExportError, ImportError, ImportedImage, export_atlas_png, export_frame_png, import_png,
-    read_aseprite, write_aseprite,
+    ExportError, ImportError, ImportedImage, aseprite_sheet_json, export_atlas_png,
+    export_frame_png, import_png, read_aseprite, write_aseprite,
 };
 pub use command::{
     AddFrame, AddLayer, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand,
