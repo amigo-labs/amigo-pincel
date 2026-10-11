@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { appPath } from '$lib/config';
   import PixelIcon from './PixelIcon.svelte';
 </script>
 
 <div class="wrap">
-  <a class="btn-pixel big" href="/app">
+  <a class="btn-pixel big" href={appPath} rel="external">
     Open Editor
     <PixelIcon name="arrow-right" size={20} />
   </a>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appPath } from '$lib/config';
   import PixelIcon from './PixelIcon.svelte';
   import HeroScene from './HeroScene.svelte';
 </script>
@@ -16,7 +17,7 @@
         catch.
       </p>
       <div class="ctas">
-        <a class="btn-pixel" href="/app">
+        <a class="btn-pixel" href={appPath} rel="external">
           Open Editor
           <PixelIcon name="arrow-right" size={16} />
         </a>

@@ -23,8 +23,9 @@
 /
   Cache-Control: public, max-age=0, must-revalidate
 
-# Baseline security headers across the whole site. The editor at /app embeds via
-# the @amigo-labs/pincel npm package, not via iframe, so DENY is safe.
+# Baseline security headers across the whole site. The editor at /app/ is a
+# separate Worker (ui/wrangler.toml) with its own headers, and nothing here is
+# meant to be framed, so DENY is safe.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

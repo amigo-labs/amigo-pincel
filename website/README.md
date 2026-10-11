@@ -2,9 +2,10 @@
 
 Marketing site for [Pincel](../). Built per [`docs/specs/website-spec.md`](../docs/specs/website-spec.md).
 
-SvelteKit + adapter-static. Phase 1 routes: `/`, `/features`, `/embed`, `/about`, plus a
-no-indexed `/app` placeholder that will host the editor bundle once
-`@amigo-labs/pincel` ships.
+SvelteKit + adapter-static. Phase 1 routes: `/`, `/features`, `/embed`, `/about`. The
+editor itself lives at `/app/` on the same host, but it is a separate Worker (`ui/`,
+`ui/wrangler.toml`), not a route of this site — CTA links reach it with a full page load
+(`appPath` in `src/lib/config.ts`, `rel="external"`).
 
 ## Development
 
@@ -52,7 +53,7 @@ for code) loaded from Google Fonts with `display=swap`.
 
 Built today:
 
-- `/`, `/features`, `/embed`, `/about`, `/app` (placeholder)
+- `/`, `/features`, `/embed`, `/about` (the editor is served at `/app/` by its own Worker)
 - PICO-8 design tokens, pixel-art components, CRT toggle
 - SEO meta with absolute canonical/OG URLs, sitemap, robots, favicon
 - Styled `404.html` served by Cloudflare for unknown paths
@@ -66,7 +67,6 @@ Deferred to follow-up work:
 - Hand-drawn Open Graph images per page (currently relies on `/og/default.svg`)
 - Real screenshots in `/features` (currently shows placeholder frames)
 - Live embed demo on `/embed` (currently shows placeholder)
-- Editor mount on `/app` (waits on `@amigo-labs/pincel` publish)
 - Service worker for the marketing site
 - `/changelog`, `/docs`, `/showcase` (Phase 2/3)
 
@@ -90,6 +90,5 @@ Configuration that makes the build work:
 - `static/404.html` — self-contained styled 404 served by Cloudflare for
   unknown paths (works without JS).
 
-Production origin is set in `src/lib/config.ts` (currently
-`https://pincel.app`). Update there if the domain decision in
-`docs/specs/website-spec.md` §6.1 lands on a different value.
+Production origin is set in `src/lib/config.ts`: `https://pincel.amigo-labs.dev`
+(decided 2026-10-11, `docs/specs/website-spec.md` §6.1).

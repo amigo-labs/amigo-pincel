@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { appPath } from '$lib/config';
   import { page } from '$app/state';
   import Logo from './Logo.svelte';
   import PixelIcon from './PixelIcon.svelte';
@@ -28,7 +29,7 @@
         {/each}
       </ul>
     </nav>
-    <a href="/app" class="btn-pixel cta">
+    <a href={appPath} rel="external" class="btn-pixel cta">
       Open Editor
       <PixelIcon name="arrow-right" size={16} />
     </a>
