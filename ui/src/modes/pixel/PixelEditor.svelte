@@ -2408,7 +2408,7 @@
     }
     // Single-key tool selection; repeated presses cycle a group's variants.
     const group = toolGroupForKey(e);
-    const next = doc && group ? cycleGroup(railGroups, group, tool) : null;
+    const next = group ? cycleGroup(railGroups, group, tool) : null;
     if (next) {
       e.preventDefault();
       tool = next;

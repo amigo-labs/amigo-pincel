@@ -24,6 +24,12 @@ export async function createDocument(
   }
   await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(dialog).toBeHidden();
+  // The editor's core is loaded once the top bar names the document.
+  // (Huge canvases take a while to allocate on the unoptimized CI wasm.)
+  await expect(page.getByRole('banner').getByText('No document')).toHaveCount(0, {
+    timeout: 60_000,
+  });
+  await expect(page.getByRole('menubar').or(page.getByRole('button', { name: 'Menu' }))).toBeVisible();
 }
 
 /** The Pixel-mode drawing surface. */
