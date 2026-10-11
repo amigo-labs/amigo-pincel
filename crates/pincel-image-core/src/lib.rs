@@ -34,7 +34,7 @@ pub use document::{
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect, Size};
-pub use render::{compose, compose_over};
+pub use render::{compose, compose_over, compose_region};
 pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand};
 pub use tools::{
     Brush, BrushShape, DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Move,

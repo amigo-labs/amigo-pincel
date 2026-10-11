@@ -6,6 +6,7 @@ pub use blend::blend_channel;
 
 use crate::color::Color;
 use crate::document::{ImageBuffer, Layer};
+use crate::geometry::Rect;
 
 /// Converts an sRGB-encoded channel in `[0, 1]` to linear light.
 fn srgb_to_linear(c: f32) -> f32 {
@@ -43,7 +44,31 @@ pub fn compose(layers: &[Layer]) -> ImageBuffer {
         if !layer.visible || layer.opacity <= 0.0 {
             continue;
         }
-        composite_layer(&mut out, layer);
+        composite_layer(&mut out, layer, 0, 0);
+    }
+    out
+}
+
+/// Composites only `region` of the visible layers (spec §6.1), yielding a
+/// buffer the size of `region` clipped to the canvas. The pixels are
+/// exactly the matching sub-rect of [`compose`]; the cost scales with the
+/// region, which is what lets the UI render just the visible part of a
+/// large canvas. A region outside the canvas yields a 0×0 buffer.
+pub fn compose_region(layers: &[Layer], region: Rect) -> ImageBuffer {
+    let Some(first) = layers.first() else {
+        return ImageBuffer::new_transparent(0, 0);
+    };
+    let (cw, ch) = (first.pixels.width() as i64, first.pixels.height() as i64);
+    let x0 = i64::from(region.x).clamp(0, cw);
+    let y0 = i64::from(region.y).clamp(0, ch);
+    let x1 = (i64::from(region.x) + i64::from(region.w)).clamp(0, cw);
+    let y1 = (i64::from(region.y) + i64::from(region.h)).clamp(0, ch);
+    let mut out = ImageBuffer::new_transparent((x1 - x0) as u32, (y1 - y0) as u32);
+    for layer in layers {
+        if !layer.visible || layer.opacity <= 0.0 {
+            continue;
+        }
+        composite_layer(&mut out, layer, x0 as u32, y0 as u32);
     }
     out
 }
@@ -86,8 +111,9 @@ pub(crate) fn over_background(mut out: ImageBuffer, background: Color) -> ImageB
     out
 }
 
-/// Blends one layer onto the accumulator `dst` in place.
-fn composite_layer(dst: &mut ImageBuffer, layer: &Layer) {
+/// Blends one layer onto the accumulator `dst` in place. `dst` covers the
+/// layer rect starting at `(ox, oy)`.
+fn composite_layer(dst: &mut ImageBuffer, layer: &Layer, ox: u32, oy: u32) {
     let w = dst.width();
     let h = dst.height();
     let opacity = layer.opacity.clamp(0.0, 1.0);
@@ -95,7 +121,7 @@ fn composite_layer(dst: &mut ImageBuffer, layer: &Layer) {
 
     for y in 0..h {
         for x in 0..w {
-            let Some(s) = layer.pixels.get_pixel(x, y) else {
+            let Some(s) = layer.pixels.get_pixel(x + ox, y + oy) else {
                 continue;
             };
             let sa = (s.a as f32 / 255.0) * opacity;
@@ -179,6 +205,39 @@ mod tests {
         let layer = solid_layer(1, 1, Color::rgba(10, 200, 30, 255));
         let out = compose_over(std::slice::from_ref(&layer), Color::WHITE);
         assert_eq!(out.get_pixel(0, 0), Some(Color::rgba(10, 200, 30, 255)));
+    }
+
+    #[test]
+    fn compose_region_matches_the_sub_rect_of_compose() {
+        let mut bottom = ImageBuffer::new_transparent(5, 4);
+        let mut top = ImageBuffer::new_transparent(5, 4);
+        for y in 0..4 {
+            for x in 0..5 {
+                bottom.set_pixel(x, y, Color::rgba(x as u8 * 40, y as u8 * 50, 90, 255));
+                top.set_pixel(x, y, Color::rgba(200, 10, x as u8 * 30, (y as u8 + 1) * 50));
+            }
+        }
+        let layers = [
+            Layer::from_pixels("b", bottom),
+            Layer::from_pixels("t", top).with_blend_mode(BlendMode::Multiply),
+        ];
+        let full = compose(&layers);
+        let region = compose_region(&layers, Rect::new(1, 2, 3, 2));
+        assert_eq!((region.width(), region.height()), (3, 2));
+        for y in 0..2 {
+            for x in 0..3 {
+                assert_eq!(region.get_pixel(x, y), full.get_pixel(x + 1, y + 2));
+            }
+        }
+    }
+
+    #[test]
+    fn compose_region_clips_to_the_canvas() {
+        let layer = solid_layer(4, 4, Color::rgba(1, 2, 3, 255));
+        let clipped = compose_region(std::slice::from_ref(&layer), Rect::new(-2, 3, 10, 10));
+        assert_eq!((clipped.width(), clipped.height()), (4, 1));
+        let outside = compose_region(std::slice::from_ref(&layer), Rect::new(9, 9, 2, 2));
+        assert_eq!((outside.width(), outside.height()), (0, 0));
     }
 
     #[test]
