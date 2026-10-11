@@ -14,9 +14,9 @@ importers:
       '@tauri-apps/plugin-dialog':
         specifier: ~2.7.3
         version: 2.7.3
-      fineliner-wasm:
-        specifier: link:../crates/fineliner-wasm/pkg
-        version: link:../crates/fineliner-wasm/pkg
+      pincel-image-wasm:
+        specifier: link:../crates/pincel-image-wasm/pkg
+        version: link:../crates/pincel-image-wasm/pkg
       pincel-wasm:
         specifier: link:../crates/pincel-wasm/pkg
         version: link:../crates/pincel-wasm/pkg

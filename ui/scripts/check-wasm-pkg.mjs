@@ -9,8 +9,8 @@
 import { existsSync } from 'node:fs';
 
 // One wasm-pack package per editor mode (Pixel: pincel-wasm, Image:
-// fineliner-wasm); `pnpm wasm:build` builds both.
-const missing = ['pincel-wasm', 'fineliner-wasm'].filter(
+// pincel-image-wasm); `pnpm wasm:build` builds both.
+const missing = ['pincel-wasm', 'pincel-image-wasm'].filter(
   (crate) => !existsSync(new URL(`../../crates/${crate}/pkg/package.json`, import.meta.url)),
 );
 

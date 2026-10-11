@@ -4,7 +4,7 @@
  * A JSON-serializable command from JS (spec §17 `SerializedCommand`).
  *
  * The TypeScript mirror of this enum is generated from it via ts-rs
- * (ADR-014): `cargo test -p fineliner-wasm export_command_spec` writes
+ * (ADR-014): `cargo test -p pincel-image-wasm export_command_spec` writes
  * `ui/src/modes/image/core/generated/CommandSpec.ts`, and the UI's command types are
  * checked against it at `pnpm check` time.
  */

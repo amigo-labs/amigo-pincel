@@ -1,22 +1,9 @@
-//! wasm-bindgen bindings exposing `fineliner-core` to JavaScript (spec §17).
+//! wasm-bindgen bindings exposing `pincel-image-core` to JavaScript (spec §17).
 //!
 //! Document state is owned in Rust: handles are opaque indices into a
 //! thread-local arena, and JS only ever receives composited pixel buffers and
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
-use fineliner_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
-use fineliner_core::command::{
-    AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
-    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, RemoveLayer, RenameLayer,
-    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
-    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
-};
-use fineliner_core::{
-    BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
-    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, Rect, SampleSize,
-    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text,
-    TextAlign, TextStyle, apply_mode, compose, delete_selection, magic_wand,
-};
 use pincel_effects::adjust::{
     BrightnessContrast, ColorBalance, CurveChannel, Curves, Grayscale, GrayscaleMethod,
     HueSaturation, Invert, Levels, LevelsChannel, Posterize, Threshold,
@@ -26,6 +13,19 @@ use pincel_effects::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
 use pincel_effects::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
 use pincel_effects::sharpen::{Sharpen, UnsharpMask};
 use pincel_effects::{Effect, EffectImage};
+use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
+use pincel_image_core::command::{
+    AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
+    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, RemoveLayer, RenameLayer,
+    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
+    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
+};
+use pincel_image_core::{
+    BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
+    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, Rect, SampleSize,
+    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text,
+    TextAlign, TextStyle, apply_mode, compose, delete_selection, magic_wand,
+};
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -103,7 +103,8 @@ pub fn create_document(width: u32, height: u32) -> Result<u32, JsError> {
 /// document. `mime_type` is accepted for API parity but format is auto-detected.
 #[wasm_bindgen]
 pub fn open_image(data: &[u8], _mime_type: &str) -> Result<u32, JsError> {
-    let buffer = fineliner_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
+    let buffer =
+        pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
     let doc = Document::from_pixels(buffer).map_err(to_js)?;
     Ok(insert(CommandBus::new(doc)))
 }
@@ -351,7 +352,7 @@ fn sample_size(edge: u32) -> SampleSize {
 /// A JSON-serializable command from JS (spec §17 `SerializedCommand`).
 ///
 /// The TypeScript mirror of this enum is generated from it via ts-rs
-/// (ADR-014): `cargo test -p fineliner-wasm export_command_spec` writes
+/// (ADR-014): `cargo test -p pincel-image-wasm export_command_spec` writes
 /// `ui/src/modes/image/core/generated/CommandSpec.ts`, and the UI's command types are
 /// checked against it at `pnpm check` time.
 #[derive(Debug, Deserialize)]
@@ -1480,7 +1481,7 @@ pub fn get_selection_mask(handle: u32) -> Result<Clamped<Vec<u8>>, JsError> {
 }
 
 /// Converts a core error into a JS error.
-fn to_js(e: fineliner_core::DocumentError) -> JsError {
+fn to_js(e: pincel_image_core::DocumentError) -> JsError {
     JsError::new(&e.to_string())
 }
 

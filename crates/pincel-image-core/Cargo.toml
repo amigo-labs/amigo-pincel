@@ -1,5 +1,5 @@
 [package]
-name = "fineliner-core"
+name = "pincel-image-core"
 version = "0.1.0"
 description = "Pure logic core for Pincel's Image mode (formerly the Fineliner image editor): document model, commands, rendering, codecs."
 edition.workspace = true

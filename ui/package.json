@@ -11,8 +11,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg && wasm-pack build ../crates/fineliner-wasm --target web --dev --out-dir pkg",
-    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg && wasm-pack build ../crates/fineliner-wasm --target web --release --out-dir pkg",
+    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg && wasm-pack build ../crates/pincel-image-wasm --target web --dev --out-dir pkg",
+    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg && wasm-pack build ../crates/pincel-image-wasm --target web --release --out-dir pkg",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
@@ -21,7 +21,7 @@
   "dependencies": {
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.3",
-    "fineliner-wasm": "link:../crates/fineliner-wasm/pkg",
+    "pincel-image-wasm": "link:../crates/pincel-image-wasm/pkg",
     "pincel-wasm": "link:../crates/pincel-wasm/pkg"
   },
   "devDependencies": {

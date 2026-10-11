@@ -73,7 +73,7 @@ const WEBP_TYPES: FilePickerAcceptType[] = [
   { description: 'WebP image', accept: { 'image/webp': ['.webp'] } },
 ];
 
-// Every raster format the Image mode decodes (fineliner-core codec).
+// Every raster format the Image mode decodes (pincel-image-core codec).
 const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...PNG_TYPES,
   ...JPEG_TYPES,

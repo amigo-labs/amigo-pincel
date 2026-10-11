@@ -1,4 +1,4 @@
-// The single entry point to the Image-mode WASM core (fineliner-wasm). No
+// The single entry point to the Image-mode WASM core (pincel-image-wasm). No
 // other module imports the generated bindings directly (CLAUDE.md §5.4). Document state lives in Rust;
 // JS only receives composited pixels and exported bytes (ADR-001).
 import initWasm, {
@@ -20,8 +20,8 @@ import initWasm, {
   get_document_info,
   get_selection_mask,
   register_font,
-} from 'fineliner-wasm';
-import wasmUrl from 'fineliner-wasm/fineliner_wasm_bg.wasm?url';
+} from 'pincel-image-wasm';
+import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 
 /** Per-layer state for the layers panel (spec §16.5). */
 export interface LayerInfo {

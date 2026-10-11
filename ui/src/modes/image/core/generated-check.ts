@@ -4,7 +4,7 @@
 // serde fills defaulted fields silently, so a misspelled discriminant or
 // field name would otherwise surface only as wrong runtime behavior. These
 // type-level assertions make `pnpm check` fail instead. Regenerate the mirror
-// with `cargo test -p fineliner-wasm export_command_spec`.
+// with `cargo test -p pincel-image-wasm export_command_spec`.
 import type { CommandSpec } from './generated/CommandSpec';
 import type { EffectSpec } from './generated/EffectSpec';
 import type { EffectCommand, ToolCommand } from './wasm';

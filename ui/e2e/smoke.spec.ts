@@ -41,6 +41,6 @@ test('image mode: a brush stroke is undoable and the pixel wasm is not loaded', 
   await undo.click();
   await expect(undo).toBeDisabled();
 
-  expect(wasmRequests.some((u) => u.includes('fineliner_wasm'))).toBe(true);
+  expect(wasmRequests.some((u) => u.includes('pincel_image_wasm'))).toBe(true);
   expect(wasmRequests.some((u) => u.includes('pincel_wasm'))).toBe(false);
 });

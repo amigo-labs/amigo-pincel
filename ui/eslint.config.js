@@ -29,7 +29,7 @@ export default ts.config(
     },
   },
   {
-    // src/modes/image/core/generated/ is committed ts-rs output (fineliner-wasm);
+    // src/modes/image/core/generated/ is committed ts-rs output (pincel-image-wasm);
     // CI fails on a dirty diff, so lint does not touch it.
     ignores: ['dist/', 'node_modules/', 'pkg/', '.svelte-kit/', 'src/modes/image/core/generated/', 'test-results/', 'playwright-report/'],
   },

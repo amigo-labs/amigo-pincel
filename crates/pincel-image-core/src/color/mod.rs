@@ -1,6 +1,6 @@
 //! Color representation and blend modes.
 //!
-//! See `docs/specs/fineliner.md` §4. Pixel data is stored as straight-alpha
+//! See `docs/specs/fineliner.md` in the archived `amigo-fineliner` repo, §4. Pixel data is stored as straight-alpha
 //! RGBA8; effects and blending convert to RGBA32f in `[0.0, 1.0]`.
 
 use serde::{Deserialize, Serialize};

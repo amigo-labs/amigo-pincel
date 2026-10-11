@@ -1,5 +1,5 @@
 ---
-source: crates/fineliner-core/tests/compose_snapshots.rs
+source: crates/pincel-image-core/tests/compose_snapshots.rs
 expression: "hex_rows(&compose(&[bottom, mid, top]))"
 ---
 00006dff 2e006dff 65006dff a6006dff 

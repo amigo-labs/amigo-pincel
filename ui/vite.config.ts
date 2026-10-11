@@ -76,7 +76,7 @@ export default defineConfig({
         // Workbox refuses to precache files over 2 MiB by default. The
         // unoptimized dev-profile wasm files (CI builds them via `pnpm
         // wasm:build --dev`; wasm-opt is disabled there) are well above
-        // that — ~3.9 MB (pincel-wasm) and ~6.5 MB (fineliner-wasm) on
+        // that — ~3.9 MB (pincel-wasm) and ~6.5 MB (pincel-image-wasm) on
         // the stable toolchain — and excluding them would break offline
         // entirely; give them headroom instead (the limit is per file).
         // The release wasm that ships stays far below this.
@@ -87,7 +87,7 @@ export default defineConfig({
   server: {
     strictPort: true,
     fs: {
-      allow: ['../crates/pincel-wasm/pkg', '../crates/fineliner-wasm/pkg'],
+      allow: ['../crates/pincel-wasm/pkg', '../crates/pincel-image-wasm/pkg'],
     },
   },
 });

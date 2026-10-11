@@ -1,4 +1,4 @@
-//! # fineliner-core
+//! # pincel-image-core
 //!
 //! Pure logic core for the Fineliner image editor: document model, color and
 //! blend modes, geometry, commands/undo, compositing, codecs, and tools.

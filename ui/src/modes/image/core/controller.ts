@@ -430,7 +430,7 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
 
 // Stem reused for export filenames: the opened file's name, or this default
 // for a blank/new document.
-const DEFAULT_EXPORT_STEM = 'fineliner-export';
+const DEFAULT_EXPORT_STEM = 'image';
 let exportStem = DEFAULT_EXPORT_STEM;
 
 /** Creates a blank document and makes it the active one. */

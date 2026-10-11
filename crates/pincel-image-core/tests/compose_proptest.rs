@@ -1,8 +1,8 @@
 //! Property-based tests for compositing (spec §7.4): `compose` is deterministic
 //! and idempotent — running it twice on identical input yields identical output.
 
-use fineliner_core::color::BlendMode;
-use fineliner_core::{Color, ImageBuffer, Layer, compose};
+use pincel_image_core::color::BlendMode;
+use pincel_image_core::{Color, ImageBuffer, Layer, compose};
 use proptest::prelude::*;
 
 const MODES: [BlendMode; 12] = [

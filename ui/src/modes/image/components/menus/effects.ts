@@ -1,5 +1,5 @@
 // Catalog of effects for the Effects menu and the shared effect dialog
-// (spec §11). UI configuration only — the actual math lives in fineliner-effects
+// (spec §11). UI configuration only — the actual math lives in pincel-effects
 // and is reached through the controller.
 import type { EffectCommand } from '../../core/wasm';
 import { editor } from '../../stores/editor.svelte';

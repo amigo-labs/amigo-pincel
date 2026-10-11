@@ -1,6 +1,6 @@
 //! Basic geometry primitives shared across the core.
 //!
-//! See `docs/specs/fineliner.md` §6.3 for the coordinate system: origin is
+//! See `docs/specs/fineliner.md` in the archived `amigo-fineliner` repo, §6.3 for the coordinate system: origin is
 //! top-left, X increases rightward, Y increases downward.
 
 use serde::{Deserialize, Serialize};

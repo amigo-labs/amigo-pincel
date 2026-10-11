@@ -2,7 +2,7 @@
 //!
 //! Rasterizes a string onto the current layer and emits one [`SetPixels`] on
 //! commit (ADR-003 — text is pixels, not a vector layer). The caller supplies
-//! the font as raw TrueType/OpenType bytes (Option B): `fineliner-core` stays
+//! the font as raw TrueType/OpenType bytes (Option B): `pincel-image-core` stays
 //! platform-free and never loads a font from disk or the system. Bold and
 //! italic are synthesized (faux-bold by horizontal smearing, faux-italic by a
 //! shear) since Phase 1 selects a single font face.

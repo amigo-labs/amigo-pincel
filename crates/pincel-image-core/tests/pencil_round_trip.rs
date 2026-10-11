@@ -4,13 +4,13 @@
 //! This mirrors the browser demo without a browser: it exercises decode →
 //! command apply → compose → encode → decode at the core level.
 
-use fineliner_core::codec::{decode, to_png_bytes};
-use fineliner_core::command::Command;
-use fineliner_core::{Brush, Color, Document, Pencil, Point, compose};
+use pincel_image_core::codec::{decode, to_png_bytes};
+use pincel_image_core::command::Command;
+use pincel_image_core::{Brush, Color, Document, Pencil, Point, compose};
 
 /// Builds a PNG of a solid white WxH image.
 fn white_png(w: u32, h: u32) -> Vec<u8> {
-    let mut buf = fineliner_core::ImageBuffer::new_transparent(w, h);
+    let mut buf = pincel_image_core::ImageBuffer::new_transparent(w, h);
     for y in 0..h {
         for x in 0..w {
             buf.set_pixel(x, y, Color::WHITE);
