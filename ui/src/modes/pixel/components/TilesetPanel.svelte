@@ -149,11 +149,11 @@
 </script>
 
 <aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-neutral-800 bg-neutral-950 p-3 text-sm"
+  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
   aria-label="Tilesets"
 >
   <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">
+    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">
       Tilesets
     </h2>
     {#if !formOpen}
@@ -170,17 +170,17 @@
   </header>
 
   {#if formOpen}
-    <form class="flex flex-col gap-2 rounded border border-neutral-800 p-2" onsubmit={submitForm}>
-      <label class="flex flex-col gap-1 text-xs text-neutral-400">
+    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
+      <label class="flex flex-col gap-1 text-xs text-pc-muted">
         <span>Name</span>
         <input
           type="text"
           bind:value={formName}
-          class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
+          class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
         />
       </label>
       <div class="flex gap-2">
-        <label class="flex flex-1 flex-col gap-1 text-xs text-neutral-400">
+        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
           <span>Tile W</span>
           <input
             type="number"
@@ -188,10 +188,10 @@
             step="1"
             inputmode="numeric"
             bind:value={formTileW}
-            class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
+            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
           />
         </label>
-        <label class="flex flex-1 flex-col gap-1 text-xs text-neutral-400">
+        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
           <span>Tile H</span>
           <input
             type="number"
@@ -199,7 +199,7 @@
             step="1"
             inputmode="numeric"
             bind:value={formTileH}
-            class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
+            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
           />
         </label>
       </div>
@@ -214,17 +214,17 @@
   {/if}
 
   {#if tilesets.length === 0}
-    <p class="text-xs text-neutral-500">
+    <p class="text-xs text-pc-faint">
       {doc ? 'no tilesets yet' : 'open or create a document'}
     </p>
   {:else}
     <ul class="flex flex-col gap-1">
       {#each tilesets as ts (ts.id)}
         <li
-          class="flex flex-col gap-1 rounded border border-neutral-800 px-2 py-1"
+          class="flex flex-col gap-1 rounded border border-pc-border px-2 py-1"
         >
-          <span class="truncate text-sm text-neutral-100" title={ts.name}>{ts.name}</span>
-          <span class="text-xs text-neutral-500">
+          <span class="truncate text-sm text-pc-text" title={ts.name}>{ts.name}</span>
+          <span class="text-xs text-pc-faint">
             id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
           </span>
           <div class="flex gap-1">

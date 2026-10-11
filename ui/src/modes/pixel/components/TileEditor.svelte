@@ -109,14 +109,14 @@
 </script>
 
 <div
-  class="absolute inset-0 z-10 flex items-center justify-center bg-neutral-950/80 p-4"
+  class="absolute inset-0 z-10 flex items-center justify-center bg-pc-bg/80 p-4"
   role="dialog"
   aria-modal="true"
   aria-label="Tile editor"
 >
-  <div class="flex flex-col gap-3 rounded border border-neutral-700 bg-neutral-900 p-4 shadow-xl">
+  <div class="flex flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 shadow-xl">
     <header class="flex items-center justify-between gap-4">
-      <h2 class="text-sm font-semibold text-neutral-100">
+      <h2 class="text-sm font-semibold text-pc-text">
         Editing tileset {tilesetId} · tile {tileId} · {tileW}×{tileH}
       </h2>
       <button type="button" class="editor-btn" onclick={onClose}>Done</button>
@@ -136,7 +136,7 @@
     {#if lastError}
       <p class="text-xs text-red-400" role="alert">{lastError}</p>
     {/if}
-    <p class="text-xs text-neutral-500">
+    <p class="text-xs text-pc-faint">
       Click or drag to paint with the current color. Undo / Redo restores prior
       pixels.
     </p>

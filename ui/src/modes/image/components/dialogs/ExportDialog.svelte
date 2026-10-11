@@ -14,7 +14,7 @@
 
 <Modal title="Export JPEG" applyLabel="Export" onApply={() => onApply(quality)} {onClose}>
   <label class="mb-3 flex items-center justify-between gap-2">
-    <span class="text-neutral-400">Quality</span>
+    <span class="text-pc-muted">Quality</span>
     <input type="range" min="1" max="100" bind:value={quality} class="flex-1" />
     <span class="w-8 text-right tabular-nums">{quality}</span>
   </label>

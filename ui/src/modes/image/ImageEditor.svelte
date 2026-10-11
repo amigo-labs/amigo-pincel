@@ -302,33 +302,33 @@
 
 <svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
 
-<div class="flex h-full flex-col bg-[var(--fl-app-bg)] text-neutral-200">
+<div class="flex h-full flex-col bg-pc-bg text-pc-text">
   <!-- Top action bar -->
   <header
-    class="flex items-center gap-2 border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1.5 text-sm"
+    class="flex items-center gap-2 border-b border-pc-border bg-pc-panel px-3 py-1.5 text-sm"
   >
     <span class="mr-3 font-semibold tracking-wide">Pincel</span>
     <span
-      class="mr-3 rounded border border-[var(--fl-panel-border)] px-1.5 text-xs text-[var(--fl-accent)]"
+      class="mr-3 rounded border border-pc-border px-1.5 text-xs text-pc-accent"
     >
       Image
     </span>
-    <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestNew}>New</button>
-    <button class="rounded px-2 py-1 hover:bg-neutral-700" onclick={onRequestOpen}>Open…</button>
+    <button class="rounded px-2 py-1 hover:bg-pc-hover" onclick={onRequestNew}>New</button>
+    <button class="rounded px-2 py-1 hover:bg-pc-hover" onclick={onRequestOpen}>Open…</button>
     <button
-      class="rounded px-2 py-1 hover:bg-neutral-700"
+      class="rounded px-2 py-1 hover:bg-pc-hover"
       onclick={() => void save()}
       title="Save as OpenRaster (.ora) — keeps layers (Ctrl+S)">Save</button
     >
     <button
-      class="rounded px-2 py-1 hover:bg-neutral-700"
+      class="rounded px-2 py-1 hover:bg-pc-hover"
       onclick={() => void save(true)}
       title="Save to a new .ora file (Ctrl+Shift+S)">Save As…</button
     >
     <div class="relative">
       <button
-        class="rounded px-2 py-1 hover:bg-neutral-700"
-        class:bg-neutral-700={exportOpen}
+        class="rounded px-2 py-1 hover:bg-pc-hover"
+        class:bg-pc-active={exportOpen}
         onclick={() => (exportOpen = !exportOpen)}
       >
         Export…
@@ -341,11 +341,11 @@
           onclick={() => (exportOpen = false)}
         ></button>
         <div
-          class="absolute left-0 top-8 z-50 w-40 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] py-1 text-sm shadow-xl"
+          class="absolute left-0 top-8 z-50 w-40 rounded border border-pc-border bg-pc-panel py-1 text-sm shadow-xl"
         >
           {#each exportFormats as f (f.format)}
             <button
-              class="block w-full px-3 py-1 text-left hover:bg-neutral-700"
+              class="block w-full px-3 py-1 text-left hover:bg-pc-hover"
               onclick={() => runExport(f.format)}
             >
               {f.label}
@@ -354,22 +354,22 @@
         </div>
       {/if}
     </div>
-    <div class="mx-2 h-5 w-px bg-[var(--fl-panel-border)]"></div>
+    <div class="mx-2 h-5 w-px bg-pc-border"></div>
     <button
-      class="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-40"
+      class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
       onclick={undo}
       disabled={!editor.canUndo}
     >
       Undo
     </button>
     <button
-      class="rounded px-2 py-1 hover:bg-neutral-700 disabled:opacity-40"
+      class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
       onclick={redo}
       disabled={!editor.canRedo}
     >
       Redo
     </button>
-    <div class="mx-2 h-5 w-px bg-[var(--fl-panel-border)]"></div>
+    <div class="mx-2 h-5 w-px bg-pc-border"></div>
     <TransformMenu />
     <EffectsMenu />
     <EffectsMenu label="Adjustments" groups={['adjust']} />
@@ -385,7 +385,7 @@
       </main>
       <!-- Status bar (spec §16.8) -->
       <footer
-        class="flex items-center justify-between border-t border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] px-3 py-1 text-xs text-neutral-400"
+        class="flex items-center justify-between border-t border-pc-border bg-pc-panel px-3 py-1 text-xs text-pc-muted"
       >
         <span>{toolLabels[tool.kind]}</span>
         <span
@@ -399,7 +399,7 @@
     </div>
 
     <aside
-      class="flex w-56 flex-col border-l border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)]"
+      class="flex w-56 flex-col border-l border-pc-border bg-pc-bg"
     >
       <ColorsPanel />
       <LayersPanel />

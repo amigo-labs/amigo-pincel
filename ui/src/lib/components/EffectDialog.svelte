@@ -72,7 +72,7 @@
   aria-labelledby="effect-title"
 >
   <form
-    class="pointer-events-auto flex w-80 max-h-full flex-col gap-3 overflow-y-auto rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-2xl"
+    class="pointer-events-auto flex w-80 max-h-full flex-col gap-3 overflow-y-auto rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
     onsubmit={(e) => {
       e.preventDefault();
       onApply(params);
@@ -80,21 +80,21 @@
   >
     <header class="flex items-baseline justify-between">
       <h2 id="effect-title" class="text-base font-semibold">{def.label}</h2>
-      <span class="text-xs text-neutral-400">
+      <span class="text-xs text-pc-muted">
         {hasSelection ? 'selection' : 'whole layer'}
       </span>
     </header>
 
     {#if def.params.length === 0}
-      <p class="text-xs text-neutral-400">This effect has no parameters.</p>
+      <p class="text-xs text-pc-muted">This effect has no parameters.</p>
     {/if}
 
     {#each def.params as p (p.key)}
       {#if p.kind === 'number'}
-        <label class="flex flex-col gap-1 text-xs text-neutral-300">
+        <label class="flex flex-col gap-1 text-xs text-pc-text">
           <span class="flex justify-between">
             <span>{p.label}</span>
-            <span class="tabular-nums text-neutral-500">{values[p.key]}</span>
+            <span class="tabular-nums text-pc-faint">{values[p.key]}</span>
           </span>
           <span class="flex items-center gap-2">
             <input
@@ -112,13 +112,13 @@
               max={p.max}
               step={p.step}
               bind:value={values[p.key]}
-              class="w-16 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
               aria-label={`${p.label} value`}
             />
           </span>
         </label>
       {:else if p.kind === 'bool'}
-        <label class="flex items-center gap-2 text-xs text-neutral-300">
+        <label class="flex items-center gap-2 text-xs text-pc-text">
           <input
             type="checkbox"
             checked={values[p.key] !== 0}
@@ -127,12 +127,12 @@
           <span>{p.label}</span>
         </label>
       {:else}
-        <label class="flex items-center justify-between gap-2 text-xs text-neutral-300">
+        <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
           <span>{p.label}</span>
           <select
             value={values[p.key]}
             onchange={(e) => (values[p.key] = Number(e.currentTarget.value))}
-            class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+            class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
             aria-label={p.label}
           >
             {#each p.options as opt, i (opt)}
@@ -144,7 +144,7 @@
     {/each}
 
     <footer class="mt-1 flex items-center justify-between gap-2">
-      <label class="flex items-center gap-1 text-xs text-neutral-400">
+      <label class="flex items-center gap-1 text-xs text-pc-muted">
         <input type="checkbox" bind:checked={preview} />
         <span>Preview</span>
       </label>

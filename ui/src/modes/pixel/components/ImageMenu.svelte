@@ -106,13 +106,13 @@
   </button>
   {#if open}
     <ul
-      class="absolute left-0 top-full z-10 mt-1 flex min-w-52 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+      class="absolute left-0 top-full z-10 mt-1 flex min-w-52 flex-col rounded border border-pc-border bg-pc-panel py-1 shadow-lg"
       role="menu"
       aria-label="Image"
     >
       {#each groups as group (group.title)}
         <li
-          class="px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-neutral-500"
+          class="px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-pc-faint"
           role="presentation"
         >
           {group.title}
@@ -120,7 +120,7 @@
         {#each group.items as item (item.id)}
           <li>
             <button
-              class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800 disabled:opacity-40"
+              class="w-full truncate px-3 py-1 text-left text-xs hover:bg-pc-hover disabled:opacity-40"
               role="menuitem"
               disabled={item.needsSelection && !hasSelection}
               onclick={() => pick(item.id)}

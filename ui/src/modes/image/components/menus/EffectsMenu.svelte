@@ -47,8 +47,8 @@
 
 <div class="relative flex items-center">
   <button
-    class="rounded px-2 py-1 hover:bg-neutral-700"
-    class:bg-neutral-700={open}
+    class="rounded px-2 py-1 hover:bg-pc-hover"
+    class:bg-pc-active={open}
     onclick={() => (open = !open)}
     disabled={editor.handle === null}
   >
@@ -63,21 +63,21 @@
       onclick={() => (open = false)}
     ></button>
     <div
-      class="absolute left-0 top-8 z-50 max-h-[70vh] w-52 overflow-y-auto rounded border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] py-1 text-sm shadow-xl"
+      class="absolute left-0 top-8 z-50 max-h-[70vh] w-52 overflow-y-auto rounded border border-pc-border bg-pc-panel py-1 text-sm shadow-xl"
       role="menu"
     >
       {#each sections as section, i (section.group)}
         {#if i > 0}
-          <div class="my-1 border-t border-[var(--fl-panel-border)]"></div>
+          <div class="my-1 border-t border-pc-border"></div>
         {/if}
         {#if sections.length > 1}
-          <div class="px-3 py-0.5 text-xs uppercase tracking-wide text-neutral-500">
+          <div class="px-3 py-0.5 text-xs uppercase tracking-wide text-pc-faint">
             {GROUP_LABELS[section.group]}
           </div>
         {/if}
         {#each section.items as item (item.id)}
           <button
-            class="block w-full px-3 py-1 text-left hover:bg-neutral-700"
+            class="block w-full px-3 py-1 text-left hover:bg-pc-hover"
             role="menuitem"
             onclick={() => choose(item)}
           >

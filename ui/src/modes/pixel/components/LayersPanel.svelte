@@ -146,11 +146,11 @@
 </script>
 
 <aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-neutral-800 bg-neutral-950 p-3 text-sm"
+  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
   aria-label="Layers"
 >
   <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Layers</h2>
+    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">Layers</h2>
     <span class="flex gap-1">
       <button
         type="button"
@@ -174,7 +174,7 @@
   </header>
 
   {#if layers.length === 0}
-    <p class="text-xs text-neutral-500">No layers.</p>
+    <p class="text-xs text-pc-faint">No layers.</p>
   {:else}
     <ul class="flex flex-col gap-1">
       {#each layers as layer, i (layer.id)}
@@ -182,7 +182,7 @@
         <li
           class="flex items-center gap-2 rounded border px-2 py-1"
           class:layer-active={isActive}
-          class:border-neutral-800={!isActive}
+          class:border-pc-border={!isActive}
         >
           <button
             type="button"
@@ -197,7 +197,7 @@
           {#if editingId === layer.id}
             <!-- svelte-ignore a11y_autofocus -->
             <input
-              class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+              class="min-w-0 flex-1 rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
               bind:value={draftName}
               autofocus
               onkeydown={(e) => onRenameKey(e, layer.id)}
@@ -215,13 +215,13 @@
             >
               <span
                 class="truncate text-sm"
-                class:text-neutral-100={layer.visible}
-                class:text-neutral-500={!layer.visible}
+                class:text-pc-text={layer.visible}
+                class:text-pc-faint={!layer.visible}
                 title={layer.name}
               >
                 {layer.name}
               </span>
-              <span class="ml-auto shrink-0 text-[0.65rem] text-neutral-600 uppercase">
+              <span class="ml-auto shrink-0 text-[0.65rem] text-pc-faint uppercase">
                 {layer.kind}
               </span>
             </button>
@@ -265,10 +265,10 @@
 
   {#if active}
     <div
-      class="flex flex-col gap-2 rounded border border-neutral-800 bg-neutral-900/60 p-2 text-xs"
+      class="flex flex-col gap-2 rounded border border-pc-border bg-pc-panel/60 p-2 text-xs"
       aria-label="Layer properties"
     >
-      <label class="flex items-center gap-2 text-neutral-300">
+      <label class="flex items-center gap-2 text-pc-text">
         <span class="w-14 shrink-0">Opacity</span>
         <input
           type="range"
@@ -280,12 +280,12 @@
           oninput={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), false)}
           onchange={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), true)}
         />
-        <span class="w-8 text-right tabular-nums text-neutral-500">{active.opacity}</span>
+        <span class="w-8 text-right tabular-nums text-pc-faint">{active.opacity}</span>
       </label>
-      <label class="flex items-center gap-2 text-neutral-300">
+      <label class="flex items-center gap-2 text-pc-text">
         <span class="w-14 shrink-0">Blend</span>
         <select
-          class="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-1 py-0.5"
           value={active.blendMode}
           aria-label="Layer blend mode"
           onchange={(e) => onSetBlendMode?.(active.id, e.currentTarget.value)}

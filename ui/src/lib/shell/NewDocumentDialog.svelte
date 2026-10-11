@@ -68,7 +68,7 @@
   onkeydown={onKeydown}
 >
   <form
-    class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+    class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
@@ -86,7 +86,7 @@
         onclick={() => pickMode('pixel')}
       >
         <span class="font-semibold">Pixel sprite</span>
-        <span class="text-xs text-neutral-400">.aseprite</span>
+        <span class="text-xs text-pc-muted">.aseprite</span>
       </button>
       <button
         type="button"
@@ -97,12 +97,12 @@
         onclick={() => pickMode('image')}
       >
         <span class="font-semibold">Image</span>
-        <span class="text-xs text-neutral-400">PNG / JPEG / WebP</span>
+        <span class="text-xs text-pc-muted">PNG / JPEG / WebP</span>
       </button>
     </div>
 
     <div class="mt-3 flex items-center gap-2">
-      <label class="flex items-center gap-1 text-xs text-neutral-400">
+      <label class="flex items-center gap-1 text-xs text-pc-muted">
         W
         <!-- svelte-ignore a11y_autofocus -->
         <input
@@ -113,12 +113,12 @@
           inputmode="numeric"
           bind:value={width}
           autofocus
-          class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          class="w-20 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-pc-text"
           aria-label="Width"
         />
       </label>
-      <span class="text-neutral-500">×</span>
-      <label class="flex items-center gap-1 text-xs text-neutral-400">
+      <span class="text-pc-faint">×</span>
+      <label class="flex items-center gap-1 text-xs text-pc-muted">
         H
         <input
           type="number"
@@ -127,11 +127,11 @@
           step="1"
           inputmode="numeric"
           bind:value={height}
-          class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
+          class="w-20 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-pc-text"
           aria-label="Height"
         />
       </label>
-      <span class="text-xs text-neutral-500">px</span>
+      <span class="text-xs text-pc-faint">px</span>
     </div>
 
     <div class="mt-4 flex justify-end gap-2">

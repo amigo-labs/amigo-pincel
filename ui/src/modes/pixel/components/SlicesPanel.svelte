@@ -246,11 +246,11 @@
 </script>
 
 <aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-neutral-800 bg-neutral-950 p-3 text-sm"
+  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
   aria-label="Slices"
 >
   <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">
+    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">
       Slices
     </h2>
     {#if !formOpen}
@@ -267,21 +267,21 @@
   </header>
 
   {#if formOpen}
-    <form class="flex flex-col gap-2 rounded border border-neutral-800 p-2" onsubmit={submitForm}>
-      <label class="flex flex-col gap-1 text-xs text-neutral-400">
+    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
+      <label class="flex flex-col gap-1 text-xs text-pc-muted">
         <span>Name</span>
         <input
           type="text"
           bind:value={formName}
-          class="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100"
+          class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
         />
       </label>
-      <label class="flex items-center gap-2 text-xs text-neutral-400">
+      <label class="flex items-center gap-2 text-xs text-pc-muted">
         <span>Color</span>
         <input
           type="color"
           bind:value={formColor}
-          class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+          class="h-6 w-8 cursor-pointer rounded border border-pc-border bg-transparent"
         />
       </label>
       {#if formError}
@@ -295,7 +295,7 @@
   {/if}
 
   {#if slices.length === 0}
-    <p class="text-xs text-neutral-500">
+    <p class="text-xs text-pc-faint">
       {doc ? 'no slices yet' : 'open or create a document'}
     </p>
   {:else}
@@ -304,7 +304,7 @@
         {@const active = activeSliceId === s.id}
         <li
           class="flex flex-col gap-1 rounded border px-2 py-1"
-          class:border-neutral-800={!active}
+          class:border-pc-border={!active}
           class:border-blue-500={active}
         >
           <div class="flex items-center gap-2">
@@ -318,7 +318,7 @@
             ></button>
             <button
               type="button"
-              class="flex-1 truncate text-left text-sm text-neutral-100"
+              class="flex-1 truncate text-left text-sm text-pc-text"
               onclick={() => activate(s.id)}
               title={s.name}
             >
@@ -334,7 +334,7 @@
               ×
             </button>
           </div>
-          <span class="text-xs text-neutral-500">
+          <span class="text-xs text-pc-faint">
             id {s.id} · {s.keyCount} key{s.keyCount === 1 ? '' : 's'} ·
             frame 0
           </span>
@@ -342,7 +342,7 @@
           <fieldset class="flex flex-col gap-1">
             <legend class="sr-only">Bounds for slice {s.name}</legend>
             <div class="flex gap-1">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>X</span>
                 <input
                   type="number"
@@ -351,10 +351,10 @@
                   value={s.x}
                   onchange={(e) =>
                     onNumberCommit(s, 'x', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>Y</span>
                 <input
                   type="number"
@@ -363,12 +363,12 @@
                   value={s.y}
                   onchange={(e) =>
                     onNumberCommit(s, 'y', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
             </div>
             <div class="flex gap-1">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>W</span>
                 <input
                   type="number"
@@ -378,10 +378,10 @@
                   value={s.w}
                   onchange={(e) =>
                     onNumberCommit(s, 'w', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>H</span>
                 <input
                   type="number"
@@ -391,13 +391,13 @@
                   value={s.h}
                   onchange={(e) =>
                     onNumberCommit(s, 'h', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
             </div>
           </fieldset>
 
-          <label class="flex items-center gap-2 text-xs text-neutral-400">
+          <label class="flex items-center gap-2 text-xs text-pc-muted">
             <input
               type="checkbox"
               checked={s.hasCenter}
@@ -410,7 +410,7 @@
             <fieldset class="flex flex-col gap-1 pl-4">
               <legend class="sr-only">9-patch center rectangle</legend>
               <div class="flex gap-1">
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                   <span>cX</span>
                   <input
                     type="number"
@@ -419,10 +419,10 @@
                     value={s.cx}
                     onchange={(e) =>
                       onNumberCommit(s, 'cx', Number((e.target as HTMLInputElement).value))}
-                    class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                   <span>cY</span>
                   <input
                     type="number"
@@ -431,12 +431,12 @@
                     value={s.cy}
                     onchange={(e) =>
                       onNumberCommit(s, 'cy', Number((e.target as HTMLInputElement).value))}
-                    class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
               </div>
               <div class="flex gap-1">
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                   <span>cW</span>
                   <input
                     type="number"
@@ -446,10 +446,10 @@
                     value={s.cw}
                     onchange={(e) =>
                       onNumberCommit(s, 'cw', Number((e.target as HTMLInputElement).value))}
-                    class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                   <span>cH</span>
                   <input
                     type="number"
@@ -459,14 +459,14 @@
                     value={s.ch}
                     onchange={(e) =>
                       onNumberCommit(s, 'ch', Number((e.target as HTMLInputElement).value))}
-                    class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
               </div>
             </fieldset>
           {/if}
 
-          <label class="flex items-center gap-2 text-xs text-neutral-400">
+          <label class="flex items-center gap-2 text-xs text-pc-muted">
             <input
               type="checkbox"
               checked={s.hasPivot}
@@ -477,7 +477,7 @@
           </label>
           {#if s.hasPivot}
             <div class="flex gap-1 pl-4">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>pX</span>
                 <input
                   type="number"
@@ -486,10 +486,10 @@
                   value={s.px}
                   onchange={(e) =>
                     onNumberCommit(s, 'px', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-neutral-500">
+              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                 <span>pY</span>
                 <input
                   type="number"
@@ -498,7 +498,7 @@
                   value={s.py}
                   onchange={(e) =>
                     onNumberCommit(s, 'py', Number((e.target as HTMLInputElement).value))}
-                  class="rounded border border-neutral-700 bg-neutral-900 px-1 py-0.5 text-sm text-neutral-100"
+                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
             </div>

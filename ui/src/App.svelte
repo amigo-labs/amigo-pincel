@@ -286,7 +286,7 @@
 {:else}
   {#key session.seq}
     {#await loaders[currentMode]()}
-      <div class="flex h-full items-center justify-center bg-neutral-950 text-sm text-neutral-400">
+      <div class="flex h-full items-center justify-center bg-pc-bg text-sm text-pc-muted">
         loading {currentMode} editor…
       </div>
     {:then mod}
@@ -301,7 +301,7 @@
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}
-      <div class="flex h-full items-center justify-center bg-neutral-950 text-sm text-red-300">
+      <div class="flex h-full items-center justify-center bg-pc-bg text-sm text-red-300">
         failed to load the {currentMode} editor: {err instanceof Error ? err.message : String(err)}
       </div>
     {/await}
@@ -328,7 +328,7 @@
     onkeydown={onConfirmKeydown}
   >
     <div
-      class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+      class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     >
       <p>{confirmState.message}</p>
       <div class="mt-4 flex justify-end gap-2">
@@ -347,7 +347,7 @@
 
 {#if shellError}
   <div
-    class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-neutral-900 px-3 py-2 text-xs text-red-200 shadow-xl"
+    class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-pc-panel px-3 py-2 text-xs text-red-200 shadow-xl"
     role="alert"
   >
     <span>{shellError}</span>

@@ -57,17 +57,17 @@
   aria-label="Export sprite sheet"
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+    class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       onSubmit({ columns: cols, tag, data });
     }}
   >
     <h2 class="text-base font-semibold">Export sprite sheet</h2>
-    <label class="flex flex-col gap-1 text-xs text-neutral-300">
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>Frames</span>
       <select
-        class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1"
+        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
         value={tag ?? ''}
         onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
         aria-label="Frames"
@@ -78,21 +78,21 @@
         {/each}
       </select>
     </label>
-    <label class="flex flex-col gap-1 text-xs text-neutral-300">
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>Columns</span>
       <input
         type="number"
         min="1"
         max={count}
         bind:value={columns}
-        class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 tabular-nums"
+        class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
         aria-label="Columns"
       />
     </label>
-    <p class="text-xs text-neutral-400" aria-live="polite">
+    <p class="text-xs text-pc-muted" aria-live="polite">
       {cols} × {rows} cells · {cols * frameWidth}×{rows * frameHeight} px
     </p>
-    <label class="flex items-center gap-2 text-xs text-neutral-300">
+    <label class="flex items-center gap-2 text-xs text-pc-text">
       <input type="checkbox" bind:checked={data} aria-label="Write JSON data" />
       Also write JSON data (Aseprite format: durations, tags, slices)
     </label>

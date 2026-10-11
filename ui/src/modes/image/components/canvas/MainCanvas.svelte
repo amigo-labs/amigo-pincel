@@ -238,7 +238,7 @@
 
 <div
   bind:this={viewport}
-  class="relative h-full w-full touch-none overflow-hidden bg-[var(--fl-app-bg)]"
+  class="relative h-full w-full touch-none overflow-hidden bg-pc-bg"
   onwheel={onWheel}
   onpointerdowncapture={onPointerDownCapture}
   onpointermovecapture={onPointerMoveCapture}
@@ -257,7 +257,7 @@
   ></canvas>
 
   {#if editor.handle === null}
-    <p class="absolute inset-0 flex items-center justify-center text-sm text-neutral-500">
+    <p class="absolute inset-0 flex items-center justify-center text-sm text-pc-faint">
       Open an image or create a new document to start.
     </p>
   {/if}
@@ -284,7 +284,7 @@
         onkeydown={onEntryKeydown}
         onblur={commitText}
         spellcheck="false"
-        class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--fl-accent)] bg-transparent p-0 leading-none outline-none"
+        class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-pc-accent bg-transparent p-0 leading-none outline-none"
         style="left: {textEntry.cx}px; top: {textEntry.cy}px; transform: translateX({entryShift}); text-align: {tool.textAlign}; font-size: {tool.fontSize}px; color: {tool.foreground}; font-family: 'Liberation Sans', Arial, sans-serif; font-weight: {tool.textBold
           ? 'bold'
           : 'normal'}; font-style: {tool.textItalic ? 'italic' : 'normal'}; min-width: 4ch;"
@@ -297,25 +297,25 @@
   <!-- Zoom controls (spec §6.4). -->
   {#if editor.handle !== null}
     <div
-      class="absolute bottom-3 right-3 flex items-center gap-1 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)]/90 px-1 py-0.5 text-xs shadow-lg"
+      class="absolute bottom-3 right-3 flex items-center gap-1 rounded border border-pc-border bg-pc-panel/90 px-1 py-0.5 text-xs shadow-lg"
     >
       <button
-        class="rounded px-2 py-0.5 hover:bg-neutral-700"
+        class="rounded px-2 py-0.5 hover:bg-pc-hover"
         onclick={() => setZoom(view.zoom / 1.25)}
         aria-label="Zoom out">−</button
       >
       <button
-        class="w-14 rounded px-1 py-0.5 text-center tabular-nums hover:bg-neutral-700"
+        class="w-14 rounded px-1 py-0.5 text-center tabular-nums hover:bg-pc-hover"
         onclick={fitView}
       >
         {Math.round(view.zoom * 100)}%
       </button>
       <button
-        class="rounded px-2 py-0.5 hover:bg-neutral-700"
+        class="rounded px-2 py-0.5 hover:bg-pc-hover"
         onclick={() => setZoom(view.zoom * 1.25)}
         aria-label="Zoom in">+</button
       >
-      <button class="rounded px-2 py-0.5 hover:bg-neutral-700" onclick={() => setZoom(1)}
+      <button class="rounded px-2 py-0.5 hover:bg-pc-hover" onclick={() => setZoom(1)}
         >1:1</button
       >
     </div>

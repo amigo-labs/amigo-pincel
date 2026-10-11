@@ -40,18 +40,18 @@
 </script>
 
 <main
-  class="flex h-full flex-col items-center justify-center bg-neutral-950 p-6 text-neutral-100"
-  class:bg-neutral-900={dragOver}
+  class="flex h-full flex-col items-center justify-center bg-pc-bg p-6 text-pc-text"
+  class:bg-pc-panel={dragOver}
   ondragover={onDragOver}
   ondragleave={() => (dragOver = false)}
   ondrop={onDrop}
 >
   <section
-    class="w-full max-w-xl rounded border border-neutral-800 bg-neutral-900 p-6 shadow-xl"
+    class="w-full max-w-xl rounded border border-pc-border bg-pc-panel p-6 shadow-xl"
     aria-labelledby="start-title"
   >
     <h1 id="start-title" class="text-2xl font-semibold tracking-wide">Pincel</h1>
-    <p class="mt-1 text-sm text-neutral-400">
+    <p class="mt-1 text-sm text-pc-muted">
       Pixel-art sprites and everyday image editing, one app. Drop a file here to open it.
     </p>
 
@@ -63,7 +63,7 @@
         aria-label="New pixel sprite"
       >
         <span class="text-base font-semibold">New pixel sprite</span>
-        <span class="text-xs text-neutral-400">
+        <span class="text-xs text-pc-muted">
           Frames, palettes, tilemaps, slices. Saves as .aseprite.
         </span>
       </button>
@@ -74,7 +74,7 @@
         aria-label="New image"
       >
         <span class="text-base font-semibold">New image</span>
-        <span class="text-xs text-neutral-400">
+        <span class="text-xs text-pc-muted">
           Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.
         </span>
       </button>
@@ -82,25 +82,25 @@
 
     <div class="mt-4 flex items-center gap-2">
       <button class="toolbar-btn" onclick={onOpen} disabled={busy}>Open…</button>
-      <span class="text-xs text-neutral-500">
+      <span class="text-xs text-pc-faint">
         .aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF and TIFF open in Image mode.
       </span>
     </div>
 
     {#if recents.length > 0}
-      <h2 class="mt-6 text-xs font-semibold uppercase tracking-wide text-neutral-500">Recent</h2>
-      <ul class="mt-2 flex flex-col divide-y divide-neutral-800" aria-label="Recent files">
+      <h2 class="mt-6 text-xs font-semibold uppercase tracking-wide text-pc-faint">Recent</h2>
+      <ul class="mt-2 flex flex-col divide-y divide-pc-border" aria-label="Recent files">
         {#each recents as r (r.id)}
           <li>
             <button
-              class="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-sm hover:bg-neutral-800 disabled:opacity-50"
+              class="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-sm hover:bg-pc-hover disabled:opacity-50"
               onclick={() => onOpenRecent(r)}
               disabled={busy}
               title={r.path ?? r.name}
             >
               <span class="truncate">{r.name}</span>
               <span
-                class="shrink-0 rounded border border-neutral-700 px-1.5 text-[10px] uppercase text-neutral-400"
+                class="shrink-0 rounded border border-pc-border px-1.5 text-[10px] uppercase text-pc-muted"
               >
                 {modeLabel[r.mode]}
               </span>

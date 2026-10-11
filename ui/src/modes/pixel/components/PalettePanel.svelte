@@ -93,14 +93,14 @@
 </script>
 
 <aside
-  class="flex w-64 shrink-0 flex-col gap-2 border-l border-neutral-800 bg-neutral-950 p-3 text-sm"
+  class="flex w-64 shrink-0 flex-col gap-2 border-l border-pc-border bg-pc-bg p-3 text-sm"
   aria-label="Palette"
 >
   <header class="flex items-center justify-between">
-    <h2 class="text-xs font-semibold tracking-wide text-neutral-300 uppercase">Palette</h2>
+    <h2 class="text-xs font-semibold tracking-wide text-pc-text uppercase">Palette</h2>
     <span class="flex items-center gap-2">
       {#if swatches.length > 0}
-        <span class="text-xs text-neutral-500">{swatches.length}</span>
+        <span class="text-xs text-pc-faint">{swatches.length}</span>
       {/if}
       <button
         type="button"
@@ -117,7 +117,7 @@
   </header>
 
   {#if swatches.length === 0}
-    <p class="text-xs text-neutral-500">Empty palette. + adds the current color.</p>
+    <p class="text-xs text-pc-faint">Empty palette. + adds the current color.</p>
   {:else}
     <div class="palette-grid" role="group" aria-label="Palette colors">
       {#each swatches as s (s.index)}
@@ -148,7 +148,7 @@
     </div>
     {#if current}
       <div
-        class="flex items-center gap-2 text-xs text-neutral-400"
+        class="flex items-center gap-2 text-xs text-pc-muted"
         aria-label="Palette entry editor"
       >
         <span class="tabular-nums">#{current.index}</span>

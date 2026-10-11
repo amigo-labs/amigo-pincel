@@ -60,6 +60,6 @@
   bind:this={canvas}
   width={DIM}
   height={DIM}
-  class="h-8 w-8 shrink-0 rounded-sm border border-[var(--fl-panel-border)]"
+  class="h-8 w-8 shrink-0 rounded-sm border border-pc-border"
   style="image-rendering: pixelated;"
 ></canvas>

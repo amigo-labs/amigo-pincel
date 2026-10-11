@@ -67,11 +67,11 @@
 </script>
 
 <div
-  class="flex min-h-0 flex-1 flex-col border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)]"
+  class="flex min-h-0 flex-1 flex-col border-b border-pc-border bg-pc-panel"
 >
   <div class="flex items-center justify-between px-3 pt-3">
-    <h2 class="text-xs font-semibold uppercase tracking-wide text-neutral-500">Layers</h2>
-    <span class="text-xs text-neutral-500">{editor.layers.length}</span>
+    <h2 class="text-xs font-semibold uppercase tracking-wide text-pc-faint">Layers</h2>
+    <span class="text-xs text-pc-faint">{editor.layers.length}</span>
   </div>
 
   <!-- Layer list, top-to-bottom display order. -->
@@ -79,8 +79,8 @@
     {#each displayLayers as { layer, i } (layer.id)}
       <li
         class="mb-1 rounded border p-1.5"
-        class:border-[var(--fl-accent)]={i === editor.activeLayer}
-        class:bg-neutral-700={i === editor.activeLayer}
+        class:border-pc-accent={i === editor.activeLayer}
+        class:bg-pc-active={i === editor.activeLayer}
         class:border-transparent={i !== editor.activeLayer}
         draggable="true"
         ondragstart={(e) => {
@@ -116,7 +116,7 @@
             {#if editingIndex === i}
               <!-- svelte-ignore a11y_autofocus -->
               <input
-                class="w-full rounded border border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)] px-1 text-xs text-neutral-100"
+                class="w-full rounded border border-pc-border bg-pc-bg px-1 text-xs text-pc-text"
                 bind:value={editingName}
                 autofocus
                 onblur={commitRename}
@@ -130,7 +130,7 @@
               />
             {:else}
               <button
-                class="block w-full truncate text-left text-xs text-neutral-200"
+                class="block w-full truncate text-left text-xs text-pc-text"
                 title={layer.name}
                 onclick={() => selectLayer(i)}
                 ondblclick={() => startRename(i, layer.name)}
@@ -143,7 +143,7 @@
 
         <div class="mt-1.5 flex items-center gap-1.5">
           <select
-            class="min-w-0 flex-1 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)] px-1 py-0.5 text-xs text-neutral-200"
+            class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-xs text-pc-text"
             value={layer.blend_mode}
             aria-label="Blend mode"
             onchange={(e) => setLayerBlendMode(i, e.currentTarget.value as BlendMode)}
@@ -168,19 +168,19 @@
   </ul>
 
   <!-- Action buttons (spec §16.5). -->
-  <div class="grid grid-cols-4 gap-1 border-t border-[var(--fl-panel-border)] p-2 text-xs">
-    <button class="rounded py-1 hover:bg-neutral-700" title="Add layer" onclick={addLayer}
+  <div class="grid grid-cols-4 gap-1 border-t border-pc-border p-2 text-xs">
+    <button class="rounded py-1 hover:bg-pc-hover" title="Add layer" onclick={addLayer}
       >＋</button
     >
     <button
-      class="rounded py-1 hover:bg-neutral-700"
+      class="rounded py-1 hover:bg-pc-hover"
       title="Duplicate layer"
       onclick={() => duplicateLayer(editor.activeLayer)}
     >
       ⧉
     </button>
     <button
-      class="rounded py-1 hover:bg-neutral-700 disabled:opacity-40"
+      class="rounded py-1 hover:bg-pc-hover disabled:opacity-40"
       title="Merge down"
       disabled={editor.activeLayer === 0}
       onclick={() => mergeDown(editor.activeLayer)}
@@ -188,7 +188,7 @@
       ⤓
     </button>
     <button
-      class="rounded py-1 hover:bg-neutral-700 disabled:opacity-40"
+      class="rounded py-1 hover:bg-pc-hover disabled:opacity-40"
       title="Delete layer"
       disabled={editor.layers.length <= 1}
       onclick={() => deleteLayer(editor.activeLayer)}
@@ -196,14 +196,14 @@
       🗑
     </button>
     <button
-      class="col-span-2 rounded py-1 hover:bg-neutral-700"
+      class="col-span-2 rounded py-1 hover:bg-pc-hover"
       title="Merge visible"
       onclick={mergeVisible}
     >
       Merge visible
     </button>
     <button
-      class="col-span-2 rounded py-1 hover:bg-neutral-700"
+      class="col-span-2 rounded py-1 hover:bg-pc-hover"
       title="Flatten image"
       onclick={flattenImage}
     >

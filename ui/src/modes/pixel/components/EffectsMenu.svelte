@@ -67,14 +67,14 @@
       </button>
       {#if open === which}
         <ul
-          class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+          class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-pc-border bg-pc-panel py-1 shadow-lg"
           role="menu"
           aria-label={which === 'effects' ? 'Effects' : 'Adjustments'}
         >
           {#each groupsFor(which) as group (group)}
             {#if which === 'effects'}
               <li
-                class="px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-neutral-500"
+                class="px-3 pb-0.5 pt-1.5 text-[10px] uppercase tracking-wide text-pc-faint"
                 role="presentation"
               >
                 {GROUP_LABELS[group]}
@@ -83,7 +83,7 @@
             {#each EFFECTS.filter((e) => e.group === group) as def (def.id)}
               <li>
                 <button
-                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
+                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-pc-hover"
                   role="menuitem"
                   onclick={() => pick(def.id)}
                 >

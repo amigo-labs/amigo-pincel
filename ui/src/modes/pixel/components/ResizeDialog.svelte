@@ -86,7 +86,7 @@
   aria-label={mode === 'resize' ? 'Resize canvas' : 'Scale image'}
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+    class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
@@ -95,11 +95,11 @@
     <h2 class="text-base font-semibold">
       {mode === 'resize' ? 'Resize canvas' : 'Scale image'}
     </h2>
-    <p class="text-xs text-neutral-400">
+    <p class="text-xs text-pc-muted">
       Current size: {initialWidth}×{initialHeight} px
     </p>
     <div class="flex gap-3">
-      <label class="flex flex-1 flex-col gap-1 text-xs text-neutral-300">
+      <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
         <span>Width</span>
         <input
           type="number"
@@ -107,11 +107,11 @@
           max={maxSize}
           value={width}
           oninput={(e) => onWidthInput(Number(e.currentTarget.value))}
-          class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 tabular-nums"
+          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
           aria-label="Width"
         />
       </label>
-      <label class="flex flex-1 flex-col gap-1 text-xs text-neutral-300">
+      <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
         <span>Height</span>
         <input
           type="number"
@@ -119,14 +119,14 @@
           max={maxSize}
           value={height}
           oninput={(e) => onHeightInput(Number(e.currentTarget.value))}
-          class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 tabular-nums"
+          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
           aria-label="Height"
         />
       </label>
     </div>
 
     {#if mode === 'resize'}
-      <fieldset class="flex flex-col gap-1 text-xs text-neutral-300">
+      <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
         <legend class="mb-1">Anchor</legend>
         <div class="grid w-24 grid-cols-3 gap-1" role="radiogroup" aria-label="Anchor">
           {#each anchors as a (a.id)}
@@ -145,11 +145,11 @@
         </div>
       </fieldset>
     {:else}
-      <label class="flex items-center justify-between gap-2 text-xs text-neutral-300">
+      <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
         <span>Interpolation</span>
         <select
           bind:value={interpolation}
-          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
           aria-label="Interpolation"
         >
           <option value="nearest">Nearest (pixel art)</option>
@@ -157,7 +157,7 @@
           <option value="bicubic">Bicubic</option>
         </select>
       </label>
-      <label class="flex items-center gap-2 text-xs text-neutral-300">
+      <label class="flex items-center gap-2 text-xs text-pc-text">
         <input type="checkbox" bind:checked={keepAspect} />
         <span>Keep aspect ratio</span>
       </label>

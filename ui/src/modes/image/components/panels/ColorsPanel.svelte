@@ -21,37 +21,37 @@
   }
 </script>
 
-<div class="border-b border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] p-3">
-  <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-500">Colors</h2>
+<div class="border-b border-pc-border bg-pc-panel p-3">
+  <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-pc-faint">Colors</h2>
   <div class="flex items-center gap-3">
-    <label class="flex flex-col items-center gap-1 text-xs text-neutral-400">
+    <label class="flex flex-col items-center gap-1 text-xs text-pc-muted">
       Foreground
       <input
         type="color"
         bind:value={tool.foreground}
-        class="h-10 w-10 cursor-pointer rounded border border-[var(--fl-panel-border)] bg-transparent"
+        class="h-10 w-10 cursor-pointer rounded border border-pc-border bg-transparent"
         aria-label="Foreground color"
       />
     </label>
     <button
-      class="rounded px-2 py-1 text-lg text-neutral-300 hover:bg-neutral-700"
+      class="rounded px-2 py-1 text-lg text-pc-text hover:bg-pc-hover"
       title="Swap colors (X)"
       onclick={swapColors}
       aria-label="Swap foreground and background colors"
     >
       ⇄
     </button>
-    <label class="flex flex-col items-center gap-1 text-xs text-neutral-400">
+    <label class="flex flex-col items-center gap-1 text-xs text-pc-muted">
       Background
       <input
         type="color"
         bind:value={tool.background}
-        class="h-10 w-10 cursor-pointer rounded border border-[var(--fl-panel-border)] bg-transparent"
+        class="h-10 w-10 cursor-pointer rounded border border-pc-border bg-transparent"
         aria-label="Background color"
       />
     </label>
   </div>
-  <label class="mt-2 flex items-center gap-2 text-xs text-neutral-400">
+  <label class="mt-2 flex items-center gap-2 text-xs text-pc-muted">
     Hex
     <input
       type="text"
@@ -64,7 +64,7 @@
       }}
       spellcheck="false"
       maxlength="7"
-      class="w-20 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-app-bg)] px-2 py-1 font-mono text-neutral-200"
+      class="w-20 rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-pc-text"
       aria-label="Foreground color hex value"
     />
   </label>

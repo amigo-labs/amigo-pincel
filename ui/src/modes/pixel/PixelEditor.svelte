@@ -2575,8 +2575,8 @@
   });
 </script>
 
-<main class="flex h-full flex-col bg-neutral-950 text-neutral-100">
-  <header class="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-4 py-2 text-sm">
+<main class="flex h-full flex-col bg-pc-bg text-pc-text">
+  <header class="flex flex-wrap items-center gap-2 border-b border-pc-border px-4 py-2 text-sm">
     <span class="mr-2 font-semibold tracking-wide">Pincel</span>
     <button class="toolbar-btn" onclick={openNewDialog} disabled={fileOpBusy}>New</button>
     <button
@@ -2614,7 +2614,7 @@
         {#if recentMenuOpen}
           <ul
             bind:this={recentsMenu}
-            class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+            class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-pc-border bg-pc-panel py-1 shadow-lg"
             role="menu"
             aria-label="Recent files"
             onkeydown={onRecentsKeydown}
@@ -2622,7 +2622,7 @@
             {#each recents as r (r.id)}
               <li>
                 <button
-                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-neutral-800"
+                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-pc-hover"
                   role="menuitem"
                   title={r.name}
                   onclick={() => guardUnsaved(() => void openRecent(r))}
@@ -2831,7 +2831,7 @@
       >
         −
       </button>
-      <span class="w-10 text-center text-xs text-neutral-400">{zoom}×</span>
+      <span class="w-10 text-center text-xs text-pc-muted">{zoom}×</span>
       <button
         class="toolbar-btn"
         onclick={zoomIn}
@@ -2844,15 +2844,15 @@
         Reset
       </button>
     </span>
-    <label class="ml-2 flex items-center gap-1 text-xs text-neutral-400">
+    <label class="ml-2 flex items-center gap-1 text-xs text-pc-muted">
       <span>Color</span>
       <input
         type="color"
         bind:value={color}
-        class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+        class="h-6 w-8 cursor-pointer rounded border border-pc-border bg-transparent"
       />
     </label>
-    <label class="ml-1 flex items-center gap-1 text-xs text-neutral-400" title="Foreground alpha">
+    <label class="ml-1 flex items-center gap-1 text-xs text-pc-muted" title="Foreground alpha">
       <span>α</span>
       <input
         type="range"
@@ -2862,7 +2862,7 @@
         class="w-16 cursor-pointer"
         aria-label="Foreground alpha"
       />
-      <span class="w-7 tabular-nums text-neutral-500">{alpha}</span>
+      <span class="w-7 tabular-nums text-pc-faint">{alpha}</span>
     </label>
     <button
       class="toolbar-btn ml-2"
@@ -2892,7 +2892,7 @@
       onAction={selectAction}
     />
     {#if tool === 'selection-wand'}
-      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Wand options">
+      <span class="ml-2 flex items-center gap-2 text-xs text-pc-muted" role="group" aria-label="Wand options">
         <label class="flex items-center gap-1">
           <span>Tolerance</span>
           <input
@@ -2900,7 +2900,7 @@
             min="0"
             max="255"
             bind:value={wandTolerance}
-            class="w-14 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            class="w-14 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
             aria-label="Wand tolerance"
           />
         </label>
@@ -2910,7 +2910,7 @@
         </label>
         <select
           bind:value={wandSample}
-          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
           aria-label="Wand sample source"
         >
           <option value="layer">Layer</option>
@@ -2919,7 +2919,7 @@
       </span>
     {/if}
     {#if isShapeTool(tool)}
-      <span class="ml-2 flex items-center gap-2 text-xs text-neutral-400" role="group" aria-label="Shape options">
+      <span class="ml-2 flex items-center gap-2 text-xs text-pc-muted" role="group" aria-label="Shape options">
         <label class="flex items-center gap-1">
           <span>Stroke</span>
           <input
@@ -2927,13 +2927,13 @@
             min="1"
             max="64"
             bind:value={strokeWidth}
-            class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+            class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
             aria-label="Stroke width"
           />
         </label>
         <select
           bind:value={shapeMode}
-          class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
           aria-label="Shape mode"
         >
           <option value="outline">Outline</option>
@@ -2946,7 +2946,7 @@
             <input
               type="color"
               bind:value={fillColor}
-              class="h-6 w-8 cursor-pointer rounded border border-neutral-700 bg-transparent"
+              class="h-6 w-8 cursor-pointer rounded border border-pc-border bg-transparent"
               aria-label="Fill color"
             />
           </label>
@@ -2959,7 +2959,7 @@
               min="0"
               max="256"
               bind:value={cornerRadius}
-              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
               aria-label="Corner radius"
             />
           </label>
@@ -2972,7 +2972,7 @@
               min="3"
               max="64"
               bind:value={polygonSides}
-              class="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+              class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
               aria-label="Polygon sides"
             />
           </label>
@@ -2999,7 +2999,7 @@
         stores (`image-rendering: pixelated`).
       -->
       <div
-        class="relative shrink-0 border border-neutral-700 bg-neutral-900 shadow-lg"
+        class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
         style:width="{canvasW * zoom}px"
         style:height="{canvasH * zoom}px"
         style:transform="translate({panX}px, {panY}px)"
@@ -3218,7 +3218,7 @@
     }}
     onError={(msg) => (status = msg)}
   />
-  <footer class="flex items-center gap-3 border-t border-neutral-800 px-4 py-2 text-xs text-neutral-500">
+  <footer class="flex items-center gap-3 border-t border-pc-border px-4 py-2 text-xs text-pc-faint">
     <span>{status}</span>
     {#if doc}
       <span>·</span>
@@ -3315,7 +3315,7 @@
     aria-modal="true"
     aria-label="Unsaved changes"
   >
-    <div class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl">
+    <div class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl">
       <p>{confirmState.message}</p>
       <div class="mt-4 flex justify-end gap-2">
         <button class="toolbar-btn" onclick={() => (confirmState = null)}>Cancel</button>

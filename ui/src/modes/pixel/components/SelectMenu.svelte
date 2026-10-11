@@ -56,14 +56,14 @@
   </button>
   {#if open}
     <ul
-      class="absolute left-0 top-full z-10 mt-1 flex min-w-52 flex-col rounded border border-neutral-700 bg-neutral-900 py-1 shadow-lg"
+      class="absolute left-0 top-full z-10 mt-1 flex min-w-52 flex-col rounded border border-pc-border bg-pc-panel py-1 shadow-lg"
       role="menu"
       aria-label="Select"
     >
       {#each items as item (item.id)}
         <li>
           <button
-            class="flex w-full items-center justify-between gap-4 px-3 py-1 text-left text-xs hover:bg-neutral-800 disabled:opacity-40"
+            class="flex w-full items-center justify-between gap-4 px-3 py-1 text-left text-xs hover:bg-pc-hover disabled:opacity-40"
             role="menuitem"
             disabled={item.needsSelection && !hasSelection}
             onclick={() => {
@@ -72,7 +72,7 @@
             }}
           >
             <span>{item.label}</span>
-            <span class="text-neutral-500">{item.hint}</span>
+            <span class="text-pc-faint">{item.hint}</span>
           </button>
         </li>
       {/each}

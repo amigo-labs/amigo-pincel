@@ -74,7 +74,7 @@
   aria-labelledby="text-title"
 >
   <form
-    class="pointer-events-auto flex w-80 flex-col gap-3 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-2xl"
+    class="pointer-events-auto flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
     onsubmit={(e) => {
       e.preventDefault();
       if (params.text.trim().length > 0) onApply(params);
@@ -82,7 +82,7 @@
   >
     <header class="flex items-baseline justify-between">
       <h2 id="text-title" class="text-base font-semibold">Text</h2>
-      <span class="text-xs text-neutral-400">at {x}, {y}</span>
+      <span class="text-xs text-pc-muted">at {x}, {y}</span>
     </header>
     <!-- svelte-ignore a11y_autofocus -->
     <textarea
@@ -90,10 +90,10 @@
       rows="3"
       autofocus
       placeholder="Type here… (Ctrl+Enter to place)"
-      class="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 font-mono text-sm"
+      class="rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-sm"
       aria-label="Text content"
     ></textarea>
-    <div class="flex items-center gap-3 text-xs text-neutral-300">
+    <div class="flex items-center gap-3 text-xs text-pc-text">
       <label class="flex items-center gap-1">
         <span>Size</span>
         <input
@@ -101,13 +101,13 @@
           min="1"
           max="2000"
           bind:value={size}
-          class="w-16 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-right tabular-nums"
+          class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
           aria-label="Font size"
         />
       </label>
       <select
         bind:value={align}
-        class="rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5"
+        class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
         aria-label="Text alignment"
       >
         <option value="left">Left</option>
@@ -115,7 +115,7 @@
         <option value="right">Right</option>
       </select>
     </div>
-    <div class="flex items-center gap-3 text-xs text-neutral-300">
+    <div class="flex items-center gap-3 text-xs text-pc-text">
       <label class="flex items-center gap-1">
         <input type="checkbox" bind:checked={bold} />
         <span class="font-bold">Bold</span>

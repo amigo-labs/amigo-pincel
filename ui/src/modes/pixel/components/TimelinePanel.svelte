@@ -149,7 +149,7 @@
 </script>
 
 <section
-  class="flex flex-col gap-1 border-t border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-300"
+  class="flex flex-col gap-1 border-t border-pc-border bg-pc-bg px-3 py-2 text-xs text-pc-text"
   aria-label="Timeline"
 >
   <div class="flex flex-wrap items-center gap-2">
@@ -191,11 +191,11 @@
       aria-label="Remove frame"
       title="Remove current frame">− Frame</button
     >
-    <span class="mx-1 h-4 w-px bg-neutral-800"></span>
+    <span class="mx-1 h-4 w-px bg-pc-raised"></span>
     <label class="flex items-center gap-1" title="Loop playback over a tag">
       Loop
       <select
-        class="rounded border border-neutral-700 bg-neutral-900 px-1"
+        class="rounded border border-pc-border bg-pc-panel px-1"
         value={loopTag === null ? '' : String(loopTag)}
         onchange={(e) => {
           const v = e.currentTarget.value;
@@ -216,7 +216,7 @@
       aria-label="Add tag"
       title="Tag the current frame">+ Tag</button
     >
-    <span class="mx-1 h-4 w-px bg-neutral-800"></span>
+    <span class="mx-1 h-4 w-px bg-pc-raised"></span>
     <label class="flex items-center gap-1">
       <input
         type="checkbox"
@@ -232,7 +232,7 @@
         type="number"
         min="0"
         max="8"
-        class="w-10 rounded border border-neutral-700 bg-neutral-900 px-1"
+        class="w-10 rounded border border-pc-border bg-pc-panel px-1"
         value={onion.back}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -248,7 +248,7 @@
         type="number"
         min="0"
         max="8"
-        class="w-10 rounded border border-neutral-700 bg-neutral-900 px-1"
+        class="w-10 rounded border border-pc-border bg-pc-panel px-1"
         value={onion.forward}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -294,7 +294,7 @@
             type="number"
             min="1"
             max="65535"
-            class="w-full rounded border border-neutral-800 bg-neutral-900 px-0.5 text-center tabular-nums"
+            class="w-full rounded border border-pc-border bg-pc-panel px-0.5 text-center tabular-nums"
             value={ms}
             onchange={(e) => setDuration(i, e.currentTarget.value)}
             aria-label="Frame {i + 1} duration (ms)"
@@ -327,13 +327,13 @@
 
   {#if editing}
     <div
-      class="flex flex-wrap items-center gap-2 rounded border border-neutral-800 p-1.5"
+      class="flex flex-wrap items-center gap-2 rounded border border-pc-border p-1.5"
       aria-label="Tag editor"
     >
       <label class="flex items-center gap-1">
         Name
         <input
-          class="w-28 rounded border border-neutral-700 bg-neutral-900 px-1"
+          class="w-28 rounded border border-pc-border bg-pc-panel px-1"
           value={editing.name}
           onchange={(e) => {
             const name = e.currentTarget.value.trim();
@@ -353,7 +353,7 @@
           type="number"
           min="1"
           max={durations.length}
-          class="w-12 rounded border border-neutral-700 bg-neutral-900 px-1"
+          class="w-12 rounded border border-pc-border bg-pc-panel px-1"
           value={editing.from + 1}
           onchange={(e) => {
             const from = clampFrame(e.currentTarget.value);
@@ -369,7 +369,7 @@
           type="number"
           min="1"
           max={durations.length}
-          class="w-12 rounded border border-neutral-700 bg-neutral-900 px-1"
+          class="w-12 rounded border border-pc-border bg-pc-panel px-1"
           value={editing.to + 1}
           onchange={(e) => {
             const to = clampFrame(e.currentTarget.value);
@@ -382,7 +382,7 @@
       <label class="flex items-center gap-1">
         Direction
         <select
-          class="rounded border border-neutral-700 bg-neutral-900 px-1"
+          class="rounded border border-pc-border bg-pc-panel px-1"
           value={editing.direction}
           onchange={(e) => {
             const dir = e.currentTarget.value;

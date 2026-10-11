@@ -27,12 +27,12 @@
 </script>
 
 <div
-  class="flex w-12 flex-col items-center gap-1 border-r border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] py-2"
+  class="flex w-12 flex-col items-center gap-1 border-r border-pc-border bg-pc-panel py-2"
 >
   {#each tools as t (t.kind)}
     <button
       class="flex h-9 w-9 items-center justify-center rounded text-lg"
-      class:bg-[var(--fl-accent)]={tool.kind === t.kind}
+      class:bg-pc-accent={tool.kind === t.kind}
       class:text-white={tool.kind === t.kind}
       title={`${t.label} (${t.key})`}
       aria-label={t.label}
