@@ -1,0 +1,48 @@
+# Dependabot version updates. Security updates are enabled in the repo
+# settings independently of this file; this adds a weekly, grouped
+# version-update PR per ecosystem so drift stays small.
+#
+# Tauri moves in lockstep: the Tauri CLI refuses to build when the
+# `tauri` / `tauri-plugin-*` crates and the `@tauri-apps/*` npm packages
+# disagree on the minor version, and Dependabot cannot group across
+# ecosystems. Minor and major Tauri bumps are therefore ignored here and
+# done by hand on both sides at once (ui/package.json pins `~2.x`).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      cargo:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "tauri*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /ui
+    schedule:
+      interval: weekly
+    groups:
+      ui:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "@tauri-apps/*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+    groups:
+      website:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
