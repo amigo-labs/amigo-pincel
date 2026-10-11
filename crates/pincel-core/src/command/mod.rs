@@ -21,6 +21,7 @@ mod flatten_image;
 mod merge_down;
 mod move_layer;
 mod move_selection_content;
+mod palette_ops;
 mod place_tile;
 mod reframe_canvas;
 mod remove_frame;
@@ -62,6 +63,7 @@ pub use flatten_image::FlattenImage;
 pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
+pub use palette_ops::{AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, SetPaletteColor};
 pub use place_tile::PlaceTile;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_frame::RemoveFrame;
@@ -146,6 +148,10 @@ pub enum AnyCommand {
     SetTagRange(SetTagRange),
     SetTagName(SetTagName),
     SetTagDirection(SetTagDirection),
+    SetPaletteColor(SetPaletteColor),
+    AddPaletteEntry(AddPaletteEntry),
+    RemovePaletteEntry(RemovePaletteEntry),
+    MovePaletteEntry(MovePaletteEntry),
     AddTileset(AddTileset),
     AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
@@ -195,6 +201,10 @@ impl AnyCommand {
             Self::SetTagRange(c) => c.apply(doc, cels),
             Self::SetTagName(c) => c.apply(doc, cels),
             Self::SetTagDirection(c) => c.apply(doc, cels),
+            Self::SetPaletteColor(c) => c.apply(doc, cels),
+            Self::AddPaletteEntry(c) => c.apply(doc, cels),
+            Self::RemovePaletteEntry(c) => c.apply(doc, cels),
+            Self::MovePaletteEntry(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
@@ -240,6 +250,10 @@ impl AnyCommand {
             Self::SetTagRange(c) => c.revert(doc, cels),
             Self::SetTagName(c) => c.revert(doc, cels),
             Self::SetTagDirection(c) => c.revert(doc, cels),
+            Self::SetPaletteColor(c) => c.revert(doc, cels),
+            Self::AddPaletteEntry(c) => c.revert(doc, cels),
+            Self::RemovePaletteEntry(c) => c.revert(doc, cels),
+            Self::MovePaletteEntry(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
@@ -276,6 +290,7 @@ impl AnyCommand {
             (Self::SetFrameDuration(a), Self::SetFrameDuration(b)) => a.merge(b),
             (Self::SetTagRange(a), Self::SetTagRange(b)) => a.merge(b),
             (Self::SetTagName(a), Self::SetTagName(b)) => a.merge(b),
+            (Self::SetPaletteColor(a), Self::SetPaletteColor(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
             (Self::AddTile(a), Self::AddTile(b)) => a.merge(b),
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
@@ -313,6 +328,10 @@ impl AnyCommand {
             Self::SetTagRange(c) => c.dirty_region(),
             Self::SetTagName(c) => c.dirty_region(),
             Self::SetTagDirection(c) => c.dirty_region(),
+            Self::SetPaletteColor(c) => c.dirty_region(),
+            Self::AddPaletteEntry(c) => c.dirty_region(),
+            Self::RemovePaletteEntry(c) => c.dirty_region(),
+            Self::MovePaletteEntry(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
             Self::AddTilemapLayer(c) => c.dirty_region(),
@@ -370,6 +389,30 @@ impl From<SetTagName> for AnyCommand {
 impl From<SetTagDirection> for AnyCommand {
     fn from(c: SetTagDirection) -> Self {
         Self::SetTagDirection(c)
+    }
+}
+
+impl From<SetPaletteColor> for AnyCommand {
+    fn from(c: SetPaletteColor) -> Self {
+        Self::SetPaletteColor(c)
+    }
+}
+
+impl From<AddPaletteEntry> for AnyCommand {
+    fn from(c: AddPaletteEntry) -> Self {
+        Self::AddPaletteEntry(c)
+    }
+}
+
+impl From<RemovePaletteEntry> for AnyCommand {
+    fn from(c: RemovePaletteEntry) -> Self {
+        Self::RemovePaletteEntry(c)
+    }
+}
+
+impl From<MovePaletteEntry> for AnyCommand {
+    fn from(c: MovePaletteEntry) -> Self {
+        Self::MovePaletteEntry(c)
     }
 }
 

@@ -18,20 +18,22 @@ pub use codec::{
     export_frame_png, import_png, read_aseprite, write_aseprite,
 };
 pub use command::{
-    AddFrame, AddLayer, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand,
-    Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
-    DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, Interpolation, MergeDown,
-    MoveDirection, MoveLayer, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas,
-    RemoveFrame, RemoveLayer, RemoveSlice, RemoveTag, ReplaceCelPixels, ScaleImage,
-    SetFrameDuration, SetLayerBlendMode, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel,
-    SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode,
-    ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
+    AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset,
+    Anchor, AnyCommand, Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse,
+    DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
+    Interpolation, MergeDown, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
+    Orientation, PlaceTile, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry,
+    RemoveSlice, RemoveTag, ReplaceCelPixels, ScaleImage, SetFrameDuration, SetLayerBlendMode,
+    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
+    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
+    TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{
     BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, Metadata, Palette, PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId,
-    SliceKey, Sprite, SpriteBuilder, Tag, TagDirection, TileImage, TileRef, Tileset, TilesetId,
+    LayerKind, MAX_PALETTE_ENTRIES, Metadata, Palette, PaletteEntry, PathRef, PixelBuffer, Rgba,
+    Slice, SliceId, SliceKey, Sprite, SpriteBuilder, Tag, TagDirection, TileImage, TileRef,
+    Tileset, TilesetId,
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect};

@@ -189,4 +189,14 @@ pub enum CommandError {
     /// [`crate::SetTagName`].
     #[error("tag name must not be empty")]
     EmptyTagName,
+
+    /// No palette entry exists at the targeted index. Emitted by the
+    /// palette commands.
+    #[error("unknown palette entry {0}")]
+    UnknownPaletteEntry(usize),
+
+    /// The palette already holds the maximum 256 entries. Emitted by
+    /// [`crate::AddPaletteEntry`].
+    #[error("the palette is full (256 entries)")]
+    PaletteFull,
 }

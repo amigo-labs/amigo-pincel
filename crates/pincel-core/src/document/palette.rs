@@ -45,7 +45,29 @@ impl Palette {
     pub fn is_empty(&self) -> bool {
         self.colors.is_empty()
     }
+
+    /// The DawnBringer 32 palette (DB32, by Richard "DawnBringer" Fhager),
+    /// Aseprite's default and the palette a new Pixel-mode document starts
+    /// with (spec §3.7, Decision Log 2026-10-11).
+    pub fn db32() -> Self {
+        Self::from_entries(
+            DB32.iter()
+                .map(|&c| PaletteEntry::new(Rgba::from_u32(c << 8 | 0xff)))
+                .collect(),
+        )
+    }
 }
+
+/// DB32 as `0xRRGGBB`, in the palette's canonical order.
+const DB32: [u32; 32] = [
+    0x000000, 0x222034, 0x45283c, 0x663931, 0x8f563b, 0xdf7126, 0xd9a066, 0xeec39a, 0xfbf236,
+    0x99e550, 0x6abe30, 0x37946e, 0x4b692f, 0x524b24, 0x323c39, 0x3f3f74, 0x306082, 0x5b6ee1,
+    0x639bff, 0x5fcde4, 0xcbdbfc, 0xffffff, 0x9badb7, 0x847e87, 0x696a6a, 0x595652, 0x76428a,
+    0xac3232, 0xd95763, 0xd77bba, 0x8f974a, 0x8a6f30,
+];
+
+/// Maximum palette size: indexed color addresses entries with one byte.
+pub const MAX_PALETTE_ENTRIES: usize = 256;
 
 #[cfg(test)]
 mod tests {
@@ -56,6 +78,16 @@ mod tests {
         let p = Palette::default();
         assert!(p.is_empty());
         assert_eq!(p.len(), 0);
+    }
+
+    #[test]
+    fn db32_has_32_opaque_entries_from_black_to_olive() {
+        let p = Palette::db32();
+        assert_eq!(p.len(), 32);
+        assert_eq!(p.colors[0].rgba, Rgba::BLACK);
+        assert_eq!(p.colors[21].rgba, Rgba::WHITE);
+        assert_eq!(p.colors[31].rgba, Rgba::new(0x8a, 0x6f, 0x30, 0xff));
+        assert!(p.colors.iter().all(|e| e.rgba.a == 255));
     }
 
     #[test]
