@@ -26,7 +26,6 @@
   import LayersPanel from './components/panels/LayersPanel.svelte';
   import TransformMenu from './components/menus/TransformMenu.svelte';
   import EffectsMenu from './components/menus/EffectsMenu.svelte';
-  import { ADJUSTMENT_GROUPS } from './components/menus/adjustments';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import { hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
@@ -373,7 +372,7 @@
     <div class="mx-2 h-5 w-px bg-[var(--fl-panel-border)]"></div>
     <TransformMenu />
     <EffectsMenu />
-    <EffectsMenu label="Adjustments" groups={ADJUSTMENT_GROUPS} />
+    <EffectsMenu label="Adjustments" groups={['adjust']} />
   </header>
 
   <div class="flex min-h-0 flex-1">

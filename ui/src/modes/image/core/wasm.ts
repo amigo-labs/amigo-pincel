@@ -262,71 +262,6 @@ export interface DrawTextCommand {
   align: TextAlign;
 }
 
-/** Radial-blur mode (spec §11.1). */
-export type RadialKind = 'spin' | 'zoom';
-/** Edge-detect kernel family (spec §11.3). */
-export type EdgeAlgorithm = 'sobel' | 'prewitt' | 'laplacian';
-/** Noise distribution (spec §11.4). */
-export type NoiseType = 'uniform' | 'gaussian';
-/** Whether noise is chromatic or shared across channels (spec §11.4). */
-export type NoiseChannels = 'rgb' | 'monochromatic';
-/** Curve target channel (spec §12.3). */
-export type CurveChannel = 'composite' | 'red' | 'green' | 'blue' | 'alpha';
-/** Levels target channel (spec §12.4). */
-export type LevelsChannel = 'composite' | 'red' | 'green' | 'blue';
-/** Grayscale weighting (spec §12.7). */
-export type GrayscaleMethod = 'luminosity' | 'average' | 'bt709' | 'channel_mixer';
-
-/** An effect applied destructively to a layer (spec §11). Mirrors the Rust
- * `EffectSpec`; the drift check in generated-check.ts guards the match. */
-export type EffectCommand =
-  | { type: 'gaussian_blur'; radius: number }
-  | { type: 'box_blur'; width: number; height: number }
-  | { type: 'motion_blur'; distance: number; angle: number }
-  | { type: 'radial_blur'; amount: number; center_x: number; center_y: number; kind: RadialKind }
-  | { type: 'sharpen' }
-  | { type: 'unsharp_mask'; amount: number; radius: number; threshold: number }
-  | { type: 'emboss'; angle: number; elevation: number; relief: number }
-  | { type: 'edge_detect'; algorithm: EdgeAlgorithm; amount: number }
-  | { type: 'relief'; angle: number; amount: number }
-  | {
-      type: 'add_noise';
-      amount: number;
-      noise_type: NoiseType;
-      channels: NoiseChannels;
-      seed: number;
-    }
-  | { type: 'reduce_noise'; radius: number }
-  | { type: 'brightness_contrast'; brightness: number; contrast: number; enhanced: boolean }
-  | {
-      type: 'hue_saturation';
-      hue: number;
-      saturation: number;
-      lightness: number;
-      colorize: boolean;
-    }
-  | { type: 'curves'; channel: CurveChannel; points: Array<[number, number]> }
-  | {
-      type: 'levels';
-      channel: LevelsChannel;
-      in_black: number;
-      in_white: number;
-      gamma: number;
-      out_black: number;
-      out_white: number;
-    }
-  | {
-      type: 'color_balance';
-      shadows: [number, number, number];
-      midtones: [number, number, number];
-      highlights: [number, number, number];
-      preserve_luminosity: boolean;
-    }
-  | { type: 'invert' }
-  | { type: 'grayscale'; method: GrayscaleMethod; mixer: [number, number, number] }
-  | { type: 'posterize'; levels: number }
-  | { type: 'threshold'; threshold: number };
-
 /** Any command emitted to the core. */
 export type ToolCommand =
   | PencilStrokeCommand
@@ -380,16 +315,23 @@ export const core = {
     composite(handle) as Uint8ClampedArray<ArrayBuffer>,
   applyCommand: (handle: number, command: ToolCommand): void =>
     apply_command(handle, JSON.stringify(command)),
-  /** Applies an effect to a layer's pixels as one undoable step (spec §11). */
-  applyEffect: (handle: number, layer: number, effect: EffectCommand): void =>
-    apply_effect(handle, layer, JSON.stringify(effect)),
-  /** Composites the document with `effect` previewed on `layer`; no mutation. */
+  /** Applies effect `name` with positional `params` (the shared
+   *  `lib/effects/catalog.ts` wire format) to a layer as one undoable step. */
+  applyEffect: (handle: number, layer: number, name: string, params: number[]): void =>
+    apply_effect(handle, layer, name, Float64Array.from(params)),
+  /** Composites the document with the effect previewed on `layer`; no mutation. */
   previewEffect: (
     handle: number,
     layer: number,
-    effect: EffectCommand,
+    name: string,
+    params: number[],
   ): Uint8ClampedArray<ArrayBuffer> =>
-    preview_effect(handle, layer, JSON.stringify(effect)) as Uint8ClampedArray<ArrayBuffer>,
+    preview_effect(
+      handle,
+      layer,
+      name,
+      Float64Array.from(params),
+    ) as Uint8ClampedArray<ArrayBuffer>,
   /** Samples a color; returns RGBA bytes, or an empty array if off-canvas. */
   pickColor: (
     handle: number,

@@ -17,7 +17,6 @@ import {
   type Rgba,
   type DrawShapeCommand,
   type DrawTextCommand,
-  type EffectCommand,
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
 import {
@@ -308,22 +307,22 @@ export function cropToSelection(): void {
 }
 
 /** Applies an effect to the active layer as one undoable step (spec §11). */
-export function applyEffect(effect: EffectCommand): void {
+export function applyEffect(name: string, params: number[]): void {
   if (editor.handle === null) {
     return;
   }
-  core.applyEffect(editor.handle, editor.activeLayer, effect);
+  core.applyEffect(editor.handle, editor.activeLayer, name, params);
   editor.previewComposite = null;
   syncInfo();
 }
 
 /** Sets the live effect preview over the canvas without mutating the document
  * (spec §11 live preview). Call from an open effect dialog. */
-export function previewEffect(effect: EffectCommand): void {
+export function previewEffect(name: string, params: number[]): void {
   if (editor.handle === null) {
     return;
   }
-  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, effect);
+  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, name, params);
   editor.revision += 1;
 }
 
