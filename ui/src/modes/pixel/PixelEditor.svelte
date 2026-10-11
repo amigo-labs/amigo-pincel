@@ -18,7 +18,7 @@
     isDragShapeTool,
     isShapeTool,
     linePoints,
-    toolForKey,
+    toolGroups,
     type Tool,
   } from './tools';
   import { PinchTracker, type PinchFrame } from '../../lib/view/pinch';
@@ -34,13 +34,27 @@
   import PalettePanel from './components/PalettePanel.svelte';
   import { invoke } from '@tauri-apps/api/core';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
-  import EffectsMenu from './components/EffectsMenu.svelte';
-  import ImageMenu, { type ImageAction } from './components/ImageMenu.svelte';
-  import SelectMenu, { type SelectAction } from './components/SelectMenu.svelte';
+  import ColorPair from '../../lib/components/ColorPair.svelte';
+  import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
+  import Panel from '../../lib/components/layout/Panel.svelte';
+  import IconButton from '../../lib/components/layout/IconButton.svelte';
+  import ToolRail from '../../lib/components/layout/ToolRail.svelte';
+  import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
+  import ZoomControl from '../../lib/components/layout/ZoomControl.svelte';
+  import { cycleGroup, groupOf } from '../../lib/components/layout/tools';
+  import {
+    NATIVE_MENU_ACTIONS,
+    actionFor,
+    hint,
+    isTypingTarget,
+    toolGroupForKey,
+    type ShortcutAction,
+  } from '../../lib/shell/shortcuts';
+  import { pixelMenus, type TransformOp } from './menus';
   import TextDialog, { type TextParams } from './components/TextDialog.svelte';
   import { loadDefaultFont } from '../../lib/text/font';
   import ResizeDialog, { type ResizeMode, type ResizeResult } from './components/ResizeDialog.svelte';
-  import { effectById, type EffectDef } from '../../lib/effects/catalog';
+  import type { EffectDef } from '../../lib/effects/catalog';
   import {
     ensureReadPermission,
     formatFromName,
@@ -75,6 +89,14 @@
   import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
   import { fitZoom } from '../../lib/view/fit';
   import { packColor, unpackColor } from '../../lib/color';
+
+  type ImageAction =
+    | `layer:${TransformOp}`
+    | `canvas:${TransformOp}`
+    | 'canvas:resize'
+    | 'canvas:scale'
+    | 'canvas:crop';
+  type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
@@ -146,7 +168,13 @@
   type ShapeMode = 'outline' | 'fill' | 'fill_outline';
   let strokeWidth = $state(1);
   let shapeMode = $state<ShapeMode>('outline');
-  let fillColor = $state('#ffffff');
+  // Background color (spec §9.2, shared with Image mode): the right mouse
+  // button paints / fills / samples with it, and filled shapes use it for
+  // their interior. `X` swaps, `D` resets to black / white.
+  let bgColor = $state('#ffffff');
+  let bgAlpha = $state(255);
+  // True for the gesture in flight when it started on the right button.
+  let useBg = false;
   let cornerRadius = $state(4);
   let polygonSides = $state(6);
   let tool = $state<Tool>('pencil');
@@ -211,11 +239,6 @@
   // open / save-as / open-recent. Empty list on non-FSA browsers and
   // before the IDB layer has loaded.
   let recents = $state<RecentFile[]>([]);
-  let recentMenuOpen = $state(false);
-  // DOM refs for keyboard navigation of the recent-files menu: focus
-  // moves into the list on open and returns to the trigger on close.
-  let recentsTrigger = $state<HTMLButtonElement | null>(null);
-  let recentsMenu = $state<HTMLUListElement | null>(null);
   // Canvas size cap for new / resized documents (the shell's New
   // dialog shares it).
   const MAX_DOC_SIZE = 4096;
@@ -256,6 +279,7 @@
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
   const COLOR_PREF = 'lastColor';
+  const BG_COLOR_PREF = 'lastBgColor';
   let colorPrefLoaded = false;
   // Press / current point of an in-flight drag-shape tool (Line,
   // Rectangle, Rectangle Fill). `null` outside a drag. `dragPreview`
@@ -482,6 +506,42 @@
   // so the canvas's flex-centered position keeps the sprite center
   // anchored across zoom changes; further pan offsets shift uniformly
   // from there.
+  // Tools the right mouse button drives with the background color.
+  const BG_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
+    'pencil',
+    'bucket',
+    'eyedropper',
+    'line',
+    'rectangle',
+    'rectangle-fill',
+    'ellipse',
+    'ellipse-fill',
+    'rounded-rect',
+    'polygon-shape',
+  ]);
+
+  /** Packed RGBA of the color the current gesture paints with. */
+  function strokeColor(): number {
+    return useBg ? packColor(bgColor, bgAlpha) : packColor(color, alpha);
+  }
+
+  /** Packed RGBA of a filled shape's interior: the other color. */
+  function shapeFillColor(): number {
+    return useBg ? packColor(color, alpha) : packColor(bgColor, bgAlpha);
+  }
+
+  function swapColors() {
+    [color, bgColor] = [bgColor, color];
+    [alpha, bgAlpha] = [bgAlpha, alpha];
+  }
+
+  function resetColors() {
+    color = '#000000';
+    alpha = 255;
+    bgColor = '#ffffff';
+    bgAlpha = 255;
+  }
+
   function setZoom(next: number) {
     next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(next)));
     if (next === zoom) return;
@@ -508,6 +568,13 @@
       stageW > 0 && stageH > 0
         ? fitZoom(stageW, stageH, canvasW, canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
         : 8;
+    panX = 0;
+    panY = 0;
+  }
+
+  // 1:1 — one screen pixel per sprite pixel, re-centered.
+  function zoomActual() {
+    setZoom(1);
     panX = 0;
     panY = 0;
   }
@@ -675,8 +742,13 @@
       // so the user can scrub for the exact pixel they want.
       try {
         const picked = doc.pickColor(currentFrame, point.x, point.y);
-        color = unpackColor(picked);
-        alpha = picked & 0xff;
+        if (useBg) {
+          bgColor = unpackColor(picked);
+          bgAlpha = picked & 0xff;
+        } else {
+          color = unpackColor(picked);
+          alpha = picked & 0xff;
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error('pickColor failed', err);
@@ -689,7 +761,7 @@
     // Pixels after the first of the segment from the previous sample (the
     // first was painted then); a fresh press paints just the point.
     const pixels = from ? linePoints(from, point).slice(1) : [point];
-    const packed = packColor(color, alpha);
+    const packed = strokeColor();
     try {
       for (const p of pixels) {
         try {
@@ -722,7 +794,11 @@
       return;
     }
     if (pinch.suppressing) return;
-    if (e.button !== 0) return;
+    // Right button: the painting tools use the background color
+    // (Aseprite / paint.net); every other tool ignores it.
+    if (e.button === 2 && !BG_TOOLS.has(tool)) return;
+    if (e.button !== 0 && e.button !== 2) return;
+    useBg = e.button === 2;
     canvas?.setPointerCapture(e.pointerId);
     gestureUndoDepth = doc?.undoDepth ?? 0;
     // Space-drag always pans, regardless of the active tool (spec §5.2
@@ -821,7 +897,7 @@
     const point = spriteCoord(e);
     if (!point) return;
     try {
-      doc.applyBucket(point.x, point.y, packColor(color, alpha));
+      doc.applyBucket(point.x, point.y, strokeColor());
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('applyBucket failed', err);
@@ -1108,7 +1184,7 @@
     if (dragStart && dragPreview && dragTool && doc) {
       dragShift = e.shiftKey;
       const end = constrainedEndpoint();
-      const packed = packColor(color, alpha);
+      const packed = strokeColor();
       try {
         if (dragTool === 'line') {
           doc.applyLine(dragStart.x, dragStart.y, end.x, end.y, packed);
@@ -1131,7 +1207,7 @@
             shapeMode,
             Math.max(1, Math.round(strokeWidth)),
             packed,
-            packColor(fillColor, alpha),
+            shapeFillColor(),
             param,
           );
         } else if (dragTool === 'rectangle-fill') {
@@ -1559,7 +1635,6 @@
 
   async function openRecent(r: RecentFile) {
     if (fileOpBusy) return;
-    recentMenuOpen = false;
     fileOpBusy = true;
     try {
       let name: string;
@@ -1616,13 +1691,8 @@
   // document; Cancel (or an empty params preview) recomposes the truth.
   let effectOpen = $state<EffectDef | null>(null);
 
-  function openEffect(id: string) {
+  function openEffect(def: EffectDef) {
     if (!doc) return;
-    const def = effectById(id);
-    if (!def) {
-      status = `unknown effect: ${id}`;
-      return;
-    }
     effectOpen = def;
   }
 
@@ -1711,15 +1781,6 @@
         case 'canvas:crop':
           if (doc.cropToSelection()) afterImageCommand('cropped to selection');
           else status = 'crop: no selection inside the canvas';
-          break;
-        case 'file:import_png':
-          void importPngLayer();
-          break;
-        case 'file:export_png':
-          void exportPng();
-          break;
-        case 'file:export_sheet':
-          openSheetDialog();
           break;
       }
     } catch (err) {
@@ -2128,9 +2189,7 @@
   // guard is forward-looking and conservative — any `<input>`,
   // `<textarea>`, or contenteditable target opts out.
   function isEditableTarget(target: EventTarget | null): boolean {
-    if (!(target instanceof HTMLElement)) return false;
-    const tag = target.tagName;
-    return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable;
+    return isTypingTarget(target);
   }
 
   // Deselect the marquee. The wasm side enqueues a `selection-changed`
@@ -2158,6 +2217,150 @@
     }
   }
 
+  // Layer commands shared by the Layers panel and the Layer menu.
+  function afterLayerEdit() {
+    dirty = true;
+    syncMeta();
+    docRev += 1;
+  }
+
+  function duplicateLayer(layerId: number) {
+    if (!doc) return;
+    try {
+      const id = doc.duplicateLayer(layerId);
+      activeLayerId = id;
+      doc.setActiveLayer(id);
+      afterLayerEdit();
+    } catch (err) {
+      status = `duplicate layer failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function mergeDownLayer(layerId: number) {
+    if (!doc) return;
+    try {
+      doc.mergeDown(layerId);
+      activeLayerId = doc.paintTargetLayer();
+      afterLayerEdit();
+    } catch (err) {
+      status = `merge down failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function flattenLayers() {
+    if (!doc) return;
+    try {
+      activeLayerId = doc.flattenImage();
+      afterLayerEdit();
+    } catch (err) {
+      status = `flatten failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  function removeLayerById(layerId: number) {
+    if (!doc) return;
+    try {
+      doc.removeLayer(layerId);
+      if (activeLayerId === layerId) activeLayerId = null;
+      afterLayerEdit();
+    } catch (err) {
+      status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+  }
+
+  // The active layer, falling back to the paint target the core picks.
+  function targetLayer(): number | null {
+    return activeLayerId ?? doc?.paintTargetLayer() ?? null;
+  }
+
+  // Merge Down needs an image layer directly below an image layer.
+  const canMergeDown = $derived.by(() => {
+    void docRev;
+    const id = activeLayerId;
+    if (!doc || id === null) return false;
+    for (let i = 1; i < doc.layerCount; i += 1) {
+      if (doc.layerIdAt(i) !== id) continue;
+      return doc.layerKind(id) === 'image' && doc.layerKind(doc.layerIdAt(i - 1)) === 'image';
+    }
+    return false;
+  });
+
+  const layerCountNow = $derived.by(() => {
+    void docRev;
+    return doc?.layerCount ?? 0;
+  });
+
+  const railGroups = $derived(toolGroups(stampTile));
+  const toolLabel = $derived(
+    groupOf(railGroups, tool)?.tools.find((t) => t.id === tool)?.label ?? '',
+  );
+
+  const menus = $derived(
+    pixelMenus({
+      hasDoc: doc !== null,
+      busy: fileOpBusy,
+      canSaveInPlace: fsAccessAvailable || tauriHost,
+      recents: recentsAvailable ? recents : null,
+      canUndo: undoDepth > 0,
+      canRedo: redoDepth > 0,
+      hasSelection: selection !== null,
+      canMergeDown,
+      layerCount: layerCountNow,
+      frameCount,
+      currentFrame,
+      playing,
+      probeOn,
+      newDoc: openNewDialog,
+      open: () => guardUnsaved(() => void openDoc()),
+      openRecent: (r) => guardUnsaved(() => void openRecent(r)),
+      save: (asNew) => void save({ forceAs: asNew }),
+      importPng: () => void importPngLayer(),
+      exportPng: () => void exportPng(),
+      exportSheet: openSheetDialog,
+      undo,
+      redo,
+      deleteSelection: deleteSelectionPixels,
+      swapColors,
+      resetColors,
+      selectAll: () => selectAction('all'),
+      deselect: () => selectAction('none'),
+      invertSelection: () => selectAction('invert'),
+      growSelection: (d) => selectAction(d > 0 ? 'expand' : 'contract'),
+      transformCanvas: (op) => imageAction(`canvas:${op}`),
+      transformLayer: (op) => imageAction(`layer:${op}`),
+      resizeCanvas: () => imageAction('canvas:resize'),
+      scaleImage: () => imageAction('canvas:scale'),
+      crop: () => imageAction('canvas:crop'),
+      addLayer,
+      duplicateLayer: () => {
+        const id = targetLayer();
+        if (id !== null) duplicateLayer(id);
+      },
+      removeLayer: () => {
+        const id = targetLayer();
+        if (id !== null) removeLayerById(id);
+      },
+      mergeDown: () => {
+        const id = targetLayer();
+        if (id !== null) mergeDownLayer(id);
+      },
+      flatten: flattenLayers,
+      togglePlay,
+      stepFrame: (d) => {
+        stopPlayback();
+        setFrame(currentFrame + d);
+      },
+      addFrame,
+      removeFrame: () => removeFrame(currentFrame),
+      openEffect,
+      zoomIn,
+      zoomOut,
+      zoomFit: resetView,
+      zoomActual,
+      toggleProbe,
+    }),
+  );
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
@@ -2165,11 +2368,9 @@
       spaceDown = true;
       return;
     }
+    // Dialogs own the keyboard while open.
+    if (effectOpen || textAnchor || resizeOpen || sheetOpen || recoveryOpen) return;
     if (e.key === 'Escape') {
-      if (recentMenuOpen) {
-        closeRecentMenu();
-        return;
-      }
       if (confirmState) {
         confirmState = null;
         return;
@@ -2183,136 +2384,114 @@
         return;
       }
     }
-    if (e.key === 'Enter' && polyPoints && !isEditableTarget(e.target)) {
+    if (isEditableTarget(e.target)) return;
+    if (e.key === 'Enter' && polyPoints) {
       e.preventDefault();
       commitPolygon();
       return;
     }
-    if (
-      (e.ctrlKey || e.metaKey) &&
-      e.shiftKey &&
-      e.key.toLowerCase() === 'i' &&
-      doc &&
-      !isEditableTarget(e.target)
-    ) {
+    // F2 toggles the frame-time probe (M12.6).
+    if (e.key === 'F2') {
       e.preventDefault();
-      doc.invertSelection();
+      toggleProbe();
       return;
     }
-    if (
-      (e.key === 'Delete' || e.key === 'Backspace') &&
-      doc &&
-      selection &&
-      !isEditableTarget(e.target)
-    ) {
-      e.preventDefault();
-      deleteSelectionPixels();
+    // The keyboard map both modes share (lib/shell/shortcuts.ts). In the
+    // desktop app the native menu owns its accelerators (New / Open /
+    // Save / Export / Undo / Redo) — handling them here too would
+    // double-fire.
+    const action = actionFor(e);
+    if (action !== null) {
+      if (tauriHost && NATIVE_MENU_ACTIONS.has(action)) return;
+      if (runShortcut(action)) e.preventDefault();
       return;
     }
-    // Editor accelerators on the web build. On Tauri the native menu
-    // already owns Cmd/Ctrl+N/O/S/Z/Y — handling them here too would
-    // double-fire. Shift+Z redoes (mac convention), Y redoes (win),
-    // Shift+S is Save As, A/D select-all / deselect.
-    if (
-      !tauriHost &&
-      (e.ctrlKey || e.metaKey) &&
-      !e.altKey &&
-      !isEditableTarget(e.target)
-    ) {
-      const k = e.key.toLowerCase();
-      if (k === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
-      if (k === 'y') {
-        e.preventDefault();
-        redo();
-        return;
-      }
-      if (k === 's') {
-        e.preventDefault();
-        void save({ forceAs: e.shiftKey });
-        return;
-      }
-      if (k === 'o') {
-        e.preventDefault();
+    // Single-key tool selection; repeated presses cycle a group's variants.
+    const group = toolGroupForKey(e);
+    const next = doc && group ? cycleGroup(railGroups, group, tool) : null;
+    if (next) {
+      e.preventDefault();
+      tool = next;
+    }
+  }
+
+  // F2: frame-time probe. Reset the window on enable so a reading
+  // reflects only post-toggle frames.
+  function toggleProbe() {
+    probeOn = !probeOn;
+    composeSamples = [];
+    composeMs = 0;
+    composeMaxMs = 0;
+    fpsEma = 0;
+    lastTickTs = 0;
+  }
+
+  /** Runs a shared shortcut; false when it does not apply right now. */
+  function runShortcut(action: ShortcutAction): boolean {
+    switch (action) {
+      case 'open':
         guardUnsaved(() => void openDoc());
-        return;
-      }
-      if (k === 'a' && doc) {
-        e.preventDefault();
+        return true;
+      case 'save':
+      case 'saveAs':
+        void save({ forceAs: action === 'saveAs' });
+        return true;
+      case 'export':
+        void exportPng();
+        return true;
+      case 'exportSheet':
+        openSheetDialog();
+        return true;
+      case 'undo':
+        undo();
+        return true;
+      case 'redo':
+        redo();
+        return true;
+      case 'swapColors':
+        swapColors();
+        return true;
+      case 'resetColors':
+        resetColors();
+        return true;
+    }
+    if (!doc) return false;
+    switch (action) {
+      case 'selectAll':
         selectAll();
-        return;
-      }
-      if (k === 'd' && doc) {
-        e.preventDefault();
+        return true;
+      case 'deselect':
         deselect();
-        return;
-      }
-      // Note: Ctrl/Cmd+N is reserved by most browsers (new window) and
-      // never reaches the page, so New intentionally has no web
-      // accelerator — the toolbar button is the path.
-      return;
-    }
-    // F2 toggles the frame-time probe (M12.6). Reset the window on
-    // enable so a reading reflects only post-toggle frames.
-    if (e.key === 'F2' && !isEditableTarget(e.target)) {
-      e.preventDefault();
-      probeOn = !probeOn;
-      composeSamples = [];
-      composeMs = 0;
-      composeMaxMs = 0;
-      fpsEma = 0;
-      lastTickTs = 0;
-      return;
-    }
-    // Single-key tool selection. Skip when a modifier is held (browser
-    // shortcuts) or focus is in an editable field.
-    if (
-      doc &&
-      !e.ctrlKey &&
-      !e.metaKey &&
-      !e.altKey &&
-      !isEditableTarget(e.target)
-    ) {
-      // View zoom shortcuts. Bare keys only — Ctrl/Cmd +/- stays the
-      // browser's page zoom (the modifier guard above excludes it).
-      // `0` fits the sprite to the viewport (same as the Reset control).
-      if (e.key === '+' || e.key === '=') {
-        e.preventDefault();
+        return true;
+      case 'invertSelection':
+        selectAction('invert');
+        return true;
+      case 'deleteSelection':
+        if (!selection) return false;
+        deleteSelectionPixels();
+        return true;
+      case 'zoomIn':
         zoomIn();
-        return;
-      }
-      if (e.key === '-' || e.key === '_') {
-        e.preventDefault();
+        return true;
+      case 'zoomOut':
         zoomOut();
-        return;
-      }
-      if (e.key === '0') {
-        e.preventDefault();
+        return true;
+      case 'zoomFit':
         resetView();
-        return;
-      }
-      // Timeline: `,` / `.` step frames, Enter plays / pauses (Enter
-      // closes an in-progress polygon first — handled above).
-      if (e.key === ',' || e.key === '.') {
-        e.preventDefault();
+        return true;
+      case 'zoomActual':
+        zoomActual();
+        return true;
+      case 'prevFrame':
+      case 'nextFrame':
         stopPlayback();
-        setFrame(currentFrame + (e.key === '.' ? 1 : -1));
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
+        setFrame(currentFrame + (action === 'nextFrame' ? 1 : -1));
+        return true;
+      case 'togglePlay':
         togglePlay();
-        return;
-      }
-      const next = toolForKey(e.key, tool);
-      if (next) {
-        e.preventDefault();
-        tool = next;
-      }
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -2402,6 +2581,11 @@
         .then((v) => {
           if (cancelled) return;
           if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) color = v;
+          return getPref(BG_COLOR_PREF);
+        })
+        .then((v) => {
+          if (cancelled) return;
+          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) bgColor = v;
           colorPrefLoaded = true;
         })
         .catch(() => {
@@ -2471,69 +2655,15 @@
     };
   });
 
-  // Open/close the recent-files dropdown. Opening moves focus onto the
-  // first entry (next frame, once the list is in the DOM); closing
-  // returns focus to the trigger so keyboard users keep their place.
-  function toggleRecentMenu() {
-    recentMenuOpen = !recentMenuOpen;
-    if (recentMenuOpen) {
-      requestAnimationFrame(() => {
-        recentsMenu?.querySelector('button')?.focus();
-      });
-    }
-  }
 
-  function closeRecentMenu() {
-    recentMenuOpen = false;
-    recentsTrigger?.focus();
-  }
-
-  // Arrow / Home / End navigation across the recent-files entries.
-  function onRecentsKeydown(e: KeyboardEvent) {
-    if (!recentsMenu) return;
-    const items = Array.from(
-      recentsMenu.querySelectorAll<HTMLButtonElement>('button'),
-    );
-    if (items.length === 0) return;
-    const current = items.indexOf(document.activeElement as HTMLButtonElement);
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      items[current < 0 ? 0 : (current + 1) % items.length]?.focus();
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      items[
-        current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length
-      ]?.focus();
-    } else if (e.key === 'Home') {
-      e.preventDefault();
-      items[0]?.focus();
-    } else if (e.key === 'End') {
-      e.preventDefault();
-      items[items.length - 1]?.focus();
-    }
-  }
-
-  // Close the recent-files dropdown on any pointer press outside the
-  // menu and its trigger. Focus is left where the user clicked (unlike
-  // the Escape path, which restores it to the trigger).
+  // Persist the foreground / background colors once the initial load
+  // settled.
   $effect(() => {
-    if (!recentMenuOpen) return;
-    const onDocPointerDown = (ev: PointerEvent) => {
-      const t = ev.target;
-      if (!(t instanceof Node)) return;
-      if (recentsMenu?.contains(t) || recentsTrigger?.contains(t)) return;
-      recentMenuOpen = false;
-    };
-    document.addEventListener('pointerdown', onDocPointerDown);
-    return () => document.removeEventListener('pointerdown', onDocPointerDown);
-  });
-
-  // Persist the foreground color once the initial load settled.
-  $effect(() => {
-    const current = color;
+    const fg = color;
+    const bg = bgColor;
     if (!colorPrefLoaded || !autosaveAvailable) return;
-    setPref(COLOR_PREF, current).catch((err: unknown) => {
-      console.error('setPref lastColor failed', err);
+    Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
+      console.error('setPref colors failed', err);
     });
   });
 
@@ -2575,629 +2705,137 @@
   });
 </script>
 
-<main class="flex h-full flex-col bg-pc-bg text-pc-text">
-  <header class="flex flex-wrap items-center gap-2 border-b border-pc-border px-4 py-2 text-sm">
-    <span class="mr-2 font-semibold tracking-wide">Pincel</span>
-    <button class="toolbar-btn" onclick={openNewDialog} disabled={fileOpBusy}>New</button>
-    <button
-      class="toolbar-btn"
-      onclick={() => guardUnsaved(() => void openDoc())}
-      disabled={fileOpBusy}
-    >
-      Open…
-    </button>
-    <button class="toolbar-btn" onclick={() => save()} disabled={!doc || fileOpBusy}>
-      {fsAccessAvailable || tauriHost ? 'Save' : 'Save As (download)'}
-    </button>
-    {#if fsAccessAvailable || tauriHost}
-      <button
-        class="toolbar-btn"
-        onclick={() => save({ forceAs: true })}
-        disabled={!doc || fileOpBusy}
-      >
-        Save As…
-      </button>
-    {/if}
-    {#if recentsAvailable}
-      <div class="relative">
-        <button
-          bind:this={recentsTrigger}
-          class="toolbar-btn"
-          class:toolbar-btn-active={recentMenuOpen}
-          aria-haspopup="menu"
-          aria-expanded={recentMenuOpen}
-          disabled={recents.length === 0 || fileOpBusy}
-          onclick={toggleRecentMenu}
-        >
-          Recent…
-        </button>
-        {#if recentMenuOpen}
-          <ul
-            bind:this={recentsMenu}
-            class="absolute left-0 top-full z-10 mt-1 flex min-w-48 flex-col rounded border border-pc-border bg-pc-panel py-1 shadow-lg"
-            role="menu"
-            aria-label="Recent files"
-            onkeydown={onRecentsKeydown}
-          >
-            {#each recents as r (r.id)}
-              <li>
-                <button
-                  class="w-full truncate px-3 py-1 text-left text-xs hover:bg-pc-hover"
-                  role="menuitem"
-                  title={r.name}
-                  onclick={() => guardUnsaved(() => void openRecent(r))}
-                >
-                  {r.name}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      </div>
-    {/if}
-    <span class="ml-2 flex items-center gap-1" role="group" aria-label="Active tool">
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'pencil'}
-        aria-pressed={tool === 'pencil'}
-        title="Pencil (B)"
-        onclick={() => (tool = 'pencil')}
-      >
-        Pencil
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'eraser'}
-        aria-pressed={tool === 'eraser'}
-        title="Eraser (E)"
-        onclick={() => (tool = 'eraser')}
-      >
-        Eraser
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'eyedropper'}
-        aria-pressed={tool === 'eyedropper'}
-        title="Eyedropper (I)"
-        onclick={() => (tool = 'eyedropper')}
-      >
-        Eyedropper
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'bucket'}
-        aria-pressed={tool === 'bucket'}
-        title="Bucket (G)"
-        onclick={() => (tool = 'bucket')}
-      >
-        Bucket
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'line'}
-        aria-pressed={tool === 'line'}
-        title="Line (L)"
-        onclick={() => (tool = 'line')}
-      >
-        Line
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'rectangle'}
-        aria-pressed={tool === 'rectangle'}
-        title="Rectangle (U)"
-        onclick={() => (tool = 'rectangle')}
-      >
-        Rect
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'rectangle-fill'}
-        aria-pressed={tool === 'rectangle-fill'}
-        title="Rectangle Fill (U)"
-        onclick={() => (tool = 'rectangle-fill')}
-      >
-        Rect Fill
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'ellipse'}
-        aria-pressed={tool === 'ellipse'}
-        title="Ellipse (U)"
-        onclick={() => (tool = 'ellipse')}
-      >
-        Ellipse
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'ellipse-fill'}
-        aria-pressed={tool === 'ellipse-fill'}
-        title="Ellipse Fill (U)"
-        onclick={() => (tool = 'ellipse-fill')}
-      >
-        Ellipse Fill
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'rounded-rect'}
-        aria-pressed={tool === 'rounded-rect'}
-        title="Rounded Rectangle (U)"
-        onclick={() => (tool = 'rounded-rect')}
-      >
-        Round Rect
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'polygon-shape'}
-        aria-pressed={tool === 'polygon-shape'}
-        title="Polygon shape (U)"
-        onclick={() => (tool = 'polygon-shape')}
-      >
-        N-gon
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'selection-rect'}
-        aria-pressed={tool === 'selection-rect'}
-        title="Selection (M)"
-        onclick={() => (tool = 'selection-rect')}
-      >
-        Select
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'selection-ellipse'}
-        aria-pressed={tool === 'selection-ellipse'}
-        title="Ellipse Select (M)"
-        onclick={() => (tool = 'selection-ellipse')}
-      >
-        Ellipse Sel
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'selection-lasso'}
-        aria-pressed={tool === 'selection-lasso'}
-        title="Lasso (M) — drag freehand"
-        onclick={() => (tool = 'selection-lasso')}
-      >
-        Lasso
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'selection-polygon'}
-        aria-pressed={tool === 'selection-polygon'}
-        title="Polygon Select (M) — click vertices, double-click or Enter to close"
-        onclick={() => (tool = 'selection-polygon')}
-      >
-        Polygon
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'selection-wand'}
-        aria-pressed={tool === 'selection-wand'}
-        title="Magic Wand (W) — Shift adds, Alt subtracts"
-        onclick={() => (tool = 'selection-wand')}
-      >
-        Wand
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'text'}
-        aria-pressed={tool === 'text'}
-        title="Text (T) — click to place"
-        onclick={() => (tool = 'text')}
-      >
-        Text
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'move'}
-        aria-pressed={tool === 'move'}
-        title="Move (V)"
-        onclick={() => (tool = 'move')}
-      >
-        Move
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'tilemap-stamp'}
-        aria-pressed={tool === 'tilemap-stamp'}
-        onclick={() => (tool = 'tilemap-stamp')}
-        disabled={!stampTile}
-        title={stampTile
-          ? `stamp tile ${stampTile.tileId} from tileset ${stampTile.tilesetId}`
-          : 'pick a tile in the Tilesets panel first'}
-      >
-        Stamp
-      </button>
-      <button
-        class="toolbar-btn"
-        class:toolbar-btn-active={tool === 'slice'}
-        aria-pressed={tool === 'slice'}
-        onclick={() => (tool = 'slice')}
-        title={activeSliceId !== null
-          ? 'drag to resize the active slice'
-          : 'drag to create a slice'}
-      >
-        Slice
-      </button>
-    </span>
-    <span class="ml-2 flex items-center gap-1" role="group" aria-label="Zoom">
-      <button
-        class="toolbar-btn"
-        onclick={zoomOut}
-        disabled={zoom <= MIN_ZOOM}
-        aria-label="Zoom out"
-      >
-        −
-      </button>
-      <span class="w-10 text-center text-xs text-pc-muted">{zoom}×</span>
-      <button
-        class="toolbar-btn"
-        onclick={zoomIn}
-        disabled={zoom >= MAX_ZOOM}
-        aria-label="Zoom in"
-      >
-        +
-      </button>
-      <button class="toolbar-btn" onclick={resetView} aria-label="Reset view">
-        Reset
-      </button>
-    </span>
-    <label class="ml-2 flex items-center gap-1 text-xs text-pc-muted">
-      <span>Color</span>
-      <input
-        type="color"
-        bind:value={color}
-        class="h-6 w-8 cursor-pointer rounded border border-pc-border bg-transparent"
-      />
-    </label>
-    <label class="ml-1 flex items-center gap-1 text-xs text-pc-muted" title="Foreground alpha">
-      <span>α</span>
-      <input
-        type="range"
-        min="0"
-        max="255"
-        bind:value={alpha}
-        class="w-16 cursor-pointer"
-        aria-label="Foreground alpha"
-      />
-      <span class="w-7 tabular-nums text-pc-faint">{alpha}</span>
-    </label>
-    <button
-      class="toolbar-btn ml-2"
-      onclick={undo}
-      disabled={undoDepth === 0}
-      title="Undo (Ctrl/Cmd+Z)"
-    >
-      Undo
-    </button>
-    <button
-      class="toolbar-btn"
-      onclick={redo}
-      disabled={redoDepth === 0}
-      title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y)"
-    >
-      Redo
-    </button>
-    <EffectsMenu disabled={!doc || fileOpBusy || effectOpen !== null} onPick={openEffect} />
-    <ImageMenu
-      disabled={!doc || fileOpBusy || effectOpen !== null}
-      hasSelection={selection !== null}
-      onAction={imageAction}
+{#snippet colorsBody()}
+  <Panel>
+    <ColorPair
+      fg={color}
+      bg={bgColor}
+      onFg={(hex) => (color = hex)}
+      onBg={(hex) => (bgColor = hex)}
+      onSwap={swapColors}
+      onReset={resetColors}
+      {alpha}
+      onAlpha={(a) => (alpha = a)}
     />
-    <SelectMenu
-      disabled={!doc || fileOpBusy || effectOpen !== null}
-      hasSelection={selection !== null}
-      onAction={selectAction}
-    />
-    {#if tool === 'selection-wand'}
-      <span class="ml-2 flex items-center gap-2 text-xs text-pc-muted" role="group" aria-label="Wand options">
-        <label class="flex items-center gap-1">
-          <span>Tolerance</span>
-          <input
-            type="number"
-            min="0"
-            max="255"
-            bind:value={wandTolerance}
-            class="w-14 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-            aria-label="Wand tolerance"
-          />
-        </label>
-        <label class="flex items-center gap-1">
-          <input type="checkbox" bind:checked={wandContiguous} aria-label="Contiguous" />
-          <span>Contiguous</span>
-        </label>
-        <select
-          bind:value={wandSample}
-          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-          aria-label="Wand sample source"
-        >
-          <option value="layer">Layer</option>
-          <option value="composite">Composite</option>
-        </select>
-      </span>
-    {/if}
-    {#if isShapeTool(tool)}
-      <span class="ml-2 flex items-center gap-2 text-xs text-pc-muted" role="group" aria-label="Shape options">
-        <label class="flex items-center gap-1">
-          <span>Stroke</span>
-          <input
-            type="number"
-            min="1"
-            max="64"
-            bind:value={strokeWidth}
-            class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-            aria-label="Stroke width"
-          />
-        </label>
-        <select
-          bind:value={shapeMode}
-          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-          aria-label="Shape mode"
-        >
-          <option value="outline">Outline</option>
-          <option value="fill">Fill</option>
-          <option value="fill_outline">Fill + Outline</option>
-        </select>
-        {#if shapeMode !== 'outline'}
-          <label class="flex items-center gap-1">
-            <span>Fill</span>
-            <input
-              type="color"
-              bind:value={fillColor}
-              class="h-6 w-8 cursor-pointer rounded border border-pc-border bg-transparent"
-              aria-label="Fill color"
-            />
-          </label>
-        {/if}
-        {#if tool === 'rounded-rect'}
-          <label class="flex items-center gap-1">
-            <span>Radius</span>
-            <input
-              type="number"
-              min="0"
-              max="256"
-              bind:value={cornerRadius}
-              class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-              aria-label="Corner radius"
-            />
-          </label>
-        {/if}
-        {#if tool === 'polygon-shape'}
-          <label class="flex items-center gap-1">
-            <span>Sides</span>
-            <input
-              type="number"
-              min="3"
-              max="64"
-              bind:value={polygonSides}
-              class="w-12 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-              aria-label="Polygon sides"
-            />
-          </label>
-        {/if}
-      </span>
-    {/if}
-  </header>
-
-  <section class="flex flex-1 overflow-hidden">
-    <div
-      class="relative flex flex-1 items-center justify-center overflow-hidden"
-      bind:clientWidth={stageW}
-      bind:clientHeight={stageH}
-    >
-<!--
-        Stacked render surfaces (spec §4.4, M12.5): the base canvas
-        shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
-        or Canvas2D) and the overlay canvas, sitting exactly on top with
-        `pointer-events: none`, carries the transient Canvas2D furniture
-        (selection marquee, drag previews, tile grid, slice accents).
-        The wrapper owns the display size / pan transform / frame chrome
-        so both layers scale and translate as one; the canvases fill it
-        via `h-full w-full` and CSS upscales their sprite-sized backing
-        stores (`image-rendering: pixelated`).
-      -->
-      <div
-        class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
-        style:width="{canvasW * zoom}px"
-        style:height="{canvasH * zoom}px"
-        style:transform="translate({panX}px, {panY}px)"
-      >
-        <canvas
-          bind:this={canvas}
-          class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
-          style:cursor={panning
-            ? 'grabbing'
-            : moveSelStart
-              ? 'move'
-              : tool === 'move' && selection && !spaceDown
-                ? 'move'
-                : tool === 'move' || spaceDown
-                  ? 'grab'
-                  : 'crosshair'}
-          aria-label="Pincel canvas"
-          onpointerdown={onPointerDown}
-          onpointermove={onPointerMove}
-          onpointerup={onPointerUp}
-          onpointercancel={onPointerUp}
-          onpointerleave={onPointerLeave}
-        ></canvas>
-        <canvas
-          bind:this={overlay}
-          class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
-          width={canvasW}
-          height={canvasH}
-          aria-hidden="true"
-        ></canvas>
-      </div>
-      {#if doc && editingTile}
-        <TileEditor
-          {doc}
-          tilesetId={editingTile.tilesetId}
-          tileId={editingTile.tileId}
-          {color}
-          rev={docRev}
-          onClose={() => (editingTile = null)}
-          onChange={() => {
-            docRev += 1;
-            dirty = true;
-            syncMeta();
-          }}
-        />
-      {/if}
-    </div>
-    <LayersPanel
-      {doc}
-      rev={docRev}
-      {activeLayerId}
-      onChange={() => (docRev += 1)}
-      onActivate={(layerId) => {
-        activeLayerId = layerId;
-        // Route pixel tools to the selected layer (M13.3b). A fresh
-        // document resets the wasm-side target to None on its own, so
-        // the fallback stays correct after New / Open.
-        doc?.setActiveLayer(layerId);
-      }}
-      onToggleVisible={(layerId, visible) => {
-        if (!doc) return;
-        try {
-          doc.setLayerVisible(layerId, visible);
-          docRev += 1;
-        } catch (err) {
-          status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onRename={(layerId, name) => {
-        if (!doc) return;
-        try {
-          doc.renameLayer(layerId, name);
-          docRev += 1;
-        } catch (err) {
-          status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onAddLayer={addLayer}
-      onSetOpacity={(layerId, opacity, commit) => {
-        if (!doc) return;
-        try {
-          doc.setLayerOpacity(layerId, opacity);
-          if (commit) doc.endStroke();
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `layer opacity failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onSetBlendMode={(layerId, mode) => {
-        if (!doc) return;
-        try {
-          doc.setLayerBlendMode(layerId, mode);
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `layer blend mode failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onDuplicate={(layerId) => {
-        if (!doc) return;
-        try {
-          const id = doc.duplicateLayer(layerId);
-          activeLayerId = id;
-          doc.setActiveLayer(id);
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `duplicate layer failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onMergeDown={(layerId) => {
-        if (!doc) return;
-        try {
-          doc.mergeDown(layerId);
-          activeLayerId = doc.paintTargetLayer();
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `merge down failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onFlatten={() => {
-        if (!doc) return;
-        try {
-          const id = doc.flattenImage();
-          activeLayerId = id;
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `flatten failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-      onRemoveLayer={(layerId) => {
-        if (!doc) return;
-        try {
-          doc.removeLayer(layerId);
-          if (activeLayerId === layerId) activeLayerId = null;
-          dirty = true;
-          syncMeta();
-          docRev += 1;
-        } catch (err) {
-          status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
-        }
-      }}
-    />
-    <TilesetPanel
-      {doc}
-      rev={docRev}
-      selectedTile={stampTile}
-      onChange={() => (docRev += 1)}
-      onSelectStampTile={(tilesetId, tileId) => {
-        stampTile = { tilesetId, tileId };
-        // Auto-switch to the Stamp tool so a single click on a tile
-        // is enough to start placing. The user can switch back via
-        // the toolbar if they wanted to keep editing pixels.
-        tool = 'tilemap-stamp';
-      }}
-      onEditTile={(tilesetId, tileId) => {
-        editingTile = { tilesetId, tileId };
-      }}
-    />
-    <SlicesPanel
-      {doc}
-      rev={docRev}
-      {activeSliceId}
-      onChange={() => (docRev += 1)}
-      onActivate={(sliceId) => {
-        activeSliceId = sliceId;
-        if (sliceId !== null) tool = 'slice';
-        dirty = true;
-      }}
-    />
-    <PalettePanel
-      {doc}
-      rev={docRev}
-      activeColor={color}
-      addColor={packColor(color, alpha)}
-      onChange={() => {
+  </Panel>
+{/snippet}
+{#snippet paletteBody()}
+  <PalettePanel
+    {doc}
+    rev={docRev}
+    activeColor={color}
+    addColor={packColor(color, alpha)}
+    onChange={() => {
+      dirty = true;
+      syncMeta();
+      docRev += 1;
+    }}
+    onError={(msg) => (status = msg)}
+    onPick={(packed) => {
+      // Set both the RGB (via the picker) and the alpha slider from
+      // the palette entry so a swatch's transparency carries over.
+      color = unpackColor(packed);
+      alpha = packed & 0xff;
+    }}
+    onPickBg={(packed) => {
+      bgColor = unpackColor(packed);
+      bgAlpha = packed & 0xff;
+    }}
+  />
+{/snippet}
+{#snippet layersBody()}
+  <LayersPanel
+    {doc}
+    rev={docRev}
+    {activeLayerId}
+    onChange={() => (docRev += 1)}
+    onActivate={(layerId) => {
+      activeLayerId = layerId;
+      // Route pixel tools to the selected layer (M13.3b). A fresh
+      // document resets the wasm-side target to None on its own, so
+      // the fallback stays correct after New / Open.
+      doc?.setActiveLayer(layerId);
+    }}
+    onToggleVisible={(layerId, visible) => {
+      if (!doc) return;
+      try {
+        doc.setLayerVisible(layerId, visible);
+        docRev += 1;
+      } catch (err) {
+        status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onRename={(layerId, name) => {
+      if (!doc) return;
+      try {
+        doc.renameLayer(layerId, name);
+        docRev += 1;
+      } catch (err) {
+        status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onAddLayer={addLayer}
+    onSetOpacity={(layerId, opacity, commit) => {
+      if (!doc) return;
+      try {
+        doc.setLayerOpacity(layerId, opacity);
+        if (commit) doc.endStroke();
         dirty = true;
         syncMeta();
         docRev += 1;
-      }}
-      onError={(msg) => (status = msg)}
-      onPick={(packed) => {
-        // Set both the RGB (via the picker) and the alpha slider from
-        // the palette entry so a swatch's transparency carries over.
-        color = unpackColor(packed);
-        alpha = packed & 0xff;
-      }}
-    />
-  </section>
-
+      } catch (err) {
+        status = `layer opacity failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onSetBlendMode={(layerId, mode) => {
+      if (!doc) return;
+      try {
+        doc.setLayerBlendMode(layerId, mode);
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      } catch (err) {
+        status = `layer blend mode failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onDuplicate={duplicateLayer}
+    onMergeDown={mergeDownLayer}
+    onFlatten={flattenLayers}
+    onRemoveLayer={removeLayerById}
+  />
+{/snippet}
+{#snippet tilesetsBody()}
+  <TilesetPanel
+    {doc}
+    rev={docRev}
+    selectedTile={stampTile}
+    onChange={() => (docRev += 1)}
+    onSelectStampTile={(tilesetId, tileId) => {
+      stampTile = { tilesetId, tileId };
+      // Auto-switch to the Stamp tool so a single click on a tile
+      // is enough to start placing. The user can switch back via
+      // the toolbar if they wanted to keep editing pixels.
+      tool = 'tilemap-stamp';
+    }}
+    onEditTile={(tilesetId, tileId) => {
+      editingTile = { tilesetId, tileId };
+    }}
+  />
+{/snippet}
+{#snippet slicesBody()}
+  <SlicesPanel
+    {doc}
+    rev={docRev}
+    {activeSliceId}
+    onChange={() => (docRev += 1)}
+    onActivate={(sliceId) => {
+      activeSliceId = sliceId;
+      if (sliceId !== null) tool = 'slice';
+      dirty = true;
+    }}
+  />
+{/snippet}
+{#snippet timelineBody()}
   <TimelinePanel
     {doc}
     rev={docRev}
@@ -3218,35 +2856,217 @@
     }}
     onError={(msg) => (status = msg)}
   />
-  <footer class="flex items-center gap-3 border-t border-pc-border px-4 py-2 text-xs text-pc-faint">
-    <span>{status}</span>
+{/snippet}
+
+<EditorFrame
+  mode="pixel"
+  {menus}
+  title={doc ? saveTarget.name : 'No document'}
+  dirty={isDirty}
+  panels={[
+    { id: 'colors', title: 'Colors', icon: 'colors', body: colorsBody },
+    { id: 'palette', title: 'Palette', icon: 'palette', body: paletteBody },
+    { id: 'layers', title: 'Layers', icon: 'layers', body: layersBody, grow: true },
+    {
+      id: 'tilesets',
+      title: 'Tilesets',
+      icon: 'grid',
+      body: tilesetsBody,
+      defaultCollapsed: true,
+    },
+    { id: 'slices', title: 'Slices', icon: 'slice', body: slicesBody, defaultCollapsed: true },
+    { id: 'timeline', title: 'Timeline', icon: 'film', body: timelineBody, placement: 'bottom' },
+  ]}
+>
+  {#snippet quick()}
+    <IconButton icon="undo" label="Undo" hint={hint('undo')} disabled={undoDepth === 0} onclick={undo} />
+    <IconButton icon="redo" label="Redo" hint={hint('redo')} disabled={redoDepth === 0} onclick={redo} />
+  {/snippet}
+  {#snippet tools(orientation)}
+    <ToolRail groups={railGroups} active={tool} onSelect={(t) => (tool = t)} {orientation} />
+  {/snippet}
+  {#snippet options()}
+    <ToolVariants groups={railGroups} active={tool} onSelect={(t) => (tool = t)} />
+    {#if tool === 'selection-wand'}
+      <label class="opt">
+        Tolerance
+        <input
+          type="number"
+          min="0"
+          max="255"
+          bind:value={wandTolerance}
+          class="opt-field w-16 text-right tabular-nums"
+          aria-label="Wand tolerance"
+        />
+      </label>
+      <label class="opt">
+        <input type="checkbox" bind:checked={wandContiguous} aria-label="Contiguous" />
+        Contiguous
+      </label>
+      <label class="opt">
+        Sample
+        <select bind:value={wandSample} class="opt-field" aria-label="Wand sample source">
+          <option value="layer">Layer</option>
+          <option value="composite">Composite</option>
+        </select>
+      </label>
+    {:else if isShapeTool(tool)}
+      <label class="opt">
+        Stroke
+        <input
+          type="number"
+          min="1"
+          max="64"
+          bind:value={strokeWidth}
+          class="opt-field w-14 text-right tabular-nums"
+          aria-label="Stroke width"
+        />
+      </label>
+      <label class="opt">
+        Mode
+        <select bind:value={shapeMode} class="opt-field" aria-label="Shape mode">
+          <option value="outline">Outline</option>
+          <option value="fill">Fill</option>
+          <option value="fill_outline">Fill + Outline</option>
+        </select>
+      </label>
+      {#if tool === 'rounded-rect'}
+        <label class="opt">
+          Radius
+          <input
+            type="number"
+            min="0"
+            max="256"
+            bind:value={cornerRadius}
+            class="opt-field w-14 text-right tabular-nums"
+            aria-label="Corner radius"
+          />
+        </label>
+      {/if}
+      {#if tool === 'polygon-shape'}
+        <label class="opt">
+          Sides
+          <input
+            type="number"
+            min="3"
+            max="64"
+            bind:value={polygonSides}
+            class="opt-field w-14 text-right tabular-nums"
+            aria-label="Polygon sides"
+          />
+        </label>
+      {/if}
+      {#if shapeMode !== 'outline'}
+        <span class="opt text-pc-faint">fills with the background color</span>
+      {/if}
+    {:else}
+      <span class="opt text-pc-faint">{toolLabel}</span>
+      {#if BG_TOOLS.has(tool)}
+        <span class="opt text-pc-faint">· right button uses the background color</span>
+      {/if}
+    {/if}
+  {/snippet}
+  {#snippet viewport()}
+        <div
+          class="absolute inset-0 flex items-center justify-center overflow-hidden"
+          bind:clientWidth={stageW}
+          bind:clientHeight={stageH}
+        >
+    <!--
+            Stacked render surfaces (spec §4.4, M12.5): the base canvas
+            shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
+            or Canvas2D) and the overlay canvas, sitting exactly on top with
+            `pointer-events: none`, carries the transient Canvas2D furniture
+            (selection marquee, drag previews, tile grid, slice accents).
+            The wrapper owns the display size / pan transform / frame chrome
+            so both layers scale and translate as one; the canvases fill it
+            via `h-full w-full` and CSS upscales their sprite-sized backing
+            stores (`image-rendering: pixelated`).
+          -->
+          <div
+            class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
+            style:width="{canvasW * zoom}px"
+            style:height="{canvasH * zoom}px"
+            style:transform="translate({panX}px, {panY}px)"
+          >
+            <canvas
+              bind:this={canvas}
+              class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
+              style:cursor={panning
+                ? 'grabbing'
+                : moveSelStart
+                  ? 'move'
+                  : tool === 'move' && selection && !spaceDown
+                    ? 'move'
+                    : tool === 'move' || spaceDown
+                      ? 'grab'
+                      : 'crosshair'}
+              aria-label="Pincel canvas"
+              oncontextmenu={(e) => e.preventDefault()}
+              onpointerdown={onPointerDown}
+              onpointermove={onPointerMove}
+              onpointerup={onPointerUp}
+              onpointercancel={onPointerUp}
+              onpointerleave={onPointerLeave}
+            ></canvas>
+            <canvas
+              bind:this={overlay}
+              class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
+              width={canvasW}
+              height={canvasH}
+              aria-hidden="true"
+            ></canvas>
+          </div>
+          {#if doc && editingTile}
+            <TileEditor
+              {doc}
+              tilesetId={editingTile.tilesetId}
+              tileId={editingTile.tileId}
+              {color}
+              rev={docRev}
+              onClose={() => (editingTile = null)}
+              onChange={() => {
+                docRev += 1;
+                dirty = true;
+                syncMeta();
+              }}
+            />
+          {/if}
+          {#if doc}
+            <ZoomControl
+              label={`${zoom}×`}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              onFit={resetView}
+              onActual={zoomActual}
+              canZoomIn={zoom < MAX_ZOOM}
+              canZoomOut={zoom > MIN_ZOOM}
+            />
+          {/if}
+        </div>
+  {/snippet}
+  {#snippet statusbar()}
     {#if doc}
-      <span>·</span>
-      <span title={isDirty ? 'unsaved changes' : 'all changes saved'}>
-        {saveTarget.name}{#if isDirty}<span class="text-amber-400"> ●</span>{/if}
-      </span>
-      <span>·</span>
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
       <span>frame {currentFrame + 1}/{frameCount}</span>
-      <span>·</span>
-      <span>undo {undoDepth} / redo {redoDepth}</span>
+      <span class="hidden md:inline">·</span>
+      <span class="hidden md:inline">undo {undoDepth} / redo {redoDepth}</span>
     {/if}
-    {#if backend !== 'none'}
-      <span>·</span>
-      <span>{backend}</span>
-    {/if}
-    <span>·</span>
-    <span title="Pincel version">{appVersion}</span>
+    <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{status}</span>
     {#if probeOn}
-      <span>·</span>
       <span class="text-emerald-400">
         {fpsEma.toFixed(0)} fps · compose {composeMs.toFixed(2)}ms (max
         {composeMaxMs.toFixed(2)}ms)
       </span>
     {/if}
-  </footer>
-</main>
+    {#if backend !== 'none'}
+      <span>{backend}</span>
+      <span>·</span>
+    {/if}
+    <span title="Pincel version">{appVersion}</span>
+  {/snippet}
+</EditorFrame>
 
 {#if recoveryOpen && recoverySnapshots.length > 0}
   <RecoveryDialog
@@ -3318,9 +3138,9 @@
     <div class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl">
       <p>{confirmState.message}</p>
       <div class="mt-4 flex justify-end gap-2">
-        <button class="toolbar-btn" onclick={() => (confirmState = null)}>Cancel</button>
+        <button class="panel-btn" onclick={() => (confirmState = null)}>Cancel</button>
         <button
-          class="toolbar-btn border-red-800 text-red-300"
+          class="panel-btn border-red-800 text-red-300"
           onclick={confirmDiscard}
         >
           Discard changes
@@ -3333,23 +3153,5 @@
 <style>
   .canvas-pixelated {
     image-rendering: pixelated;
-  }
-
-  .toolbar-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-    font-size: 0.75rem;
-  }
-  .toolbar-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .toolbar-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .toolbar-btn-active {
-    background-color: rgb(64 64 64);
-    border-color: rgb(115 115 115);
   }
 </style>

@@ -1,6 +1,9 @@
-// Pixel-mode tool ids, their classification and the single-key shortcut
-// map (spec §5). Pure data and functions, shared by PixelEditor and the
+// Pixel-mode tool ids, their classification and the tool-rail groups
+// (spec §5, §9.2). Pure data and functions, shared by PixelEditor and the
 // overlay painter.
+
+import type { ToolGroup } from '../../lib/components/layout/tools';
+import { toolHint } from '../../lib/shell/shortcuts';
 
 /** Every Pixel-mode tool. */
 export type Tool =
@@ -65,31 +68,80 @@ export function isSquareConstrainable(t: Tool): boolean {
 }
 
 /**
- * Single-key tool shortcuts, aligned with Aseprite defaults where they
- * don't collide. Each key maps to a tool group: the first press selects
- * the group's first tool, repeated presses cycle through it (the Aseprite
- * pattern — `U` walks the shape variants).
+ * The tool rail (spec §9.2): same group ids, order and keys as Image mode
+ * (lib/shell/shortcuts.ts `TOOL_GROUP_KEYS`). Repeated key presses cycle a
+ * group's variants — `U` walks the shapes, `M` the marquee shapes, `Q`
+ * the lasso kinds. The Stamp needs a tile picked in the Tilesets panel.
  */
-export const TOOL_KEYS: Record<string, Tool[]> = {
-  b: ['pencil'],
-  e: ['eraser'],
-  i: ['eyedropper'],
-  g: ['bucket'],
-  l: ['line'],
-  u: ['rectangle', 'rectangle-fill', 'ellipse', 'ellipse-fill', 'rounded-rect', 'polygon-shape'],
-  m: ['selection-rect', 'selection-ellipse', 'selection-lasso', 'selection-polygon'],
-  w: ['selection-wand'],
-  t: ['text'],
-  v: ['move'],
-};
-
-/** The tool a bare `key` press switches to from `current`, or `null`. */
-export function toolForKey(key: string, current: Tool): Tool | null {
-  const group = TOOL_KEYS[key.toLowerCase()];
-  if (!group) return null;
-  // `indexOf` is -1 when the current tool isn't in the group, so the first
-  // press lands on the group's first entry.
-  return group[(group.indexOf(current) + 1) % group.length] ?? null;
+export function toolGroups(stampTile: { tilesetId: number; tileId: number } | null): ToolGroup<Tool>[] {
+  const groups: ToolGroup<Tool>[] = [
+    { id: 'move', label: 'Move', tools: [{ id: 'move', label: 'Move', icon: 'move' }] },
+    {
+      id: 'select',
+      label: 'Marquee',
+      tools: [
+        { id: 'selection-rect', label: 'Rectangle Select', icon: 'select-rect' },
+        { id: 'selection-ellipse', label: 'Ellipse Select', icon: 'select-ellipse' },
+      ],
+    },
+    {
+      id: 'lasso',
+      label: 'Lasso',
+      tools: [
+        { id: 'selection-lasso', label: 'Lasso', icon: 'lasso' },
+        {
+          id: 'selection-polygon',
+          label: 'Polygonal Lasso',
+          icon: 'polygon-lasso',
+          title: 'Polygonal Lasso — click vertices, double-click or Enter to close',
+        },
+      ],
+    },
+    {
+      id: 'wand',
+      label: 'Magic Wand',
+      tools: [{ id: 'selection-wand', label: 'Magic Wand', icon: 'wand' }],
+    },
+    { id: 'pencil', label: 'Pencil', tools: [{ id: 'pencil', label: 'Pencil', icon: 'pencil' }] },
+    { id: 'eraser', label: 'Eraser', tools: [{ id: 'eraser', label: 'Eraser', icon: 'eraser' }] },
+    { id: 'fill', label: 'Fill', tools: [{ id: 'bucket', label: 'Fill', icon: 'bucket' }] },
+    {
+      id: 'eyedropper',
+      label: 'Eyedropper',
+      tools: [{ id: 'eyedropper', label: 'Eyedropper', icon: 'eyedropper' }],
+    },
+    { id: 'line', label: 'Line', tools: [{ id: 'line', label: 'Line', icon: 'line' }] },
+    {
+      id: 'shapes',
+      label: 'Shapes',
+      tools: [
+        { id: 'rectangle', label: 'Rectangle', icon: 'rect' },
+        { id: 'rectangle-fill', label: 'Filled Rectangle', icon: 'rect-fill' },
+        { id: 'ellipse', label: 'Ellipse', icon: 'ellipse' },
+        { id: 'ellipse-fill', label: 'Filled Ellipse', icon: 'ellipse-fill' },
+        { id: 'rounded-rect', label: 'Rounded Rectangle', icon: 'rounded-rect' },
+        { id: 'polygon-shape', label: 'Polygon', icon: 'polygon' },
+      ],
+    },
+    { id: 'text', label: 'Text', tools: [{ id: 'text', label: 'Text', icon: 'text' }] },
+    {
+      id: 'stamp',
+      label: 'Tile Stamp',
+      tools: [
+        {
+          id: 'tilemap-stamp',
+          label: 'Tile Stamp',
+          icon: 'stamp',
+          disabled: !stampTile,
+          title: stampTile
+            ? `Tile Stamp — tile ${stampTile.tileId} of tileset ${stampTile.tilesetId}`
+            : 'Tile Stamp — pick a tile in the Tilesets panel first',
+        },
+      ],
+    },
+    { id: 'slice', label: 'Slice', tools: [{ id: 'slice', label: 'Slice', icon: 'slice' }] },
+  ];
+  return groups.map((g) => ({ ...g, shortcut: toolHint(g.id) }));
 }
 
 /** A point in sprite pixels. */
