@@ -1,12 +1,13 @@
 # Status
 
-_Last updated: 2026-10-11_
+_Last updated: 2026-10-12_
 
 **Branch:** `ccr-ccba59fa-eq8omt` — PR #55, "work through the open STATUS
 items": every codeable item from the list below the M16 merge is done on
 the branch (section "2026-10-11 — open items sweep"), plus one shared,
 responsive editor frame for both modes (section "2026-10-11 — one
-responsive editor frame"). Before it: PR #53 —
+responsive editor frame") and the 2026-10-12 follow-ups (DE/EN, one
+layers panel, iPad modifiers + pen pressure). Before it: PR #53 —
 M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
 `amigo-fineliner` is archived.
 
@@ -56,16 +57,46 @@ collaboration) are out of scope.
   effects to the selection; Image mode applies them to the whole layer
   (unchanged behaviour, now on the shared catalog).
 - **Palette presets / import / export** (PICO-8, NES, Game Boy; `.gpl`).
-- **Pen pressure / tilt** and on-screen modifier keys for iPad (§17.4).
-  The phone / tablet layout is done; Shift / Alt constraints (square
-  shapes, add / subtract selection) still need a keyboard.
-- **Layers panel parity.** Both modes now share the panel chrome, but
-  the Layers panel bodies still differ (Image: thumbnails, drag-reorder,
-  lock; Pixel: kind badge, up / down buttons, properties row).
+- **Pen tilt** (pressure is done for the Image-mode brush / eraser;
+  Pixel-mode tools stay pressure-free by design).
+- **Website in German.** The editor is DE/EN; the SvelteKit site is
+  English only.
+- **Drag a layer into / out of a group** (Pixel mode). Drag-reorder keeps
+  a layer among its siblings (spec §15, 2026-05-31).
 - **Aseprite round-trip, remaining:** user-data property maps and tag
   directions > 3 are still dropped (spec §7.1).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-12 — languages, one layers panel, iPad input (PR #55)
+
+User picked all four follow-ups. Spec §9.2, §9.4, §9.5, §17.4 and §15
+(2026-10-12 rows).
+
+- [x] **DE / EN** — `lib/i18n/` (`en.ts` source of the keys, `de.ts`
+  typed against it, `t()` reactive); browser language by default, choice
+  on the start screen and under View ▸ Language, kept in IDB prefs; the
+  Tauri menu follows via `set_menu_language`. Every UI string moved
+  (menus, tools, effects via `lib/effects/labels.ts`, panels, dialogs,
+  status lines). Layer names and other document content stay as typed.
+- [x] **Rename layers** — Layer ▸ Rename… (shared `RenameDialog`) and a
+  rename button on every row, double-click still works.
+- [x] **One layers panel** — `lib/components/layers/`: grip (pointer
+  drag, arrow keys), eye, lock, thumbnail, name, rename; active layer's
+  opacity / blend below; add / duplicate / merge down / delete in the
+  header; merge visible (Image) / flatten in the footer. Pixel core gains
+  `SetLayerEditable`, `ReorderLayer`, `Sprite::layer_locked`; wasm
+  `layerEditable` / `layerLocked` / `setLayerEditable` / `reorderLayer` /
+  `layerThumbnail` / `layerDepth`. Locked layers now refuse edits in
+  both modes (Image mode only showed the flag before).
+- [x] **On-screen Shift / Alt** — `lib/shell/modifiers.svelte.ts` +
+  `ModifierBar` (shown on coarse pointers or after a touch / pen event);
+  both modes read `shiftHeld` / `altHeld`. Pixel lines snap to 45° with
+  Shift like Image mode.
+- [x] **Pen pressure** — `PressureDynamics` on the image-core brush
+  (size and / or opacity per dab), `pressure` per point in the stroke
+  commands, coalesced pen samples, two toggles in the brush options.
+- [x] **e2e** — `i18n`, `layers`, `modifiers`, `pressure` specs; 32 green.
 
 ## 2026-10-11 — one responsive editor frame (PR #55)
 
