@@ -237,7 +237,7 @@ Each milestone is a sequence of S/M tasks. Plan the tasks before starting the mi
 - **Framework:** Svelte 5 with runes (`$state`, `$derived`, `$effect`).
 - **Styling:** Tailwind 4 utility classes; complex components via shadcn-svelte (copied into `src/lib/components/ui/`, not a runtime dep).
 - **TypeScript strict mode.** No implicit `any`. No `// @ts-ignore` without an issue link.
-- **State stores:** Svelte 5 runes in `src/lib/stores/`. One store per concern (document, tools, panels, prefs).
+- **State stores:** Svelte 5 runes in `.svelte.ts` files. Editor state lives with its mode — `src/modes/<mode>/stores/editor.svelte.ts`, one `$state` object per concern (document, view, tools, colors, dialogs, …); logic that mutates it sits in plain modules beside the editor component (`modes/pixel/{render,pointer,doc-ops,file-ops,…}.ts`, `modes/image/core/controller.ts`). State both editors share is a helper under `src/lib/` (e.g. `lib/idb/autosave-session.svelte.ts`, `lib/i18n`). Components keep markup, keyboard wiring and mount / unmount only.
 - **WASM bridge:** all Pixel-mode calls go through the `src/lib/core/` adapter and all Image-mode calls through `src/modes/image/core/wasm.ts`; UI never imports `pincel-wasm` / `pincel-image-wasm` directly.
 - **Strings:** every user-visible string goes through `t()` from `src/lib/i18n/` (spec §9.5); add the key to `en.ts` and `de.ts` together. Document content (layer / tag / slice names) is never translated.
 - **One editor frame:** both editors render through `src/lib/components/layout/EditorFrame.svelte` (menus as data, tool groups, `Panel`-wrapped panels) and style with the `pc-*` theme tokens from `app.css` — no raw `neutral-*` colors, no emoji icons. Keys come from `src/lib/shell/shortcuts.ts`.
@@ -493,7 +493,8 @@ crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
 ui/                           Svelte 5 + Vite frontend (PWA + Tauri)
 ui/src/App.svelte             Two-mode shell: start screen, New dialog, mode routing
 ui/src/lib/shell/             Shell contract (EditorProps), session store, start screen, New dialog
-ui/src/modes/pixel/           PixelEditor.svelte (toolbar, canvas, tool input, state)
+ui/src/modes/pixel/           PixelEditor.svelte (markup, keys, menus) + its modules (render, view-ops, pointer, doc-ops, image-ops, text-tool, file-ops)
+ui/src/modes/pixel/stores/    Pixel-mode editor state (one $state object per concern)
 ui/src/modes/image/           ImageEditor.svelte + its stores / controller / components
 ui/src/lib/core/              WASM adapter (Pixel mode)
 ui/src/modes/image/core/      WASM adapter (Image mode) + generated ts-rs types
