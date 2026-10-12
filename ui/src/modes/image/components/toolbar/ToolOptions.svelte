@@ -9,6 +9,7 @@
     contractSelection,
     featherSelection,
   } from '../../core/controller';
+  import { t } from '../../../../lib/i18n/index.svelte';
 
   // Hardness only matters for soft/flat tips.
   const showHardness = $derived(tool.shape !== 'hard_round');
@@ -53,6 +54,18 @@
         <span class="w-10 tabular-nums text-pc-text">{tool.hardness}%</span>
       </label>
     {/if}
+
+    <span class="flex items-center gap-3" title={t('pressure.hint')}>
+      <span class="text-pc-muted">{t('pressure.label')}</span>
+      <label class="flex items-center gap-1">
+        <input type="checkbox" bind:checked={tool.pressureSize} />
+        {t('pressure.size')}
+      </label>
+      <label class="flex items-center gap-1">
+        <input type="checkbox" bind:checked={tool.pressureOpacity} />
+        {t('pressure.opacity')}
+      </label>
+    </span>
 
     {#if tool.kind === 'eraser'}
       <label class="flex items-center gap-2">

@@ -59,6 +59,15 @@ function colorWithOpacity(hex: string): Rgba {
   return [r, g, b, Math.round(opacity01() * 255)];
 }
 
+/** Pen pressure and the brush dynamics it drives (spec §17.4). */
+function pressureFields(pressure: number[]): {
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+} {
+  return { pressure, pressure_size: tool.pressureSize, pressure_opacity: tool.pressureOpacity };
+}
+
 /** Refreshes derived document state from the core after a mutation. */
 function syncInfo(): void {
   if (editor.handle === null) {
@@ -537,6 +546,7 @@ export function paintStroke(
   points: Array<[number, number]>,
   strokeId: number,
   useBackground = false,
+  pressure: number[] = [],
 ): void {
   if (editor.handle === null || points.length === 0) {
     return;
@@ -550,6 +560,7 @@ export function paintStroke(
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
     points,
+    ...pressureFields(pressure),
     stroke_id: strokeId,
   };
   core.applyCommand(editor.handle, cmd);
@@ -557,7 +568,11 @@ export function paintStroke(
 }
 
 /** Applies an eraser stroke over the given canvas-space points. */
-export function eraseStroke(points: Array<[number, number]>, strokeId: number): void {
+export function eraseStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+): void {
   if (editor.handle === null || points.length === 0) {
     return;
   }
@@ -571,6 +586,7 @@ export function eraseStroke(points: Array<[number, number]>, strokeId: number): 
     mode: tool.eraserMode,
     background: activeColor(true), // 'To Background' erases to the bg swatch
     points,
+    ...pressureFields(pressure),
     stroke_id: strokeId,
   };
   core.applyCommand(editor.handle, cmd);

@@ -169,4 +169,10 @@ export const de: Record<MessageKey, string> = {
   'mods.alt': 'Alt',
   'mods.shiftHint': 'Umschalt: Quadrat/Kreis, 45°-Linien, zur Auswahl hinzufügen',
   'mods.altHint': 'Alt: von der Auswahl abziehen (mit Umschalt: Schnittmenge)',
+
+  // Pen pressure
+  'pressure.label': 'Stiftdruck',
+  'pressure.size': 'Größe',
+  'pressure.opacity': 'Deckkraft',
+  'pressure.hint': 'Was der Druck eines Stifts verändert (Maus und Finger malen mit vollem Druck)',
 };

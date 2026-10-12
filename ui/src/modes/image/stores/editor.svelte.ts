@@ -134,6 +134,10 @@ export const tool = $state({
   hardness: 100,
   /** Eraser behavior. */
   eraserMode: 'to_transparent' as EraserMode,
+  /** Pen pressure varies the brush size (Pencil/Eraser, spec §17.4). */
+  pressureSize: true,
+  /** Pen pressure varies the brush opacity. */
+  pressureOpacity: false,
   /** Fill color-similarity threshold, 0–255. */
   tolerance: 32,
   /** Fill connected region only (vs every matching pixel). */

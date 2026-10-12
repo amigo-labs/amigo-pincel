@@ -43,6 +43,11 @@ function selectionModeOf(e: PointerEvent): SelectionMode {
   return 'replace';
 }
 
+/** Pen pressure in `[0, 1]`; mouse and touch paint at full pressure. */
+function pressureOf(e: PointerEvent): number {
+  return e.pointerType === 'pen' ? Math.min(1, Math.max(0, e.pressure)) : 1;
+}
+
 /** Tools that write into the active layer's pixels. */
 const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
 
@@ -120,6 +125,7 @@ export function attachTools(
   // change how the in-flight gesture is interpreted or committed.
   let gestureKind: ToolKind = 'pencil';
   let last: [number, number] | null = null;
+  let lastPressure = 1;
   let start: [number, number] | null = null;
   let useBackground = false;
   let selMode: SelectionMode = 'replace';
@@ -248,17 +254,18 @@ export function attachTools(
     gestureKind = tool.kind;
     useBackground = e.button === 2;
     last = point;
+    lastPressure = pressureOf(e);
     start = point;
     strokeId = nextStrokeId++;
     canvas.setPointerCapture(e.pointerId);
 
     switch (tool.kind) {
       case 'pencil':
-        paintStroke([point], strokeId, useBackground);
+        paintStroke([point], strokeId, useBackground, [lastPressure]);
         redraw();
         break;
       case 'eraser':
-        eraseStroke([point], strokeId);
+        eraseStroke([point], strokeId, [lastPressure]);
         redraw();
         break;
       case 'fill':
@@ -315,15 +322,26 @@ export function attachTools(
       return;
     }
 
+    if (gestureKind === 'pencil' || gestureKind === 'eraser') {
+      // A pen reports several samples per frame; paint them all so fast
+      // strokes keep their shape and pressure.
+      const samples = e.getCoalescedEvents?.() ?? [];
+      const events = samples.length > 0 ? samples : [e];
+      const points: Array<[number, number]> = [last];
+      const pressure = [lastPressure];
+      for (const ev of events) {
+        points.push(toCanvasPoint(canvas, ev));
+        pressure.push(pressureOf(ev));
+      }
+      if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure);
+      else eraseStroke(points, strokeId, pressure);
+      redraw();
+      last = points[points.length - 1] ?? point;
+      lastPressure = pressure[pressure.length - 1] ?? 1;
+      return;
+    }
+
     switch (gestureKind) {
-      case 'pencil':
-        paintStroke([last, point], strokeId, useBackground);
-        redraw();
-        break;
-      case 'eraser':
-        eraseStroke([last, point], strokeId);
-        redraw();
-        break;
       case 'eyedropper':
         sampleColor(point[0], point[1], useBackground);
         break;

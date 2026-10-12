@@ -82,6 +82,12 @@ export interface PencilStrokeCommand {
   shape: BrushShape;
   hardness: number;
   points: Array<[number, number]>;
+  /** Pen pressure in `[0, 1]` per point (spec §17.4); empty = full. */
+  pressure: number[];
+  /** Pressure scales the dab size. */
+  pressure_size: boolean;
+  /** Pressure scales the dab opacity. */
+  pressure_opacity: boolean;
   /** Identifies the pointer drag; segments sharing it merge into one undo step. */
   stroke_id: number;
 }
@@ -96,6 +102,9 @@ export interface EraserStrokeCommand {
   mode: EraserMode;
   background: Rgba;
   points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
   stroke_id: number;
 }
 

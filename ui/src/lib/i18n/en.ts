@@ -162,6 +162,12 @@ export const en = {
   'mods.alt': 'Alt',
   'mods.shiftHint': 'Shift: square shapes, 45° lines, add to selection',
   'mods.altHint': 'Alt: subtract from selection (with Shift: intersect)',
+
+  // Pen pressure
+  'pressure.label': 'Pen pressure',
+  'pressure.size': 'Size',
+  'pressure.opacity': 'Opacity',
+  'pressure.hint': 'What a stylus’s pressure varies (mouse and touch paint at full pressure)',
 } as const;
 
 /** A UI message key. */
