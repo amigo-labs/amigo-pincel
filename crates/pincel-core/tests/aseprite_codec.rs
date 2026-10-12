@@ -799,3 +799,44 @@ fn user_data_properties_and_unknown_tag_direction_round_trip() {
         .expect("cel");
     assert_eq!(back.user_data, Some(with_props(Some("cel"))));
 }
+
+#[test]
+fn layer_moved_into_a_group_keeps_its_parent_through_a_round_trip() {
+    use pincel_core::{Command, LayerPlacement, MoveLayerTo};
+    let mut group = Layer::group(LayerId::new(1), "grp");
+    group.parent = None;
+    let mut child = Layer::image(LayerId::new(2), "child");
+    child.parent = Some(LayerId::new(1));
+    let mut sprite = Sprite::builder(2, 2)
+        .add_layer(Layer::image(LayerId::new(0), "loose"))
+        .add_layer(group)
+        .add_layer(child)
+        .add_frame(Frame::new(100))
+        .build()
+        .expect("sprite builds");
+    let mut cels = CelMap::new();
+    MoveLayerTo::new(LayerId::new(0), LayerId::new(1), LayerPlacement::Into)
+        .apply(&mut sprite, &mut cels)
+        .expect("move into group");
+    let out = round_trip(&sprite, &cels);
+    let shape: Vec<(&str, Option<&str>)> = out
+        .sprite
+        .layers
+        .iter()
+        .map(|l| {
+            let parent = l
+                .parent
+                .and_then(|p| out.sprite.layer(p))
+                .map(|p| p.name.as_str());
+            (l.name.as_str(), parent)
+        })
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            ("grp", None),
+            ("child", Some("grp")),
+            ("loose", Some("grp"))
+        ]
+    );
+}

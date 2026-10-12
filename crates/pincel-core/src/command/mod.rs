@@ -20,6 +20,7 @@ mod fill_region;
 mod flatten_image;
 mod merge_down;
 mod move_layer;
+mod move_layer_to;
 mod move_selection_content;
 mod palette_ops;
 mod place_tile;
@@ -64,6 +65,7 @@ pub use fill_region::FillRegion;
 pub use flatten_image::FlattenImage;
 pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
+pub use move_layer_to::{LayerPlacement, MoveLayerTo};
 pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
@@ -143,6 +145,7 @@ pub enum AnyCommand {
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
     ReorderLayer(ReorderLayer),
+    MoveLayerTo(MoveLayerTo),
     SetLayerEditable(SetLayerEditable),
     SetLayerName(SetLayerName),
     SetLayerVisible(SetLayerVisible),
@@ -199,6 +202,7 @@ impl AnyCommand {
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
             Self::ReorderLayer(c) => c.apply(doc, cels),
+            Self::MoveLayerTo(c) => c.apply(doc, cels),
             Self::SetLayerEditable(c) => c.apply(doc, cels),
             Self::SetLayerName(c) => c.apply(doc, cels),
             Self::SetLayerVisible(c) => c.apply(doc, cels),
@@ -251,6 +255,7 @@ impl AnyCommand {
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
             Self::ReorderLayer(c) => c.revert(doc, cels),
+            Self::MoveLayerTo(c) => c.revert(doc, cels),
             Self::SetLayerEditable(c) => c.revert(doc, cels),
             Self::SetLayerName(c) => c.revert(doc, cels),
             Self::SetLayerVisible(c) => c.revert(doc, cels),
@@ -332,6 +337,7 @@ impl AnyCommand {
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
             Self::ReorderLayer(c) => c.dirty_region(),
+            Self::MoveLayerTo(c) => c.dirty_region(),
             Self::SetLayerEditable(c) => c.dirty_region(),
             Self::SetLayerName(c) => c.dirty_region(),
             Self::SetLayerVisible(c) => c.dirty_region(),
@@ -485,6 +491,12 @@ impl From<MoveLayer> for AnyCommand {
 impl From<SetLayerVisible> for AnyCommand {
     fn from(c: SetLayerVisible) -> Self {
         Self::SetLayerVisible(c)
+    }
+}
+
+impl From<MoveLayerTo> for AnyCommand {
+    fn from(c: MoveLayerTo) -> Self {
+        Self::MoveLayerTo(c)
     }
 }
 

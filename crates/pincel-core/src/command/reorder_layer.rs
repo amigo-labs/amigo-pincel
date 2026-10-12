@@ -1,8 +1,8 @@
 //! `ReorderLayer` command — drag a layer to another sibling's slot.
 //!
 //! Built from [`MoveLayer`] steps, so it keeps that command's rules: a
-//! layer moves with its whole subtree and never leaves its group (see the
-//! 2026-05-31 Decision Log entry). The target may be any layer nested in
+//! layer moves with its whole subtree and never leaves its group (moving
+//! across groups is [`crate::MoveLayerTo`]). The target may be any layer nested in
 //! a sibling of the moved one; the move lands on that sibling's slot.
 //! The whole drag is one undo entry.
 

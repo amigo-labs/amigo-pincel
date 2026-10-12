@@ -142,6 +142,16 @@ pub enum CommandError {
     #[error("layer id {target} is not in the same group as layer id {layer}")]
     NotASibling { layer: u32, target: u32 },
 
+    /// A layer cannot move next to or into itself or its own descendants.
+    /// Emitted by [`crate::MoveLayerTo`].
+    #[error("layer id {0} cannot move into its own subtree")]
+    LayerIntoOwnSubtree(u32),
+
+    /// Only a group layer can take children. Emitted by
+    /// [`crate::MoveLayerTo`].
+    #[error("layer id {0} is not a group")]
+    NotAGroup(u32),
+
     /// The targeted frame index is past the end of `Sprite::frames`.
     /// Emitted by [`crate::SetFrameDuration`].
     #[error("unknown frame index {0}")]

@@ -21,13 +21,13 @@ pub use command::{
     AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset,
     Anchor, AnyCommand, Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse,
     DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
-    Interpolation, MergeDown, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
-    Orientation, PlaceTile, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry,
-    RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage,
-    SetFrameDuration, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity,
-    SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName,
-    SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle,
-    TransformCanvas, TransformCel,
+    Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer, MoveLayerTo,
+    MovePaletteEntry, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas, RemoveFrame,
+    RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
+    ReplacePalette, ScaleImage, SetFrameDuration, SetLayerBlendMode, SetLayerEditable,
+    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
+    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
+    TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{
