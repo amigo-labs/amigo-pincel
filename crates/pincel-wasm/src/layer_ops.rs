@@ -6,8 +6,9 @@
 //! as the stable snake_case names from [`BlendMode::name`].
 
 use pincel_core::{
-    BlendMode, ComposeRequest, DuplicateLayer, FlattenImage, FrameIndex, LayerFilter, LayerId,
-    MergeDown, ReorderLayer, SetLayerBlendMode, SetLayerEditable, SetLayerOpacity, compose,
+    AddLayer, BlendMode, ComposeRequest, DuplicateLayer, FlattenImage, FrameIndex, Layer,
+    LayerFilter, LayerId, LayerPlacement, MergeDown, MoveLayerTo, ReorderLayer, SetLayerBlendMode,
+    SetLayerEditable, SetLayerOpacity, compose,
 };
 use wasm_bindgen::prelude::*;
 
@@ -85,6 +86,64 @@ impl Document {
         self.bus.seal();
         self.push_last_dirty();
         Ok(())
+    }
+
+    /// Move the named layer (with its subtree) next to `target_id` or
+    /// into it, across group boundaries, in one undo entry. `place` is
+    /// `"above"` / `"below"` (share the target's parent) or `"into"` (the
+    /// target group's top child). Emits `dirty-canvas`. Errors for unknown
+    /// ids or place, a target inside the moved subtree, or `"into"` a
+    /// non-group.
+    #[wasm_bindgen(js_name = moveLayerTo)]
+    pub fn move_layer_to(
+        &mut self,
+        layer_id: u32,
+        target_id: u32,
+        place: &str,
+    ) -> Result<(), String> {
+        let place = match place {
+            "above" => LayerPlacement::Above,
+            "below" => LayerPlacement::Below,
+            "into" => LayerPlacement::Into,
+            other => return Err(format!("unknown layer placement '{other}'")),
+        };
+        let cmd = MoveLayerTo::new(LayerId::new(layer_id), LayerId::new(target_id), place);
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move layer: {e}"))?;
+        self.bus.seal();
+        self.push_last_dirty();
+        Ok(())
+    }
+
+    /// Add an empty group named `name` on top of the stack, routed
+    /// through the undo bus; returns its id. Errors when the layer-id
+    /// space is exhausted.
+    #[wasm_bindgen(js_name = addGroup)]
+    pub fn add_group(&mut self, name: &str) -> Result<u32, String> {
+        let id = match self.sprite.layers.iter().map(|l| l.id.0).max() {
+            None => 0,
+            Some(u32::MAX) => return Err("layer id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
+        let cmd = AddLayer::on_top(Layer::group(LayerId::new(id), name));
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add group: {e}"))?;
+        self.bus.seal();
+        Ok(id)
+    }
+
+    /// The id of the group the named layer sits in; `undefined` at the
+    /// root and for unknown layers.
+    #[wasm_bindgen(js_name = layerParent)]
+    pub fn layer_parent(&self, layer_id: u32) -> Option<u32> {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .and_then(|l| l.parent)
+            .map(|p| p.0)
     }
 
     /// The named layer (a group: its whole subtree) alone at `frame`,
@@ -323,6 +382,24 @@ mod tests {
         assert!(doc.undo());
         assert_eq!(doc.layer_id_at(0).expect("bottom"), 0);
         assert_eq!(doc.layer_id_at(1).expect("mid"), b);
+    }
+
+    #[test]
+    fn move_layer_into_a_new_group_and_back_out_undoes_in_one_step_each() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let group = doc.add_group("g").expect("group");
+        assert_eq!(doc.layer_kind(group), "group");
+        let depth = doc.undo_depth();
+        doc.move_layer_to(0, group, "into").expect("into");
+        assert_eq!(doc.layer_parent(0), Some(group));
+        assert_eq!(doc.layer_depth(0), 1);
+        assert_eq!(doc.undo_depth(), depth + 1);
+        doc.move_layer_to(0, group, "above").expect("out");
+        assert_eq!(doc.layer_parent(0), None);
+        assert!(doc.undo());
+        assert_eq!(doc.layer_parent(0), Some(group));
+        assert!(doc.move_layer_to(group, 0, "into").is_err());
+        assert!(doc.move_layer_to(0, group, "sideways").is_err());
     }
 
     #[test]
