@@ -42,9 +42,9 @@ use aseprite_loader::loader::decompress;
 
 use super::error::CodecError;
 use crate::document::{
-    BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection,
-    TileImage, TileRef, Tileset, TilesetId, UserData,
+    BlendMode, Cel, CelData, CelMap, ColorMode, ExternalFile, Frame, FrameIndex, Layer, LayerId,
+    LayerKind, PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, Tag,
+    TagDirection, TileImage, TileRef, Tileset, TilesetId, UserData,
 };
 use crate::geometry::Rect;
 
@@ -115,6 +115,7 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
         slices,
         palette,
         user_data,
+        external_files,
     } = extract_raw_chunks(bytes)?;
 
     let mut sprite_builder =
@@ -148,6 +149,7 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
         u32::from(h.grid_height),
     ));
     sprite.metadata.user_data = user_data.sprite;
+    sprite.metadata.external_files = external_files;
 
     let cels = build_cels(&file, color_mode, &sprite, &user_data.cels)?;
 
@@ -423,6 +425,7 @@ struct RawChunks {
     slices: Vec<Slice>,
     palette: crate::document::Palette,
     user_data: RawUserData,
+    external_files: Vec<ExternalFile>,
 }
 
 /// What the next User Data chunk attaches to.
@@ -435,6 +438,10 @@ enum UserDataTarget {
     Cel(usize, u16),
     /// The `n`-th tag after a Tags chunk.
     Tag(usize),
+    /// The tileset itself, right after its Tileset chunk.
+    Tileset(usize),
+    /// Then tile `n` of that tileset, in tile order.
+    Tile(usize, u32),
 }
 
 fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
@@ -445,10 +452,12 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
     // which shouldn't happen for an in-memory slice — propagate it rather
     // than silently dropping tilesets and slices.
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
-    // Property maps, by User Data chunk in file order (our own walk: the
-    // loader's typed parse mis-reads nested maps, and Pincel only needs
-    // the bytes back).
-    let mut properties = user_data_property_blocks(bytes).into_iter();
+    // Property maps, by User Data chunk in file order, and the External
+    // Files entries (our own walk: the loader's typed parse mis-reads
+    // nested maps and cannot name entry type 3, and Pincel only needs the
+    // bytes back).
+    let extras = raw_chunk_extras(bytes);
+    let mut properties = extras.properties.into_iter();
     let mut tilesets = Vec::new();
     let mut slices = Vec::new();
     let mut palette_entries: Vec<PaletteEntry> = Vec::new();
@@ -468,7 +477,7 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
                 Chunk::Tags(_) => target = UserDataTarget::Tag(0),
                 Chunk::Tileset(ts) => {
                     tilesets.push(build_tileset(ts)?);
-                    target = UserDataTarget::None;
+                    target = UserDataTarget::Tileset(tilesets.len() - 1);
                 }
                 Chunk::Slice(s) => {
                     // `SliceId` is a `u32`; on 64-bit hosts `slices.len()` is
@@ -497,11 +506,29 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
                         UserDataTarget::None => {}
                         UserDataTarget::Sprite => user_data.sprite = data,
                         // A slice's User Data color is its overlay color
-                        // (otherwise white, see `build_slice`).
+                        // (otherwise white, see `build_slice`); the note
+                        // and property maps ride along in `user_data`.
                         UserDataTarget::Slice(idx) => {
-                            if let Some(c) = data.and_then(|d| d.color) {
-                                slices[idx].color = c;
+                            if let Some(mut d) = data {
+                                if let Some(c) = d.color.take() {
+                                    slices[idx].color = c;
+                                }
+                                slices[idx].user_data = (!d.is_empty()).then_some(d);
                             }
+                        }
+                        // After a Tileset chunk: the tileset's own chunk,
+                        // then one per tile in order.
+                        UserDataTarget::Tileset(idx) => {
+                            tilesets[idx].user_data = data;
+                            target = UserDataTarget::Tile(idx, 0);
+                            continue;
+                        }
+                        UserDataTarget::Tile(idx, n) => {
+                            if let Some(d) = data {
+                                tilesets[idx].tile_user_data.insert(n, d);
+                            }
+                            target = UserDataTarget::Tile(idx, n + 1);
+                            continue;
                         }
                         UserDataTarget::Layer(idx) => {
                             if user_data.layers.len() <= idx {
@@ -560,17 +587,27 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
         slices,
         palette: crate::document::Palette::from_entries(palette_entries),
         user_data,
+        external_files: extras.external_files,
     })
 }
 
-/// The property-map block (flag `0x4`) of every User Data chunk
-/// (`0x2020`), in file order; `None` for a chunk without one. Walks the
-/// frame / chunk envelopes directly (header 128 bytes; frame header 16
-/// bytes with its byte length first; chunk = `DWORD size`, `WORD type`,
-/// body). A truncated envelope ends the walk: the loader has already
-/// validated the file, so that only happens on malformed property
-/// blocks, which are then dropped rather than failing the open.
-fn user_data_property_blocks(bytes: &[u8]) -> Vec<Option<Vec<u8>>> {
+/// What [`raw_chunk_extras`] recovers from the raw bytes.
+#[derive(Default)]
+struct RawExtras {
+    /// The property-map block (flag `0x4`) of every User Data chunk
+    /// (`0x2020`), in file order; `None` for a chunk without one.
+    properties: Vec<Option<Vec<u8>>>,
+    /// The entries of the External Files chunk (`0x2008`).
+    external_files: Vec<ExternalFile>,
+}
+
+/// Walks the frame / chunk envelopes directly (header 128 bytes; frame
+/// header 16 bytes with its byte length first; chunk = `DWORD size`,
+/// `WORD type`, body) for what the loader does not hand back intact. A
+/// truncated envelope ends the walk: the loader has already validated
+/// the file, so that only happens on malformed blocks, which are then
+/// dropped rather than failing the open.
+fn raw_chunk_extras(bytes: &[u8]) -> RawExtras {
     fn dword(b: &[u8], at: usize) -> Option<usize> {
         let s = b.get(at..at + 4)?;
         Some(u32::from_le_bytes([s[0], s[1], s[2], s[3]]) as usize)
@@ -598,8 +635,37 @@ fn user_data_property_blocks(bytes: &[u8]) -> Vec<Option<Vec<u8>>> {
         }
         body.get(at..at + size).map(<[u8]>::to_vec)
     }
+    // External Files body: count, 8 reserved, then id / type / 7
+    // reserved / string per entry. Stops at the first malformed entry.
+    fn external_files(body: &[u8]) -> Vec<ExternalFile> {
+        let mut out = Vec::new();
+        let Some(count) = dword(body, 0) else {
+            return out;
+        };
+        let mut at = 12;
+        for _ in 0..count {
+            let (Some(id), Some(&kind), Some(len)) =
+                (dword(body, at), body.get(at + 4), word(body, at + 12))
+            else {
+                break;
+            };
+            let Some(name) = body
+                .get(at + 14..at + 14 + len)
+                .and_then(|n| std::str::from_utf8(n).ok())
+            else {
+                break;
+            };
+            out.push(ExternalFile {
+                id: id as u32,
+                kind,
+                name: name.to_string(),
+            });
+            at += 14 + len;
+        }
+        out
+    }
 
-    let mut out = Vec::new();
+    let mut out = RawExtras::default();
     let mut frame_at = 128;
     while let Some(frame_len) = dword(bytes, frame_at) {
         let frame_end = frame_at.saturating_add(frame_len).min(bytes.len());
@@ -615,8 +681,11 @@ fn user_data_property_blocks(bytes: &[u8]) -> Vec<Option<Vec<u8>>> {
             if size < 6 || chunk_at + size > frame_end {
                 break;
             }
-            if kind == 0x2020 {
-                out.push(props(&bytes[chunk_at + 6..chunk_at + size]));
+            let body = &bytes[chunk_at + 6..chunk_at + size];
+            match kind {
+                0x2020 => out.properties.push(props(body)),
+                0x2008 => out.external_files.extend(external_files(body)),
+                _ => {}
             }
             chunk_at += size;
         }
@@ -645,6 +714,7 @@ fn build_slice(
         name: chunk.name.to_string(),
         color: Rgba::WHITE,
         keys,
+        user_data: None,
     })
 }
 
@@ -733,6 +803,8 @@ fn build_tileset(chunk: &TilesetChunk<'_>) -> Result<Tileset, CodecError> {
         // External Files Chunk (0x2008); resolving it to a `PathRef` is
         // deferred to a follow-up. Keep the slot empty rather than guess.
         external_file: None::<PathRef>,
+        user_data: None,
+        tile_user_data: Default::default(),
     })
 }
 

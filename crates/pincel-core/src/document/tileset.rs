@@ -1,5 +1,8 @@
 //! Tilesets and tile images. See `docs/specs/pincel.md` §3.4.
 
+use std::collections::BTreeMap;
+
+use super::UserData;
 use super::cel::PixelBuffer;
 
 /// Stable identifier for a tileset within a sprite.
@@ -33,6 +36,11 @@ pub struct Tileset {
     /// Display base index (typically `1`; tile `0` = empty).
     pub base_index: i32,
     pub external_file: Option<PathRef>,
+    /// The tileset's own user data (spec §7.1).
+    pub user_data: Option<UserData>,
+    /// User data by tile id; sparse, since few tiles carry any. Tiles
+    /// are only ever appended, so ids never shift under it.
+    pub tile_user_data: BTreeMap<u32, UserData>,
 }
 
 impl Tileset {
@@ -46,6 +54,8 @@ impl Tileset {
             tiles: Vec::new(),
             base_index: 1,
             external_file: None,
+            user_data: None,
+            tile_user_data: BTreeMap::new(),
         }
     }
 

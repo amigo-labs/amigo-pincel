@@ -179,6 +179,7 @@ mod tests {
                     pivot: None,
                 },
             ],
+            user_data: None,
         });
         s
     }

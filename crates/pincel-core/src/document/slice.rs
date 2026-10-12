@@ -35,4 +35,7 @@ pub struct Slice {
     pub color: Rgba,
     /// Sorted by `SliceKey::frame`, ascending.
     pub keys: Vec<SliceKey>,
+    /// The slice's note text and property maps (spec §7.1). Its colour
+    /// lives in `color`; the codec merges both into one User Data chunk.
+    pub user_data: Option<super::UserData>,
 }

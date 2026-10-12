@@ -63,6 +63,7 @@ mod tests {
                 center: None,
                 pivot: None,
             }],
+            user_data: None,
         }
     }
 
