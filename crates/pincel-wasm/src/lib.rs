@@ -26,6 +26,7 @@ mod layer_ops;
 mod selection_ops;
 mod shapes;
 mod text;
+mod timeline;
 mod transforms;
 
 pub use effects::effect_names;
@@ -35,13 +36,15 @@ pub use text::register_font;
 
 use events::EventQueue;
 use pincel_core::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, AsepriteReadOutput,
-    AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode, ComposeRequest, DrawEllipse,
-    DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer, LayerId, LayerKind,
-    MoveDirection, MoveLayer, MoveSelectionContent, PixelBuffer, PlaceTile, Rect, RemoveLayer,
-    RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, Slice,
-    SliceId, SliceKey, Sprite, TileRef, Tileset, TilesetId, compose, export_atlas_png,
-    export_frame_png, read_aseprite, write_aseprite,
+    AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTile, AddTilemapLayer, AddTileset,
+    AsepriteReadOutput, AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode,
+    ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer,
+    LayerId, LayerKind, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
+    OnionSkin, Palette, PaletteEntry, PalettePreset, PixelBuffer, PlaceTile, Rect, RemoveLayer,
+    RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
+    SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
+    TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png,
+    read_aseprite, read_gpl, write_aseprite, write_gpl,
 };
 use wasm_bindgen::prelude::*;
 
@@ -69,6 +72,10 @@ pub struct Document {
     /// target this frame. Set via [`Document::set_current_frame`];
     /// starts at frame 0 for every fresh / opened document.
     current_frame: FrameIndex,
+    /// Onion-skin settings applied by [`Document::compose`]; `None` is
+    /// off. View state, not part of the document. See
+    /// [`Document::set_onion_skin`].
+    onion_skin: Option<OnionSkin>,
 }
 
 #[wasm_bindgen]
@@ -76,8 +83,9 @@ impl Document {
     /// Create an empty RGBA document with the given canvas dimensions.
     ///
     /// The fresh document is bootstrapped so it is paintable out of the
-    /// box: one image layer named `"Layer 1"` (id `0`) and one
-    /// transparent image cel sized to the canvas at frame `0`. The
+    /// box: one image layer named `"Layer 1"` (id `0`), one transparent
+    /// image cel sized to the canvas at frame `0`, and the DB32 palette
+    /// (spec §3.7, Decision Log 2026-10-11). The
     /// single 100 ms frame makes the round-trip through
     /// `aseprite-writer` / `aseprite-loader` produce a parseable file.
     ///
@@ -91,6 +99,7 @@ impl Document {
             .color_mode(ColorMode::Rgba)
             .add_layer(Layer::image(DEFAULT_LAYER_ID, "Layer 1"))
             .add_frame(Frame::new(100))
+            .palette(Palette::db32())
             .build()
             .map_err(|e| format!("failed to build sprite: {e}"))?;
         let mut cels = CelMap::new();
@@ -106,6 +115,7 @@ impl Document {
             events: EventQueue::new(),
             active_layer: None,
             current_frame: FrameIndex::new(0),
+            onion_skin: None,
         })
     }
 
@@ -124,6 +134,7 @@ impl Document {
             events: EventQueue::new(),
             active_layer: None,
             current_frame: FrameIndex::new(0),
+            onion_skin: None,
         })
     }
 
@@ -169,16 +180,26 @@ impl Document {
     ///
     /// The result carries the PNG bytes and the manifest as a JSON string
     /// (`AtlasExport.png` / `AtlasExport.manifest`); the manifest lists each
-    /// frame's source rect so an engine can slice the atlas apart. Errors
+    /// frame's source rect so an engine can slice the atlas apart.
+    /// `AtlasExport.data` is the same sheet described in Aseprite's
+    /// `--data` JSON (frame durations, tags, slices — spec §7.3), whose
+    /// `meta.image` names `image_name` (default `"sheet.png"`). Errors
     /// surface the underlying `pincel-core` message: zero columns, an
     /// unknown tag, a frameless sprite, or anything the renderer refuses.
     #[wasm_bindgen(js_name = exportAtlas)]
-    pub fn export_atlas(&self, columns: u32, tag: Option<String>) -> Result<AtlasExport, String> {
+    pub fn export_atlas(
+        &self,
+        columns: u32,
+        tag: Option<String>,
+        image_name: Option<String>,
+    ) -> Result<AtlasExport, String> {
         let mut opts = AtlasOptions::new(columns);
         opts.tag = tag;
         let output = export_atlas_png(&self.sprite, &self.cels, &opts)
             .map_err(|e| format!("failed to export atlas: {e}"))?;
+        let image = image_name.unwrap_or_else(|| "sheet.png".to_owned());
         Ok(AtlasExport {
+            data: aseprite_sheet_json(&self.sprite, &output.manifest, &image),
             manifest: output.manifest.to_json(),
             png: output.png,
         })
@@ -435,8 +456,9 @@ impl Document {
     }
 
     /// Composite the requested frame at the given integer zoom over the
-    /// full sprite canvas, with the default `Visible` layer filter and
-    /// no overlays / onion skin.
+    /// full sprite canvas, with the default `Visible` layer filter, no
+    /// overlays, and the onion skin configured via
+    /// [`Document::set_onion_skin`].
     ///
     /// Mirrors `pincel_core::compose` with [`ComposeRequest::full`] —
     /// viewport, layer-filter, onion-skin, and overlay knobs land in a
@@ -490,6 +512,7 @@ impl Document {
         );
         request.zoom = zoom;
         request.dirty_hint = dirty_hint;
+        request.onion_skin = self.onion_skin;
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
@@ -533,7 +556,7 @@ impl Document {
             "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
@@ -571,7 +594,7 @@ impl Document {
         color: u32,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
@@ -613,7 +636,7 @@ impl Document {
         fill: bool,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -654,7 +677,7 @@ impl Document {
         fill: bool,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -688,7 +711,7 @@ impl Document {
     #[wasm_bindgen(js_name = applyBucket)]
     pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
@@ -743,6 +766,7 @@ impl Document {
     /// follow-up).
     pub fn undo(&mut self) -> bool {
         let undone = self.bus.undo(&mut self.sprite, &mut self.cels);
+        self.clamp_current_frame();
         if undone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
@@ -761,6 +785,7 @@ impl Document {
             .bus
             .redo(&mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to redo: {e}"))?;
+        self.clamp_current_frame();
         if redone && let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
@@ -848,7 +873,7 @@ impl Document {
         if sel.is_empty() {
             return Ok(false);
         }
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         let cmd = ClearRegion::new(layer, frame, sel).masked();
         self.bus
@@ -919,7 +944,7 @@ impl Document {
     /// missing image layer, unsupported color mode, etc.
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
@@ -1094,6 +1119,9 @@ impl Document {
     ) -> Result<(), String> {
         let layer_id = LayerId::new(layer);
         let frame_idx = FrameIndex::new(frame);
+        if self.sprite.layer_locked(layer_id) {
+            return Err(format!("layer {layer} is locked"));
+        }
         // Resolve the parent layer's tile size before mutating so the
         // dirty-rect we emit always reflects the on-disk geometry, not
         // a post-mutation fiction.
@@ -1139,6 +1167,16 @@ impl Document {
             .find(|l| matches!(l.kind, LayerKind::Image))
             .map(|l| l.id)
             .ok_or_else(|| "document has no paintable image layer".to_string())
+    }
+
+    /// [`Self::paint_target_layer`] for an edit: refused while that layer
+    /// or a group it is nested in is locked (spec §3.2 `editable`).
+    fn edit_target_layer(&self) -> Result<LayerId, String> {
+        let layer = self.paint_target_layer()?;
+        if self.sprite.layer_locked(layer) {
+            return Err(format!("layer {} is locked", layer.0));
+        }
+        Ok(layer)
     }
 
     /// Ensure an image cel exists at `(layer, frame)` so the drawing
@@ -1247,6 +1285,8 @@ impl Document {
                     grid_h,
                     tiles: vec![TileRef::EMPTY; tile_count],
                 },
+                user_data: None,
+                z_index: 0,
             })
             .collect();
         let cmd = AddTilemapLayer::new(layer, seeded);
@@ -1317,11 +1357,9 @@ impl Document {
 
     // ---- Palette read surface ---------------------------------------
 
-    /// Number of entries in the document's palette. Zero for a fresh
-    /// `Document::new` (which seeds no palette) and for opened files
-    /// that carry none. RGBA palettes are recovered on open from the
-    /// `0x2019` chunk (see `pincel_core::aseprite_read`), so this
-    /// reflects whatever the source file stored.
+    /// Number of entries in the document's palette: 32 for a fresh
+    /// `Document::new` (DB32), and whatever an opened file stored in its
+    /// `0x2019` chunk (see `pincel_core::aseprite_read`), possibly zero.
     #[wasm_bindgen(getter, js_name = paletteCount)]
     pub fn palette_count(&self) -> u32 {
         self.sprite.palette.len() as u32
@@ -1350,6 +1388,105 @@ impl Document {
             .get(index as usize)
             .map(|e| e.name.clone().unwrap_or_default())
             .ok_or_else(|| format!("palette index {index} out of range"))
+    }
+
+    /// Recolour palette entry `index` (`0xRRGGBBAA`). Consecutive calls
+    /// for the same entry merge into one undo entry until
+    /// [`Document::end_stroke`] (colour-picker drags).
+    #[wasm_bindgen(js_name = setPaletteColor)]
+    pub fn set_palette_color(&mut self, index: u32, color: u32) -> Result<(), String> {
+        let cmd = SetPaletteColor::new(index as usize, Rgba::from_u32(color));
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to set palette color: {e}"))?;
+        Ok(())
+    }
+
+    /// Append a palette entry (`0xRRGGBBAA`) and return its index. One
+    /// undo entry. Errors when the palette already holds 256 entries.
+    #[wasm_bindgen(js_name = addPaletteEntry)]
+    pub fn add_palette_entry(&mut self, color: u32) -> Result<u32, String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                AddPaletteEntry::new(PaletteEntry::new(Rgba::from_u32(color))).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to add palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(self.palette_count() - 1)
+    }
+
+    /// Remove palette entry `index`. One undo entry. Refused for indexed
+    /// documents, whose pixels reference entries by position.
+    #[wasm_bindgen(js_name = removePaletteEntry)]
+    pub fn remove_palette_entry(&mut self, index: u32) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                RemovePaletteEntry::new(index as usize).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to remove palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
+    /// Move palette entry `from` to position `to`. One undo entry.
+    /// Refused for indexed documents.
+    #[wasm_bindgen(js_name = movePaletteEntry)]
+    pub fn move_palette_entry(&mut self, from: u32, to: u32) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                MovePaletteEntry::new(from as usize, to as usize).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to move palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
+    /// Replace the palette with the built-in preset `name` (`db32`,
+    /// `db16`, `pico8`, `gameboy`, `nes`; see [`palette_preset_names`]).
+    /// One undo entry. Refused for indexed documents.
+    #[wasm_bindgen(js_name = setPalettePreset)]
+    pub fn set_palette_preset(&mut self, name: &str) -> Result<(), String> {
+        let preset =
+            PalettePreset::from_name(name).ok_or_else(|| format!("unknown palette `{name}`"))?;
+        self.replace_palette(Palette::preset(preset))
+    }
+
+    /// Replace the palette with a GIMP `.gpl` file's colours and return
+    /// how many it holds. One undo entry. Refused for indexed documents.
+    #[wasm_bindgen(js_name = importGpl)]
+    pub fn import_gpl(&mut self, text: &str) -> Result<u32, String> {
+        let palette = read_gpl(text).map_err(|e| e.to_string())?;
+        let count = palette.len() as u32;
+        self.replace_palette(palette)?;
+        Ok(count)
+    }
+
+    /// The palette as a GIMP `.gpl` file called `name` (alpha dropped).
+    #[wasm_bindgen(js_name = exportGpl)]
+    pub fn export_gpl(&self, name: &str) -> String {
+        write_gpl(&self.sprite.palette, name)
+    }
+
+    fn replace_palette(&mut self, palette: Palette) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                ReplacePalette::new(palette).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to replace palette: {e}"))?;
+        self.bus.seal();
+        Ok(())
     }
 
     // ---- M9.4: slice surface ----------------------------------------
@@ -1683,6 +1820,16 @@ fn endpoint_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
 /// fresh `Uint8Array`; spec §9.3 calls for a zero-copy
 /// `Uint8ClampedArray` view of WASM memory, which lands once the
 /// `js-sys` integration is wired up (M6 follow-up).
+/// Ids of the built-in palettes, in menu order (see
+/// [`Document::set_palette_preset`]).
+#[wasm_bindgen(js_name = palettePresetNames)]
+pub fn palette_preset_names() -> Vec<String> {
+    PalettePreset::ALL
+        .iter()
+        .map(|p| p.name().to_owned())
+        .collect()
+}
+
 #[wasm_bindgen]
 pub struct ComposeFrame {
     width: u32,
@@ -1741,6 +1888,7 @@ impl ComposeFrame {
 pub struct AtlasExport {
     png: Vec<u8>,
     manifest: String,
+    data: String,
 }
 
 #[wasm_bindgen]
@@ -1757,6 +1905,13 @@ impl AtlasExport {
     #[wasm_bindgen(getter)]
     pub fn manifest(&self) -> String {
         self.manifest.clone()
+    }
+
+    /// The sheet in Aseprite's `--data` JSON layout (spec §7.3): the
+    /// sidecar file engines that read Aseprite sheets expect.
+    #[wasm_bindgen(getter)]
+    pub fn data(&self) -> String {
+        self.data.clone()
     }
 }
 
@@ -1796,14 +1951,35 @@ mod tests {
 
     // ---- Palette read surface ----
 
-    /// A fresh document seeds no palette, so the panel shows an empty
-    /// state until a file with a palette is opened.
+    /// A fresh document starts with DB32 (spec §3.7).
     #[test]
-    fn palette_count_is_zero_for_fresh_document() {
+    fn fresh_document_seeds_the_db32_palette() {
         let doc = Document::new(8, 8).expect("dims");
-        assert_eq!(doc.palette_count(), 0);
-        assert!(doc.palette_color(0).is_err());
-        assert!(doc.palette_name(0).is_err());
+        assert_eq!(doc.palette_count(), 32);
+        assert_eq!(doc.palette_color(0).unwrap(), 0x0000_00ff);
+        assert_eq!(doc.palette_color(21).unwrap(), 0xffff_ffff);
+        assert!(doc.palette_color(32).is_err());
+        assert!(doc.palette_name(32).is_err());
+    }
+
+    #[test]
+    fn palette_edits_route_through_undo() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.set_palette_color(0, 0x1122_33ff).expect("set");
+        doc.set_palette_color(0, 0x4455_66ff).expect("set");
+        doc.end_stroke();
+        assert_eq!(doc.palette_color(0).unwrap(), 0x4455_66ff);
+        assert!(doc.undo());
+        assert_eq!(doc.palette_color(0).unwrap(), 0x0000_00ff, "merged drag");
+        let i = doc.add_palette_entry(0xff00_00ff).expect("add");
+        assert_eq!(i, 32);
+        doc.move_palette_entry(32, 0).expect("move");
+        assert_eq!(doc.palette_color(0).unwrap(), 0xff00_00ff);
+        doc.remove_palette_entry(0).expect("remove");
+        assert_eq!(doc.palette_count(), 32);
+        assert!(doc.undo());
+        assert!(doc.undo());
+        assert_eq!(doc.palette_color(32).unwrap(), 0xff00_00ff);
     }
 
     #[test]
@@ -2959,6 +3135,8 @@ mod tests {
                 grid_h: 2,
                 tiles: vec![TileRef::EMPTY; 4],
             },
+            user_data: None,
+            z_index: 0,
         });
         // Drain the events the bootstrap produced so the per-test
         // assertions can match the per-method emissions exactly.
@@ -3549,7 +3727,7 @@ mod tests {
     #[test]
     fn export_atlas_packs_every_frame_into_the_requested_grid() {
         let doc = doc_with_frames(4, 2, 3);
-        let atlas = doc.export_atlas(2, None).expect("export ok");
+        let atlas = doc.export_atlas(2, None, None).expect("export ok");
         assert_eq!(&atlas.png()[..8], &PNG_SIGNATURE);
         // 3 frames over 2 columns → 2 rows, so 8x4 pixels.
         let manifest = atlas.manifest();
@@ -3567,9 +3745,24 @@ mod tests {
     }
 
     #[test]
+    fn export_atlas_data_is_aseprite_sheet_json() {
+        let doc = doc_with_frames(4, 2, 3);
+        let atlas = doc
+            .export_atlas(3, None, Some("hero.png".into()))
+            .expect("export ok");
+        let data = atlas.data();
+        assert!(data.contains("\"filename\":\"hero 2\""), "data: {data}");
+        assert!(data.contains("\"image\":\"hero.png\""), "data: {data}");
+        assert!(data.contains("\"duration\":"), "data: {data}");
+    }
+
+    #[test]
     fn export_atlas_clamps_columns_to_frame_count() {
         let doc = Document::new(3, 3).expect("dims");
-        let manifest = doc.export_atlas(8, None).expect("export ok").manifest();
+        let manifest = doc
+            .export_atlas(8, None, None)
+            .expect("export ok")
+            .manifest();
         assert!(
             manifest.starts_with("{\"width\":3,\"height\":3,\"columns\":1,\"rows\":1,"),
             "manifest: {manifest}"
@@ -3583,7 +3776,7 @@ mod tests {
             .tags
             .push(Tag::new("walk", FrameIndex::new(1), FrameIndex::new(2)));
         let manifest = doc
-            .export_atlas(4, Some("walk".to_string()))
+            .export_atlas(4, Some("walk".to_string()), None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3603,7 +3796,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_zero_columns() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(0, None) {
+        let err = match doc.export_atlas(0, None, None) {
             Err(e) => e,
             Ok(_) => panic!("a zero column count should be rejected"),
         };
@@ -3613,7 +3806,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_unknown_tag() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(1, Some("nope".to_string())) {
+        let err = match doc.export_atlas(1, Some("nope".to_string()), None) {
             Err(e) => e,
             Ok(_) => panic!("an unknown tag name should be rejected"),
         };
@@ -3624,7 +3817,7 @@ mod tests {
     fn export_atlas_of_a_single_frame_document_matches_frame_export() {
         // A 1x1 grid atlas is the same image as the single-frame export.
         let doc = Document::new(6, 4).expect("dims");
-        let atlas = doc.export_atlas(1, None).expect("export ok");
+        let atlas = doc.export_atlas(1, None, None).expect("export ok");
         assert_eq!(atlas.png(), doc.export_png(0).expect("export ok"));
     }
 
@@ -3788,5 +3981,22 @@ mod tests {
         // Unknown ids report the documented defaults.
         assert!(!doc.layer_visible(99));
         assert_eq!(doc.layer_opacity(99), 0);
+    }
+
+    #[test]
+    fn palette_presets_and_gpl_round_trip_through_undo() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.palette_count(), 32);
+        assert!(palette_preset_names().contains(&"pico8".to_owned()));
+        doc.set_palette_preset("gameboy").expect("preset");
+        assert_eq!(doc.palette_count(), 4);
+        let gpl = doc.export_gpl("GB");
+        assert!(gpl.starts_with("GIMP Palette\nName: GB"));
+        assert!(doc.undo());
+        assert_eq!(doc.palette_count(), 32);
+        assert_eq!(doc.import_gpl(&gpl).expect("import"), 4);
+        assert_eq!(doc.palette_color(0).expect("entry"), 0x0f380fff);
+        assert!(doc.set_palette_preset("vga").is_err());
+        assert!(doc.import_gpl("nope").is_err());
     }
 }

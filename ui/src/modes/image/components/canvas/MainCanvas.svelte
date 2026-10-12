@@ -1,12 +1,27 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   import { onMount } from 'svelte';
-  import { editor, tool, view, MIN_ZOOM, MAX_ZOOM } from '../../stores/editor.svelte';
-  import { readComposite, renderText } from '../../core/controller';
-  import { drawComposite } from '../../render/canvas2d';
-  import { attachTools } from '../../tools/pointer';
+  import {
+    editor,
+    tool,
+    view,
+    viewCommands,
+    MIN_ZOOM,
+    MAX_ZOOM,
+  } from '../../stores/editor.svelte';
+  import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
+  import { isTypingTarget } from '../../../../lib/shell/shortcuts';
+  import { readCompositeRegion, renderText, undo } from '../../core/controller';
+  import { PinchTracker } from '../../../../lib/view/pinch';
+  import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
+  import { attachTools, gestureControl } from '../../tools/pointer';
   import CanvasOverlay from './CanvasOverlay.svelte';
 
+  // `canvas` is the viewport-sized render target; `surface` is a backing-
+  // store-free element covering the document inside the transformed stage
+  // — tools take their pointer coordinates from it.
   let canvas: HTMLCanvasElement;
+  let surface: HTMLDivElement;
   let viewport: HTMLDivElement;
 
   // In-progress text entry (Text tool). `cx`/`cy` are canvas-space; the floating
@@ -19,10 +34,9 @@
       return;
     }
     // An open effect dialog overrides the canvas with its live preview.
-    const rgba = editor.previewComposite ?? readComposite();
-    if (rgba) {
-      drawComposite(canvas, editor.width, editor.height, rgba);
-    }
+    const preview = editor.previewComposite;
+    const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
+    drawViewport(canvas, editor.width, editor.height, view, sample);
   }
 
   /** Fits the document to the viewport and centres it (spec §6.4). */
@@ -69,18 +83,84 @@
     zoomAround(view.zoom * factor, e.clientX - rect.left, e.clientY - rect.top);
   }
 
-  // Middle-button drag pans (the tool dispatcher ignores button 1).
-  let panning = false;
+  // Two-finger pinch / pan (spec §17.4), handled in the capture phase so
+  // the tool dispatcher on the canvas never sees the gesture. The second
+  // finger cancels the first finger's gesture and rolls back the stroke
+  // it had started; touch input is then ignored until every finger lifts.
+  const pinch = new PinchTracker();
+  let pinchZoom0 = 1;
+  let gestureUndoDepth = 0;
+
+  function onPointerDownCapture(e: PointerEvent): void {
+    if (pinch.down(e)) {
+      e.stopPropagation();
+      gestureControl.cancel();
+      if (editor.undoDepth > gestureUndoDepth) undo();
+      pinchZoom0 = view.zoom;
+      viewport.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (pinch.suppressing) {
+      e.stopPropagation();
+      return;
+    }
+    if (spaceDown && e.button === 0 && editor.handle !== null) {
+      e.stopPropagation();
+      e.preventDefault();
+      startPan(e);
+      return;
+    }
+    gestureUndoDepth = editor.undoDepth;
+  }
+
+  function onPointerMoveCapture(e: PointerEvent): void {
+    const f = pinch.move(e);
+    if (f) {
+      e.stopPropagation();
+      const rect = viewport.getBoundingClientRect();
+      zoomAround(pinchZoom0 * f.scale, f.midX - rect.left, f.midY - rect.top);
+      view.panX += f.dx;
+      view.panY += f.dy;
+      return;
+    }
+    if (pinch.suppressing) e.stopPropagation();
+  }
+
+  function onPointerUpCapture(e: PointerEvent): void {
+    const pinched = pinch.suppressing;
+    pinch.up(e);
+    if (pinched) e.stopPropagation();
+  }
+
+  // Middle-button drag, or any drag with Space held, pans (the tool
+  // dispatcher ignores button 1; a Space drag is stopped in the capture
+  // phase so tools never see it). Same gesture as Pixel mode.
+  let panning = $state(false);
+  let spaceDown = $state(false);
   let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
+
+  function onSpace(e: KeyboardEvent): void {
+    if (e.code !== 'Space' || isTypingTarget(e.target)) return;
+    if (e.type === 'keydown') {
+      e.preventDefault();
+      spaceDown = true;
+    } else {
+      spaceDown = false;
+    }
+  }
+
+  function startPan(e: PointerEvent): void {
+    panning = true;
+    panStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
+    viewport.setPointerCapture(e.pointerId);
+  }
 
   function onPointerDown(e: PointerEvent): void {
     if (e.button !== 1 || editor.handle === null) {
       return;
     }
     e.preventDefault();
-    panning = true;
-    panStart = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY };
-    viewport.setPointerCapture(e.pointerId);
+    startPan(e);
   }
 
   function onPointerMove(e: PointerEvent): void {
@@ -151,16 +231,23 @@
     shapes: 'crosshair',
     text: 'text',
   };
-  const cursor = $derived(toolCursors[tool.kind] ?? 'default');
+  const cursor = $derived(
+    panning ? 'grabbing' : spaceDown ? 'grab' : (toolCursors[tool.kind] ?? 'default'),
+  );
   const stageTransform = $derived(`translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`);
 
   onMount(() => {
-    const detach = attachTools(canvas, redraw, placeText);
+    viewCommands.zoomIn = () => setZoom(view.zoom * 1.25);
+    viewCommands.zoomOut = () => setZoom(view.zoom / 1.25);
+    viewCommands.fit = fitView;
+    viewCommands.actual = () => setZoom(1);
+    const detach = attachTools(surface, redraw, placeText);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
       if (view.fit) {
         fitView();
       }
+      redraw();
     });
     ro.observe(viewport);
     return () => {
@@ -169,10 +256,15 @@
     };
   });
 
-  // Recompose whenever the document mutates; fit a freshly opened document.
+  // Recompose whenever the document mutates or the view moves (only the
+  // visible rect is composited); fit a freshly opened document.
   let lastHandle: number | null = null;
   $effect(() => {
     void editor.revision;
+    void editor.previewComposite;
+    void view.zoom;
+    void view.panX;
+    void view.panY;
     if (editor.handle !== lastHandle) {
       lastHandle = editor.handle;
       if (editor.handle !== null) {
@@ -183,34 +275,49 @@
   });
 </script>
 
+<svelte:window onkeydown={onSpace} onkeyup={onSpace} onblur={() => (spaceDown = false)} />
+
 <div
   bind:this={viewport}
-  class="relative h-full w-full overflow-hidden bg-[var(--fl-app-bg)]"
+  class="relative h-full w-full touch-none overflow-hidden bg-pc-bg"
   onwheel={onWheel}
+  onpointerdowncapture={onPointerDownCapture}
+  onpointermovecapture={onPointerMoveCapture}
+  onpointerupcapture={onPointerUpCapture}
+  onpointercancelcapture={onPointerUpCapture}
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
   onpointercancel={onPointerUp}
   role="presentation"
 >
+  <canvas
+    bind:this={canvas}
+    class="pointer-events-none absolute inset-0 h-full w-full"
+    style="image-rendering: pixelated;"
+  ></canvas>
+
   {#if editor.handle === null}
-    <p class="absolute inset-0 flex items-center justify-center text-sm text-neutral-500">
-      Open an image or create a new document to start.
+    <p class="absolute inset-0 flex items-center justify-center text-sm text-pc-faint">
+      {t('img.empty')}
     </p>
   {/if}
 
-  <!-- The stage holds the canvas + overlay; the view transform zooms/pans both
-       together, and pointer coords stay correct via getBoundingClientRect. -->
+  <!-- The stage carries the view transform: the pointer surface and the text
+       entry live in document pixels inside it (pointer coords come from the
+       surface's getBoundingClientRect). Pixels are drawn by the viewport-sized
+       canvas above, the marching ants by the overlay below. -->
   <div
     class="absolute left-0 top-0 origin-top-left"
     style="transform: {stageTransform}; {editor.handle === null ? 'display:none' : ''}"
   >
-    <canvas
-      bind:this={canvas}
+    <div
+      bind:this={surface}
       class="block shadow-2xl shadow-black/60"
-      style="width: {editor.width}px; height: {editor.height}px; image-rendering: pixelated; cursor: {cursor};"
-    ></canvas>
-    <CanvasOverlay />
+      role="img"
+      aria-label="Image canvas"
+      style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
+    ></div>
     {#if textEntry}
       <textarea
         use:autofocus
@@ -218,7 +325,7 @@
         onkeydown={onEntryKeydown}
         onblur={commitText}
         spellcheck="false"
-        class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-[var(--fl-accent)] bg-transparent p-0 leading-none outline-none"
+        class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-pc-accent bg-transparent p-0 leading-none outline-none"
         style="left: {textEntry.cx}px; top: {textEntry.cy}px; transform: translateX({entryShift}); text-align: {tool.textAlign}; font-size: {tool.fontSize}px; color: {tool.foreground}; font-family: 'Liberation Sans', Arial, sans-serif; font-weight: {tool.textBold
           ? 'bold'
           : 'normal'}; font-style: {tool.textItalic ? 'italic' : 'normal'}; min-width: 4ch;"
@@ -226,30 +333,18 @@
     {/if}
   </div>
 
-  <!-- Zoom controls (spec §6.4). -->
+  <CanvasOverlay />
+
+  <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
   {#if editor.handle !== null}
-    <div
-      class="absolute bottom-3 right-3 flex items-center gap-1 rounded border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)]/90 px-1 py-0.5 text-xs shadow-lg"
-    >
-      <button
-        class="rounded px-2 py-0.5 hover:bg-neutral-700"
-        onclick={() => setZoom(view.zoom / 1.25)}
-        aria-label="Zoom out">−</button
-      >
-      <button
-        class="w-14 rounded px-1 py-0.5 text-center tabular-nums hover:bg-neutral-700"
-        onclick={fitView}
-      >
-        {Math.round(view.zoom * 100)}%
-      </button>
-      <button
-        class="rounded px-2 py-0.5 hover:bg-neutral-700"
-        onclick={() => setZoom(view.zoom * 1.25)}
-        aria-label="Zoom in">+</button
-      >
-      <button class="rounded px-2 py-0.5 hover:bg-neutral-700" onclick={() => setZoom(1)}
-        >1:1</button
-      >
-    </div>
+    <ZoomControl
+      label={`${Math.round(view.zoom * 100)}%`}
+      onZoomIn={() => setZoom(view.zoom * 1.25)}
+      onZoomOut={() => setZoom(view.zoom / 1.25)}
+      onFit={fitView}
+      onActual={() => setZoom(1)}
+      canZoomIn={view.zoom < MAX_ZOOM}
+      canZoomOut={view.zoom > MIN_ZOOM}
+    />
   {/if}
 </div>

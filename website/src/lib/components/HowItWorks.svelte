@@ -1,24 +1,26 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
+  import Rich from './Rich.svelte';
   import PixelIcon from './PixelIcon.svelte';
 </script>
 
 <ol class="steps">
   <li>
     <div class="step-icon"><PixelIcon name="file" size={40} /></div>
-    <h3>1. Open</h3>
-    <p>Drag in a <code>.aseprite</code> file or start fresh.</p>
+    <h3>{m().how.open.title}</h3>
+    <p><Rich text={m().how.open.text} /></p>
   </li>
   <li class="arrow" aria-hidden="true"><PixelIcon name="arrow-right" size={32} /></li>
   <li>
     <div class="step-icon"><PixelIcon name="brush" size={40} /></div>
-    <h3>2. Edit</h3>
-    <p>Paint, animate, build tilemaps, define slices.</p>
+    <h3>{m().how.edit.title}</h3>
+    <p><Rich text={m().how.edit.text} /></p>
   </li>
   <li class="arrow" aria-hidden="true"><PixelIcon name="arrow-right" size={32} /></li>
   <li>
     <div class="step-icon"><PixelIcon name="frame" size={40} /></div>
-    <h3>3. Save</h3>
-    <p>Save back to <code>.aseprite</code>. Your engine hot-reloads.</p>
+    <h3>{m().how.save.title}</h3>
+    <p><Rich text={m().how.save.text} /></p>
   </li>
 </ol>
 

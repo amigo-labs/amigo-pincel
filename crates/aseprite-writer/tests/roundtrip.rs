@@ -16,7 +16,8 @@ use aseprite_loader::binary::raw_file::parse_raw_file;
 use aseprite_loader::loader::decompress;
 use aseprite_writer::{
     AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, Frame, Header,
-    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, TilesetChunk, write,
+    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, TilesetChunk, UserData,
+    write,
 };
 
 fn write_to_vec(file: &AseFile) -> Vec<u8> {
@@ -35,6 +36,7 @@ fn empty_rgba_sprite_roundtrips_through_loader() {
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
+        user_data: None,
     };
     let bytes = write_to_vec(&file);
 
@@ -60,6 +62,7 @@ fn three_layers_with_blend_modes_roundtrip() {
             opacity: 255,
             name: "Background".into(),
             tileset_index: None,
+            user_data: None,
         },
         LayerChunk {
             flags: LayerFlags::VISIBLE,
@@ -69,6 +72,7 @@ fn three_layers_with_blend_modes_roundtrip() {
             opacity: 200,
             name: "Shadow".into(),
             tileset_index: None,
+            user_data: None,
         },
         LayerChunk {
             flags: LayerFlags::VISIBLE,
@@ -78,6 +82,7 @@ fn three_layers_with_blend_modes_roundtrip() {
             opacity: 128,
             name: "Highlight".into(),
             tileset_index: None,
+            user_data: None,
         },
     ];
 
@@ -89,6 +94,7 @@ fn three_layers_with_blend_modes_roundtrip() {
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: vec![Frame::new(80)],
+        user_data: None,
     };
 
     let bytes = write_to_vec(&file);
@@ -141,6 +147,7 @@ fn palette_roundtrips_via_raw_file() {
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
+        user_data: None,
     };
 
     let bytes = write_to_vec(&file);
@@ -177,6 +184,7 @@ fn tags_roundtrip_with_directions() {
             repeat: 0,
             color: [0xFF, 0x00, 0x00],
             name: "walk".into(),
+            user_data: None,
         },
         Tag {
             from_frame: 3,
@@ -185,6 +193,7 @@ fn tags_roundtrip_with_directions() {
             repeat: 3,
             color: [0x00, 0xFF, 0x00],
             name: "swing".into(),
+            user_data: None,
         },
         Tag {
             from_frame: 6,
@@ -193,6 +202,7 @@ fn tags_roundtrip_with_directions() {
             repeat: 1,
             color: [0x00, 0x00, 0xFF],
             name: "blink".into(),
+            user_data: None,
         },
     ];
 
@@ -204,6 +214,7 @@ fn tags_roundtrip_with_directions() {
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: (0..7).map(|_| Frame::new(50)).collect(),
+        user_data: None,
     };
 
     let bytes = write_to_vec(&file);
@@ -242,6 +253,7 @@ fn rgba_layer(name: &str) -> LayerChunk {
         opacity: 255,
         name: name.into(),
         tileset_index: None,
+        user_data: None,
     }
 }
 
@@ -284,8 +296,10 @@ fn single_image_cel_roundtrips_with_pixels() {
                     height: 4,
                     data: pixels.clone(),
                 },
+                user_data: None,
             }],
         }],
+        user_data: None,
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -335,6 +349,7 @@ fn linked_cel_roundtrips_pointing_at_source_frame() {
                         height: 2,
                         data: pixels.clone(),
                     },
+                    user_data: None,
                 }],
             },
             Frame {
@@ -346,9 +361,11 @@ fn linked_cel_roundtrips_pointing_at_source_frame() {
                     opacity: 255,
                     z_index: 0,
                     content: CelContent::Linked { frame_position: 0 },
+                    user_data: None,
                 }],
             },
         ],
+        user_data: None,
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -391,6 +408,7 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
                             height: 1,
                             data: red.clone(),
                         },
+                        user_data: None,
                     },
                     CelChunk {
                         layer_index: 1,
@@ -403,6 +421,7 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
                             height: 1,
                             data: green.clone(),
                         },
+                        user_data: None,
                     },
                 ],
             },
@@ -419,9 +438,11 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
                         height: 1,
                         data: blue.clone(),
                     },
+                    user_data: None,
                 }],
             },
         ],
+        user_data: None,
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -463,6 +484,7 @@ fn full_file_with_layers_palette_tags_roundtrips() {
             opacity: 255,
             name: "main".into(),
             tileset_index: None,
+            user_data: None,
         }],
         palette: Some(PaletteChunk {
             first_color: 0,
@@ -484,10 +506,12 @@ fn full_file_with_layers_palette_tags_roundtrips() {
             repeat: 0,
             color: [0, 0, 0],
             name: "all".into(),
+            user_data: None,
         }],
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: vec![Frame::new(100), Frame::new(150)],
+        user_data: None,
     };
 
     let bytes = write_to_vec(&file);
@@ -535,6 +559,7 @@ fn build_tilemap_file() -> AseFile {
                 opacity: 255,
                 name: "img".into(),
                 tileset_index: None,
+                user_data: None,
             },
             LayerChunk {
                 flags: LayerFlags::VISIBLE | LayerFlags::EDITABLE,
@@ -544,6 +569,7 @@ fn build_tilemap_file() -> AseFile {
                 opacity: 200,
                 name: "tiles".into(),
                 tileset_index: Some(0),
+                user_data: None,
             },
         ],
         palette: None,
@@ -576,8 +602,10 @@ fn build_tilemap_file() -> AseFile {
                     bitmask_diagonal_flip: DIAG_FLIP_MASK,
                     tiles: vec![0, 1, 1 | X_FLIP_MASK, Y_FLIP_MASK],
                 },
+                user_data: None,
             }],
         }],
+        user_data: None,
     }
 }
 
@@ -655,4 +683,234 @@ fn tilemap_cel_roundtrips_through_loader() {
     assert_eq!(read(&mut iter), 1);
     assert_eq!(read(&mut iter), 1 | X_FLIP_MASK);
     assert_eq!(read(&mut iter), Y_FLIP_MASK);
+}
+
+/// A raw chunk kind, enough to assert the User Data placement.
+fn chunk_kinds(bytes: &[u8]) -> Vec<&'static str> {
+    let raw = parse_raw_file(bytes).expect("raw parse");
+    raw.frames
+        .iter()
+        .flat_map(|f| f.chunks.iter())
+        .map(|c| match c {
+            Chunk::Layer(_) => "layer",
+            Chunk::Cel(_) => "cel",
+            Chunk::Palette(_) => "palette",
+            Chunk::Tags(_) => "tags",
+            Chunk::UserData(_) => "ud",
+            _ => "other",
+        })
+        .collect()
+}
+
+#[test]
+fn user_data_follows_its_layer_cel_palette_and_tags() {
+    let ud = |text: &str| {
+        Some(UserData {
+            text: Some(text.into()),
+            color: Some([1, 2, 3, 4]),
+            properties: None,
+        })
+    };
+    let mut layer = rgba_layer("bg");
+    layer.user_data = ud("layer note");
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: vec![layer, rgba_layer("fg")],
+        palette: Some(PaletteChunk {
+            first_color: 0,
+            entries: vec![PaletteEntry {
+                color: Color {
+                    red: 0,
+                    green: 0,
+                    blue: 0,
+                    alpha: 255,
+                },
+                name: None,
+            }],
+        }),
+        tags: vec![
+            Tag {
+                from_frame: 0,
+                to_frame: 0,
+                direction: AnimationDirection::Forward,
+                repeat: 0,
+                color: [0, 0, 0],
+                name: "a".into(),
+                user_data: None,
+            },
+            Tag {
+                from_frame: 0,
+                to_frame: 0,
+                direction: AnimationDirection::Forward,
+                repeat: 0,
+                color: [0, 0, 0],
+                name: "b".into(),
+                user_data: ud("tag b"),
+            },
+        ],
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame {
+            duration: 100,
+            cels: vec![CelChunk {
+                layer_index: 1,
+                x: 0,
+                y: 0,
+                opacity: 255,
+                z_index: -2,
+                content: CelContent::Image {
+                    width: 2,
+                    height: 2,
+                    data: checker_rgba(2, 2),
+                },
+                user_data: ud("cel note"),
+            }],
+        }],
+        user_data: ud("sprite note"),
+    };
+    let bytes = write_to_vec(&file);
+    assert_eq!(
+        chunk_kinds(&bytes),
+        vec![
+            "layer", "ud", "layer", "palette", "ud", "tags", "ud", "ud", "cel", "ud"
+        ]
+    );
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let texts: Vec<Option<&str>> = raw.frames[0]
+        .chunks
+        .iter()
+        .filter_map(|c| match c {
+            Chunk::UserData(u) => Some(u.text),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        texts,
+        vec![
+            Some("layer note"),
+            Some("sprite note"),
+            None,
+            Some("tag b"),
+            Some("cel note")
+        ]
+    );
+    let parsed = parse_file(&bytes).expect("parse");
+    // `cels` is indexed by layer; the cel sits on layer 1.
+    assert_eq!(parsed.frames[0].cels[1].as_ref().expect("cel").z_index, -2);
+}
+
+/// One property map (key 0) holding `hp: int32 = 7`, as raw block bytes.
+fn hp_properties() -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&0u32.to_le_bytes()); // size, patched below
+    b.extend_from_slice(&1u32.to_le_bytes()); // one map
+    b.extend_from_slice(&0u32.to_le_bytes()); // key 0: user properties
+    b.extend_from_slice(&1u32.to_le_bytes()); // one property
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(b"hp");
+    b.extend_from_slice(&0x0006u16.to_le_bytes()); // int32
+    b.extend_from_slice(&7i32.to_le_bytes());
+    let len = b.len() as u32;
+    b[..4].copy_from_slice(&len.to_le_bytes());
+    b
+}
+
+#[test]
+fn user_data_properties_are_written_verbatim_and_parse() {
+    use aseprite_loader::binary::chunks::user_data::Value;
+    let props = hp_properties();
+    let mut layer = rgba_layer("bg");
+    layer.user_data = Some(UserData {
+        text: Some("note".into()),
+        color: None,
+        properties: Some(props.clone()),
+    });
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: vec![layer],
+        palette: None,
+        tags: Vec::new(),
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let bytes = write_to_vec(&file);
+    // The block sits verbatim at the end of the user-data chunk.
+    assert!(bytes.windows(props.len()).any(|w| w == props.as_slice()));
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let ud = raw.frames[0]
+        .chunks
+        .iter()
+        .find_map(|c| match c {
+            Chunk::UserData(u) => Some(u),
+            _ => None,
+        })
+        .expect("user data chunk");
+    assert_eq!(ud.text, Some("note"));
+    let (_, maps) = ud
+        .properties_maps
+        .as_ref()
+        .expect("properties flag")
+        .as_ref()
+        .expect("maps parse");
+    assert_eq!(maps.len(), 1);
+    assert_eq!(maps[0].extension_entry_id, 0);
+    assert_eq!(maps[0].properties[0].name, "hp");
+    assert!(matches!(maps[0].properties[0].value, Value::Int32(7)));
+}
+
+#[test]
+fn user_data_properties_with_a_wrong_size_are_rejected() {
+    let mut props = hp_properties();
+    props.push(0); // one stray byte the size field does not count
+    let mut layer = rgba_layer("bg");
+    layer.user_data = Some(UserData {
+        text: None,
+        color: None,
+        properties: Some(props),
+    });
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: vec![layer],
+        palette: None,
+        tags: Vec::new(),
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let mut buf = Vec::new();
+    assert!(matches!(
+        write(&file, &mut buf),
+        Err(aseprite_writer::WriteError::UserDataPropertiesSize { .. })
+    ));
+}
+
+#[test]
+fn unknown_tag_direction_roundtrips_as_its_raw_byte() {
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: Vec::new(),
+        palette: None,
+        tags: vec![Tag {
+            from_frame: 0,
+            to_frame: 0,
+            direction: AnimationDirection::Other(7),
+            repeat: 0,
+            color: [0, 0, 0],
+            name: "future".into(),
+            user_data: None,
+        }],
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("parse");
+    assert!(matches!(
+        parsed.tags[0].animation_direction,
+        LoaderDirection::Unknown(7)
+    ));
 }

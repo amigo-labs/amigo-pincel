@@ -17,10 +17,15 @@ import {
   type Rgba,
   type DrawShapeCommand,
   type DrawTextCommand,
-  type EffectCommand,
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
-import { saveExport, type ExportFormat } from '../../../lib/fs';
+import {
+  saveBytes,
+  saveExport,
+  sniffFormat,
+  type ImageExportFormat as ExportFormat,
+  type SaveTarget,
+} from '../../../lib/fs';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -54,6 +59,28 @@ function colorWithOpacity(hex: string): Rgba {
   return [r, g, b, Math.round(opacity01() * 255)];
 }
 
+/** Pen input and the brush dynamics it drives (spec §17.4). */
+function penFields(
+  pressure: number[],
+  azimuth: Array<number | null>,
+): {
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+} {
+  return {
+    pressure,
+    pressure_size: tool.pressureSize,
+    pressure_opacity: tool.pressureOpacity,
+    azimuth,
+    angle: tool.angle,
+    tilt_angle: tool.tiltAngle,
+  };
+}
+
 /** Refreshes derived document state from the core after a mutation. */
 function syncInfo(): void {
   if (editor.handle === null) {
@@ -65,6 +92,7 @@ function syncInfo(): void {
   editor.activeLayer = info.active_layer;
   editor.canUndo = info.can_undo;
   editor.canRedo = info.can_redo;
+  editor.undoDepth = info.undo_depth;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
   editor.revision += 1;
@@ -301,22 +329,25 @@ export function cropToSelection(): void {
 }
 
 /** Applies an effect to the active layer as one undoable step (spec §11). */
-export function applyEffect(effect: EffectCommand): void {
+/** Applies an effect to the active layer, inside the selection. Returns
+ *  `false` when the selection is empty and nothing changed. */
+export function applyEffect(name: string, params: number[]): boolean {
   if (editor.handle === null) {
-    return;
+    return false;
   }
-  core.applyEffect(editor.handle, editor.activeLayer, effect);
+  const changed = core.applyEffect(editor.handle, editor.activeLayer, name, params);
   editor.previewComposite = null;
   syncInfo();
+  return changed;
 }
 
 /** Sets the live effect preview over the canvas without mutating the document
  * (spec §11 live preview). Call from an open effect dialog. */
-export function previewEffect(effect: EffectCommand): void {
+export function previewEffect(name: string, params: number[]): void {
   if (editor.handle === null) {
     return;
   }
-  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, effect);
+  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, name, params);
   editor.revision += 1;
 }
 
@@ -429,8 +460,49 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
 
 // Stem reused for export filenames: the opened file's name, or this default
 // for a blank/new document.
-const DEFAULT_EXPORT_STEM = 'fineliner-export';
+const DEFAULT_EXPORT_STEM = 'image';
 let exportStem = DEFAULT_EXPORT_STEM;
+
+// Where Save writes the OpenRaster project (spec §15, 2026-10-11): the
+// opened `.ora` itself (handle / path), or — for a new document or an
+// opened flat image — a sibling `<stem>.ora` that the first Save asks for.
+let projectTarget: SaveTarget = { name: `${DEFAULT_EXPORT_STEM}.ora`, handle: null, path: null };
+
+/** The project file name Save writes to (and autosave labels snapshots with). */
+export function projectName(): string {
+  return projectTarget.name;
+}
+
+/** Marks the current state as saved: the document reads clean until the
+ *  undo depth moves again. */
+function markSaved(): void {
+  editor.savedUndoDepth = editor.undoDepth;
+}
+
+/** Marks the document as having unsaved changes (e.g. after recovering an
+ *  autosave snapshot, which is newer than any file on disk). */
+export function markUnsaved(): void {
+  editor.savedUndoDepth = -1;
+}
+
+/** OpenRaster bytes of the current document; `fast` trades size for speed
+ *  (autosave). `null` when no document is open. */
+export function projectBytes(fast = false): Uint8Array | null {
+  if (editor.handle === null) return null;
+  return core.saveProject(editor.handle, fast ? 1 : 6);
+}
+
+/** Saves the document as OpenRaster (Save / Save As). Returns the target
+ *  written to, or `null` when there is no document. */
+export async function saveProject(forceAs = false): Promise<SaveTarget | null> {
+  const bytes = projectBytes();
+  if (bytes === null) return null;
+  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
+  projectTarget = await saveBytes(new Uint8Array(bytes), projectTarget, { forceAs, format: 'ora' });
+  exportStem = projectTarget.name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
+  markSaved();
+  return projectTarget;
+}
 
 /** Creates a blank document and makes it the active one. */
 export async function newDocument(width: number, height: number): Promise<void> {
@@ -444,22 +516,36 @@ export async function newDocument(width: number, height: number): Promise<void> 
   editor.handle = handle;
   // A blank document must not inherit a previously opened file's name.
   exportStem = DEFAULT_EXPORT_STEM;
+  projectTarget = { name: `${DEFAULT_EXPORT_STEM}.ora`, handle: null, path: null };
   syncInfo();
+  markSaved();
 }
 
-/** Opens already-read image bytes as a new single-layer document. `name`
- * seeds the export file name; `mime` is a hint for the decoder. */
-export async function openBytes(bytes: Uint8Array, name: string, mime: string): Promise<void> {
+/** Opens already-read bytes: an OpenRaster project with all its layers, or
+ * a flat image as a single-layer document. `name` seeds the export and
+ * project file names; `mime` is a decoder hint. `target` carries the
+ * file's FSA handle / Tauri path so Save on an `.ora` writes it in place. */
+export async function openBytes(
+  bytes: Uint8Array,
+  name: string,
+  mime: string,
+  target: Pick<SaveTarget, 'handle' | 'path'> = { handle: null, path: null },
+): Promise<void> {
   await initCore();
+  const ora = sniffFormat(bytes) === 'ora';
   // Decode before closing the current document: a corrupt file must not
   // destroy the open document or leave `editor.handle` pointing at a closed slot.
-  const handle = core.openImage(bytes, mime || 'image/png');
+  const handle = ora ? core.openProject(bytes) : core.openImage(bytes, mime || 'image/png');
   if (editor.handle !== null) {
     core.closeDocument(editor.handle);
   }
   editor.handle = handle;
   exportStem = name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
+  projectTarget = ora
+    ? { name, handle: target.handle, path: target.path }
+    : { name: `${exportStem}.ora`, handle: null, path: null };
   syncInfo();
+  markSaved();
 }
 
 /** Opens an encoded image file as a new single-layer document. */
@@ -476,6 +562,8 @@ export function paintStroke(
   points: Array<[number, number]>,
   strokeId: number,
   useBackground = false,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
 ): void {
   if (editor.handle === null || points.length === 0) {
     return;
@@ -489,6 +577,7 @@ export function paintStroke(
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
     points,
+    ...penFields(pressure, azimuth),
     stroke_id: strokeId,
   };
   core.applyCommand(editor.handle, cmd);
@@ -496,7 +585,12 @@ export function paintStroke(
 }
 
 /** Applies an eraser stroke over the given canvas-space points. */
-export function eraseStroke(points: Array<[number, number]>, strokeId: number): void {
+export function eraseStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
+): void {
   if (editor.handle === null || points.length === 0) {
     return;
   }
@@ -510,6 +604,7 @@ export function eraseStroke(points: Array<[number, number]>, strokeId: number): 
     mode: tool.eraserMode,
     background: activeColor(true), // 'To Background' erases to the bg swatch
     points,
+    ...penFields(pressure, azimuth),
     stroke_id: strokeId,
   };
   core.applyCommand(editor.handle, cmd);
@@ -583,6 +678,22 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
 }
 
 /** Reads the current composite as RGBA8 for rendering. */
+/** Composites the document rect `(x, y, w, h)` at `outW × outH` for the
+ *  viewport renderer; `null` when no document is open. */
+export function readCompositeRegion(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  outW: number,
+  outH: number,
+): Uint8ClampedArray<ArrayBuffer> | null {
+  if (editor.handle === null) {
+    return null;
+  }
+  return core.compositeRegion(editor.handle, x, y, w, h, outW, outH);
+}
+
 export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
   if (editor.handle === null) {
     return null;

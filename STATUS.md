@@ -1,37 +1,41 @@
 # Status
 
-_Last updated: 2026-09-06_
+_Last updated: 2026-10-12_
 
-**Branch:** `claude/pinsel-fineliner-funktionen-pn9u3q` (reset from `main`
-after PR #52 merged) — PR #53, M16 two cores, one shell: Image mode
-(Fineliner) inside Pincel, complete on the branch bar the user-confirmed
-archive step; see the M16 section. Before it: PR #52 — M15
-Fineliner feature parity (merged 2026-09-06).
-Before it: `claude/offener-pr-fortsetzen-yunxn3` (PR #51) — M14 timeline
-/ playback, task breakdown below. Landed just before it on `main`: PR #50
-— PNG export (spec §7.3) in `pincel-core` + `pincel-wasm`, and the
-`render` module split into `blend` / `error` / `image_layer` /
-`tilemap_layer`. Details in the newest "Recent work" entry.
+**Branch:** `ccr-ccba59fa-eq8omt` — PR #55, "work through the open STATUS
+items": every codeable item from the list below the M16 merge is done on
+the branch (section "2026-10-11 — open items sweep"), plus one shared,
+responsive editor frame for both modes (section "2026-10-11 — one
+responsive editor frame") and the 2026-10-12 follow-ups (DE/EN, one
+layers panel, iPad modifiers + pen pressure) and the second batch
+(selection-aware Image effects, palette presets + `.gpl`, German website,
+one autosave session, PixelEditor split) and a third (layer groups,
+Aseprite property maps, pen tilt). Before it: PR #53 —
+M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
+`amigo-fineliner` is archived.
 
 ## Remaining to release (single source of truth)
 
 Everything below is either buildable by me or blocked on you. Phase-2 /
-non-goals (indexed painting, lasso/magic-wand, auto-tilemap, custom
-brushes, filters, scripting, text tool, collaboration) are out of scope.
+non-goals (indexed painting, auto-tilemap, custom brushes, scripting,
+collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Merge PR #48 to `main`** — activates the release pipeline; the first
-  push then publishes `v0.1.0`.
 - **Add repo secrets** for the guarded deploy/publish jobs (optional but
   needed for a live app / npm): `CLOUDFLARE_API_TOKEN` +
   `CLOUDFLARE_ACCOUNT_ID` (web deploy), `NPM_TOKEN` (npm publish). Without
   them those jobs skip cleanly. See `docs/RELEASING.md`.
-- **Decide web host / production domain** (spec §14 Q1 / open Q3).
-  Default wired: Cloudflare (`ui/wrangler.toml`, project `pincel-app`).
-  `website/src/lib/config.ts::siteUrl` is the placeholder `pincel.app`.
-- **Confirm** the Cloudflare `amigo-pincel` project uses `wrangler.toml`
-  (root dir `/`) for the marketing site.
+- **Cloudflare hostname** — decided 2026-10-11: site at
+  `https://pincel.amigo-labs.dev/`, editor at `/app/` (spec §15). Wired in
+  code (`siteUrl`, Vite `base`, `ui/wrangler.toml` route). Still yours:
+  attach `pincel.amigo-labs.dev` as Custom Domain of the `amigo-pincel`
+  Worker (root `wrangler.toml`); the editor route is created by the first
+  `deploy-web` run. See `docs/RELEASING.md`.
+
+- **Native-speaker review of the German website copy** (`website/src/lib/i18n/de.ts`,
+  spec website §8). Machine-written, not
+  proofread; the editor's `ui/src/lib/i18n/de.ts` likewise.
 
 ### 🖥️ Needs your hardware (spec §16 exit criteria)
 
@@ -44,29 +48,167 @@ brushes, filters, scripting, text tool, collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **Timeline / playback** — _in progress, see M14 below._ Per-frame
-  duration, tag lanes, onion skin, play/pause. Biggest remaining
-  feature. The spec has no single "timeline" section: the pieces are
-  §3.3 (`Frame::duration_ms`), §3.6 (tags), §4.2 (onion-skin
-  compositing) and §9.2 (the timeline strip in the layout). Earlier
-  STATUS entries cited "§5", which is the tool system — that reference
-  was wrong.
-- **PNG export UI** (spec §7.3): the core + wasm surface has landed
-  (`exportPng` / `exportAtlas`); the File-menu entries, the sprite-sheet
-  options dialog, and writing the sidecar JSON alongside the atlas are
-  still open.
-- **Playwright interaction tests** (spec M5 exit criterion; §7.4).
-- **Touch pinch-zoom** (tablet target, §17.4).
-- **Palette editing** (add/edit/reorder entries; seed a default palette
-  on `New` — needs a default-palette decision).
-- **Round-trip fidelity** (small, codec): header grid/aspect/color_count,
-  extra layer flags, cel `z_index`, user-data on layers/cels/tags.
-- **App.svelte decomposition** (~2,500 lines → overlay-painter, file-ops,
-  pointer/tool controller, keyboard map). Own refactor PR.
-- **Security**: 10 Dependabot alerts on `main` (2 high, 6 moderate, 2
-  low) — audit before release.
+- **Aseprite round-trip, remaining:** the External Files chunk (`0x2008`,
+  which property maps with a non-zero key reference), user data on
+  tilesets / tiles, and slices' note text and properties (spec §7.1).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-12 — groups, Aseprite properties, pen tilt (PR #55)
+
+User picked the three remaining codeable items. Spec §3.2, §7.1, §9.2
+(layers panel), §17.4 and three Decision Log rows (the 2026-05-31
+sibling-only reorder row is marked superseded).
+
+- **Drag a layer into / out of a group** (Pixel mode). Core
+  `MoveLayerTo { layer, target, Above | Below | Into }` (one undo entry,
+  contiguity kept, `.aseprite` round-trip tested); wasm `moveLayerTo`,
+  `addGroup`, `layerParent`. The panel lists layers as a tree, drops by
+  row zone (edges = above / below, a group's middle = into), Alt+←/→ on a
+  grip; Layer ▸ New Group and an Add group button. E2E in `layers.spec.ts`.
+- **Aseprite round-trip:** user-data property maps (opaque bytes, nested
+  maps included) and tag directions > 3 survive open → save; writer
+  gains `UserData::properties` and `AnimationDirection::Other`.
+- **Pen tilt** (Image mode): flat-tip angle slider and "Tilt turns the
+  nib" (follows the stylus azimuth). E2E in `pressure.spec.ts` via CDP
+  `tiltX` / `tiltY`.
+
+## 2026-10-12 — effects, palettes, German site, PixelEditor split (PR #55)
+
+User picked all four remaining codeable items. Spec §3.7, §10.3 and §15
+(three rows) updated; website spec §8 / §11 / Decision Log.
+
+- **Image-mode effects honour the selection.** `masked_region` in
+  `pincel-image-core` blends by coverage (feathered edges mix), the undo
+  delta is cropped to the mask's bounding box, and an empty selection
+  applies nothing (`apply_effect` → `false`, status notice). E2E in
+  `effects.spec.ts`.
+- **Palette presets + `.gpl`.** DB32 / DB16 / PICO-8 / Game Boy / NES,
+  GIMP palette read / write, one undoable `ReplacePalette`; Palette
+  panel "more" menu. E2E in `palette.spec.ts`.
+- **Website in German** under `/de` (`[[lang=locale]]` route param,
+  typed dictionaries, EN/DE switch, hreflang + `og:locale`, sitemap
+  alternates). Copy wants a native-speaker pass (above).
+- **One autosave / recovery session** for both editors
+  (`lib/idb/autosave-session.svelte.ts`); new `recovery.spec.ts` covers
+  both modes and discard.
+- **PixelEditor split.** State in `modes/pixel/stores/editor.svelte.ts`,
+  logic in `render.ts`, `view-ops.ts`, `pointer.ts`, `doc-ops.ts`,
+  `image-ops.ts`, `text-tool.ts`, `file-ops.ts`; the component is down
+  from 3,089 to ~1,060 lines (markup, keys, menus, mount). No behaviour
+  change; the 38-spec e2e suite ran green after each step. CLAUDE.md
+  §5.4 / §14 now describe this layout.
+
+## 2026-10-12 — languages, one layers panel, iPad input (PR #55)
+
+User picked all four follow-ups. Spec §9.2, §9.4, §9.5, §17.4 and §15
+(2026-10-12 rows).
+
+- [x] **DE / EN** — `lib/i18n/` (`en.ts` source of the keys, `de.ts`
+  typed against it, `t()` reactive); browser language by default, choice
+  on the start screen and under View ▸ Language, kept in IDB prefs; the
+  Tauri menu follows via `set_menu_language`. Every UI string moved
+  (menus, tools, effects via `lib/effects/labels.ts`, panels, dialogs,
+  status lines). Layer names and other document content stay as typed.
+- [x] **Rename layers** — Layer ▸ Rename… (shared `RenameDialog`) and a
+  rename button on every row, double-click still works.
+- [x] **One layers panel** — `lib/components/layers/`: grip (pointer
+  drag, arrow keys), eye, lock, thumbnail, name, rename; active layer's
+  opacity / blend below; add / duplicate / merge down / delete in the
+  header; merge visible (Image) / flatten in the footer. Pixel core gains
+  `SetLayerEditable`, `ReorderLayer`, `Sprite::layer_locked`; wasm
+  `layerEditable` / `layerLocked` / `setLayerEditable` / `reorderLayer` /
+  `layerThumbnail` / `layerDepth`. Locked layers now refuse edits in
+  both modes (Image mode only showed the flag before).
+- [x] **On-screen Shift / Alt** — `lib/shell/modifiers.svelte.ts` +
+  `ModifierBar` (shown on coarse pointers or after a touch / pen event);
+  both modes read `shiftHeld` / `altHeld`. Pixel lines snap to 45° with
+  Shift like Image mode.
+- [x] **Pen pressure** — `PressureDynamics` on the image-core brush
+  (size and / or opacity per dab), `pressure` per point in the stroke
+  commands, coalesced pen samples, two toggles in the brush options.
+- [x] **e2e** — `i18n`, `layers`, `modifiers`, `pressure` specs; 32 green.
+
+## 2026-10-11 — one responsive editor frame (PR #55)
+
+User decisions: own inline-SVG icons (no icon package), tablet fully
+supported and phone usable, unify layout + theme, menus + shortcuts and
+add a background color to Pixel mode. Spec §9.2 / §9.4 and §15
+(2026-10-11, "One editor frame for both modes").
+
+- [x] **Theme + icons** — `pc-*` color tokens in `app.css` `@theme`
+  (replace `--fl-*` and raw neutrals), `lib/components/icons/` (~55
+  hand-drawn 24 px strokes).
+- [x] **Shared chrome** — `lib/components/layout/`: `EditorFrame`
+  (wide: docked sidebar; medium: drawer; narrow: ☰ menu sheet, bottom
+  tool strip, panel bottom sheet with tabs), data-driven `MenuBar`
+  (dropdowns with submenus, keyboard navigation), `ToolRail` +
+  `ToolVariants` (tool groups, variants in the options bar), `Panel` /
+  `PanelHost` (collapsible, persisted per mode in IDB prefs),
+  `ZoomControl`, `IconButton`; `lib/components/ColorPair`;
+  `lib/effects/menu.ts`.
+- [x] **One keymap** — `lib/shell/shortcuts.ts` (spec §9.4); menus and
+  tooltips print from it. Image mode gains `+ - 0 1` zoom and Space-pan;
+  the lasso is `Q` in both modes; the Tauri menu's accelerators are
+  left to the native menu in both editors.
+- [x] **Image mode** on the frame (ToolBar / TransformMenu / EffectsMenu
+  removed). **Pixel mode** on the frame: `modes/pixel/menus.ts`, tool
+  groups in `tools.ts`, panels on `Panel`, timeline as a bottom panel;
+  Select / Image / Effects dropdown components and the Recent… dropdown
+  removed (File ▸ Open Recent).
+- [x] **Background color in Pixel mode** — right button paints / fills /
+  samples with it, filled shapes use it, `X` / `D`, palette right-click.
+- [x] **e2e** — `responsive.spec` (phone / tablet / desktop),
+  `shortcuts.spec` (both modes); existing specs drive the menu bar via
+  `helpers.menu()`. 19 specs green.
+
+## 2026-10-11 — open items sweep (PR #55)
+
+User decisions: host `pincel.amigo-labs.dev` with the editor at `/app/`,
+DB32 default palette, OpenRaster for Image-mode projects, crates renamed
+to `pincel-image-*`. All in spec §15 (Decision Log, 2026-10-11).
+
+- [x] **Domain** — Vite `base: '/app/'` → `ui/dist/app/`, `pincel-app`
+  Worker route `pincel.amigo-labs.dev/app*`, website `siteUrl`, `/app`
+  placeholder route removed (CTAs `rel="external"`). Tauri keeps `/`.
+- [x] **Security** — `pnpm audit` clean in `ui/` and `website/` (was 50 /
+  43 advisories, all transitive tooling), `cookie` override for SvelteKit,
+  RUSTSEC-2026-0194/0195 (quick-xml via plist) fixed; remaining
+  `cargo audit` lines are unmaintained-crate warnings from Tauri's GTK
+  stack and `ttf-parser`. `.github/dependabot.yml` added (Tauri bumps by
+  hand: CLI enforces matching minors).
+- [x] **Playwright** — `@playwright/test` 1.56.1, `ui/e2e/` (14 specs),
+  CI `ui` job runs them against `vite preview`.
+- [x] **M14 timeline** — core `RemoveFrame` (re-keys cels, links, tags,
+  slice keys), tag commands, onion skin in `compose()`; wasm timeline
+  surface (+ `currentFrame` clamped on undo / redo); `TimelinePanel` with
+  durations, tag lanes / editor, loop range, rAF playback honouring tag
+  direction, onion controls; keys `,` `.` Enter.
+- [x] **PNG export UI** — Export Sprite Sheet dialog (frames / tag,
+  columns, JSON toggle); sidecar is Aseprite `--data` JSON
+  (`aseprite_sheet_json`: durations, frameTags, slices, atlas-renumbered);
+  native File menu gains Export as PNG / Export Sprite Sheet.
+- [x] **Palette** — DB32 on New; recolour / add / delete / move commands
+  (remove & move refused on indexed sprites); editable PalettePanel.
+- [x] **Round-trip fidelity** — header pixel ratio + grid, `color_count`
+  from palette, extra layer flags, cel `z_index`, user data on sprite /
+  layers / cels / tags (writer + reader).
+- [x] **Pinch zoom** — `lib/view/pinch.ts`; both editors; a second finger
+  cancels and rolls back the first finger's stroke.
+- [x] **Crate rename** — `pincel-image-core` / `pincel-image-wasm`.
+- [x] **OpenRaster** — `codec::ora` (zip 9, deflate-flate2 only), wasm
+  `open_project` / `save_project`, Image-mode Save / Save As, `.ora`
+  sniffing + Tauri association; Image-mode autosave + recovery.
+- [x] **Large images** — `compose_region` / `composite_region`; Image mode
+  renders the visible rect into a viewport-sized canvas (overlay too);
+  limits 16384 px edge / 64 M px area.
+- [x] **Cleanup** — one effects catalog / dialog / wire format for both
+  modes (fixes Pixel-mode Levels / Curves, which sent 0–255 where [0, 1]
+  is expected); shared Liberation Sans fixture; pixel-only components
+  moved; `tools.ts` + `overlay-painter.ts` out of PixelEditor; pencil /
+  eraser drags interpolate between pointer samples (gaps on fast
+  strokes).
+- [x] **Website** — Image mode and the shipped features in the copy.
 
 ## M16 — Two cores, one shell (branch complete, PR #53)
 
@@ -121,8 +263,7 @@ Phase 4 — Tauri / PWA / release
 Phase 5 — docs + archive
 - [x] README / CLAUDE.md / this file; image-mode recents (opened files
   with an FSA handle / Tauri path land on the start screen's Recent list)
-- [ ] Archive `amigo-fineliner` (disable its release workflow first;
-  Cloudflare project off; repo archived) — only after user confirmation
+- [x] Archive `amigo-fineliner` — done by the user (2026-10-11)
 
 Follow-ups (not in M16): tiled / viewport-sized rendering in Image mode so canvases above `MAX_CANVAS_DIM` (8192, the browser-safe cap the UI enforces) become editable; `.fln` layered project save for Image mode
 (spec-only in Fineliner too); Image-mode autosave / recovery;
@@ -190,7 +331,7 @@ scale (the grid would need re-tiling); `MergeDown` / `TransformCanvas` /
 priors, so undo memory scales with the document; the wand samples the
 active layer or the composite only.
 
-## M14 — Timeline / playback (in progress)
+## M14 — Timeline / playback (done 2026-10-11, PR #55)
 
 Post-M13 feature. The spec spreads the timeline across §3.3
 (`Frame::duration_ms`), §3.6 (`Tag`, `TagDirection`), §4.2 (onion-skin
@@ -212,28 +353,28 @@ commands and no timeline UI.
   duration is playback metadata and changes nothing in the composite.
   New `CommandError::UnknownFrame`; wired into `AnyCommand`. 7 unit
   tests.
-- [ ] **M14.2** — core `RemoveFrame` command. Must re-key the cel map:
+- [x] **M14.2** — core `RemoveFrame` command. Must re-key the cel map:
   `CelKey` is `(LayerId, FrameIndex)`, so removing frame *n* shifts
   every cel at frame > *n* down by one, and `revert` shifts back and
   restores the removed frames' cels. Tag ranges clamp to the new frame
   count. This is the fiddliest core task in M14 — cel re-keying has no
   precedent in the existing commands.
-- [ ] **M14.3** — core tag commands: `AddTag`, `RemoveTag`,
+- [x] **M14.3** — core tag commands: `AddTag`, `RemoveTag`,
   `SetTagRange`, `SetTagName`, `SetTagDirection`. Range validation
   (`from <= to`, both inside the frame count) and the §3.6
   identifier-like name warning.
-- [ ] **M14.4** — onion skin in `compose()`. Drop
+- [x] **M14.4** — onion skin in `compose()`. Drop
   `RenderError::OnionSkinUnsupported`; render `frames_back` previous
   frames tinted red and `frames_forward` next frames tinted blue at
   `previous_alpha` / `next_alpha` under the current frame, per §4.2.
   Snapshot tests against known RGBA bytes.
-- [ ] **M14.5** — wasm surface for the above: `setFrameDuration`,
+- [x] **M14.5** — wasm surface for the above: `setFrameDuration`,
   `removeFrame`, the five tag mutators, tag read getters, and
   onion-skin parameters threaded into the `compose` call.
-- [ ] **M14.6** — `TimelinePanel.svelte` mounted along the bottom edge
+- [x] **M14.6** — `TimelinePanel.svelte` mounted along the bottom edge
   per the §9.2 layout: frame strip with per-frame duration, current-frame
   selection, add / remove frame, replacing the existing toolbar stepper.
-- [ ] **M14.7** — tag lanes + onion-skin controls in the panel, then
+- [x] **M14.7** — tag lanes + onion-skin controls in the panel, then
   playback: play / pause, loop, and the four `TagDirection` modes
   (Forward / Reverse / Pingpong / PingpongReverse) driven by a rAF timer
   honoring each frame's `duration_ms`.
@@ -749,7 +890,7 @@ Per-page compressed payload ~10 KB HTML + ~57 KB shared `_app` (well under the 2
 Human action still needed:
 
 1. Confirm the Cloudflare `amigo-pincel` project's Workers Builds settings don't override `wrangler.toml` (or set: build command from `wrangler.toml`, root directory `/`).
-2. Decide the production domain (spec §14 Q1) and update `website/src/lib/config.ts::siteUrl` if it differs from `https://pincel.app`.
+2. ~~Decide the production domain~~ — done 2026-10-11: `pincel.amigo-labs.dev` (`siteUrl` updated).
 
 ## Deferred from the 2026-07-09 audit (found, deliberately not fixed)
 
@@ -770,7 +911,7 @@ the findings don't get lost — each is scoped and ready to pick up:
   footer "+ Frame"; paint auto-creates cels on new layers/frames; core
   `RemoveLayer` removes the layer's cels (and a group's subtree),
   undoable.
-- **Timeline / playback** — _in progress (M14)._ T12 ships only a frame
+- **Timeline / playback** — _done 2026-10-11 (M14, PR #55)._ T12 ships only a frame
   stepper (+ the new "+ Frame"). Per-frame duration display, tag lanes,
   onion skin, and play/pause are the M14 breakdown.
 - **Delete / Backspace clears selection pixels** — _done 2026-07-10_:

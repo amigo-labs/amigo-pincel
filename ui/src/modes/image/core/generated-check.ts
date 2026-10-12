@@ -4,10 +4,9 @@
 // serde fills defaulted fields silently, so a misspelled discriminant or
 // field name would otherwise surface only as wrong runtime behavior. These
 // type-level assertions make `pnpm check` fail instead. Regenerate the mirror
-// with `cargo test -p fineliner-wasm export_command_spec`.
+// with `cargo test -p pincel-image-wasm export_command_spec`.
 import type { CommandSpec } from './generated/CommandSpec';
-import type { EffectSpec } from './generated/EffectSpec';
-import type { EffectCommand, ToolCommand } from './wasm';
+import type { ToolCommand } from './wasm';
 
 type AssertNever<T extends never> = T;
 
@@ -33,29 +32,4 @@ export type _UnknownFields = AssertNever<
  */
 export type _FieldTypeMismatches = AssertNever<
   { [K in HandTag & GenTag]: HandOf<K> extends Partial<GenOf<K>> ? never : K }[HandTag & GenTag]
->;
-
-// The same drift assertions for EffectCommand against the Rust EffectSpec.
-type EffHandTag = EffectCommand['type'];
-type EffGenTag = EffectSpec['type'];
-type EffHandOf<K extends EffHandTag> = Extract<EffectCommand, { type: K }>;
-type EffGenOf<K extends EffGenTag> = Extract<EffectSpec, { type: K }>;
-
-/** Every Rust effect variant must be mirrored in wasm.ts. */
-export type _MissingEffects = AssertNever<Exclude<EffGenTag, EffHandTag>>;
-
-/** Every hand-written effect must exist in Rust. */
-export type _UnknownEffects = AssertNever<Exclude<EffHandTag, EffGenTag>>;
-
-/** A field name Rust does not know is silently dropped by serde — reject it. */
-export type _UnknownEffectFields = AssertNever<
-  { [K in EffHandTag & EffGenTag]: Exclude<keyof EffHandOf<K>, keyof EffGenOf<K>> }[EffHandTag &
-    EffGenTag]
->;
-
-/** Effect field types must be assignable to the generated ones. */
-export type _EffectFieldTypeMismatches = AssertNever<
-  {
-    [K in EffHandTag & EffGenTag]: EffHandOf<K> extends Partial<EffGenOf<K>> ? never : K;
-  }[EffHandTag & EffGenTag]
 >;

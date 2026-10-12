@@ -53,6 +53,15 @@
       },
       {
         "ext": [
+          "ora"
+        ],
+        "name": "OpenRaster Image",
+        "description": "Layered OpenRaster image",
+        "role": "Editor",
+        "mimeType": "image/openraster"
+      },
+      {
+        "ext": [
           "png"
         ],
         "name": "PNG Image",

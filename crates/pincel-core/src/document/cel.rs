@@ -95,6 +95,11 @@ pub struct Cel {
     pub position: (i32, i32),
     pub opacity: u8,
     pub data: CelData,
+    /// Aseprite's per-cel z-index offset (v1.3). Pincel composes in layer
+    /// order and does not apply it yet; kept so it round-trips.
+    pub z_index: i16,
+    /// Cel user data (spec §7.1).
+    pub user_data: Option<super::UserData>,
 }
 
 impl Cel {
@@ -106,6 +111,8 @@ impl Cel {
             position: (0, 0),
             opacity: 255,
             data: CelData::Image(buffer),
+            user_data: None,
+            z_index: 0,
         }
     }
 
@@ -124,6 +131,8 @@ impl Cel {
                 grid_h,
                 tiles: vec![TileRef::EMPTY; tile_count],
             },
+            user_data: None,
+            z_index: 0,
         }
     }
 }

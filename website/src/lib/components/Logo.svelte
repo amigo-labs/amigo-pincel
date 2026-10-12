@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { localized, m } from '$lib/i18n';
+
   interface Props {
     size?: number;
     showWordmark?: boolean;
@@ -7,7 +9,7 @@
   const { size = 32, showWordmark = true }: Props = $props();
 </script>
 
-<a href="/" class="logo" aria-label="Pincel — home">
+<a href={localized('/')} class="logo" aria-label={m().logo.home}>
   <svg
     width={size}
     height={size}

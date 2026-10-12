@@ -20,21 +20,27 @@ mod fill_region;
 mod flatten_image;
 mod merge_down;
 mod move_layer;
+mod move_layer_to;
 mod move_selection_content;
+mod palette_ops;
 mod place_tile;
 mod reframe_canvas;
+mod remove_frame;
 mod remove_layer;
 mod remove_slice;
+mod reorder_layer;
 mod replace_cel_pixels;
 mod scale_image;
 mod set_frame_duration;
 mod set_layer_blend_mode;
+mod set_layer_editable;
 mod set_layer_name;
 mod set_layer_opacity;
 mod set_layer_visible;
 mod set_pixel;
 mod set_slice_key;
 mod set_tile_pixel;
+mod tag_ops;
 mod transform_canvas;
 mod transform_cel;
 mod transform_support;
@@ -59,21 +65,29 @@ pub use fill_region::FillRegion;
 pub use flatten_image::FlattenImage;
 pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
+pub use move_layer_to::{LayerPlacement, MoveLayerTo};
 pub use move_selection_content::MoveSelectionContent;
+pub use palette_ops::{
+    AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
+};
 pub use place_tile::PlaceTile;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
+pub use remove_frame::RemoveFrame;
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
+pub use reorder_layer::ReorderLayer;
 pub use replace_cel_pixels::ReplaceCelPixels;
 pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
 pub use set_layer_blend_mode::SetLayerBlendMode;
+pub use set_layer_editable::SetLayerEditable;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_opacity::SetLayerOpacity;
 pub use set_layer_visible::SetLayerVisible;
 pub use set_pixel::SetPixel;
 pub use set_slice_key::SetSliceKey;
 pub use set_tile_pixel::SetTilePixel;
+pub use tag_ops::{AddTag, RemoveTag, SetTagDirection, SetTagName, SetTagRange};
 pub use transform_canvas::TransformCanvas;
 pub use transform_cel::TransformCel;
 pub use transform_support::{Interpolation, Orientation};
@@ -130,12 +144,26 @@ pub enum AnyCommand {
     ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
+    ReorderLayer(ReorderLayer),
+    MoveLayerTo(MoveLayerTo),
+    SetLayerEditable(SetLayerEditable),
     SetLayerName(SetLayerName),
     SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
     RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     SetFrameDuration(SetFrameDuration),
+    RemoveFrame(RemoveFrame),
+    AddTag(AddTag),
+    RemoveTag(RemoveTag),
+    SetTagRange(SetTagRange),
+    SetTagName(SetTagName),
+    SetTagDirection(SetTagDirection),
+    SetPaletteColor(SetPaletteColor),
+    AddPaletteEntry(AddPaletteEntry),
+    RemovePaletteEntry(RemovePaletteEntry),
+    MovePaletteEntry(MovePaletteEntry),
+    ReplacePalette(ReplacePalette),
     AddTileset(AddTileset),
     AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
@@ -173,12 +201,26 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
+            Self::ReorderLayer(c) => c.apply(doc, cels),
+            Self::MoveLayerTo(c) => c.apply(doc, cels),
+            Self::SetLayerEditable(c) => c.apply(doc, cels),
             Self::SetLayerName(c) => c.apply(doc, cels),
             Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
             Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::SetFrameDuration(c) => c.apply(doc, cels),
+            Self::RemoveFrame(c) => c.apply(doc, cels),
+            Self::AddTag(c) => c.apply(doc, cels),
+            Self::RemoveTag(c) => c.apply(doc, cels),
+            Self::SetTagRange(c) => c.apply(doc, cels),
+            Self::SetTagName(c) => c.apply(doc, cels),
+            Self::SetTagDirection(c) => c.apply(doc, cels),
+            Self::SetPaletteColor(c) => c.apply(doc, cels),
+            Self::AddPaletteEntry(c) => c.apply(doc, cels),
+            Self::RemovePaletteEntry(c) => c.apply(doc, cels),
+            Self::MovePaletteEntry(c) => c.apply(doc, cels),
+            Self::ReplacePalette(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
@@ -212,12 +254,26 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
+            Self::ReorderLayer(c) => c.revert(doc, cels),
+            Self::MoveLayerTo(c) => c.revert(doc, cels),
+            Self::SetLayerEditable(c) => c.revert(doc, cels),
             Self::SetLayerName(c) => c.revert(doc, cels),
             Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
             Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::SetFrameDuration(c) => c.revert(doc, cels),
+            Self::RemoveFrame(c) => c.revert(doc, cels),
+            Self::AddTag(c) => c.revert(doc, cels),
+            Self::RemoveTag(c) => c.revert(doc, cels),
+            Self::SetTagRange(c) => c.revert(doc, cels),
+            Self::SetTagName(c) => c.revert(doc, cels),
+            Self::SetTagDirection(c) => c.revert(doc, cels),
+            Self::SetPaletteColor(c) => c.revert(doc, cels),
+            Self::AddPaletteEntry(c) => c.revert(doc, cels),
+            Self::RemovePaletteEntry(c) => c.revert(doc, cels),
+            Self::MovePaletteEntry(c) => c.revert(doc, cels),
+            Self::ReplacePalette(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
@@ -252,6 +308,9 @@ impl AnyCommand {
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
             (Self::SetFrameDuration(a), Self::SetFrameDuration(b)) => a.merge(b),
+            (Self::SetTagRange(a), Self::SetTagRange(b)) => a.merge(b),
+            (Self::SetTagName(a), Self::SetTagName(b)) => a.merge(b),
+            (Self::SetPaletteColor(a), Self::SetPaletteColor(b)) => a.merge(b),
             (Self::AddTileset(a), Self::AddTileset(b)) => a.merge(b),
             (Self::AddTile(a), Self::AddTile(b)) => a.merge(b),
             (Self::AddTilemapLayer(a), Self::AddTilemapLayer(b)) => a.merge(b),
@@ -277,12 +336,26 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
+            Self::ReorderLayer(c) => c.dirty_region(),
+            Self::MoveLayerTo(c) => c.dirty_region(),
+            Self::SetLayerEditable(c) => c.dirty_region(),
             Self::SetLayerName(c) => c.dirty_region(),
             Self::SetLayerVisible(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
             Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::SetFrameDuration(c) => c.dirty_region(),
+            Self::RemoveFrame(c) => c.dirty_region(),
+            Self::AddTag(c) => c.dirty_region(),
+            Self::RemoveTag(c) => c.dirty_region(),
+            Self::SetTagRange(c) => c.dirty_region(),
+            Self::SetTagName(c) => c.dirty_region(),
+            Self::SetTagDirection(c) => c.dirty_region(),
+            Self::SetPaletteColor(c) => c.dirty_region(),
+            Self::AddPaletteEntry(c) => c.dirty_region(),
+            Self::RemovePaletteEntry(c) => c.dirty_region(),
+            Self::MovePaletteEntry(c) => c.dirty_region(),
+            Self::ReplacePalette(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
             Self::AddTilemapLayer(c) => c.dirty_region(),
@@ -304,6 +377,72 @@ impl AnyCommand {
             Self::FlattenImage(c) => c.dirty_region(),
             Self::DuplicateLayer(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<RemoveFrame> for AnyCommand {
+    fn from(c: RemoveFrame) -> Self {
+        Self::RemoveFrame(c)
+    }
+}
+
+impl From<AddTag> for AnyCommand {
+    fn from(c: AddTag) -> Self {
+        Self::AddTag(c)
+    }
+}
+
+impl From<RemoveTag> for AnyCommand {
+    fn from(c: RemoveTag) -> Self {
+        Self::RemoveTag(c)
+    }
+}
+
+impl From<SetTagRange> for AnyCommand {
+    fn from(c: SetTagRange) -> Self {
+        Self::SetTagRange(c)
+    }
+}
+
+impl From<SetTagName> for AnyCommand {
+    fn from(c: SetTagName) -> Self {
+        Self::SetTagName(c)
+    }
+}
+
+impl From<SetTagDirection> for AnyCommand {
+    fn from(c: SetTagDirection) -> Self {
+        Self::SetTagDirection(c)
+    }
+}
+
+impl From<SetPaletteColor> for AnyCommand {
+    fn from(c: SetPaletteColor) -> Self {
+        Self::SetPaletteColor(c)
+    }
+}
+
+impl From<AddPaletteEntry> for AnyCommand {
+    fn from(c: AddPaletteEntry) -> Self {
+        Self::AddPaletteEntry(c)
+    }
+}
+
+impl From<RemovePaletteEntry> for AnyCommand {
+    fn from(c: RemovePaletteEntry) -> Self {
+        Self::RemovePaletteEntry(c)
+    }
+}
+
+impl From<ReplacePalette> for AnyCommand {
+    fn from(c: ReplacePalette) -> Self {
+        Self::ReplacePalette(c)
+    }
+}
+
+impl From<MovePaletteEntry> for AnyCommand {
+    fn from(c: MovePaletteEntry) -> Self {
+        Self::MovePaletteEntry(c)
     }
 }
 
@@ -352,6 +491,24 @@ impl From<MoveLayer> for AnyCommand {
 impl From<SetLayerVisible> for AnyCommand {
     fn from(c: SetLayerVisible) -> Self {
         Self::SetLayerVisible(c)
+    }
+}
+
+impl From<MoveLayerTo> for AnyCommand {
+    fn from(c: MoveLayerTo) -> Self {
+        Self::MoveLayerTo(c)
+    }
+}
+
+impl From<ReorderLayer> for AnyCommand {
+    fn from(c: ReorderLayer) -> Self {
+        Self::ReorderLayer(c)
+    }
+}
+
+impl From<SetLayerEditable> for AnyCommand {
+    fn from(c: SetLayerEditable) -> Self {
+        Self::SetLayerEditable(c)
     }
 }
 

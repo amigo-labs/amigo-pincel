@@ -393,7 +393,7 @@ fn encode_rgba8(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, Expor
 }
 
 /// Escape a string for embedding in a JSON string literal.
-fn escape_json(value: &str) -> String {
+pub(super) fn escape_json(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
     for ch in value.chars() {
         match ch {

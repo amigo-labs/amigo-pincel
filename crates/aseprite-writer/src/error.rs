@@ -112,4 +112,9 @@ pub enum WriteError {
         key_index: usize,
         field: &'static str,
     },
+
+    /// A User Data property block whose leading size `DWORD` does not
+    /// match its length (or is shorter than the 8-byte header).
+    #[error("user data properties are {len} bytes but declare {declared}")]
+    UserDataPropertiesSize { len: usize, declared: u32 },
 }

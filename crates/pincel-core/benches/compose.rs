@@ -121,6 +121,8 @@ fn sprite_64_tilemap() -> (Sprite, CelMap) {
             grid_h: 4,
             tiles,
         },
+        user_data: None,
+        z_index: 0,
     });
     (sprite, cels)
 }

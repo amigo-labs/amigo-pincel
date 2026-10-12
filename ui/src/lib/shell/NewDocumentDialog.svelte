@@ -1,10 +1,11 @@
 <script lang="ts">
   // "New document" dialog of the shell: choose the editor mode and the
   // canvas size. Pixel sprites keep the historical 64×64 default and the
-  // 4096 cap; images default to 800×600 and are capped at the browser-safe
-  // edge the image renderer can draw (see MAX_CANVAS_DIM).
+  // 4096 cap; images default to 800×600 and are capped by the edge / area
+  // limits of the image core's memory (see MAX_CANVAS_DIM / clampCanvasSize).
   import type { EditorMode, NewDocParams } from './types';
-  import { MAX_CANVAS_DIM } from '../../modes/image/stores/editor.svelte';
+  import { t } from '../i18n/index.svelte';
+  import { MAX_CANVAS_DIM, clampCanvasSize } from '../../modes/image/stores/editor.svelte';
 
   let {
     initialMode,
@@ -43,7 +44,9 @@
 
   function submit() {
     const max = LIMITS[mode].max;
-    onCreate({ mode, width: clamp(width, max), height: clamp(height, max) });
+    const [w, h] =
+      mode === 'image' ? clampCanvasSize(width, height) : [clamp(width, max), clamp(height, max)];
+    onCreate({ mode, width: w, height: h });
   }
 
   // Keys typed in the dialog must not reach the mounted editor's
@@ -61,20 +64,20 @@
   class="fixed inset-0 z-30 flex items-center justify-center bg-black/50"
   role="dialog"
   aria-modal="true"
-  aria-label="New document"
+  aria-label={t('newDoc.title')}
   tabindex="-1"
   onkeydown={onKeydown}
 >
   <form
-    class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+    class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
     }}
   >
-    <p class="font-semibold">New document</p>
+    <p class="font-semibold">{t('newDoc.title')}</p>
 
-    <div class="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Document type">
+    <div class="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('newDoc.type')}>
       <button
         type="button"
         class="mode-btn"
@@ -83,8 +86,8 @@
         aria-checked={mode === 'pixel'}
         onclick={() => pickMode('pixel')}
       >
-        <span class="font-semibold">Pixel sprite</span>
-        <span class="text-xs text-neutral-400">.aseprite</span>
+        <span class="font-semibold">{t('newDoc.pixel')}</span>
+        <span class="text-xs text-pc-muted">.aseprite</span>
       </button>
       <button
         type="button"
@@ -94,14 +97,14 @@
         aria-checked={mode === 'image'}
         onclick={() => pickMode('image')}
       >
-        <span class="font-semibold">Image</span>
-        <span class="text-xs text-neutral-400">PNG / JPEG / WebP</span>
+        <span class="font-semibold">{t('newDoc.image')}</span>
+        <span class="text-xs text-pc-muted">PNG / JPEG / WebP</span>
       </button>
     </div>
 
     <div class="mt-3 flex items-center gap-2">
-      <label class="flex items-center gap-1 text-xs text-neutral-400">
-        W
+      <label class="flex items-center gap-1 text-xs text-pc-muted">
+        {t('newDoc.w')}
         <!-- svelte-ignore a11y_autofocus -->
         <input
           type="number"
@@ -111,13 +114,13 @@
           inputmode="numeric"
           bind:value={width}
           autofocus
-          class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
-          aria-label="Width"
+          class="w-20 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-pc-text"
+          aria-label={t('common.width')}
         />
       </label>
-      <span class="text-neutral-500">×</span>
-      <label class="flex items-center gap-1 text-xs text-neutral-400">
-        H
+      <span class="text-pc-faint">×</span>
+      <label class="flex items-center gap-1 text-xs text-pc-muted">
+        {t('newDoc.h')}
         <input
           type="number"
           min="1"
@@ -125,16 +128,16 @@
           step="1"
           inputmode="numeric"
           bind:value={height}
-          class="w-20 rounded border border-neutral-700 bg-neutral-950 px-1 py-0.5 text-neutral-100"
-          aria-label="Height"
+          class="w-20 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-pc-text"
+          aria-label={t('common.height')}
         />
       </label>
-      <span class="text-xs text-neutral-500">px</span>
+      <span class="text-xs text-pc-faint">px</span>
     </div>
 
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>Cancel</button>
-      <button type="submit" class="panel-btn panel-btn-primary">Create</button>
+      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="panel-btn panel-btn-primary">{t('common.create')}</button>
     </div>
   </form>
 </div>

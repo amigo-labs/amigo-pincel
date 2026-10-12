@@ -6,12 +6,14 @@
 //! as the stable snake_case names from [`BlendMode::name`].
 
 use pincel_core::{
-    BlendMode, DuplicateLayer, FlattenImage, LayerId, MergeDown, SetLayerBlendMode, SetLayerOpacity,
+    AddLayer, BlendMode, ComposeRequest, DuplicateLayer, FlattenImage, FrameIndex, Layer,
+    LayerFilter, LayerId, LayerPlacement, MergeDown, MoveLayerTo, ReorderLayer, SetLayerBlendMode,
+    SetLayerEditable, SetLayerOpacity, compose,
 };
 use wasm_bindgen::prelude::*;
 
-use crate::Document;
 use crate::events::Event;
+use crate::{ComposeFrame, Document};
 
 /// Snake_case names of every blend mode, in file-format order.
 #[wasm_bindgen(js_name = blendModeNames)]
@@ -21,6 +23,179 @@ pub fn blend_mode_names() -> Vec<String> {
 
 #[wasm_bindgen]
 impl Document {
+    /// The named layer's own `editable` flag (`false` = locked). Unknown
+    /// layers report `true`.
+    #[wasm_bindgen(js_name = layerEditable)]
+    pub fn layer_editable(&self, layer_id: u32) -> bool {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .is_none_or(|l| l.editable)
+    }
+
+    /// How many groups the named layer is nested in (`0` at the root, and
+    /// for unknown layers). The layers panel indents rows by it.
+    #[wasm_bindgen(js_name = layerDepth)]
+    pub fn layer_depth(&self, layer_id: u32) -> u32 {
+        let mut depth = 0;
+        let mut cur = self
+            .sprite
+            .layer(LayerId::new(layer_id))
+            .and_then(|l| l.parent);
+        while let Some(p) = cur {
+            if depth as usize > self.sprite.layers.len() {
+                break;
+            }
+            depth += 1;
+            cur = self.sprite.layer(p).and_then(|l| l.parent);
+        }
+        depth
+    }
+
+    /// `true` when the named layer refuses edits: it or a group it is
+    /// nested in is locked.
+    #[wasm_bindgen(js_name = layerLocked)]
+    pub fn layer_locked(&self, layer_id: u32) -> bool {
+        self.sprite.layer_locked(LayerId::new(layer_id))
+    }
+
+    /// Lock (`editable = false`) or unlock the named layer, routed through
+    /// the undo bus. Nothing repaints, so no event is emitted. Errors when
+    /// the layer is unknown.
+    #[wasm_bindgen(js_name = setLayerEditable)]
+    pub fn set_layer_editable(&mut self, layer_id: u32, editable: bool) -> Result<(), String> {
+        let cmd = SetLayerEditable::new(LayerId::new(layer_id), editable);
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to lock layer: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
+    /// Move the named layer (with its subtree) to the slot of `target_id`
+    /// — or of the sibling group containing it — in one undo entry. The
+    /// layer never leaves its group. Emits `dirty-canvas` when anything
+    /// moved. Errors for unknown ids or a target outside the group.
+    #[wasm_bindgen(js_name = reorderLayer)]
+    pub fn reorder_layer(&mut self, layer_id: u32, target_id: u32) -> Result<(), String> {
+        let cmd = ReorderLayer::new(LayerId::new(layer_id), LayerId::new(target_id));
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to reorder layer: {e}"))?;
+        self.bus.seal();
+        self.push_last_dirty();
+        Ok(())
+    }
+
+    /// Move the named layer (with its subtree) next to `target_id` or
+    /// into it, across group boundaries, in one undo entry. `place` is
+    /// `"above"` / `"below"` (share the target's parent) or `"into"` (the
+    /// target group's top child). Emits `dirty-canvas`. Errors for unknown
+    /// ids or place, a target inside the moved subtree, or `"into"` a
+    /// non-group.
+    #[wasm_bindgen(js_name = moveLayerTo)]
+    pub fn move_layer_to(
+        &mut self,
+        layer_id: u32,
+        target_id: u32,
+        place: &str,
+    ) -> Result<(), String> {
+        let place = match place {
+            "above" => LayerPlacement::Above,
+            "below" => LayerPlacement::Below,
+            "into" => LayerPlacement::Into,
+            other => return Err(format!("unknown layer placement '{other}'")),
+        };
+        let cmd = MoveLayerTo::new(LayerId::new(layer_id), LayerId::new(target_id), place);
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to move layer: {e}"))?;
+        self.bus.seal();
+        self.push_last_dirty();
+        Ok(())
+    }
+
+    /// Add an empty group named `name` on top of the stack, routed
+    /// through the undo bus; returns its id. Errors when the layer-id
+    /// space is exhausted.
+    #[wasm_bindgen(js_name = addGroup)]
+    pub fn add_group(&mut self, name: &str) -> Result<u32, String> {
+        let id = match self.sprite.layers.iter().map(|l| l.id.0).max() {
+            None => 0,
+            Some(u32::MAX) => return Err("layer id space exhausted".to_string()),
+            Some(m) => m + 1,
+        };
+        let cmd = AddLayer::on_top(Layer::group(LayerId::new(id), name));
+        self.bus.seal();
+        self.bus
+            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .map_err(|e| format!("failed to add group: {e}"))?;
+        self.bus.seal();
+        Ok(id)
+    }
+
+    /// The id of the group the named layer sits in; `undefined` at the
+    /// root and for unknown layers.
+    #[wasm_bindgen(js_name = layerParent)]
+    pub fn layer_parent(&self, layer_id: u32) -> Option<u32> {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .and_then(|l| l.parent)
+            .map(|p| p.0)
+    }
+
+    /// The named layer (a group: its whole subtree) alone at `frame`,
+    /// hidden or not, nearest-downscaled to fit `max_size`² for the
+    /// layers panel. Never upscales. Errors for an unknown layer or
+    /// frame.
+    #[wasm_bindgen(js_name = layerThumbnail)]
+    pub fn layer_thumbnail(
+        &self,
+        layer_id: u32,
+        frame: u32,
+        max_size: u32,
+    ) -> Result<ComposeFrame, String> {
+        let root = LayerId::new(layer_id);
+        if self.sprite.layer(root).is_none() {
+            return Err(format!("unknown layer id {layer_id}"));
+        }
+        let ids: Vec<LayerId> = self
+            .sprite
+            .layers
+            .iter()
+            .filter(|l| l.id == root || self.descends_from(l.id, root))
+            .map(|l| l.id)
+            .collect();
+        let (w, h) = (self.sprite.width, self.sprite.height);
+        let mut request = ComposeRequest::full(FrameIndex::new(frame), w, h);
+        request.include_layers = LayerFilter::Only(ids);
+        let mut full = Vec::new();
+        compose(&self.sprite, &self.cels, &request, &mut full)
+            .map_err(|e| format!("failed to compose thumbnail: {e}"))?;
+        let scale = (max_size.max(1) as f32 / w.max(h) as f32).min(1.0);
+        let tw = ((w as f32 * scale).round() as u32).max(1);
+        let th = ((h as f32 * scale).round() as u32).max(1);
+        let mut pixels = vec![0u8; (tw * th * 4) as usize];
+        for y in 0..th {
+            let sy = (y as u64 * u64::from(h) / u64::from(th)) as usize;
+            for x in 0..tw {
+                let sx = (x as u64 * u64::from(w) / u64::from(tw)) as usize;
+                let src = (sy * w as usize + sx) * 4;
+                let dst = ((y * tw + x) * 4) as usize;
+                pixels[dst..dst + 4].copy_from_slice(&full[src..src + 4]);
+            }
+        }
+        Ok(ComposeFrame {
+            width: tw,
+            height: th,
+            dirty_x: 0,
+            dirty_y: 0,
+            pixels,
+        })
+    }
+
     /// Blend mode name of the named layer (`"normal"`, `"multiply"`, …),
     /// or `"normal"` when the layer is unknown.
     #[wasm_bindgen(js_name = layerBlendMode)]
@@ -143,6 +318,19 @@ impl Document {
             self.events.push(ev);
         }
     }
+
+    /// `true` when `id`'s parent chain reaches `ancestor`.
+    fn descends_from(&self, id: LayerId, ancestor: LayerId) -> bool {
+        let mut cur = self.sprite.layer(id).and_then(|l| l.parent);
+        for _ in 0..=self.sprite.layers.len() {
+            match cur {
+                Some(p) if p == ancestor => return true,
+                Some(p) => cur = self.sprite.layer(p).and_then(|l| l.parent),
+                None => return false,
+            }
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -155,6 +343,77 @@ mod tests {
         assert_eq!(names.len(), BlendMode::ALL.len());
         assert_eq!(names[0], "normal");
         assert_eq!(names[1], "multiply");
+    }
+
+    #[test]
+    fn locked_layer_refuses_paint_until_unlocked() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.set_layer_editable(0, false).expect("lock");
+        assert!(!doc.layer_editable(0));
+        assert!(doc.layer_locked(0));
+        assert!(doc.apply_tool("pencil", 1, 1, 0xFF0000FF).is_err());
+        assert!(doc.apply_bucket(0, 0, 0xFF0000FF).is_err());
+        assert!(doc.undo());
+        assert!(!doc.layer_locked(0));
+        doc.apply_tool("pencil", 1, 1, 0xFF0000FF).expect("paint");
+    }
+
+    #[test]
+    fn layer_depth_counts_parent_groups() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.layer_depth(0), 0);
+        let mut group = pincel_core::Layer::group(LayerId::new(5), "g");
+        group.parent = None;
+        doc.sprite.layers.push(group);
+        doc.sprite.layers[0].parent = Some(LayerId::new(5));
+        assert_eq!(doc.layer_depth(0), 1);
+        assert_eq!(doc.layer_depth(99), 0);
+    }
+
+    #[test]
+    fn reorder_layer_is_one_undo_step() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let b = doc.add_layer("b").expect("add");
+        let c = doc.add_layer("c").expect("add");
+        let depth = doc.undo_depth();
+        doc.reorder_layer(0, c).expect("reorder");
+        assert_eq!(doc.layer_id_at(2).expect("top"), 0);
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert!(doc.undo());
+        assert_eq!(doc.layer_id_at(0).expect("bottom"), 0);
+        assert_eq!(doc.layer_id_at(1).expect("mid"), b);
+    }
+
+    #[test]
+    fn move_layer_into_a_new_group_and_back_out_undoes_in_one_step_each() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let group = doc.add_group("g").expect("group");
+        assert_eq!(doc.layer_kind(group), "group");
+        let depth = doc.undo_depth();
+        doc.move_layer_to(0, group, "into").expect("into");
+        assert_eq!(doc.layer_parent(0), Some(group));
+        assert_eq!(doc.layer_depth(0), 1);
+        assert_eq!(doc.undo_depth(), depth + 1);
+        doc.move_layer_to(0, group, "above").expect("out");
+        assert_eq!(doc.layer_parent(0), None);
+        assert!(doc.undo());
+        assert_eq!(doc.layer_parent(0), Some(group));
+        assert!(doc.move_layer_to(group, 0, "into").is_err());
+        assert!(doc.move_layer_to(0, group, "sideways").is_err());
+    }
+
+    #[test]
+    fn layer_thumbnail_fits_and_shows_hidden_layers() {
+        let mut doc = Document::new(64, 32).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        doc.set_layer_visible(0, false).expect("hide");
+        let thumb = doc.layer_thumbnail(0, 0, 16).expect("thumb");
+        assert_eq!((thumb.width(), thumb.height()), (16, 8));
+        assert_eq!(&thumb.pixels()[..4], &[0xFF, 0, 0, 0xFF]);
+        let full = doc.layer_thumbnail(0, 0, 128).expect("thumb");
+        assert_eq!((full.width(), full.height()), (64, 32));
+        assert!(doc.layer_thumbnail(9, 0, 16).is_err());
     }
 
     #[test]

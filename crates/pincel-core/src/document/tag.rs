@@ -24,6 +24,13 @@ pub struct Tag {
     pub color: Rgba,
     /// `0` means infinite repeats.
     pub repeats: u16,
+    /// Tag user data (spec §7.1).
+    pub user_data: Option<super::UserData>,
+    /// The on-disk direction byte when it is not one of the four Pincel
+    /// knows (a newer Aseprite). Playback treats such a tag as `direction`
+    /// (`Forward`); the writer puts the byte back. Cleared by any edit of
+    /// the direction.
+    pub raw_direction: Option<u8>,
 }
 
 impl Tag {
@@ -36,6 +43,8 @@ impl Tag {
             direction: TagDirection::Forward,
             color: Rgba::WHITE,
             repeats: 0,
+            user_data: None,
+            raw_direction: None,
         }
     }
 }

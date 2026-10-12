@@ -4,10 +4,11 @@
 //! only. Per-layer blending lives in [`super::blend`], the two cel paths in
 //! [`super::image_layer`] and [`super::tilemap_layer`]. Group layers hold
 //! no pixels and are skipped (their visibility gates their children — see
-//! [`effectively_visible`]). Indexed color, linked cels, onion skin, and
-//! overlays still return [`RenderError`].
+//! [`effectively_visible`]). Onion skin (spec §4.2) composites the
+//! neighbouring frames under the current one — see [`super::onion`].
+//! Indexed color, linked cels and overlays still return [`RenderError`].
 
-use crate::document::{CelData, CelMap, ColorMode, Layer, LayerKind, Sprite};
+use crate::document::{CelData, CelMap, ColorMode, FrameIndex, Layer, LayerKind, Sprite};
 use crate::geometry::Rect;
 
 use super::blend::mul_u8;
@@ -48,9 +49,6 @@ pub fn compose(
     }
     if request.viewport.is_empty() {
         return Err(RenderError::EmptyViewport);
-    }
-    if request.onion_skin.is_some() {
-        return Err(RenderError::OnionSkinUnsupported);
     }
     if request.overlays != Overlays::default() {
         return Err(RenderError::OverlaysUnsupported);
@@ -93,10 +91,10 @@ pub fn compose(
     if request.zoom == 1 {
         out.clear();
         out.resize(out_len, 0);
-        composite_visible_layers(out.as_mut_slice(), sprite, cels, request, dirty_rect)?;
+        composite_frame(out.as_mut_slice(), sprite, cels, request, dirty_rect)?;
     } else {
         let mut intermediate = vec![0u8; pre_zoom_len];
-        composite_visible_layers(
+        composite_frame(
             intermediate.as_mut_slice(),
             sprite,
             cels,
@@ -122,21 +120,44 @@ pub fn compose(
     })
 }
 
-/// Composite every selected layer at `request.frame` into `dst`, which is
-/// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
-/// under its own blend mode (see
-/// [`blend_pixel_into`](super::blend::blend_pixel_into)); linked cels and
-/// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
-/// below.
-fn composite_visible_layers(
+/// Composite the requested frame into `dst` — the onion-skin neighbours
+/// first (when requested), then the frame itself on top.
+fn composite_frame(
     dst: &mut [u8],
     sprite: &Sprite,
     cels: &CelMap,
     request: &ComposeRequest,
     viewport: Rect,
 ) -> Result<(), RenderError> {
+    if let Some(onion) = request.onion_skin {
+        super::onion::composite_onion_skin(dst, sprite, cels, request, onion, viewport)?;
+    }
+    composite_visible_layers(
+        dst,
+        sprite,
+        cels,
+        &request.include_layers,
+        request.frame,
+        viewport,
+    )
+}
+
+/// Composite every selected layer at `frame` into `dst`, which is
+/// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
+/// under its own blend mode (see
+/// [`blend_pixel_into`](super::blend::blend_pixel_into)); linked cels and
+/// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
+/// below.
+pub(super) fn composite_visible_layers(
+    dst: &mut [u8],
+    sprite: &Sprite,
+    cels: &CelMap,
+    filter: &LayerFilter,
+    frame: FrameIndex,
+    viewport: Rect,
+) -> Result<(), RenderError> {
     for layer in sprite.layers.iter() {
-        if !layer_included(layer, sprite, &request.include_layers) {
+        if !layer_included(layer, sprite, filter) {
             continue;
         }
         if let LayerKind::Group = layer.kind {
@@ -147,7 +168,7 @@ fn composite_visible_layers(
             // Phase 1 (spec §4 defers the fold-into-temp-buffer behavior).
             continue;
         }
-        let Some(cel) = cels.get(layer.id, request.frame) else {
+        let Some(cel) = cels.get(layer.id, frame) else {
             continue;
         };
         match (&layer.kind, &cel.data) {
@@ -155,14 +176,14 @@ fn composite_visible_layers(
                 if pixels.color_mode != sprite.color_mode {
                     return Err(RenderError::CelColorModeMismatch {
                         layer: layer.id,
-                        frame: request.frame,
+                        frame,
                         mode: pixels.color_mode,
                     });
                 }
                 if !pixels.is_well_formed() {
                     return Err(RenderError::MalformedCelBuffer {
                         layer: layer.id,
-                        frame: request.frame,
+                        frame,
                     });
                 }
                 composite_image_cel(
@@ -197,7 +218,7 @@ fn composite_visible_layers(
                     tiles,
                     tileset,
                     layer.id,
-                    request.frame,
+                    frame,
                     sprite.color_mode,
                     mul_u8(layer.opacity, cel.opacity),
                     layer.blend_mode,
@@ -206,14 +227,14 @@ fn composite_visible_layers(
             (_, CelData::Linked(_)) => {
                 return Err(RenderError::LinkedCelUnsupported {
                     layer: layer.id,
-                    frame: request.frame,
+                    frame,
                 });
             }
             (LayerKind::Image, CelData::Tilemap { .. })
             | (LayerKind::Tilemap { .. }, CelData::Image(_)) => {
                 return Err(RenderError::CelTypeMismatch {
                     layer: layer.id,
-                    frame: request.frame,
+                    frame,
                 });
             }
             (LayerKind::Group, _) => {
@@ -663,6 +684,8 @@ mod tests {
             position: (0, 0),
             opacity: 255,
             data: CelData::Linked(FrameIndex::new(0)),
+            user_data: None,
+            z_index: 0,
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
@@ -733,6 +756,8 @@ mod tests {
                 grid_h: 1,
                 tiles: vec![crate::document::TileRef::EMPTY],
             },
+            user_data: None,
+            z_index: 0,
         });
         assert_eq!(
             compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
@@ -740,20 +765,6 @@ mod tests {
                 layer: LayerId::new(0),
                 frame: FrameIndex::new(0),
             }
-        );
-    }
-
-    #[test]
-    fn rejects_onion_skin_request() {
-        let sprite = one_layer_sprite(1, 1, 1);
-        let cels = CelMap::new();
-        let req = ComposeRequest {
-            onion_skin: Some(super::super::OnionSkin::default()),
-            ..full_req(1, 1)
-        };
-        assert_eq!(
-            compose_owned(&sprite, &cels, &req).unwrap_err(),
-            RenderError::OnionSkinUnsupported
         );
     }
 

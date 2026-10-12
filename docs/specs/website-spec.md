@@ -454,7 +454,7 @@ This is a deliberate choice: every icon on the site is dogfood proof.
 - **Styling:** Tailwind 4 with custom theme matching the design tokens above
 - **Components:** shadcn-svelte where needed; custom-built for anything pixel-themed
 - **Hosting:** Cloudflare static edge (the repo's existing project uses Workers Builds with `[assets]`; see §12 2026-05-11). Alternative: GitHub Pages if zero-vendor-lock is preferred.
-- **Domain:** `pincel.app` if available, else `pincel.amigo-labs.dev`. (Decision deferred; check DNS.)
+- **Domain:** `pincel.amigo-labs.dev` (decided 2026-10-11, see §12). The editor is served at `/app/` on the same host by its own Worker.
 
 ### 6.2 Build & Deploy
 
@@ -556,7 +556,7 @@ WCAG 2.2 AA target. Specific commitments:
 - Pixel decorations are `aria-hidden="true"`. The hero animation has a static fallback and respects `prefers-reduced-motion`.
 - The CRT effect respects `prefers-reduced-transparency` and `prefers-reduced-motion`.
 - Alt text on every meaningful image. Decorative pixel art has empty alt.
-- Language tags: `<html lang="en">` for the English site. (German variant deferred to Phase 2.)
+- Language tags: `<html lang="en">` on the English pages and `<html lang="de">` under `/de` (§11), filled per page by `src/hooks.server.ts`.
 
 ---
 
@@ -592,11 +592,15 @@ Accepted patterns:
 
 ## 11. Internationalization
 
-**Phase 1: English only.** No i18n infrastructure.
+English at `/`, German under `/de` (`/de`, `/de/features`, `/de/about`, `/de/embed`). Implementation:
 
-**Phase 2:** German translation as the second language. Implementation: SvelteKit's built-in i18n via route prefixes (`/de/`, default English at `/`). Translations live in `src/lib/i18n/<lang>.json`.
+- **Routes:** every page sits under an optional parameter, `src/routes/[[lang=locale]]/`, whose matcher (`src/params/locale.ts`) accepts only `de`. English keeps its URLs; `prerender.entries` lists the German pages.
+- **Copy:** `src/lib/i18n/en.ts` holds every string of the site as one nested object; `de.ts` is typed against it, so a missing or misplaced translation fails `pnpm check`. Components read `m()` (the current page's messages). Strings may carry a tiny inline markup — `` `code` ``, `[text](url)`, `**bold**`, line breaks — rendered by `Rich.svelte`; internal links get the page's language prefix. Code samples and key combos stay untranslated.
+- **SEO:** each page links its translations with `hreflang` (`en`, `de`, `x-default` → English) and sets `og:locale` / `og:locale:alternate`; the sitemap lists both languages with `xhtml:link` alternates (§7.3).
+- **Switch:** `EN` / `DE` in the header link to the same page in the other language. No automatic redirect by browser language — the editor (`/app/`) picks its own language.
+- `static/404.html` stays English.
 
-No machine translation. Every translation is reviewed by a native speaker.
+No machine translation. Every translation is reviewed by a native speaker before it ships.
 
 ---
 
@@ -609,7 +613,10 @@ No machine translation. Every translation is reviewed by a native speaker.
 | 2026-05-07 | SvelteKit + adapter-static, Cloudflare Pages | Same stack as the editor UI; static deploy is fast and cheap; matches amigo-labs tooling |
 | 2026-05-07 | No analytics by default; if added, self-hosted Plausible only | Privacy-first stance; GDPR clean without banners; aligns with no-tracking-no-account product principle |
 | 2026-05-07 | All icons drawn in Pincel itself | Dogfooding proof; custom identity; no icon-font dependency |
+| 2026-10-11 | Domain `pincel.amigo-labs.dev`; the editor at `/app/` is a separate Worker routed on the same host, not a SvelteKit route | Keeps the single-hostname `/app` decision of 2026-05-07 while the editor ships as its own bundle (Rust/wasm build in GitHub Actions, not in Workers Builds). The `/app` placeholder route is removed; CTAs link to `/app/` with `rel="external"` (full page load, skipped by the prerender crawler). |
+| 2026-10-11 | The site presents both modes: Pixel mode stays the lead (hero, feature order), Image mode gets a feature section, a grid tile and a comparison row | Image mode (the former Fineliner) ships in the same app; the site said nothing about it. Pixel art remains the product's focus and audience, so it keeps the headline. |
 | 2026-05-07 | English-only at launch; German Phase 2 | Audience is English-speaking primarily; German is the natural second locale via amigo-labs context |
+| 2026-10-12 | German site under `/de` via an optional `[[lang=locale]]` route parameter and typed TypeScript dictionaries (`src/lib/i18n/{en,de}.ts`) instead of JSON files, no i18n dependency | SvelteKit has no built-in i18n, so §11's original wording could not be implemented as written. An optional parameter keeps the English URLs unchanged and prerenders `/de/*` as plain static files; typing `de` against `en` catches missing copy at `pnpm check`, the same pattern the editor uses (pincel spec §9.5) |
 | 2026-05-07 | Honest comparison table including where Aseprite wins | Trust-building with the skeptical audience; "we beat them at everything" tables are widely distrusted |
 | 2026-05-07 | `/app` is a separate Vite entry, isolated bundle | Marketing site stays fast; editor route doesn't drag down the home page |
 | 2026-05-11 | `brand-primary` is PICO-8 blue (#29adff), not PICO-8 pink (#ff77a8); `brand-secondary` retired | Owner preference. Blue keeps the PICO-8 identity, gives strong contrast on the dark base, and avoids overlap with the pink-saturated pixel-art tooling space (Aseprite, Piskel branding). `brand-secondary` was unused — single brand accent simplifies the token set. |
@@ -638,7 +645,7 @@ No machine translation. Every translation is reviewed by a native speaker.
 
 ## 14. Open Questions
 
-1. **Domain:** `pincel.app` (likely taken or expensive) vs. `pincel.amigo-labs.dev` (subdomain, free, less brandable). Check availability.
+1. ~~**Domain**~~ — resolved 2026-10-11: `pincel.amigo-labs.dev` (see §12).
 2. **Hero animation source:** is it a hand-crafted scene, or a stylized rendering of "the editor itself in motion"? Both work; the choice affects how technical the hero feels vs. how artsy.
 3. **Showcase / community gallery:** Phase 3, but should we collect submissions from launch (low-key Form / Bluesky tag) so we have material when we build it?
 4. **Newsletter / RSS:** RSS is cheap (just expose `/changelog` as a feed); newsletter has ongoing maintenance cost. RSS yes, newsletter no, until proven needed.

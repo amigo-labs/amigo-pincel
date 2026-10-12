@@ -1,0 +1,289 @@
+<script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
+  import Panel from '../../../lib/components/layout/Panel.svelte';
+  import IconButton from '../../../lib/components/layout/IconButton.svelte';
+  import type { Document } from '../../../lib/core';
+  import TileThumbnail from './TileThumbnail.svelte';
+
+  // The wasm `Document` is the source of truth for tileset state. The
+  // panel reads through the M8.6 / M8.7b surface (`tilesetCount`,
+  // `tilesetIdAt`, `tilesetName`, `tilesetTileWidth`,
+  // `tilesetTileHeight`, `tilesetTileCount`, `tilePixels`) and emits
+  // `addTileset`, `addTile`, `addTilemapLayer` on the various buttons.
+  // `rev` is a parent-managed change counter that bumps whenever the
+  // wasm side may have mutated tilesets (new / open document, undo,
+  // redo, or any edit). The `$derived.by` block reads it to mark the
+  // list reactive against opaque wasm mutations.
+  //
+  // `selectedTile` highlights the active stamp target — the parent
+  // owns the state so the Tilemap Stamp tool can read it without the
+  // panel re-broadcasting. `onSelectStampTile` / `onEditTile` fire on
+  // single click / double click respectively, letting the parent
+  // route the gesture to the Stamp tool or the Tile Editor sub-mode.
+  let {
+    doc,
+    rev = 0,
+    selectedTile = null,
+    onChange,
+    onSelectStampTile,
+    onEditTile,
+  }: {
+    doc: Document | null;
+    rev?: number;
+    selectedTile?: { tilesetId: number; tileId: number } | null;
+    onChange?: () => void;
+    onSelectStampTile?: (tilesetId: number, tileId: number) => void;
+    onEditTile?: (tilesetId: number, tileId: number) => void;
+  } = $props();
+
+  type TilesetRow = {
+    id: number;
+    name: string;
+    tileW: number;
+    tileH: number;
+    tileCount: number;
+  };
+
+  const tilesets = $derived.by<TilesetRow[]>(() => {
+    void rev;
+    if (!doc) return [];
+    const list: TilesetRow[] = [];
+    const count = doc.tilesetCount;
+    for (let i = 0; i < count; i += 1) {
+      let id: number;
+      try {
+        id = doc.tilesetIdAt(i);
+      } catch {
+        continue;
+      }
+      list.push({
+        id,
+        name: doc.tilesetName(id),
+        tileW: doc.tilesetTileWidth(id),
+        tileH: doc.tilesetTileHeight(id),
+        tileCount: doc.tilesetTileCount(id),
+      });
+    }
+    return list;
+  });
+
+  let formOpen = $state(false);
+  let formName = $state('Tileset');
+  let formTileW = $state(16);
+  let formTileH = $state(16);
+  let formError = $state<string | null>(null);
+  // Per-tileset transient error surface, keyed by tileset id. Cleared
+  // on the next mutation that targets the same tileset.
+  let rowError = $state<Record<number, string | null>>({});
+
+  function openForm() {
+    formOpen = true;
+    formError = null;
+  }
+
+  function closeForm() {
+    formOpen = false;
+    formError = null;
+  }
+
+  function submitForm(e: SubmitEvent) {
+    e.preventDefault();
+    if (!doc) return;
+    const name = formName.trim();
+    if (name.length === 0) {
+      formError = t('slices.nameRequired');
+      return;
+    }
+    if (!Number.isInteger(formTileW) || formTileW <= 0) {
+      formError = t('tiles.widthPositive');
+      return;
+    }
+    if (!Number.isInteger(formTileH) || formTileH <= 0) {
+      formError = t('tiles.heightPositive');
+      return;
+    }
+    try {
+      doc.addTileset(name, formTileW, formTileH);
+    } catch (err) {
+      formError = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    formOpen = false;
+    formError = null;
+    formName = 'Tileset';
+    onChange?.();
+  }
+
+  function addTile(tilesetId: number) {
+    if (!doc) return;
+    rowError[tilesetId] = null;
+    try {
+      const newTileId = doc.addTile(tilesetId);
+      // Auto-select the freshly added tile as the stamp target so the
+      // common workflow "create tile, paint, place" needs no extra
+      // click.
+      onSelectStampTile?.(tilesetId, newTileId);
+    } catch (err) {
+      rowError[tilesetId] = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    onChange?.();
+  }
+
+  function addTilemapLayer(tilesetId: number, tilesetName: string) {
+    if (!doc) return;
+    rowError[tilesetId] = null;
+    try {
+      doc.addTilemapLayer(`${tilesetName} Layer`, tilesetId);
+    } catch (err) {
+      rowError[tilesetId] = err instanceof Error ? err.message : String(err);
+      return;
+    }
+    onChange?.();
+  }
+
+  function selectStamp(tilesetId: number, tileId: number) {
+    onSelectStampTile?.(tilesetId, tileId);
+  }
+
+  function editTile(tilesetId: number, tileId: number) {
+    onEditTile?.(tilesetId, tileId);
+  }
+</script>
+
+<Panel>
+  {#snippet actions()}
+    {#if !formOpen}
+      <IconButton icon="plus" label={t('tiles.add')} size="sm" onclick={openForm} disabled={!doc} />
+    {/if}
+  {/snippet}
+
+  {#if formOpen}
+    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
+      <label class="flex flex-col gap-1 text-xs text-pc-muted">
+        <span>{t('layers.name')}</span>
+        <input
+          type="text"
+          bind:value={formName}
+          class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+        />
+      </label>
+      <div class="flex gap-2">
+        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
+          <span>{t('tiles.w')}</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            bind:value={formTileW}
+            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+          />
+        </label>
+        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
+          <span>{t('tiles.h')}</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputmode="numeric"
+            bind:value={formTileH}
+            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+          />
+        </label>
+      </div>
+      {#if formError}
+        <p class="text-xs text-red-400" role="alert">{formError}</p>
+      {/if}
+      <div class="flex justify-end gap-1">
+        <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
+        <button type="submit" class="panel-btn panel-btn-primary">{t('common.add')}</button>
+      </div>
+    </form>
+  {/if}
+
+  {#if tilesets.length === 0}
+    <p class="text-xs text-pc-faint">
+      {doc ? t('tiles.none') : t('common.noDoc')}
+    </p>
+  {:else}
+    <ul class="flex flex-col gap-1">
+      {#each tilesets as ts (ts.id)}
+        <li
+          class="flex flex-col gap-1 rounded border border-pc-border px-2 py-1"
+        >
+          <span class="truncate text-sm text-pc-text" title={ts.name}>{ts.name}</span>
+          <span class="text-xs text-pc-faint">
+            id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
+          </span>
+          <div class="flex gap-1">
+            <button
+              type="button"
+              class="panel-btn"
+              onclick={() => addTile(ts.id)}
+              aria-label={t('tiles.addTile', { name: ts.name })}
+            >
+              + Tile
+            </button>
+            <button
+              type="button"
+              class="panel-btn"
+              onclick={() => addTilemapLayer(ts.id, ts.name)}
+              aria-label={t('tiles.addLayer', { name: ts.name })}
+            >
+              + Layer
+            </button>
+          </div>
+          {#if rowError[ts.id]}
+            <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
+          {/if}
+          {#if doc && ts.tileCount > 0}
+            <div class="flex flex-wrap gap-1" aria-label={t('tiles.tiles', { name: ts.name })}>
+              {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
+                {@const isSelected =
+                  selectedTile?.tilesetId === ts.id && selectedTile?.tileId === tileId}
+                <button
+                  type="button"
+                  class="tile-btn"
+                  class:tile-btn-selected={isSelected}
+                  onclick={() => selectStamp(ts.id, tileId)}
+                  ondblclick={() => editTile(ts.id, tileId)}
+                  aria-pressed={isSelected}
+                  aria-label={t('tiles.select', { tile: tileId, name: ts.name })}
+                  title={t('tiles.selectHint', { tile: tileId })}
+                >
+                  <TileThumbnail
+                    {doc}
+                    tilesetId={ts.id}
+                    {tileId}
+                    tileW={ts.tileW}
+                    tileH={ts.tileH}
+                    {rev}
+                  />
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
+</Panel>
+
+<style>
+  .tile-btn {
+    padding: 0;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .tile-btn:hover {
+    border-color: rgb(82 82 82);
+  }
+  .tile-btn-selected {
+    border-color: rgb(59 130 246);
+    box-shadow: 0 0 0 1px rgb(59 130 246);
+  }
+</style>

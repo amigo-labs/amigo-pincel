@@ -6,8 +6,7 @@
 //! (enforced by `codec::aseprite_write::validate_layer_order`). This
 //! command swaps a layer's whole subtree with the adjacent sibling's
 //! subtree, so moving a group carries its children and a layer never
-//! crosses into or out of a group. Cross-group / arbitrary drag moves are
-//! deferred to a later slice (see `STATUS.md` Layers plan).
+//! crosses into or out of a group; [`crate::MoveLayerTo`] does that.
 
 use std::collections::BTreeMap;
 
@@ -54,7 +53,7 @@ fn index_of(layers: &[Layer], id: LayerId) -> Option<usize> {
 }
 
 /// True when `id`'s parent chain reaches `ancestor`.
-fn is_descendant(
+pub(super) fn is_descendant(
     parents: &BTreeMap<LayerId, Option<LayerId>>,
     mut id: LayerId,
     ancestor: LayerId,
@@ -71,7 +70,11 @@ fn is_descendant(
 /// Exclusive end of the subtree rooted at `layers[i]`: the first index
 /// after `i` whose layer is not a descendant of `layers[i]`. Relies on
 /// the contiguity invariant (a subtree is one unbroken run).
-fn subtree_end(layers: &[Layer], parents: &BTreeMap<LayerId, Option<LayerId>>, i: usize) -> usize {
+pub(super) fn subtree_end(
+    layers: &[Layer],
+    parents: &BTreeMap<LayerId, Option<LayerId>>,
+    i: usize,
+) -> usize {
     let root = layers[i].id;
     let mut j = i + 1;
     while j < layers.len() && is_descendant(parents, layers[j].id, root) {

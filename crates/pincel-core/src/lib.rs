@@ -14,23 +14,27 @@ pub mod selection;
 
 pub use codec::{
     AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
-    ExportError, ImportError, ImportedImage, export_atlas_png, export_frame_png, import_png,
-    read_aseprite, write_aseprite,
+    ExportError, GplError, ImportError, ImportedImage, aseprite_sheet_json, export_atlas_png,
+    export_frame_png, import_png, read_aseprite, read_gpl, write_aseprite, write_gpl,
 };
 pub use command::{
-    AddFrame, AddLayer, AddSlice, AddTile, AddTilemapLayer, AddTileset, Anchor, AnyCommand, Bus,
-    ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle,
-    DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, Interpolation, MergeDown,
-    MoveDirection, MoveLayer, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas,
-    RemoveLayer, RemoveSlice, ReplaceCelPixels, ScaleImage, SetFrameDuration, SetLayerBlendMode,
-    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPixel, SetSliceKey, SetTilePixel, ShapeKind,
-    ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
+    AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset,
+    Anchor, AnyCommand, Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse,
+    DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
+    Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer, MoveLayerTo,
+    MovePaletteEntry, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas, RemoveFrame,
+    RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
+    ReplacePalette, ScaleImage, SetFrameDuration, SetLayerBlendMode, SetLayerEditable,
+    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
+    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
+    TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{
     BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, Metadata, Palette, PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId,
-    SliceKey, Sprite, SpriteBuilder, Tag, TagDirection, TileImage, TileRef, Tileset, TilesetId,
+    LayerKind, MAX_PALETTE_ENTRIES, Metadata, Palette, PaletteEntry, PalettePreset, PathRef,
+    PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, SpriteBuilder, Tag, TagDirection,
+    TileImage, TileRef, Tileset, TilesetId, UserData,
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect};

@@ -26,6 +26,8 @@ export type RecentHandler = (id: string) => void | Promise<void>;
 export type EditorMenuId =
   | 'menu:save'
   | 'menu:saveAs'
+  | 'menu:exportPng'
+  | 'menu:exportSheet'
   | 'menu:undo'
   | 'menu:redo'
   | 'menu:zoomIn'

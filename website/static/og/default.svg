@@ -31,5 +31,5 @@
   <text x="80" y="500" font-family="'Inter', system-ui, sans-serif" font-size="28" fill="#83769c" font-weight="400">Aseprite-compatible · Open source · Free</text>
 
   <!-- Tag line in bottom-right -->
-  <text x="1120" y="580" font-family="'JetBrains Mono', monospace" font-size="22" fill="#5f574f" text-anchor="end">amigo-labs · pincel.app</text>
+  <text x="1120" y="580" font-family="'JetBrains Mono', monospace" font-size="22" fill="#5f574f" text-anchor="end">amigo-labs · pincel.amigo-labs.dev</text>
 </svg>

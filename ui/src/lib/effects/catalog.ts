@@ -1,4 +1,6 @@
-// Effect / adjustment catalog for the Effects and Adjust menus.
+// Effect / adjustment catalog for the Effects and Adjust menus of both
+// modes (Pixel and Image share `pincel_effects::EffectSpec` as the wire
+// format; spec §15, 2026-10-11).
 //
 // Mirrors `pincel_effects::EffectSpec`: every entry names the wasm wire
 // id and lists its parameters in the exact order `applyEffect` /
@@ -60,12 +62,17 @@ const choice = (key: string, label: string, options: string[], def = 0): ParamDe
 const CURVE_XS = [0, 64, 128, 192, 255];
 
 export const EFFECTS: EffectDef[] = [
-  { id: 'gaussian_blur', label: 'Gaussian Blur', group: 'blur', params: [num('radius', 'Radius', 0.1, 50, 2, 0.1)] },
+  {
+    id: 'gaussian_blur',
+    label: 'Gaussian Blur',
+    group: 'blur',
+    params: [num('radius', 'Radius', 0.1, 250, 2, 0.1)],
+  },
   {
     id: 'box_blur',
     label: 'Box Blur',
     group: 'blur',
-    params: [num('width', 'Width', 1, 99, 3, 2), num('height', 'Height', 1, 99, 3, 2)],
+    params: [num('width', 'Width', 1, 251, 3, 2), num('height', 'Height', 1, 251, 3, 2)],
   },
   {
     id: 'motion_blur',
@@ -131,7 +138,12 @@ export const EFFECTS: EffectDef[] = [
       num('seed', 'Seed', 0, 9999, 1),
     ],
   },
-  { id: 'reduce_noise', label: 'Reduce Noise', group: 'noise', params: [num('radius', 'Radius', 1, 10, 1)] },
+  {
+    id: 'reduce_noise',
+    label: 'Reduce Noise',
+    group: 'noise',
+    params: [num('radius', 'Radius', 1, 10, 1)],
+  },
   {
     id: 'brightness_contrast',
     label: 'Brightness / Contrast',
@@ -161,7 +173,11 @@ export const EFFECTS: EffectDef[] = [
       choice('channel', 'Channel', ['Composite', 'Red', 'Green', 'Blue', 'Alpha']),
       ...CURVE_XS.map((x) => num(`y${x}`, `Out @ ${x}`, 0, 255, x)),
     ],
-    toParams: (v) => [v.channel ?? 0, ...CURVE_XS.flatMap((x) => [x, v[`y${x}`] ?? x])],
+    // The UI edits 0–255; the effect takes control points in [0, 1].
+    toParams: (v) => [
+      v.channel ?? 0,
+      ...CURVE_XS.flatMap((x) => [x / 255, (v[`y${x}`] ?? x) / 255]),
+    ],
   },
   {
     id: 'levels',
@@ -174,6 +190,15 @@ export const EFFECTS: EffectDef[] = [
       num('gamma', 'Gamma', 0.1, 10, 1, 0.01),
       num('out_black', 'Output black', 0, 255, 0),
       num('out_white', 'Output white', 0, 255, 255),
+    ],
+    // The UI edits 0–255 points; the effect takes them in [0, 1].
+    toParams: (v) => [
+      v.channel ?? 0,
+      (v.in_black ?? 0) / 255,
+      (v.in_white ?? 255) / 255,
+      v.gamma ?? 1,
+      (v.out_black ?? 0) / 255,
+      (v.out_white ?? 255) / 255,
     ],
   },
   {
@@ -205,8 +230,18 @@ export const EFFECTS: EffectDef[] = [
       num('b', 'Blue weight', 0, 1, 0.11, 0.01),
     ],
   },
-  { id: 'posterize', label: 'Posterize', group: 'adjust', params: [num('levels', 'Levels', 2, 64, 4)] },
-  { id: 'threshold', label: 'Threshold', group: 'adjust', params: [num('threshold', 'Threshold', 0, 255, 128)] },
+  {
+    id: 'posterize',
+    label: 'Posterize',
+    group: 'adjust',
+    params: [num('levels', 'Levels', 2, 64, 4)],
+  },
+  {
+    id: 'threshold',
+    label: 'Threshold',
+    group: 'adjust',
+    params: [num('threshold', 'Threshold', 0, 255, 128)],
+  },
 ];
 
 export const GROUP_LABELS: Record<EffectGroup, string> = {

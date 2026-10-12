@@ -5,7 +5,7 @@ Cargo.lock.bak
 
 # WASM build output
 /crates/pincel-wasm/pkg
-/crates/fineliner-wasm/pkg
+/crates/pincel-image-wasm/pkg
 
 # Node / UI
 /ui/node_modules
@@ -41,3 +41,5 @@ Thumbs.db
 !.dev.vars.example
 .env*
 !.env.example
+/ui/test-results
+/ui/playwright-report

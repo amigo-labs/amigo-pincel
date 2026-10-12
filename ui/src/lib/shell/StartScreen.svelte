@@ -4,6 +4,8 @@
   // anywhere on the screen opens it. See docs/specs/pincel.md §9.2.
   import type { RecentFile } from '../idb/recent-files';
   import type { EditorMode } from './types';
+  import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
+  import { setLocale } from '../i18n/locale';
 
   let {
     recents,
@@ -36,73 +38,79 @@
     if (file) onDropFile(file);
   }
 
-  const modeLabel: Record<EditorMode, string> = { pixel: 'Pixel', image: 'Image' };
 </script>
 
 <main
-  class="flex h-full flex-col items-center justify-center bg-neutral-950 p-6 text-neutral-100"
-  class:bg-neutral-900={dragOver}
+  class="flex h-full flex-col items-center justify-center bg-pc-bg p-6 text-pc-text"
+  class:bg-pc-panel={dragOver}
   ondragover={onDragOver}
   ondragleave={() => (dragOver = false)}
   ondrop={onDrop}
 >
   <section
-    class="w-full max-w-xl rounded border border-neutral-800 bg-neutral-900 p-6 shadow-xl"
+    class="w-full max-w-xl rounded border border-pc-border bg-pc-panel p-6 shadow-xl"
     aria-labelledby="start-title"
   >
-    <h1 id="start-title" class="text-2xl font-semibold tracking-wide">Pincel</h1>
-    <p class="mt-1 text-sm text-neutral-400">
-      Pixel-art sprites and everyday image editing, one app. Drop a file here to open it.
-    </p>
+    <div class="flex items-start justify-between gap-3">
+      <h1 id="start-title" class="text-2xl font-semibold tracking-wide">Pincel</h1>
+      <select
+        class="opt-field text-xs"
+        aria-label={t('start.language')}
+        value={locale()}
+        onchange={(e) => {
+          const v = e.currentTarget.value;
+          if (isLocale(v)) setLocale(v);
+        }}
+      >
+        {#each LOCALES as l (l.id)}
+          <option value={l.id}>{l.label}</option>
+        {/each}
+      </select>
+    </div>
+    <p class="mt-1 text-sm text-pc-muted">{t('start.tagline')}</p>
 
     <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
       <button
         class="start-card"
         onclick={() => onNew('pixel')}
         disabled={busy}
-        aria-label="New pixel sprite"
+        aria-label={t('start.newPixel')}
       >
-        <span class="text-base font-semibold">New pixel sprite</span>
-        <span class="text-xs text-neutral-400">
-          Frames, palettes, tilemaps, slices. Saves as .aseprite.
-        </span>
+        <span class="text-base font-semibold">{t('start.newPixel')}</span>
+        <span class="text-xs text-pc-muted">{t('start.newPixelHint')}</span>
       </button>
       <button
         class="start-card"
         onclick={() => onNew('image')}
         disabled={busy}
-        aria-label="New image"
+        aria-label={t('start.newImage')}
       >
-        <span class="text-base font-semibold">New image</span>
-        <span class="text-xs text-neutral-400">
-          Layers, soft brushes, selections, effects. Exports PNG / JPEG / WebP.
-        </span>
+        <span class="text-base font-semibold">{t('start.newImage')}</span>
+        <span class="text-xs text-pc-muted">{t('start.newImageHint')}</span>
       </button>
     </div>
 
     <div class="mt-4 flex items-center gap-2">
-      <button class="toolbar-btn" onclick={onOpen} disabled={busy}>Open…</button>
-      <span class="text-xs text-neutral-500">
-        .aseprite opens in Pixel mode; PNG, JPEG, WebP, BMP, GIF and TIFF open in Image mode.
-      </span>
+      <button class="toolbar-btn" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
+      <span class="text-xs text-pc-faint">{t('start.openHint')}</span>
     </div>
 
     {#if recents.length > 0}
-      <h2 class="mt-6 text-xs font-semibold uppercase tracking-wide text-neutral-500">Recent</h2>
-      <ul class="mt-2 flex flex-col divide-y divide-neutral-800" aria-label="Recent files">
+      <h2 class="mt-6 text-xs font-semibold uppercase tracking-wide text-pc-faint">{t('start.recent')}</h2>
+      <ul class="mt-2 flex flex-col divide-y divide-pc-border" aria-label={t('start.recentFiles')}>
         {#each recents as r (r.id)}
           <li>
             <button
-              class="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-sm hover:bg-neutral-800 disabled:opacity-50"
+              class="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-sm hover:bg-pc-hover disabled:opacity-50"
               onclick={() => onOpenRecent(r)}
               disabled={busy}
               title={r.path ?? r.name}
             >
               <span class="truncate">{r.name}</span>
               <span
-                class="shrink-0 rounded border border-neutral-700 px-1.5 text-[10px] uppercase text-neutral-400"
+                class="shrink-0 rounded border border-pc-border px-1.5 text-[10px] uppercase text-pc-muted"
               >
-                {modeLabel[r.mode]}
+                {t(`mode.${r.mode}`)}
               </span>
             </button>
           </li>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   // Shared modal shell: backdrop, panel, title, Cancel/Apply footer. Owns the
   // dialog keyboard behavior (Escape cancels, Enter applies), focuses the
   // first form control, and suppresses the global shortcuts while open via
@@ -47,7 +48,7 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     bind:this={panel}
-    class="w-72 rounded-lg border border-[var(--fl-panel-border)] bg-[var(--fl-panel-bg)] p-4 text-sm text-neutral-200"
+    class="w-72 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
     role="dialog"
     aria-label={title}
     tabindex="-1"
@@ -58,8 +59,8 @@
     {@render children()}
 
     <div class="flex justify-end gap-2">
-      <button class="rounded px-3 py-1 hover:bg-neutral-700" onclick={onClose}>Cancel</button>
-      <button class="rounded bg-[var(--fl-accent)] px-3 py-1 text-white" onclick={onApply}>
+      <button class="rounded px-3 py-1 hover:bg-pc-hover" onclick={onClose}>{t('common.cancel')}</button>
+      <button class="rounded bg-pc-accent px-3 py-1 text-white" onclick={onApply}>
         {applyLabel}
       </button>
     </div>

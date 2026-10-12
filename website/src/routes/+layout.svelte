@@ -4,27 +4,20 @@
   import Footer from '$lib/components/Footer.svelte';
   import { crt } from '$lib/stores/crt.svelte';
   import { onMount } from 'svelte';
-  import { page } from '$app/state';
 
   const { children } = $props();
 
   onMount(() => {
     crt.hydrate();
   });
-
-  const hideChrome = $derived(page.url.pathname.startsWith('/app'));
 </script>
 
 <div class="root" class:crt-enabled={crt.enabled}>
-  {#if !hideChrome}
-    <Header />
-  {/if}
+  <Header />
   <main>
     {@render children?.()}
   </main>
-  {#if !hideChrome}
-    <Footer />
-  {/if}
+  <Footer />
 </div>
 
 <style>

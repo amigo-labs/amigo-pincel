@@ -7,6 +7,8 @@
   // default handler without elevation, so this dialog walks the user
   // through the per-OS steps once. "Don't show again" sets a pref so
   // the dialog never re-appears.
+  import { t } from '../i18n/index.svelte';
+
   let {
     platform,
     onDismiss,
@@ -24,55 +26,35 @@
   aria-modal="true"
   aria-labelledby="fileassoc-title"
 >
-  <div class="w-full max-w-lg rounded border border-neutral-700 bg-neutral-900 p-6 shadow-xl">
-    <h2 id="fileassoc-title" class="mb-3 text-lg font-semibold">
-      Open sprites and images with Pincel
-    </h2>
-    <p class="mb-3 text-sm text-neutral-300">
-      Pincel edits Aseprite-format sprites (Pixel mode) and PNG, JPEG, WebP, BMP, GIF and TIFF
-      images (Image mode). To make it the default handler for <code class="text-neutral-100"
-        >.aseprite</code
-      >
-      /
-      <code class="text-neutral-100">.ase</code> — and, if you like, for the image types — on your system:
-    </p>
+  <div class="w-full max-w-lg rounded border border-pc-border bg-pc-panel p-6 shadow-xl">
+    <h2 id="fileassoc-title" class="mb-3 text-lg font-semibold">{t('fileAssoc.title')}</h2>
+    <p class="mb-3 text-sm text-pc-text">{t('fileAssoc.body')}</p>
     {#if platform === 'macos'}
-      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-        <li>Right-click an .aseprite file in Finder → Get Info.</li>
-        <li>Under "Open With", pick Pincel.</li>
-        <li>Click "Change All…" to apply to every .aseprite file.</li>
+      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-pc-text">
+        <li>{t('fileAssoc.mac1')}</li>
+        <li>{t('fileAssoc.mac2')}</li>
+        <li>{t('fileAssoc.mac3')}</li>
       </ol>
     {:else if platform === 'windows'}
-      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-        <li>Open Settings → Apps → Default apps.</li>
-        <li>Search for ".aseprite" and pick Pincel from the list.</li>
-        <li>Repeat for ".ase" and any image types you want Pincel to open.</li>
+      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-pc-text">
+        <li>{t('fileAssoc.win1')}</li>
+        <li>{t('fileAssoc.win2')}</li>
+        <li>{t('fileAssoc.win3')}</li>
       </ol>
     {:else if platform === 'linux'}
-      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-neutral-300">
-        <li>
-          Run <code class="text-neutral-100"
-            >xdg-mime default pincel.desktop application/x-aseprite</code
-          >.
-        </li>
-        <li>
-          If your distro doesn't pick up new MIME types automatically, run <code
-            class="text-neutral-100">update-desktop-database</code
-          >
-          afterward.
-        </li>
+      <ol class="mb-4 list-decimal space-y-1 pl-5 text-sm text-pc-text">
+        <li>{t('fileAssoc.linux1', { command: 'xdg-mime default pincel.desktop application/x-aseprite' })}</li>
+        <li>{t('fileAssoc.linux2', { command: 'update-desktop-database' })}</li>
       </ol>
     {:else}
-      <p class="mb-4 text-sm text-neutral-400">
-        Steps depend on your OS — consult its documentation for setting default file handlers.
-      </p>
+      <p class="mb-4 text-sm text-pc-muted">{t('fileAssoc.other')}</p>
     {/if}
-    <label class="mb-4 flex items-center gap-2 text-sm text-neutral-300">
+    <label class="mb-4 flex items-center gap-2 text-sm text-pc-text">
       <input type="checkbox" bind:checked={dontShowAgain} />
-      Don't show this again
+      {t('fileAssoc.dontShow')}
     </label>
     <div class="flex justify-end">
-      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}> Got it </button>
+      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
     </div>
   </div>
 </div>

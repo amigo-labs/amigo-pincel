@@ -190,7 +190,7 @@ impl Document {
     /// clone).
     fn text_command(&self, args: &TextArgs<'_>) -> Result<(LayerId, FrameIndex, DrawText), String> {
         let font = font_bytes(args.font_id)?;
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         if !matches!(
             self.cels.get(layer, frame).map(|c| &c.data),

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { localized, m } from '$lib/i18n';
+  import Rich from './Rich.svelte';
   import { crt } from '$lib/stores/crt.svelte';
   import PixelIcon from './PixelIcon.svelte';
 
@@ -8,11 +10,8 @@
 <footer class="site-footer">
   <div class="inner">
     <div class="primary">
-      <p class="line-1">
-        Pincel — by
-        <a href="https://amigo-labs.dev" rel="external">amigo-labs</a>. MIT or Apache-2.0.
-      </p>
-      <ul class="links" aria-label="Social and feeds">
+      <p class="line-1"><Rich text={m().footer.line} /></p>
+      <ul class="links" aria-label={m().footer.social}>
         <li>
           <a href="https://github.com/amigo-labs/amigo-pincel" rel="external noopener">
             <PixelIcon name="github" size={16} />
@@ -23,7 +22,9 @@
     </div>
     <div class="meta">
       <p>
-        <a href="/about#built-in-pincel">Soon to be drawn in Pincel itself. <span aria-hidden="true">▲</span></a>
+        <a href={`${localized('/about')}#built-in-pincel`}
+          >{m().footer.drawn} <span aria-hidden="true">▲</span></a
+        >
       </p>
       <button
         type="button"
@@ -31,7 +32,7 @@
         aria-pressed={crt.enabled}
         onclick={() => crt.toggle()}
       >
-        CRT effect: <span class="state">{crt.enabled ? 'on' : 'off'}</span>
+        {m().footer.crt} <span class="state">{crt.enabled ? m().footer.on : m().footer.off}</span>
       </button>
       <p class="copy">© {year} amigo-labs</p>
     </div>
@@ -57,7 +58,7 @@
     margin: 0 0 0.75rem;
     color: var(--color-fg-secondary);
   }
-  .line-1 a {
+  .line-1 :global(a) {
     color: var(--color-fg-primary);
   }
   .links {
@@ -103,7 +104,9 @@
     font-size: 0.75rem;
     color: var(--color-fg-secondary);
     cursor: pointer;
-    transition: color 120ms, border-color 120ms;
+    transition:
+      color 120ms,
+      border-color 120ms;
   }
   .crt-toggle:hover {
     color: var(--color-fg-primary);

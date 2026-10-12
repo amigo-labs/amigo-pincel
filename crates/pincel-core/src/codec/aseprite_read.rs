@@ -26,6 +26,8 @@
 //!   is preserved as a zero-tile tileset so the layer's `tileset_index`
 //!   still resolves.
 
+use std::collections::BTreeMap;
+
 use aseprite_loader::binary::blend_mode::BlendMode as AseBlendMode;
 use aseprite_loader::binary::chunk::Chunk;
 use aseprite_loader::binary::chunks::cel::CelContent;
@@ -42,7 +44,7 @@ use super::error::CodecError;
 use crate::document::{
     BlendMode, Cel, CelData, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId, LayerKind,
     PaletteEntry, PathRef, PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection,
-    TileImage, TileRef, Tileset, TilesetId,
+    TileImage, TileRef, Tileset, TilesetId, UserData,
 };
 use crate::geometry::Rect;
 
@@ -108,19 +110,26 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
     // the raw pass. A second pass via `parse_raw_file` recovers all three;
     // the raw parser is cheap (no decompression on this pass) and the
     // per-tileset image decode happens lazily inside `build_tileset`.
-    let (tilesets, slices, palette) = extract_raw_chunks(bytes)?;
+    let RawChunks {
+        tilesets,
+        slices,
+        palette,
+        user_data,
+    } = extract_raw_chunks(bytes)?;
 
     let mut sprite_builder =
         Sprite::builder(u32::from(file.header.width), u32::from(file.header.height))
             .color_mode(color_mode)
             .palette(palette);
-    for layer in layers {
+    for (index, mut layer) in layers.into_iter().enumerate() {
+        layer.user_data = user_data.layers.get(index).cloned().flatten();
         sprite_builder = sprite_builder.add_layer(layer);
     }
     for frame in frames {
         sprite_builder = sprite_builder.add_frame(frame);
     }
-    for tag in tags {
+    for (index, mut tag) in tags.into_iter().enumerate() {
+        tag.user_data = user_data.tags.get(index).cloned().flatten();
         sprite_builder = sprite_builder.add_tag(tag);
     }
     for tileset in tilesets {
@@ -129,9 +138,18 @@ pub fn read_aseprite(bytes: &[u8]) -> Result<AsepriteReadOutput, CodecError> {
     for slice in slices {
         sprite_builder = sprite_builder.add_slice(slice);
     }
-    let sprite = sprite_builder.build()?;
+    let mut sprite = sprite_builder.build()?;
+    let h = &file.header;
+    sprite.metadata.pixel_ratio = (h.pixel_width, h.pixel_height);
+    sprite.metadata.grid = Some(Rect::new(
+        i32::from(h.grid_x),
+        i32::from(h.grid_y),
+        u32::from(h.grid_width),
+        u32::from(h.grid_height),
+    ));
+    sprite.metadata.user_data = user_data.sprite;
 
-    let cels = build_cels(&file, color_mode, &sprite)?;
+    let cels = build_cels(&file, color_mode, &sprite, &user_data.cels)?;
 
     Ok(AsepriteReadOutput { sprite, cels })
 }
@@ -176,6 +194,10 @@ fn map_layer(
         blend_mode,
         opacity: layer.opacity,
         parent: None,
+        // Every bit but visible / editable is kept verbatim (spec §7.1).
+        extra_flags: layer.flags.bits()
+            & !(LayerFlags::VISIBLE.bits() | LayerFlags::EDITABLE.bits()),
+        user_data: None,
     })
 }
 
@@ -210,8 +232,8 @@ fn map_tag_direction(direction: AnimationDirection) -> TagDirection {
         AnimationDirection::Reverse => TagDirection::Reverse,
         AnimationDirection::PingPong => TagDirection::Pingpong,
         AnimationDirection::PingPongReverse => TagDirection::PingpongReverse,
-        // Future Aseprite directions fall back to the closest analogue. The
-        // round-trip writer (M5) will preserve unknown tags as opaque chunks.
+        // Future Aseprite directions play forward; `map_tag` keeps the
+        // raw byte so a save writes it back.
         _ => TagDirection::Forward,
     }
 }
@@ -230,6 +252,11 @@ fn map_tag(tag: &AseTag<'_>) -> Tag {
         direction: map_tag_direction(tag.animation_direction),
         color: Rgba { r, g, b, a: 255 },
         repeats: tag.animation_repeat,
+        user_data: None,
+        raw_direction: match tag.animation_direction {
+            AnimationDirection::Unknown(raw) => Some(raw),
+            _ => None,
+        },
     }
 }
 
@@ -237,6 +264,7 @@ fn build_cels(
     file: &AseFile<'_>,
     color_mode: ColorMode,
     sprite: &Sprite,
+    cel_user_data: &BTreeMap<(usize, u16), UserData>,
 ) -> Result<CelMap, CodecError> {
     let mut map = CelMap::new();
     for (frame_index, frame) in file.frames.iter().enumerate() {
@@ -297,6 +325,10 @@ fn build_cels(
                 position: (i32::from(cel_chunk.x), i32::from(cel_chunk.y)),
                 opacity: cel_chunk.opacity,
                 data,
+                user_data: cel_user_data
+                    .get(&(frame_index, cel_chunk.layer_index))
+                    .cloned(),
+                z_index: cel_chunk.z_index,
             });
         }
     }
@@ -371,9 +403,41 @@ fn decode_tilemap_cel(
 /// only source that carries them. Legacy palette chunks (`0x0004` /
 /// `0x0011`) are not folded; Aseprite always writes `0x2019` alongside
 /// them and our own writer emits only `0x2019`.
-fn extract_raw_chunks(
-    bytes: &[u8],
-) -> Result<(Vec<Tileset>, Vec<Slice>, crate::document::Palette), CodecError> {
+/// User data recovered from the raw chunk stream (spec §7.1). Aseprite
+/// attaches a User Data chunk to the chunk right before it; after a Tags
+/// chunk, consecutive User Data chunks belong to the tags in order.
+#[derive(Default)]
+struct RawUserData {
+    sprite: Option<UserData>,
+    /// By layer index (first-frame layer chunk order).
+    layers: Vec<Option<UserData>>,
+    /// By `(frame index, layer index)`.
+    cels: BTreeMap<(usize, u16), UserData>,
+    /// By tag index.
+    tags: Vec<Option<UserData>>,
+}
+
+/// Everything [`extract_raw_chunks`] recovers.
+struct RawChunks {
+    tilesets: Vec<Tileset>,
+    slices: Vec<Slice>,
+    palette: crate::document::Palette,
+    user_data: RawUserData,
+}
+
+/// What the next User Data chunk attaches to.
+#[derive(Clone, Copy)]
+enum UserDataTarget {
+    None,
+    Sprite,
+    Slice(usize),
+    Layer(usize),
+    Cel(usize, u16),
+    /// The `n`-th tag after a Tags chunk.
+    Tag(usize),
+}
+
+fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
     // `parse_raw_file` independently validates the header magic and frame
     // envelopes; we run it after `parse_file` succeeded in the caller so
     // the cost is a second header / chunk walk (no decompression). Any
@@ -381,19 +445,30 @@ fn extract_raw_chunks(
     // which shouldn't happen for an in-memory slice — propagate it rather
     // than silently dropping tilesets and slices.
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
+    // Property maps, by User Data chunk in file order (our own walk: the
+    // loader's typed parse mis-reads nested maps, and Pincel only needs
+    // the bytes back).
+    let mut properties = user_data_property_blocks(bytes).into_iter();
     let mut tilesets = Vec::new();
     let mut slices = Vec::new();
     let mut palette_entries: Vec<PaletteEntry> = Vec::new();
-    // Index of the most recent slice, eligible to receive a trailing User
-    // Data chunk's color. Aseprite attaches User Data to the immediately
-    // preceding chunk, so any non-slice / non-user-data chunk clears it.
-    let mut pending_slice: Option<usize> = None;
-    for frame in &raw.frames {
+    // Aseprite attaches User Data to the immediately preceding chunk;
+    // `target` tracks what that chunk was.
+    let mut user_data = RawUserData::default();
+    let mut layer_count = 0usize;
+    let mut target = UserDataTarget::None;
+    for (frame_index, frame) in raw.frames.iter().enumerate() {
         for chunk in &frame.chunks {
             match chunk {
+                Chunk::Layer(_) => {
+                    target = UserDataTarget::Layer(layer_count);
+                    layer_count += 1;
+                }
+                Chunk::Cel(c) => target = UserDataTarget::Cel(frame_index, c.layer_index),
+                Chunk::Tags(_) => target = UserDataTarget::Tag(0),
                 Chunk::Tileset(ts) => {
                     tilesets.push(build_tileset(ts)?);
-                    pending_slice = None;
+                    target = UserDataTarget::None;
                 }
                 Chunk::Slice(s) => {
                     // `SliceId` is a `u32`; on 64-bit hosts `slices.len()` is
@@ -407,17 +482,48 @@ fn extract_raw_chunks(
                             value: slices.len() as i64,
                         })?;
                     slices.push(build_slice(SliceId::new(id_raw), s)?);
-                    pending_slice = Some(slices.len() - 1);
+                    target = UserDataTarget::Slice(slices.len() - 1);
                 }
                 Chunk::UserData(ud) => {
-                    // A User Data color immediately after a slice chunk is
-                    // that slice's overlay color (otherwise it defaults to
-                    // white in `build_slice`). Consume the pending slot so a
-                    // second User Data chunk can't re-target the same slice.
-                    if let (Some(idx), Some(c)) = (pending_slice, ud.color) {
-                        slices[idx].color = Rgba::new(c.red, c.green, c.blue, c.alpha);
+                    let data = UserData {
+                        text: ud.text.map(str::to_string),
+                        color: ud.color.map(|c| Rgba::new(c.red, c.green, c.blue, c.alpha)),
+                        properties: properties.next().flatten(),
+                    };
+                    let data = (!data.is_empty()).then_some(data);
+                    // Each target takes one chunk, except tags: those
+                    // consume consecutive chunks in tag order.
+                    match target {
+                        UserDataTarget::None => {}
+                        UserDataTarget::Sprite => user_data.sprite = data,
+                        // A slice's User Data color is its overlay color
+                        // (otherwise white, see `build_slice`).
+                        UserDataTarget::Slice(idx) => {
+                            if let Some(c) = data.and_then(|d| d.color) {
+                                slices[idx].color = c;
+                            }
+                        }
+                        UserDataTarget::Layer(idx) => {
+                            if user_data.layers.len() <= idx {
+                                user_data.layers.resize(idx + 1, None);
+                            }
+                            user_data.layers[idx] = data;
+                        }
+                        UserDataTarget::Cel(f, l) => {
+                            if let Some(d) = data {
+                                user_data.cels.insert((f, l), d);
+                            }
+                        }
+                        UserDataTarget::Tag(n) => {
+                            if user_data.tags.len() <= n {
+                                user_data.tags.resize(n + 1, None);
+                            }
+                            user_data.tags[n] = data;
+                            target = UserDataTarget::Tag(n + 1);
+                            continue;
+                        }
                     }
-                    pending_slice = None;
+                    target = UserDataTarget::None;
                 }
                 Chunk::Palette(p) => {
                     let first = usize::from(*p.indices.start());
@@ -437,17 +543,89 @@ fn extract_raw_chunks(
                             None => PaletteEntry::new(rgba),
                         };
                     }
-                    pending_slice = None;
+                    // Aseprite v1.3: User Data right after the first
+                    // frame's palette belongs to the sprite.
+                    target = if frame_index == 0 {
+                        UserDataTarget::Sprite
+                    } else {
+                        UserDataTarget::None
+                    };
                 }
-                _ => pending_slice = None,
+                _ => target = UserDataTarget::None,
             }
         }
     }
-    Ok((
+    Ok(RawChunks {
         tilesets,
         slices,
-        crate::document::Palette::from_entries(palette_entries),
-    ))
+        palette: crate::document::Palette::from_entries(palette_entries),
+        user_data,
+    })
+}
+
+/// The property-map block (flag `0x4`) of every User Data chunk
+/// (`0x2020`), in file order; `None` for a chunk without one. Walks the
+/// frame / chunk envelopes directly (header 128 bytes; frame header 16
+/// bytes with its byte length first; chunk = `DWORD size`, `WORD type`,
+/// body). A truncated envelope ends the walk: the loader has already
+/// validated the file, so that only happens on malformed property
+/// blocks, which are then dropped rather than failing the open.
+fn user_data_property_blocks(bytes: &[u8]) -> Vec<Option<Vec<u8>>> {
+    fn dword(b: &[u8], at: usize) -> Option<usize> {
+        let s = b.get(at..at + 4)?;
+        Some(u32::from_le_bytes([s[0], s[1], s[2], s[3]]) as usize)
+    }
+    fn word(b: &[u8], at: usize) -> Option<usize> {
+        let s = b.get(at..at + 2)?;
+        Some(usize::from(u16::from_le_bytes([s[0], s[1]])))
+    }
+    // One User Data body → its property block, if flagged and well-formed.
+    fn props(body: &[u8]) -> Option<Vec<u8>> {
+        let flags = dword(body, 0)?;
+        if flags & 0x4 == 0 {
+            return None;
+        }
+        let mut at = 4;
+        if flags & 0x1 != 0 {
+            at += 2 + word(body, at)?;
+        }
+        if flags & 0x2 != 0 {
+            at += 4;
+        }
+        let size = dword(body, at)?;
+        if size < 8 {
+            return None;
+        }
+        body.get(at..at + size).map(<[u8]>::to_vec)
+    }
+
+    let mut out = Vec::new();
+    let mut frame_at = 128;
+    while let Some(frame_len) = dword(bytes, frame_at) {
+        let frame_end = frame_at.saturating_add(frame_len).min(bytes.len());
+        if frame_len < 16 {
+            break;
+        }
+        let mut chunk_at = frame_at + 16;
+        while chunk_at + 6 <= frame_end {
+            let (Some(size), Some(kind)) = (dword(bytes, chunk_at), word(bytes, chunk_at + 4))
+            else {
+                break;
+            };
+            if size < 6 || chunk_at + size > frame_end {
+                break;
+            }
+            if kind == 0x2020 {
+                out.push(props(&bytes[chunk_at + 6..chunk_at + size]));
+            }
+            chunk_at += size;
+        }
+        frame_at = frame_end;
+        if frame_at >= bytes.len() {
+            break;
+        }
+    }
+    out
 }
 
 /// Hydrate a single loader [`SliceChunkRef`] (see

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
   // Pixel-art scene drawn inline as SVG. 64×48 grid scaled up, recognizably
   // "made-in-Pincel". Static by default, gains a subtle torch flicker animation
   // unless prefers-reduced-motion is set.
@@ -26,7 +27,7 @@
     width="100%"
     height="auto"
     role="img"
-    aria-label="A small pink character standing in a stone room lit by a flickering torch."
+    aria-label={m().hero.scene}
     shape-rendering="crispEdges"
     class="pixelated scene"
   >
@@ -110,7 +111,9 @@
     aspect-ratio: 4 / 3;
     background-color: var(--color-bg-card);
     border: 2px solid var(--color-bg-base);
-    box-shadow: 6px 6px 0 var(--color-bg-base), 0 0 0 1px var(--color-border-strong);
+    box-shadow:
+      6px 6px 0 var(--color-bg-base),
+      0 0 0 1px var(--color-border-strong);
     position: relative;
     overflow: hidden;
   }

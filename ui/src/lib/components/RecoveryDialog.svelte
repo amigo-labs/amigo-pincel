@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AutosaveSnapshotMeta } from '../idb/autosave';
+  import { t } from '../i18n/index.svelte';
 
   // Modal shown on app boot when the IDB autosave store holds
   // snapshots from a prior session. The parent owns the snapshot
@@ -49,32 +50,26 @@
   aria-labelledby="recovery-title"
 >
   <div
-    class="flex w-full max-w-lg flex-col gap-4 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-2xl"
+    class="flex w-full max-w-lg flex-col gap-4 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
   >
     <header class="flex items-baseline justify-between">
-      <h2 id="recovery-title" class="text-base font-semibold">
-        Recover unsaved work?
-      </h2>
-      <span class="text-xs text-neutral-400">
-        {snapshots.length} snapshot{snapshots.length === 1 ? '' : 's'}
+      <h2 id="recovery-title" class="text-base font-semibold">{t('recovery.title')}</h2>
+      <span class="text-xs text-pc-muted">
+        {t('recovery.count', { count: snapshots.length })}
       </span>
     </header>
-    <p class="text-xs text-neutral-400">
-      Pincel found autosaved snapshots from a previous session. Recover
-      a snapshot to continue editing, or discard it to drop it
-      permanently.
-    </p>
+    <p class="text-xs text-pc-muted">{t('recovery.body')}</p>
     <ul class="flex flex-col gap-2">
       {#each snapshots as snap (snap.docId)}
         <li
-          class="flex flex-col gap-1 rounded border border-neutral-800 bg-neutral-950 px-3 py-2"
+          class="flex flex-col gap-1 rounded border border-pc-border bg-pc-bg px-3 py-2"
         >
           <div class="flex items-center justify-between gap-3">
             <div class="flex min-w-0 flex-col">
               <span class="truncate font-medium" title={snap.name}>
                 {snap.name}
               </span>
-              <span class="text-xs text-neutral-500">
+              <span class="text-xs text-pc-faint">
                 {formatTimestamp(snap.ts)} · {formatBytes(snap.byteLength)}
               </span>
             </div>
@@ -83,13 +78,13 @@
                 class="recovery-btn recovery-btn-primary"
                 onclick={() => onRecover(snap)}
               >
-                Recover
+                {t('recovery.recover')}
               </button>
               <button
                 class="recovery-btn"
                 onclick={() => onDiscard(snap.docId)}
               >
-                Discard
+                {t('recovery.discard')}
               </button>
             </div>
           </div>
@@ -102,7 +97,7 @@
       {/each}
     </ul>
     <footer class="flex justify-end">
-      <button class="recovery-btn" onclick={onDismiss}>Not now</button>
+      <button class="recovery-btn" onclick={onDismiss}>{t('recovery.notNow')}</button>
     </footer>
   </div>
 </div>

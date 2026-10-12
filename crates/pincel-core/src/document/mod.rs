@@ -11,6 +11,7 @@ mod palette;
 mod slice;
 mod tag;
 mod tileset;
+mod user_data;
 
 pub use cel::{Cel, CelData, PixelBuffer, TileRef};
 pub use cel_map::{CelKey, CelMap};
@@ -18,10 +19,11 @@ pub use color::Rgba;
 pub use color_mode::ColorMode;
 pub use frame::{Frame, FrameIndex};
 pub use layer::{BlendMode, Layer, LayerId, LayerKind};
-pub use palette::{Palette, PaletteEntry};
+pub use palette::{MAX_PALETTE_ENTRIES, Palette, PaletteEntry, PalettePreset};
 pub use slice::{Slice, SliceId, SliceKey};
 pub use tag::{Tag, TagDirection};
 pub use tileset::{PathRef, TileImage, Tileset, TilesetId};
+pub use user_data::UserData;
 
 use std::collections::BTreeSet;
 
@@ -36,6 +38,11 @@ pub struct Metadata {
     /// `(0, 0)` is treated as `(1, 1)` by readers, matching older `.aseprite`
     /// files where the field was unset.
     pub pixel_ratio: (u8, u8),
+    /// Editor grid from the file header as `(x, y, width, height)`;
+    /// `None` writes Aseprite's default 16×16 grid at the origin.
+    pub grid: Option<Rect>,
+    /// Sprite-level user data (spec §7.1).
+    pub user_data: Option<UserData>,
 }
 
 /// The Pincel document. Every persistent field mirrors the Aseprite v1.3 file
@@ -150,6 +157,24 @@ impl Sprite {
     /// Mutable layer lookup by id.
     pub fn layer_mut(&mut self, id: LayerId) -> Option<&mut Layer> {
         self.layers.iter_mut().find(|l| l.id == id)
+    }
+
+    /// `true` when `id` must not be edited: the layer or any group it is
+    /// nested in has `editable == false` (Aseprite's lock). Unknown ids
+    /// report `false`.
+    pub fn layer_locked(&self, id: LayerId) -> bool {
+        let mut next = Some(id);
+        // Bounded by the layer count so a malformed parent cycle cannot hang.
+        for _ in 0..=self.layers.len() {
+            let Some(layer) = next.and_then(|i| self.layer(i)) else {
+                return false;
+            };
+            if !layer.editable {
+                return true;
+            }
+            next = layer.parent;
+        }
+        false
     }
 
     /// Look up a tileset by id. Returns `None` if no tileset has the given id.

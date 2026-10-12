@@ -1,71 +1,32 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
   import type { ComponentProps } from 'svelte';
   import PixelIcon from './PixelIcon.svelte';
 
   type IconName = ComponentProps<typeof PixelIcon>['name'];
 
-  interface Tile {
-    icon: IconName;
-    title: string;
-    description: string;
-  }
+  type TileId = keyof ReturnType<typeof m>['grid'];
 
-  const tiles: Tile[] = [
-    {
-      icon: 'file',
-      title: 'Aseprite-Compatible',
-      description: 'Read and write .aseprite files. Drop into your game pipeline.',
-    },
-    {
-      icon: 'tile',
-      title: 'Tilemaps',
-      description: 'First-class tilemap layers with tilesets. Stamp, swap, edit in place.',
-    },
-    {
-      icon: 'slice',
-      title: 'Slices',
-      description: 'Named regions, 9-patch, pivot points — for hitboxes, UI, and game logic.',
-    },
-    {
-      icon: 'frame',
-      title: 'Animation',
-      description: 'Frames, tags, onion skin, ping-pong. Tag your states; export sheets.',
-    },
-    {
-      icon: 'palette',
-      title: 'Palette Workflow',
-      description: 'Indexed color, palette swaps, named colors. Pixel-art done right.',
-    },
-    {
-      icon: 'tablet',
-      title: 'Tablet & Pen',
-      description: 'Pointer events with pressure, tilt, pinch-to-zoom. Pencil-friendly.',
-    },
-    {
-      icon: 'offline',
-      title: 'Offline PWA',
-      description:
-        'Install it. Works without a connection. Your files stay on your device.',
-    },
-    {
-      icon: 'plug',
-      title: 'Embeddable',
-      description: 'npm package. Drop into your tool. Same editor, in your app.',
-    },
-    {
-      icon: 'opensource',
-      title: 'Open Source',
-      description: 'MIT / Apache 2.0. Forkable, auditable, yours.',
-    },
+  const tiles: { id: TileId; icon: IconName }[] = [
+    { id: 'aseprite', icon: 'file' },
+    { id: 'tilemaps', icon: 'tile' },
+    { id: 'slices', icon: 'slice' },
+    { id: 'animation', icon: 'frame' },
+    { id: 'palette', icon: 'palette' },
+    { id: 'tablet', icon: 'tablet' },
+    { id: 'image', icon: 'brush' },
+    { id: 'offline', icon: 'offline' },
+    { id: 'embed', icon: 'plug' },
+    { id: 'open', icon: 'opensource' },
   ];
 </script>
 
 <div class="grid">
-  {#each tiles as t (t.title)}
+  {#each tiles as tile (tile.id)}
     <article class="card-pixel tile">
-      <PixelIcon name={t.icon} size={48} class="icon" />
-      <h3>{t.title}</h3>
-      <p>{t.description}</p>
+      <PixelIcon name={tile.icon} size={48} class="icon" />
+      <h3>{m().grid[tile.id].title}</h3>
+      <p>{m().grid[tile.id].description}</p>
     </article>
   {/each}
 </div>

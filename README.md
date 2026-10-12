@@ -55,13 +55,13 @@ in Image mode, and the New dialog offers both.
 ```
 crates/pincel-core/      Pixel mode core: document model, commands + undo,
                          compose(), aseprite codec. No I/O, no platform deps.
-crates/fineliner-core/   Image mode core: layered RGBA documents, brush
+crates/pincel-image-core/   Image mode core: layered RGBA documents, brush
                          engine, selections, transforms, image codecs.
 crates/pincel-effects/   Effects + adjustments shared by both cores.
 crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
                          independent of Pincel types.
 crates/pincel-wasm/      wasm-bindgen bindings for pincel-core (cdylib).
-crates/fineliner-wasm/   wasm-bindgen bindings for fineliner-core (cdylib).
+crates/pincel-image-wasm/   wasm-bindgen bindings for pincel-image-core (cdylib).
 ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
                          src/App.svelte is the two-mode shell,
                          src/modes/pixel/ and src/modes/image/ the editors.
@@ -90,15 +90,15 @@ git clone https://github.com/amigo-labs/amigo-pincel
 cd amigo-pincel
 
 # 1. Rust core — check the library crates build and pass tests
-cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm
+cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
 
-# 2. Build the wasm packages (creates crates/{pincel,fineliner}-wasm/pkg/)
+# 2. Build the wasm packages (creates crates/{pincel,pincel-image}-wasm/pkg/)
 cd ui
 pnpm wasm:build
 
 # 3. Install UI dependencies and start the dev server
 pnpm install
-pnpm dev          # → http://localhost:5173
+pnpm dev          # → http://localhost:5173/app/ (web base path; Tauri dev serves /)
 ```
 
 For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
@@ -108,10 +108,10 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 | Command | Where | What |
 |---------|-------|------|
 | `cargo check` | repo root | build all Rust crates (needs GTK/WebKit libs for `pincel-tauri`) |
-| `cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm` | repo root | test the library crates (what CI runs) |
-| `cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p fineliner-core -p fineliner-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
+| `cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm` | repo root | test the library crates (what CI runs) |
+| `cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
 | `cargo fmt` | repo root | format |
-| `pnpm wasm:build` | `ui/` | dev wasm builds into `crates/pincel-wasm/pkg/` and `crates/fineliner-wasm/pkg/` |
+| `pnpm wasm:build` | `ui/` | dev wasm builds into `crates/pincel-wasm/pkg/` and `crates/pincel-image-wasm/pkg/` |
 | `pnpm dev` | `ui/` | Vite dev server |
 | `pnpm lint` / `pnpm check` / `pnpm build` | `ui/` | ESLint / svelte-check / production bundle |
 | `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |

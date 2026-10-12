@@ -1,74 +1,61 @@
 <script lang="ts">
-  type Cell = '✅' | '❌' | { mark: '✅' | '❌' | '🟡'; note: string };
+  import { m, type Messages } from '$lib/i18n';
+
+  type NoteKey = keyof Messages['comparison']['notes'];
+  type Mark = '✅' | '❌' | '🟡';
+  // A plain mark, a mark with a note, or a price word.
+  type Cell = Mark | { mark: Mark; note: NoteKey } | 'free' | 'paid';
 
   interface Row {
-    feature: string;
+    feature: keyof Messages['comparison']['rows'];
     pincel: Cell;
     aseprite: Cell;
     piskel: Cell;
   }
 
   const rows: Row[] = [
+    { feature: 'format', pincel: '✅', aseprite: { mark: '✅', note: 'native' }, piskel: '❌' },
+    { feature: 'tilemaps', pincel: '✅', aseprite: '✅', piskel: '❌' },
+    { feature: 'slices', pincel: '✅', aseprite: '✅', piskel: '❌' },
+    { feature: 'timeline', pincel: '✅', aseprite: '✅', piskel: { mark: '✅', note: 'basic' } },
+    { feature: 'tablet', pincel: '✅', aseprite: '✅', piskel: '❌' },
+    { feature: 'browser', pincel: '✅', aseprite: '❌', piskel: '✅' },
     {
-      feature: 'Aseprite file format (read+write)',
-      pincel: '✅',
-      aseprite: { mark: '✅', note: 'native' },
-      piskel: '❌',
-    },
-    { feature: 'Tilemaps', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    { feature: 'Slices (9-patch, pivot)', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    {
-      feature: 'Animation timeline + tags',
-      pincel: '✅',
-      aseprite: '✅',
-      piskel: { mark: '✅', note: 'basic' },
-    },
-    { feature: 'Tablet / pen support', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    { feature: 'Runs in browser', pincel: '✅', aseprite: '❌', piskel: '✅' },
-    {
-      feature: 'Native desktop app',
-      pincel: { mark: '✅', note: 'Tauri' },
-      aseprite: '✅',
-      piskel: { mark: '✅', note: 'via NW.js, ageing' },
-    },
-    { feature: 'Embeddable as a library', pincel: '✅', aseprite: '❌', piskel: '❌' },
-    {
-      feature: 'Lua scripting / extensions',
-      pincel: { mark: '❌', note: 'Phase 2' },
-      aseprite: '✅',
+      feature: 'photo',
+      pincel: { mark: '✅', note: 'imageMode' },
+      aseprite: { mark: '❌', note: 'pixelOnly' },
       piskel: '❌',
     },
     {
-      feature: 'Custom brushes',
-      pincel: { mark: '❌', note: 'Phase 2' },
+      feature: 'desktop',
+      pincel: { mark: '✅', note: 'tauri' },
       aseprite: '✅',
-      piskel: '✅',
+      piskel: { mark: '✅', note: 'nwjs' },
     },
-    { feature: 'Price', pincel: 'Free' as unknown as Cell, aseprite: 'Paid' as unknown as Cell, piskel: 'Free' as unknown as Cell },
+    { feature: 'library', pincel: '✅', aseprite: '❌', piskel: '❌' },
+    { feature: 'scripting', pincel: { mark: '❌', note: 'phase2' }, aseprite: '✅', piskel: '❌' },
+    { feature: 'brushes', pincel: { mark: '❌', note: 'phase2' }, aseprite: '✅', piskel: '✅' },
+    { feature: 'price', pincel: 'free', aseprite: 'paid', piskel: 'free' },
     {
-      feature: 'Open source',
-      pincel: { mark: '✅', note: 'MIT/Apache' },
-      aseprite: { mark: '✅', note: 'EULA-restricted' },
-      piskel: { mark: '✅', note: 'Apache 2.0' },
+      feature: 'openSource',
+      pincel: { mark: '✅', note: 'mitApache' },
+      aseprite: { mark: '✅', note: 'eula' },
+      piskel: { mark: '✅', note: 'apache' },
     },
     {
-      feature: 'Active development',
+      feature: 'active',
       pincel: '✅',
       aseprite: '✅',
-      piskel: { mark: '🟡', note: 'modernization in progress' },
+      piskel: { mark: '🟡', note: 'modernizing' },
     },
   ];
-
-  function isPlain(c: Cell): c is '✅' | '❌' {
-    return typeof c === 'string';
-  }
 </script>
 
-<div class="table-wrap" role="region" aria-label="Feature comparison table">
+<div class="table-wrap" role="region" aria-label={m().comparison.label}>
   <table>
     <thead>
       <tr>
-        <th scope="col">Feature</th>
+        <th scope="col">{m().comparison.feature}</th>
         <th scope="col" class="pincel">Pincel</th>
         <th scope="col">Aseprite</th>
         <th scope="col">Piskel</th>
@@ -77,14 +64,16 @@
     <tbody>
       {#each rows as row (row.feature)}
         <tr>
-          <th scope="row">{row.feature}</th>
+          <th scope="row">{m().comparison.rows[row.feature]}</th>
           {#each [row.pincel, row.aseprite, row.piskel] as cell, i (i)}
             <td class:pincel={i === 0}>
-              {#if isPlain(cell)}
+              {#if cell === 'free' || cell === 'paid'}
+                <span class="mark">{m().comparison[cell]}</span>
+              {:else if typeof cell === 'string'}
                 <span class="mark">{cell}</span>
               {:else}
                 <span class="mark">{cell.mark}</span>
-                <span class="note">{cell.note}</span>
+                <span class="note">{m().comparison.notes[cell.note]}</span>
               {/if}
             </td>
           {/each}
@@ -93,10 +82,7 @@
     </tbody>
   </table>
 </div>
-<p class="footnote">
-  Pincel is new and Aseprite has 14 years of features. We're catching up where it matters for
-  game-dev workflows. Where it doesn't, we're not.
-</p>
+<p class="footnote">{m().comparison.footnote}</p>
 
 <style>
   .table-wrap {

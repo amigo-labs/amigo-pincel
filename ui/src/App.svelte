@@ -26,6 +26,8 @@
   import { listRecents, type RecentFile } from './lib/idb/recent-files';
   import { syncRecentMenu, wireNativeMenu, type EditorMenuHandlers } from './lib/menu';
   import { isTauri } from './lib/platform';
+  import { t } from './lib/i18n/index.svelte';
+  import { initLocale } from './lib/i18n/locale';
 
   type EditorModule = { default: Component<EditorProps> };
   // Dynamic imports keep each editor (and its wasm package) in its own
@@ -69,7 +71,11 @@
       action();
       return;
     }
-    confirmState = { message: 'Discard unsaved changes to the open document?', run: action };
+    confirmState = { message: t('shell.discardPrompt'), run: action };
+  }
+
+  function errText(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
   }
 
   function confirmDiscard() {
@@ -92,7 +98,7 @@
     shellError = null;
     const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
     if (format === null) {
-      shellError = `${opened.name}: not a supported file (sprite or PNG / JPEG / WebP / BMP / GIF / TIFF)`;
+      shellError = t('shell.unsupported', { name: opened.name });
       return;
     }
     launch(detectMode(format), { file: opened, create: null });
@@ -105,7 +111,7 @@
       const opened = await pickAndOpen();
       if (opened) openFile(opened);
     } catch (err) {
-      shellError = `open failed: ${err instanceof Error ? err.message : String(err)}`;
+      shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
       busy = false;
     }
@@ -125,7 +131,7 @@
       const name = path.replace(/^.*[/\\]/, '');
       openFile({ name, bytes, mime: mimeFromName(name), handle: null, path });
     } catch (err) {
-      shellError = `open-file failed: ${err instanceof Error ? err.message : String(err)}`;
+      shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
       busy = false;
     }
@@ -140,17 +146,17 @@
         openFile({ name: r.name, bytes, mime: mimeFromName(r.name), handle: null, path: r.path });
       } else if (r.handle) {
         if (!(await ensureReadPermission(r.handle))) {
-          shellError = `${r.name}: permission denied`;
+          shellError = t('shell.permissionDenied', { name: r.name });
           return;
         }
         const file = await r.handle.getFile();
         const bytes = new Uint8Array(await file.arrayBuffer());
         openFile({ name: file.name, bytes, mime: file.type, handle: r.handle, path: null });
       } else {
-        shellError = `${r.name}: no handle / path`;
+        shellError = t('shell.noHandle', { name: r.name });
       }
     } catch (err) {
-      shellError = `recent ${r.name} open failed: ${err instanceof Error ? err.message : String(err)}`;
+      shellError = t('shell.recentFailed', { name: r.name, error: errText(err) });
     } finally {
       busy = false;
     }
@@ -163,7 +169,7 @@
       const bytes = new Uint8Array(await file.arrayBuffer());
       openFile({ name: file.name, bytes, mime: file.type, handle: null, path: null });
     } catch (err) {
-      shellError = `drop failed: ${err instanceof Error ? err.message : String(err)}`;
+      shellError = t('shell.dropFailed', { error: errText(err) });
     } finally {
       busy = false;
     }
@@ -218,6 +224,7 @@
   });
 
   onMount(() => {
+    void initLocale();
     let cancelled = false;
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenOpenFile: UnlistenFn | null = null;
@@ -286,8 +293,8 @@
 {:else}
   {#key session.seq}
     {#await loaders[currentMode]()}
-      <div class="flex h-full items-center justify-center bg-neutral-950 text-sm text-neutral-400">
-        loading {currentMode} editor…
+      <div class="flex h-full items-center justify-center bg-pc-bg text-sm text-pc-muted">
+        {t('shell.loadingEditor', { mode: t(`mode.${currentMode}`) })}
       </div>
     {:then mod}
       {@const Editor = mod.default}
@@ -301,8 +308,8 @@
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}
-      <div class="flex h-full items-center justify-center bg-neutral-950 text-sm text-red-300">
-        failed to load the {currentMode} editor: {err instanceof Error ? err.message : String(err)}
+      <div class="flex h-full items-center justify-center bg-pc-bg text-sm text-red-300">
+        {t('shell.editorFailed', { mode: t(`mode.${currentMode}`), error: errText(err) })}
       </div>
     {/await}
   {/key}
@@ -323,18 +330,18 @@
     class="fixed inset-0 z-30 flex items-center justify-center bg-black/50"
     role="alertdialog"
     aria-modal="true"
-    aria-label="Unsaved changes"
+    aria-label={t('shell.unsavedChanges')}
     tabindex="-1"
     onkeydown={onConfirmKeydown}
   >
     <div
-      class="w-80 rounded border border-neutral-700 bg-neutral-900 p-4 text-sm text-neutral-100 shadow-xl"
+      class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     >
       <p>{confirmState.message}</p>
       <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (confirmState = null)}>Cancel</button>
+        <button class="panel-btn" onclick={() => (confirmState = null)}>{t('common.cancel')}</button>
         <button class="panel-btn border-red-800 text-red-300" onclick={confirmDiscard}
-          >Discard changes</button
+          >{t('shell.discard')}</button
         >
       </div>
     </div>
@@ -347,10 +354,10 @@
 
 {#if shellError}
   <div
-    class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-neutral-900 px-3 py-2 text-xs text-red-200 shadow-xl"
+    class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-pc-panel px-3 py-2 text-xs text-red-200 shadow-xl"
     role="alert"
   >
     <span>{shellError}</span>
-    <button class="panel-btn" onclick={() => (shellError = null)}>Dismiss</button>
+    <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}

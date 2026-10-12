@@ -134,6 +134,24 @@ pub enum CommandError {
     #[error("layer id {0} is already at the edge of its sibling group")]
     LayerAtEdge(u32),
 
+    /// The layer (or a group it is nested in) is locked against edits.
+    #[error("layer id {0} is locked")]
+    LayerLocked(u32),
+
+    /// A reorder target does not share the moved layer's parent group.
+    #[error("layer id {target} is not in the same group as layer id {layer}")]
+    NotASibling { layer: u32, target: u32 },
+
+    /// A layer cannot move next to or into itself or its own descendants.
+    /// Emitted by [`crate::MoveLayerTo`].
+    #[error("layer id {0} cannot move into its own subtree")]
+    LayerIntoOwnSubtree(u32),
+
+    /// Only a group layer can take children. Emitted by
+    /// [`crate::MoveLayerTo`].
+    #[error("layer id {0} is not a group")]
+    NotAGroup(u32),
+
     /// The targeted frame index is past the end of `Sprite::frames`.
     /// Emitted by [`crate::SetFrameDuration`].
     #[error("unknown frame index {0}")]
@@ -169,4 +187,34 @@ pub enum CommandError {
     /// [`crate::DrawText`].
     #[error("font parse failed: {0}")]
     Font(String),
+
+    /// The sprite would be left without frames. Emitted by
+    /// [`crate::RemoveFrame`].
+    #[error("cannot remove the last remaining frame")]
+    LastFrame,
+
+    /// No tag exists at the targeted index in `Sprite::tags`. Emitted by
+    /// the tag commands ([`crate::RemoveTag`], [`crate::SetTagRange`], …).
+    #[error("unknown tag index {0}")]
+    UnknownTag(usize),
+
+    /// A tag range is inverted (`from > to`) or reaches past the last
+    /// frame. Emitted by [`crate::AddTag`] and [`crate::SetTagRange`].
+    #[error("invalid tag range {from}..={to} for {frames} frames")]
+    InvalidTagRange { from: u32, to: u32, frames: usize },
+
+    /// A tag name is empty. Emitted by [`crate::AddTag`] and
+    /// [`crate::SetTagName`].
+    #[error("tag name must not be empty")]
+    EmptyTagName,
+
+    /// No palette entry exists at the targeted index. Emitted by the
+    /// palette commands.
+    #[error("unknown palette entry {0}")]
+    UnknownPaletteEntry(usize),
+
+    /// The palette already holds the maximum 256 entries. Emitted by
+    /// [`crate::AddPaletteEntry`].
+    #[error("the palette is full (256 entries)")]
+    PaletteFull,
 }

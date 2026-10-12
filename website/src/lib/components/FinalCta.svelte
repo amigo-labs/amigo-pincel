@@ -1,15 +1,16 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
+  import Rich from './Rich.svelte';
+  import { appPath } from '$lib/config';
   import PixelIcon from './PixelIcon.svelte';
 </script>
 
 <div class="wrap">
-  <a class="btn-pixel big" href="/app">
-    Open Editor
+  <a class="btn-pixel big" href={appPath} rel="external">
+    {m().nav.openEditor}
     <PixelIcon name="arrow-right" size={20} />
   </a>
-  <p class="sub">
-    Or: <code>npm install @amigo-labs/pincel</code> to <a href="/embed">embed it</a> →
-  </p>
+  <p class="sub"><Rich text={m().finalCta.sub} /></p>
 </div>
 
 <style>
@@ -29,7 +30,7 @@
     font-size: 0.95rem;
     margin: 0;
   }
-  .sub a {
+  .sub :global(a) {
     color: var(--color-brand-primary);
   }
 </style>

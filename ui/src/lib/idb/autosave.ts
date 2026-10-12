@@ -20,13 +20,8 @@
 // delete requests and either left the prior row in place or had the
 // cursor observe and delete the new row.)
 
-import {
-  STORE_AUTOSAVE,
-  STORE_AUTOSAVE_META,
-  idbRequest,
-  openDb,
-  transactionDone,
-} from './db';
+import type { EditorMode } from '../shell/types';
+import { STORE_AUTOSAVE, STORE_AUTOSAVE_META, idbRequest, openDb, transactionDone } from './db';
 
 export interface AutosaveSnapshotMeta {
   /** Per-document UUID, owned by App.svelte. */
@@ -36,13 +31,17 @@ export interface AutosaveSnapshotMeta {
   /** Display name carried over from the source file (or
    *  `pincel.aseprite` for never-saved documents). */
   name: string;
-  /** Byte size of the `.aseprite` payload — surfaced in the
-   *  recovery dialog so the user can spot anomalies. */
+  /** Byte size of the payload — surfaced in the recovery dialog so
+   *  the user can spot anomalies. */
   byteLength: number;
+  /** Editor the snapshot belongs to: `.aseprite` bytes for Pixel mode,
+   *  OpenRaster bytes for Image mode. Absent on rows written before
+   *  Image-mode autosave existed, which are all Pixel mode. */
+  mode?: EditorMode;
 }
 
 export interface AutosaveSnapshot extends AutosaveSnapshotMeta {
-  /** Encoded `.aseprite` bytes. Stored as `Uint8Array`; IDB's
+  /** Encoded project bytes (see `mode`). Stored as `Uint8Array`; IDB's
    *  structured clone preserves the typed-array view. */
   bytes: Uint8Array;
 }
@@ -54,6 +53,7 @@ export async function writeSnapshot(
   docId: string,
   name: string,
   bytes: Uint8Array,
+  mode: EditorMode = 'pixel',
 ): Promise<AutosaveSnapshot> {
   const db = await openDb();
   const ts = Date.now();
@@ -62,6 +62,7 @@ export async function writeSnapshot(
     ts,
     name,
     byteLength: bytes.length,
+    mode,
     bytes,
   };
   const meta: AutosaveSnapshotMeta = {
@@ -69,11 +70,9 @@ export async function writeSnapshot(
     ts,
     name,
     byteLength: bytes.length,
+    mode,
   };
-  const tx = db.transaction(
-    [STORE_AUTOSAVE, STORE_AUTOSAVE_META],
-    'readwrite',
-  );
+  const tx = db.transaction([STORE_AUTOSAVE, STORE_AUTOSAVE_META], 'readwrite');
   const bytesStore = tx.objectStore(STORE_AUTOSAVE);
   const metaStore = tx.objectStore(STORE_AUTOSAVE_META);
   const range = IDBKeyRange.bound([docId, -Infinity], [docId, Infinity]);
@@ -93,23 +92,16 @@ export async function writeSnapshot(
 /** Read the bytes row for `docId`, or `undefined` if none. Used by
  *  the recovery flow once the user clicks Recover — until then the
  *  bytes payload stays on disk. */
-export async function latestSnapshot(
-  docId: string,
-): Promise<AutosaveSnapshot | undefined> {
+export async function latestSnapshot(docId: string): Promise<AutosaveSnapshot | undefined> {
   const db = await openDb();
-  const tx = db.transaction(
-    [STORE_AUTOSAVE, STORE_AUTOSAVE_META],
-    'readonly',
-  );
+  const tx = db.transaction([STORE_AUTOSAVE, STORE_AUTOSAVE_META], 'readonly');
   const bytesStore = tx.objectStore(STORE_AUTOSAVE);
   const metaStore = tx.objectStore(STORE_AUTOSAVE_META);
   const range = IDBKeyRange.bound([docId, -Infinity], [docId, Infinity]);
   // Walk both stores in descending `ts` order; resolve the first hit
   // from each. The meta lookup carries the display name; the bytes
   // lookup carries the payload.
-  const meta = await firstCursorValue<AutosaveSnapshotMeta>(
-    metaStore.openCursor(range, 'prev'),
-  );
+  const meta = await firstCursorValue<AutosaveSnapshotMeta>(metaStore.openCursor(range, 'prev'));
   const bytesRow = await firstCursorValue<{
     docId: string;
     ts: number;
@@ -121,13 +113,15 @@ export async function latestSnapshot(
     ts: meta.ts,
     name: meta.name,
     byteLength: meta.byteLength,
+    mode: meta.mode ?? 'pixel',
     bytes: bytesRow.bytes,
   };
 }
 
-/** List the latest metadata row per known doc, newest first. Read
- *  on boot to populate the recovery dialog — never reads bytes. */
-export async function listLatestSnapshots(): Promise<AutosaveSnapshotMeta[]> {
+/** List the latest metadata row per known doc, newest first — only
+ *  `mode`'s snapshots when given. Read on boot to populate the
+ *  recovery dialog — never reads bytes. */
+export async function listLatestSnapshots(mode?: EditorMode): Promise<AutosaveSnapshotMeta[]> {
   const db = await openDb();
   const tx = db.transaction(STORE_AUTOSAVE_META, 'readonly');
   const store = tx.objectStore(STORE_AUTOSAVE_META);
@@ -140,31 +134,27 @@ export async function listLatestSnapshots(): Promise<AutosaveSnapshotMeta[]> {
     const prior = byDoc.get(s.docId);
     if (!prior || s.ts > prior.ts) byDoc.set(s.docId, s);
   }
-  return [...byDoc.values()].sort((a, b) => b.ts - a.ts);
+  return [...byDoc.values()]
+    .filter((s) => mode === undefined || (s.mode ?? 'pixel') === mode)
+    .sort((a, b) => b.ts - a.ts);
 }
 
 /** Drop every row (bytes + meta) for `docId`. No-op if none exist. */
 export async function removeSnapshots(docId: string): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction(
-    [STORE_AUTOSAVE, STORE_AUTOSAVE_META],
-    'readwrite',
-  );
+  const tx = db.transaction([STORE_AUTOSAVE, STORE_AUTOSAVE_META], 'readwrite');
   const range = IDBKeyRange.bound([docId, -Infinity], [docId, Infinity]);
   tx.objectStore(STORE_AUTOSAVE).delete(range);
   tx.objectStore(STORE_AUTOSAVE_META).delete(range);
   await transactionDone(tx);
 }
 
-function firstCursorValue<T>(
-  req: IDBRequest<IDBCursorWithValue | null>,
-): Promise<T | undefined> {
+function firstCursorValue<T>(req: IDBRequest<IDBCursorWithValue | null>): Promise<T | undefined> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => {
       const cursor = req.result;
       resolve(cursor ? (cursor.value as T) : undefined);
     };
-    req.onerror = () =>
-      reject(req.error ?? new Error('IDB cursor failed'));
+    req.onerror = () => reject(req.error ?? new Error('IDB cursor failed'));
   });
 }

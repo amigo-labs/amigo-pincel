@@ -44,7 +44,7 @@ impl Document {
     /// replacement buffer plus the changed rect.
     fn run_effect(&self, name: &str, params: &[f64]) -> Result<EffectRun, String> {
         let spec = EffectSpec::from_params(name, params).map_err(|e| e.to_string())?;
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         let cel = self
             .cels

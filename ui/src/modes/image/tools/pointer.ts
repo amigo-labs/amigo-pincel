@@ -13,24 +13,58 @@ import {
   selectWand,
   drawShape,
 } from '../core/controller';
-import { tool, selectionPreview, shapePreview, type ToolKind } from '../stores/editor.svelte';
+import {
+  editor,
+  tool,
+  selectionPreview,
+  shapePreview,
+  type ToolKind,
+} from '../stores/editor.svelte';
 import type { SelectionMode, ShapeKind } from '../core/wasm';
+import { t } from '../../../lib/i18n/index.svelte';
+import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 
-/** Converts a pointer event into canvas-pixel coordinates. */
-function toCanvasPoint(canvas: HTMLCanvasElement, e: PointerEvent): [number, number] {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
+/** Converts a pointer event into document-pixel coordinates. `surface` is
+ *  the element that covers the document on screen (any size / transform). */
+function toCanvasPoint(surface: HTMLElement, e: PointerEvent): [number, number] {
+  const rect = surface.getBoundingClientRect();
+  const scaleX = editor.width / rect.width;
+  const scaleY = editor.height / rect.height;
   return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
 }
 
-/** Selection combine mode from keyboard modifiers (spec §8.2). */
+/** Selection combine mode from the keyboard or on-screen modifiers (spec §8.2). */
 function selectionModeOf(e: PointerEvent): SelectionMode {
-  if (e.shiftKey && e.altKey) return 'intersect';
-  if (e.shiftKey) return 'add';
-  if (e.altKey) return 'subtract';
+  const shift = shiftHeld(e);
+  const alt = altHeld(e);
+  if (shift && alt) return 'intersect';
+  if (shift) return 'add';
+  if (alt) return 'subtract';
   return 'replace';
 }
+
+/** Pen pressure in `[0, 1]`; mouse and touch paint at full pressure. */
+function pressureOf(e: PointerEvent): number {
+  return e.pointerType === 'pen' ? Math.min(1, Math.max(0, e.pressure)) : 1;
+}
+
+/** Pen azimuth in radians (0 = +x, clockwise), or `null` when the input
+ *  is not a pen or the pen stands upright / reports no tilt. Uses the
+ *  Pointer Events 3 angles where the browser has them, else derives the
+ *  azimuth from `tiltX` / `tiltY`. */
+function azimuthOf(e: PointerEvent): number | null {
+  if (e.pointerType !== 'pen') return null;
+  const angles = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
+  if (typeof angles.altitudeAngle === 'number' && typeof angles.azimuthAngle === 'number') {
+    return angles.altitudeAngle < Math.PI / 2 - 1e-3 ? angles.azimuthAngle : null;
+  }
+  if (e.tiltX === 0 && e.tiltY === 0) return null;
+  const rad = Math.PI / 180;
+  return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
+}
+
+/** Tools that write into the active layer's pixels. */
+const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -93,7 +127,7 @@ function constrainShape(
  * after each mutation so the canvas stays live.
  */
 export function attachTools(
-  canvas: HTMLCanvasElement,
+  canvas: HTMLElement,
   redraw: () => void,
   onPlaceText?: (cx: number, cy: number, e: PointerEvent) => void,
 ): () => void {
@@ -106,6 +140,8 @@ export function attachTools(
   // change how the in-flight gesture is interpreted or committed.
   let gestureKind: ToolKind = 'pencil';
   let last: [number, number] | null = null;
+  let lastPressure = 1;
+  let lastAzimuth: number | null = null;
   let start: [number, number] | null = null;
   let useBackground = false;
   let selMode: SelectionMode = 'replace';
@@ -154,6 +190,16 @@ export function attachTools(
     }
 
     const point = toCanvasPoint(canvas, e);
+
+    // Pixel-writing tools refuse a locked layer (spec §3.2); say why.
+    if (WRITES_PIXELS.has(tool.kind)) {
+      const layer = editor.layers[editor.activeLayer];
+      if (layer?.locked) {
+        editor.notice = t('layers.locked', { name: layer.name });
+        return;
+      }
+    }
+    editor.notice = null;
 
     if (tool.kind === 'magic_wand') {
       selectWand(point[0], point[1], selectionModeOf(e));
@@ -224,17 +270,19 @@ export function attachTools(
     gestureKind = tool.kind;
     useBackground = e.button === 2;
     last = point;
+    lastPressure = pressureOf(e);
+    lastAzimuth = azimuthOf(e);
     start = point;
     strokeId = nextStrokeId++;
     canvas.setPointerCapture(e.pointerId);
 
     switch (tool.kind) {
       case 'pencil':
-        paintStroke([point], strokeId, useBackground);
+        paintStroke([point], strokeId, useBackground, [lastPressure], [lastAzimuth]);
         redraw();
         break;
       case 'eraser':
-        eraseStroke([point], strokeId);
+        eraseStroke([point], strokeId, [lastPressure], [lastAzimuth]);
         redraw();
         break;
       case 'fill':
@@ -279,7 +327,7 @@ export function attachTools(
     }
 
     if (gestureKind === 'shapes' && start) {
-      const b = constrainShape(start, point, tool.shapeKind, e.shiftKey);
+      const b = constrainShape(start, point, tool.shapeKind, shiftHeld(e));
       shapePreview.value = {
         kind: tool.shapeKind,
         a: start,
@@ -291,15 +339,29 @@ export function attachTools(
       return;
     }
 
+    if (gestureKind === 'pencil' || gestureKind === 'eraser') {
+      // A pen reports several samples per frame; paint them all so fast
+      // strokes keep their shape and pressure.
+      const samples = e.getCoalescedEvents?.() ?? [];
+      const events = samples.length > 0 ? samples : [e];
+      const points: Array<[number, number]> = [last];
+      const pressure = [lastPressure];
+      const azimuth = [lastAzimuth];
+      for (const ev of events) {
+        points.push(toCanvasPoint(canvas, ev));
+        pressure.push(pressureOf(ev));
+        azimuth.push(azimuthOf(ev));
+      }
+      if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure, azimuth);
+      else eraseStroke(points, strokeId, pressure, azimuth);
+      redraw();
+      last = points[points.length - 1] ?? point;
+      lastPressure = pressure[pressure.length - 1] ?? 1;
+      lastAzimuth = azimuth[azimuth.length - 1] ?? null;
+      return;
+    }
+
     switch (gestureKind) {
-      case 'pencil':
-        paintStroke([last, point], strokeId, useBackground);
-        redraw();
-        break;
-      case 'eraser':
-        eraseStroke([last, point], strokeId);
-        redraw();
-        break;
       case 'eyedropper':
         sampleColor(point[0], point[1], useBackground);
         break;
