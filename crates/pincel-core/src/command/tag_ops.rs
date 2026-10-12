@@ -219,7 +219,7 @@ impl Command for SetTagName {
 pub struct SetTagDirection {
     index: usize,
     direction: TagDirection,
-    prev: Option<TagDirection>,
+    prev: Option<(TagDirection, Option<u8>)>,
 }
 
 impl SetTagDirection {
@@ -235,16 +235,17 @@ impl SetTagDirection {
 impl Command for SetTagDirection {
     fn apply(&mut self, doc: &mut Sprite, _cels: &mut CelMap) -> Result<(), CommandError> {
         let tag = tag_mut(doc, self.index)?;
-        self.prev = Some(tag.direction);
+        self.prev = Some((tag.direction, tag.raw_direction.take()));
         tag.direction = self.direction;
         Ok(())
     }
 
     fn revert(&mut self, doc: &mut Sprite, _cels: &mut CelMap) {
-        if let Some(prev) = self.prev.take()
+        if let Some((prev, raw)) = self.prev.take()
             && let Ok(tag) = tag_mut(doc, self.index)
         {
             tag.direction = prev;
+            tag.raw_direction = raw;
         }
     }
 
@@ -395,5 +396,25 @@ mod tests {
             SetTagDirection::new(0, TagDirection::Reverse).dirty_region(),
             DirtyRegion::None
         );
+    }
+
+    #[test]
+    fn set_tag_direction_clears_raw_direction_and_undo_restores_it() {
+        let mut doc = Sprite::builder(1, 1)
+            .add_layer(Layer::image(LayerId::new(0), "L"))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite");
+        let mut tag = Tag::new("t", FrameIndex::new(0), FrameIndex::new(0));
+        tag.raw_direction = Some(9);
+        doc.tags.push(tag);
+        let mut cels = CelMap::new();
+        let mut cmd = SetTagDirection::new(0, TagDirection::Reverse);
+        cmd.apply(&mut doc, &mut cels).expect("apply");
+        assert_eq!(doc.tags[0].raw_direction, None);
+        assert_eq!(doc.tags[0].direction, TagDirection::Reverse);
+        cmd.revert(&mut doc, &mut cels);
+        assert_eq!(doc.tags[0].raw_direction, Some(9));
+        assert_eq!(doc.tags[0].direction, TagDirection::Forward);
     }
 }

@@ -288,6 +288,7 @@ fn tags_round_trip_with_directions() {
             },
             repeats: 0,
             user_data: None,
+            raw_direction: None,
         })
         .add_tag(Tag {
             name: "wave".into(),
@@ -302,6 +303,7 @@ fn tags_round_trip_with_directions() {
             },
             repeats: 3,
             user_data: None,
+            raw_direction: None,
         })
         .build()
         .unwrap();
@@ -677,6 +679,7 @@ fn header_flags_z_index_and_user_data_round_trip() {
     let note = |text: &str, c: u8| UserData {
         text: Some(text.into()),
         color: Some(Rgba::new(c, c, c, 255)),
+        properties: None,
     };
     let mut layer = Layer::image(LayerId::new(0), "bg");
     // Lock movement + background + collapsed + reference.
@@ -723,4 +726,76 @@ fn header_flags_z_index_and_user_data_round_trip() {
         .expect("cel");
     assert_eq!(back.z_index, -3);
     assert_eq!(back.user_data, Some(note("cel", 4)));
+}
+
+/// A property block with a nested map (type 0x12), which carries no key
+/// DWORD of its own: `{ hp: int32 7, stats: { str: string "x" } }`.
+fn nested_properties() -> Vec<u8> {
+    let mut b = Vec::new();
+    let string = |b: &mut Vec<u8>, s: &str| {
+        b.extend_from_slice(&(s.len() as u16).to_le_bytes());
+        b.extend_from_slice(s.as_bytes());
+    };
+    b.extend_from_slice(&0u32.to_le_bytes()); // size, patched below
+    b.extend_from_slice(&1u32.to_le_bytes()); // one map
+    b.extend_from_slice(&0u32.to_le_bytes()); // key 0
+    b.extend_from_slice(&2u32.to_le_bytes()); // two properties
+    string(&mut b, "hp");
+    b.extend_from_slice(&0x0006u16.to_le_bytes());
+    b.extend_from_slice(&7i32.to_le_bytes());
+    string(&mut b, "stats");
+    b.extend_from_slice(&0x0012u16.to_le_bytes());
+    b.extend_from_slice(&1u32.to_le_bytes());
+    string(&mut b, "str");
+    b.extend_from_slice(&0x000Du16.to_le_bytes());
+    string(&mut b, "x");
+    let len = b.len() as u32;
+    b[..4].copy_from_slice(&len.to_le_bytes());
+    b
+}
+
+#[test]
+fn user_data_properties_and_unknown_tag_direction_round_trip() {
+    let props = nested_properties();
+    let with_props = |text: Option<&str>| UserData {
+        text: text.map(str::to_string),
+        color: None,
+        properties: Some(props.clone()),
+    };
+    let mut layer = Layer::image(LayerId::new(0), "bg");
+    layer.user_data = Some(with_props(Some("layer")));
+    let mut tag = Tag::new("future", FrameIndex::new(0), FrameIndex::new(0));
+    tag.raw_direction = Some(5);
+    tag.user_data = Some(with_props(None));
+    let mut sprite = Sprite::builder(2, 2)
+        .add_layer(layer)
+        .add_frame(Frame::new(100))
+        .add_tag(tag)
+        .palette(Palette::from_entries(vec![PaletteEntry::new(Rgba::BLACK)]))
+        .build()
+        .expect("sprite builds");
+    sprite.metadata.user_data = Some(with_props(None));
+    let mut cels = CelMap::new();
+    let mut cel = Cel::image(
+        LayerId::new(0),
+        FrameIndex::new(0),
+        rgba_buffer(1, 1, flat_pixels(&[rgba(1, 2, 3, 255)])),
+    );
+    cel.user_data = Some(with_props(Some("cel")));
+    cels.insert(cel);
+
+    // Twice through, so the second read sees Pincel's own output.
+    let once = round_trip(&sprite, &cels);
+    let out = round_trip(&once.sprite, &once.cels);
+    let s = &out.sprite;
+    assert_eq!(s.layers[0].user_data, Some(with_props(Some("layer"))));
+    assert_eq!(s.metadata.user_data, Some(with_props(None)));
+    assert_eq!(s.tags[0].user_data, Some(with_props(None)));
+    assert_eq!(s.tags[0].raw_direction, Some(5));
+    assert_eq!(s.tags[0].direction, TagDirection::Forward);
+    let back = out
+        .cels
+        .get(LayerId::new(0), FrameIndex::new(0))
+        .expect("cel");
+    assert_eq!(back.user_data, Some(with_props(Some("cel"))));
 }

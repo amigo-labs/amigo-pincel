@@ -232,8 +232,8 @@ fn map_tag_direction(direction: AnimationDirection) -> TagDirection {
         AnimationDirection::Reverse => TagDirection::Reverse,
         AnimationDirection::PingPong => TagDirection::Pingpong,
         AnimationDirection::PingPongReverse => TagDirection::PingpongReverse,
-        // Future Aseprite directions fall back to the closest analogue. The
-        // round-trip writer (M5) will preserve unknown tags as opaque chunks.
+        // Future Aseprite directions play forward; `map_tag` keeps the
+        // raw byte so a save writes it back.
         _ => TagDirection::Forward,
     }
 }
@@ -253,6 +253,10 @@ fn map_tag(tag: &AseTag<'_>) -> Tag {
         color: Rgba { r, g, b, a: 255 },
         repeats: tag.animation_repeat,
         user_data: None,
+        raw_direction: match tag.animation_direction {
+            AnimationDirection::Unknown(raw) => Some(raw),
+            _ => None,
+        },
     }
 }
 
@@ -441,6 +445,10 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
     // which shouldn't happen for an in-memory slice — propagate it rather
     // than silently dropping tilesets and slices.
     let raw = parse_raw_file(bytes).map_err(|e| CodecError::Parse(e.to_string()))?;
+    // Property maps, by User Data chunk in file order (our own walk: the
+    // loader's typed parse mis-reads nested maps, and Pincel only needs
+    // the bytes back).
+    let mut properties = user_data_property_blocks(bytes).into_iter();
     let mut tilesets = Vec::new();
     let mut slices = Vec::new();
     let mut palette_entries: Vec<PaletteEntry> = Vec::new();
@@ -480,6 +488,7 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
                     let data = UserData {
                         text: ud.text.map(str::to_string),
                         color: ud.color.map(|c| Rgba::new(c.red, c.green, c.blue, c.alpha)),
+                        properties: properties.next().flatten(),
                     };
                     let data = (!data.is_empty()).then_some(data);
                     // Each target takes one chunk, except tags: those
@@ -552,6 +561,71 @@ fn extract_raw_chunks(bytes: &[u8]) -> Result<RawChunks, CodecError> {
         palette: crate::document::Palette::from_entries(palette_entries),
         user_data,
     })
+}
+
+/// The property-map block (flag `0x4`) of every User Data chunk
+/// (`0x2020`), in file order; `None` for a chunk without one. Walks the
+/// frame / chunk envelopes directly (header 128 bytes; frame header 16
+/// bytes with its byte length first; chunk = `DWORD size`, `WORD type`,
+/// body). A truncated envelope ends the walk: the loader has already
+/// validated the file, so that only happens on malformed property
+/// blocks, which are then dropped rather than failing the open.
+fn user_data_property_blocks(bytes: &[u8]) -> Vec<Option<Vec<u8>>> {
+    fn dword(b: &[u8], at: usize) -> Option<usize> {
+        let s = b.get(at..at + 4)?;
+        Some(u32::from_le_bytes([s[0], s[1], s[2], s[3]]) as usize)
+    }
+    fn word(b: &[u8], at: usize) -> Option<usize> {
+        let s = b.get(at..at + 2)?;
+        Some(usize::from(u16::from_le_bytes([s[0], s[1]])))
+    }
+    // One User Data body → its property block, if flagged and well-formed.
+    fn props(body: &[u8]) -> Option<Vec<u8>> {
+        let flags = dword(body, 0)?;
+        if flags & 0x4 == 0 {
+            return None;
+        }
+        let mut at = 4;
+        if flags & 0x1 != 0 {
+            at += 2 + word(body, at)?;
+        }
+        if flags & 0x2 != 0 {
+            at += 4;
+        }
+        let size = dword(body, at)?;
+        if size < 8 {
+            return None;
+        }
+        body.get(at..at + size).map(<[u8]>::to_vec)
+    }
+
+    let mut out = Vec::new();
+    let mut frame_at = 128;
+    while let Some(frame_len) = dword(bytes, frame_at) {
+        let frame_end = frame_at.saturating_add(frame_len).min(bytes.len());
+        if frame_len < 16 {
+            break;
+        }
+        let mut chunk_at = frame_at + 16;
+        while chunk_at + 6 <= frame_end {
+            let (Some(size), Some(kind)) = (dword(bytes, chunk_at), word(bytes, chunk_at + 4))
+            else {
+                break;
+            };
+            if size < 6 || chunk_at + size > frame_end {
+                break;
+            }
+            if kind == 0x2020 {
+                out.push(props(&bytes[chunk_at + 6..chunk_at + size]));
+            }
+            chunk_at += size;
+        }
+        frame_at = frame_end;
+        if frame_at >= bytes.len() {
+            break;
+        }
+    }
+    out
 }
 
 /// Hydrate a single loader [`SliceChunkRef`] (see

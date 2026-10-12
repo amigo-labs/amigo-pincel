@@ -96,6 +96,7 @@ fn map_user_data(ud: Option<&crate::document::UserData>) -> Option<AseUserData> 
     Some(AseUserData {
         text: ud.text.clone(),
         color: ud.color.map(|c| [c.r, c.g, c.b, c.a]),
+        properties: ud.properties.clone(),
     })
 }
 
@@ -115,6 +116,7 @@ fn map_slice(slice: &Slice) -> AseSliceChunk {
         user_data: Some(AseUserData {
             text: None,
             color: Some([slice.color.r, slice.color.g, slice.color.b, slice.color.a]),
+            properties: None,
         }),
     }
 }
@@ -456,7 +458,10 @@ fn map_tag(tag: &Tag) -> Result<AseTag, CodecError> {
     Ok(AseTag {
         from_frame: from,
         to_frame: to,
-        direction: map_tag_direction(tag.direction),
+        direction: match tag.raw_direction {
+            Some(raw) => AseDirection::Other(raw),
+            None => map_tag_direction(tag.direction),
+        },
         repeat: tag.repeats,
         color: [tag.color.r, tag.color.g, tag.color.b],
         name: tag.name.clone(),
