@@ -62,6 +62,10 @@ PR #55 merged. Spec §7.1 and one Decision Log row.
   `ui/dist/app/` into `website/build/app/`), one Worker serves both.
   `ui/wrangler.toml` and the `deploy-web` release job are gone. Spec §15
   Decision Log row.
+- **Recovery dialog no longer comes back on New** — the probe ran on every
+  editor mount and offered the document just discarded. Now it runs once
+  per mode per page load, and leaving a document (unmount after "Discard
+  changes", in-place open) deletes its snapshots. E2E in `recovery.spec.ts`.
 
 ## 2026-10-12 — groups, Aseprite properties, pen tilt (PR #55)
 
