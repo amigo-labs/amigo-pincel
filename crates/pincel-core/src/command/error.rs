@@ -134,6 +134,14 @@ pub enum CommandError {
     #[error("layer id {0} is already at the edge of its sibling group")]
     LayerAtEdge(u32),
 
+    /// The layer (or a group it is nested in) is locked against edits.
+    #[error("layer id {0} is locked")]
+    LayerLocked(u32),
+
+    /// A reorder target does not share the moved layer's parent group.
+    #[error("layer id {target} is not in the same group as layer id {layer}")]
+    NotASibling { layer: u32, target: u32 },
+
     /// The targeted frame index is past the end of `Sprite::frames`.
     /// Emitted by [`crate::SetFrameDuration`].
     #[error("unknown frame index {0}")]

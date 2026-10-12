@@ -27,10 +27,12 @@ mod reframe_canvas;
 mod remove_frame;
 mod remove_layer;
 mod remove_slice;
+mod reorder_layer;
 mod replace_cel_pixels;
 mod scale_image;
 mod set_frame_duration;
 mod set_layer_blend_mode;
+mod set_layer_editable;
 mod set_layer_name;
 mod set_layer_opacity;
 mod set_layer_visible;
@@ -69,10 +71,12 @@ pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_frame::RemoveFrame;
 pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
+pub use reorder_layer::ReorderLayer;
 pub use replace_cel_pixels::ReplaceCelPixels;
 pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
 pub use set_layer_blend_mode::SetLayerBlendMode;
+pub use set_layer_editable::SetLayerEditable;
 pub use set_layer_name::SetLayerName;
 pub use set_layer_opacity::SetLayerOpacity;
 pub use set_layer_visible::SetLayerVisible;
@@ -136,6 +140,8 @@ pub enum AnyCommand {
     ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
+    ReorderLayer(ReorderLayer),
+    SetLayerEditable(SetLayerEditable),
     SetLayerName(SetLayerName),
     SetLayerVisible(SetLayerVisible),
     AddLayer(AddLayer),
@@ -189,6 +195,8 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
+            Self::ReorderLayer(c) => c.apply(doc, cels),
+            Self::SetLayerEditable(c) => c.apply(doc, cels),
             Self::SetLayerName(c) => c.apply(doc, cels),
             Self::SetLayerVisible(c) => c.apply(doc, cels),
             Self::AddLayer(c) => c.apply(doc, cels),
@@ -238,6 +246,8 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
+            Self::ReorderLayer(c) => c.revert(doc, cels),
+            Self::SetLayerEditable(c) => c.revert(doc, cels),
             Self::SetLayerName(c) => c.revert(doc, cels),
             Self::SetLayerVisible(c) => c.revert(doc, cels),
             Self::AddLayer(c) => c.revert(doc, cels),
@@ -316,6 +326,8 @@ impl AnyCommand {
             Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
+            Self::ReorderLayer(c) => c.dirty_region(),
+            Self::SetLayerEditable(c) => c.dirty_region(),
             Self::SetLayerName(c) => c.dirty_region(),
             Self::SetLayerVisible(c) => c.dirty_region(),
             Self::AddLayer(c) => c.dirty_region(),
@@ -461,6 +473,18 @@ impl From<MoveLayer> for AnyCommand {
 impl From<SetLayerVisible> for AnyCommand {
     fn from(c: SetLayerVisible) -> Self {
         Self::SetLayerVisible(c)
+    }
+}
+
+impl From<ReorderLayer> for AnyCommand {
+    fn from(c: ReorderLayer) -> Self {
+        Self::ReorderLayer(c)
+    }
+}
+
+impl From<SetLayerEditable> for AnyCommand {
+    fn from(c: SetLayerEditable) -> Self {
+        Self::SetLayerEditable(c)
     }
 }
 

@@ -23,10 +23,10 @@ pub use command::{
     DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
     Interpolation, MergeDown, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
     Orientation, PlaceTile, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry,
-    RemoveSlice, RemoveTag, ReplaceCelPixels, ScaleImage, SetFrameDuration, SetLayerBlendMode,
-    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
-    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
-    TextAlign, TextStyle, TransformCanvas, TransformCel,
+    RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels, ScaleImage, SetFrameDuration,
+    SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
+    SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel,
+    ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{

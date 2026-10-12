@@ -159,6 +159,24 @@ impl Sprite {
         self.layers.iter_mut().find(|l| l.id == id)
     }
 
+    /// `true` when `id` must not be edited: the layer or any group it is
+    /// nested in has `editable == false` (Aseprite's lock). Unknown ids
+    /// report `false`.
+    pub fn layer_locked(&self, id: LayerId) -> bool {
+        let mut next = Some(id);
+        // Bounded by the layer count so a malformed parent cycle cannot hang.
+        for _ in 0..=self.layers.len() {
+            let Some(layer) = next.and_then(|i| self.layer(i)) else {
+                return false;
+            };
+            if !layer.editable {
+                return true;
+            }
+            next = layer.parent;
+        }
+        false
+    }
+
     /// Look up a tileset by id. Returns `None` if no tileset has the given id.
     pub fn tileset(&self, id: TilesetId) -> Option<&Tileset> {
         self.tilesets.iter().find(|t| t.id == id)
