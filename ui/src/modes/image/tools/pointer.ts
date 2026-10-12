@@ -22,6 +22,7 @@ import {
 } from '../stores/editor.svelte';
 import type { SelectionMode, ShapeKind } from '../core/wasm';
 import { t } from '../../../lib/i18n/index.svelte';
+import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
  *  the element that covers the document on screen (any size / transform). */
@@ -32,11 +33,13 @@ function toCanvasPoint(surface: HTMLElement, e: PointerEvent): [number, number] 
   return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
 }
 
-/** Selection combine mode from keyboard modifiers (spec §8.2). */
+/** Selection combine mode from the keyboard or on-screen modifiers (spec §8.2). */
 function selectionModeOf(e: PointerEvent): SelectionMode {
-  if (e.shiftKey && e.altKey) return 'intersect';
-  if (e.shiftKey) return 'add';
-  if (e.altKey) return 'subtract';
+  const shift = shiftHeld(e);
+  const alt = altHeld(e);
+  if (shift && alt) return 'intersect';
+  if (shift) return 'add';
+  if (alt) return 'subtract';
   return 'replace';
 }
 
@@ -300,7 +303,7 @@ export function attachTools(
     }
 
     if (gestureKind === 'shapes' && start) {
-      const b = constrainShape(start, point, tool.shapeKind, e.shiftKey);
+      const b = constrainShape(start, point, tool.shapeKind, shiftHeld(e));
       shapePreview.value = {
         kind: tool.shapeKind,
         a: start,

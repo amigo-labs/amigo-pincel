@@ -162,4 +162,11 @@ export const de: Record<MessageKey, string> = {
   'blend.addition': 'Addieren',
   'blend.subtract': 'Subtrahieren',
   'blend.divide': 'Dividieren',
+
+  // On-screen modifiers
+  'mods.label': 'Sondertasten',
+  'mods.shift': 'Umschalt',
+  'mods.alt': 'Alt',
+  'mods.shiftHint': 'Umschalt: Quadrat/Kreis, 45°-Linien, zur Auswahl hinzufügen',
+  'mods.altHint': 'Alt: von der Auswahl abziehen (mit Umschalt: Schnittmenge)',
 };

@@ -90,6 +90,7 @@
   import { fitZoom } from '../../lib/view/fit';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
+  import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   type ImageAction =
@@ -311,9 +312,11 @@
   let selectionMaskBytes: Uint8Array | null = null;
 
   function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
-    if (e.shiftKey && e.altKey) return 'intersect';
-    if (e.shiftKey) return 'add';
-    if (e.altKey) return 'subtract';
+    const shift = shiftHeld(e);
+    const alt = altHeld(e);
+    if (shift && alt) return 'intersect';
+    if (shift) return 'add';
+    if (alt) return 'subtract';
     return 'replace';
   }
   // Whether Shift was held during the most recent pointer event in an
@@ -891,7 +894,7 @@
       dragStart = point;
       dragPreview = point;
       dragTool = tool;
-      dragShift = e.shiftKey;
+      dragShift = shiftHeld(e);
       dragSelMode = selectionModeFor(e);
       dirty = true;
       return;
@@ -1142,7 +1145,7 @@
       const point = spriteCoord(e);
       if (!point) return;
       dragPreview = point;
-      dragShift = e.shiftKey;
+      dragShift = shiftHeld(e);
       dirty = true;
       return;
     }
@@ -1206,7 +1209,7 @@
       return;
     }
     if (dragStart && dragPreview && dragTool && doc) {
-      dragShift = e.shiftKey;
+      dragShift = shiftHeld(e);
       const end = constrainedEndpoint();
       const packed = strokeColor();
       try {

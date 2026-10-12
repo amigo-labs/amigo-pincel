@@ -21,6 +21,8 @@
   } from './panels.svelte';
   import { viewport, watchViewport } from './viewport.svelte';
   import { t } from '../../i18n/index.svelte';
+  import { modifiers, notePointer } from '../../shell/modifiers.svelte';
+  import ModifierBar from './ModifierBar.svelte';
 
   interface Props {
     /** Mode badge and the key layout prefs are stored under. */
@@ -161,8 +163,11 @@
           {@render options()}
         </div>
       {/if}
-      <main class="relative min-h-0 flex-1 overflow-hidden">
+      <main class="relative min-h-0 flex-1 overflow-hidden" onpointerdowncapture={notePointer}>
         {@render stage()}
+        {#if modifiers.shown}
+          <ModifierBar />
+        {/if}
         {#if size === 'narrow' && sheetPanel}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"

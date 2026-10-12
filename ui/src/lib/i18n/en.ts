@@ -155,6 +155,13 @@ export const en = {
   'blend.addition': 'Addition',
   'blend.subtract': 'Subtract',
   'blend.divide': 'Divide',
+
+  // On-screen modifiers
+  'mods.label': 'Modifier keys',
+  'mods.shift': 'Shift',
+  'mods.alt': 'Alt',
+  'mods.shiftHint': 'Shift: square shapes, 45° lines, add to selection',
+  'mods.altHint': 'Alt: subtract from selection (with Shift: intersect)',
 } as const;
 
 /** A UI message key. */

@@ -152,12 +152,21 @@ export interface Point {
 
 /**
  * The drag endpoint after the Shift constraint: square bounding box for
- * rectangles, ellipses, rounded rectangles and polygons.
+ * rectangles, ellipses, rounded rectangles and polygons; the nearest 45°
+ * direction for lines.
  */
 export function constrainEndpoint(tool: Tool, start: Point, preview: Point, shift: boolean): Point {
-  if (!shift || !isSquareConstrainable(tool)) return preview;
+  if (!shift) return preview;
   const dx = preview.x - start.x;
   const dy = preview.y - start.y;
+  if (tool === 'line') {
+    // Snap to the nearest 45° direction, as in Image mode.
+    if (Math.abs(dx) > 2 * Math.abs(dy)) return { x: preview.x, y: start.y };
+    if (Math.abs(dy) > 2 * Math.abs(dx)) return { x: start.x, y: preview.y };
+    const d = Math.max(Math.abs(dx), Math.abs(dy));
+    return { x: start.x + d * (dx < 0 ? -1 : 1), y: start.y + d * (dy < 0 ? -1 : 1) };
+  }
+  if (!isSquareConstrainable(tool)) return preview;
   const side = Math.max(Math.abs(dx), Math.abs(dy));
   return { x: start.x + side * (dx < 0 ? -1 : 1), y: start.y + side * (dy < 0 ? -1 : 1) };
 }
