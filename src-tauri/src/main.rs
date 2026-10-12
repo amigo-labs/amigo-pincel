@@ -133,11 +133,7 @@ static GERMAN: AtomicBool = AtomicBool::new(false);
 
 /// Labels for a renderer language code; anything but `de` is English.
 fn labels_for(lang: &str) -> &'static Labels {
-    if lang == "de" {
-        &LABELS_DE
-    } else {
-        &LABELS_EN
-    }
+    if lang == "de" { &LABELS_DE } else { &LABELS_EN }
 }
 
 fn current_labels() -> &'static Labels {
