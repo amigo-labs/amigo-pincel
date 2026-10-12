@@ -40,7 +40,8 @@ pub enum BrushShape {
     HardRound,
     /// A circle whose coverage falls off toward the edge per `hardness`.
     SoftRound,
-    /// A flat (calligraphic) nib oriented at 45°, softened per `hardness`.
+    /// A flat (calligraphic) nib along [`Brush::angle`] (or the pen's
+    /// azimuth, see [`Brush::follow_tilt`]), softened per `hardness`.
     Flat,
 }
 
@@ -59,6 +60,21 @@ const MIN_PRESSURE_RADIUS: f32 = 0.5;
 
 /// Minor/major axis ratio of the [`BrushShape::Flat`] nib.
 const FLAT_ASPECT: f32 = 0.35;
+
+/// Default [`Brush::angle`]: the flat nib's historical 45° diagonal.
+pub const DEFAULT_BRUSH_ANGLE: f32 = 45.0;
+
+/// Per-point pen input for one stroke (spec §17.4). Entry `i` belongs to
+/// `points[i]`; a missing entry means "no reading" (full pressure, the
+/// brush's fixed angle).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PenSamples<'a> {
+    /// Pressure in `[0, 1]`.
+    pub pressure: &'a [f32],
+    /// Pen azimuth in radians, screen space (0 = +x, clockwise toward +y);
+    /// a non-finite value means the pen reported no tilt.
+    pub azimuth: &'a [f32],
+}
 
 /// Immutable per-stroke context shared by every dab of one rasterization:
 /// the clamped target region, the stroke strength, and the active selection
@@ -84,6 +100,12 @@ pub struct Brush {
     pub hardness: f32,
     /// What pen pressure varies (see [`Pencil::stroke_with_pressure`]).
     pub dynamics: PressureDynamics,
+    /// Orientation of the [`BrushShape::Flat`] nib's long axis, in degrees
+    /// clockwise from +x.
+    pub angle: f32,
+    /// The flat nib follows the pen's azimuth instead of `angle` wherever
+    /// the pen reports tilt.
+    pub follow_tilt: bool,
 }
 
 impl Brush {
@@ -96,6 +118,32 @@ impl Brush {
             shape: BrushShape::HardRound,
             hardness: 1.0,
             dynamics: PressureDynamics::default(),
+            angle: DEFAULT_BRUSH_ANGLE,
+            follow_tilt: false,
+        }
+    }
+
+    /// Sets the flat nib's angle in degrees.
+    pub fn with_angle(mut self, degrees: f32) -> Self {
+        self.angle = if degrees.is_finite() {
+            degrees
+        } else {
+            DEFAULT_BRUSH_ANGLE
+        };
+        self
+    }
+
+    /// Lets the flat nib follow the pen's azimuth.
+    pub fn with_follow_tilt(mut self, follow: bool) -> Self {
+        self.follow_tilt = follow;
+        self
+    }
+
+    /// Nib angle in radians for a pen `azimuth` reading (if any).
+    fn dab_angle(&self, azimuth: Option<f32>) -> f32 {
+        match azimuth {
+            Some(a) if self.follow_tilt && a.is_finite() => a,
+            _ => self.angle.to_radians(),
         }
     }
 
@@ -135,9 +183,9 @@ impl Brush {
         if self.dynamics.opacity { p } else { 1.0 }
     }
 
-    /// Coverage in `[0.0, 1.0]` of a tip of `radius` at offset `(dx, dy)`
-    /// from its center.
-    fn coverage(&self, dx: f32, dy: f32, radius: f32) -> f32 {
+    /// Coverage in `[0.0, 1.0]` of a tip of `radius`, nib angle `(cos, sin)`,
+    /// at offset `(dx, dy)` from its center.
+    fn coverage(&self, dx: f32, dy: f32, radius: f32, (cos, sin): (f32, f32)) -> f32 {
         match self.shape {
             BrushShape::HardRound => {
                 if dx * dx + dy * dy <= radius * radius {
@@ -150,11 +198,10 @@ impl Brush {
                 soft_falloff((dx * dx + dy * dy).sqrt(), radius, self.hardness)
             }
             BrushShape::Flat => {
-                // Rotate the offset into the nib's 45° frame, then test against a
+                // Rotate the offset into the nib's frame, then test against a
                 // squashed unit ellipse (major axis = radius, minor = aspect).
-                let c = std::f32::consts::FRAC_1_SQRT_2;
-                let lx = dx * c + dy * c;
-                let ly = -dx * c + dy * c;
+                let lx = dx * cos + dy * sin;
+                let ly = -dx * sin + dy * cos;
                 let minor = (radius * FLAT_ASPECT).max(0.5);
                 let d = ((lx / radius).powi(2) + (ly / minor).powi(2)).sqrt();
                 soft_falloff(d, 1.0, self.hardness)
@@ -165,15 +212,16 @@ impl Brush {
     /// Rasterizes a stroke over `points`, combining the tip coverage with the
     /// existing pixels via `op`. `op` receives the effective source alpha
     /// (`strength * coverage`) and the destination color, and returns the new
-    /// color. `pressure[i]` (clamped to `[0, 1]`, missing entries = 1) is the
-    /// pen pressure at `points[i]`, applied per [`Brush::dynamics`]. Returns
-    /// the painted region and its new pixels, or `None` if the stroke misses
-    /// the canvas, the layer is invalid, or `strength <= 0`.
+    /// color. `pen.pressure[i]` (clamped to `[0, 1]`, missing entries = 1) is
+    /// the pen pressure at `points[i]`, applied per [`Brush::dynamics`];
+    /// `pen.azimuth[i]` turns the flat nib when [`Brush::follow_tilt`] is on.
+    /// Returns the painted region and its new pixels, or `None` if the stroke
+    /// misses the canvas, the layer is invalid, or `strength <= 0`.
     pub(crate) fn rasterize<F>(
         &self,
         layer_index: usize,
         points: &[Point],
-        pressure: &[f32],
+        pen: PenSamples,
         doc: &Document,
         strength: f32,
         mut op: F,
@@ -194,7 +242,10 @@ impl Brush {
             strength,
             selection,
         };
-        let at = |i: usize| pressure.get(i).copied().unwrap_or(1.0).clamp(0.0, 1.0);
+        let at = |i: usize| Dab {
+            p: pen.pressure.get(i).copied().unwrap_or(1.0).clamp(0.0, 1.0),
+            angle: self.dab_angle(pen.azimuth.get(i).copied()),
+        };
         if points.len() == 1 {
             self.stamp(&mut after, points[0], at(0), &ctx, &mut op);
         } else {
@@ -232,16 +283,16 @@ impl Brush {
         Some(Rect::new(x0, y0, (x1 - x0) as u32, (y1 - y0) as u32))
     }
 
-    /// Stamps one dab at pressure `p` centered at canvas-space `center` into
-    /// `buf` (whose origin is `ctx.region`'s top-left), applying `op` per
-    /// covered pixel.
-    fn stamp<F>(&self, buf: &mut ImageBuffer, center: Point, p: f32, ctx: &StrokeCtx, op: &mut F)
+    /// Stamps one dab centered at canvas-space `center` into `buf` (whose
+    /// origin is `ctx.region`'s top-left), applying `op` per covered pixel.
+    fn stamp<F>(&self, buf: &mut ImageBuffer, center: Point, dab: Dab, ctx: &StrokeCtx, op: &mut F)
     where
         F: FnMut(f32, Color) -> Color,
     {
         let region = ctx.region;
-        let radius = self.dab_radius(p);
-        let strength = ctx.strength * self.dab_strength(p);
+        let radius = self.dab_radius(dab.p);
+        let strength = ctx.strength * self.dab_strength(dab.p);
+        let rot = (dab.angle.cos(), dab.angle.sin());
         let cx0 = (center.x - radius).floor() as i32;
         let cy0 = (center.y - radius).floor() as i32;
         let cx1 = (center.x + radius).ceil() as i32;
@@ -250,7 +301,7 @@ impl Brush {
             for cx in cx0..=cx1 {
                 let dx = cx as f32 + 0.5 - center.x;
                 let dy = cy as f32 + 0.5 - center.y;
-                let cov = self.coverage(dx, dy, radius);
+                let cov = self.coverage(dx, dy, radius, rot);
                 if cov <= 0.0 {
                     continue;
                 }
@@ -280,12 +331,13 @@ impl Brush {
     }
 
     /// Stamps dabs evenly along the segment `a`→`b`, each end a point and
-    /// its pressure; pressure is interpolated linearly between them.
+    /// its dab; pressure is interpolated linearly, the nib angle along the
+    /// shorter way round (a flat nib looks the same turned by 180°).
     fn stamp_segment<F>(
         &self,
         buf: &mut ImageBuffer,
-        (a, pa): (Point, f32),
-        (b, pb): (Point, f32),
+        (a, da): (Point, Dab),
+        (b, db): (Point, Dab),
         ctx: &StrokeCtx,
         op: &mut F,
     ) where
@@ -294,18 +346,38 @@ impl Brush {
         let dist = a.distance(b);
         // Spacing of a quarter dab diameter keeps strokes solid without
         // overdraw blowup; the thinner end sets it so light pressure stays solid.
-        let spacing = (self.dab_radius(pa.min(pb)) * 0.5).max(1.0);
+        let spacing = (self.dab_radius(da.p.min(db.p)) * 0.5).max(1.0);
         let steps = (dist / spacing).ceil() as i32;
         if steps == 0 {
-            self.stamp(buf, a, pa, ctx, op);
+            self.stamp(buf, a, da, ctx, op);
             return;
         }
+        let turn = nib_turn(da.angle, db.angle);
         for i in 0..=steps {
             let t = i as f32 / steps as f32;
             let p = Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-            self.stamp(buf, p, pa + (pb - pa) * t, ctx, op);
+            let dab = Dab {
+                p: da.p + (db.p - da.p) * t,
+                angle: da.angle + turn * t,
+            };
+            self.stamp(buf, p, dab, ctx, op);
         }
     }
+}
+
+/// Pressure and nib angle (radians) of one dab.
+#[derive(Debug, Clone, Copy)]
+struct Dab {
+    p: f32,
+    angle: f32,
+}
+
+/// Signed turn from nib angle `a` to `b`, in `(-π/2, π/2]`: the nib is
+/// symmetric under a half turn, so it never rotates further than 90°.
+fn nib_turn(a: f32, b: f32) -> f32 {
+    use std::f32::consts::{FRAC_PI_2, PI};
+    let d = (b - a + FRAC_PI_2).rem_euclid(PI) - FRAC_PI_2;
+    if d <= -FRAC_PI_2 { d + PI } else { d }
 }
 
 /// Linear edge falloff: full coverage within `radius * hardness`, ramping to 0
@@ -347,7 +419,7 @@ impl Pencil {
         points: &[Point],
         doc: &Document,
     ) -> Option<SetPixels> {
-        self.stroke_with_pressure(layer_index, points, &[], doc)
+        self.stroke_with_pen(layer_index, points, PenSamples::default(), doc)
     }
 
     /// [`Pencil::stroke`] with pen pressure: `pressure[i]` in `[0, 1]` belongs
@@ -360,11 +432,27 @@ impl Pencil {
         pressure: &[f32],
         doc: &Document,
     ) -> Option<SetPixels> {
+        let pen = PenSamples {
+            pressure,
+            azimuth: &[],
+        };
+        self.stroke_with_pen(layer_index, points, pen, doc)
+    }
+
+    /// [`Pencil::stroke`] with full pen input: pressure and azimuth per
+    /// point (spec §17.4).
+    pub fn stroke_with_pen(
+        &self,
+        layer_index: usize,
+        points: &[Point],
+        pen: PenSamples,
+        doc: &Document,
+    ) -> Option<SetPixels> {
         let color = self.brush.color;
         let ca = color.a as f32 / 255.0 * self.brush.opacity;
         let (region, after) =
             self.brush
-                .rasterize(layer_index, points, pressure, doc, ca, |eff, dst| {
+                .rasterize(layer_index, points, pen, doc, ca, |eff, dst| {
                     src_over(color, eff, dst)
                 })?;
         Some(SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
@@ -595,5 +683,69 @@ mod tests {
             doc.layers[0].pixels.get_pixel(15, 5),
             Some(Color::TRANSPARENT)
         );
+    }
+
+    fn flat_dab(brush: Brush, pen: PenSamples) -> Document {
+        let mut doc = Document::new(20, 20).unwrap();
+        let mut cmd = Pencil::new(brush)
+            .stroke_with_pen(0, &[Point::new(10.0, 10.0)], pen, &doc)
+            .unwrap();
+        cmd.apply(&mut doc).unwrap();
+        doc
+    }
+
+    #[test]
+    fn flat_brush_at_135_degrees_covers_the_other_diagonal() {
+        let brush = Brush::new(20, Color::BLACK, 1.0)
+            .with_shape(BrushShape::Flat)
+            .with_angle(135.0);
+        let doc = flat_dab(brush, PenSamples::default());
+        assert_eq!(doc.layers[0].pixels.get_pixel(5, 15), Some(Color::BLACK));
+        assert_eq!(
+            doc.layers[0].pixels.get_pixel(15, 15),
+            Some(Color::TRANSPARENT)
+        );
+    }
+
+    #[test]
+    fn flat_brush_follows_azimuth_only_when_enabled() {
+        let azimuth = [135f32.to_radians()];
+        let pen = PenSamples {
+            pressure: &[],
+            azimuth: &azimuth,
+        };
+        let brush = Brush::new(20, Color::BLACK, 1.0).with_shape(BrushShape::Flat);
+        let fixed = flat_dab(brush, pen);
+        assert_eq!(fixed.layers[0].pixels.get_pixel(15, 15), Some(Color::BLACK));
+        let tilted = flat_dab(brush.with_follow_tilt(true), pen);
+        assert_eq!(tilted.layers[0].pixels.get_pixel(5, 15), Some(Color::BLACK));
+        assert_eq!(
+            tilted.layers[0].pixels.get_pixel(15, 15),
+            Some(Color::TRANSPARENT)
+        );
+        // A pen without tilt (NaN) falls back to the brush angle.
+        let none = [f32::NAN];
+        let untilted = flat_dab(
+            brush.with_follow_tilt(true),
+            PenSamples {
+                pressure: &[],
+                azimuth: &none,
+            },
+        );
+        assert_eq!(
+            untilted.layers[0].pixels.get_pixel(15, 15),
+            Some(Color::BLACK)
+        );
+    }
+
+    #[test]
+    fn nib_turn_takes_the_short_way_across_zero() {
+        let a = 350f32.to_radians();
+        let b = 10f32.to_radians();
+        assert!((nib_turn(a, b) - 20f32.to_radians()).abs() < 1e-4);
+        // A half turn apart is the same nib: no rotation at all.
+        assert!(nib_turn(0.0, std::f32::consts::PI).abs() < 1e-4);
+        // 100° one way is 80° the other way round.
+        assert!((nib_turn(0.0, 100f32.to_radians()) + 80f32.to_radians()).abs() < 1e-4);
     }
 }
