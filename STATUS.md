@@ -7,7 +7,9 @@ items": every codeable item from the list below the M16 merge is done on
 the branch (section "2026-10-11 — open items sweep"), plus one shared,
 responsive editor frame for both modes (section "2026-10-11 — one
 responsive editor frame") and the 2026-10-12 follow-ups (DE/EN, one
-layers panel, iPad modifiers + pen pressure). Before it: PR #53 —
+layers panel, iPad modifiers + pen pressure) and the second batch
+(selection-aware Image effects, palette presets + `.gpl`, German website,
+one autosave session, PixelEditor split). Before it: PR #53 —
 M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
 `amigo-fineliner` is archived.
 
@@ -30,6 +32,10 @@ collaboration) are out of scope.
   Worker (root `wrangler.toml`); the editor route is created by the first
   `deploy-web` run. See `docs/RELEASING.md`.
 
+- **Native-speaker review of the German website copy** (`website/src/lib/i18n/de.ts`,
+  spec website §8). Machine-written, not
+  proofread; the editor's `ui/src/lib/i18n/de.ts` likewise.
+
 ### 🖥️ Needs your hardware (spec §16 exit criteria)
 
 - 60 fps @ 256×256 / zoom 32 on M1 / mid-tier Windows (F2 probe is built).
@@ -41,32 +47,40 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **PixelEditor state store.** `PixelEditor.svelte` is ~3,100 lines
-  (tools, menus, keymap and the overlay painter are out, the chrome is
-  the shared frame, pixel-only components live in
-  `modes/pixel/components/`). The rest — file ops,
-  autosave / recovery, the pointer / tool controller — mutate dozens of
-  component `$state` fields; extracting them cleanly needs those fields
-  in a `pixel-editor.svelte.ts` store first. Own refactor PR; the e2e
-  suite covers the paths it would touch except autosave recovery.
-- **Shared autosave session.** Pixel and Image mode each carry their own
-  30 s autosave / recovery loop (same IDB store, `mode`-tagged). A
-  shared helper would dedupe ~100 lines; wants an e2e for recovery first
-  (fake timers or a test-only interval).
-- **Image-mode effects honour the selection.** Pixel mode restricts
-  effects to the selection; Image mode applies them to the whole layer
-  (unchanged behaviour, now on the shared catalog).
-- **Palette presets / import / export** (PICO-8, NES, Game Boy; `.gpl`).
 - **Pen tilt** (pressure is done for the Image-mode brush / eraser;
   Pixel-mode tools stay pressure-free by design).
-- **Website in German.** The editor is DE/EN; the SvelteKit site is
-  English only.
 - **Drag a layer into / out of a group** (Pixel mode). Drag-reorder keeps
   a layer among its siblings (spec §15, 2026-05-31).
 - **Aseprite round-trip, remaining:** user-data property maps and tag
   directions > 3 are still dropped (spec §7.1).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-12 — effects, palettes, German site, PixelEditor split (PR #55)
+
+User picked all four remaining codeable items. Spec §3.7, §10.3 and §15
+(three rows) updated; website spec §8 / §11 / Decision Log.
+
+- **Image-mode effects honour the selection.** `masked_region` in
+  `pincel-image-core` blends by coverage (feathered edges mix), the undo
+  delta is cropped to the mask's bounding box, and an empty selection
+  applies nothing (`apply_effect` → `false`, status notice). E2E in
+  `effects.spec.ts`.
+- **Palette presets + `.gpl`.** DB32 / DB16 / PICO-8 / Game Boy / NES,
+  GIMP palette read / write, one undoable `ReplacePalette`; Palette
+  panel "more" menu. E2E in `palette.spec.ts`.
+- **Website in German** under `/de` (`[[lang=locale]]` route param,
+  typed dictionaries, EN/DE switch, hreflang + `og:locale`, sitemap
+  alternates). Copy wants a native-speaker pass (above).
+- **One autosave / recovery session** for both editors
+  (`lib/idb/autosave-session.svelte.ts`); new `recovery.spec.ts` covers
+  both modes and discard.
+- **PixelEditor split.** State in `modes/pixel/stores/editor.svelte.ts`,
+  logic in `render.ts`, `view-ops.ts`, `pointer.ts`, `doc-ops.ts`,
+  `image-ops.ts`, `text-tool.ts`, `file-ops.ts`; the component is down
+  from 3,089 to ~1,060 lines (markup, keys, menus, mount). No behaviour
+  change; the 38-spec e2e suite ran green after each step. CLAUDE.md
+  §5.4 / §14 now describe this layout.
 
 ## 2026-10-12 — languages, one layers panel, iPad input (PR #55)
 

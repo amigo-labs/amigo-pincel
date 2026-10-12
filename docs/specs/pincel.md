@@ -290,6 +290,8 @@ pub struct PaletteEntry {
 
 A new Pixel-mode document starts with the **DB32** palette (DawnBringer 32, Aseprite's default). The palette is editable through undoable commands: recolour an entry (`SetPaletteColor`, drags merge), append (`AddPaletteEntry`, max 256), remove (`RemovePaletteEntry`) and reorder (`MovePaletteEntry`). In RGBA documents the palette is a swatch set no pixel references; in indexed documents removing or reordering would repaint pixels, so those two are refused until indexed painting lands (Phase 2).
 
+The Palette panel also loads a **preset** — DB32, DB16, PICO-8, Game Boy (four greens), NES (54-colour 2C02 table) — and imports / exports the **GIMP palette** format (`.gpl`: `GIMP Palette` header, optional `Name:` / `Columns:`, `#` comments, `R G B name` rows, at most 256 entries). Both replace the whole palette through one undoable `ReplacePalette`, refused on indexed sprites for the same reason as remove / reorder.
+
 ---
 
 ## 4. Render Pipeline
@@ -610,6 +612,7 @@ The UI ships in English and German. Strings live in a typed dictionary under `ui
 - **IndexedDB**: autosave snapshots every 30 seconds, recent-files registry, settings/preferences
 - Each document gets a stable UUID; autosave snapshots are keyed by `(doc_uuid, timestamp)`
 - On open, Pincel checks for unsaved changes from a previous session and offers recovery
+- Both modes run the same session (`ui/src/lib/idb/autosave-session.svelte.ts`): a clean document (undo depth at the last save) is never written; a save or a fresh open drops the document's snapshots; a **recovered document counts as unsaved** and keeps its snapshot until the user saves; discarding the last listed snapshot closes the Recovery dialog
 
 ### 10.4 Threading
 
@@ -798,6 +801,9 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-12 | Pixel layers get a lock and drag-reorder: `SetLayerEditable` flips the existing `Layer::editable` (Aseprite flag `0x2`), `Sprite::layer_locked` folds in the parent groups, and every wasm edit path refuses a locked target; `ReorderLayer { layer, target }` runs `MoveLayer` steps as one undo entry and never leaves the layer's group. Thumbnails come from `compose()` with `LayerFilter::Only` (the layer plus its subtree), nearest-downscaled in wasm | Matches Image mode's panel without new document state; the lock already round-trips through `.aseprite`. Reusing `MoveLayer` keeps the group-contiguity invariant (2026-05-31 row) for free. Image mode had a lock flag with no effect; `pincel-image-wasm` now refuses pixel edits and effects on a locked layer too |
 | 2026-10-12 | On-screen Shift / Alt toggles for touch and pen, read through `shiftHeld` / `altHeld` | iPad has no keyboard; latching toggles are the smallest stand-in that keeps one code path for keys and touch. Shown only on coarse pointers or after a touch / pen event, so desktop chrome is unchanged |
 | 2026-10-12 | Pen pressure in Image mode: `PressureDynamics { size, opacity }` on `Brush`, `pressure: Vec<f32>` per point in `PencilStroke` / `EraserStroke` (empty = full), linear interpolation along a segment, dab radius floor 0.5 px | Spec §17.4 promised pressure from the start; scaling per dab inside the existing rasterizer needs no new command or undo shape, and old command JSON stays valid. Pixel mode is excluded on purpose |
+| 2026-10-12 | Image-mode effects honour the selection: `pincel_image_core::masked_region(before, after, mask)` blends the effect result into the layer by per-pixel coverage (`before + (after − before)·cov/255`, so feathered edges mix proportionally) and crops the undo delta to the mask's bounding box; `apply_effect` returns `false` (no undo entry) when the selection is empty, and the preview uses the same blend | Pixel mode already confined effects to the marquee; Image mode ignored it. Blending by coverage instead of a binary in / out makes feathered selections behave as in paint.net, and the bounding-box delta keeps undo memory proportional to the selection rather than the canvas |
+| 2026-10-12 | Palette presets and `.gpl`: `PalettePreset { Db32, Db16, Pico8, GameBoy, Nes }` with `Palette::preset`, `codec::gpl::{read_gpl, write_gpl}` (thiserror `GplError`) and one `ReplacePalette` command; wasm `setPalettePreset` / `importGpl` / `exportGpl` / `palettePresetNames`. No new dependency | `.gpl` is the palette format Aseprite, GIMP, Krita and Lospec all read and write, so it is the one exchange format worth supporting; the five presets cover the common retro targets. A single replace command makes a preset or import one undo step instead of N entry edits |
+| 2026-10-12 | One autosave / recovery session for both editors (`AutosaveSession`, §10.3), and Pixel-mode editor state moves into `ui/src/modes/pixel/stores/editor.svelte.ts` with its logic in plain modules beside `PixelEditor.svelte` | The two editors had diverged on four details (clean-document writes, the document-swap race, recovered-document dirtiness, discard closing the dialog); one class settles each once, in the safer direction. The store / module split mirrors Image mode and brings the 3 000-line component down to markup, keys and mount wiring, with no behaviour change (the full e2e suite gates every step) |
 
 ---
 
