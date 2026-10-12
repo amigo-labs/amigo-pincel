@@ -3,6 +3,7 @@
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Deserialize;
 use tauri::menu::{
@@ -50,6 +51,136 @@ async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(
 
 const RECENT_MENU_ID: &str = "open-recent";
 
+/// Native menu labels in one UI language (spec §9.5). The renderer owns
+/// the language choice and pushes it through `set_menu_language`.
+struct Labels {
+    file: &'static str,
+    new: &'static str,
+    open: &'static str,
+    open_recent: &'static str,
+    no_recent: &'static str,
+    save: &'static str,
+    save_as: &'static str,
+    export_png: &'static str,
+    export_sheet: &'static str,
+    quit: &'static str,
+    edit: &'static str,
+    undo: &'static str,
+    redo: &'static str,
+    cut: &'static str,
+    copy: &'static str,
+    paste: &'static str,
+    view: &'static str,
+    zoom_in: &'static str,
+    zoom_out: &'static str,
+    reset_zoom: &'static str,
+    help: &'static str,
+    about: &'static str,
+}
+
+const LABELS_EN: Labels = Labels {
+    file: "File",
+    new: "New",
+    open: "Open\u{2026}",
+    open_recent: "Open Recent",
+    no_recent: "(no recent files)",
+    save: "Save",
+    save_as: "Save As\u{2026}",
+    export_png: "Export as PNG\u{2026}",
+    export_sheet: "Export Sprite Sheet\u{2026}",
+    quit: "Quit",
+    edit: "Edit",
+    undo: "Undo",
+    redo: "Redo",
+    cut: "Cut",
+    copy: "Copy",
+    paste: "Paste",
+    view: "View",
+    zoom_in: "Zoom In",
+    zoom_out: "Zoom Out",
+    reset_zoom: "Reset Zoom",
+    help: "Help",
+    about: "About Pincel",
+};
+
+const LABELS_DE: Labels = Labels {
+    file: "Datei",
+    new: "Neu",
+    open: "\u{d6}ffnen\u{2026}",
+    open_recent: "Zuletzt ge\u{f6}ffnet",
+    no_recent: "(keine zuletzt ge\u{f6}ffneten Dateien)",
+    save: "Speichern",
+    save_as: "Speichern unter\u{2026}",
+    export_png: "Als PNG exportieren\u{2026}",
+    export_sheet: "Sprite-Sheet exportieren\u{2026}",
+    quit: "Beenden",
+    edit: "Bearbeiten",
+    undo: "R\u{fc}ckg\u{e4}ngig",
+    redo: "Wiederholen",
+    cut: "Ausschneiden",
+    copy: "Kopieren",
+    paste: "Einf\u{fc}gen",
+    view: "Ansicht",
+    zoom_in: "Vergr\u{f6}\u{df}ern",
+    zoom_out: "Verkleinern",
+    reset_zoom: "Zoom zur\u{fc}cksetzen",
+    help: "Hilfe",
+    about: "\u{dc}ber Pincel",
+};
+
+/// True while the native menu shows German labels.
+static GERMAN: AtomicBool = AtomicBool::new(false);
+
+/// Labels for a renderer language code; anything but `de` is English.
+fn labels_for(lang: &str) -> &'static Labels {
+    if lang == "de" {
+        &LABELS_DE
+    } else {
+        &LABELS_EN
+    }
+}
+
+fn current_labels() -> &'static Labels {
+    if GERMAN.load(Ordering::Relaxed) {
+        &LABELS_DE
+    } else {
+        &LABELS_EN
+    }
+}
+
+// Rebuild the whole native menu in `lang`, keeping the Open Recent
+// entries the renderer pushed earlier.
+#[tauri::command]
+async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
+    GERMAN.store(lang == "de", Ordering::Relaxed);
+    let recents: Vec<RecentMenuItem> = app
+        .menu()
+        .and_then(|menu| find_submenu(&menu, RECENT_MENU_ID))
+        .and_then(|sub| sub.items().ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|item| {
+            let entry = item.as_menuitem()?;
+            let id = entry.id().0.strip_prefix("recent:")?.to_string();
+            if id == "_empty" {
+                return None;
+            }
+            Some(RecentMenuItem {
+                id,
+                name: entry.text().ok()?,
+            })
+        })
+        .collect();
+    let menu = build_menu(&app).map_err(|e| e.to_string())?;
+    app.set_menu(menu.clone()).map_err(|e| e.to_string())?;
+    if !recents.is_empty() {
+        let submenu = find_submenu(&menu, RECENT_MENU_ID)
+            .ok_or_else(|| "open-recent submenu not found".to_string())?;
+        rebuild_recent_submenu(&app, &submenu, &recents).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Depth-first search for the submenu with `id`. Non-submenu entries are
 /// *skipped*, not fatal — the previous split implementation used `?` on
 /// `as_submenu()`, which aborted the scan at the first plain item, so
@@ -85,7 +216,7 @@ fn rebuild_recent_submenu(
         }
     }
     if items.is_empty() {
-        let placeholder = MenuItemBuilder::with_id("recent:_empty", "(no recent files)")
+        let placeholder = MenuItemBuilder::with_id("recent:_empty", current_labels().no_recent)
             .enabled(false)
             .build(app)?;
         submenu.append(&placeholder)?;
@@ -100,37 +231,37 @@ fn rebuild_recent_submenu(
 }
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let l = current_labels();
     // File items
-    let new_item = MenuItemBuilder::with_id("menu:new", "New")
+    let new_item = MenuItemBuilder::with_id("menu:new", l.new)
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
-    let open_item = MenuItemBuilder::with_id("menu:open", "Open\u{2026}")
+    let open_item = MenuItemBuilder::with_id("menu:open", l.open)
         .accelerator("CmdOrCtrl+O")
         .build(app)?;
-    let recent_placeholder = MenuItemBuilder::with_id("recent:_empty", "(no recent files)")
+    let recent_placeholder = MenuItemBuilder::with_id("recent:_empty", l.no_recent)
         .enabled(false)
         .build(app)?;
-    let recent_submenu = SubmenuBuilder::with_id(app, RECENT_MENU_ID, "Open Recent")
+    let recent_submenu = SubmenuBuilder::with_id(app, RECENT_MENU_ID, l.open_recent)
         .item(&recent_placeholder)
         .build()?;
-    let save_item = MenuItemBuilder::with_id("menu:save", "Save")
+    let save_item = MenuItemBuilder::with_id("menu:save", l.save)
         .accelerator("CmdOrCtrl+S")
         .build(app)?;
-    let save_as_item = MenuItemBuilder::with_id("menu:saveAs", "Save As\u{2026}")
+    let save_as_item = MenuItemBuilder::with_id("menu:saveAs", l.save_as)
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
 
     // Export items: the mounted editor serves them (Pixel mode both,
     // Image mode the PNG export); unserved ids are ignored by the shell.
-    let export_png_item = MenuItemBuilder::with_id("menu:exportPng", "Export as PNG\u{2026}")
+    let export_png_item = MenuItemBuilder::with_id("menu:exportPng", l.export_png)
         .accelerator("CmdOrCtrl+E")
         .build(app)?;
-    let export_sheet_item =
-        MenuItemBuilder::with_id("menu:exportSheet", "Export Sprite Sheet\u{2026}")
-            .accelerator("CmdOrCtrl+Shift+E")
-            .build(app)?;
+    let export_sheet_item = MenuItemBuilder::with_id("menu:exportSheet", l.export_sheet)
+        .accelerator("CmdOrCtrl+Shift+E")
+        .build(app)?;
 
-    let file = SubmenuBuilder::new(app, "File")
+    let file = SubmenuBuilder::new(app, l.file)
         .item(&new_item)
         .item(&open_item)
         .item(&recent_submenu)
@@ -141,45 +272,45 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&export_png_item)
         .item(&export_sheet_item)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some("Quit"))?)
+        .item(&PredefinedMenuItem::quit(app, Some(l.quit))?)
         .build()?;
 
     // Edit items
-    let undo_item = MenuItemBuilder::with_id("menu:undo", "Undo")
+    let undo_item = MenuItemBuilder::with_id("menu:undo", l.undo)
         .accelerator("CmdOrCtrl+Z")
         .build(app)?;
-    let redo_item = MenuItemBuilder::with_id("menu:redo", "Redo")
+    let redo_item = MenuItemBuilder::with_id("menu:redo", l.redo)
         .accelerator("CmdOrCtrl+Shift+Z")
         .build(app)?;
-    let edit = SubmenuBuilder::new(app, "Edit")
+    let edit = SubmenuBuilder::new(app, l.edit)
         .item(&undo_item)
         .item(&redo_item)
         .separator()
-        .item(&PredefinedMenuItem::cut(app, Some("Cut"))?)
-        .item(&PredefinedMenuItem::copy(app, Some("Copy"))?)
-        .item(&PredefinedMenuItem::paste(app, Some("Paste"))?)
+        .item(&PredefinedMenuItem::cut(app, Some(l.cut))?)
+        .item(&PredefinedMenuItem::copy(app, Some(l.copy))?)
+        .item(&PredefinedMenuItem::paste(app, Some(l.paste))?)
         .build()?;
 
     // View items
-    let zoom_in = MenuItemBuilder::with_id("menu:zoomIn", "Zoom In")
+    let zoom_in = MenuItemBuilder::with_id("menu:zoomIn", l.zoom_in)
         .accelerator("CmdOrCtrl+Plus")
         .build(app)?;
-    let zoom_out = MenuItemBuilder::with_id("menu:zoomOut", "Zoom Out")
+    let zoom_out = MenuItemBuilder::with_id("menu:zoomOut", l.zoom_out)
         .accelerator("CmdOrCtrl+-")
         .build(app)?;
-    let reset_zoom = MenuItemBuilder::with_id("menu:resetZoom", "Reset Zoom")
+    let reset_zoom = MenuItemBuilder::with_id("menu:resetZoom", l.reset_zoom)
         .accelerator("CmdOrCtrl+0")
         .build(app)?;
-    let view = SubmenuBuilder::new(app, "View")
+    let view = SubmenuBuilder::new(app, l.view)
         .item(&zoom_in)
         .item(&zoom_out)
         .item(&reset_zoom)
         .build()?;
 
-    let help = SubmenuBuilder::new(app, "Help")
+    let help = SubmenuBuilder::new(app, l.help)
         .item(&PredefinedMenuItem::about(
             app,
-            Some("About Pincel"),
+            Some(l.about),
             Some(AboutMetadata {
                 name: Some("Pincel".to_string()),
                 ..Default::default()
@@ -215,7 +346,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             write_file_bytes,
-            set_recent_menu
+            set_recent_menu,
+            set_menu_language
         ])
         .setup(|app| {
             let handle = app.handle();
@@ -309,6 +441,13 @@ mod tests {
     fn first_file_arg_none_when_only_binary() {
         let argv = vec!["/usr/bin/pincel".to_string()];
         assert_eq!(first_file_arg(&argv), None);
+    }
+
+    #[test]
+    fn labels_for_german_and_fallback() {
+        assert_eq!(labels_for("de").file, "Datei");
+        assert_eq!(labels_for("en").file, "File");
+        assert_eq!(labels_for("fr").file, "File");
     }
 
     #[test]
