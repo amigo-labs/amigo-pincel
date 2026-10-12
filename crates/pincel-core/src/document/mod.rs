@@ -19,7 +19,7 @@ pub use color::Rgba;
 pub use color_mode::ColorMode;
 pub use frame::{Frame, FrameIndex};
 pub use layer::{BlendMode, Layer, LayerId, LayerKind};
-pub use palette::{MAX_PALETTE_ENTRIES, Palette, PaletteEntry};
+pub use palette::{MAX_PALETTE_ENTRIES, Palette, PaletteEntry, PalettePreset};
 pub use slice::{Slice, SliceId, SliceKey};
 pub use tag::{Tag, TagDirection};
 pub use tileset::{PathRef, TileImage, Tileset, TilesetId};

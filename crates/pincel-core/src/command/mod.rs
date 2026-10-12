@@ -65,7 +65,9 @@ pub use flatten_image::FlattenImage;
 pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_selection_content::MoveSelectionContent;
-pub use palette_ops::{AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, SetPaletteColor};
+pub use palette_ops::{
+    AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
+};
 pub use place_tile::PlaceTile;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_frame::RemoveFrame;
@@ -158,6 +160,7 @@ pub enum AnyCommand {
     AddPaletteEntry(AddPaletteEntry),
     RemovePaletteEntry(RemovePaletteEntry),
     MovePaletteEntry(MovePaletteEntry),
+    ReplacePalette(ReplacePalette),
     AddTileset(AddTileset),
     AddTile(AddTile),
     AddTilemapLayer(AddTilemapLayer),
@@ -213,6 +216,7 @@ impl AnyCommand {
             Self::AddPaletteEntry(c) => c.apply(doc, cels),
             Self::RemovePaletteEntry(c) => c.apply(doc, cels),
             Self::MovePaletteEntry(c) => c.apply(doc, cels),
+            Self::ReplacePalette(c) => c.apply(doc, cels),
             Self::AddTileset(c) => c.apply(doc, cels),
             Self::AddTile(c) => c.apply(doc, cels),
             Self::AddTilemapLayer(c) => c.apply(doc, cels),
@@ -264,6 +268,7 @@ impl AnyCommand {
             Self::AddPaletteEntry(c) => c.revert(doc, cels),
             Self::RemovePaletteEntry(c) => c.revert(doc, cels),
             Self::MovePaletteEntry(c) => c.revert(doc, cels),
+            Self::ReplacePalette(c) => c.revert(doc, cels),
             Self::AddTileset(c) => c.revert(doc, cels),
             Self::AddTile(c) => c.revert(doc, cels),
             Self::AddTilemapLayer(c) => c.revert(doc, cels),
@@ -344,6 +349,7 @@ impl AnyCommand {
             Self::AddPaletteEntry(c) => c.dirty_region(),
             Self::RemovePaletteEntry(c) => c.dirty_region(),
             Self::MovePaletteEntry(c) => c.dirty_region(),
+            Self::ReplacePalette(c) => c.dirty_region(),
             Self::AddTileset(c) => c.dirty_region(),
             Self::AddTile(c) => c.dirty_region(),
             Self::AddTilemapLayer(c) => c.dirty_region(),
@@ -419,6 +425,12 @@ impl From<AddPaletteEntry> for AnyCommand {
 impl From<RemovePaletteEntry> for AnyCommand {
     fn from(c: RemovePaletteEntry) -> Self {
         Self::RemovePaletteEntry(c)
+    }
+}
+
+impl From<ReplacePalette> for AnyCommand {
+    fn from(c: ReplacePalette) -> Self {
+        Self::ReplacePalette(c)
     }
 }
 

@@ -1,5 +1,5 @@
 //! Palette editing commands (spec §3.7): recolour, add, remove and
-//! reorder entries.
+//! reorder entries, and replace the whole palette (presets, `.gpl` import).
 //!
 //! In RGBA documents the palette is a swatch collection — no pixel
 //! references an entry, so these are metadata edits with
@@ -9,7 +9,9 @@
 //! silently repaint the image, so those two are refused with
 //! [`CommandError::UnsupportedColorMode`] until indexed painting lands.
 
-use crate::document::{CelMap, ColorMode, MAX_PALETTE_ENTRIES, PaletteEntry, Rgba, Sprite};
+use crate::document::{
+    CelMap, ColorMode, MAX_PALETTE_ENTRIES, Palette, PaletteEntry, Rgba, Sprite,
+};
 
 use super::Command;
 use super::dirty::DirtyRegion;
@@ -199,6 +201,45 @@ impl Command for MovePaletteEntry {
     }
 }
 
+/// Replace the whole palette (a preset or an imported `.gpl`) in one undo
+/// step. RGBA documents only, like remove / reorder: swapping the palette
+/// under an indexed image would repaint it.
+#[derive(Debug, Clone)]
+pub struct ReplacePalette {
+    palette: Palette,
+    prev: Option<Palette>,
+}
+
+impl ReplacePalette {
+    pub fn new(palette: Palette) -> Self {
+        Self {
+            palette,
+            prev: None,
+        }
+    }
+}
+
+impl Command for ReplacePalette {
+    fn apply(&mut self, doc: &mut Sprite, _cels: &mut CelMap) -> Result<(), CommandError> {
+        require_rgba(doc)?;
+        if self.palette.len() > MAX_PALETTE_ENTRIES {
+            return Err(CommandError::PaletteFull);
+        }
+        self.prev = Some(std::mem::replace(&mut doc.palette, self.palette.clone()));
+        Ok(())
+    }
+
+    fn revert(&mut self, doc: &mut Sprite, _cels: &mut CelMap) {
+        if let Some(prev) = self.prev.take() {
+            doc.palette = prev;
+        }
+    }
+
+    fn dirty_region(&self) -> DirtyRegion {
+        DirtyRegion::None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,5 +344,32 @@ mod tests {
             MovePaletteEntry::new(0, 1).apply(&mut s, &mut c),
             Err(CommandError::UnsupportedColorMode)
         );
+    }
+
+    #[test]
+    fn replace_palette_swaps_and_reverts() {
+        let mut sprite = Sprite::builder(2, 2)
+            .palette(Palette::db32())
+            .build()
+            .expect("sprite builds");
+        let mut cels = CelMap::new();
+        let next = Palette::preset(crate::document::PalettePreset::GameBoy);
+        let mut cmd = ReplacePalette::new(next.clone());
+        cmd.apply(&mut sprite, &mut cels).expect("apply");
+        assert_eq!(sprite.palette, next);
+        cmd.revert(&mut sprite, &mut cels);
+        assert_eq!(sprite.palette.len(), 32);
+    }
+
+    #[test]
+    fn replace_palette_refused_on_indexed_sprites() {
+        let mut sprite = Sprite::builder(2, 2).build().expect("sprite builds");
+        sprite.color_mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let err = ReplacePalette::new(Palette::db32())
+            .apply(&mut sprite, &mut CelMap::new())
+            .unwrap_err();
+        assert!(matches!(err, CommandError::UnsupportedColorMode));
     }
 }

@@ -11,12 +11,14 @@
 mod aseprite_read;
 mod aseprite_write;
 mod error;
+mod gpl;
 mod png;
 mod sheet_data;
 
 pub use aseprite_read::{AsepriteReadOutput, read_aseprite};
 pub use aseprite_write::write_aseprite;
 pub use error::CodecError;
+pub use gpl::{GplError, read_gpl, write_gpl};
 pub use png::{
     AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, ExportError, ImportError, ImportedImage,
     export_atlas_png, export_frame_png, import_png,
