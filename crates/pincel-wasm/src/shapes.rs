@@ -62,7 +62,7 @@ impl Document {
         };
         let mode =
             ShapeMode::from_name(mode).ok_or_else(|| format!("unknown shape mode `{mode}`"))?;
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let style = ShapeStyle {

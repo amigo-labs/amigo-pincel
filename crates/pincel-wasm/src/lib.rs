@@ -556,7 +556,7 @@ impl Document {
             "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool_id}")),
         };
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
@@ -594,7 +594,7 @@ impl Document {
         color: u32,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawLine::new(layer, frame, x0, y0, x1, y1, rgba);
@@ -636,7 +636,7 @@ impl Document {
         fill: bool,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawRectangle::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -677,7 +677,7 @@ impl Document {
         fill: bool,
     ) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = DrawEllipse::new(layer, frame, (x0, y0), (x1, y1), fill, rgba);
@@ -711,7 +711,7 @@ impl Document {
     #[wasm_bindgen(js_name = applyBucket)]
     pub fn apply_bucket(&mut self, x: i32, y: i32, color: u32) -> Result<(), String> {
         let rgba = Rgba::from_u32(color);
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = FillRegion::new(layer, frame, x, y, rgba);
@@ -873,7 +873,7 @@ impl Document {
         if sel.is_empty() {
             return Ok(false);
         }
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         let cmd = ClearRegion::new(layer, frame, sel).masked();
         self.bus
@@ -944,7 +944,7 @@ impl Document {
     /// missing image layer, unsupported color mode, etc.
     #[wasm_bindgen(js_name = applyMoveSelection)]
     pub fn apply_move_selection(&mut self, delta_x: i32, delta_y: i32) -> Result<(), String> {
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         let cmd = MoveSelectionContent::new(layer, frame, delta_x, delta_y);
         self.bus
@@ -1119,6 +1119,9 @@ impl Document {
     ) -> Result<(), String> {
         let layer_id = LayerId::new(layer);
         let frame_idx = FrameIndex::new(frame);
+        if self.sprite.layer_locked(layer_id) {
+            return Err(format!("layer {layer} is locked"));
+        }
         // Resolve the parent layer's tile size before mutating so the
         // dirty-rect we emit always reflects the on-disk geometry, not
         // a post-mutation fiction.
@@ -1164,6 +1167,16 @@ impl Document {
             .find(|l| matches!(l.kind, LayerKind::Image))
             .map(|l| l.id)
             .ok_or_else(|| "document has no paintable image layer".to_string())
+    }
+
+    /// [`Self::paint_target_layer`] for an edit: refused while that layer
+    /// or a group it is nested in is locked (spec §3.2 `editable`).
+    fn edit_target_layer(&self) -> Result<LayerId, String> {
+        let layer = self.paint_target_layer()?;
+        if self.sprite.layer_locked(layer) {
+            return Err(format!("layer {} is locked", layer.0));
+        }
+        Ok(layer)
     }
 
     /// Ensure an image cel exists at `(layer, frame)` so the drawing

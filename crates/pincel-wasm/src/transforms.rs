@@ -27,7 +27,7 @@ impl Document {
     #[wasm_bindgen(js_name = transformLayer)]
     pub fn transform_layer(&mut self, orientation: &str) -> Result<(), String> {
         let op = parse_orientation(orientation)?;
-        let layer = self.paint_target_layer()?;
+        let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let mut cmd = TransformCel::new(layer, frame, op);
