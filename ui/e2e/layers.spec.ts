@@ -28,6 +28,7 @@ async function dragLayer(page: Page, from: string, to: string): Promise<void> {
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: Layer ▸ Rename… renames the active layer`, async ({ page }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
+    await expect.poll(() => layerNames(page)).toHaveLength(1);
     const [first] = await layerNames(page);
     await menu(page, 'Layer', 'Rename…');
     const dialog = page.getByRole('dialog', { name: 'Rename layer' });
@@ -41,10 +42,12 @@ for (const mode of ['pixel', 'image'] as const) {
 
   test(`${mode}: drag the grip to reorder layers`, async ({ page }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
-    await page.getByRole('button', { name: 'Add layer' }).click();
-    await page.getByRole('button', { name: 'Add layer' }).click();
+    const add = page.getByRole('button', { name: 'Add layer' });
+    await add.click();
+    await expect.poll(() => layerNames(page)).toHaveLength(2);
+    await add.click();
+    await expect.poll(() => layerNames(page)).toHaveLength(3);
     const before = await layerNames(page);
-    expect(before).toHaveLength(3);
     const [top, , bottom] = before as [string, string, string];
     await dragLayer(page, bottom, top);
     await expect.poll(() => layerNames(page)).toEqual([bottom, before[0], before[1]]);
@@ -55,6 +58,7 @@ for (const mode of ['pixel', 'image'] as const) {
 
   test(`${mode}: a locked layer refuses paint`, async ({ page }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
+    await expect.poll(() => layerNames(page)).toHaveLength(1);
     const [name] = (await layerNames(page)) as [string];
     await page.getByRole('button', { name: `Lock ${name}` }).click();
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
