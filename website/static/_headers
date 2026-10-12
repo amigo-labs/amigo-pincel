@@ -17,15 +17,24 @@
 /favicon.svg
   Cache-Control: public, max-age=86400, must-revalidate
 
+# The editor (scripts/cf-build.sh copies ui/dist/app/ to /app/). Vite emits
+# hashed file names under /app/assets/; the service worker and the web app
+# manifest must revalidate so a deploy reaches installed PWAs.
+/app/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/app/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+/app/manifest.webmanifest
+  Cache-Control: public, max-age=0, must-revalidate
+
 # HTML revalidates on every request so a deploy is visible immediately.
 /*.html
   Cache-Control: public, max-age=0, must-revalidate
 /
   Cache-Control: public, max-age=0, must-revalidate
 
-# Baseline security headers across the whole site. The editor at /app/ is a
-# separate Worker (ui/wrangler.toml) with its own headers, and nothing here is
-# meant to be framed, so DENY is safe.
+# Baseline security headers across the whole site, editor included. Nothing
+# here is meant to be framed, so DENY is safe.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

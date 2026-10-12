@@ -10,10 +10,10 @@
 // derive everything from it.
 export const siteUrl = 'https://pincel.amigo-labs.dev';
 
-// The editor is a separate Worker (`ui/`, project `pincel-app`) routed at
-// `/app*` on the same host — it is not a SvelteKit route of this site, so
-// links to it carry `rel="external"`: the client router does a full page
-// load and the prerender crawler skips them. docs/specs/pincel.md §15, 2026-10-11.
+// The editor (`ui/`) is copied into this site's build at `/app/` by
+// scripts/cf-build.sh — it is not a SvelteKit route of this site, so links
+// to it carry `rel="external"`: the client router does a full page load and
+// the prerender crawler skips them. docs/specs/pincel.md §15, 2026-10-13.
 export const appPath = '/app/';
 
 export function absoluteUrl(pathname: string): string {
