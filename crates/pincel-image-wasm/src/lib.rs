@@ -17,7 +17,7 @@ use pincel_image_core::{
     Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, PressureDynamics, Rect,
     SampleSize, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes,
     Text, TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand,
-    scale,
+    masked_region, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -1084,20 +1084,41 @@ fn layer_effect_image(doc: &Document, index: usize) -> Result<(EffectImage, u32,
 /// Runs the effect `name` with the positional `params` (the shared
 /// `pincel_effects::EffectSpec` wire format, also used by Pixel mode — see
 /// `EFFECT_NAMES` and `ui/src/lib/effects/catalog.ts`) on the layer at
-/// `layer` and commits the result as one undoable `SetPixels` over the canvas.
+/// `layer`, limited to the selection, and commits it as one undoable
+/// `SetPixels`. Returns `false` (no undo step) when the selection is empty.
 #[wasm_bindgen]
-pub fn apply_effect(handle: u32, layer: usize, name: &str, params: &[f64]) -> Result<(), JsError> {
+pub fn apply_effect(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+) -> Result<bool, JsError> {
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        let (src, w, h) = layer_effect_image(&bus.document, layer)?;
-        let out = spec.run(&src);
-        let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
-        let cmd = SetPixels::new(layer, Rect::new(0, 0, w, h), after).with_label(spec.label());
-        bus.apply(Box::new(cmd)).map_err(to_js)
+        let Some((region, after)) = effect_region(&bus.document, layer, &spec)? else {
+            return Ok(false);
+        };
+        let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
+        bus.apply(Box::new(cmd)).map_err(to_js)?;
+        Ok(true)
     })
+}
+
+/// Runs `spec` on the layer at `layer` and keeps the result inside the
+/// selection (spec §8.1): the changed region and its new pixels, or `None`
+/// when the selection is empty.
+fn effect_region(
+    doc: &Document,
+    layer: usize,
+    spec: &EffectSpec,
+) -> Result<Option<(Rect, ImageBuffer)>, JsError> {
+    let (src, w, h) = layer_effect_image(doc, layer)?;
+    let after = ImageBuffer::from_raw(w, h, spec.run(&src).into_raw()).map_err(to_js)?;
+    let before = &doc.layers()[layer].pixels;
+    Ok(masked_region(before, &after, doc.selection.as_ref()))
 }
 
 /// Renders a live preview of effect `name` / `params` on the layer at
@@ -1113,15 +1134,14 @@ pub fn preview_effect(
 ) -> Result<Clamped<Vec<u8>>, JsError> {
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
+        let region = effect_region(&bus.document, layer, &spec)?;
         let mut layers = bus.document.layers().to_vec();
-        let target = layers
-            .get_mut(layer)
-            .ok_or_else(|| JsError::new("layer index out of bounds"))?;
-        let (w, h) = (target.pixels.width(), target.pixels.height());
-        let src = EffectImage::from_rgba8(w, h, target.pixels.data().to_vec())
-            .map_err(|e| JsError::new(&e.to_string()))?;
-        let out = spec.run(&src);
-        target.pixels = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
+        if let Some((rect, after)) = region {
+            layers[layer]
+                .pixels
+                .paste_region(rect, &after)
+                .map_err(to_js)?;
+        }
         Ok(Clamped(compose(&layers).into_raw()))
     })
 }
