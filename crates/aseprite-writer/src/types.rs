@@ -154,19 +154,28 @@ impl core::ops::BitOrAssign for LayerFlags {
 
 /// Tag playback direction.
 ///
-/// Matches `aseprite-loader::binary::chunks::tags::AnimationDirection`.
+/// Matches `aseprite-loader::binary::chunks::tags::AnimationDirection`,
+/// including its catch-all for values a newer Aseprite may define.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-#[repr(u8)]
 pub enum AnimationDirection {
-    Forward = 0,
-    Reverse = 1,
-    PingPong = 2,
-    PingPongReverse = 3,
+    Forward,
+    Reverse,
+    PingPong,
+    PingPongReverse,
+    /// Any other on-disk value, written back unchanged.
+    Other(u8),
 }
 
 impl AnimationDirection {
+    /// The on-disk byte.
     pub const fn as_u8(self) -> u8 {
-        self as u8
+        match self {
+            Self::Forward => 0,
+            Self::Reverse => 1,
+            Self::PingPong => 2,
+            Self::PingPongReverse => 3,
+            Self::Other(v) => v,
+        }
     }
 }
 
@@ -229,5 +238,6 @@ mod tests {
     fn animation_direction_discriminants_match_spec() {
         assert_eq!(AnimationDirection::Forward.as_u8(), 0);
         assert_eq!(AnimationDirection::PingPongReverse.as_u8(), 3);
+        assert_eq!(AnimationDirection::Other(7).as_u8(), 7);
     }
 }

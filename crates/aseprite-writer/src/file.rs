@@ -283,14 +283,26 @@ pub struct SliceChunk {
 
 /// User Data chunk (`0x2020`). In Aseprite this attaches to the
 /// immediately preceding chunk; the writer emits it right after the
-/// chunk it belongs to. Both fields are optional and select the on-disk
-/// flag bits independently. Property maps (flag `0x4`) are not emitted.
+/// chunk it belongs to. Every field is optional and selects its on-disk
+/// flag bit independently.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct UserData {
     /// Free-form note text (flag `0x1`).
     pub text: Option<String>,
     /// RGBA color (flag `0x2`).
     pub color: Option<[u8; 4]>,
+    /// Property maps (flag `0x4`), as the raw on-disk bytes starting at
+    /// the "size of all maps" `DWORD` (which counts itself, so it equals
+    /// the slice length). Written verbatim; the writer only checks that
+    /// the size field matches.
+    pub properties: Option<Vec<u8>>,
+}
+
+impl UserData {
+    /// True when no field is set: nothing worth a chunk of its own.
+    pub fn is_empty(&self) -> bool {
+        self.text.is_none() && self.color.is_none() && self.properties.is_none()
+    }
 }
 
 /// Per-frame geometry for a [`SliceChunk`].

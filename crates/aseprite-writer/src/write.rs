@@ -43,6 +43,8 @@ const CHUNK_TYPE_USER_DATA: u16 = 0x2020;
 const USER_DATA_FLAG_TEXT: u32 = 0x1;
 /// `UserDataFlags::HAS_COLOR` — a `BYTE[4]` RGBA color follows.
 const USER_DATA_FLAG_COLOR: u32 = 0x2;
+/// User Data flag: property maps follow.
+const USER_DATA_FLAG_PROPERTIES: u32 = 0x4;
 
 const CEL_TYPE_LINKED: u16 = 1;
 const CEL_TYPE_COMPRESSED_IMAGE: u16 = 2;
@@ -147,7 +149,7 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 // A trailing User Data chunk attaches to the slice above
                 // (Aseprite's "previous chunk" rule), carrying its color.
                 if let Some(ud) = &slice.user_data
-                    && (ud.text.is_some() || ud.color.is_some())
+                    && !ud.is_empty()
                 {
                     chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
                         write_user_data_body(buf, ud)
@@ -167,11 +169,11 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
     Ok(blocks)
 }
 
-/// Append a User Data chunk for `ud` when it carries text or a color.
+/// Append a User Data chunk for `ud` when it carries anything.
 /// Aseprite attaches it to the chunk immediately before it.
 fn push_user_data(chunks: &mut Vec<Vec<u8>>, ud: Option<&UserData>) -> Result<(), WriteError> {
     if let Some(ud) = ud
-        && (ud.text.is_some() || ud.color.is_some())
+        && !ud.is_empty()
     {
         chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
             write_user_data_body(buf, ud)
@@ -623,10 +625,9 @@ fn write_slice_body<W: Write>(w: &mut W, slice: &SliceChunk, flags: u32) -> Resu
 /// Emit a User Data chunk body (`0x2020`).
 ///
 /// On-disk layout: `DWORD flags`, then (if `HAS_TEXT`) a `STRING`, then
-/// (if `HAS_COLOR`) `BYTE[4]` RGBA. Property maps (`0x4`) are never
-/// emitted, so the corresponding flag bit stays clear. An empty `ud`
-/// writes a bare zero-flags chunk (used to keep tag user data
-/// positional).
+/// (if `HAS_COLOR`) `BYTE[4]` RGBA, then (if `HAS_PROPERTIES`) the raw
+/// property-map block. An empty `ud` writes a bare zero-flags chunk
+/// (used to keep tag user data positional).
 fn write_user_data_body<W: Write>(w: &mut W, ud: &UserData) -> Result<(), WriteError> {
     let mut flags = 0u32;
     if ud.text.is_some() {
@@ -634,6 +635,19 @@ fn write_user_data_body<W: Write>(w: &mut W, ud: &UserData) -> Result<(), WriteE
     }
     if ud.color.is_some() {
         flags |= USER_DATA_FLAG_COLOR;
+    }
+    if let Some(props) = &ud.properties {
+        let declared = props
+            .get(..4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+            .unwrap_or(0);
+        if props.len() < 8 || declared as usize != props.len() {
+            return Err(WriteError::UserDataPropertiesSize {
+                len: props.len(),
+                declared,
+            });
+        }
+        flags |= USER_DATA_FLAG_PROPERTIES;
     }
     write_dword(w, flags)?;
     if let Some(text) = &ud.text {
@@ -643,6 +657,9 @@ fn write_user_data_body<W: Write>(w: &mut W, ud: &UserData) -> Result<(), WriteE
         for byte in color {
             write_byte(w, *byte)?;
         }
+    }
+    if let Some(props) = &ud.properties {
+        w.write_all(props)?;
     }
     Ok(())
 }
@@ -1145,6 +1162,7 @@ mod tests {
                     user_data: Some(UserData {
                         text: None,
                         color: Some([10, 20, 30, 40]),
+                        properties: None,
                     }),
                 },
             ],

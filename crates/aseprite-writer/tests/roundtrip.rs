@@ -708,6 +708,7 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
         Some(UserData {
             text: Some(text.into()),
             color: Some([1, 2, 3, 4]),
+            properties: None,
         })
     };
     let mut layer = rgba_layer("bg");
@@ -796,4 +797,120 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
     let parsed = parse_file(&bytes).expect("parse");
     // `cels` is indexed by layer; the cel sits on layer 1.
     assert_eq!(parsed.frames[0].cels[1].as_ref().expect("cel").z_index, -2);
+}
+
+/// One property map (key 0) holding `hp: int32 = 7`, as raw block bytes.
+fn hp_properties() -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&0u32.to_le_bytes()); // size, patched below
+    b.extend_from_slice(&1u32.to_le_bytes()); // one map
+    b.extend_from_slice(&0u32.to_le_bytes()); // key 0: user properties
+    b.extend_from_slice(&1u32.to_le_bytes()); // one property
+    b.extend_from_slice(&2u16.to_le_bytes());
+    b.extend_from_slice(b"hp");
+    b.extend_from_slice(&0x0006u16.to_le_bytes()); // int32
+    b.extend_from_slice(&7i32.to_le_bytes());
+    let len = b.len() as u32;
+    b[..4].copy_from_slice(&len.to_le_bytes());
+    b
+}
+
+#[test]
+fn user_data_properties_are_written_verbatim_and_parse() {
+    use aseprite_loader::binary::chunks::user_data::Value;
+    let props = hp_properties();
+    let mut layer = rgba_layer("bg");
+    layer.user_data = Some(UserData {
+        text: Some("note".into()),
+        color: None,
+        properties: Some(props.clone()),
+    });
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: vec![layer],
+        palette: None,
+        tags: Vec::new(),
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let bytes = write_to_vec(&file);
+    // The block sits verbatim at the end of the user-data chunk.
+    assert!(bytes.windows(props.len()).any(|w| w == props.as_slice()));
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let ud = raw.frames[0]
+        .chunks
+        .iter()
+        .find_map(|c| match c {
+            Chunk::UserData(u) => Some(u),
+            _ => None,
+        })
+        .expect("user data chunk");
+    assert_eq!(ud.text, Some("note"));
+    let (_, maps) = ud
+        .properties_maps
+        .as_ref()
+        .expect("properties flag")
+        .as_ref()
+        .expect("maps parse");
+    assert_eq!(maps.len(), 1);
+    assert_eq!(maps[0].extension_entry_id, 0);
+    assert_eq!(maps[0].properties[0].name, "hp");
+    assert!(matches!(maps[0].properties[0].value, Value::Int32(7)));
+}
+
+#[test]
+fn user_data_properties_with_a_wrong_size_are_rejected() {
+    let mut props = hp_properties();
+    props.push(0); // one stray byte the size field does not count
+    let mut layer = rgba_layer("bg");
+    layer.user_data = Some(UserData {
+        text: None,
+        color: None,
+        properties: Some(props),
+    });
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: vec![layer],
+        palette: None,
+        tags: Vec::new(),
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let mut buf = Vec::new();
+    assert!(matches!(
+        write(&file, &mut buf),
+        Err(aseprite_writer::WriteError::UserDataPropertiesSize { .. })
+    ));
+}
+
+#[test]
+fn unknown_tag_direction_roundtrips_as_its_raw_byte() {
+    let file = AseFile {
+        header: Header::new(2, 2, ColorDepth::Rgba),
+        layers: Vec::new(),
+        palette: None,
+        tags: vec![Tag {
+            from_frame: 0,
+            to_frame: 0,
+            direction: AnimationDirection::Other(7),
+            repeat: 0,
+            color: [0, 0, 0],
+            name: "future".into(),
+            user_data: None,
+        }],
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+    };
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("parse");
+    assert!(matches!(
+        parsed.tags[0].animation_direction,
+        LoaderDirection::Unknown(7)
+    ));
 }
