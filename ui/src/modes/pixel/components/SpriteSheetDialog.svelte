@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   // Export Sprite Sheet dialog (spec §7.3). Presentational: the parent
   // runs `exportAtlas` from `onSubmit`. Frames pack left-to-right,
   // top-to-bottom into a grid of `columns` cells; `tag` restricts the
@@ -34,8 +35,8 @@
   let data = $state(true);
 
   const count = $derived.by(() => {
-    const t = tags.find((x) => x.name === tag);
-    return t ? t.to - t.from + 1 : frameCount;
+    const found = tags.find((x) => x.name === tag);
+    return found ? found.to - found.from + 1 : frameCount;
   });
   const cols = $derived(Math.max(1, Math.min(count, Math.floor(columns) || 1)));
   const rows = $derived(Math.ceil(count / cols));
@@ -54,7 +55,7 @@
   class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
   role="dialog"
   aria-modal="true"
-  aria-label="Export sprite sheet"
+  aria-label={t('sheet.title')}
 >
   <form
     class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
@@ -63,42 +64,42 @@
       onSubmit({ columns: cols, tag, data });
     }}
   >
-    <h2 class="text-base font-semibold">Export sprite sheet</h2>
+    <h2 class="text-base font-semibold">{t('sheet.title')}</h2>
     <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>Frames</span>
+      <span>{t('sheet.frames')}</span>
       <select
         class="rounded border border-pc-border bg-pc-bg px-2 py-1"
         value={tag ?? ''}
         onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
-        aria-label="Frames"
+        aria-label={t('sheet.frames')}
       >
-        <option value="">All frames ({frameCount})</option>
-        {#each tags as t (t.name)}
-          <option value={t.name}>{t.name} ({t.to - t.from + 1})</option>
+        <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
+        {#each tags as tag (tag.name)}
+          <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
         {/each}
       </select>
     </label>
     <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>Columns</span>
+      <span>{t('sheet.columns')}</span>
       <input
         type="number"
         min="1"
         max={count}
         bind:value={columns}
         class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-        aria-label="Columns"
+        aria-label={t('sheet.columns')}
       />
     </label>
     <p class="text-xs text-pc-muted" aria-live="polite">
       {cols} × {rows} cells · {cols * frameWidth}×{rows * frameHeight} px
     </p>
     <label class="flex items-center gap-2 text-xs text-pc-text">
-      <input type="checkbox" bind:checked={data} aria-label="Write JSON data" />
-      Also write JSON data (Aseprite format: durations, tags, slices)
+      <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
+      {t('sheet.jsonHint')}
     </label>
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>Cancel</button>
-      <button type="submit" class="panel-btn panel-btn-primary">Export</button>
+      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="panel-btn panel-btn-primary">{t('menu.export')}</button>
     </div>
   </form>
 </div>

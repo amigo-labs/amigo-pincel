@@ -4,6 +4,7 @@
   import { hint } from '../../../lib/shell/shortcuts';
   import type { Document } from '../../../lib/core';
   import { isIdentifierLike, type OnionSettings, type TagDirection } from '../playback';
+  import { t } from '../../../lib/i18n/index.svelte';
 
   // Timeline strip (M14.6 / M14.7, spec §9.2): frames with their
   // durations, tag lanes, playback and onion-skin controls. The wasm
@@ -57,10 +58,10 @@
   };
 
   const DIRECTIONS: { value: TagDirection; label: string }[] = [
-    { value: 'forward', label: 'Forward' },
-    { value: 'reverse', label: 'Reverse' },
-    { value: 'pingpong', label: 'Ping-pong' },
-    { value: 'pingpong_reverse', label: 'Ping-pong reverse' },
+    { value: 'forward', label: t('tl.forward') },
+    { value: 'reverse', label: t('tl.reverse') },
+    { value: 'pingpong', label: t('tl.pingpong') },
+    { value: 'pingpong_reverse', label: t('tl.pingpongReverse') },
   ];
 
   // Distinct, readable lane colours for new tags (Aseprite-like).
@@ -93,14 +94,14 @@
   });
 
   let editingTag = $state<number | null>(null);
-  const editing = $derived(tags.find((t) => t.index === editingTag) ?? null);
+  const editing = $derived(tags.find((tag) => tag.index === editingTag) ?? null);
 
   function run(label: string, fn: () => void) {
     try {
       fn();
       onChange();
     } catch (err) {
-      onError(`${label} failed: ${err instanceof Error ? err.message : String(err)}`);
+      onError(t('status.failed', { action: label, error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
@@ -108,7 +109,7 @@
     const ms = Math.round(Number(value));
     if (!doc || !Number.isFinite(ms) || ms < 1 || ms > 65535) return;
     const d = doc;
-    run('set frame duration', () => {
+    run(t('tl.setDuration'), () => {
       d.setFrameDuration(frame, ms);
       d.endStroke();
     });
@@ -117,7 +118,7 @@
   function addTag() {
     if (!doc) return;
     const d = doc;
-    run('add tag', () => {
+    run(t('tl.addTagAction'), () => {
       const color = TAG_COLORS[d.tagCount % TAG_COLORS.length] ?? TAG_COLORS[0]!;
       const index = d.addTag(`tag${d.tagCount + 1}`, currentFrame, currentFrame, color);
       editingTag = index;
@@ -137,7 +138,7 @@
   function removeTag(index: number) {
     if (!doc) return;
     const d = doc;
-    run('remove tag', () => {
+    run(t('tl.deleteTag'), () => {
       d.removeTag(index);
       if (loopTag === index) onLoopTagChange(null);
       else if (loopTag !== null && loopTag > index) onLoopTagChange(loopTag - 1);
@@ -155,7 +156,7 @@
   {#snippet actions()}
     <IconButton
       icon={playing ? 'pause' : 'play'}
-      label={playing ? 'Pause' : 'Play'}
+      label={playing ? t('menu.pause') : t('menu.play')}
       hint={hint('togglePlay')}
       size="sm"
       onclick={onTogglePlay}
@@ -163,28 +164,28 @@
     />
     <IconButton
       icon="chevron-left"
-      label="Previous frame"
+      label={t('tl.prevFrame')}
       hint={hint('prevFrame')}
       size="sm"
       onclick={() => onSelectFrame(currentFrame - 1)}
       disabled={!doc || currentFrame === 0}
     />
     <span class="min-w-16 text-center text-xs tabular-nums text-pc-muted" aria-live="polite"
-      >frame {currentFrame + 1}/{durations.length}</span
+      >{t('tl.frameOf', { n: currentFrame + 1, total: durations.length })}</span
     >
     <IconButton
       icon="chevron-right"
-      label="Next frame"
+      label={t('tl.nextFrame')}
       hint={hint('nextFrame')}
       size="sm"
       onclick={() => onSelectFrame(currentFrame + 1)}
       disabled={!doc || currentFrame >= durations.length - 1}
     />
     <span class="mx-1 h-4 w-px bg-pc-border"></span>
-    <IconButton icon="plus" label="Add frame" size="sm" onclick={onAddFrame} disabled={!doc} />
+    <IconButton icon="plus" label={t('tl.addFrame')} size="sm" onclick={onAddFrame} disabled={!doc} />
     <IconButton
       icon="minus"
-      label="Remove frame"
+      label={t('tl.removeFrame')}
       size="sm"
       onclick={() => onRemoveFrame(currentFrame)}
       disabled={!doc || durations.length < 2}
@@ -192,8 +193,8 @@
   {/snippet}
 
   <div class="flex flex-wrap items-center gap-2">
-    <label class="flex items-center gap-1" title="Loop playback over a tag">
-      Loop
+    <label class="flex items-center gap-1" title={t('tl.loopHint')}>
+      {t('tl.loop')}
       <select
         class="rounded border border-pc-border bg-pc-panel px-1"
         value={loopTag === null ? '' : String(loopTag)}
@@ -201,11 +202,11 @@
           const v = e.currentTarget.value;
           onLoopTagChange(v === '' ? null : Number(v));
         }}
-        aria-label="Loop range"
+        aria-label={t('tl.loopRange')}
       >
-        <option value="">All frames</option>
-        {#each tags as t (t.index)}
-          <option value={String(t.index)}>{t.name}</option>
+        <option value="">{t('tl.allFrames')}</option>
+        {#each tags as tag (tag.index)}
+          <option value={String(tag.index)}>{tag.name}</option>
         {/each}
       </select>
     </label>
@@ -213,8 +214,8 @@
       class="panel-btn"
       onclick={addTag}
       disabled={!doc}
-      aria-label="Add tag"
-      title="Tag the current frame">+ Tag</button
+      aria-label={t('tl.addTag')}
+      title={t('tl.addTagHint')}>{t('tl.plusTag')}</button
     >
     <span class="mx-1 h-4 w-px bg-pc-border"></span>
     <label class="flex items-center gap-1">
@@ -222,11 +223,11 @@
         type="checkbox"
         checked={onion.enabled}
         onchange={(e) => onOnionChange({ ...onion, enabled: e.currentTarget.checked })}
-        aria-label="Onion skin"
+        aria-label={t('tl.onionSkin')}
       />
-      Onion
+      {t('tl.onion')}
     </label>
-    <label class="flex items-center gap-1" title="Frames before the current one">
+    <label class="flex items-center gap-1" title={t('tl.onionBackHint')}>
       ◀
       <input
         type="number"
@@ -240,10 +241,10 @@
             ...onion,
             back: Math.max(0, Math.min(8, Number(e.currentTarget.value) || 0)),
           })}
-        aria-label="Onion frames back"
+        aria-label={t('tl.onionBack')}
       />
     </label>
-    <label class="flex items-center gap-1" title="Frames after the current one">
+    <label class="flex items-center gap-1" title={t('tl.onionFwdHint')}>
       <input
         type="number"
         min="0"
@@ -256,11 +257,11 @@
             ...onion,
             forward: Math.max(0, Math.min(8, Number(e.currentTarget.value) || 0)),
           })}
-        aria-label="Onion frames forward"
+        aria-label={t('tl.onionFwd')}
       />
       ▶
     </label>
-    <label class="flex items-center gap-1" title="Onion-skin opacity">
+    <label class="flex items-center gap-1" title={t('tl.onionOpacityHint')}>
       <input
         type="range"
         min="0"
@@ -268,7 +269,7 @@
         value={onion.alpha}
         disabled={!onion.enabled}
         oninput={(e) => onOnionChange({ ...onion, alpha: Number(e.currentTarget.value) })}
-        aria-label="Onion opacity"
+        aria-label={t('tl.onionOpacity')}
       />
     </label>
   </div>
@@ -285,7 +286,7 @@
           <button
             class="w-full text-center font-semibold tabular-nums"
             onclick={() => onSelectFrame(i)}
-            aria-label="Frame {i + 1}"
+            aria-label={t('tl.frame', { n: i + 1 })}
             aria-current={i === currentFrame ? 'true' : undefined}
           >
             {i + 1}
@@ -297,26 +298,26 @@
             class="w-full rounded border border-pc-border bg-pc-panel px-0.5 text-center tabular-nums"
             value={ms}
             onchange={(e) => setDuration(i, e.currentTarget.value)}
-            aria-label="Frame {i + 1} duration (ms)"
-            title="Duration (ms)"
+            aria-label={t('tl.frameDuration', { n: i + 1 })}
+            title={t('tl.duration')}
           />
         </div>
       {/each}
-      {#each tags as t, lane (t.index)}
+      {#each tags as tag, lane (tag.index)}
         <button
           class="tag-bar"
-          class:tag-editing={editingTag === t.index}
+          class:tag-editing={editingTag === tag.index}
           style:grid-row={lane + 2}
-          style:grid-column="{t.from + 1} / {t.to + 2}"
-          style:border-color={t.color}
-          style:background-color="{t.color}33"
-          onclick={() => (editingTag = editingTag === t.index ? null : t.index)}
-          aria-label="Tag {t.name}"
-          title="{t.name} · frames {t.from + 1}–{t.to + 1} · {t.direction}"
+          style:grid-column="{tag.from + 1} / {tag.to + 2}"
+          style:border-color={tag.color}
+          style:background-color="{tag.color}33"
+          onclick={() => (editingTag = editingTag === tag.index ? null : tag.index)}
+          aria-label={t('tl.tag', { name: tag.name })}
+          title={t('tl.tagTitle', { name: tag.name, from: tag.from + 1, to: tag.to + 1, direction: tag.direction })}
         >
-          {t.name}{#if !isIdentifierLike(t.name)}<span
+          {tag.name}{#if !isIdentifierLike(tag.name)}<span
               class="text-amber-400"
-              title="Not identifier-like"
+              title={t('tl.notIdent')}
             >
               ⚠</span
             >{/if}
@@ -328,27 +329,27 @@
   {#if editing}
     <div
       class="flex flex-wrap items-center gap-2 rounded border border-pc-border p-1.5"
-      aria-label="Tag editor"
+      aria-label={t('tl.tagEditor')}
     >
       <label class="flex items-center gap-1">
-        Name
+        {t('layers.name')}
         <input
           class="w-28 rounded border border-pc-border bg-pc-panel px-1"
           value={editing.name}
           onchange={(e) => {
             const name = e.currentTarget.value.trim();
-            if (name) editTag('rename tag', (d, i) => d.setTagName(i, name));
+            if (name) editTag(t('tl.renameTag'), (d, i) => d.setTagName(i, name));
           }}
-          aria-label="Tag name"
+          aria-label={t('tl.tagName')}
         />
       </label>
       {#if !isIdentifierLike(editing.name)}
         <span class="text-amber-400">
-          Use letters, digits and _ only — animation state machines look tags up by name.
+          {t('tl.identHint')}
         </span>
       {/if}
       <label class="flex items-center gap-1">
-        From
+        {t('tl.from')}
         <input
           type="number"
           min="1"
@@ -358,13 +359,13 @@
           onchange={(e) => {
             const from = clampFrame(e.currentTarget.value);
             const to = Math.max(from, editing.to);
-            editTag('set tag range', (d, i) => d.setTagRange(i, from, to));
+            editTag(t('tl.setTagRange'), (d, i) => d.setTagRange(i, from, to));
           }}
-          aria-label="Tag from"
+          aria-label={t('tl.tagFrom')}
         />
       </label>
       <label class="flex items-center gap-1">
-        To
+        {t('tl.to')}
         <input
           type="number"
           min="1"
@@ -374,29 +375,29 @@
           onchange={(e) => {
             const to = clampFrame(e.currentTarget.value);
             const from = Math.min(editing.from, to);
-            editTag('set tag range', (d, i) => d.setTagRange(i, from, to));
+            editTag(t('tl.setTagRange'), (d, i) => d.setTagRange(i, from, to));
           }}
-          aria-label="Tag to"
+          aria-label={t('tl.tagTo')}
         />
       </label>
       <label class="flex items-center gap-1">
-        Direction
+        {t('tl.direction')}
         <select
           class="rounded border border-pc-border bg-pc-panel px-1"
           value={editing.direction}
           onchange={(e) => {
             const dir = e.currentTarget.value;
-            editTag('set tag direction', (d, i) => d.setTagDirection(i, dir));
+            editTag(t('tl.setTagDirection'), (d, i) => d.setTagDirection(i, dir));
           }}
-          aria-label="Tag direction"
+          aria-label={t('tl.tagDirection')}
         >
           {#each DIRECTIONS as dir (dir.value)}
             <option value={dir.value}>{dir.label}</option>
           {/each}
         </select>
       </label>
-      <button class="panel-btn" onclick={() => removeTag(editing.index)} aria-label="Delete tag"
-        >Delete</button
+      <button class="panel-btn" onclick={() => removeTag(editing.index)} aria-label={t('tl.deleteTag')}
+        >{t('tl.delete')}</button
       >
     </div>
   {/if}

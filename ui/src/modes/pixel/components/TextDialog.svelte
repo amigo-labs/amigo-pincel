@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   // Text tool dialog. The parent owns the wasm `Document`, runs
   // `previewText` on every `onPreview(params)` and commits via
   // `onApply(params)`; `onCancel` restores the un-previewed composite.
@@ -81,7 +82,7 @@
     }}
   >
     <header class="flex items-baseline justify-between">
-      <h2 id="text-title" class="text-base font-semibold">Text</h2>
+      <h2 id="text-title" class="text-base font-semibold">{t('tool.text')}</h2>
       <span class="text-xs text-pc-muted">at {x}, {y}</span>
     </header>
     <!-- svelte-ignore a11y_autofocus -->
@@ -89,50 +90,50 @@
       bind:value={text}
       rows="3"
       autofocus
-      placeholder="Type here… (Ctrl+Enter to place)"
+      placeholder={t('text.placeholder')}
       class="rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-sm"
-      aria-label="Text content"
+      aria-label={t('text.content')}
     ></textarea>
     <div class="flex items-center gap-3 text-xs text-pc-text">
       <label class="flex items-center gap-1">
-        <span>Size</span>
+        <span>{t('opt.size')}</span>
         <input
           type="number"
           min="1"
           max="2000"
           bind:value={size}
           class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-          aria-label="Font size"
+          aria-label={t('text.fontSize')}
         />
       </label>
       <select
         bind:value={align}
         class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-        aria-label="Text alignment"
+        aria-label={t('text.align')}
       >
-        <option value="left">Left</option>
-        <option value="center">Center</option>
-        <option value="right">Right</option>
+        <option value="left">{t('opt.left')}</option>
+        <option value="center">{t('opt.center')}</option>
+        <option value="right">{t('opt.right')}</option>
       </select>
     </div>
     <div class="flex items-center gap-3 text-xs text-pc-text">
       <label class="flex items-center gap-1">
         <input type="checkbox" bind:checked={bold} />
-        <span class="font-bold">Bold</span>
+        <span class="font-bold">{t('opt.bold')}</span>
       </label>
       <label class="flex items-center gap-1">
         <input type="checkbox" bind:checked={italic} />
-        <span class="italic">Italic</span>
+        <span class="italic">{t('opt.italic')}</span>
       </label>
       <label class="flex items-center gap-1">
         <input type="checkbox" bind:checked={antiAlias} />
-        <span>Anti-alias</span>
+        <span>{t('opt.antiAlias')}</span>
       </label>
     </div>
     <footer class="mt-1 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>Cancel</button>
+      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
       <button type="submit" class="panel-btn panel-btn-primary" disabled={params.text.trim().length === 0}>
-        Place
+        {t('text.place')}
       </button>
     </footer>
   </form>

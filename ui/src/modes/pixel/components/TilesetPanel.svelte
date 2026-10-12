@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import type { Document } from '../../../lib/core';
@@ -67,7 +68,7 @@
   });
 
   let formOpen = $state(false);
-  let formName = $state('Tileset');
+  let formName = $state(t('tiles.defaultName'));
   let formTileW = $state(16);
   let formTileH = $state(16);
   let formError = $state<string | null>(null);
@@ -90,15 +91,15 @@
     if (!doc) return;
     const name = formName.trim();
     if (name.length === 0) {
-      formError = 'name is required';
+      formError = t('slices.nameRequired');
       return;
     }
     if (!Number.isInteger(formTileW) || formTileW <= 0) {
-      formError = 'tile width must be a positive integer';
+      formError = t('tiles.widthPositive');
       return;
     }
     if (!Number.isInteger(formTileH) || formTileH <= 0) {
-      formError = 'tile height must be a positive integer';
+      formError = t('tiles.heightPositive');
       return;
     }
     try {
@@ -109,7 +110,7 @@
     }
     formOpen = false;
     formError = null;
-    formName = 'Tileset';
+    formName = t('tiles.defaultName');
     onChange?.();
   }
 
@@ -153,14 +154,14 @@
 <Panel>
   {#snippet actions()}
     {#if !formOpen}
-      <IconButton icon="plus" label="Add tileset" size="sm" onclick={openForm} disabled={!doc} />
+      <IconButton icon="plus" label={t('tiles.add')} size="sm" onclick={openForm} disabled={!doc} />
     {/if}
   {/snippet}
 
   {#if formOpen}
     <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
       <label class="flex flex-col gap-1 text-xs text-pc-muted">
-        <span>Name</span>
+        <span>{t('layers.name')}</span>
         <input
           type="text"
           bind:value={formName}
@@ -169,7 +170,7 @@
       </label>
       <div class="flex gap-2">
         <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
-          <span>Tile W</span>
+          <span>{t('tiles.w')}</span>
           <input
             type="number"
             min="1"
@@ -180,7 +181,7 @@
           />
         </label>
         <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
-          <span>Tile H</span>
+          <span>{t('tiles.h')}</span>
           <input
             type="number"
             min="1"
@@ -195,15 +196,15 @@
         <p class="text-xs text-red-400" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
-        <button type="button" class="panel-btn" onclick={closeForm}>Cancel</button>
-        <button type="submit" class="panel-btn panel-btn-primary">Add</button>
+        <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
+        <button type="submit" class="panel-btn panel-btn-primary">{t('common.add')}</button>
       </div>
     </form>
   {/if}
 
   {#if tilesets.length === 0}
     <p class="text-xs text-pc-faint">
-      {doc ? 'no tilesets yet' : 'open or create a document'}
+      {doc ? t('tiles.none') : t('common.noDoc')}
     </p>
   {:else}
     <ul class="flex flex-col gap-1">
@@ -220,7 +221,7 @@
               type="button"
               class="panel-btn"
               onclick={() => addTile(ts.id)}
-              aria-label={`Add tile to ${ts.name}`}
+              aria-label={t('tiles.addTile', { name: ts.name })}
             >
               + Tile
             </button>
@@ -228,7 +229,7 @@
               type="button"
               class="panel-btn"
               onclick={() => addTilemapLayer(ts.id, ts.name)}
-              aria-label={`Add tilemap layer using ${ts.name}`}
+              aria-label={t('tiles.addLayer', { name: ts.name })}
             >
               + Layer
             </button>
@@ -237,7 +238,7 @@
             <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
           {/if}
           {#if doc && ts.tileCount > 0}
-            <div class="flex flex-wrap gap-1" aria-label={`${ts.name} tiles`}>
+            <div class="flex flex-wrap gap-1" aria-label={t('tiles.tiles', { name: ts.name })}>
               {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
                 {@const isSelected =
                   selectedTile?.tilesetId === ts.id && selectedTile?.tileId === tileId}
@@ -248,8 +249,8 @@
                   onclick={() => selectStamp(ts.id, tileId)}
                   ondblclick={() => editTile(ts.id, tileId)}
                   aria-pressed={isSelected}
-                  aria-label={`Select tile ${tileId} of ${ts.name} (double-click to edit)`}
-                  title={`tile ${tileId} — click to stamp, double-click to edit`}
+                  aria-label={t('tiles.select', { tile: tileId, name: ts.name })}
+                  title={t('tiles.selectHint', { tile: tileId })}
                 >
                   <TileThumbnail
                     {doc}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   import { packColor } from '../../../lib/color';
   import type { Document } from '../../../lib/core';
 
@@ -112,14 +113,14 @@
   class="absolute inset-0 z-10 flex items-center justify-center bg-pc-bg/80 p-4"
   role="dialog"
   aria-modal="true"
-  aria-label="Tile editor"
+  aria-label={t('tiles.editor')}
 >
   <div class="flex flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 shadow-xl">
     <header class="flex items-center justify-between gap-4">
       <h2 class="text-sm font-semibold text-pc-text">
-        Editing tileset {tilesetId} · tile {tileId} · {tileW}×{tileH}
+        {t('tiles.editing', { tileset: tilesetId, tile: tileId, w: tileW, h: tileH })}
       </h2>
-      <button type="button" class="editor-btn" onclick={onClose}>Done</button>
+      <button type="button" class="editor-btn" onclick={onClose}>{t('common.done')}</button>
     </header>
     <canvas
       bind:this={canvas}
@@ -131,14 +132,13 @@
       onpointermove={onPointerMove}
       onpointerup={onPointerUp}
       onpointercancel={onPointerUp}
-      aria-label={`tile ${tileId} pixel editor`}
+      aria-label={t('tiles.pixelEditor', { tile: tileId })}
     ></canvas>
     {#if lastError}
       <p class="text-xs text-red-400" role="alert">{lastError}</p>
     {/if}
     <p class="text-xs text-pc-faint">
-      Click or drag to paint with the current color. Undo / Redo restores prior
-      pixels.
+      {t('tiles.editorHint')}
     </p>
   </div>
 </div>

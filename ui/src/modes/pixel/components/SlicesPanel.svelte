@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
@@ -109,7 +110,7 @@
   });
 
   let formOpen = $state(false);
-  let formName = $state('Slice');
+  let formName = $state(t('slices.defaultName'));
   let formColor = $state('#3b82f6');
   let formError = $state<string | null>(null);
   // Per-slice transient error surface, keyed by slice id. Cleared on
@@ -131,7 +132,7 @@
     if (!doc) return;
     const name = formName.trim();
     if (name.length === 0) {
-      formError = 'name is required';
+      formError = t('slices.nameRequired');
       return;
     }
     const w = doc.width || 16;
@@ -145,7 +146,7 @@
     }
     formOpen = false;
     formError = null;
-    formName = 'Slice';
+    formName = t('slices.defaultName');
     onChange?.();
   }
 
@@ -208,7 +209,7 @@
     if (!Number.isFinite(value)) return;
     const truncated = Math.trunc(value);
     if (UNSIGNED_FIELDS.has(field) && truncated < 1) {
-      rowError[row.id] = `${String(field)} must be a positive integer`;
+      rowError[row.id] = t('slices.mustBePositive', { field: String(field) });
       return;
     }
     rowError[row.id] = null;
@@ -250,14 +251,14 @@
 <Panel>
   {#snippet actions()}
     {#if !formOpen}
-      <IconButton icon="plus" label="Add slice" size="sm" onclick={openForm} disabled={!doc} />
+      <IconButton icon="plus" label={t('slices.add')} size="sm" onclick={openForm} disabled={!doc} />
     {/if}
   {/snippet}
 
   {#if formOpen}
     <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
       <label class="flex flex-col gap-1 text-xs text-pc-muted">
-        <span>Name</span>
+        <span>{t('layers.name')}</span>
         <input
           type="text"
           bind:value={formName}
@@ -265,7 +266,7 @@
         />
       </label>
       <label class="flex items-center gap-2 text-xs text-pc-muted">
-        <span>Color</span>
+        <span>{t('slices.color')}</span>
         <input
           type="color"
           bind:value={formColor}
@@ -276,15 +277,15 @@
         <p class="text-xs text-red-400" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
-        <button type="button" class="panel-btn" onclick={closeForm}>Cancel</button>
-        <button type="submit" class="panel-btn panel-btn-primary">Add</button>
+        <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
+        <button type="submit" class="panel-btn panel-btn-primary">{t('common.add')}</button>
       </div>
     </form>
   {/if}
 
   {#if slices.length === 0}
     <p class="text-xs text-pc-faint">
-      {doc ? 'no slices yet' : 'open or create a document'}
+      {doc ? t('slices.none') : t('common.noDoc')}
     </p>
   {:else}
     <ul class="flex flex-col gap-1">
@@ -301,7 +302,7 @@
               class="color-swatch shrink-0"
               style:background-color={unpackColor(s.color)}
               onclick={() => activate(s.id)}
-              aria-label={`Activate slice ${s.name}`}
+              aria-label={t('slices.activate', { name: s.name })}
               aria-pressed={active}
             ></button>
             <button
@@ -316,8 +317,8 @@
               type="button"
               class="panel-btn"
               onclick={() => removeSlice(s.id)}
-              aria-label={`Remove ${s.name}`}
-              title="Remove slice"
+              aria-label={t('slices.removeNamed', { name: s.name })}
+              title={t('slices.remove')}
             >
               ×
             </button>
@@ -392,11 +393,11 @@
               onchange={(e) =>
                 toggleCenter(s, (e.target as HTMLInputElement).checked)}
             />
-            <span>9-patch</span>
+            <span>{t('slices.ninePatch')}</span>
           </label>
           {#if s.hasCenter}
             <fieldset class="flex flex-col gap-1 pl-4">
-              <legend class="sr-only">9-patch center rectangle</legend>
+              <legend class="sr-only">{t('slices.ninePatchCenter')}</legend>
               <div class="flex gap-1">
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
                   <span>cX</span>
@@ -461,7 +462,7 @@
               onchange={(e) =>
                 togglePivot(s, (e.target as HTMLInputElement).checked)}
             />
-            <span>Pivot</span>
+            <span>{t('slices.pivot')}</span>
           </label>
           {#if s.hasPivot}
             <div class="flex gap-1 pl-4">

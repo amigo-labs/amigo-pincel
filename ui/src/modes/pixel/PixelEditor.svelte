@@ -90,6 +90,7 @@
   import { fitZoom } from '../../lib/view/fit';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
+  import { effectLabel } from '../../lib/effects/labels';
   import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
@@ -197,7 +198,7 @@
   let playHandle: number | null = null;
   let canvasW = $state(64);
   let canvasH = $state(64);
-  let status = $state('initializing…');
+  let status = $state(t('px.initializing'));
   let painting = false;
   let dirty = false;
   let rafHandle: number | null = null;
@@ -709,7 +710,7 @@
     if (!doc || !stampTile) return;
     const layerId = activeTilemapLayerForTileset(stampTile.tilesetId);
     if (layerId === null) {
-      status = 'add a tilemap layer first (+ Layer in the Tilesets panel)';
+      status = t('px.needTilemap');
       return;
     }
     const tileW = doc.tilesetTileWidth(stampTile.tilesetId);
@@ -724,7 +725,7 @@
       syncMeta();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `stamp failed: ${msg}`;
+      status = t('status.failed', { action: t('act.stamp'), error: msg });
     }
   }
 
@@ -757,7 +758,7 @@
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error('pickColor failed', err);
-        status = `pick failed: ${msg}`;
+        status = t('status.failed', { action: t('act.pick'), error: msg });
       }
       return;
     }
@@ -787,7 +788,7 @@
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('pixel out of bounds')) return;
       console.error('applyTool failed', err);
-      status = `paint failed: ${msg}`;
+      status = t('status.failed', { action: t('act.paint'), error: msg });
     }
   }
 
@@ -928,7 +929,7 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('applyBucket failed', err);
-      status = `bucket failed: ${msg}`;
+      status = t('status.failed', { action: t('act.bucket'), error: msg });
     }
   }
 
@@ -947,7 +948,7 @@
     const h = Math.abs(y1 - y0) + 1;
     try {
       if (activeSliceId === null) {
-        const autoName = `Slice ${doc.sliceCount + 1}`;
+        const autoName = t('px.sliceName', { n: doc.sliceCount + 1 });
         const packed = packColor(color, alpha);
         const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
         activeSliceId = newId;
@@ -987,7 +988,7 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('slice commit failed', err);
-      status = `slice failed: ${msg}`;
+      status = t('status.failed', { action: t('act.slice'), error: msg });
     }
   }
 
@@ -1043,7 +1044,7 @@
       });
       doc.selectPolygon(flat, mode);
     } catch (err) {
-      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.selection'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1076,7 +1077,7 @@
         selectionModeFor(e),
       );
     } catch (err) {
-      status = `wand failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.wand'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1101,7 +1102,7 @@
           break;
       }
     } catch (err) {
-      status = `selection failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.selection'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1192,7 +1193,7 @@
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error('applyMoveSelection failed', err);
-          status = `move failed: ${msg}`;
+          status = t('status.failed', { action: t('act.move'), error: msg });
         }
       }
       moveSelStart = null;
@@ -1251,7 +1252,7 @@
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`${dragTool} failed`, err);
-        status = `${dragTool} failed: ${msg}`;
+        status = t('px.toolFailed', { tool: dragTool, error: msg });
       }
       dragStart = null;
       dragPreview = null;
@@ -1294,14 +1295,14 @@
       currentFrame = clamped;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `frame switch failed: ${msg}`;
+      status = t('status.failed', { action: t('act.frameSwitch'), error: msg });
     }
   }
 
   function addLayer() {
     if (!doc) return;
     try {
-      const id = doc.addLayer(`Layer ${doc.layerCount + 1}`);
+      const id = doc.addLayer(t('px.layerName', { n: doc.layerCount + 1 }));
       activeLayerId = id;
       // Route the paint tools to the freshly created layer.
       doc.setActiveLayer(id);
@@ -1309,7 +1310,7 @@
       syncMeta();
       docRev += 1;
     } catch (err) {
-      status = `add layer failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.addLayer'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1324,7 +1325,7 @@
       setFrame(idx);
       docRev += 1;
     } catch (err) {
-      status = `add frame failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.addFrame'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1336,7 +1337,7 @@
       syncMeta();
       docRev += 1;
     } catch (err) {
-      status = `remove frame failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.removeFrame'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1419,7 +1420,7 @@
       return;
     }
     confirmState = {
-      message: `Discard unsaved changes to ${saveTarget.name}?`,
+      message: t('px.discardNamed', { name: saveTarget.name }),
       run: action,
     };
   }
@@ -1453,7 +1454,7 @@
       opened = await pickAndOpen();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `open failed: ${msg}`;
+      status = t('status.failed', { action: t('act.open'), error: msg });
       return;
     }
     if (!opened) return;
@@ -1489,12 +1490,12 @@
       docId = crypto.randomUUID();
       lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
-      status = `opened ${opened.name} · ${doc.width}×${doc.height}`;
+      status = t('px.opened', { name: opened.name, w: doc.width, h: doc.height });
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `open failed: ${msg}`;
+      status = t('status.failed', { action: t('act.open'), error: msg });
     }
   }
 
@@ -1508,12 +1509,12 @@
       saveTarget = next;
       lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
-      status = `saved ${bytes.length} bytes · ${next.name}`;
+      status = t('px.saved', { bytes: bytes.length, name: next.name });
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `save failed: ${msg}`;
+      status = t('status.failed', { action: t('act.save'), error: msg });
     } finally {
       fileOpBusy = false;
     }
@@ -1550,7 +1551,7 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('autosave encode failed', err);
-      status = `autosave failed: ${msg}`;
+      status = t('status.failed', { action: t('act.autosave'), error: msg });
       return;
     }
     try {
@@ -1561,7 +1562,7 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('autosave write failed', err);
-      status = `autosave failed: ${msg}`;
+      status = t('status.failed', { action: t('act.autosave'), error: msg });
     }
   }
 
@@ -1591,7 +1592,7 @@
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       recoveryErrors = { ...recoveryErrors, [meta.docId]: msg };
-      status = `recover failed: ${msg}`;
+      status = t('status.failed', { action: t('act.recover'), error: msg });
       return;
     }
     disposeDoc();
@@ -1601,7 +1602,7 @@
     docId = meta.docId;
     lastWriteUndoDepth = doc.undoDepth;
     lastSavedUndoDepth = doc.undoDepth;
-    status = `recovered ${meta.name} · ${doc.width}×${doc.height}`;
+    status = t('px.recovered', { name: meta.name, w: doc.width, h: doc.height });
     await clearAutosave();
     closeRecovery();
   }
@@ -1613,7 +1614,7 @@
       const msg = err instanceof Error ? err.message : String(err);
       console.error('discard snapshot failed', err);
       recoveryErrors = { ...recoveryErrors, [targetDocId]: msg };
-      status = `discard failed: ${msg}`;
+      status = t('status.failed', { action: t('act.discard'), error: msg });
       return;
     }
     recoverySnapshots = recoverySnapshots.filter(
@@ -1656,7 +1657,7 @@
       // Persistence is best-effort; surface to the status line but
       // don't block the save / open the user already completed.
       const msg = err instanceof Error ? err.message : String(err);
-      status = `${status} (recents update failed: ${msg})`;
+      status = t('px.recentsFailed', { status, error: msg });
     }
   }
 
@@ -1679,7 +1680,7 @@
         // Read access is enough to open. The next save will prompt
         // for write via `saveBytes` → `ensureReadWritePermission`.
         if (!(await ensureReadPermission(r.handle))) {
-          status = `recent ${r.name}: permission denied`;
+          status = t('px.recentDenied', { name: r.name });
           return;
         }
         const file = await r.handle.getFile();
@@ -1687,7 +1688,7 @@
         name = file.name;
         nextTarget = { name: file.name, handle: r.handle, path: null };
       } else {
-        status = `recent ${r.name}: no handle / path`;
+        status = t('px.recentNoHandle', { name: r.name });
         return;
       }
       const next = Document.openAseprite(bytes);
@@ -1700,12 +1701,12 @@
       docId = r.id;
       lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
-      status = `opened ${name} · ${doc.width}×${doc.height}`;
+      status = t('px.opened', { name, w: doc.width, h: doc.height });
       await clearAutosave();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `recent ${r.name} open failed: ${msg}`;
+      status = t('px.recentFailed', { name: r.name, error: msg });
     } finally {
       fileOpBusy = false;
     }
@@ -1738,7 +1739,7 @@
       }
       paintOverlays();
     } catch (err) {
-      status = `preview failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.preview'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1751,13 +1752,13 @@
         dirty = true;
         syncMeta();
         docRev += 1;
-        status = `${def.label} applied`;
+        status = t('px.effectApplied', { effect: effectLabel(def) });
       } else {
-        status = `${def.label}: selection is outside the layer, nothing changed`;
+        status = t('px.effectOutside', { effect: effectLabel(def) });
         recompose();
       }
     } catch (err) {
-      status = `${def.label} failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('px.effectFailed', { effect: effectLabel(def), error: err instanceof Error ? err.message : String(err) });
       recompose();
     }
   }
@@ -1789,7 +1790,7 @@
         case 'layer:rotate_90_ccw':
         case 'layer:rotate_180':
           doc.transformLayer(action.slice('layer:'.length));
-          afterImageCommand('layer transformed');
+          afterImageCommand(t('px.layerTransformed'));
           break;
         case 'canvas:flip_horizontal':
         case 'canvas:flip_vertical':
@@ -1797,7 +1798,7 @@
         case 'canvas:rotate_90_ccw':
         case 'canvas:rotate_180':
           doc.transformCanvas(action.slice('canvas:'.length));
-          afterImageCommand('canvas transformed');
+          afterImageCommand(t('px.canvasTransformed'));
           break;
         case 'canvas:resize':
           resizeOpen = 'resize';
@@ -1806,12 +1807,12 @@
           resizeOpen = 'scale';
           break;
         case 'canvas:crop':
-          if (doc.cropToSelection()) afterImageCommand('cropped to selection');
-          else status = 'crop: no selection inside the canvas';
+          if (doc.cropToSelection()) afterImageCommand(t('px.cropped'));
+          else status = t('px.cropNone');
           break;
       }
     } catch (err) {
-      status = `image command failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.imageCommand'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1823,15 +1824,15 @@
       const opened = await pickAndOpen();
       if (!opened || !doc) return;
       if (!isPngBytes(opened.bytes)) {
-        status = 'import: not a PNG file';
+        status = t('px.notPng');
         return;
       }
       const name = opened.name.replace(/\.png$/i, '');
       const id = doc.importPngAsLayer(opened.bytes, name);
       activeLayerId = id;
-      afterImageCommand(`imported ${opened.name} as a layer`);
+      afterImageCommand(t('px.imported', { name: opened.name }));
     } catch (err) {
-      status = `import failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('menu.importPng'), error: err instanceof Error ? err.message : String(err) });
     } finally {
       fileOpBusy = false;
     }
@@ -1846,10 +1847,10 @@
       const base = saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
       const suffix = frameCount > 1 ? `-${currentFrame + 1}` : '';
       if (await saveExport(bytes, `${base}${suffix}.png`)) {
-        status = `exported PNG · ${bytes.length} bytes`;
+        status = t('px.exportedPng', { bytes: bytes.length });
       }
     } catch (err) {
-      status = `export failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.export'), error: err instanceof Error ? err.message : String(err) });
     } finally {
       fileOpBusy = false;
     }
@@ -1894,9 +1895,9 @@
         const json = new TextEncoder().encode(data);
         await saveExport(new Uint8Array(json), `${base}.json`, 'json');
       }
-      status = `exported sprite sheet · ${png.length} bytes`;
+      status = t('px.exportedSheet', { bytes: png.length });
     } catch (err) {
-      status = `sheet export failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.sheetExport'), error: err instanceof Error ? err.message : String(err) });
     } finally {
       fileOpBusy = false;
     }
@@ -1908,13 +1909,13 @@
     try {
       if (result.mode === 'resize') {
         doc.resizeCanvas(result.width, result.height, result.anchor);
-        afterImageCommand(`canvas resized to ${result.width}×${result.height}`);
+        afterImageCommand(t('px.resized', { w: result.width, h: result.height }));
       } else {
         doc.scaleImage(result.width, result.height, result.interpolation);
-        afterImageCommand(`image scaled to ${result.width}×${result.height}`);
+        afterImageCommand(t('px.scaled', { w: result.width, h: result.height }));
       }
     } catch (err) {
-      status = `resize failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.resize'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1930,7 +1931,7 @@
       textFontId = await loadDefaultFont();
       textAnchor = point;
     } catch (err) {
-      status = `text font failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.textFont'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1961,7 +1962,7 @@
       }
       paintOverlays();
     } catch (err) {
-      status = `text preview failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.textPreview'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -1986,13 +1987,13 @@
         dirty = true;
         syncMeta();
         docRev += 1;
-        status = 'text placed';
+        status = t('px.textPlaced');
       } else {
-        status = 'text: nothing landed on the canvas';
+        status = t('px.textMissed');
         recompose();
       }
     } catch (err) {
-      status = `text failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.text'), error: err instanceof Error ? err.message : String(err) });
       recompose();
     }
   }
@@ -2014,7 +2015,7 @@
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `undo failed: ${msg}`;
+      status = t('status.failed', { action: t('act.undo'), error: msg });
     }
   }
 
@@ -2030,7 +2031,7 @@
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      status = `redo failed: ${msg}`;
+      status = t('status.failed', { action: t('act.redo'), error: msg });
     }
   }
 
@@ -2240,7 +2241,7 @@
         docRev += 1;
       }
     } catch (err) {
-      status = `delete failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.delete'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -2259,7 +2260,7 @@
       doc.setActiveLayer(id);
       afterLayerEdit();
     } catch (err) {
-      status = `duplicate layer failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.duplicateLayer'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -2270,7 +2271,7 @@
       activeLayerId = doc.paintTargetLayer();
       afterLayerEdit();
     } catch (err) {
-      status = `merge down failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.mergeDown'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -2280,7 +2281,7 @@
       activeLayerId = doc.flattenImage();
       afterLayerEdit();
     } catch (err) {
-      status = `flatten failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.flatten'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -2291,7 +2292,7 @@
       if (activeLayerId === layerId) activeLayerId = null;
       afterLayerEdit();
     } catch (err) {
-      status = `remove layer failed: ${err instanceof Error ? err.message : String(err)}`;
+      status = t('status.failed', { action: t('act.removeLayer'), error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -2578,7 +2579,7 @@
         dirty = true;
         lastWriteUndoDepth = doc.undoDepth;
         lastSavedUndoDepth = doc.undoDepth;
-        status = 'ready';
+        status = t('px.ready');
         rafHandle = requestAnimationFrame(tick);
         // The shell hands over a file it already read (start screen,
         // drag-and-drop, file association, Open Recent).
@@ -2595,7 +2596,7 @@
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
         console.error('loadCore failed', err);
-        status = `wasm init failed: ${msg}`;
+        status = t('status.failed', { action: t('act.wasmInit'), error: msg });
       });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
@@ -2796,7 +2797,7 @@
         doc.setLayerVisible(layerId, visible);
         docRev += 1;
       } catch (err) {
-        status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerVisibility'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onToggleLocked={(layerId, editable) => {
@@ -2807,7 +2808,7 @@
         syncMeta();
         docRev += 1;
       } catch (err) {
-        status = `layer lock failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerLock'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onReorder={(layerId, targetId) => {
@@ -2818,7 +2819,7 @@
         syncMeta();
         docRev += 1;
       } catch (err) {
-        status = `layer reorder failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerReorder'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onRename={(layerId, name) => {
@@ -2827,7 +2828,7 @@
         doc.renameLayer(layerId, name);
         docRev += 1;
       } catch (err) {
-        status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onAddLayer={addLayer}
@@ -2840,7 +2841,7 @@
         syncMeta();
         docRev += 1;
       } catch (err) {
-        status = `layer opacity failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerOpacity'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onSetBlendMode={(layerId, mode) => {
@@ -2851,7 +2852,7 @@
         syncMeta();
         docRev += 1;
       } catch (err) {
-        status = `layer blend mode failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerBlendMode'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
     onDuplicate={duplicateLayer}
@@ -2917,7 +2918,7 @@
 <EditorFrame
   mode="pixel"
   {menus}
-  title={doc ? saveTarget.name : 'No document'}
+  title={doc ? saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
   panels={[
     { id: 'colors', title: 'Colors', icon: 'colors', body: colorsBody },
@@ -2935,8 +2936,8 @@
   ]}
 >
   {#snippet quick()}
-    <IconButton icon="undo" label="Undo" hint={hint('undo')} disabled={undoDepth === 0} onclick={undo} />
-    <IconButton icon="redo" label="Redo" hint={hint('redo')} disabled={redoDepth === 0} onclick={redo} />
+    <IconButton icon="undo" label={t('menu.undo')} hint={hint('undo')} disabled={undoDepth === 0} onclick={undo} />
+    <IconButton icon="redo" label={t('menu.redo')} hint={hint('redo')} disabled={redoDepth === 0} onclick={redo} />
   {/snippet}
   {#snippet tools(orientation)}
     <ToolRail groups={railGroups} active={tool} onSelect={(next) => (tool = next)} {orientation} />
@@ -2945,80 +2946,80 @@
     <ToolVariants groups={railGroups} active={tool} onSelect={(next) => (tool = next)} />
     {#if tool === 'selection-wand'}
       <label class="opt">
-        Tolerance
+        {t('opt.tolerance')}
         <input
           type="number"
           min="0"
           max="255"
           bind:value={wandTolerance}
           class="opt-field w-16 text-right tabular-nums"
-          aria-label="Wand tolerance"
+          aria-label={t('px.wandTolerance')}
         />
       </label>
       <label class="opt">
-        <input type="checkbox" bind:checked={wandContiguous} aria-label="Contiguous" />
-        Contiguous
+        <input type="checkbox" bind:checked={wandContiguous} aria-label={t('opt.contiguous')} />
+        {t('opt.contiguous')}
       </label>
       <label class="opt">
-        Sample
-        <select bind:value={wandSample} class="opt-field" aria-label="Wand sample source">
-          <option value="layer">Layer</option>
-          <option value="composite">Composite</option>
+        {t('opt.sample')}
+        <select bind:value={wandSample} class="opt-field" aria-label={t('px.wandSample')}>
+          <option value="layer">{t('px.layer')}</option>
+          <option value="composite">{t('opt.composite')}</option>
         </select>
       </label>
     {:else if isShapeTool(tool)}
       <label class="opt">
-        Stroke
+        {t('opt.stroke')}
         <input
           type="number"
           min="1"
           max="64"
           bind:value={strokeWidth}
           class="opt-field w-14 text-right tabular-nums"
-          aria-label="Stroke width"
+          aria-label={t('px.strokeWidth')}
         />
       </label>
       <label class="opt">
-        Mode
-        <select bind:value={shapeMode} class="opt-field" aria-label="Shape mode">
-          <option value="outline">Outline</option>
-          <option value="fill">Fill</option>
-          <option value="fill_outline">Fill + Outline</option>
+        {t('opt.mode')}
+        <select bind:value={shapeMode} class="opt-field" aria-label={t('px.shapeMode')}>
+          <option value="outline">{t('opt.outline')}</option>
+          <option value="fill">{t('opt.fillShape')}</option>
+          <option value="fill_outline">{t('opt.fillOutline')}</option>
         </select>
       </label>
       {#if tool === 'rounded-rect'}
         <label class="opt">
-          Radius
+          {t('opt.radius')}
           <input
             type="number"
             min="0"
             max="256"
             bind:value={cornerRadius}
             class="opt-field w-14 text-right tabular-nums"
-            aria-label="Corner radius"
+            aria-label={t('px.cornerRadius')}
           />
         </label>
       {/if}
       {#if tool === 'polygon-shape'}
         <label class="opt">
-          Sides
+          {t('opt.sides')}
           <input
             type="number"
             min="3"
             max="64"
             bind:value={polygonSides}
             class="opt-field w-14 text-right tabular-nums"
-            aria-label="Polygon sides"
+            aria-label={t('px.polygonSides')}
           />
         </label>
       {/if}
       {#if shapeMode !== 'outline'}
-        <span class="opt text-pc-faint">fills with the background color</span>
+        <span class="opt text-pc-faint">{t('px.fillsBg')}</span>
       {/if}
     {:else}
       <span class="opt text-pc-faint">{toolLabel}</span>
       {#if BG_TOOLS.has(tool)}
-        <span class="opt text-pc-faint">· right button uses the background color</span>
+        <span class="opt text-pc-faint">{t('px.rightBg')}</span>
       {/if}
     {/if}
   {/snippet}
@@ -3105,9 +3106,9 @@
     {#if doc}
       <span>{canvasW}×{canvasH}</span>
       <span>·</span>
-      <span>frame {currentFrame + 1}/{frameCount}</span>
+      <span>{t('px.frameOf', { n: currentFrame + 1, total: frameCount })}</span>
       <span class="hidden md:inline">·</span>
-      <span class="hidden md:inline">undo {undoDepth} / redo {redoDepth}</span>
+      <span class="hidden md:inline">{t('px.undoRedo', { u: undoDepth, r: redoDepth })}</span>
     {/if}
     <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{status}</span>
     {#if probeOn}
@@ -3120,7 +3121,7 @@
       <span>{backend}</span>
       <span>·</span>
     {/if}
-    <span title="Pincel version">{appVersion}</span>
+    <span title={t('px.version')}>{appVersion}</span>
   {/snippet}
 </EditorFrame>
 
@@ -3153,7 +3154,7 @@
         syncMeta();
         docRev += 1;
       } catch (err) {
-        status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+        status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
   />
@@ -3210,17 +3211,17 @@
     class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
     role="alertdialog"
     aria-modal="true"
-    aria-label="Unsaved changes"
+    aria-label={t('shell.unsavedChanges')}
   >
     <div class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl">
       <p>{confirmState.message}</p>
       <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (confirmState = null)}>Cancel</button>
+        <button class="panel-btn" onclick={() => (confirmState = null)}>{t('common.cancel')}</button>
         <button
           class="panel-btn border-red-800 text-red-300"
           onclick={confirmDiscard}
         >
-          Discard changes
+          {t('shell.discard')}
         </button>
       </div>
     </div>

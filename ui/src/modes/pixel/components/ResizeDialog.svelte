@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   // Resize Canvas / Scale Image dialog. Presentational: the parent runs
   // the wasm command from `onSubmit`. `mode` picks which form is shown;
   // `resize` adds the 9-point anchor grid, `scale` the interpolation and
@@ -83,7 +84,7 @@
   class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
   role="dialog"
   aria-modal="true"
-  aria-label={mode === 'resize' ? 'Resize canvas' : 'Scale image'}
+  aria-label={mode === 'resize' ? t('resize.resizeTitle') : t('resize.scaleTitle')}
 >
   <form
     class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
@@ -93,14 +94,14 @@
     }}
   >
     <h2 class="text-base font-semibold">
-      {mode === 'resize' ? 'Resize canvas' : 'Scale image'}
+      {mode === 'resize' ? t('resize.resizeTitle') : t('resize.scaleTitle')}
     </h2>
     <p class="text-xs text-pc-muted">
       Current size: {initialWidth}×{initialHeight} px
     </p>
     <div class="flex gap-3">
       <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
-        <span>Width</span>
+        <span>{t('common.width')}</span>
         <input
           type="number"
           min="1"
@@ -108,11 +109,11 @@
           value={width}
           oninput={(e) => onWidthInput(Number(e.currentTarget.value))}
           class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-          aria-label="Width"
+          aria-label={t('common.width')}
         />
       </label>
       <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
-        <span>Height</span>
+        <span>{t('common.height')}</span>
         <input
           type="number"
           min="1"
@@ -120,15 +121,15 @@
           value={height}
           oninput={(e) => onHeightInput(Number(e.currentTarget.value))}
           class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-          aria-label="Height"
+          aria-label={t('common.height')}
         />
       </label>
     </div>
 
     {#if mode === 'resize'}
       <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-        <legend class="mb-1">Anchor</legend>
-        <div class="grid w-24 grid-cols-3 gap-1" role="radiogroup" aria-label="Anchor">
+        <legend class="mb-1">{t('resize.anchor')}</legend>
+        <div class="grid w-24 grid-cols-3 gap-1" role="radiogroup" aria-label={t('resize.anchor')}>
           {#each anchors as a (a.id)}
             <button
               type="button"
@@ -146,27 +147,27 @@
       </fieldset>
     {:else}
       <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
-        <span>Interpolation</span>
+        <span>{t('resize.interpolation')}</span>
         <select
           bind:value={interpolation}
           class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-          aria-label="Interpolation"
+          aria-label={t('resize.interpolation')}
         >
-          <option value="nearest">Nearest (pixel art)</option>
-          <option value="bilinear">Bilinear</option>
-          <option value="bicubic">Bicubic</option>
+          <option value="nearest">{t('resize.nearest')}</option>
+          <option value="bilinear">{t('resize.bilinear')}</option>
+          <option value="bicubic">{t('resize.bicubic')}</option>
         </select>
       </label>
       <label class="flex items-center gap-2 text-xs text-pc-text">
         <input type="checkbox" bind:checked={keepAspect} />
-        <span>Keep aspect ratio</span>
+        <span>{t('resize.keepAspect')}</span>
       </label>
     {/if}
 
     <footer class="mt-1 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>Cancel</button>
+      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
       <button type="submit" class="panel-btn panel-btn-primary">
-        {mode === 'resize' ? 'Resize' : 'Scale'}
+        {mode === 'resize' ? t('resize.resize') : t('resize.scale')}
       </button>
     </footer>
   </form>

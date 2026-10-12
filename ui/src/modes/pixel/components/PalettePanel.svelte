@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
@@ -50,13 +51,13 @@
       fn(doc);
       onChange?.();
     } catch (err) {
-      onError?.(`${label} failed: ${err instanceof Error ? err.message : String(err)}`);
+      onError?.(t('status.failed', { action: label, error: err instanceof Error ? err.message : String(err) }));
     }
   }
 
   function move(from: number, to: number) {
     if (from === to || to < 0 || to >= swatches.length) return;
-    edit('move palette entry', (d) => d.movePaletteEntry(from, to));
+    edit(t('palette.move'), (d) => d.movePaletteEntry(from, to));
     selected = to;
   }
 
@@ -101,20 +102,20 @@
   {#snippet actions()}
     <IconButton
       icon="plus"
-      label="Add current color to palette"
+      label={t('palette.add')}
       size="sm"
       disabled={!doc || swatches.length >= 256}
       onclick={() =>
-        edit('add palette entry', (d) => {
+        edit(t('palette.addAction'), (d) => {
           selected = d.addPaletteEntry(addColor);
         })}
     />
   {/snippet}
 
   {#if swatches.length === 0}
-    <p class="text-xs text-pc-faint">Empty palette. + adds the current color.</p>
+    <p class="text-xs text-pc-faint">{t('palette.empty')}</p>
   {:else}
-    <div class="palette-grid" role="group" aria-label="Palette colors">
+    <div class="palette-grid" role="group" aria-label={t('palette.colors')}>
       {#each swatches as s (s.index)}
         {@const isActive = activeCss !== null && s.css.toLowerCase() === activeCss}
         <button
@@ -140,15 +141,17 @@
             onPickBg?.(s.packed);
           }}
           aria-pressed={isActive}
-          aria-label={`Pick color ${s.name || s.css} (entry ${s.index})`}
-          title={`${s.name ? `${s.name} — ${s.css}` : `${s.css} (entry ${s.index})`} · right-click: background`}
+          aria-label={t('palette.pick', { name: s.name || s.css, index: s.index })}
+          title={s.name
+            ? t('palette.pickTitleNamed', { name: s.name, css: s.css })
+            : t('palette.pickTitle', { css: s.css, index: s.index })}
         ></button>
       {/each}
     </div>
     {#if current}
       <div
         class="flex items-center gap-2 text-xs text-pc-muted"
-        aria-label="Palette entry editor"
+        aria-label={t('palette.editor')}
       >
         <span class="tabular-nums">#{current.index}</span>
         <input
@@ -156,34 +159,34 @@
           value={current.css}
           oninput={(e) => {
             const packed = packColor(e.currentTarget.value, current.packed & 0xff);
-            edit('recolor palette entry', (d) => d.setPaletteColor(current.index, packed));
+            edit(t('palette.recolor'), (d) => d.setPaletteColor(current.index, packed));
           }}
           onchange={() => doc?.endStroke()}
-          aria-label="Entry color"
+          aria-label={t('palette.entryColor')}
         />
         <button
           type="button"
           class="pal-btn"
           disabled={current.index === 0}
           onclick={() => move(current.index, current.index - 1)}
-          aria-label="Move entry left">◀</button
+          aria-label={t('palette.left')}>◀</button
         >
         <button
           type="button"
           class="pal-btn"
           disabled={current.index >= swatches.length - 1}
           onclick={() => move(current.index, current.index + 1)}
-          aria-label="Move entry right">▶</button
+          aria-label={t('palette.right')}>▶</button
         >
         <button
           type="button"
           class="pal-btn"
           onclick={() => {
             const index = current.index;
-            edit('remove palette entry', (d) => d.removePaletteEntry(index));
+            edit(t('palette.removeAction'), (d) => d.removePaletteEntry(index));
             selected = null;
           }}
-          aria-label="Delete entry">Delete</button
+          aria-label={t('palette.delete')}>{t('tl.delete')}</button
         >
       </div>
     {/if}
