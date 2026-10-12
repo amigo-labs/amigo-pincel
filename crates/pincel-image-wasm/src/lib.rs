@@ -14,10 +14,10 @@ use pincel_image_core::command::{
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
-    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, PressureDynamics, Rect,
-    SampleSize, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes,
-    Text, TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand,
-    masked_region, scale,
+    Fill, FillOptions, ImageBuffer, Interpolation, Move, PenSamples, Pencil, Point,
+    PressureDynamics, Rect, SampleSize, SampleSource, SelectionMask, SelectionMode, Shape,
+    ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, apply_mode, compose, compose_region,
+    delete_selection, magic_wand, masked_region, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -147,6 +147,15 @@ fn default_shape() -> String {
 /// Default brush hardness when JS omits it.
 fn default_hardness() -> f32 {
     1.0
+}
+
+fn default_angle() -> f32 {
+    pincel_image_core::DEFAULT_BRUSH_ANGLE
+}
+
+/// Pen azimuth per point for the core: a missing reading becomes NaN.
+fn azimuth_samples(azimuth: &[Option<f32>]) -> Vec<f32> {
+    azimuth.iter().map(|a| a.unwrap_or(f32::NAN)).collect()
 }
 
 /// Default eraser mode when JS omits it.
@@ -393,6 +402,16 @@ enum CommandSpec {
         /// Pressure scales the dab opacity.
         #[serde(default)]
         pressure_opacity: bool,
+        /// Pen azimuth in radians per point (spec §17.4); `null` where the
+        /// pen reported no tilt. Empty means no tilt readings.
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        /// Flat-nib angle in degrees.
+        #[serde(default = "default_angle")]
+        angle: f32,
+        /// The flat nib follows the pen azimuth.
+        #[serde(default)]
+        tilt_angle: bool,
         /// Identifies the pointer drag; segments sharing it merge into one undo
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
@@ -418,6 +437,13 @@ enum CommandSpec {
         pressure_size: bool,
         #[serde(default)]
         pressure_opacity: bool,
+        /// Pen azimuth and nib angle, as for `PencilStroke`.
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
         stroke_id: u64,
     },
     /// A flood fill seeded at `[x, y]`.
@@ -654,6 +680,9 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             pressure,
             pressure_size,
             pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
             stroke_id,
         } => {
             let brush = Brush::new(
@@ -666,9 +695,16 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             .with_dynamics(PressureDynamics {
                 size: pressure_size,
                 opacity: pressure_opacity,
-            });
+            })
+            .with_angle(angle)
+            .with_follow_tilt(tilt_angle);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            match Pencil::new(brush).stroke_with_pressure(layer, &pts, &pressure, &bus.document) {
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            match Pencil::new(brush).stroke_with_pen(layer, &pts, pen, &bus.document) {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
@@ -687,6 +723,9 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             pressure,
             pressure_size,
             pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
@@ -695,7 +734,9 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 .with_dynamics(PressureDynamics {
                     size: pressure_size,
                     opacity: pressure_opacity,
-                });
+                })
+                .with_angle(angle)
+                .with_follow_tilt(tilt_angle);
             let eraser = Eraser::new(brush, parse_eraser_mode(&mode)).with_background(Color::rgba(
                 background[0],
                 background[1],
@@ -703,7 +744,12 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 background[3],
             ));
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            match eraser.stroke_with_pressure(layer, &pts, &pressure, &bus.document) {
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            match eraser.stroke_with_pen(layer, &pts, pen, &bus.document) {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
@@ -1370,6 +1416,30 @@ mod command_spec_tests {
             parse(r#"{"type":"rename_layer","index":2,"name":"x"}"#).edited_layer(),
             None
         );
+    }
+
+    #[test]
+    fn stroke_pen_fields_default_and_accept_null_azimuth() {
+        let old: CommandSpec = serde_json::from_str(
+            r#"{"type":"pencil_stroke","layer":0,"size":4,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+        )
+        .expect("pre-tilt JSON still parses");
+        assert!(matches!(
+            old,
+            CommandSpec::PencilStroke { angle, tilt_angle: false, ref azimuth, .. }
+                if angle == pincel_image_core::DEFAULT_BRUSH_ANGLE && azimuth.is_empty()
+        ));
+        let tilted: CommandSpec = serde_json::from_str(
+            r#"{"type":"eraser_stroke","layer":0,"size":4,"opacity":1,"points":[[1,1],[2,2]],"azimuth":[0.5,null],"angle":90,"tilt_angle":true,"stroke_id":2}"#,
+        )
+        .expect("tilt JSON parses");
+        let CommandSpec::EraserStroke { azimuth, angle, .. } = tilted else {
+            panic!("eraser stroke");
+        };
+        assert_eq!(angle, 90.0);
+        let samples = super::azimuth_samples(&azimuth);
+        assert_eq!(samples[0], 0.5);
+        assert!(samples[1].is_nan());
     }
 
     #[test]
