@@ -12,8 +12,49 @@ mod wand;
 
 pub use wand::magic_wand;
 
+use crate::document::ImageBuffer;
 use crate::geometry::{Point, Rect};
 use serde::{Deserialize, Serialize};
+
+/// The pixels an edit leaves inside the selection (spec §8.1): `after`
+/// where the mask is fully selected, `before` where it is not, and a
+/// per-channel mix by coverage in between (feathered edges). `before` and
+/// `after` are the whole canvas-sized layer; the result is cropped to the
+/// mask's bounding box. `None` mask means everything is selected (the whole
+/// canvas comes back); an empty mask returns `None` — nothing to change.
+pub fn masked_region(
+    before: &ImageBuffer,
+    after: &ImageBuffer,
+    mask: Option<&SelectionMask>,
+) -> Option<(Rect, ImageBuffer)> {
+    let full = Rect::new(0, 0, after.width(), after.height());
+    let Some(mask) = mask else {
+        return Some((full, after.clone()));
+    };
+    let region = mask.bounding_box()?;
+    let mut out = before.copy_region(region).ok()?;
+    let (w, h) = (region.w, region.h);
+    let src = after.data();
+    let dst = out.data_mut();
+    for ly in 0..h {
+        for lx in 0..w {
+            let (x, y) = (region.x as u32 + lx, region.y as u32 + ly);
+            let cov = u32::from(mask.coverage(x, y));
+            if cov == 0 {
+                continue;
+            }
+            let si = ((y * after.width() + x) * 4) as usize;
+            let di = ((ly * w + lx) * 4) as usize;
+            for c in 0..4 {
+                let b = u32::from(dst[di + c]);
+                let a = u32::from(src[si + c]);
+                // Rounded integer lerp: b + (a - b) * cov / 255.
+                dst[di + c] = ((b * (255 - cov) + a * cov + 127) / 255) as u8;
+            }
+        }
+    }
+    Some((region, out))
+}
 
 /// How a newly drawn selection combines with the existing one (spec §8.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -278,6 +319,57 @@ pub fn apply_mode(
 
 #[cfg(test)]
 mod tests {
+    use crate::color::Color;
+
+    fn solid(w: u32, h: u32, c: Color) -> ImageBuffer {
+        let mut b = ImageBuffer::new_transparent(w, h);
+        for y in 0..h {
+            for x in 0..w {
+                b.set_pixel(x, y, c);
+            }
+        }
+        b
+    }
+
+    #[test]
+    fn masked_region_without_mask_returns_whole_after() {
+        let (before, after) = (solid(4, 3, Color::BLACK), solid(4, 3, Color::WHITE));
+        let (r, out) = masked_region(&before, &after, None).expect("region");
+        assert_eq!(r, Rect::new(0, 0, 4, 3));
+        assert_eq!(out, after);
+    }
+
+    #[test]
+    fn masked_region_with_empty_mask_is_none() {
+        let (before, after) = (solid(4, 3, Color::BLACK), solid(4, 3, Color::WHITE));
+        let mask = SelectionMask::new_empty(4, 3);
+        assert!(masked_region(&before, &after, Some(&mask)).is_none());
+    }
+
+    #[test]
+    fn masked_region_with_hard_mask_crops_to_the_selection() {
+        let (before, after) = (solid(6, 6, Color::BLACK), solid(6, 6, Color::WHITE));
+        let mask = SelectionMask::rectangle(6, 6, Rect::new(1, 2, 3, 2));
+        let (r, out) = masked_region(&before, &after, Some(&mask)).expect("region");
+        assert_eq!(r, Rect::new(1, 2, 3, 2));
+        assert_eq!(out.get_pixel(0, 0), Some(Color::WHITE));
+        assert_eq!(out.get_pixel(2, 1), Some(Color::WHITE));
+    }
+
+    #[test]
+    fn masked_region_mixes_partial_coverage() {
+        let (before, after) = (solid(2, 1, Color::BLACK), solid(2, 1, Color::WHITE));
+        let mut mask = SelectionMask::new_empty(2, 1);
+        mask.set(0, 0, 255);
+        mask.set(1, 0, 128);
+        let (r, out) = masked_region(&before, &after, Some(&mask)).expect("region");
+        assert_eq!(r, Rect::new(0, 0, 2, 1));
+        assert_eq!(out.get_pixel(0, 0), Some(Color::WHITE));
+        let half = out.get_pixel(1, 0).expect("pixel");
+        assert!((127..=129).contains(&half.r), "got {half:?}");
+        assert_eq!(half.a, 255);
+    }
+
     use super::*;
 
     #[test]

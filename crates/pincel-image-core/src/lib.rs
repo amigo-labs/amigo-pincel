@@ -35,7 +35,7 @@ pub use document::{
 pub use error::DocumentError;
 pub use geometry::{Point, Rect, Size};
 pub use render::{compose, compose_over, compose_region};
-pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand};
+pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand, masked_region};
 pub use tools::{
     Brush, BrushShape, DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Move,
     Pencil, PressureDynamics, SampleSize, SampleSource, Shape, ShapeMode, ShapeStyle, Shapes, Text,
