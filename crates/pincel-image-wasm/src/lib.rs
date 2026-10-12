@@ -14,9 +14,10 @@ use pincel_image_core::command::{
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
-    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, Rect, SampleSize,
-    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text,
-    TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand, scale,
+    Fill, FillOptions, ImageBuffer, Interpolation, Move, Pencil, Point, PressureDynamics, Rect,
+    SampleSize, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes,
+    Text, TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand,
+    scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -382,6 +383,16 @@ enum CommandSpec {
         #[serde(default = "default_hardness")]
         hardness: f32,
         points: Vec<[f32; 2]>,
+        /// Pen pressure in `[0, 1]` per point (spec §17.4); empty or short
+        /// means full pressure.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        /// Pressure scales the dab size.
+        #[serde(default)]
+        pressure_size: bool,
+        /// Pressure scales the dab opacity.
+        #[serde(default)]
+        pressure_opacity: bool,
         /// Identifies the pointer drag; segments sharing it merge into one undo
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
@@ -400,6 +411,13 @@ enum CommandSpec {
         #[serde(default = "default_background")]
         background: [u8; 4],
         points: Vec<[f32; 2]>,
+        /// Pen pressure per point, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
         stroke_id: u64,
     },
     /// A flood fill seeded at `[x, y]`.
@@ -633,6 +651,9 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             shape,
             hardness,
             points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
             stroke_id,
         } => {
             let brush = Brush::new(
@@ -641,9 +662,13 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 opacity,
             )
             .with_shape(parse_shape(&shape))
-            .with_hardness(hardness);
+            .with_hardness(hardness)
+            .with_dynamics(PressureDynamics {
+                size: pressure_size,
+                opacity: pressure_opacity,
+            });
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            match Pencil::new(brush).stroke(layer, &pts, &bus.document) {
+            match Pencil::new(brush).stroke_with_pressure(layer, &pts, &pressure, &bus.document) {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
@@ -659,11 +684,18 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             mode,
             background,
             points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
                 .with_shape(parse_shape(&shape))
-                .with_hardness(hardness);
+                .with_hardness(hardness)
+                .with_dynamics(PressureDynamics {
+                    size: pressure_size,
+                    opacity: pressure_opacity,
+                });
             let eraser = Eraser::new(brush, parse_eraser_mode(&mode)).with_background(Color::rgba(
                 background[0],
                 background[1],
@@ -671,7 +703,7 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 background[3],
             ));
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            match eraser.stroke(layer, &pts, &bus.document) {
+            match eraser.stroke_with_pressure(layer, &pts, &pressure, &bus.document) {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
