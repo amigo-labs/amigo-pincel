@@ -1,16 +1,12 @@
 # Status
 
-_Last updated: 2026-10-12_
+_Last updated: 2026-10-13_
 
-**Branch:** `ccr-ccba59fa-eq8omt` — PR #55, "work through the open STATUS
-items": every codeable item from the list below the M16 merge is done on
-the branch (section "2026-10-11 — open items sweep"), plus one shared,
-responsive editor frame for both modes (section "2026-10-11 — one
-responsive editor frame") and the 2026-10-12 follow-ups (DE/EN, one
-layers panel, iPad modifiers + pen pressure) and the second batch
-(selection-aware Image effects, palette presets + `.gpl`, German website,
-one autosave session, PixelEditor split) and a third (layer groups,
-Aseprite property maps, pen tilt). Before it: PR #53 —
+**Branch:** `ccr-ccba59fa-eq8omt` — restarted from `main` after PR #55
+merged: closes the last Aseprite round-trip gaps (section
+"2026-10-13"). PR #55 worked through every codeable STATUS item, one
+shared responsive editor frame, DE/EN, layer groups, palettes, pen
+pressure / tilt and the PixelEditor split. Before it: PR #53 —
 M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
 `amigo-fineliner` is archived.
 
@@ -48,11 +44,20 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **Aseprite round-trip, remaining:** the External Files chunk (`0x2008`,
-  which property maps with a non-zero key reference), user data on
-  tilesets / tiles, and slices' note text and properties (spec §7.1).
+- Nothing open in-sandbox beyond Phase 2 (resolving external palettes /
+  tilesets, indexed painting, …).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-13 — last Aseprite round-trip gaps (PR after #55)
+
+PR #55 merged. Spec §7.1 and one Decision Log row.
+
+- External Files chunk (`0x2008`) kept as `Metadata::external_files`.
+- Tileset and per-tile user data kept (`Tileset::user_data`,
+  sparse `tile_user_data`).
+- Slice note text and property maps kept (`Slice::user_data`).
+- Tests: writer chunk order / loader parse; core two-pass round trip.
 
 ## 2026-10-12 — groups, Aseprite properties, pen tilt (PR #55)
 
