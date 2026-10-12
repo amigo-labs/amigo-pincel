@@ -21,6 +21,7 @@ import {
   type ToolKind,
 } from '../stores/editor.svelte';
 import type { SelectionMode, ShapeKind } from '../core/wasm';
+import { t } from '../../../lib/i18n/index.svelte';
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
  *  the element that covers the document on screen (any size / transform). */
@@ -38,6 +39,9 @@ function selectionModeOf(e: PointerEvent): SelectionMode {
   if (e.altKey) return 'subtract';
   return 'replace';
 }
+
+/** Tools that write into the active layer's pixels. */
+const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -161,6 +165,16 @@ export function attachTools(
     }
 
     const point = toCanvasPoint(canvas, e);
+
+    // Pixel-writing tools refuse a locked layer (spec §3.2); say why.
+    if (WRITES_PIXELS.has(tool.kind)) {
+      const layer = editor.layers[editor.activeLayer];
+      if (layer?.locked) {
+        editor.notice = t('layers.locked', { name: layer.name });
+        return;
+      }
+    }
+    editor.notice = null;
 
     if (tool.kind === 'magic_wand') {
       selectWand(point[0], point[1], selectionModeOf(e));

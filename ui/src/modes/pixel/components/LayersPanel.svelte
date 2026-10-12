@@ -1,357 +1,106 @@
 <script lang="ts">
-  import Panel from '../../../lib/components/layout/Panel.svelte';
-  import Icon from '../../../lib/components/icons/Icon.svelte';
-  import IconButton from '../../../lib/components/layout/IconButton.svelte';
+  // Pixel mode's layers panel: the shared panel (spec §9.2) over the wasm
+  // `Document`, which stays the source of truth. `rev` is the editor's
+  // change counter; the rows re-read the document whenever it moves.
+  // Rows address layers by id; groups indent and carry a kind badge.
+  import LayersPanel from '../../../lib/components/layers/LayersPanel.svelte';
+  import { blendOptions, type LayerRow } from '../../../lib/components/layers/layers';
   import { blendModeNames, type Document } from '../../../lib/core';
+  import { t } from '../../../lib/i18n/index.svelte';
 
-  // Layers panel (M13.3). The wasm `Document` is the source of truth;
-  // the panel reads the layer stack through the M8.7 / M13.2 surface
-  // (`layerCount`, `layerIdAt`, `layerName`, `layerKind`, `layerVisible`)
-  // and reorders via `moveLayerUp` / `moveLayerDown`. `rev` is the
-  // parent-managed change counter (bumped on new / open / undo / redo /
-  // any edit) that the `$derived.by` block reads so the list reflects
-  // opaque wasm mutations.
-  //
-  // `activeLayerId` is parent-owned: clicking a row calls `onActivate`,
-  // and the highlight reads back the parent's choice. Painting still
-  // targets the auto-picked image layer until the paint surface learns
-  // the active layer (M13.3b) — the selection is wired here first.
-  let {
-    doc,
-    rev = 0,
-    activeLayerId = null,
-    onChange,
-    onActivate,
-    onToggleVisible,
-    onRename,
-    onAddLayer,
-    onRemoveLayer,
-    onSetOpacity,
-    onSetBlendMode,
-    onDuplicate,
-    onMergeDown,
-    onFlatten,
-  }: {
+  interface Props {
     doc: Document | null;
-    rev?: number;
-    activeLayerId?: number | null;
-    onChange?: () => void;
-    onActivate?: (layerId: number) => void;
-    onToggleVisible?: (layerId: number, visible: boolean) => void;
-    onRename?: (layerId: number, name: string) => void;
-    onAddLayer?: () => void;
-    onRemoveLayer?: (layerId: number) => void;
-    /** Live opacity edit; `commit` is true on the final value of a drag. */
-    onSetOpacity?: (layerId: number, opacity: number, commit: boolean) => void;
-    onSetBlendMode?: (layerId: number, mode: string) => void;
-    onDuplicate?: (layerId: number) => void;
-    onMergeDown?: (layerId: number) => void;
-    onFlatten?: () => void;
-  } = $props();
+    rev: number;
+    frame: number;
+    activeLayerId: number | null;
+    onActivate: (layerId: number) => void;
+    onToggleVisible: (layerId: number, visible: boolean) => void;
+    onToggleLocked: (layerId: number, editable: boolean) => void;
+    onRename: (layerId: number, name: string) => void;
+    onReorder: (layerId: number, targetId: number) => void;
+    /** `opacity` is `0..=255`; `commit` ends a slider drag. */
+    onSetOpacity: (layerId: number, opacity: number, commit: boolean) => void;
+    onSetBlendMode: (layerId: number, mode: string) => void;
+    onAddLayer: () => void;
+    onDuplicate: (layerId: number) => void;
+    onMergeDown: (layerId: number) => void;
+    onRemoveLayer: (layerId: number) => void;
+    onFlatten: () => void;
+  }
+  const p: Props = $props();
 
-  type LayerRow = {
-    id: number;
-    name: string;
-    kind: string;
-    visible: boolean;
-    opacity: number;
-    blendMode: string;
-  };
+  type Row = LayerRow & { kind: string };
 
-  // Bottom-to-top z-order from the document, then reversed so the panel
-  // lists the top-most layer first (matching every raster editor).
-  const layers = $derived.by<LayerRow[]>(() => {
-    void rev;
+  const rows = $derived.by<Row[]>(() => {
+    void p.rev;
+    const doc = p.doc;
     if (!doc) return [];
-    const list: LayerRow[] = [];
-    const count = doc.layerCount;
-    for (let i = 0; i < count; i += 1) {
+    const list: Row[] = [];
+    for (let i = 0; i < doc.layerCount; i += 1) {
       let id: number;
       try {
         id = doc.layerIdAt(i);
       } catch {
         continue;
       }
+      const kind = doc.layerKind(id);
+      const editable = doc.layerEditable(id);
       list.push({
-        id,
+        key: String(id),
+        ref: id,
+        kind,
         name: doc.layerName(id),
-        kind: doc.layerKind(id),
         visible: doc.layerVisible(id),
-        opacity: doc.layerOpacity(id),
-        blendMode: doc.layerBlendMode(id),
+        locked: !editable,
+        lockedByParent: editable && doc.layerLocked(id),
+        opacity: doc.layerOpacity(id) / 255,
+        blend: doc.layerBlendMode(id),
+        depth: doc.layerDepth(id),
+        ...(kind === 'image' ? {} : { badge: t(kind === 'group' ? 'layers.kind.group' : 'layers.kind.tilemap') }),
       });
     }
-    list.reverse();
-    return list;
+    return list.reverse();
   });
 
-  let error = $state<string | null>(null);
-
-  // Properties row for the active layer (Fineliner parity): opacity
-  // slider, blend-mode select, duplicate / merge-down. Blend-mode names
-  // come from the wasm module so the list can never drift from core.
-  const active = $derived(layers.find((l) => l.id === activeLayerId) ?? null);
-  const activeIndex = $derived(active ? layers.indexOf(active) : -1);
-  const blendModes = $derived.by<string[]>(() => (doc ? blendModeNames() : []));
+  const blendModes = $derived(p.doc ? blendOptions(blendModeNames()) : []);
+  const activeIndex = $derived(rows.findIndex((r) => r.ref === p.activeLayerId));
+  const active = $derived(rows[activeIndex] ?? null);
   const canMergeDown = $derived.by(() => {
     if (!active || active.kind !== 'image') return false;
-    const below = layers[activeIndex + 1];
-    return below !== undefined && below.kind === 'image';
+    const below = rows[activeIndex + 1];
+    return below !== undefined && below.kind === 'image' && (below.depth ?? 0) === (active.depth ?? 0);
   });
-
-  function blendLabel(name: string): string {
-    return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-
-  // Inline-rename state: the layer id whose name is being edited, plus
-  // the draft text. Double-click a name to start; Enter / blur commits,
-  // Escape cancels. An empty / whitespace-only draft is discarded.
-  let editingId = $state<number | null>(null);
-  let draftName = $state('');
-
-  function startRename(id: number, current: string) {
-    editingId = id;
-    draftName = current;
-  }
-
-  function commitRename(id: number) {
-    if (editingId !== id) return;
-    editingId = null;
-    const name = draftName.trim();
-    if (name.length > 0) onRename?.(id, name);
-  }
-
-  function onRenameKey(e: KeyboardEvent, id: number) {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      commitRename(id);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      editingId = null;
-    }
-  }
-
-  function move(id: number, dir: 'up' | 'down') {
-    if (!doc) return;
-    error = null;
-    try {
-      if (dir === 'up') doc.moveLayerUp(id);
-      else doc.moveLayerDown(id);
-      onChange?.();
-    } catch (err) {
-      // `LayerAtEdge` is an expected no-op when the row is already
-      // top-/bottom-most among its siblings (the buttons are also
-      // disabled at the list ends); surface anything else.
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.includes('edge')) error = msg;
-    }
-  }
 </script>
 
-<Panel>
-  {#snippet actions()}
-    <button
-      type="button"
-      class="panel-btn"
-      onclick={() => onFlatten?.()}
-      disabled={!doc || layers.length < 2}
-      title="Flatten all visible layers into one"
-    >
-      Flatten
-    </button>
-    <IconButton icon="plus" label="Add layer" size="sm" onclick={() => onAddLayer?.()} disabled={!doc} />
-  {/snippet}
-
-  {#if layers.length === 0}
-    <p class="text-xs text-pc-faint">No layers.</p>
-  {:else}
-    <ul class="flex flex-col gap-1">
-      {#each layers as layer, i (layer.id)}
-        {@const isActive = layer.id === activeLayerId}
-        <li
-          class="flex items-center gap-2 rounded border px-2 py-1"
-          class:layer-active={isActive}
-          class:border-pc-border={!isActive}
-        >
-          <button
-            type="button"
-            class="layer-eye shrink-0"
-            onclick={() => onToggleVisible?.(layer.id, !layer.visible)}
-            aria-pressed={layer.visible}
-            aria-label={`${layer.visible ? 'Hide' : 'Show'} ${layer.name}`}
-            title={layer.visible ? 'Hide layer' : 'Show layer'}
-          >
-            <Icon name={layer.visible ? 'eye' : 'eye-off'} size={14} />
-          </button>
-          {#if editingId === layer.id}
-            <!-- svelte-ignore a11y_autofocus -->
-            <input
-              class="min-w-0 flex-1 rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
-              bind:value={draftName}
-              autofocus
-              onkeydown={(e) => onRenameKey(e, layer.id)}
-              onblur={() => commitRename(layer.id)}
-              aria-label={`Rename ${layer.name}`}
-            />
-          {:else}
-            <button
-              type="button"
-              class="flex min-w-0 flex-1 items-center gap-2 text-left"
-              onclick={() => onActivate?.(layer.id)}
-              ondblclick={() => startRename(layer.id, layer.name)}
-              aria-pressed={isActive}
-              title={`Select ${layer.name} (double-click to rename)`}
-            >
-              <span
-                class="truncate text-sm"
-                class:text-pc-text={layer.visible}
-                class:text-pc-faint={!layer.visible}
-                title={layer.name}
-              >
-                {layer.name}
-              </span>
-              <span class="ml-auto shrink-0 text-[0.65rem] text-pc-faint uppercase">
-                {layer.kind}
-              </span>
-            </button>
-          {/if}
-          <div class="flex shrink-0 flex-col">
-            <button
-              type="button"
-              class="layer-move"
-              onclick={() => move(layer.id, 'up')}
-              disabled={i === 0}
-              aria-label={`Move ${layer.name} up`}
-              title="Move up"
-            >
-              <Icon name="chevron-up" size={11} />
-            </button>
-            <button
-              type="button"
-              class="layer-move"
-              onclick={() => move(layer.id, 'down')}
-              disabled={i === layers.length - 1}
-              aria-label={`Move ${layer.name} down`}
-              title="Move down"
-            >
-              <Icon name="chevron-down" size={11} />
-            </button>
-          </div>
-          <button
-            type="button"
-            class="layer-remove shrink-0"
-            onclick={() => onRemoveLayer?.(layer.id)}
-            disabled={layers.length <= 1}
-            aria-label={`Remove ${layer.name}`}
-            title={layers.length <= 1 ? 'Cannot remove the last layer' : 'Remove layer'}
-          >
-            <Icon name="trash" size={14} />
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-
-  {#if active}
-    <div
-      class="flex flex-col gap-2 rounded border border-pc-border bg-pc-panel/60 p-2 text-xs"
-      aria-label="Layer properties"
-    >
-      <label class="flex items-center gap-2 text-pc-text">
-        <span class="w-14 shrink-0">Opacity</span>
-        <input
-          type="range"
-          min="0"
-          max="255"
-          value={active.opacity}
-          class="min-w-0 flex-1 cursor-pointer"
-          aria-label="Layer opacity"
-          oninput={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), false)}
-          onchange={(e) => onSetOpacity?.(active.id, Number(e.currentTarget.value), true)}
-        />
-        <span class="w-8 text-right tabular-nums text-pc-faint">{active.opacity}</span>
-      </label>
-      <label class="flex items-center gap-2 text-pc-text">
-        <span class="w-14 shrink-0">Blend</span>
-        <select
-          class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-          value={active.blendMode}
-          aria-label="Layer blend mode"
-          onchange={(e) => onSetBlendMode?.(active.id, e.currentTarget.value)}
-        >
-          {#each blendModes as mode (mode)}
-            <option value={mode}>{blendLabel(mode)}</option>
-          {/each}
-        </select>
-      </label>
-      <div class="flex gap-1">
-        <button
-          type="button"
-          class="panel-btn"
-          onclick={() => onDuplicate?.(active.id)}
-          disabled={active.kind === 'group'}
-          title="Duplicate layer"
-        >
-          Duplicate
-        </button>
-        <button
-          type="button"
-          class="panel-btn"
-          onclick={() => onMergeDown?.(active.id)}
-          disabled={!canMergeDown}
-          title={canMergeDown ? 'Merge into the layer below' : 'Needs an image layer directly below'}
-        >
-          Merge Down
-        </button>
-      </div>
-    </div>
-  {/if}
-
-  {#if error}
-    <p class="text-xs text-red-400" role="alert">{error}</p>
-  {/if}
-</Panel>
-
-<style>
-  .layer-active {
-    border-color: var(--color-pc-accent);
-    background-color: var(--color-pc-active);
-  }
-  .layer-eye {
-    font-size: 0.6rem;
-    line-height: 1;
-    color: rgb(115 115 115);
-  }
-  .layer-eye[aria-pressed='true'] {
-    color: rgb(163 163 163);
-  }
-  .layer-eye:hover {
-    color: rgb(229 229 229);
-  }
-  .layer-move {
-    line-height: 1;
-    padding: 0 0.25rem;
-    font-size: 0.55rem;
-    color: rgb(163 163 163);
-  }
-  .layer-move:hover:not(:disabled) {
-    color: rgb(229 229 229);
-  }
-  .layer-move:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-  .layer-remove {
-    line-height: 1;
-    padding: 0 0.25rem;
-    font-size: 0.7rem;
-    color: rgb(115 115 115);
-  }
-  .layer-remove:hover:not(:disabled) {
-    color: rgb(248 113 113);
-  }
-  .layer-remove:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-</style>
+<LayersPanel
+  {rows}
+  activeKey={p.activeLayerId === null ? null : String(p.activeLayerId)}
+  {blendModes}
+  revision={p.rev}
+  thumbnail={(row) => {
+    if (!p.doc) return null;
+    try {
+      const f = p.doc.layerThumbnail(row.ref, p.frame, 32);
+      const thumb = { rgba: f.pixels, width: f.width, height: f.height };
+      f.free();
+      return thumb;
+    } catch {
+      return null;
+    }
+  }}
+  canDuplicate={active !== null && active.kind !== 'group'}
+  {canMergeDown}
+  canDelete={active !== null && rows.length > 1}
+  onSelect={(row) => p.onActivate(row.ref)}
+  onToggleVisible={(row) => p.onToggleVisible(row.ref, !row.visible)}
+  onToggleLocked={(row) => p.onToggleLocked(row.ref, row.locked)}
+  onRename={(row, name) => p.onRename(row.ref, name)}
+  onReorder={(row, target) => p.onReorder(row.ref, target.ref)}
+  onOpacity={(row, opacity, commit) => p.onSetOpacity(row.ref, Math.round(opacity * 255), commit)}
+  onBlend={(row, mode) => p.onSetBlendMode(row.ref, mode)}
+  onAdd={p.onAddLayer}
+  onDuplicate={() => active && p.onDuplicate(active.ref)}
+  onMergeDown={() => active && p.onMergeDown(active.ref)}
+  onDelete={() => active && p.onRemoveLayer(active.ref)}
+  onFlatten={p.onFlatten}
+/>

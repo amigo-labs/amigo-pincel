@@ -20,6 +20,7 @@
     flattenImage,
     flipCanvas,
     mergeDown,
+    renameLayer,
     mergeVisible,
     previewEffect,
     resizeCanvas,
@@ -81,6 +82,8 @@
   import type { SaveTarget } from '../../lib/fs';
   import { isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
+  import { t } from '../../lib/i18n/index.svelte';
+  import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
@@ -98,6 +101,8 @@
   let jpegDialogOpen = $state(false);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   let effectOpen = $state<EffectDef | null>(null);
+  // Layer ▸ Rename… target while its dialog is open.
+  let renaming = $state<{ index: number; name: string } | null>(null);
 
   function runExport(format: ExportFormat, quality?: number): void {
     // JPEG is lossy: ask for the quality first (spec §13.2).
@@ -142,7 +147,7 @@
   ].map((g) => ({ ...g, shortcut: toolHint(g.id) }) as ToolGroup<ToolKind>);
 
   const toolLabel = $derived(
-    groupOf(toolGroups, tool.kind)?.tools.find((t) => t.id === tool.kind)?.label ?? '',
+    groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
   );
 
   // Recents need something a re-open can use: an FSA handle (web) or a
@@ -466,6 +471,14 @@
           run: () => duplicateLayer(editor.activeLayer),
         },
         {
+          label: t('menu.renameLayer'),
+          disabled: !hasDoc,
+          run: () => {
+            const layer = editor.layers[editor.activeLayer];
+            if (layer) renaming = { index: editor.activeLayer, name: layer.name };
+          },
+        },
+        {
           label: 'Delete Layer',
           disabled: editor.layers.length <= 1,
           run: () => deleteLayer(editor.activeLayer),
@@ -531,10 +544,10 @@
     <IconButton icon="redo" label="Redo" hint={hint('redo')} disabled={!editor.canRedo} onclick={redo} />
   {/snippet}
   {#snippet tools(orientation)}
-    <ToolRail groups={toolGroups} active={tool.kind} onSelect={(t) => (tool.kind = t)} {orientation} />
+    <ToolRail groups={toolGroups} active={tool.kind} onSelect={(next) => (tool.kind = next)} {orientation} />
   {/snippet}
   {#snippet options()}
-    <ToolVariants groups={toolGroups} active={tool.kind} onSelect={(t) => (tool.kind = t)} />
+    <ToolVariants groups={toolGroups} active={tool.kind} onSelect={(next) => (tool.kind = next)} />
     <ToolOptions />
   {/snippet}
   {#snippet viewport()}
@@ -546,11 +559,26 @@
     <span>{editor.width} × {editor.height} · sRGB</span>
     <span
       class="min-w-0 flex-1 truncate text-center"
-      class:text-amber-400={loadError !== null}
-      class:text-pc-muted={loadError === null}>{loadError ?? ''}</span
+      class:text-amber-400={loadError !== null || editor.notice !== null}
+      class:text-pc-muted={loadError === null && editor.notice === null}
+      >{loadError ?? editor.notice ?? ''}</span
     >
   {/snippet}
 </EditorFrame>
+
+{#if renaming}
+  {@const target = renaming}
+  <RenameDialog
+    name={target.name}
+    onCancel={() => (renaming = null)}
+    onRename={(name) => {
+      // Read the target before closing: `target` follows `renaming`.
+      const index = target.index;
+      renaming = null;
+      renameLayer(index, name);
+    }}
+  />
+{/if}
 
 {#if recoverySnapshots.length > 0}
   <RecoveryDialog

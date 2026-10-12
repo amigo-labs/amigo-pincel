@@ -89,6 +89,8 @@
   import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
   import { fitZoom } from '../../lib/view/fit';
   import { packColor, unpackColor } from '../../lib/color';
+  import { t } from '../../lib/i18n/index.svelte';
+  import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   type ImageAction =
     | `layer:${TransformOp}`
@@ -786,6 +788,21 @@
     }
   }
 
+  // Name of the layer the current tool would write into when that layer
+  // is locked (spec §3.2 `editable`), else `null`. Selection, eyedropper,
+  // slice and plain panning never write, so they are never blocked.
+  // The last locked-layer status line, cleared by the next permitted edit.
+  let lockNotice: string | null = null;
+
+  function lockedEditTarget(): string | null {
+    if (!doc) return null;
+    if (tool.startsWith('selection') || tool === 'eyedropper' || tool === 'slice') return null;
+    if (tool === 'move' && !selection) return null;
+    const id = tool === 'tilemap-stamp' ? activeLayerId : doc.paintTargetLayer();
+    if (id === null || id === 0xffffffff || !doc.layerLocked(id)) return null;
+    return doc.layerName(id);
+  }
+
   function onPointerDown(e: PointerEvent) {
     if (pinch.down(e)) {
       canvas?.setPointerCapture(e.pointerId);
@@ -813,6 +830,13 @@
       panStartOffset = { x: panX, y: panY };
       return;
     }
+    const locked = lockedEditTarget();
+    if (locked !== null) {
+      status = lockNotice = t('layers.locked', { name: locked });
+      return;
+    }
+    if (lockNotice !== null && status === lockNotice) status = '';
+    lockNotice = null;
     if (tool === 'move') {
       if (selection) {
         const point = spriteCoord(e);
@@ -2285,6 +2309,9 @@
     return false;
   });
 
+  // Layer ▸ Rename… target while its dialog is open.
+  let renaming = $state<{ id: number; name: string } | null>(null);
+
   const layerCountNow = $derived.by(() => {
     void docRev;
     return doc?.layerCount ?? 0;
@@ -2292,7 +2319,7 @@
 
   const railGroups = $derived(toolGroups(stampTile));
   const toolLabel = $derived(
-    groupOf(railGroups, tool)?.tools.find((t) => t.id === tool)?.label ?? '',
+    groupOf(railGroups, tool)?.tools.find((x) => x.id === tool)?.label ?? '',
   );
 
   const menus = $derived(
@@ -2345,6 +2372,10 @@
         if (id !== null) mergeDownLayer(id);
       },
       flatten: flattenLayers,
+      renameLayer: () => {
+        const id = targetLayer();
+        if (id !== null && doc) renaming = { id, name: doc.layerName(id) };
+      },
       togglePlay,
       stepFrame: (d) => {
         stopPlayback();
@@ -2747,8 +2778,8 @@
   <LayersPanel
     {doc}
     rev={docRev}
+    frame={currentFrame}
     {activeLayerId}
-    onChange={() => (docRev += 1)}
     onActivate={(layerId) => {
       activeLayerId = layerId;
       // Route pixel tools to the selected layer (M13.3b). A fresh
@@ -2763,6 +2794,28 @@
         docRev += 1;
       } catch (err) {
         status = `layer visibility failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onToggleLocked={(layerId, editable) => {
+      if (!doc) return;
+      try {
+        doc.setLayerEditable(layerId, editable);
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      } catch (err) {
+        status = `layer lock failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
+    onReorder={(layerId, targetId) => {
+      if (!doc) return;
+      try {
+        doc.reorderLayer(layerId, targetId);
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      } catch (err) {
+        status = `layer reorder failed: ${err instanceof Error ? err.message : String(err)}`;
       }
     }}
     onRename={(layerId, name) => {
@@ -2847,7 +2900,7 @@
     onAddFrame={addFrame}
     onRemoveFrame={removeFrame}
     onTogglePlay={togglePlay}
-    onLoopTagChange={(t) => (loopTag = t)}
+    onLoopTagChange={(next) => (loopTag = next)}
     onOnionChange={applyOnion}
     onChange={() => {
       dirty = true;
@@ -2883,10 +2936,10 @@
     <IconButton icon="redo" label="Redo" hint={hint('redo')} disabled={redoDepth === 0} onclick={redo} />
   {/snippet}
   {#snippet tools(orientation)}
-    <ToolRail groups={railGroups} active={tool} onSelect={(t) => (tool = t)} {orientation} />
+    <ToolRail groups={railGroups} active={tool} onSelect={(next) => (tool = next)} {orientation} />
   {/snippet}
   {#snippet options()}
-    <ToolVariants groups={railGroups} active={tool} onSelect={(t) => (tool = t)} />
+    <ToolVariants groups={railGroups} active={tool} onSelect={(next) => (tool = next)} />
     {#if tool === 'selection-wand'}
       <label class="opt">
         Tolerance
@@ -3079,6 +3132,27 @@
       void discardSnapshot(targetDocId);
     }}
     onDismiss={closeRecovery}
+  />
+{/if}
+
+{#if renaming && doc}
+  {@const target = renaming}
+  <RenameDialog
+    name={target.name}
+    onCancel={() => (renaming = null)}
+    onRename={(name) => {
+      // Read the target before closing: `target` follows `renaming`.
+      const id = target.id;
+      renaming = null;
+      try {
+        doc?.renameLayer(id, name);
+        dirty = true;
+        syncMeta();
+        docRev += 1;
+      } catch (err) {
+        status = `layer rename failed: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }}
   />
 {/if}
 

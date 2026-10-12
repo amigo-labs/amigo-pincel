@@ -33,6 +33,11 @@ export function browserLocale(): Locale {
   return 'en';
 }
 
+/** `true` when `key` names a message (for keys built at runtime). */
+export function isMessageKey(key: string): key is MessageKey {
+  return key in en;
+}
+
 /** Narrow a stored pref value to a locale. */
 export function isLocale(v: unknown): v is Locale {
   return v === 'en' || v === 'de';

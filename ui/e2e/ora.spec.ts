@@ -18,7 +18,7 @@ test('image mode: Save writes an OpenRaster file that reopens with its layers', 
   await createDocument(page, 'image', { width: 40, height: 30 });
   await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
   await page.getByTitle('Add layer').click();
-  await expect(page.getByRole('button', { name: /Hide layer/ })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(2);
   await expect(page.getByTitle(/unsaved changes/)).toBeVisible();
 
   const [download] = await Promise.all([
@@ -38,5 +38,5 @@ test('image mode: Save writes an OpenRaster file that reopens with its layers', 
   ]);
   await chooser.setFiles({ name: 'image.ora', mimeType: 'image/openraster', buffer: bytes });
   await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Hide layer/ })).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(2);
 });

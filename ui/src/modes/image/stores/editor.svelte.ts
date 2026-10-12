@@ -32,6 +32,8 @@ export const editor = $state({
   /** A live effect preview composite that overrides the canvas while an effect
    * dialog is open; `null` shows the real composite (spec §11 live preview). */
   previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+  /** One-line notice for the status bar (e.g. painting on a locked layer). */
+  notice: null as string | null,
 });
 
 /** Transient UI chrome state (not document state). */

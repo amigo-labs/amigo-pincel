@@ -7,6 +7,7 @@ import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
 import { languageMenu } from '../../lib/i18n/locale';
+import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
 
 /** Layer / canvas transform ids the wasm `Document` takes. */
@@ -62,6 +63,7 @@ export interface PixelMenuContext {
   removeLayer(): void;
   mergeDown(): void;
   flatten(): void;
+  renameLayer(): void;
   togglePlay(): void;
   stepFrame(delta: 1 | -1): void;
   addFrame(): void;
@@ -180,6 +182,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       items: [
         { label: 'New Layer', disabled: noDoc, run: c.addLayer },
         { label: 'Duplicate Layer', disabled: noDoc, run: c.duplicateLayer },
+        { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
         { label: 'Delete Layer', disabled: noDoc || c.layerCount <= 1, run: c.removeLayer },
         { kind: 'separator' },
         { label: 'Merge Down', disabled: noDoc || !c.canMergeDown, run: c.mergeDown },
