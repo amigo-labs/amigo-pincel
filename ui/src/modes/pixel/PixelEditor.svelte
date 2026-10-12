@@ -72,13 +72,7 @@
   import { syncRecentMenu } from '../../lib/menu';
   import { isTauri } from '../../lib/platform';
   import { isIdbAvailable } from '../../lib/idb/db';
-  import {
-    latestSnapshot,
-    listLatestSnapshots,
-    removeSnapshots,
-    writeSnapshot,
-    type AutosaveSnapshotMeta,
-  } from '../../lib/idb/autosave';
+  import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import {
     listRecents,
     upsertRecent,
@@ -233,12 +227,6 @@
   let fileOpBusy = $state(false);
   // Stable across the session; drives Save / Save As button labels.
   const fsAccessAvailable = hasFsAccess();
-  // Per-document UUID. Refreshed on every `New` / `Open` /
-  // `Open Recent` so each session has a stable identity that the
-  // recent-files registry and (M10.3) autosave snapshots can key on.
-  // M10.2 only persists FSA-handle-bearing recents — without a handle
-  // the entry would be unclickable.
-  let docId = $state<string>(crypto.randomUUID());
   // Most-recently-opened recents, refreshed after every successful
   // open / save-as / open-recent. Empty list on non-FSA browsers and
   // before the IDB layer has loaded.
@@ -253,33 +241,15 @@
   // "Discard changes".
   let confirmState = $state<{ message: string; run: () => void } | null>(null);
   const tauriHost = isTauri();
-  const recentsAvailable = (fsAccessAvailable || tauriHost) && isIdbAvailable();
-  // Autosave (M10.3): on a 30-second cadence, snapshot the current
-  // `.aseprite` bytes into the IDB `autosave_snapshots` store keyed
-  // by `docId`. The interval keeps ticking once `loadCore` resolves;
-  // each tick is a no-op when the undo depth hasn't advanced past
-  // the last successful save / snapshot, so an idle session never
-  // touches IDB. A successful save (`save` / `openRecent` /
-  // `openDoc` / `newDoc`) drops the snapshot row and re-baselines
-  // `lastWriteUndoDepth` so the next dirty edit re-arms the timer.
-  const AUTOSAVE_INTERVAL_MS = 30_000;
-  const autosaveAvailable = isIdbAvailable();
-  let autosaveTimer: ReturnType<typeof setInterval> | null = null;
-  let lastWriteUndoDepth = $state(0);
-  // Undo depth at the last successful on-disk save (or document load).
-  // Distinct from `lastWriteUndoDepth`, which autosave snapshots also
-  // re-baseline — an autosave must not make the document read as clean.
+  const idbAvailable = isIdbAvailable();
+  const recentsAvailable = (fsAccessAvailable || tauriHost) && idbAvailable;
+  // Undo depth at the last successful on-disk save (or document load);
+  // `-1` marks a recovered document as unsaved. Autosave snapshots
+  // never touch it, so an autosave does not make the document clean.
   let lastSavedUndoDepth = $state(0);
   // "Modified since last save" — drives the footer dot, the tab title,
   // the beforeunload warning, and the New / Open confirm guard.
   const isDirty = $derived(doc !== null && undoDepth !== lastSavedUndoDepth);
-  let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
-  let recoveryOpen = $state(false);
-  // Per-row failure surface so a failed Recover / Discard keeps the
-  // dialog open with the error visible against the offending row,
-  // and the user can retry or pick a different snapshot. Keyed by
-  // `docId` so independent rows don't share an error slot.
-  let recoveryErrors = $state<Record<string, string>>({});
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
   const COLOR_PREF = 'lastColor';
@@ -1487,11 +1457,9 @@
             handle: opened.handle,
             path: opened.path,
           };
-      docId = crypto.randomUUID();
-      lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
       status = t('px.opened', { name: opened.name, w: doc.width, h: doc.height });
-      await clearAutosave();
+      await autosave.opened();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1507,10 +1475,9 @@
       const bytes = new Uint8Array(doc.saveAseprite());
       const next = await saveBytes(bytes, saveTarget, { forceAs });
       saveTarget = next;
-      lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
       status = t('px.saved', { bytes: bytes.length, name: next.name });
-      await clearAutosave();
+      await autosave.saved();
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1520,119 +1487,30 @@
     }
   }
 
-  // Drop autosave snapshots for the current `docId`. Called after
-  // every successful save / open so the IDB store only ever holds
-  // snapshots that represent unsaved edits.
-  async function clearAutosave() {
-    if (!autosaveAvailable) return;
-    try {
-      await removeSnapshots(docId);
-    } catch (err) {
-      // Best-effort; log but don't surface — the user's save itself
-      // succeeded.
-      console.error('autosave clear failed', err);
-    }
-  }
-
-  // One autosave tick. No-op when nothing to snapshot (no doc, no
-  // change since last write, IDB unavailable). Surfacing failure in
-  // the status bar is intentional — autosave silently failing is the
-  // worst failure mode for this feature.
-  async function autosaveTick() {
-    // Skip while a file op is in flight — the doc may be disposed /
-    // replaced under the await below.
-    if (!autosaveAvailable || !doc || fileOpBusy) return;
-    if (doc.undoDepth === lastWriteUndoDepth) return;
-    const depthAtSnapshot = doc.undoDepth;
-    const idAtSnapshot = docId;
-    let bytes: Uint8Array;
-    try {
-      bytes = new Uint8Array(doc.saveAseprite());
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('autosave encode failed', err);
-      status = t('status.failed', { action: t('act.autosave'), error: msg });
-      return;
-    }
-    try {
-      await writeSnapshot(idAtSnapshot, saveTarget.name, bytes, 'pixel');
-      // A New / Open may have swapped the document during the await;
-      // its own re-baseline must not be clobbered with our stale depth.
-      if (docId === idAtSnapshot) lastWriteUndoDepth = depthAtSnapshot;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('autosave write failed', err);
-      status = t('status.failed', { action: t('act.autosave'), error: msg });
-    }
-  }
-
-  // Load the recovered bytes into a fresh `Document`, replacing the
-  // current one. Re-binds `docId` to the snapshot's id so subsequent
-  // saves and autosaves stay grouped under the same identity — this
-  // is what makes the recovered session feel like a continuation
-  // rather than a copy. The snapshot row is dropped only on success;
-  // on failure the dialog stays open with a per-row error so the
-  // user can retry or pick a different snapshot.
-  async function applyRecovery(meta: AutosaveSnapshotMeta) {
-    if (fileOpBusy) return;
-    fileOpBusy = true;
-    try {
-      await applyRecoveryInner(meta);
-    } finally {
-      fileOpBusy = false;
-    }
-  }
-
-  async function applyRecoveryInner(meta: AutosaveSnapshotMeta) {
-    let next: Document;
-    try {
-      const full = await latestSnapshot(meta.docId);
-      if (!full) throw new Error('snapshot bytes not found');
-      next = Document.openAseprite(full.bytes);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      recoveryErrors = { ...recoveryErrors, [meta.docId]: msg };
-      status = t('status.failed', { action: t('act.recover'), error: msg });
-      return;
-    }
-    disposeDoc();
-    doc = next;
-    resetDocViewState();
-    saveTarget = { name: meta.name, handle: null, path: null };
-    docId = meta.docId;
-    lastWriteUndoDepth = doc.undoDepth;
-    lastSavedUndoDepth = doc.undoDepth;
-    status = t('px.recovered', { name: meta.name, w: doc.width, h: doc.height });
-    await clearAutosave();
-    closeRecovery();
-  }
-
-  async function discardSnapshot(targetDocId: string) {
-    try {
-      await removeSnapshots(targetDocId);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error('discard snapshot failed', err);
-      recoveryErrors = { ...recoveryErrors, [targetDocId]: msg };
-      status = t('status.failed', { action: t('act.discard'), error: msg });
-      return;
-    }
-    recoverySnapshots = recoverySnapshots.filter(
-      (s) => s.docId !== targetDocId,
-    );
-    if (targetDocId in recoveryErrors) {
-      const next = { ...recoveryErrors };
-      delete next[targetDocId];
-      recoveryErrors = next;
-    }
-    if (recoverySnapshots.length === 0) closeRecovery();
-  }
-
-  function closeRecovery() {
-    recoveryOpen = false;
-    recoverySnapshots = [];
-    recoveryErrors = {};
-  }
+  // Autosave and recovery, shared with Image mode
+  // (lib/idb/autosave-session): `.aseprite` snapshots tagged `pixel`.
+  const autosave = new AutosaveSession({
+    mode: 'pixel',
+    depth: () => doc?.undoDepth ?? null,
+    savedDepth: () => lastSavedUndoDepth,
+    busy: () => fileOpBusy,
+    name: () => saveTarget.name,
+    encode: () => (doc ? new Uint8Array(doc.saveAseprite()) : null),
+    open: async (bytes, meta) => {
+      const next = Document.openAseprite(bytes);
+      disposeDoc();
+      doc = next;
+      resetDocViewState();
+      saveTarget = { name: meta.name, handle: null, path: null };
+      // Recovered work is not on disk yet: it reads as unsaved.
+      lastSavedUndoDepth = -1;
+      status = t('px.recovered', { name: meta.name, w: doc.width, h: doc.height });
+    },
+    report: (action, error) => {
+      const act = action === 'autosave' ? 'act.autosave' : action === 'recover' ? 'act.recover' : 'act.discard';
+      status = t('status.failed', { action: t(act), error });
+    },
+  });
 
   // Persist the current `saveTarget` to the recent-files registry and
   // refresh the in-memory list. No-op when the registry isn't
@@ -1646,7 +1524,7 @@
     if (!saveTarget.handle && !saveTarget.path) return;
     try {
       await upsertRecent({
-        id: docId,
+        id: autosave.docId,
         name: saveTarget.name,
         handle: saveTarget.handle,
         path: saveTarget.path,
@@ -1696,13 +1574,10 @@
       doc = next;
       resetDocViewState();
       saveTarget = nextTarget;
-      // Preserve the recent's id so re-opens count as the same doc
-      // and autosave snapshots survive across page reloads.
-      docId = r.id;
-      lastWriteUndoDepth = doc.undoDepth;
       lastSavedUndoDepth = doc.undoDepth;
       status = t('px.opened', { name, w: doc.width, h: doc.height });
-      await clearAutosave();
+      // Keep the recent's id so re-opens count as the same document.
+      await autosave.opened(r.id);
       await recordRecent();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -2404,7 +2279,7 @@
       return;
     }
     // Dialogs own the keyboard while open.
-    if (effectOpen || textAnchor || resizeOpen || sheetOpen || recoveryOpen) return;
+    if (effectOpen || textAnchor || resizeOpen || sheetOpen || autosave.snapshots.length > 0) return;
     if (e.key === 'Escape') {
       if (confirmState) {
         confirmState = null;
@@ -2577,7 +2452,6 @@
         fitView();
         syncSelection();
         dirty = true;
-        lastWriteUndoDepth = doc.undoDepth;
         lastSavedUndoDepth = doc.undoDepth;
         status = t('px.ready');
         rafHandle = requestAnimationFrame(tick);
@@ -2611,7 +2485,7 @@
     // stands when the pref is missing or IDB is unavailable). The
     // persist effect below only starts writing once this load settled,
     // so a slow IDB can't overwrite the stored value with the default.
-    if (autosaveAvailable) {
+    if (idbAvailable) {
       getPref(COLOR_PREF)
         .then((v) => {
           if (cancelled) return;
@@ -2638,24 +2512,9 @@
           console.error('listRecents failed', err);
         });
     }
-    // Recovery probe: surface any snapshots from a prior session.
-    // The interval starts here too — the timer body short-circuits
-    // until `doc` is non-null, so it's safe to arm before
-    // `loadCore` resolves.
-    if (autosaveAvailable) {
-      listLatestSnapshots('pixel')
-        .then((snaps) => {
-          if (cancelled || snaps.length === 0) return;
-          recoverySnapshots = snaps;
-          recoveryOpen = true;
-        })
-        .catch((err: unknown) => {
-          console.error('autosave probe failed', err);
-        });
-      autosaveTimer = setInterval(() => {
-        void autosaveTick();
-      }, AUTOSAVE_INTERVAL_MS);
-    }
+    // Recovery probe and the autosave timer. A tick before `loadCore`
+    // resolves is a no-op (no document yet).
+    autosave.start();
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
@@ -2673,10 +2532,7 @@
       cancelled = true;
       if (rafHandle !== null) cancelAnimationFrame(rafHandle);
       stopPlayback();
-      if (autosaveTimer !== null) {
-        clearInterval(autosaveTimer);
-        autosaveTimer = null;
-      }
+      autosave.stop();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
@@ -2696,7 +2552,7 @@
   $effect(() => {
     const fg = color;
     const bg = bgColor;
-    if (!colorPrefLoaded || !autosaveAvailable) return;
+    if (!colorPrefLoaded || !idbAvailable) return;
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
     });
@@ -3127,17 +2983,13 @@
   {/snippet}
 </EditorFrame>
 
-{#if recoveryOpen && recoverySnapshots.length > 0}
+{#if autosave.snapshots.length > 0}
   <RecoveryDialog
-    snapshots={recoverySnapshots}
-    errors={recoveryErrors}
-    onRecover={(snap) => {
-      void applyRecovery(snap);
-    }}
-    onDiscard={(targetDocId) => {
-      void discardSnapshot(targetDocId);
-    }}
-    onDismiss={closeRecovery}
+    snapshots={autosave.snapshots}
+    errors={autosave.errors}
+    onRecover={(snap) => void autosave.recover(snap)}
+    onDiscard={(id) => void autosave.discard(id)}
+    onDismiss={() => autosave.dismiss()}
   />
 {/if}
 

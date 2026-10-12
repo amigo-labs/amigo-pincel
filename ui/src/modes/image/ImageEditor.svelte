@@ -71,13 +71,7 @@
   import { hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { upsertRecent } from '../../lib/idb/recent-files';
-  import {
-    latestSnapshot,
-    listLatestSnapshots,
-    removeSnapshots,
-    writeSnapshot,
-    type AutosaveSnapshotMeta,
-  } from '../../lib/idb/autosave';
+  import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { isTauri } from '../../lib/platform';
@@ -191,7 +185,7 @@
     if (!recentsAvailable || !file || (!file.handle && !file.path)) return;
     try {
       await upsertRecent({
-        id: docId,
+        id: autosave.docId,
         name: file.name,
         handle: file.handle,
         path: file.path,
@@ -210,8 +204,7 @@
     saving = true;
     try {
       const target = await saveProject(forceAs);
-      lastWriteDepth = editor.undoDepth;
-      await clearAutosave();
+      await autosave.saved();
       await recordRecent(target);
     } catch (e) {
       loadError = t('img.saveFailed', { error: String(e) });
@@ -220,63 +213,26 @@
     }
   }
 
-  // Autosave (Pixel-mode parity, M10.3): every 30 s, an OpenRaster
-  // snapshot of an edited document goes to the shared IDB store, tagged
-  // `mode: 'image'`; a save or a fresh open drops it. On mount, snapshots
-  // left by an earlier session are offered for recovery.
-  const AUTOSAVE_INTERVAL_MS = 30_000;
-  const autosaveAvailable = isIdbAvailable();
-  let docId: string = crypto.randomUUID();
-  let lastWriteDepth = 0;
-  let recoverySnapshots = $state<AutosaveSnapshotMeta[]>([]);
-  let recoveryErrors = $state<Record<string, string>>({});
-
-  async function clearAutosave(): Promise<void> {
-    if (!autosaveAvailable) return;
-    try {
-      await removeSnapshots(docId);
-    } catch (err) {
-      console.error('autosave clear failed', err);
-    }
-  }
-
-  async function autosaveTick(): Promise<void> {
-    if (!autosaveAvailable || saving || editor.handle === null) return;
-    if (editor.undoDepth === lastWriteDepth || editor.undoDepth === editor.savedUndoDepth) return;
-    const depth = editor.undoDepth;
-    try {
-      const bytes = projectBytes(true);
-      if (bytes === null) return;
-      await writeSnapshot(docId, projectName(), bytes, 'image');
-      lastWriteDepth = depth;
-    } catch (err) {
-      console.error('autosave failed', err);
-      loadError = t('img.autosaveFailed', { error: String(err) });
-    }
-  }
-
-  async function recover(meta: AutosaveSnapshotMeta): Promise<void> {
-    try {
-      const full = await latestSnapshot(meta.docId);
-      if (!full) throw new Error('snapshot bytes not found');
-      await openBytes(full.bytes, meta.name, 'image/openraster');
-      docId = meta.docId;
+  // Autosave and recovery, shared with Pixel mode (lib/idb/autosave-session):
+  // OpenRaster snapshots tagged `mode: 'image'`.
+  const autosave = new AutosaveSession({
+    mode: 'image',
+    depth: () => (editor.handle === null ? null : editor.undoDepth),
+    savedDepth: () => editor.savedUndoDepth,
+    busy: () => saving,
+    name: () => projectName(),
+    encode: () => projectBytes(true),
+    open: async (bytes, meta) => {
+      await openBytes(bytes, meta.name, 'image/openraster');
       markUnsaved();
-      lastWriteDepth = editor.undoDepth;
-      recoverySnapshots = [];
-    } catch (err) {
-      recoveryErrors = { ...recoveryErrors, [meta.docId]: String(err) };
-    }
-  }
-
-  async function discardSnapshot(id: string): Promise<void> {
-    try {
-      await removeSnapshots(id);
-      recoverySnapshots = recoverySnapshots.filter((s) => s.docId !== id);
-    } catch (err) {
-      recoveryErrors = { ...recoveryErrors, [id]: String(err) };
-    }
-  }
+    },
+    report: (action, error) => {
+      loadError =
+        action === 'autosave'
+          ? t('img.autosaveFailed', { error })
+          : t('status.failed', { action: t(action === 'recover' ? 'act.recover' : 'act.discard'), error });
+    },
+  });
 
   onMount(() => {
     // Open what the shell handed over: an already-read file, or a blank
@@ -287,13 +243,7 @@
         )
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
-    let timer: ReturnType<typeof setInterval> | null = null;
-    if (autosaveAvailable) {
-      listLatestSnapshots('image')
-        .then((snaps) => (recoverySnapshots = snaps))
-        .catch((err: unknown) => console.error('autosave probe failed', err));
-      timer = setInterval(() => void autosaveTick(), AUTOSAVE_INTERVAL_MS);
-    }
+    autosave.start();
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -305,7 +255,7 @@
       'menu:resetZoom': () => viewCommands.fit(),
     });
     return () => {
-      if (timer !== null) clearInterval(timer);
+      autosave.stop();
       registerMenuHandlers(null);
     };
   });
@@ -667,13 +617,13 @@
   />
 {/if}
 
-{#if recoverySnapshots.length > 0}
+{#if autosave.snapshots.length > 0}
   <RecoveryDialog
-    snapshots={recoverySnapshots}
-    errors={recoveryErrors}
-    onRecover={(snap) => void recover(snap)}
-    onDiscard={(id) => void discardSnapshot(id)}
-    onDismiss={() => (recoverySnapshots = [])}
+    snapshots={autosave.snapshots}
+    errors={autosave.errors}
+    onRecover={(snap) => void autosave.recover(snap)}
+    onDiscard={(id) => void autosave.discard(id)}
+    onDismiss={() => autosave.dismiss()}
   />
 {/if}
 
