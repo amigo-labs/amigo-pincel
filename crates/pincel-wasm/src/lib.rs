@@ -40,11 +40,11 @@ use pincel_core::{
     AsepriteReadOutput, AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode,
     ComposeRequest, DrawEllipse, DrawLine, DrawRectangle, FillRegion, Frame, FrameIndex, Layer,
     LayerId, LayerKind, MoveDirection, MoveLayer, MovePaletteEntry, MoveSelectionContent,
-    OnionSkin, Palette, PaletteEntry, PixelBuffer, PlaceTile, Rect, RemoveLayer,
-    RemovePaletteEntry, RemoveSlice, Rgba, SetLayerName, SetLayerVisible, SetPaletteColor,
-    SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite, TileRef, Tileset,
-    TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png, read_aseprite,
-    write_aseprite,
+    OnionSkin, Palette, PaletteEntry, PalettePreset, PixelBuffer, PlaceTile, Rect, RemoveLayer,
+    RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
+    SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
+    TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png,
+    read_aseprite, read_gpl, write_aseprite, write_gpl,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1357,11 +1357,9 @@ impl Document {
 
     // ---- Palette read surface ---------------------------------------
 
-    /// Number of entries in the document's palette. Zero for a fresh
-    /// `Document::new` (which seeds no palette) and for opened files
-    /// that carry none. RGBA palettes are recovered on open from the
-    /// `0x2019` chunk (see `pincel_core::aseprite_read`), so this
-    /// reflects whatever the source file stored.
+    /// Number of entries in the document's palette: 32 for a fresh
+    /// `Document::new` (DB32), and whatever an opened file stored in its
+    /// `0x2019` chunk (see `pincel_core::aseprite_read`), possibly zero.
     #[wasm_bindgen(getter, js_name = paletteCount)]
     pub fn palette_count(&self) -> u32 {
         self.sprite.palette.len() as u32
@@ -1448,6 +1446,45 @@ impl Document {
                 &mut self.cels,
             )
             .map_err(|e| format!("failed to move palette entry: {e}"))?;
+        self.bus.seal();
+        Ok(())
+    }
+
+    /// Replace the palette with the built-in preset `name` (`db32`,
+    /// `db16`, `pico8`, `gameboy`, `nes`; see [`palette_preset_names`]).
+    /// One undo entry. Refused for indexed documents.
+    #[wasm_bindgen(js_name = setPalettePreset)]
+    pub fn set_palette_preset(&mut self, name: &str) -> Result<(), String> {
+        let preset =
+            PalettePreset::from_name(name).ok_or_else(|| format!("unknown palette `{name}`"))?;
+        self.replace_palette(Palette::preset(preset))
+    }
+
+    /// Replace the palette with a GIMP `.gpl` file's colours and return
+    /// how many it holds. One undo entry. Refused for indexed documents.
+    #[wasm_bindgen(js_name = importGpl)]
+    pub fn import_gpl(&mut self, text: &str) -> Result<u32, String> {
+        let palette = read_gpl(text).map_err(|e| e.to_string())?;
+        let count = palette.len() as u32;
+        self.replace_palette(palette)?;
+        Ok(count)
+    }
+
+    /// The palette as a GIMP `.gpl` file called `name` (alpha dropped).
+    #[wasm_bindgen(js_name = exportGpl)]
+    pub fn export_gpl(&self, name: &str) -> String {
+        write_gpl(&self.sprite.palette, name)
+    }
+
+    fn replace_palette(&mut self, palette: Palette) -> Result<(), String> {
+        self.bus.seal();
+        self.bus
+            .execute(
+                ReplacePalette::new(palette).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to replace palette: {e}"))?;
         self.bus.seal();
         Ok(())
     }
@@ -1783,6 +1820,16 @@ fn endpoint_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32, u32, u32) {
 /// fresh `Uint8Array`; spec §9.3 calls for a zero-copy
 /// `Uint8ClampedArray` view of WASM memory, which lands once the
 /// `js-sys` integration is wired up (M6 follow-up).
+/// Ids of the built-in palettes, in menu order (see
+/// [`Document::set_palette_preset`]).
+#[wasm_bindgen(js_name = palettePresetNames)]
+pub fn palette_preset_names() -> Vec<String> {
+    PalettePreset::ALL
+        .iter()
+        .map(|p| p.name().to_owned())
+        .collect()
+}
+
 #[wasm_bindgen]
 pub struct ComposeFrame {
     width: u32,
@@ -3934,5 +3981,22 @@ mod tests {
         // Unknown ids report the documented defaults.
         assert!(!doc.layer_visible(99));
         assert_eq!(doc.layer_opacity(99), 0);
+    }
+
+    #[test]
+    fn palette_presets_and_gpl_round_trip_through_undo() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.palette_count(), 32);
+        assert!(palette_preset_names().contains(&"pico8".to_owned()));
+        doc.set_palette_preset("gameboy").expect("preset");
+        assert_eq!(doc.palette_count(), 4);
+        let gpl = doc.export_gpl("GB");
+        assert!(gpl.starts_with("GIMP Palette\nName: GB"));
+        assert!(doc.undo());
+        assert_eq!(doc.palette_count(), 32);
+        assert_eq!(doc.import_gpl(&gpl).expect("import"), 4);
+        assert_eq!(doc.palette_color(0).expect("entry"), 0x0f380fff);
+        assert!(doc.set_palette_preset("vga").is_err());
+        assert!(doc.import_gpl("nope").is_err());
     }
 }
