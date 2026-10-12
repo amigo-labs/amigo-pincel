@@ -16,7 +16,9 @@ const config = {
       strict: true,
     }),
     prerender: {
-      entries: ['*'],
+      // The German pages (website spec §11) are linked from the language
+      // switch too; listing them keeps them built if a link ever moves.
+      entries: ['*', '/de', '/de/features', '/de/about', '/de/embed'],
       handleHttpError: 'warn',
     },
   },

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { localized, m } from '$lib/i18n';
+  import Rich from '$lib/components/Rich.svelte';
   import SeoHead from '$lib/components/SeoHead.svelte';
   import PixelIcon from '$lib/components/PixelIcon.svelte';
 
@@ -21,98 +23,75 @@ pincel.on('change', () => {
 const bytes = await pincel.saveAseprite();`;
 </script>
 
-<SeoHead
-  title="Embed Pincel — For developers"
-  description="@amigo-labs/pincel is a framework-agnostic npm package. Drop a full pixel-art editor into your tool with one mount call. Read and write Aseprite files."
-/>
+<SeoHead title={m().embed.seoTitle} description={m().embed.seoDescription} />
 
 <div class="page">
   <header class="page-head">
-    <p class="caption">For tool makers</p>
-    <h1 class="h-display">Embed Pincel in your tool.</h1>
-    <p class="lede">
-      Pincel ships as <code>@amigo-labs/pincel</code>, a framework-agnostic npm package. Mount it
-      in any DOM element. Read and write Aseprite files. Listen for changes. Built on
-      <code>pincel-core</code> (Rust → WASM). Same editor, in your app, no iframe.
-    </p>
+    <p class="caption">{m().embed.caption}</p>
+    <h1 class="h-display">{m().embed.title}</h1>
+    <p class="lede"><Rich text={m().embed.lede} /></p>
   </header>
 
   <section class="block">
-    <h2>Quick start</h2>
+    <h2>{m().embed.quickStart}</h2>
     <pre><code>{install}</code></pre>
     <pre><code>{usage}</code></pre>
   </section>
 
   <section class="block">
-    <h2>Live demo</h2>
+    <h2>{m().embed.demoTitle}</h2>
     <div class="demo">
-      <div class="demo-frame" aria-label="Embedded Pincel demo">
+      <div class="demo-frame" aria-label={m().embed.demoLabel}>
         <div class="demo-placeholder">
           <PixelIcon name="plug" size={64} />
-          <p>Live embed loads here at launch.</p>
-          <p class="muted">
-            The editor itself isn't published yet — follow along on
-            <a href="https://github.com/amigo-labs/amigo-pincel">GitHub</a>.
-          </p>
+          <p>{m().embed.demoSoon}</p>
+          <p class="muted"><Rich text={m().embed.demoFollow} /></p>
         </div>
       </div>
       <details class="source">
-        <summary>View source</summary>
-        <pre><code>{`<div id="editor" style="height: 480px"></div>
+        <summary>{m().embed.viewSource}</summary>
+        <pre><code
+            >{`<div id="editor" style="height: 480px"></div>
 <script type="module">
   import { Pincel } from '@amigo-labs/pincel';
   const pincel = await Pincel.create({ width: 32, height: 32 });
   pincel.mount(document.getElementById('editor'));
-</` + `script>`}</code></pre>
+</` + `script>`}</code
+          ></pre>
       </details>
     </div>
   </section>
 
   <section class="block">
-    <h2>What you get</h2>
+    <h2>{m().embed.getTitle}</h2>
     <ul class="bullets">
-      <li>Full editor UI, themeable via documented CSS variables.</li>
-      <li>
-        Public events: <code>change</code>, <code>save</code>, <code>selection</code>,
-        <code>tool-change</code>, <code>palette-change</code>.
-      </li>
-      <li>
-        Imperative API: <code>loadFile</code>, <code>saveAseprite</code>, <code>exportPng</code>,
-        <code>setActiveLayer</code>, and more.
-      </li>
-      <li>TypeScript types shipped.</li>
-      <li>Measured bundle size published per release.</li>
-      <li>Works in any framework. React adapter, Svelte adapter, plain JS.</li>
+      {#each m().embed.get as item (item)}
+        <li><Rich text={item} /></li>
+      {/each}
     </ul>
   </section>
 
   <section class="block">
-    <h2>What it costs</h2>
-    <p>
-      Free, MIT or Apache 2.0. No telemetry, no licensing, no per-seat fees. If you ship a product
-      using Pincel, you don't owe us anything. If you want to credit us, that's nice.
-    </p>
+    <h2>{m().embed.costTitle}</h2>
+    <p>{m().embed.cost}</p>
   </section>
 
   <section class="block">
-    <h2>Honest limits</h2>
+    <h2>{m().embed.limitsTitle}</h2>
     <ul class="bullets">
-      <li>
-        Bundle is not tiny — it's an editor. For small embeds, consider a read-only viewer
-        (Phase 2).
-      </li>
-      <li>No headless / Node API in Phase 1 (browser-only). Phase 2 adds Node for pipelines.</li>
-      <li>Aseprite Lua scripts are not supported and not planned.</li>
+      {#each m().embed.limits as item (item)}
+        <li>{item}</li>
+      {/each}
     </ul>
   </section>
 
   <section class="cta-block">
     <a class="btn-pixel" href="https://github.com/amigo-labs/amigo-pincel">
       <PixelIcon name="github" size={16} />
-      Source on GitHub
+      {m().embed.source}
     </a>
-    <a class="btn-pixel btn-pixel--secondary" href="/features">
-      See what's coming
+    <a class="btn-pixel btn-pixel--secondary" href={localized('/features')}>
+      {m().embed.coming}
       <PixelIcon name="arrow-right" size={16} />
     </a>
   </section>
@@ -140,8 +119,8 @@ const bytes = await pincel.saveAseprite();`;
     margin: 0;
     max-width: 64ch;
   }
-  .lede code,
-  .block code {
+  .lede :global(code),
+  .block :global(code) {
     color: var(--color-brand-primary);
   }
   .block {
@@ -179,7 +158,9 @@ const bytes = await pincel.saveAseprite();`;
     aspect-ratio: 16 / 9;
     background-color: var(--color-bg-card);
     border: 2px solid var(--color-bg-base);
-    box-shadow: 4px 4px 0 var(--color-bg-base), 0 0 0 1px var(--color-border-strong);
+    box-shadow:
+      4px 4px 0 var(--color-bg-base),
+      0 0 0 1px var(--color-border-strong);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -200,7 +181,7 @@ const bytes = await pincel.saveAseprite();`;
     color: var(--color-fg-muted);
     font-size: 0.9rem;
   }
-  .demo-placeholder a {
+  .demo-placeholder :global(a) {
     color: var(--color-brand-primary);
   }
   summary {

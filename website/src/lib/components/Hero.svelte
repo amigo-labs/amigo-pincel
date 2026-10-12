@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
+  import Rich from './Rich.svelte';
   import { appPath } from '$lib/config';
   import PixelIcon from './PixelIcon.svelte';
   import HeroScene from './HeroScene.svelte';
@@ -7,24 +9,17 @@
 <section class="hero crt-target">
   <div class="container">
     <div class="copy">
-      <p class="caption">Pixel-art &amp; image editor · v0.1</p>
-      <h1 class="h-display">
-        A pixel-art editor<br />for the web.
-      </h1>
-      <p class="tagline-sub">
-        Aseprite-compatible. Open source. Free. Make sprites, tilemaps, and animations in your
-        browser. Save as <code>.aseprite</code>. Drop into your game. Need to touch up a screenshot
-        or a photo? The Image mode opens PNG, JPEG and WebP with layers and effects. No account, no
-        upload, no catch.
-      </p>
+      <p class="caption">{m().hero.caption}</p>
+      <h1 class="h-display"><Rich text={m().hero.title} /></h1>
+      <p class="tagline-sub"><Rich text={m().hero.tagline} /></p>
       <div class="ctas">
         <a class="btn-pixel" href={appPath} rel="external">
-          Open Editor
+          {m().nav.openEditor}
           <PixelIcon name="arrow-right" size={16} />
         </a>
         <a class="btn-pixel btn-pixel--secondary" href="https://github.com/amigo-labs/amigo-pincel">
           <PixelIcon name="github" size={16} />
-          View on GitHub
+          {m().hero.github}
         </a>
       </div>
     </div>
@@ -61,7 +56,7 @@
     margin: 0.75rem 0 1.25rem;
     color: var(--color-fg-primary);
   }
-  .tagline-sub code {
+  .tagline-sub :global(code) {
     color: var(--color-brand-primary);
   }
   .ctas {

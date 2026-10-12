@@ -1,36 +1,52 @@
 <script lang="ts">
+  import { LANGS, lang, localized, m, unlocalized } from '$lib/i18n';
   import { appPath } from '$lib/config';
   import { page } from '$app/state';
   import Logo from './Logo.svelte';
   import PixelIcon from './PixelIcon.svelte';
 
-  const navItems = [
-    { href: '/', label: 'Home' },
-    { href: '/features', label: 'Features' },
-    { href: '/embed', label: 'For Devs' },
-    { href: '/about', label: 'About' },
-  ];
+  const navItems = $derived([
+    { path: '/', label: m().nav.home },
+    { path: '/features', label: m().nav.features },
+    { path: '/embed', label: m().nav.devs },
+    { path: '/about', label: m().nav.about },
+  ]);
 
-  function isActive(href: string): boolean {
-    if (href === '/') return page.url.pathname === '/';
-    return page.url.pathname.startsWith(href);
+  // The current page without its language prefix, for the active state
+  // and the language switch.
+  const here = $derived(unlocalized(page.url.pathname));
+
+  function isActive(path: string): boolean {
+    if (path === '/') return here === '/';
+    return here.startsWith(path);
   }
 </script>
 
 <header class="site-header">
   <div class="bar">
     <Logo />
-    <nav aria-label="Primary">
+    <nav aria-label={m().nav.primary}>
       <ul>
-        {#each navItems as item (item.href)}
+        {#each navItems as item (item.path)}
           <li>
-            <a href={item.href} class:active={isActive(item.href)}>{item.label}</a>
+            <a href={localized(item.path)} class:active={isActive(item.path)}>{item.label}</a>
           </li>
         {/each}
       </ul>
     </nav>
+    <div class="langs" role="group" aria-label={m().nav.language}>
+      {#each LANGS as l (l)}
+        <a
+          href={localized(here, l)}
+          hreflang={l}
+          lang={l}
+          aria-current={l === lang() ? 'true' : undefined}
+          class:active={l === lang()}>{l.toUpperCase()}</a
+        >
+      {/each}
+    </div>
     <a href={appPath} rel="external" class="btn-pixel cta">
-      Open Editor
+      {m().nav.openEditor}
       <PixelIcon name="arrow-right" size={16} />
     </a>
   </div>
@@ -69,12 +85,29 @@
     font-weight: 500;
     padding: 0.5rem 0;
     border-bottom: 2px solid transparent;
-    transition: color 120ms ease-out, border-color 120ms ease-out;
+    transition:
+      color 120ms ease-out,
+      border-color 120ms ease-out;
   }
   nav a:hover,
   nav a.active {
     color: var(--color-fg-primary);
     border-bottom-color: var(--color-brand-primary);
+  }
+  .langs {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+  .langs a {
+    color: var(--color-fg-muted);
+    text-decoration: none;
+  }
+  .langs a:hover,
+  .langs a.active {
+    color: var(--color-fg-primary);
   }
   .cta {
     font-size: 0.875rem;

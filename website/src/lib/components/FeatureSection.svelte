@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
   import type { FeatureSection } from '$lib/data/features';
   import PixelIcon from './PixelIcon.svelte';
 
@@ -9,24 +10,25 @@
 
   const { section, index }: Props = $props();
   const flip = $derived(index % 2 === 1);
+  const copy = $derived(m().features.sections[section.id]);
 </script>
 
 <section id={section.id} class="feature" class:flip>
   <div class="text">
     <div class="icon"><PixelIcon name={section.icon} size={32} /></div>
     <h2>
-      {section.heading}
+      {copy.heading}
       {#if section.status === 'in-progress'}
-        <span class="badge in-progress">in progress</span>
+        <span class="badge in-progress">{m().featureSection.inProgress}</span>
       {:else if section.status === 'planned'}
-        <span class="badge planned">planned</span>
+        <span class="badge planned">{m().featureSection.planned}</span>
       {/if}
     </h2>
-    <p>{section.description}</p>
+    <p>{copy.description}</p>
     {#if section.shortcuts}
-      <ul class="shortcuts" aria-label="Keyboard shortcuts">
-        {#each section.shortcuts as s (s.keys)}
-          <li><kbd>{s.keys}</kbd> <span>{s.label}</span></li>
+      <ul class="shortcuts" aria-label={m().featureSection.shortcuts}>
+        {#each section.shortcuts as keys, i (keys)}
+          <li><kbd>{keys}</kbd> <span>{copy.shortcuts[i] ?? ''}</span></li>
         {/each}
       </ul>
     {/if}
@@ -34,7 +36,7 @@
   <div class="art" aria-hidden="true">
     <div class="placeholder">
       <PixelIcon name={section.icon} size={96} />
-      <p>screenshot</p>
+      <p>{m().featureSection.screenshot}</p>
     </div>
   </div>
 </section>

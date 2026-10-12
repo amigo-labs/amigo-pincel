@@ -1,22 +1,17 @@
 <script lang="ts">
+  import { m } from '$lib/i18n';
   import SeoHead from '$lib/components/SeoHead.svelte';
   import FeatureSection from '$lib/components/FeatureSection.svelte';
   import { featureSections } from '$lib/data/features';
 </script>
 
-<SeoHead
-  title="Features — Pincel"
-  description="Every feature in Pincel, deep-dive style: canvas, tools, layers, animation, tilemaps, slices, palette, file format, tablet support, PWA, and what's coming next."
-/>
+<SeoHead title={m().features.seoTitle} description={m().features.seoDescription} />
 
 <div class="page">
   <header class="page-head">
-    <p class="caption">Feature deep-dive</p>
-    <h1 class="h-display">Everything Pincel does today.</h1>
-    <p class="lede">
-      Dense, honest, screenshot-led. Where a feature is still in progress, we say so. Where it's
-      planned but not built, we say that too.
-    </p>
+    <p class="caption">{m().features.caption}</p>
+    <h1 class="h-display">{m().features.title}</h1>
+    <p class="lede">{m().features.lede}</p>
   </header>
 
   <div class="sections">

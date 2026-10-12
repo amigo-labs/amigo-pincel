@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import { absoluteUrl, siteUrl } from '$lib/config';
+  import { LANGS, lang, localized, m, unlocalized } from '$lib/i18n';
 
   interface Props {
     title: string;
@@ -27,9 +28,12 @@
   // page.url uses SvelteKit's prerender placeholder origin at build time, so we
   // derive canonical URLs from the configured production origin instead.
   const url = $derived(absoluteUrl(page.url.pathname));
-  const ogImageUrl = $derived(
-    ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}`,
+  // The same page in every language, for hreflang alternates.
+  const base = $derived(unlocalized(page.url.pathname));
+  const otherLocales = $derived(
+    LANGS.filter((l) => l !== lang()).map((l) => (l === 'de' ? 'de_DE' : 'en_US')),
   );
+  const ogImageUrl = $derived(ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}`);
   const jsonLdString = $derived(jsonLd ? JSON.stringify(jsonLd) : null);
 </script>
 
@@ -40,6 +44,10 @@
     <meta name="robots" content="noindex" />
   {/if}
   <link rel="canonical" href={url} />
+  {#each LANGS as l (l)}
+    <link rel="alternate" hreflang={l} href={absoluteUrl(localized(base, l))} />
+  {/each}
+  <link rel="alternate" hreflang="x-default" href={absoluteUrl(localized(base, 'en'))} />
 
   <meta property="og:title" content={fullTitle} />
   <meta property="og:description" content={description} />
@@ -50,6 +58,10 @@
   <meta property="og:url" content={url} />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Pincel" />
+  <meta property="og:locale" content={m().meta.locale} />
+  {#each otherLocales as l (l)}
+    <meta property="og:locale:alternate" content={l} />
+  {/each}
 
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={fullTitle} />
