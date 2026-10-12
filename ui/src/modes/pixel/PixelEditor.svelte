@@ -2766,6 +2766,8 @@
       docRev += 1;
     }}
     onError={(msg) => (status = msg)}
+    onStatus={(msg) => (status = msg)}
+    fileStem={saveTarget.name.replace(/\.(aseprite|ase)$/i, '')}
     onPick={(packed) => {
       // Set both the RGB (via the picker) and the alpha slider from
       // the palette entry so a swatch's transparency carries over.

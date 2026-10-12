@@ -620,6 +620,23 @@ export const en = {
 
   // Effects on a selection
   'fx.selectionEmpty': '{effect}: the selection is empty, nothing changed',
+
+  // Palette presets and .gpl
+  'palette.more': 'Palette options',
+  'palette.presets': 'Presets',
+  'palette.preset.db32': 'DawnBringer 32',
+  'palette.preset.db16': 'DawnBringer 16',
+  'palette.preset.pico8': 'PICO-8',
+  'palette.preset.gameboy': 'Game Boy',
+  'palette.preset.nes': 'NES',
+  'palette.presetAction': 'Apply palette preset',
+  'palette.presetApplied': 'palette: {name}',
+  'palette.import': 'Import palette',
+  'palette.export': 'Export palette',
+  'palette.importGpl': 'Import .gpl…',
+  'palette.exportGpl': 'Export .gpl…',
+  'palette.imported': 'imported {count} palette colours',
+  'palette.exported': 'exported {count} palette colours',
 } as const;
 
 /** A UI message key. */

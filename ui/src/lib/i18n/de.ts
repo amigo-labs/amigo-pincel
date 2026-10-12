@@ -627,4 +627,21 @@ export const de: Record<MessageKey, string> = {
 
   // Effects on a selection
   'fx.selectionEmpty': '{effect}: Die Auswahl ist leer, nichts geändert',
+
+  // Palette presets and .gpl
+  'palette.more': 'Palettenoptionen',
+  'palette.presets': 'Vorlagen',
+  'palette.preset.db32': 'DawnBringer 32',
+  'palette.preset.db16': 'DawnBringer 16',
+  'palette.preset.pico8': 'PICO-8',
+  'palette.preset.gameboy': 'Game Boy',
+  'palette.preset.nes': 'NES',
+  'palette.presetAction': 'Palettenvorlage anwenden',
+  'palette.presetApplied': 'Palette: {name}',
+  'palette.import': 'Palette importieren',
+  'palette.export': 'Palette exportieren',
+  'palette.importGpl': '.gpl importieren…',
+  'palette.exportGpl': '.gpl exportieren…',
+  'palette.imported': '{count} Palettenfarben importiert',
+  'palette.exported': '{count} Palettenfarben exportiert',
 };

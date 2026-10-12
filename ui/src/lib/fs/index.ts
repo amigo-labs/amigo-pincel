@@ -87,6 +87,38 @@ const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...ORA_TYPES, ...
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
 
+/** What a picker asks for: a document to edit, or a palette file. */
+export type PickKind = 'document' | 'gpl';
+
+const GPL_TYPES: FilePickerAcceptType[] = [
+  { description: 'GIMP palette', accept: { 'text/plain': ['.gpl'] } },
+];
+
+const PICK: Record<
+  PickKind,
+  {
+    types: FilePickerAcceptType[];
+    extensions: string[];
+    filters: { name: string; extensions: string[] }[];
+  }
+> = {
+  document: {
+    types: OPEN_TYPES,
+    extensions: OPEN_EXTENSIONS,
+    filters: [
+      { name: 'All supported files', extensions: OPEN_EXTENSIONS },
+      { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
+      { name: 'OpenRaster image', extensions: ['ora'] },
+      { name: 'Images', extensions: IMAGE_EXTENSIONS },
+    ],
+  },
+  gpl: {
+    types: GPL_TYPES,
+    extensions: ['gpl'],
+    filters: [{ name: 'GIMP palette', extensions: ['gpl'] }],
+  },
+};
+
 /** File formats the app opens; decides which editor mode a file lands in.
  *  `ora` is OpenRaster, the Image mode's layered project format. */
 export type FileFormat = 'aseprite' | 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
@@ -107,14 +139,15 @@ const PROJECT_FILTERS: Record<ProjectFormat, { name: string; extensions: string[
 /** Encoded-export formats of the Image mode (WebP is lossless). */
 /** Raster formats the Image mode exports. */
 export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
-/** Everything `saveExport` can write: images plus JSON sidecars. */
-export type ExportFormat = ImageExportFormat | 'json';
+/** Everything `saveExport` can write: images, JSON sidecars, palettes. */
+export type ExportFormat = ImageExportFormat | 'json' | 'gpl';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
   jpeg: JPEG_TYPES,
   webp: WEBP_TYPES,
   json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
+  gpl: GPL_TYPES,
 };
 
 const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
@@ -122,6 +155,7 @@ const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] 
   jpeg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
   webp: { name: 'WebP image', extensions: ['webp'] },
   json: { name: 'JSON data', extensions: ['json'] },
+  gpl: { name: 'GIMP palette', extensions: ['gpl'] },
 };
 
 function startsWith(bytes: Uint8Array, sig: number[], offset = 0): boolean {
@@ -294,14 +328,15 @@ export function ensureReadPermission(handle: FileSystemFileHandle): Promise<bool
   return ensurePermission(handle, 'read');
 }
 
-/** Prompt the user to pick a sprite or image file. Returns `null` on cancel. */
-export async function pickAndOpen(): Promise<OpenedFile | null> {
-  if (isTauri()) return pickAndOpenTauri();
+/** Prompt the user to pick a sprite or image file (or, with `kind`, a
+ *  palette file). Returns `null` on cancel. */
+export async function pickAndOpen(kind: PickKind = 'document'): Promise<OpenedFile | null> {
+  if (isTauri()) return pickAndOpenTauri(kind);
   const fs = fsAccess();
   if (fs.showOpenFilePicker) {
     try {
       const handles = await fs.showOpenFilePicker({
-        types: OPEN_TYPES,
+        types: PICK[kind].types,
         multiple: false,
       });
       const handle = handles[0];
@@ -314,19 +349,14 @@ export async function pickAndOpen(): Promise<OpenedFile | null> {
       throw err;
     }
   }
-  return openViaInput();
+  return openViaInput(kind);
 }
 
 /** Tauri-only: native open dialog + IPC read. */
-async function pickAndOpenTauri(): Promise<OpenedFile | null> {
+async function pickAndOpenTauri(kind: PickKind): Promise<OpenedFile | null> {
   const picked = await openDialog({
     multiple: false,
-    filters: [
-      { name: 'All supported files', extensions: OPEN_EXTENSIONS },
-      { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
-      { name: 'OpenRaster image', extensions: ['ora'] },
-      { name: 'Images', extensions: IMAGE_EXTENSIONS },
-    ],
+    filters: PICK[kind].filters,
   });
   if (typeof picked !== 'string') return null;
   // The Tauri command returns `Vec<u8>` which Tauri 2 serializes as a
@@ -344,11 +374,11 @@ function basename(p: string): string {
   return i >= 0 ? p.slice(i + 1) : p;
 }
 
-function openViaInput(): Promise<OpenedFile | null> {
+function openViaInput(kind: PickKind): Promise<OpenedFile | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = OPEN_EXTENSIONS.map((e) => `.${e}`).join(',');
+    input.accept = PICK[kind].extensions.map((e) => `.${e}`).join(',');
     input.style.display = 'none';
     document.body.appendChild(input);
 

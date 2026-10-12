@@ -4,6 +4,7 @@
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
   import type { Document } from '../../../lib/core';
+  import { pickAndOpen, saveExport } from '../../../lib/fs';
 
   // Palette panel (spec §6 panel layout). The wasm `Document` is the
   // source of truth; the panel reads the palette through the read
@@ -30,6 +31,8 @@
     onPickBg,
     onChange,
     onError,
+    onStatus,
+    fileStem = 'palette',
   }: {
     doc: Document | null;
     rev?: number;
@@ -40,7 +43,79 @@
     onPickBg?: (packed: number) => void;
     onChange?: () => void;
     onError?: (message: string) => void;
+    /** A one-line success message (preset applied, palette imported / exported). */
+    onStatus?: (message: string) => void;
+    /** Base name suggested for an exported `.gpl`. */
+    fileStem?: string;
   } = $props();
+
+  // The ⋯ menu: built-in presets plus GIMP `.gpl` import / export (spec §3.7).
+  const PRESETS = ['db32', 'db16', 'pico8', 'gameboy', 'nes'] as const;
+  const PRESET_KEYS = {
+    db32: 'palette.preset.db32',
+    db16: 'palette.preset.db16',
+    pico8: 'palette.preset.pico8',
+    gameboy: 'palette.preset.gameboy',
+    nes: 'palette.preset.nes',
+  } as const;
+  let menu = $state<{ left: number; top: number } | null>(null);
+
+  function openMenu(e: MouseEvent) {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    menu = {
+      left: Math.max(4, Math.min(r.right - 208, window.innerWidth - 212)),
+      top: r.bottom + 4,
+    };
+  }
+
+  function applyPreset(id: (typeof PRESETS)[number]) {
+    menu = null;
+    edit(t('palette.presetAction'), (d) => d.setPalettePreset(id));
+    selected = null;
+    onStatus?.(t('palette.presetApplied', { name: t(PRESET_KEYS[id]) }));
+  }
+
+  async function importGpl() {
+    menu = null;
+    let text: string;
+    try {
+      const opened = await pickAndOpen('gpl');
+      if (!opened) return;
+      text = new TextDecoder().decode(opened.bytes);
+    } catch (err) {
+      onError?.(
+        t('status.failed', {
+          action: t('palette.import'),
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      return;
+    }
+    let count = 0;
+    edit(t('palette.import'), (d) => {
+      count = d.importGpl(text);
+    });
+    selected = null;
+    if (count > 0) onStatus?.(t('palette.imported', { count }));
+  }
+
+  async function exportGpl() {
+    menu = null;
+    if (!doc) return;
+    try {
+      const bytes = new TextEncoder().encode(doc.exportGpl(fileStem));
+      if (await saveExport(bytes, `${fileStem}.gpl`, 'gpl')) {
+        onStatus?.(t('palette.exported', { count: swatches.length }));
+      }
+    } catch (err) {
+      onError?.(
+        t('status.failed', {
+          action: t('palette.export'),
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
+  }
 
   let selected = $state<number | null>(null);
   let dragFrom: number | null = null;
@@ -51,7 +126,12 @@
       fn(doc);
       onChange?.();
     } catch (err) {
-      onError?.(t('status.failed', { action: label, error: err instanceof Error ? err.message : String(err) }));
+      onError?.(
+        t('status.failed', {
+          action: label,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
     }
   }
 
@@ -110,7 +190,57 @@
           selected = d.addPaletteEntry(addColor);
         })}
     />
+    <IconButton
+      icon="more"
+      label={t('palette.more')}
+      size="sm"
+      disabled={!doc}
+      onclick={openMenu}
+    />
   {/snippet}
+
+  {#if menu}
+    <!-- Backdrop closes the menu on an outside click. -->
+    <button
+      type="button"
+      class="fixed inset-0 z-40 cursor-default"
+      tabindex="-1"
+      aria-label={t('frame.closeMenu')}
+      onclick={() => (menu = null)}
+    ></button>
+    <div
+      class="pal-menu fixed z-50 w-52"
+      style:left="{menu.left}px"
+      style:top="{menu.top}px"
+      role="menu"
+      aria-label={t('palette.more')}
+      tabindex="-1"
+      onkeydown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          menu = null;
+        }
+      }}
+    >
+      <div
+        class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase"
+      >
+        {t('palette.presets')}
+      </div>
+      {#each PRESETS as id (id)}
+        <button type="button" class="pal-menu-row" role="menuitem" onclick={() => applyPreset(id)}>
+          {t(PRESET_KEYS[id])}
+        </button>
+      {/each}
+      <div class="my-1 border-t border-pc-border" role="separator"></div>
+      <button type="button" class="pal-menu-row" role="menuitem" onclick={() => void importGpl()}>
+        {t('palette.importGpl')}
+      </button>
+      <button type="button" class="pal-menu-row" role="menuitem" onclick={() => void exportGpl()}>
+        {t('palette.exportGpl')}
+      </button>
+    </div>
+  {/if}
 
   {#if swatches.length === 0}
     <p class="text-xs text-pc-faint">{t('palette.empty')}</p>
@@ -149,10 +279,7 @@
       {/each}
     </div>
     {#if current}
-      <div
-        class="flex items-center gap-2 text-xs text-pc-muted"
-        aria-label={t('palette.editor')}
-      >
+      <div class="flex items-center gap-2 text-xs text-pc-muted" aria-label={t('palette.editor')}>
         <span class="tabular-nums">#{current.index}</span>
         <input
           type="color"
@@ -194,6 +321,25 @@
 </Panel>
 
 <style>
+  .pal-menu {
+    border-radius: 0.375rem;
+    border: 1px solid var(--color-pc-border);
+    background-color: var(--color-pc-panel);
+    padding: 0.25rem 0;
+    font-size: 0.875rem;
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  }
+  .pal-menu-row {
+    display: block;
+    width: 100%;
+    padding: 0.3rem 0.75rem;
+    text-align: left;
+  }
+  .pal-menu-row:hover,
+  .pal-menu-row:focus-visible {
+    background-color: var(--color-pc-hover);
+    outline: none;
+  }
   .palette-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(1.25rem, 1fr));
