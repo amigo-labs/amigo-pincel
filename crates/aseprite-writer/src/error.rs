@@ -117,4 +117,8 @@ pub enum WriteError {
     /// match its length (or is shorter than the 8-byte header).
     #[error("user data properties are {len} bytes but declare {declared}")]
     UserDataPropertiesSize { len: usize, declared: u32 },
+
+    /// More External Files entries than the chunk's `DWORD` count holds.
+    #[error("{0} external files do not fit the chunk's entry count")]
+    TooManyExternalFiles(usize),
 }
