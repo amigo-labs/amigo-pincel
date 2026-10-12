@@ -10,9 +10,10 @@ required to enable the optional (guarded) steps.
   (`.github/workflows/release.yml`) computes the next version, tags it,
   and creates a GitHub Release with auto-generated notes and the built
   web (PWA) bundle attached.
-- **Nothing outward-facing happens without opt-in.** Web deploy and npm
-  publish only run if you add the matching repo secret; otherwise those
-  jobs are skipped (they never fail).
+- **Web deploy is Cloudflare's Git integration**, not this workflow:
+  site and editor go live from the same push (see "Web deploy" below).
+- **npm publish needs opt-in.** It only runs if the `NPM_TOKEN` repo
+  secret is set; otherwise the job is skipped.
 - **Desktop binaries are manual** (`Release Desktop` workflow), because a
   native 3-OS build is slow and the macOS icon is not in place yet.
 
@@ -41,7 +42,6 @@ at publish time.
 |-----|-----------|-------|--------|
 | `preflight` | always | — | Computes the next version; checks which secrets exist |
 | `release` | always | `GITHUB_TOKEN` (built-in) | Runs the Rust test gate, builds the optimized wasm + web bundle, creates the tag + GitHub Release, attaches `pincel-web-<version>.zip` |
-| `deploy-web` | `CLOUDFLARE_API_TOKEN` set | Cloudflare secrets | Deploys `ui/dist` to the `pincel-app` Worker (config: `ui/wrangler.toml`) |
 | `publish-npm` | `NPM_TOKEN` set | npm secret | Publishes `pincel-wasm` to npm at the release version |
 
 The wasm optimization step installs `binaryen` from apt and runs
@@ -54,31 +54,22 @@ GitHub at build time, which fails in sandboxed/firewalled runners.
 
 ### Web deploy (Cloudflare)
 
-The marketing site already deploys via Cloudflare's Git integration
-(root `wrangler.toml`, project `amigo-pincel`). The **editor** deploys as
-a separate Worker project (`pincel-app`, `ui/wrangler.toml`). To enable:
+No secrets needed. Cloudflare's Git integration (project `amigo-pincel`,
+root `wrangler.toml`) builds every push with `scripts/cf-build.sh`: it
+installs Rust + wasm-pack, builds the marketing site into
+`website/build/`, builds the editor into `ui/dist/app/` and copies it to
+`website/build/app/`. One Worker serves both — the site at
+**https://pincel.amigo-labs.dev/** and the editor at
+**https://pincel.amigo-labs.dev/app/** — and every branch preview URL
+carries the editor at `/app/` too. The only one-time step is attaching
+`pincel.amigo-labs.dev` as a *Custom Domain* of the `amigo-pincel`
+Worker (dashboard → Workers → amigo-pincel → Settings → Domains &
+Routes).
 
-1. Create a Cloudflare API token with *Workers Scripts: Edit* permission.
-2. Add repo secrets:
-   - `CLOUDFLARE_API_TOKEN`
-   - `CLOUDFLARE_ACCOUNT_ID`
-3. Make sure `pincel.amigo-labs.dev` resolves through Cloudflare: the
-   marketing site's `amigo-pincel` Worker owns the hostname as a *Custom
-   Domain* (dashboard → Workers → amigo-pincel → Settings → Domains &
-   Routes). The editor Worker declares the route
-   `pincel.amigo-labs.dev/app*` (zone `amigo-labs.dev`) in
-   `ui/wrangler.toml`; `wrangler deploy` creates it, and a route takes
-   precedence over a Custom Domain on the same hostname, so `/app*` goes
-   to the editor and everything else to the site.
-
-The editor is served at **https://pincel.amigo-labs.dev/app/**. The web
-build uses `base: '/app/'` and writes into `ui/dist/app/` (Workers static
-assets match the full request path), so the release zip and the
-`web-dist` artifact both contain an `app/` folder. The Tauri build keeps
-the root base (`ui/vite.config.ts` keys on `TAURI_ENV_PLATFORM`).
-
-Until the secrets are set the editor is available only as the release's
-downloadable bundle.
+The web build uses `base: '/app/'` and writes into `ui/dist/app/`
+(Workers static assets match the full request path), so the release zip
+contains an `app/` folder. The Tauri build keeps the root base
+(`ui/vite.config.ts` keys on `TAURI_ENV_PLATFORM`).
 
 ### npm publish (`pincel-wasm`)
 
@@ -100,9 +91,9 @@ first launch.
 
 ## Changing the defaults
 
-- **Different host** (GitHub Pages, a subdomain): swap the `deploy-web`
-  job. GitHub Pages needs the app built with a matching Vite `base` and
-  the PWA `scope`/`start_url` adjusted, since the PWA is currently
-  configured for root-origin hosting.
+- **Different host** (GitHub Pages, a subdomain): replace the
+  Cloudflare build (`scripts/cf-build.sh`, root `wrangler.toml`). The
+  editor is built for `/app/` (Vite `base`, PWA `scope` / `start_url`),
+  so a host that serves it elsewhere needs those adjusted.
 - **Don't auto-release every push**: change `release.yml`'s `on:` to
   `workflow_dispatch` only, or trigger on tag pushes.

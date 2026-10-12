@@ -3,8 +3,8 @@
 Marketing site for [Pincel](../). Built per [`docs/specs/website-spec.md`](../docs/specs/website-spec.md).
 
 SvelteKit + adapter-static. Phase 1 routes: `/`, `/features`, `/embed`, `/about`. The
-editor itself lives at `/app/` on the same host, but it is a separate Worker (`ui/`,
-`ui/wrangler.toml`), not a route of this site — CTA links reach it with a full page load
+editor itself lives at `/app/` on the same host: `scripts/cf-build.sh` builds `ui/` and copies
+it into `build/app/`, but it is not a route of this site — CTA links reach it with a full page load
 (`appPath` in `src/lib/config.ts`, `rel="external"`).
 
 ## Development

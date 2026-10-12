@@ -18,16 +18,13 @@ collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Add repo secrets** for the guarded deploy/publish jobs (optional but
-  needed for a live app / npm): `CLOUDFLARE_API_TOKEN` +
-  `CLOUDFLARE_ACCOUNT_ID` (web deploy), `NPM_TOKEN` (npm publish). Without
-  them those jobs skip cleanly. See `docs/RELEASING.md`.
-- **Cloudflare hostname** — decided 2026-10-11: site at
-  `https://pincel.amigo-labs.dev/`, editor at `/app/` (spec §15). Wired in
-  code (`siteUrl`, Vite `base`, `ui/wrangler.toml` route). Still yours:
-  attach `pincel.amigo-labs.dev` as Custom Domain of the `amigo-pincel`
-  Worker (root `wrangler.toml`); the editor route is created by the first
-  `deploy-web` run. See `docs/RELEASING.md`.
+- **npm** — `NPM_TOKEN` enables the guarded `publish-npm` release job.
+  See `docs/RELEASING.md`.
+- **Cloudflare hostname** — site at `https://pincel.amigo-labs.dev/`,
+  editor at `/app/`, both from the `amigo-pincel` Worker's Git build
+  (spec §15, 2026-10-13; no secrets). Still yours: attach
+  `pincel.amigo-labs.dev` as Custom Domain of that Worker if it is not
+  yet. See `docs/RELEASING.md`.
 
 - **Native-speaker review of the German website copy** (`website/src/lib/i18n/de.ts`,
   spec website §8). Machine-written, not
@@ -58,6 +55,13 @@ PR #55 merged. Spec §7.1 and one Decision Log row.
   sparse `tile_user_data`).
 - Slice note text and property maps kept (`Slice::user_data`).
 - Tests: writer chunk order / loader parse; core two-pass round trip.
+- **Editor goes live with the site** — `/app/` 404'd in production and in
+  every preview: the `pincel-app` Worker needed API-token secrets that
+  were never set. Now Cloudflare's Git build runs `scripts/cf-build.sh`
+  (installs Rust + wasm-pack, builds site and editor, copies
+  `ui/dist/app/` into `website/build/app/`), one Worker serves both.
+  `ui/wrangler.toml` and the `deploy-web` release job are gone. Spec §15
+  Decision Log row.
 
 ## 2026-10-12 — groups, Aseprite properties, pen tilt (PR #55)
 
