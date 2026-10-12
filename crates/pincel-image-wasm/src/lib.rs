@@ -586,7 +586,45 @@ enum CommandSpec {
 pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
     let spec: CommandSpec =
         serde_json::from_str(command).map_err(|e| JsError::new(&e.to_string()))?;
-    with_bus(handle, |bus| match spec {
+    let target = spec.edited_layer();
+    with_bus(handle, |bus| {
+        if target.is_some_and(|i| layer_locked(&bus.document, i)) {
+            return Err(JsError::new(LOCKED));
+        }
+        run_command(bus, spec)
+    })
+}
+
+/// Error message for an edit aimed at a locked layer (spec §3.2).
+const LOCKED: &str = "layer is locked";
+
+/// `true` when the layer at `index` exists and is locked against edits.
+fn layer_locked(doc: &Document, index: usize) -> bool {
+    doc.layers().get(index).is_some_and(|l| l.locked)
+}
+
+impl CommandSpec {
+    /// The layer whose pixels this command writes, if it is a pixel edit.
+    /// Property, structure and selection commands return `None`, so a
+    /// locked layer can still be renamed, hidden, moved or unlocked.
+    fn edited_layer(&self) -> Option<usize> {
+        match self {
+            Self::PencilStroke { layer, .. }
+            | Self::EraserStroke { layer, .. }
+            | Self::FillBucket { layer, .. }
+            | Self::TranslateLayer { layer, .. }
+            | Self::DeleteSelection { layer }
+            | Self::TransformLayer { layer, .. }
+            | Self::RotateLayer90 { layer, .. }
+            | Self::DrawShape { layer, .. }
+            | Self::DrawText { layer, .. } => Some(*layer),
+            _ => None,
+        }
+    }
+}
+
+fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
+    match spec {
         CommandSpec::PencilStroke {
             layer,
             size,
@@ -936,7 +974,7 @@ pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
                 None => Ok(()), // unknown font, empty text, or off-canvas — no-op
             }
         }
-    })
+    }
 }
 
 /// Combines `shape` with the current selection per `mode` and applies it as an
@@ -1019,6 +1057,9 @@ fn layer_effect_image(doc: &Document, index: usize) -> Result<(EffectImage, u32,
 pub fn apply_effect(handle: u32, layer: usize, name: &str, params: &[f64]) -> Result<(), JsError> {
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
+        if layer_locked(&bus.document, layer) {
+            return Err(JsError::new(LOCKED));
+        }
         let (src, w, h) = layer_effect_image(&bus.document, layer)?;
         let out = spec.run(&src);
         let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
@@ -1260,6 +1301,34 @@ mod command_spec_tests {
                 ccw: true
             }
         ));
+    }
+
+    #[test]
+    fn edited_layer_covers_pixel_edits_only() {
+        let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
+        assert_eq!(
+            parse(r#"{"type":"delete_selection","layer":2}"#).edited_layer(),
+            Some(2)
+        );
+        assert_eq!(
+            parse(r#"{"type":"set_layer_locked","index":2,"locked":false}"#).edited_layer(),
+            None
+        );
+        assert_eq!(
+            parse(r#"{"type":"rename_layer","index":2,"name":"x"}"#).edited_layer(),
+            None
+        );
+    }
+
+    #[test]
+    fn layer_locked_reads_the_flag() {
+        let doc = super::Document::new(2, 2).expect("doc");
+        let mut bus = super::CommandBus::new(doc);
+        assert!(!super::layer_locked(&bus.document, 0));
+        bus.apply(Box::new(super::SetLayerLocked::new(0, true)))
+            .expect("lock");
+        assert!(super::layer_locked(&bus.document, 0));
+        assert!(!super::layer_locked(&bus.document, 9));
     }
 }
 
