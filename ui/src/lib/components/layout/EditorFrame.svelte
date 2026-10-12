@@ -20,6 +20,7 @@
     type PanelDef,
   } from './panels.svelte';
   import { viewport, watchViewport } from './viewport.svelte';
+  import { t } from '../../i18n/index.svelte';
 
   interface Props {
     /** Mode badge and the key layout prefs are stored under. */
@@ -121,7 +122,7 @@
     <span
       class="mr-1 rounded border border-pc-border px-1.5 text-[11px] leading-5 text-pc-accent capitalize"
     >
-      {mode}
+      {t(`mode.${mode}`)}
     </span>
     {#if size !== 'narrow'}
       <MenuBar {menus} />
@@ -130,7 +131,7 @@
     <span
       class="min-w-0 shrink truncate text-xs text-pc-muted"
       class:max-w-40={size !== 'wide'}
-      title={dirty ? `${title} — unsaved changes` : title}
+      title={dirty ? t('frame.unsaved', { title }) : title}
     >
       {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
     </span>
@@ -138,7 +139,7 @@
       {@render quick?.()}
       <IconButton
         icon={size === 'narrow' ? 'layers' : 'sidebar'}
-        label={size === 'narrow' ? 'Panels' : 'Toggle panels'}
+        label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
         pressed={panelsShown}
         onclick={toggleSidebar}
       />
@@ -155,7 +156,7 @@
         <div
           class="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
           role="toolbar"
-          aria-label="Tool options"
+          aria-label={t('frame.toolOptions')}
         >
           {@render options()}
         </div>
@@ -166,7 +167,7 @@
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
-            aria-label="Panels"
+            aria-label={t('frame.panels')}
           >
             <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-2 pt-1.5 [scrollbar-width:none]" role="tablist">
               {#each panels as p (p.id)}
@@ -184,7 +185,7 @@
                 </button>
               {/each}
               <span class="flex-1"></span>
-              <IconButton icon="close" label="Close panels" size="sm" onclick={() => (sheetTab = null)} />
+              <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
             </div>
             <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" role="tabpanel">
               {#key sheetPanel.id}
@@ -213,14 +214,14 @@
     {#if size === 'wide' && layout.sidebar}
       <aside
         class="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel"
-        aria-label="Panels"
+        aria-label={t('frame.panels')}
       >
         {@render sidebarBody()}
       </aside>
     {:else if size === 'medium' && drawerOpen}
       <aside
         class="absolute inset-y-0 right-0 z-30 flex w-72 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
-        aria-label="Panels"
+        aria-label={t('frame.panels')}
       >
         {@render sidebarBody()}
       </aside>

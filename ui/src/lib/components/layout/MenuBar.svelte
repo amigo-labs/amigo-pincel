@@ -5,6 +5,7 @@
   // their trigger, so a horizontally scrolling bar never clips them.
   import Icon from '../icons/Icon.svelte';
   import type { MenuAction, MenuDef, MenuItem } from './menu';
+  import { t } from '../../i18n/index.svelte';
 
   interface Props {
     menus: MenuDef[];
@@ -194,7 +195,7 @@
     type="button"
     class="flex h-9 w-9 items-center justify-center rounded hover:bg-pc-hover"
     class:bg-pc-active={openId === '☰'}
-    aria-label="Menu"
+    aria-label={t('frame.menu')}
     aria-haspopup="menu"
     aria-expanded={openId === '☰'}
     onclick={(e) => toggle('☰', e)}
@@ -234,7 +235,7 @@
     type="button"
     class="fixed inset-0 z-40 cursor-default"
     tabindex="-1"
-    aria-label="Close menu"
+    aria-label={t('frame.closeMenu')}
     onclick={close}
   ></button>
   {#if openId === '☰'}
@@ -244,7 +245,7 @@
       style:left="{anchor.left}px"
       style:top="{anchor.top}px"
       role="menu"
-      aria-label="Menu"
+      aria-label={t('frame.menu')}
     >
       {#each menus as m, i (m.id)}
         {#if i > 0}<div class="my-1 border-t border-pc-border"></div>{/if}

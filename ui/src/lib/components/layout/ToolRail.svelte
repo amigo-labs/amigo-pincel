@@ -4,6 +4,7 @@
   // shows the group's active (or last used) variant and selects it.
   import Icon from '../icons/Icon.svelte';
   import type { ToolGroup } from './tools';
+  import { t } from '../../i18n/index.svelte';
 
   interface Props {
     groups: ToolGroup<T>[];
@@ -33,12 +34,12 @@
     ? 'flex w-12 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-pc-border bg-pc-panel py-1.5 [scrollbar-width:none]'
     : 'flex h-14 shrink-0 items-center gap-1 overflow-x-auto border-t border-pc-border bg-pc-panel px-2 [scrollbar-width:none]'}
   role="toolbar"
-  aria-label="Tools"
+  aria-label={t('frame.tools')}
   aria-orientation={orientation}
 >
   {#each groups as g (g.id)}
-    {@const t = current(g)}
-    {#if t}
+    {@const tool = current(g)}
+    {#if tool}
       {@const on = g.tools.some((x) => x.id === active)}
       <button
         type="button"
@@ -48,13 +49,13 @@
         class:h-11={orientation === 'horizontal'}
         class:w-11={orientation === 'horizontal'}
         class:tool-on={on}
-        title={t.title ?? `${g.tools.length > 1 ? g.label : t.label}${g.shortcut ? ` (${g.shortcut})` : ''}`}
-        aria-label={g.tools.length > 1 ? `${g.label}: ${t.label}` : t.label}
+        title={tool.title ?? `${g.tools.length > 1 ? g.label : tool.label}${g.shortcut ? ` (${g.shortcut})` : ''}`}
+        aria-label={g.tools.length > 1 ? `${g.label}: ${tool.label}` : tool.label}
         aria-pressed={on}
-        disabled={t.disabled && g.tools.every((x) => x.disabled)}
-        onclick={() => onSelect(t.disabled ? (g.tools.find((x) => !x.disabled)?.id ?? t.id) : t.id)}
+        disabled={tool.disabled && g.tools.every((x) => x.disabled)}
+        onclick={() => onSelect(tool.disabled ? (g.tools.find((x) => !x.disabled)?.id ?? tool.id) : tool.id)}
       >
-        <Icon name={t.icon} size={orientation === 'vertical' ? 20 : 22} />
+        <Icon name={tool.icon} size={orientation === 'vertical' ? 20 : 22} />
         {#if g.tools.length > 1}
           <svg
             class="pointer-events-none absolute right-0.5 bottom-0.5 opacity-70"

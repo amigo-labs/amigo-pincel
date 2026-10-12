@@ -4,6 +4,7 @@
   // foreground and, where the mode paints with alpha, an alpha slider.
   import Icon from './icons/Icon.svelte';
   import { hint } from '../shell/shortcuts';
+  import { t } from '../i18n/index.svelte';
 
   interface Props {
     /** `#rrggbb`. */
@@ -39,22 +40,22 @@
       value={bg}
       oninput={(e) => onBg(e.currentTarget.value)}
       class="swatch absolute right-0 bottom-0 h-9 w-9"
-      aria-label="Background color"
-      title="Background color"
+      aria-label={t('color.bg')}
+      title={t('color.bg')}
     />
     <input
       type="color"
       value={fg}
       oninput={(e) => onFg(e.currentTarget.value)}
       class="swatch absolute top-0 left-0 z-10 h-9 w-9"
-      aria-label="Foreground color"
-      title="Foreground color"
+      aria-label={t('color.fg')}
+      title={t('color.fg')}
     />
     <button
       type="button"
       class="absolute -top-0.5 -right-0.5 rounded p-0.5 text-pc-muted hover:text-pc-text"
-      title={`Swap colors (${hint('swapColors')})`}
-      aria-label="Swap foreground and background colors"
+      title={`${t('color.swap')} (${hint('swapColors')})`}
+      aria-label={t('color.swapLabel')}
       onclick={onSwap}
     >
       <Icon name="swap" size={13} />
@@ -62,8 +63,8 @@
     <button
       type="button"
       class="absolute -bottom-0.5 -left-0.5 flex h-4 w-4 items-end"
-      title={`Default colors (${hint('resetColors')})`}
-      aria-label="Reset to default colors"
+      title={`${t('color.reset')} (${hint('resetColors')})`}
+      aria-label={t('color.resetLabel')}
       onclick={onReset}
     >
       <span class="absolute bottom-0 left-1 h-2.5 w-2.5 border border-pc-muted bg-white"></span>
@@ -72,7 +73,7 @@
   </div>
   <div class="flex min-w-0 flex-col gap-1.5 text-xs text-pc-muted">
     <label class="flex items-center gap-1.5">
-      Hex
+      {t('color.hex')}
       <input
         type="text"
         bind:value={hexText}
@@ -85,11 +86,11 @@
         spellcheck="false"
         maxlength="7"
         class="opt-field w-20 font-mono"
-        aria-label="Foreground color hex value"
+        aria-label={t('color.hexLabel')}
       />
     </label>
     {#if alpha !== undefined && onAlpha}
-      <label class="flex items-center gap-1.5" title="Foreground alpha">
+      <label class="flex items-center gap-1.5" title={t('color.alpha')}>
         α
         <input
           type="range"
@@ -98,7 +99,7 @@
           value={alpha}
           oninput={(e) => onAlpha(Number(e.currentTarget.value))}
           class="w-20"
-          aria-label="Foreground alpha"
+          aria-label={t('color.alpha')}
         />
         <span class="w-7 text-right tabular-nums">{alpha}</span>
       </label>

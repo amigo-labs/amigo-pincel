@@ -80,6 +80,7 @@
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { isTauri } from '../../lib/platform';
+  import { languageMenu } from '../../lib/i18n/locale';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
@@ -494,6 +495,8 @@
         { label: 'Zoom Out', shortcut: hint('zoomOut'), disabled: !hasDoc, run: () => viewCommands.zoomOut() },
         { label: 'Fit to Window', shortcut: hint('zoomFit'), disabled: !hasDoc, run: () => viewCommands.fit() },
         { label: 'Actual Size', shortcut: hint('zoomActual'), disabled: !hasDoc, run: () => viewCommands.actual() },
+        { kind: 'separator' },
+        languageMenu(),
       ],
     },
   ]);

@@ -5,6 +5,7 @@
   // long-press flyout.
   import Icon from '../icons/Icon.svelte';
   import { groupOf, type ToolGroup } from './tools';
+  import { t } from '../../i18n/index.svelte';
 
   interface Props {
     groups: ToolGroup<T>[];
@@ -20,21 +21,21 @@
   <div
     class="flex shrink-0 items-center gap-0.5 rounded-md border border-pc-border p-0.5"
     role="radiogroup"
-    aria-label={`${group.label} variant`}
+    aria-label={t('frame.variant', { group: group.label })}
   >
-    {#each group.tools as t (t.id)}
+    {#each group.tools as tool (tool.id)}
       <button
         type="button"
         class="flex h-7 w-7 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-35"
-        class:variant-on={t.id === active}
+        class:variant-on={tool.id === active}
         role="radio"
-        aria-checked={t.id === active}
-        aria-label={t.label}
-        title={t.title ?? t.label}
-        disabled={t.disabled}
-        onclick={() => onSelect(t.id)}
+        aria-checked={tool.id === active}
+        aria-label={tool.label}
+        title={tool.title ?? tool.label}
+        disabled={tool.disabled}
+        onclick={() => onSelect(tool.id)}
       >
-        <Icon name={t.icon} size={17} />
+        <Icon name={tool.icon} size={17} />
       </button>
     {/each}
   </div>

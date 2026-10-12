@@ -18,6 +18,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}/app/`,
     serviceWorkers: 'block',
+    // English UI unless a spec opts into another language (i18n.spec.ts).
+    locale: 'en-US',
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

@@ -6,6 +6,7 @@ import { effectMenus } from '../../lib/effects/menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
+import { languageMenu } from '../../lib/i18n/locale';
 import type { RecentFile } from '../../lib/idb/recent-files';
 
 /** Layer / canvas transform ids the wasm `Document` takes. */
@@ -225,6 +226,8 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: 'Actual Size', shortcut: hint('zoomActual'), disabled: !c.hasDoc, run: c.zoomActual },
         { kind: 'separator' },
         { label: 'Frame-Time Probe', shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
+        { kind: 'separator' },
+        languageMenu(),
       ],
     },
   ];
