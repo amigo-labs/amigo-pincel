@@ -948,7 +948,7 @@
     const h = Math.abs(y1 - y0) + 1;
     try {
       if (activeSliceId === null) {
-        const autoName = t('px.sliceName', { n: doc.sliceCount + 1 });
+        const autoName = `Slice ${doc.sliceCount + 1}`;
         const packed = packColor(color, alpha);
         const newId = doc.addSlice(autoName, minX, minY, w, h, packed);
         activeSliceId = newId;
@@ -1302,7 +1302,7 @@
   function addLayer() {
     if (!doc) return;
     try {
-      const id = doc.addLayer(t('px.layerName', { n: doc.layerCount + 1 }));
+      const id = doc.addLayer(`Layer ${doc.layerCount + 1}`);
       activeLayerId = id;
       // Route the paint tools to the freshly created layer.
       doc.setActiveLayer(id);
@@ -2921,18 +2921,18 @@
   title={doc ? saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
   panels={[
-    { id: 'colors', title: 'Colors', icon: 'colors', body: colorsBody },
-    { id: 'palette', title: 'Palette', icon: 'palette', body: paletteBody },
-    { id: 'layers', title: 'Layers', icon: 'layers', body: layersBody, grow: true },
+    { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
+    { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
+    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
     {
       id: 'tilesets',
-      title: 'Tilesets',
+      title: t('panel.tilesets'),
       icon: 'grid',
       body: tilesetsBody,
       defaultCollapsed: true,
     },
-    { id: 'slices', title: 'Slices', icon: 'slice', body: slicesBody, defaultCollapsed: true },
-    { id: 'timeline', title: 'Timeline', icon: 'film', body: timelineBody, placement: 'bottom' },
+    { id: 'slices', title: t('panel.slices'), icon: 'slice', body: slicesBody, defaultCollapsed: true },
+    { id: 'timeline', title: t('panel.timeline'), icon: 'film', body: timelineBody, placement: 'bottom' },
   ]}
 >
   {#snippet quick()}

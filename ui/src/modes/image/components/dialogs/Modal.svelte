@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   // Shared modal shell: backdrop, panel, title, Cancel/Apply footer. Owns the
   // dialog keyboard behavior (Escape cancels, Enter applies), focuses the
   // first form control, and suppresses the global shortcuts while open via
@@ -58,7 +59,7 @@
     {@render children()}
 
     <div class="flex justify-end gap-2">
-      <button class="rounded px-3 py-1 hover:bg-pc-hover" onclick={onClose}>Cancel</button>
+      <button class="rounded px-3 py-1 hover:bg-pc-hover" onclick={onClose}>{t('common.cancel')}</button>
       <button class="rounded bg-pc-accent px-3 py-1 text-white" onclick={onApply}>
         {applyLabel}
       </button>

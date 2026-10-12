@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   import { onMount } from 'svelte';
   import {
     editor,
@@ -298,7 +299,7 @@
 
   {#if editor.handle === null}
     <p class="absolute inset-0 flex items-center justify-center text-sm text-pc-faint">
-      Open an image or create a new document to start.
+      {t('img.empty')}
     </p>
   {/if}
 

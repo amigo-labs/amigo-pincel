@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   // Resize Canvas dialog (spec §10.4, §16): width/height + 9-grid anchor. Does
   // not scale content; layers are padded/cropped per the anchor.
   import { editor, MAX_CANVAS_DIM, clampCanvasSize } from '../../stores/editor.svelte';
@@ -37,9 +38,9 @@
   }
 </script>
 
-<Modal title="Resize Canvas" applyLabel="Resize" onApply={apply} {onClose}>
+<Modal title={t('resize.resizeCanvasTitle')} applyLabel={t('resize.resize')} onApply={apply} {onClose}>
   <label class="mb-2 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">Width</span>
+    <span class="text-pc-muted">{t('common.width')}</span>
     <input
       type="number"
       min="1"
@@ -49,7 +50,7 @@
     />
   </label>
   <label class="mb-3 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">Height</span>
+    <span class="text-pc-muted">{t('common.height')}</span>
     <input
       type="number"
       min="1"
@@ -60,7 +61,7 @@
   </label>
 
   <div class="mb-3">
-    <span class="mb-1 block text-pc-muted">Anchor</span>
+    <span class="mb-1 block text-pc-muted">{t('resize.anchor')}</span>
     <div class="grid w-fit grid-cols-3 gap-1">
       {#each grid as a (a)}
         <button

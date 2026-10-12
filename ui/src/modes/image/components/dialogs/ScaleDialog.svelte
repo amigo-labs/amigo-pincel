@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../../lib/i18n/index.svelte';
   // Scale Image dialog (spec §10.5, §16): width/height with optional
   // proportion lock and an interpolation choice. Scales all layers together.
   import { editor, MAX_CANVAS_DIM, clampCanvasSize } from '../../stores/editor.svelte';
@@ -37,9 +38,9 @@
   }
 </script>
 
-<Modal title="Scale Image" applyLabel="Scale" onApply={apply} {onClose}>
+<Modal title={t('resize.scaleImageTitle')} applyLabel={t('resize.scale')} onApply={apply} {onClose}>
   <label class="mb-2 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">Width</span>
+    <span class="text-pc-muted">{t('common.width')}</span>
     <input
       type="number"
       min="1"
@@ -50,7 +51,7 @@
     />
   </label>
   <label class="mb-2 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">Height</span>
+    <span class="text-pc-muted">{t('common.height')}</span>
     <input
       type="number"
       min="1"
@@ -62,17 +63,17 @@
   </label>
   <label class="mb-2 flex items-center gap-2">
     <input type="checkbox" bind:checked={constrain} />
-    <span class="text-pc-muted">Constrain proportions</span>
+    <span class="text-pc-muted">{t('resize.constrain')}</span>
   </label>
   <label class="mb-3 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">Resampling</span>
+    <span class="text-pc-muted">{t('resize.resampling')}</span>
     <select
       bind:value={interpolation}
       class="rounded border border-pc-border bg-pc-raised px-2 py-1"
     >
-      <option value="nearest">Nearest</option>
-      <option value="bilinear">Bilinear</option>
-      <option value="bicubic">Bicubic</option>
+      <option value="nearest">{t('resize.nearestShort')}</option>
+      <option value="bilinear">{t('resize.bilinear')}</option>
+      <option value="bicubic">{t('resize.bicubic')}</option>
     </select>
   </label>
 </Modal>

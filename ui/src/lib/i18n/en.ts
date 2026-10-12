@@ -454,12 +454,10 @@ export const en = {
   'resize.scale': 'Scale',
   'slices.mustBePositive': '{field} must be a positive integer',
   'slices.nameRequired': 'name is required',
-  'slices.defaultName': 'Slice',
   'slices.none': 'no slices yet',
   'common.noDoc': 'open or create a document',
   'slices.activate': 'Activate slice {name}',
   'slices.removeNamed': 'Remove {name}',
-  'tiles.defaultName': 'Tileset',
   'tiles.widthPositive': 'tile width must be a positive integer',
   'tiles.heightPositive': 'tile height must be a positive integer',
   'tiles.none': 'no tilesets yet',
@@ -560,8 +558,6 @@ export const en = {
   'px.ready': 'ready',
   'px.needTilemap': 'add a tilemap layer first (+ Layer in the Tilesets panel)',
   'px.toolFailed': '{tool} failed: {error}',
-  'px.sliceName': 'Slice {n}',
-  'px.layerName': 'Layer {n}',
   'px.discardNamed': 'Discard unsaved changes to {name}?',
   'px.opened': 'opened {name} · {w}×{h}',
   'px.saved': 'saved {bytes} bytes · {name}',
@@ -598,7 +594,29 @@ export const en = {
   'px.frameOf': 'frame {n}/{total}',
   'px.undoRedo': 'undo {u} / redo {r}',
   'px.version': 'Pincel version',
-  'px.canvas': 'Pincel canvas',
+
+  // Image mode
+  'img.exportFailed': 'Export failed: {error}',
+  'img.saveFailed': 'Save failed: {error}',
+  'img.autosaveFailed': 'Autosave failed: {error}',
+  'img.openFailed': 'Could not open image: {error}',
+  'export.jpegTitle': 'Export JPEG',
+  'export.export': 'Export',
+  'resize.resizeCanvasTitle': 'Resize Canvas',
+  'resize.scaleImageTitle': 'Scale Image',
+  'export.quality': 'Quality',
+  'resize.constrain': 'Constrain proportions',
+  'resize.resampling': 'Resampling',
+  'resize.nearestShort': 'Nearest',
+  'img.empty': 'Open an image or create a new document to start.',
+
+  // Panels
+  'panel.colors': 'Colors',
+  'panel.palette': 'Palette',
+  'panel.layers': 'Layers',
+  'panel.tilesets': 'Tilesets',
+  'panel.slices': 'Slices',
+  'panel.timeline': 'Timeline',
 } as const;
 
 /** A UI message key. */

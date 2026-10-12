@@ -110,7 +110,7 @@
       jpegDialogOpen = true;
       return;
     }
-    exportImage(format, quality).catch((e) => (loadError = `Export failed: ${String(e)}`));
+    exportImage(format, quality).catch((e) => (loadError = t('img.exportFailed', { error: String(e) })));
   }
 
   // Tool rail (spec §9.2): same groups, order and keys as Pixel mode
@@ -213,7 +213,7 @@
       await clearAutosave();
       await recordRecent(target);
     } catch (e) {
-      loadError = `Save failed: ${String(e)}`;
+      loadError = t('img.saveFailed', { error: String(e) });
     } finally {
       saving = false;
     }
@@ -250,7 +250,7 @@
       lastWriteDepth = depth;
     } catch (err) {
       console.error('autosave failed', err);
-      loadError = `Autosave failed: ${String(err)}`;
+      loadError = t('img.autosaveFailed', { error: String(err) });
     }
   }
 
@@ -285,7 +285,7 @@
           recordRecent(initialFile),
         )
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
-    start.catch((e) => (loadError = `Could not open image: ${String(e)}`));
+    start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     let timer: ReturnType<typeof setInterval> | null = null;
     if (autosaveAvailable) {
       listLatestSnapshots('image')
@@ -601,24 +601,24 @@
 <EditorFrame
   mode="image"
   {menus}
-  title={editor.handle === null ? 'No document' : projectName()}
+  title={editor.handle === null ? t('px.noDocument') : projectName()}
   {dirty}
   panels={[
-    { id: 'colors', title: 'Colors', icon: 'colors', body: colorsBody },
-    { id: 'layers', title: 'Layers', icon: 'layers', body: layersBody, grow: true },
+    { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
+    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
   ]}
 >
   {#snippet quick()}
     <IconButton
       icon="undo"
-      label="Undo"
+      label={t('menu.undo')}
       hint={hint('undo')}
       disabled={!editor.canUndo}
       onclick={undo}
     />
     <IconButton
       icon="redo"
-      label="Redo"
+      label={t('menu.redo')}
       hint={hint('redo')}
       disabled={!editor.canRedo}
       onclick={redo}

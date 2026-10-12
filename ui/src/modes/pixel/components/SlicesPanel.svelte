@@ -110,7 +110,7 @@
   });
 
   let formOpen = $state(false);
-  let formName = $state(t('slices.defaultName'));
+  let formName = $state('Slice');
   let formColor = $state('#3b82f6');
   let formError = $state<string | null>(null);
   // Per-slice transient error surface, keyed by slice id. Cleared on
@@ -146,7 +146,7 @@
     }
     formOpen = false;
     formError = null;
-    formName = t('slices.defaultName');
+    formName = 'Slice';
     onChange?.();
   }
 

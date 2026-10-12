@@ -68,7 +68,7 @@
   });
 
   let formOpen = $state(false);
-  let formName = $state(t('tiles.defaultName'));
+  let formName = $state('Tileset');
   let formTileW = $state(16);
   let formTileH = $state(16);
   let formError = $state<string | null>(null);
@@ -110,7 +110,7 @@
     }
     formOpen = false;
     formError = null;
-    formName = t('tiles.defaultName');
+    formName = 'Tileset';
     onChange?.();
   }
 
