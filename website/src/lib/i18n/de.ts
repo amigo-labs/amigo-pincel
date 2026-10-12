@@ -205,7 +205,7 @@ export const de: Messages = {
       tablet: {
         heading: 'Tablet & Stift',
         description:
-          'Durchgehend Pointer-Events, Verschieben und Pinch-Zoom mit zwei Fingern in beiden Modi. Umschalt- und Alt-Schalter auf dem Bildschirm ersetzen die Tastatur, und der Pinsel im Bild-Modus folgt dem Stiftdruck. Neigung kommt als Nächstes.',
+          'Durchgehend Pointer-Events, Verschieben und Pinch-Zoom mit zwei Fingern in beiden Modi. Umschalt- und Alt-Schalter auf dem Bildschirm ersetzen die Tastatur, und der Pinsel im Bild-Modus folgt Druck und Neigung des Stifts.',
         shortcuts: [],
       },
       'image-mode': {

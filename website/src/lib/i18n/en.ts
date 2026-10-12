@@ -197,7 +197,7 @@ export const en = {
       tablet: {
         heading: 'Tablet & Pen',
         description:
-          'Pointer events throughout, two-finger pan and pinch-to-zoom in both modes. On-screen Shift and Alt toggles stand in for the keyboard, and the Image-mode brush follows pen pressure. Tilt is next.',
+          'Pointer events throughout, two-finger pan and pinch-to-zoom in both modes. On-screen Shift and Alt toggles stand in for the keyboard, and the Image-mode brush follows pen pressure and tilt.',
         shortcuts: [],
       },
       'image-mode': {
