@@ -83,6 +83,7 @@
   import { isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
+  import { effectLabel } from '../../lib/effects/labels';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
@@ -698,6 +699,7 @@
   {#key effectOpen.id}
     <EffectDialog
       def={effectOpen}
+      hasSelection={editor.hasSelection}
       onPreview={(params) => {
         if (!effectOpen) return;
         // An empty vector means "preview off": show the real composite.
@@ -705,7 +707,9 @@
         else previewEffect(effectOpen.id, params);
       }}
       onApply={(params) => {
-        if (effectOpen) applyEffect(effectOpen.id, params);
+        if (effectOpen && !applyEffect(effectOpen.id, params)) {
+          editor.notice = t('fx.selectionEmpty', { effect: effectLabel(effectOpen) });
+        }
         effectOpen = null;
       }}
       onCancel={() => {

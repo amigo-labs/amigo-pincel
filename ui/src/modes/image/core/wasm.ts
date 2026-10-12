@@ -325,8 +325,9 @@ export const core = {
   applyCommand: (handle: number, command: ToolCommand): void =>
     apply_command(handle, JSON.stringify(command)),
   /** Applies effect `name` with positional `params` (the shared
-   *  `lib/effects/catalog.ts` wire format) to a layer as one undoable step. */
-  applyEffect: (handle: number, layer: number, name: string, params: number[]): void =>
+   *  `lib/effects/catalog.ts` wire format) to a layer, inside the selection,
+   *  as one undoable step. `false`: the selection is empty, nothing changed. */
+  applyEffect: (handle: number, layer: number, name: string, params: number[]): boolean =>
     apply_effect(handle, layer, name, Float64Array.from(params)),
   /** Composites the document with the effect previewed on `layer`; no mutation. */
   previewEffect: (

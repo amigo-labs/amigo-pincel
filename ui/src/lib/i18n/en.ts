@@ -617,6 +617,9 @@ export const en = {
   'panel.tilesets': 'Tilesets',
   'panel.slices': 'Slices',
   'panel.timeline': 'Timeline',
+
+  // Effects on a selection
+  'fx.selectionEmpty': '{effect}: the selection is empty, nothing changed',
 } as const;
 
 /** A UI message key. */

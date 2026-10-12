@@ -316,13 +316,16 @@ export function cropToSelection(): void {
 }
 
 /** Applies an effect to the active layer as one undoable step (spec §11). */
-export function applyEffect(name: string, params: number[]): void {
+/** Applies an effect to the active layer, inside the selection. Returns
+ *  `false` when the selection is empty and nothing changed. */
+export function applyEffect(name: string, params: number[]): boolean {
   if (editor.handle === null) {
-    return;
+    return false;
   }
-  core.applyEffect(editor.handle, editor.activeLayer, name, params);
+  const changed = core.applyEffect(editor.handle, editor.activeLayer, name, params);
   editor.previewComposite = null;
   syncInfo();
+  return changed;
 }
 
 /** Sets the live effect preview over the canvas without mutating the document

@@ -624,4 +624,7 @@ export const de: Record<MessageKey, string> = {
   'panel.tilesets': 'Tilesets',
   'panel.slices': 'Slices',
   'panel.timeline': 'Zeitleiste',
+
+  // Effects on a selection
+  'fx.selectionEmpty': '{effect}: Die Auswahl ist leer, nichts geändert',
 };
