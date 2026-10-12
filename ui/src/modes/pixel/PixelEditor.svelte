@@ -509,7 +509,7 @@
       cancelled = true;
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
-      autosave.stop();
+      autosave.close();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);

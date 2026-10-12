@@ -1708,6 +1708,7 @@ impl Document {
                 center: None,
                 pivot: None,
             }],
+            user_data: None,
         };
         let cmd = AddSlice::new(slice);
         self.bus

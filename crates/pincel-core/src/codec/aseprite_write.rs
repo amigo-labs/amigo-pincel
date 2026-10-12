@@ -27,9 +27,9 @@ use std::io::Write;
 
 use aseprite_writer::{
     AnimationDirection as AseDirection, AseFile, BlendMode as AseBlendMode, CelChunk, CelContent,
-    Color as AseColor, ColorDepth as AseColorDepth, Frame as AseFrame, Header, LayerChunk,
-    LayerFlags, LayerType, NinePatch as AseNinePatch, PaletteChunk,
-    PaletteEntry as AsePaletteEntry, Pivot as AsePivot, SliceChunk as AseSliceChunk,
+    Color as AseColor, ColorDepth as AseColorDepth, ExternalFile as AseExternalFile,
+    Frame as AseFrame, Header, LayerChunk, LayerFlags, LayerType, NinePatch as AseNinePatch,
+    PaletteChunk, PaletteEntry as AsePaletteEntry, Pivot as AsePivot, SliceChunk as AseSliceChunk,
     SliceKey as AseSliceKey, Tag as AseTag, TilesetChunk as AseTilesetChunk,
     UserData as AseUserData,
 };
@@ -85,6 +85,16 @@ fn build_ase_file(sprite: &Sprite, cels: &CelMap) -> Result<AseFile, CodecError>
         tilesets,
         slices,
         frames,
+        external_files: sprite
+            .metadata
+            .external_files
+            .iter()
+            .map(|f| AseExternalFile {
+                id: f.id,
+                kind: f.kind,
+                name: f.name.clone(),
+            })
+            .collect(),
         user_data: map_user_data(sprite.metadata.user_data.as_ref()),
     })
 }
@@ -108,15 +118,16 @@ fn build_slices(slices: &[Slice]) -> Vec<AseSliceChunk> {
 /// slice `id` is editor-only and re-derived from position on read. The
 /// overlay `color` is carried in a trailing User Data chunk (`0x2020`) —
 /// the slice chunk itself has no color field — and recovered by the read
-/// adapter.
+/// adapter, together with the slice's note text and property maps.
 fn map_slice(slice: &Slice) -> AseSliceChunk {
+    let ud = slice.user_data.as_ref();
     AseSliceChunk {
         name: slice.name.clone(),
         keys: slice.keys.iter().map(map_slice_key).collect(),
         user_data: Some(AseUserData {
-            text: None,
+            text: ud.and_then(|u| u.text.clone()),
             color: Some([slice.color.r, slice.color.g, slice.color.b, slice.color.a]),
-            properties: None,
+            properties: ud.and_then(|u| u.properties.clone()),
         }),
     }
 }
@@ -427,6 +438,17 @@ fn map_tileset(tileset: &Tileset) -> Result<AseTilesetChunk, CodecError> {
         base_index,
         name: tileset.name.clone(),
         tile_pixels,
+        user_data: map_user_data(tileset.user_data.as_ref()),
+        // Dense up to the last tile that has any; ids past the tile list
+        // have no tile to attach to and are dropped.
+        tile_user_data: {
+            let mut dense = Vec::new();
+            for (&id, ud) in tileset.tile_user_data.range(..number_of_tiles) {
+                dense.resize(id as usize, None);
+                dense.push(map_user_data(Some(ud)));
+            }
+            dense
+        },
     })
 }
 
@@ -714,6 +736,8 @@ mod tests {
                 tiles: Vec::new(),
                 base_index: 1,
                 external_file: Some(crate::PathRef("shared.aseprite".into())),
+                user_data: None,
+                tile_user_data: Default::default(),
             })
             .build()
             .unwrap();
@@ -739,6 +763,8 @@ mod tests {
                 tiles: vec![bad_tile],
                 base_index: 1,
                 external_file: None,
+                user_data: None,
+                tile_user_data: Default::default(),
             })
             .build()
             .unwrap();

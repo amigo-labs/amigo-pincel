@@ -96,6 +96,7 @@ mod tests {
                 center: None,
                 pivot: None,
             }],
+            user_data: None,
         }
     }
 
@@ -141,6 +142,7 @@ mod tests {
             name: "empty".into(),
             color: Rgba::WHITE,
             keys: Vec::new(),
+            user_data: None,
         };
         let mut cmd = AddSlice::new(s);
         assert_eq!(
@@ -164,6 +166,7 @@ mod tests {
                 center: None,
                 pivot: None,
             }],
+            user_data: None,
         };
         let mut cmd = AddSlice::new(s);
         assert_eq!(

@@ -255,7 +255,7 @@
       'menu:resetZoom': () => viewCommands.fit(),
     });
     return () => {
-      autosave.stop();
+      autosave.close();
       registerMenuHandlers(null);
     };
   });

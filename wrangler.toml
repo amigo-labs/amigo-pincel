@@ -1,9 +1,11 @@
-# Cloudflare config for the Pincel marketing site.
+# Cloudflare config for pincel.amigo-labs.dev — the marketing site at `/` and
+# the editor (PWA) at `/app/`, both served as static assets by this one Worker.
 #
 # This file lives at the repo root because Cloudflare's Git integration
-# (Workers Builds) reads wrangler.toml from there. The actual SvelteKit
-# project lives in `website/`; we build it during the Workers Builds step
-# and serve the resulting `website/build/` directory as static assets.
+# (Workers Builds) reads wrangler.toml from there. scripts/cf-build.sh builds
+# the SvelteKit site (`website/`) into website/build/, builds the editor
+# (`ui/`, Rust → wasm included) and copies it into website/build/app/.
+# docs/specs/pincel.md §15, 2026-10-12.
 #
 # Cloudflare project name: `amigo-pincel` (matches the existing project the
 # repository is connected to in the Cloudflare dashboard).
@@ -11,20 +13,21 @@
 # This is a static-only site — no Worker entrypoint, no Pages Functions. The
 # SvelteKit static adapter prerenders every route at build time (see
 # website/svelte.config.js and docs/specs/website-spec.md §6.2:
-# "Static site generation. No SSR runtime.").
+# "Static site generation. No SSR runtime."). The editor has no client-side
+# routes; `/app/` serves app/index.html via the default trailing-slash
+# handling.
 
 name = "amigo-pincel"
 compatibility_date = "2026-05-07"
 
-# Workers Builds build step. Cloudflare runs this from the repo root.
-# We enable corepack so `pnpm` is on PATH, install with the frozen lockfile,
-# and run the SvelteKit build which writes to website/build/.
+# Workers Builds build step. Cloudflare runs this from the repo root; the
+# script installs the Rust / wasm-pack toolchain the build image lacks.
 [build]
-command = "corepack enable && cd website && pnpm install --frozen-lockfile && pnpm build"
+command = "bash scripts/cf-build.sh"
 
-# Serve the prerendered build output. `not_found_handling = "404-page"` tells
+# Serve the merged build output. `not_found_handling = "404-page"` tells
 # Workers to serve `website/build/404.html` (provided by static/404.html) for
-# any request that doesn't match a prerendered file.
+# any request that doesn't match a file — including unknown paths under /app/.
 [assets]
 directory = "./website/build"
 not_found_handling = "404-page"

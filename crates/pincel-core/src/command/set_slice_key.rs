@@ -105,6 +105,7 @@ mod tests {
             name: "s".into(),
             color: Rgba::WHITE,
             keys,
+            user_data: None,
         }
     }
 

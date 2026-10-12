@@ -124,6 +124,7 @@ mod tests {
                 center: None,
                 pivot: Some((0, 0)),
             }],
+            user_data: None,
         };
         let sprite = Sprite::builder(3, 2)
             .add_layer(Layer::image(L, "a"))

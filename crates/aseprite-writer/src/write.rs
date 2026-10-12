@@ -20,8 +20,8 @@ use crate::bytes::{
 };
 use crate::error::WriteError;
 use crate::file::{
-    AseFile, CelChunk, CelContent, Frame, Header, LayerChunk, PaletteChunk, SliceChunk, Tag,
-    TilesetChunk, UserData,
+    AseFile, CelChunk, CelContent, ExternalFile, Frame, Header, LayerChunk, PaletteChunk,
+    SliceChunk, Tag, TilesetChunk, UserData,
 };
 use crate::types::{LayerType, PaletteEntryFlags};
 
@@ -32,6 +32,7 @@ const FRAME_HEADER_SIZE: usize = 16;
 const CHUNK_HEADER_SIZE: usize = 6; // dword size + word type
 
 const CHUNK_TYPE_LAYER: u16 = 0x2004;
+const CHUNK_TYPE_EXTERNAL_FILES: u16 = 0x2008;
 const CHUNK_TYPE_CEL: u16 = 0x2005;
 const CHUNK_TYPE_TAGS: u16 = 0x2018;
 const CHUNK_TYPE_PALETTE: u16 = 0x2019;
@@ -107,6 +108,11 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
     for (idx, frame) in file.frames.iter().enumerate() {
         let mut chunks: Vec<Vec<u8>> = Vec::new();
         if idx == 0 {
+            if !file.external_files.is_empty() {
+                chunks.push(encode_chunk(CHUNK_TYPE_EXTERNAL_FILES, |buf| {
+                    write_external_files_body(buf, &file.external_files)
+                })?);
+            }
             for layer in &file.layers {
                 chunks.push(encode_chunk(CHUNK_TYPE_LAYER, |buf| {
                     write_layer_body(buf, layer)
@@ -140,6 +146,22 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                 chunks.push(encode_chunk(CHUNK_TYPE_TILESET, |buf| {
                     write_tileset_body(buf, tileset)
                 })?);
+                // Positional, like tags: the tileset's own chunk, then
+                // one per tile up to the last tile that has any.
+                let last_tile = tileset.tile_user_data.iter().rposition(Option::is_some);
+                if tileset.user_data.is_some() || last_tile.is_some() {
+                    let own = tileset.user_data.clone().unwrap_or_default();
+                    chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                        write_user_data_body(buf, &own)
+                    })?);
+                    let tiles = last_tile.map_or(0, |i| i + 1);
+                    for ud in &tileset.tile_user_data[..tiles] {
+                        let ud = ud.clone().unwrap_or_default();
+                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                            write_user_data_body(buf, &ud)
+                        })?);
+                    }
+                }
             }
             for slice in &file.slices {
                 let flags = validate_slice(slice)?;
@@ -622,6 +644,26 @@ fn write_slice_body<W: Write>(w: &mut W, slice: &SliceChunk, flags: u32) -> Resu
     Ok(())
 }
 
+/// Emit an External Files chunk body (`0x2008`): `DWORD` entry count,
+/// 8 reserved bytes, then per entry `DWORD id`, `BYTE type`, 7 reserved
+/// bytes and the `STRING` name.
+fn write_external_files_body<W: Write>(
+    w: &mut W,
+    files: &[ExternalFile],
+) -> Result<(), WriteError> {
+    let count =
+        u32::try_from(files.len()).map_err(|_| WriteError::TooManyExternalFiles(files.len()))?;
+    write_dword(w, count)?;
+    write_zeros(w, 8)?;
+    for f in files {
+        write_dword(w, f.id)?;
+        write_byte(w, f.kind)?;
+        write_zeros(w, 7)?;
+        write_string(w, &f.name)?;
+    }
+    Ok(())
+}
+
 /// Emit a User Data chunk body (`0x2020`).
 ///
 /// On-disk layout: `DWORD flags`, then (if `HAS_TEXT`) a `STRING`, then
@@ -711,6 +753,7 @@ mod tests {
             slices: Vec::new(),
             frames: vec![Frame::new(100)],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
@@ -733,6 +776,7 @@ mod tests {
             slices: Vec::new(),
             frames: Vec::with_capacity(u16::MAX as usize + 1),
             user_data: None,
+            external_files: Vec::new(),
         };
         for _ in 0..(u16::MAX as usize + 1) {
             file.frames.push(Frame::new(0));
@@ -755,6 +799,7 @@ mod tests {
             slices: Vec::new(),
             frames: Vec::new(),
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -846,6 +891,7 @@ mod tests {
                 }],
             }],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -887,6 +933,7 @@ mod tests {
                 }],
             }],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -921,6 +968,7 @@ mod tests {
                 }],
             }],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         let err = write(&file, &mut buf).unwrap_err();
@@ -968,6 +1016,7 @@ mod tests {
                 }],
             }],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();
@@ -1024,6 +1073,7 @@ mod tests {
             slices: vec![slice],
             frames: vec![Frame::new(0)],
             user_data: None,
+            external_files: Vec::new(),
         };
         let err = write(&file, &mut buf).unwrap_err();
         assert!(matches!(err, WriteError::SliceWithoutKeys { .. }));
@@ -1168,6 +1218,7 @@ mod tests {
             ],
             frames: vec![Frame::new(100), Frame::new(100)],
             user_data: None,
+            external_files: Vec::new(),
         };
         let mut buf = Vec::new();
         write(&file, &mut buf).unwrap();

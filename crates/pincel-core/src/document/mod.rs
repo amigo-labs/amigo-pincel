@@ -43,6 +43,22 @@ pub struct Metadata {
     pub grid: Option<Rect>,
     /// Sprite-level user data (spec §7.1).
     pub user_data: Option<UserData>,
+    /// Entries of the file's External Files chunk (`0x2008`): external
+    /// palettes / tilesets and the extensions property maps with a
+    /// non-zero key belong to. Kept for the round trip (spec §7.1).
+    pub external_files: Vec<ExternalFile>,
+}
+
+/// One External Files entry (spec §7.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalFile {
+    /// Entry id other chunks refer to.
+    pub id: u32,
+    /// Aseprite's entry type byte (`0` palette, `1` tileset, `2`
+    /// extension for properties, `3` tile extension), kept as read.
+    pub kind: u8,
+    /// File name or extension id.
+    pub name: String,
 }
 
 /// The Pincel document. Every persistent field mirrors the Aseprite v1.3 file
@@ -359,6 +375,8 @@ mod tests {
             tiles: Vec::new(),
             base_index: 1,
             external_file: None,
+            user_data: None,
+            tile_user_data: Default::default(),
         };
         let err = Sprite::builder(8, 8)
             .add_tileset(make_tileset(3))
@@ -521,6 +539,8 @@ mod tests {
             tiles: Vec::new(),
             base_index: 1,
             external_file: None,
+            user_data: None,
+            tile_user_data: Default::default(),
         };
         let s = Sprite::builder(32, 32)
             .color_mode(ColorMode::Indexed {

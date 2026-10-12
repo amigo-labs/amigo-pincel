@@ -31,9 +31,9 @@ pub use command::{
 };
 
 pub use document::{
-    BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, MAX_PALETTE_ENTRIES, Metadata, Palette, PaletteEntry, PalettePreset, PathRef,
-    PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, SpriteBuilder, Tag, TagDirection,
+    BlendMode, Cel, CelData, CelKey, CelMap, ColorMode, ExternalFile, Frame, FrameIndex, Layer,
+    LayerId, LayerKind, MAX_PALETTE_ENTRIES, Metadata, Palette, PaletteEntry, PalettePreset,
+    PathRef, PixelBuffer, Rgba, Slice, SliceId, SliceKey, Sprite, SpriteBuilder, Tag, TagDirection,
     TileImage, TileRef, Tileset, TilesetId, UserData,
 };
 pub use error::DocumentError;

@@ -7,10 +7,10 @@
 //! pair; see `docs/specs/pincel.md` §7.1.
 
 use pincel_core::{
-    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, MoveDirection, MoveLayer, Palette, PaletteEntry, PixelBuffer, Rect,
-    Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection, TileImage, TileRef, Tileset,
-    TilesetId, UserData, read_aseprite, write_aseprite,
+    AsepriteReadOutput, BlendMode, Cel, CelData, CelMap, ColorMode, Command, ExternalFile, Frame,
+    FrameIndex, Layer, LayerId, LayerKind, MoveDirection, MoveLayer, Palette, PaletteEntry,
+    PixelBuffer, Rect, Rgba, Slice, SliceId, SliceKey, Sprite, Tag, TagDirection, TileImage,
+    TileRef, Tileset, TilesetId, UserData, read_aseprite, write_aseprite,
 };
 
 fn round_trip(sprite: &Sprite, cels: &CelMap) -> AsepriteReadOutput {
@@ -379,6 +379,8 @@ fn tilemap_round_trips_layer_tileset_and_cel() {
         tiles: vec![tile0, tile1],
         base_index: 1,
         external_file: None,
+        user_data: None,
+        tile_user_data: Default::default(),
     };
 
     let mut tile_2 = TileRef::new(1);
@@ -471,6 +473,8 @@ fn tilemap_round_trips_rotate_90_flag() {
         }],
         base_index: 1,
         external_file: None,
+        user_data: None,
+        tile_user_data: Default::default(),
     };
     let mut rotated = TileRef::new(0);
     rotated.rotate_90 = true;
@@ -516,6 +520,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
             center: None,
             pivot: None,
         }],
+        user_data: None,
     };
     let panel = Slice {
         id: SliceId::new(1),
@@ -535,6 +540,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
                 pivot: Some((-1, -1)),
             },
         ],
+        user_data: None,
     };
     let sprite = Sprite::builder(16, 16)
         .add_layer(Layer::image(LayerId::new(0), "bg"))
@@ -839,4 +845,72 @@ fn layer_moved_into_a_group_keeps_its_parent_through_a_round_trip() {
             ("loose", Some("grp"))
         ]
     );
+}
+
+#[test]
+fn external_files_tileset_tile_and_slice_user_data_round_trip() {
+    let props = nested_properties();
+    let ud = |text: &str, with_props: bool| UserData {
+        text: Some(text.into()),
+        color: None,
+        properties: with_props.then(|| props.clone()),
+    };
+    let tile = |v: u8| TileImage {
+        pixels: PixelBuffer {
+            width: 2,
+            height: 2,
+            color_mode: ColorMode::Rgba,
+            data: [v, 0, 0, 255].repeat(4),
+        },
+    };
+    let mut tileset = Tileset::new(TilesetId::new(0), "ts", (2, 2));
+    tileset.tiles = vec![tile(0), tile(1), tile(2), tile(3)];
+    tileset.user_data = Some(ud("tileset", true));
+    // Sparse: tile 2 only; tiles 0, 1 and 3 have none.
+    tileset.tile_user_data.insert(2, ud("tile 2", true));
+    let slice = Slice {
+        id: SliceId::new(0),
+        name: "hitbox".into(),
+        color: Rgba::new(200, 30, 40, 255),
+        keys: vec![SliceKey {
+            frame: FrameIndex::new(0),
+            bounds: Rect::new(1, 2, 3, 4),
+            center: None,
+            pivot: None,
+        }],
+        user_data: Some(ud("slice note", true)),
+    };
+    let mut sprite = Sprite::builder(8, 8)
+        .add_layer(Layer::image(LayerId::new(0), "img"))
+        .add_layer(Layer::tilemap(LayerId::new(1), "tiles", TilesetId::new(0)))
+        .add_tileset(tileset)
+        .add_slice(slice)
+        .add_frame(Frame::new(100))
+        .palette(Palette::from_entries(vec![PaletteEntry::new(Rgba::BLACK)]))
+        .build()
+        .expect("sprite builds");
+    sprite.metadata.external_files = vec![
+        ExternalFile {
+            id: 1,
+            kind: 2,
+            name: "my-extension".into(),
+        },
+        ExternalFile {
+            id: 2,
+            kind: 3,
+            name: "tile-ext".into(),
+        },
+    ];
+    let cels = CelMap::new();
+
+    let once = round_trip(&sprite, &cels);
+    let out = round_trip(&once.sprite, &once.cels);
+    let s = &out.sprite;
+    assert_eq!(s.metadata.external_files, sprite.metadata.external_files);
+    let ts = &s.tilesets[0];
+    assert_eq!(ts.user_data, Some(ud("tileset", true)));
+    assert_eq!(ts.tile_user_data.len(), 1);
+    assert_eq!(ts.tile_user_data.get(&2), Some(&ud("tile 2", true)));
+    assert_eq!(s.slices[0].color, Rgba::new(200, 30, 40, 255));
+    assert_eq!(s.slices[0].user_data, Some(ud("slice note", true)));
 }

@@ -24,6 +24,11 @@ pub struct AseFile {
     pub tilesets: Vec<TilesetChunk>,
     pub slices: Vec<SliceChunk>,
     pub frames: Vec<Frame>,
+    /// External Files chunk (`0x2008`) entries: external palettes /
+    /// tilesets and the extensions property maps with a non-zero key
+    /// belong to. Written as the first chunk of the first frame; empty
+    /// writes no chunk.
+    pub external_files: Vec<ExternalFile>,
     /// Sprite-level user data. Written as a User Data chunk right after
     /// the palette chunk of the first frame (Aseprite v1.3's convention),
     /// so it requires `palette` to be `Some`; without a palette it is not
@@ -250,6 +255,25 @@ pub struct TilesetChunk {
     /// this before emission and rejects buffers whose length does not
     /// match the expected size.
     pub tile_pixels: Vec<u8>,
+    /// User data of the tileset itself, written right after the chunk.
+    pub user_data: Option<UserData>,
+    /// User data per tile (index = tile), written after the tileset's own
+    /// in tile order. Trailing `None`s write nothing; gaps write empty
+    /// chunks so later tiles keep their position.
+    pub tile_user_data: Vec<Option<UserData>>,
+}
+
+/// One External Files entry (chunk `0x2008`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalFile {
+    /// Entry id other chunks refer to (tilesets, property-map keys).
+    pub id: u32,
+    /// Entry type: `0` external palette, `1` external tileset, `2`
+    /// extension name for properties, `3` tile-management extension;
+    /// other values are written unchanged.
+    pub kind: u8,
+    /// File name or extension id.
+    pub name: String,
 }
 
 /// Slice chunk (`0x2022`). Mirrors

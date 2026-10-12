@@ -15,9 +15,9 @@ use aseprite_loader::binary::file::parse_file;
 use aseprite_loader::binary::raw_file::parse_raw_file;
 use aseprite_loader::loader::decompress;
 use aseprite_writer::{
-    AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, Frame, Header,
-    LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag, TilesetChunk, UserData,
-    write,
+    AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, ExternalFile,
+    Frame, Header, LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag,
+    TilesetChunk, UserData, write,
 };
 
 fn write_to_vec(file: &AseFile) -> Vec<u8> {
@@ -37,6 +37,7 @@ fn empty_rgba_sprite_roundtrips_through_loader() {
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
 
@@ -95,6 +96,7 @@ fn three_layers_with_blend_modes_roundtrip() {
         slices: Vec::new(),
         frames: vec![Frame::new(80)],
         user_data: None,
+        external_files: Vec::new(),
     };
 
     let bytes = write_to_vec(&file);
@@ -148,6 +150,7 @@ fn palette_roundtrips_via_raw_file() {
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
         user_data: None,
+        external_files: Vec::new(),
     };
 
     let bytes = write_to_vec(&file);
@@ -214,6 +217,7 @@ fn tags_roundtrip_with_directions() {
         tilesets: Vec::new(),
         slices: Vec::new(),
         frames: (0..7).map(|_| Frame::new(50)).collect(),
+        external_files: Vec::new(),
         user_data: None,
     };
 
@@ -300,6 +304,7 @@ fn single_image_cel_roundtrips_with_pixels() {
             }],
         }],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -366,6 +371,7 @@ fn linked_cel_roundtrips_pointing_at_source_frame() {
             },
         ],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -443,6 +449,7 @@ fn multi_cel_across_layers_and_frames_roundtrips() {
             },
         ],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("loader parses our output");
@@ -512,6 +519,7 @@ fn full_file_with_layers_palette_tags_roundtrips() {
         slices: Vec::new(),
         frames: vec![Frame::new(100), Frame::new(150)],
         user_data: None,
+        external_files: Vec::new(),
     };
 
     let bytes = write_to_vec(&file);
@@ -582,6 +590,8 @@ fn build_tilemap_file() -> AseFile {
             base_index: 1,
             name: "ts".into(),
             tile_pixels,
+            user_data: None,
+            tile_user_data: Vec::new(),
         }],
         slices: Vec::new(),
         frames: vec![Frame {
@@ -606,6 +616,7 @@ fn build_tilemap_file() -> AseFile {
             }],
         }],
         user_data: None,
+        external_files: Vec::new(),
     }
 }
 
@@ -697,6 +708,8 @@ fn chunk_kinds(bytes: &[u8]) -> Vec<&'static str> {
             Chunk::Palette(_) => "palette",
             Chunk::Tags(_) => "tags",
             Chunk::UserData(_) => "ud",
+            Chunk::Tileset(_) => "tileset",
+            Chunk::ExternalFiles(_) => "external",
             _ => "other",
         })
         .collect()
@@ -767,6 +780,7 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
             }],
         }],
         user_data: ud("sprite note"),
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     assert_eq!(
@@ -834,6 +848,7 @@ fn user_data_properties_are_written_verbatim_and_parse() {
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     // The block sits verbatim at the end of the user-data chunk.
@@ -879,6 +894,7 @@ fn user_data_properties_with_a_wrong_size_are_rejected() {
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
         user_data: None,
+        external_files: Vec::new(),
     };
     let mut buf = Vec::new();
     assert!(matches!(
@@ -906,6 +922,7 @@ fn unknown_tag_direction_roundtrips_as_its_raw_byte() {
         slices: Vec::new(),
         frames: vec![Frame::new(100)],
         user_data: None,
+        external_files: Vec::new(),
     };
     let bytes = write_to_vec(&file);
     let parsed = parse_file(&bytes).expect("parse");
@@ -913,4 +930,63 @@ fn unknown_tag_direction_roundtrips_as_its_raw_byte() {
         parsed.tags[0].animation_direction,
         LoaderDirection::Unknown(7)
     ));
+}
+
+#[test]
+fn external_files_and_tileset_user_data_are_written_in_place() {
+    use aseprite_loader::binary::chunks::external_files::ExternalFileType;
+    let mut file = build_tilemap_file();
+    file.external_files = vec![
+        ExternalFile {
+            id: 5,
+            kind: 2,
+            name: "my-extension".into(),
+        },
+        ExternalFile {
+            id: 6,
+            kind: 3,
+            name: "tiles-ext".into(),
+        },
+    ];
+    let note = |text: &str| UserData {
+        text: Some(text.into()),
+        color: None,
+        properties: None,
+    };
+    file.tilesets[0].user_data = Some(note("tileset"));
+    // Tile 0 has none (written empty, keeping tile 1 in place); nothing
+    // past the last tile with data is written.
+    file.tilesets[0].tile_user_data = vec![None, Some(note("tile 1")), None];
+    let bytes = write_to_vec(&file);
+
+    let kinds = chunk_kinds(&bytes);
+    assert_eq!(kinds[0], "external");
+    let ts = kinds.iter().position(|k| *k == "tileset").expect("tileset");
+    assert_eq!(&kinds[ts..ts + 4], &["tileset", "ud", "ud", "ud"]);
+    assert_ne!(kinds.get(ts + 4), Some(&"ud"));
+
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let chunks: Vec<_> = raw.frames[0].chunks.iter().collect();
+    let Chunk::ExternalFiles(ext) = chunks[0] else {
+        panic!("external files chunk first");
+    };
+    assert_eq!(ext.files.len(), 2);
+    assert_eq!(ext.files[0].entry_id, 5);
+    assert_eq!(ext.files[0].file_name, "my-extension");
+    assert!(matches!(
+        ext.files[0].file_type,
+        ExternalFileType::ExtensionNameForProperties
+    ));
+    // The loader cannot name type 3 (its `Unknown(Byte)` shares the
+    // discriminant), so check the raw entry: id 6, then type byte 3.
+    assert_eq!(ext.files[1].file_name, "tiles-ext");
+    assert!(bytes.windows(5).any(|w| w == [6, 0, 0, 0, 3]));
+    let texts: Vec<Option<&str>> = chunks[ts + 1..ts + 4]
+        .iter()
+        .map(|c| match c {
+            Chunk::UserData(u) => u.text,
+            _ => panic!("user data"),
+        })
+        .collect();
+    assert_eq!(texts, vec![Some("tileset"), None, Some("tile 1")]);
 }
