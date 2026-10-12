@@ -44,6 +44,19 @@ pub enum BrushShape {
     Flat,
 }
 
+/// What pen pressure varies along a stroke (spec §17.4). Both off means the
+/// brush ignores pressure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PressureDynamics {
+    /// Pressure scales the dab diameter.
+    pub size: bool,
+    /// Pressure scales the dab opacity.
+    pub opacity: bool,
+}
+
+/// Smallest dab radius pressure can shrink a brush to, in pixels.
+const MIN_PRESSURE_RADIUS: f32 = 0.5;
+
 /// Minor/major axis ratio of the [`BrushShape::Flat`] nib.
 const FLAT_ASPECT: f32 = 0.35;
 
@@ -69,6 +82,8 @@ pub struct Brush {
     pub shape: BrushShape,
     /// Edge hardness in `[0.0, 1.0]` (soft/flat only); 1.0 is a crisp edge.
     pub hardness: f32,
+    /// What pen pressure varies (see [`Pencil::stroke_with_pressure`]).
+    pub dynamics: PressureDynamics,
 }
 
 impl Brush {
@@ -80,7 +95,14 @@ impl Brush {
             opacity: opacity.clamp(0.0, 1.0),
             shape: BrushShape::HardRound,
             hardness: 1.0,
+            dynamics: PressureDynamics::default(),
         }
+    }
+
+    /// Sets what pen pressure varies.
+    pub fn with_dynamics(mut self, dynamics: PressureDynamics) -> Self {
+        self.dynamics = dynamics;
+        self
     }
 
     /// Sets the tip shape.
@@ -99,9 +121,23 @@ impl Brush {
         self.size as f32 / 2.0
     }
 
-    /// Coverage in `[0.0, 1.0]` of the tip at offset `(dx, dy)` from its center.
-    fn coverage(&self, dx: f32, dy: f32) -> f32 {
-        let radius = self.radius();
+    /// Dab radius at pressure `p` in `[0, 1]`.
+    fn dab_radius(&self, p: f32) -> f32 {
+        if self.dynamics.size {
+            (self.radius() * p).max(MIN_PRESSURE_RADIUS)
+        } else {
+            self.radius()
+        }
+    }
+
+    /// Dab strength factor at pressure `p` in `[0, 1]`.
+    fn dab_strength(&self, p: f32) -> f32 {
+        if self.dynamics.opacity { p } else { 1.0 }
+    }
+
+    /// Coverage in `[0.0, 1.0]` of a tip of `radius` at offset `(dx, dy)`
+    /// from its center.
+    fn coverage(&self, dx: f32, dy: f32, radius: f32) -> f32 {
         match self.shape {
             BrushShape::HardRound => {
                 if dx * dx + dy * dy <= radius * radius {
@@ -129,12 +165,15 @@ impl Brush {
     /// Rasterizes a stroke over `points`, combining the tip coverage with the
     /// existing pixels via `op`. `op` receives the effective source alpha
     /// (`strength * coverage`) and the destination color, and returns the new
-    /// color. Returns the painted region and its new pixels, or `None` if the
-    /// stroke misses the canvas, the layer is invalid, or `strength <= 0`.
+    /// color. `pressure[i]` (clamped to `[0, 1]`, missing entries = 1) is the
+    /// pen pressure at `points[i]`, applied per [`Brush::dynamics`]. Returns
+    /// the painted region and its new pixels, or `None` if the stroke misses
+    /// the canvas, the layer is invalid, or `strength <= 0`.
     pub(crate) fn rasterize<F>(
         &self,
         layer_index: usize,
         points: &[Point],
+        pressure: &[f32],
         doc: &Document,
         strength: f32,
         mut op: F,
@@ -155,11 +194,13 @@ impl Brush {
             strength,
             selection,
         };
+        let at = |i: usize| pressure.get(i).copied().unwrap_or(1.0).clamp(0.0, 1.0);
         if points.len() == 1 {
-            self.stamp(&mut after, points[0], &ctx, &mut op);
+            self.stamp(&mut after, points[0], at(0), &ctx, &mut op);
         } else {
-            for pair in points.windows(2) {
-                self.stamp_segment(&mut after, pair[0], pair[1], &ctx, &mut op);
+            for (i, pair) in points.windows(2).enumerate() {
+                let (a, b) = ((pair[0], at(i)), (pair[1], at(i + 1)));
+                self.stamp_segment(&mut after, a, b, &ctx, &mut op);
             }
         }
         Some((region, after))
@@ -191,14 +232,16 @@ impl Brush {
         Some(Rect::new(x0, y0, (x1 - x0) as u32, (y1 - y0) as u32))
     }
 
-    /// Stamps one dab centered at canvas-space `center` into `buf` (whose origin
-    /// is `ctx.region`'s top-left), applying `op` per covered pixel.
-    fn stamp<F>(&self, buf: &mut ImageBuffer, center: Point, ctx: &StrokeCtx, op: &mut F)
+    /// Stamps one dab at pressure `p` centered at canvas-space `center` into
+    /// `buf` (whose origin is `ctx.region`'s top-left), applying `op` per
+    /// covered pixel.
+    fn stamp<F>(&self, buf: &mut ImageBuffer, center: Point, p: f32, ctx: &StrokeCtx, op: &mut F)
     where
         F: FnMut(f32, Color) -> Color,
     {
         let region = ctx.region;
-        let radius = self.radius();
+        let radius = self.dab_radius(p);
+        let strength = ctx.strength * self.dab_strength(p);
         let cx0 = (center.x - radius).floor() as i32;
         let cy0 = (center.y - radius).floor() as i32;
         let cx1 = (center.x + radius).ceil() as i32;
@@ -207,11 +250,11 @@ impl Brush {
             for cx in cx0..=cx1 {
                 let dx = cx as f32 + 0.5 - center.x;
                 let dy = cy as f32 + 0.5 - center.y;
-                let cov = self.coverage(dx, dy);
+                let cov = self.coverage(dx, dy, radius);
                 if cov <= 0.0 {
                     continue;
                 }
-                let mut eff = (ctx.strength * cov).clamp(0.0, 1.0);
+                let mut eff = (strength * cov).clamp(0.0, 1.0);
                 if eff <= 0.0 {
                     continue;
                 }
@@ -236,29 +279,31 @@ impl Brush {
         }
     }
 
-    /// Stamps dabs evenly along the segment `a`→`b`.
+    /// Stamps dabs evenly along the segment `a`→`b`, each end a point and
+    /// its pressure; pressure is interpolated linearly between them.
     fn stamp_segment<F>(
         &self,
         buf: &mut ImageBuffer,
-        a: Point,
-        b: Point,
+        (a, pa): (Point, f32),
+        (b, pb): (Point, f32),
         ctx: &StrokeCtx,
         op: &mut F,
     ) where
         F: FnMut(f32, Color) -> Color,
     {
         let dist = a.distance(b);
-        // Spacing of a quarter brush size keeps strokes solid without overdraw blowup.
-        let spacing = (self.size as f32 * 0.25).max(1.0);
+        // Spacing of a quarter dab diameter keeps strokes solid without
+        // overdraw blowup; the thinner end sets it so light pressure stays solid.
+        let spacing = (self.dab_radius(pa.min(pb)) * 0.5).max(1.0);
         let steps = (dist / spacing).ceil() as i32;
         if steps == 0 {
-            self.stamp(buf, a, ctx, op);
+            self.stamp(buf, a, pa, ctx, op);
             return;
         }
         for i in 0..=steps {
             let t = i as f32 / steps as f32;
             let p = Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
-            self.stamp(buf, p, ctx, op);
+            self.stamp(buf, p, pa + (pb - pa) * t, ctx, op);
         }
     }
 }
@@ -302,13 +347,26 @@ impl Pencil {
         points: &[Point],
         doc: &Document,
     ) -> Option<SetPixels> {
+        self.stroke_with_pressure(layer_index, points, &[], doc)
+    }
+
+    /// [`Pencil::stroke`] with pen pressure: `pressure[i]` in `[0, 1]` belongs
+    /// to `points[i]` (missing entries count as full pressure) and varies the
+    /// dabs per the brush's [`PressureDynamics`] (spec §17.4).
+    pub fn stroke_with_pressure(
+        &self,
+        layer_index: usize,
+        points: &[Point],
+        pressure: &[f32],
+        doc: &Document,
+    ) -> Option<SetPixels> {
         let color = self.brush.color;
         let ca = color.a as f32 / 255.0 * self.brush.opacity;
-        let (region, after) = self
-            .brush
-            .rasterize(layer_index, points, doc, ca, |eff, dst| {
-                src_over(color, eff, dst)
-            })?;
+        let (region, after) =
+            self.brush
+                .rasterize(layer_index, points, pressure, doc, ca, |eff, dst| {
+                    src_over(color, eff, dst)
+                })?;
         Some(SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
     }
 }
@@ -386,6 +444,77 @@ mod tests {
             doc.layers[0].pixels.get_pixel(10, 10),
             Some(Color::TRANSPARENT)
         );
+    }
+
+    fn painted(doc: &Document) -> usize {
+        (0..doc.canvas.height())
+            .flat_map(|y| (0..doc.canvas.width()).map(move |x| (x, y)))
+            .filter(|&(x, y)| {
+                doc.layers[0]
+                    .pixels
+                    .get_pixel(x, y)
+                    .is_some_and(|c| c.a > 0)
+            })
+            .count()
+    }
+
+    fn with_dynamics(size: bool, opacity: bool) -> Pencil {
+        Pencil::new(
+            Brush::new(10, Color::BLACK, 1.0).with_dynamics(PressureDynamics { size, opacity }),
+        )
+    }
+
+    #[test]
+    fn stroke_with_full_pressure_matches_plain_stroke() {
+        let pts = [Point::new(5.0, 10.0), Point::new(30.0, 12.0)];
+        let mut a = Document::new(40, 24).unwrap();
+        let mut b = Document::new(40, 24).unwrap();
+        with_dynamics(true, true)
+            .stroke(0, &pts, &a)
+            .unwrap()
+            .apply(&mut a)
+            .unwrap();
+        with_dynamics(true, true)
+            .stroke_with_pressure(0, &pts, &[1.0, 1.0], &b)
+            .unwrap()
+            .apply(&mut b)
+            .unwrap();
+        assert_eq!(a.layers[0].pixels, b.layers[0].pixels);
+    }
+
+    #[test]
+    fn stroke_with_light_pressure_paints_a_smaller_dab() {
+        let pt = [Point::new(12.0, 12.0)];
+        let mut full = Document::new(24, 24).unwrap();
+        let mut light = Document::new(24, 24).unwrap();
+        let pencil = with_dynamics(true, false);
+        pencil
+            .stroke(0, &pt, &full)
+            .unwrap()
+            .apply(&mut full)
+            .unwrap();
+        pencil
+            .stroke_with_pressure(0, &pt, &[0.3], &light)
+            .unwrap()
+            .apply(&mut light)
+            .unwrap();
+        assert!(painted(&light) * 4 < painted(&full));
+    }
+
+    #[test]
+    fn stroke_with_pressure_opacity_lowers_alpha_only_when_enabled() {
+        let pt = [Point::new(12.0, 12.0)];
+        let alpha = |pencil: Pencil| {
+            let mut doc = Document::new(24, 24).unwrap();
+            pencil
+                .stroke_with_pressure(0, &pt, &[0.5], &doc)
+                .unwrap()
+                .apply(&mut doc)
+                .unwrap();
+            doc.layers[0].pixels.get_pixel(12, 12).unwrap().a
+        };
+        assert!((126..=130).contains(&alpha(with_dynamics(false, true))));
+        assert_eq!(alpha(with_dynamics(false, false)), 255);
     }
 
     #[test]

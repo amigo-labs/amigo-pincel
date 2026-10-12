@@ -61,11 +61,23 @@ impl Eraser {
         points: &[Point],
         doc: &Document,
     ) -> Option<SetPixels> {
+        self.stroke_with_pressure(layer_index, points, &[], doc)
+    }
+
+    /// [`Eraser::stroke`] with pen pressure per point, applied per the brush's
+    /// [`PressureDynamics`](super::PressureDynamics) (spec §17.4).
+    pub fn stroke_with_pressure(
+        &self,
+        layer_index: usize,
+        points: &[Point],
+        pressure: &[f32],
+        doc: &Document,
+    ) -> Option<SetPixels> {
         let (region, after) = match self.mode {
             EraserMode::ToTransparent => {
                 let strength = self.brush.opacity;
                 self.brush
-                    .rasterize(layer_index, points, doc, strength, |eff, dst| {
+                    .rasterize(layer_index, points, pressure, doc, strength, |eff, dst| {
                         erase_to_transparent(dst, eff)
                     })?
             }
@@ -73,7 +85,7 @@ impl Eraser {
                 let bg = self.background;
                 let strength = self.brush.opacity * (bg.a as f32 / 255.0);
                 self.brush
-                    .rasterize(layer_index, points, doc, strength, |eff, dst| {
+                    .rasterize(layer_index, points, pressure, doc, strength, |eff, dst| {
                         src_over(bg, eff, dst)
                     })?
             }
