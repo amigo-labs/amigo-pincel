@@ -3,29 +3,31 @@
 // Blur ▸ / Sharpen ▸ / Distort ▸ / Noise ▸ submenus, Adjustments is flat.
 
 import type { MenuDef } from '../components/layout/menu';
+import { t } from '../i18n/index.svelte';
 import { EFFECTS, EFFECT_MENU_GROUPS, GROUP_LABELS, type EffectDef } from './catalog';
+import { effectLabel, groupLabel } from './labels';
 
 /** Effects + Adjustments menus; `pick` opens the effect's dialog. */
 export function effectMenus(pick: (def: EffectDef) => void, disabled: boolean): MenuDef[] {
   const item = (def: EffectDef) => ({
-    label: `${def.label}${def.params.length > 0 ? '…' : ''}`,
+    label: `${effectLabel(def)}${def.params.length > 0 ? '…' : ''}`,
     disabled,
     run: () => pick(def),
   });
   return [
     {
       id: 'effects',
-      label: 'Effects',
+      label: t('menu.effects'),
       items: EFFECT_MENU_GROUPS.map((g) => ({
         kind: 'submenu' as const,
-        label: GROUP_LABELS[g],
+        label: groupLabel(g, GROUP_LABELS[g]),
         disabled,
         items: EFFECTS.filter((e) => e.group === g).map(item),
       })),
     },
     {
       id: 'adjustments',
-      label: 'Adjustments',
+      label: t('menu.adjustments'),
       items: EFFECTS.filter((e) => e.group === 'adjust').map(item),
     },
   ];

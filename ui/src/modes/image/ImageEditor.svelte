@@ -115,36 +115,66 @@
 
   // Tool rail (spec §9.2): same groups, order and keys as Pixel mode
   // (lib/shell/shortcuts.ts), with the tools Image mode has.
-  const toolGroups: ToolGroup<ToolKind>[] = [
-    { id: 'move', label: 'Move', tools: [{ id: 'move', label: 'Move', icon: 'move' }] },
-    {
-      id: 'select',
-      label: 'Marquee',
-      tools: [
-        { id: 'rect_select', label: 'Rectangle Select', icon: 'select-rect' },
-        { id: 'ellipse_select', label: 'Ellipse Select', icon: 'select-ellipse' },
-      ],
-    },
-    {
-      id: 'lasso',
-      label: 'Lasso',
-      tools: [
-        { id: 'lasso', label: 'Lasso', icon: 'lasso' },
-        { id: 'polygon_lasso', label: 'Polygonal Lasso', icon: 'polygon-lasso' },
-      ],
-    },
-    { id: 'wand', label: 'Magic Wand', tools: [{ id: 'magic_wand', label: 'Magic Wand', icon: 'wand' }] },
-    { id: 'pencil', label: 'Brush', tools: [{ id: 'pencil', label: 'Brush', icon: 'brush' }] },
-    { id: 'eraser', label: 'Eraser', tools: [{ id: 'eraser', label: 'Eraser', icon: 'eraser' }] },
-    { id: 'fill', label: 'Fill', tools: [{ id: 'fill', label: 'Fill', icon: 'bucket' }] },
-    {
-      id: 'eyedropper',
-      label: 'Eyedropper',
-      tools: [{ id: 'eyedropper', label: 'Eyedropper', icon: 'eyedropper' }],
-    },
-    { id: 'shapes', label: 'Shapes', tools: [{ id: 'shapes', label: 'Shapes', icon: 'shapes' }] },
-    { id: 'text', label: 'Text', tools: [{ id: 'text', label: 'Text', icon: 'text' }] },
-  ].map((g) => ({ ...g, shortcut: toolHint(g.id) }) as ToolGroup<ToolKind>);
+  const toolGroups: ToolGroup<ToolKind>[] = $derived(
+    [
+      {
+        id: 'move',
+        label: t('tool.move'),
+        tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }],
+      },
+      {
+        id: 'select',
+        label: t('tool.marquee'),
+        tools: [
+          { id: 'rect_select', label: t('tool.rectSelect'), icon: 'select-rect' },
+          { id: 'ellipse_select', label: t('tool.ellipseSelect'), icon: 'select-ellipse' },
+        ],
+      },
+      {
+        id: 'lasso',
+        label: t('tool.lasso'),
+        tools: [
+          { id: 'lasso', label: t('tool.lasso'), icon: 'lasso' },
+          { id: 'polygon_lasso', label: t('tool.polygonLasso'), icon: 'polygon-lasso' },
+        ],
+      },
+      {
+        id: 'wand',
+        label: t('tool.wand'),
+        tools: [{ id: 'magic_wand', label: t('tool.wand'), icon: 'wand' }],
+      },
+      {
+        id: 'pencil',
+        label: t('tool.brush'),
+        tools: [{ id: 'pencil', label: t('tool.brush'), icon: 'brush' }],
+      },
+      {
+        id: 'eraser',
+        label: t('tool.eraser'),
+        tools: [{ id: 'eraser', label: t('tool.eraser'), icon: 'eraser' }],
+      },
+      {
+        id: 'fill',
+        label: t('tool.fill'),
+        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
+      },
+      {
+        id: 'eyedropper',
+        label: t('tool.eyedropper'),
+        tools: [{ id: 'eyedropper', label: t('tool.eyedropper'), icon: 'eyedropper' }],
+      },
+      {
+        id: 'shapes',
+        label: t('tool.shapes'),
+        tools: [{ id: 'shapes', label: t('tool.shapes'), icon: 'shapes' }],
+      },
+      {
+        id: 'text',
+        label: t('tool.text'),
+        tools: [{ id: 'text', label: t('tool.text'), icon: 'text' }],
+      },
+    ].map((g) => ({ ...g, shortcut: toolHint(g.id) }) as ToolGroup<ToolKind>),
+  );
 
   const toolLabel = $derived(
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
@@ -386,14 +416,19 @@
   const menus: MenuDef[] = $derived([
     {
       id: 'file',
-      label: 'File',
+      label: t('menu.file'),
       items: tidy([
-        { label: 'New…', run: onRequestNew },
-        { label: 'Open…', shortcut: hint('open'), run: onRequestOpen },
+        { label: t('menu.new'), run: onRequestNew },
+        { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         { kind: 'separator' },
-        { label: 'Save', shortcut: hint('save'), disabled: !hasDoc, run: () => void save() },
         {
-          label: 'Save As…',
+          label: t('menu.save'),
+          shortcut: hint('save'),
+          disabled: !hasDoc,
+          run: () => void save(),
+        },
+        {
+          label: t('menu.saveAs'),
           shortcut: hint('saveAs'),
           disabled: !hasDoc,
           run: () => void save(true),
@@ -401,43 +436,53 @@
         { kind: 'separator' },
         {
           kind: 'submenu',
-          label: 'Export',
+          label: t('menu.export'),
           disabled: !hasDoc,
           items: [
-            { label: 'PNG', shortcut: hint('export'), run: () => runExport('png') },
-            { label: 'JPEG…', run: () => runExport('jpeg') },
+            { label: t('menu.exportPng'), shortcut: hint('export'), run: () => runExport('png') },
+            { label: t('menu.exportJpeg'), run: () => runExport('jpeg') },
             // Lossless only: no pure-Rust lossy encoder (ADR-007).
-            { label: 'WebP (lossless)', run: () => runExport('webp') },
+            { label: t('menu.exportWebp'), run: () => runExport('webp') },
           ],
         },
       ]),
     },
     {
       id: 'edit',
-      label: 'Edit',
+      label: t('menu.edit'),
       items: [
-        { label: 'Undo', shortcut: hint('undo'), disabled: !editor.canUndo, run: undo },
-        { label: 'Redo', shortcut: hint('redo'), disabled: !editor.canRedo, run: redo },
+        { label: t('menu.undo'), shortcut: hint('undo'), disabled: !editor.canUndo, run: undo },
+        { label: t('menu.redo'), shortcut: hint('redo'), disabled: !editor.canRedo, run: redo },
         { kind: 'separator' },
         {
-          label: 'Delete Selection',
+          label: t('menu.deleteSelection'),
           shortcut: hint('deleteSelection'),
           disabled: !editor.hasSelection,
           run: deleteSelection,
         },
         { kind: 'separator' },
-        { label: 'Swap Colors', shortcut: hint('swapColors'), run: swapColors },
-        { label: 'Default Colors', shortcut: hint('resetColors'), run: resetColors },
+        { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
+        { label: t('menu.defaultColors'), shortcut: hint('resetColors'), run: resetColors },
       ],
     },
     {
       id: 'select',
-      label: 'Select',
+      label: t('menu.select'),
       items: [
-        { label: 'Select All', shortcut: hint('selectAll'), disabled: !hasDoc, run: selectAll },
-        { label: 'Deselect', shortcut: hint('deselect'), disabled: !editor.hasSelection, run: deselect },
         {
-          label: 'Invert Selection',
+          label: t('menu.selectAll'),
+          shortcut: hint('selectAll'),
+          disabled: !hasDoc,
+          run: selectAll,
+        },
+        {
+          label: t('menu.deselect'),
+          shortcut: hint('deselect'),
+          disabled: !editor.hasSelection,
+          run: deselect,
+        },
+        {
+          label: t('menu.invertSelection'),
           shortcut: hint('invertSelection'),
           disabled: !hasDoc,
           run: invertSelection,
@@ -446,27 +491,31 @@
     },
     {
       id: 'image',
-      label: 'Image',
+      label: t('menu.image'),
       items: [
-        { label: 'Flip Horizontal', disabled: !hasDoc, run: () => flipCanvas(true) },
-        { label: 'Flip Vertical', disabled: !hasDoc, run: () => flipCanvas(false) },
+        { label: t('menu.flipH'), disabled: !hasDoc, run: () => flipCanvas(true) },
+        { label: t('menu.flipV'), disabled: !hasDoc, run: () => flipCanvas(false) },
         { kind: 'separator' },
-        { label: 'Rotate 90° CW', disabled: !hasDoc, run: () => rotateCanvas('cw90') },
-        { label: 'Rotate 90° CCW', disabled: !hasDoc, run: () => rotateCanvas('ccw90') },
-        { label: 'Rotate 180°', disabled: !hasDoc, run: () => rotateCanvas('rotate_180') },
+        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateCanvas('cw90') },
+        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateCanvas('ccw90') },
+        { label: t('menu.rotate180'), disabled: !hasDoc, run: () => rotateCanvas('rotate_180') },
         { kind: 'separator' },
-        { label: 'Resize Canvas…', disabled: !hasDoc, run: () => (transformDialog = 'resize') },
-        { label: 'Scale Image…', disabled: !hasDoc, run: () => (transformDialog = 'scale') },
-        { label: 'Crop to Selection', disabled: !editor.hasSelection, run: cropToSelection },
+        {
+          label: t('menu.resizeCanvas'),
+          disabled: !hasDoc,
+          run: () => (transformDialog = 'resize'),
+        },
+        { label: t('menu.scaleImage'), disabled: !hasDoc, run: () => (transformDialog = 'scale') },
+        { label: t('menu.crop'), disabled: !editor.hasSelection, run: cropToSelection },
       ],
     },
     {
       id: 'layer',
-      label: 'Layer',
+      label: t('menu.layer'),
       items: [
-        { label: 'New Layer', disabled: !hasDoc, run: addLayer },
+        { label: t('menu.newLayer'), disabled: !hasDoc, run: addLayer },
         {
-          label: 'Duplicate Layer',
+          label: t('menu.duplicateLayer'),
           disabled: !hasDoc,
           run: () => duplicateLayer(editor.activeLayer),
         },
@@ -479,35 +528,55 @@
           },
         },
         {
-          label: 'Delete Layer',
+          label: t('menu.deleteLayer'),
           disabled: editor.layers.length <= 1,
           run: () => deleteLayer(editor.activeLayer),
         },
         { kind: 'separator' },
         {
-          label: 'Merge Down',
+          label: t('menu.mergeDown'),
           disabled: editor.activeLayer === 0,
           run: () => mergeDown(editor.activeLayer),
         },
-        { label: 'Merge Visible', disabled: !hasDoc, run: mergeVisible },
-        { label: 'Flatten Image', disabled: !hasDoc, run: flattenImage },
+        { label: t('menu.mergeVisible'), disabled: !hasDoc, run: mergeVisible },
+        { label: t('menu.flatten'), disabled: !hasDoc, run: flattenImage },
         { kind: 'separator' },
-        { label: 'Flip Horizontal', disabled: !hasDoc, run: () => transformLayer('flip_h') },
-        { label: 'Flip Vertical', disabled: !hasDoc, run: () => transformLayer('flip_v') },
-        { label: 'Rotate 90° CW', disabled: !hasDoc, run: () => rotateLayer90(false) },
-        { label: 'Rotate 90° CCW', disabled: !hasDoc, run: () => rotateLayer90(true) },
-        { label: 'Rotate 180°', disabled: !hasDoc, run: () => transformLayer('rotate_180') },
+        { label: t('menu.flipH'), disabled: !hasDoc, run: () => transformLayer('flip_h') },
+        { label: t('menu.flipV'), disabled: !hasDoc, run: () => transformLayer('flip_v') },
+        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateLayer90(false) },
+        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateLayer90(true) },
+        { label: t('menu.rotate180'), disabled: !hasDoc, run: () => transformLayer('rotate_180') },
       ],
     },
     ...effectMenus((def) => (effectOpen = def), !hasDoc),
     {
       id: 'view',
-      label: 'View',
+      label: t('menu.view'),
       items: [
-        { label: 'Zoom In', shortcut: hint('zoomIn'), disabled: !hasDoc, run: () => viewCommands.zoomIn() },
-        { label: 'Zoom Out', shortcut: hint('zoomOut'), disabled: !hasDoc, run: () => viewCommands.zoomOut() },
-        { label: 'Fit to Window', shortcut: hint('zoomFit'), disabled: !hasDoc, run: () => viewCommands.fit() },
-        { label: 'Actual Size', shortcut: hint('zoomActual'), disabled: !hasDoc, run: () => viewCommands.actual() },
+        {
+          label: t('menu.zoomIn'),
+          shortcut: hint('zoomIn'),
+          disabled: !hasDoc,
+          run: () => viewCommands.zoomIn(),
+        },
+        {
+          label: t('menu.zoomOut'),
+          shortcut: hint('zoomOut'),
+          disabled: !hasDoc,
+          run: () => viewCommands.zoomOut(),
+        },
+        {
+          label: t('menu.zoomFit'),
+          shortcut: hint('zoomFit'),
+          disabled: !hasDoc,
+          run: () => viewCommands.fit(),
+        },
+        {
+          label: t('menu.zoomActual'),
+          shortcut: hint('zoomActual'),
+          disabled: !hasDoc,
+          run: () => viewCommands.actual(),
+        },
         { kind: 'separator' },
         languageMenu(),
       ],
@@ -540,11 +609,28 @@
   ]}
 >
   {#snippet quick()}
-    <IconButton icon="undo" label="Undo" hint={hint('undo')} disabled={!editor.canUndo} onclick={undo} />
-    <IconButton icon="redo" label="Redo" hint={hint('redo')} disabled={!editor.canRedo} onclick={redo} />
+    <IconButton
+      icon="undo"
+      label="Undo"
+      hint={hint('undo')}
+      disabled={!editor.canUndo}
+      onclick={undo}
+    />
+    <IconButton
+      icon="redo"
+      label="Redo"
+      hint={hint('redo')}
+      disabled={!editor.canRedo}
+      onclick={redo}
+    />
   {/snippet}
   {#snippet tools(orientation)}
-    <ToolRail groups={toolGroups} active={tool.kind} onSelect={(next) => (tool.kind = next)} {orientation} />
+    <ToolRail
+      groups={toolGroups}
+      active={tool.kind}
+      onSelect={(next) => (tool.kind = next)}
+      {orientation}
+    />
   {/snippet}
   {#snippet options()}
     <ToolVariants groups={toolGroups} active={tool.kind} onSelect={(next) => (tool.kind = next)} />

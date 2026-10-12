@@ -4,6 +4,7 @@
 
 import type { ToolGroup } from '../../lib/components/layout/tools';
 import { toolHint } from '../../lib/shell/shortcuts';
+import { t } from '../../lib/i18n/index.svelte';
 
 /** Every Pixel-mode tool. */
 export type Tool =
@@ -75,71 +76,71 @@ export function isSquareConstrainable(t: Tool): boolean {
  */
 export function toolGroups(stampTile: { tilesetId: number; tileId: number } | null): ToolGroup<Tool>[] {
   const groups: ToolGroup<Tool>[] = [
-    { id: 'move', label: 'Move', tools: [{ id: 'move', label: 'Move', icon: 'move' }] },
+    { id: 'move', label: t('tool.move'), tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }] },
     {
       id: 'select',
-      label: 'Marquee',
+      label: t('tool.marquee'),
       tools: [
-        { id: 'selection-rect', label: 'Rectangle Select', icon: 'select-rect' },
-        { id: 'selection-ellipse', label: 'Ellipse Select', icon: 'select-ellipse' },
+        { id: 'selection-rect', label: t('tool.rectSelect'), icon: 'select-rect' },
+        { id: 'selection-ellipse', label: t('tool.ellipseSelect'), icon: 'select-ellipse' },
       ],
     },
     {
       id: 'lasso',
-      label: 'Lasso',
+      label: t('tool.lasso'),
       tools: [
-        { id: 'selection-lasso', label: 'Lasso', icon: 'lasso' },
+        { id: 'selection-lasso', label: t('tool.lasso'), icon: 'lasso' },
         {
           id: 'selection-polygon',
-          label: 'Polygonal Lasso',
+          label: t('tool.polygonLasso'),
           icon: 'polygon-lasso',
-          title: 'Polygonal Lasso — click vertices, double-click or Enter to close',
+          title: t('tool.polygonLassoHint'),
         },
       ],
     },
     {
       id: 'wand',
-      label: 'Magic Wand',
-      tools: [{ id: 'selection-wand', label: 'Magic Wand', icon: 'wand' }],
+      label: t('tool.wand'),
+      tools: [{ id: 'selection-wand', label: t('tool.wand'), icon: 'wand' }],
     },
-    { id: 'pencil', label: 'Pencil', tools: [{ id: 'pencil', label: 'Pencil', icon: 'pencil' }] },
-    { id: 'eraser', label: 'Eraser', tools: [{ id: 'eraser', label: 'Eraser', icon: 'eraser' }] },
-    { id: 'fill', label: 'Fill', tools: [{ id: 'bucket', label: 'Fill', icon: 'bucket' }] },
+    { id: 'pencil', label: t('tool.pencil'), tools: [{ id: 'pencil', label: t('tool.pencil'), icon: 'pencil' }] },
+    { id: 'eraser', label: t('tool.eraser'), tools: [{ id: 'eraser', label: t('tool.eraser'), icon: 'eraser' }] },
+    { id: 'fill', label: t('tool.fill'), tools: [{ id: 'bucket', label: t('tool.fill'), icon: 'bucket' }] },
     {
       id: 'eyedropper',
-      label: 'Eyedropper',
-      tools: [{ id: 'eyedropper', label: 'Eyedropper', icon: 'eyedropper' }],
+      label: t('tool.eyedropper'),
+      tools: [{ id: 'eyedropper', label: t('tool.eyedropper'), icon: 'eyedropper' }],
     },
-    { id: 'line', label: 'Line', tools: [{ id: 'line', label: 'Line', icon: 'line' }] },
+    { id: 'line', label: t('tool.line'), tools: [{ id: 'line', label: t('tool.line'), icon: 'line' }] },
     {
       id: 'shapes',
-      label: 'Shapes',
+      label: t('tool.shapes'),
       tools: [
-        { id: 'rectangle', label: 'Rectangle', icon: 'rect' },
-        { id: 'rectangle-fill', label: 'Filled Rectangle', icon: 'rect-fill' },
-        { id: 'ellipse', label: 'Ellipse', icon: 'ellipse' },
-        { id: 'ellipse-fill', label: 'Filled Ellipse', icon: 'ellipse-fill' },
-        { id: 'rounded-rect', label: 'Rounded Rectangle', icon: 'rounded-rect' },
-        { id: 'polygon-shape', label: 'Polygon', icon: 'polygon' },
+        { id: 'rectangle', label: t('tool.rectangle'), icon: 'rect' },
+        { id: 'rectangle-fill', label: t('tool.rectangleFill'), icon: 'rect-fill' },
+        { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
+        { id: 'ellipse-fill', label: t('tool.ellipseFill'), icon: 'ellipse-fill' },
+        { id: 'rounded-rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
+        { id: 'polygon-shape', label: t('tool.polygon'), icon: 'polygon' },
       ],
     },
-    { id: 'text', label: 'Text', tools: [{ id: 'text', label: 'Text', icon: 'text' }] },
+    { id: 'text', label: t('tool.text'), tools: [{ id: 'text', label: t('tool.text'), icon: 'text' }] },
     {
       id: 'stamp',
-      label: 'Tile Stamp',
+      label: t('tool.stamp'),
       tools: [
         {
           id: 'tilemap-stamp',
-          label: 'Tile Stamp',
+          label: t('tool.stamp'),
           icon: 'stamp',
           disabled: !stampTile,
           title: stampTile
-            ? `Tile Stamp — tile ${stampTile.tileId} of tileset ${stampTile.tilesetId}`
-            : 'Tile Stamp — pick a tile in the Tilesets panel first',
+            ? t('tool.stampHint', { tile: stampTile.tileId, tileset: stampTile.tilesetId })
+            : t('tool.stampPick'),
         },
       ],
     },
-    { id: 'slice', label: 'Slice', tools: [{ id: 'slice', label: 'Slice', icon: 'slice' }] },
+    { id: 'slice', label: t('tool.slice'), tools: [{ id: 'slice', label: t('tool.slice'), icon: 'slice' }] },
   ];
   return groups.map((g) => ({ ...g, shortcut: toolHint(g.id) }));
 }
