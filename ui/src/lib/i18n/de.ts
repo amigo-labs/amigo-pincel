@@ -175,6 +175,8 @@ export const de: Record<MessageKey, string> = {
   'pressure.size': 'Größe',
   'pressure.opacity': 'Deckkraft',
   'pressure.hint': 'Was der Druck eines Stifts verändert (Maus und Finger malen mit vollem Druck)',
+  'tilt.angle': 'Neigung dreht die Spitze',
+  'tilt.hint': 'Eine flache Spitze folgt der Richtung, in die der Stift geneigt ist (Stifte ohne Neigung nutzen den Winkel)',
 
   // Menus
   'menu.file': 'Datei',
@@ -370,6 +372,7 @@ export const de: Record<MessageKey, string> = {
   'opt.softRound': 'Weich rund',
   'opt.flat': 'Flach',
   'opt.hardness': 'Härte',
+  'opt.angle': 'Winkel',
   'opt.mode': 'Modus',
   'opt.toTransparent': 'Zu transparent',
   'opt.toBackground': 'Zur Hintergrundfarbe',

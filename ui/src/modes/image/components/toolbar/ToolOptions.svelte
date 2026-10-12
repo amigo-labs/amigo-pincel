@@ -55,6 +55,14 @@
       </label>
     {/if}
 
+    {#if tool.shape === 'flat'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.angle')}</span>
+        <input type="range" min="0" max="180" bind:value={tool.angle} class="w-28" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.angle}°</span>
+      </label>
+    {/if}
+
     <span class="flex items-center gap-3" title={t('pressure.hint')}>
       <span class="text-pc-muted">{t('pressure.label')}</span>
       <label class="flex items-center gap-1">
@@ -65,6 +73,12 @@
         <input type="checkbox" bind:checked={tool.pressureOpacity} />
         {t('pressure.opacity')}
       </label>
+      {#if tool.shape === 'flat'}
+        <label class="flex items-center gap-1" title={t('tilt.hint')}>
+          <input type="checkbox" bind:checked={tool.tiltAngle} />
+          {t('tilt.angle')}
+        </label>
+      {/if}
     </span>
 
     {#if tool.kind === 'eraser'}

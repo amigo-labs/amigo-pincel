@@ -88,6 +88,12 @@ export interface PencilStrokeCommand {
   pressure_size: boolean;
   /** Pressure scales the dab opacity. */
   pressure_opacity: boolean;
+  /** Pen azimuth in radians per point; `null` where the pen reported no tilt. */
+  azimuth: Array<number | null>;
+  /** Flat-nib angle in degrees. */
+  angle: number;
+  /** The flat nib follows the pen azimuth. */
+  tilt_angle: boolean;
   /** Identifies the pointer drag; segments sharing it merge into one undo step. */
   stroke_id: number;
 }
@@ -105,6 +111,9 @@ export interface EraserStrokeCommand {
   pressure: number[];
   pressure_size: boolean;
   pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
   stroke_id: number;
 }
 

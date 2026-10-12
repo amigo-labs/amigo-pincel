@@ -48,6 +48,21 @@ function pressureOf(e: PointerEvent): number {
   return e.pointerType === 'pen' ? Math.min(1, Math.max(0, e.pressure)) : 1;
 }
 
+/** Pen azimuth in radians (0 = +x, clockwise), or `null` when the input
+ *  is not a pen or the pen stands upright / reports no tilt. Uses the
+ *  Pointer Events 3 angles where the browser has them, else derives the
+ *  azimuth from `tiltX` / `tiltY`. */
+function azimuthOf(e: PointerEvent): number | null {
+  if (e.pointerType !== 'pen') return null;
+  const angles = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
+  if (typeof angles.altitudeAngle === 'number' && typeof angles.azimuthAngle === 'number') {
+    return angles.altitudeAngle < Math.PI / 2 - 1e-3 ? angles.azimuthAngle : null;
+  }
+  if (e.tiltX === 0 && e.tiltY === 0) return null;
+  const rad = Math.PI / 180;
+  return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
+}
+
 /** Tools that write into the active layer's pixels. */
 const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
 
@@ -126,6 +141,7 @@ export function attachTools(
   let gestureKind: ToolKind = 'pencil';
   let last: [number, number] | null = null;
   let lastPressure = 1;
+  let lastAzimuth: number | null = null;
   let start: [number, number] | null = null;
   let useBackground = false;
   let selMode: SelectionMode = 'replace';
@@ -255,17 +271,18 @@ export function attachTools(
     useBackground = e.button === 2;
     last = point;
     lastPressure = pressureOf(e);
+    lastAzimuth = azimuthOf(e);
     start = point;
     strokeId = nextStrokeId++;
     canvas.setPointerCapture(e.pointerId);
 
     switch (tool.kind) {
       case 'pencil':
-        paintStroke([point], strokeId, useBackground, [lastPressure]);
+        paintStroke([point], strokeId, useBackground, [lastPressure], [lastAzimuth]);
         redraw();
         break;
       case 'eraser':
-        eraseStroke([point], strokeId, [lastPressure]);
+        eraseStroke([point], strokeId, [lastPressure], [lastAzimuth]);
         redraw();
         break;
       case 'fill':
@@ -329,15 +346,18 @@ export function attachTools(
       const events = samples.length > 0 ? samples : [e];
       const points: Array<[number, number]> = [last];
       const pressure = [lastPressure];
+      const azimuth = [lastAzimuth];
       for (const ev of events) {
         points.push(toCanvasPoint(canvas, ev));
         pressure.push(pressureOf(ev));
+        azimuth.push(azimuthOf(ev));
       }
-      if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure);
-      else eraseStroke(points, strokeId, pressure);
+      if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure, azimuth);
+      else eraseStroke(points, strokeId, pressure, azimuth);
       redraw();
       last = points[points.length - 1] ?? point;
       lastPressure = pressure[pressure.length - 1] ?? 1;
+      lastAzimuth = azimuth[azimuth.length - 1] ?? null;
       return;
     }
 

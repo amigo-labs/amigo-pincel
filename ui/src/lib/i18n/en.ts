@@ -168,6 +168,8 @@ export const en = {
   'pressure.size': 'Size',
   'pressure.opacity': 'Opacity',
   'pressure.hint': 'What a stylus’s pressure varies (mouse and touch paint at full pressure)',
+  'tilt.angle': 'Tilt turns the nib',
+  'tilt.hint': 'A flat nib follows the direction the stylus leans in (styluses without tilt use the angle)',
 
   // Menus
   'menu.file': 'File',
@@ -363,6 +365,7 @@ export const en = {
   'opt.softRound': 'Soft Round',
   'opt.flat': 'Flat',
   'opt.hardness': 'Hardness',
+  'opt.angle': 'Angle',
   'opt.mode': 'Mode',
   'opt.toTransparent': 'To Transparent',
   'opt.toBackground': 'To Background',

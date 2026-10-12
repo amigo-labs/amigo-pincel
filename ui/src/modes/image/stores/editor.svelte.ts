@@ -138,6 +138,10 @@ export const tool = $state({
   pressureSize: true,
   /** Pen pressure varies the brush opacity. */
   pressureOpacity: false,
+  /** Flat-nib angle in degrees, 0–180 (Pencil/Eraser). */
+  angle: 45,
+  /** A flat nib follows the stylus azimuth where the pen reports tilt. */
+  tiltAngle: true,
   /** Fill color-similarity threshold, 0–255. */
   tolerance: 32,
   /** Fill connected region only (vs every matching pixel). */
