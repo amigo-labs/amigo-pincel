@@ -31,6 +31,25 @@ impl Document {
             .is_none_or(|l| l.editable)
     }
 
+    /// How many groups the named layer is nested in (`0` at the root, and
+    /// for unknown layers). The layers panel indents rows by it.
+    #[wasm_bindgen(js_name = layerDepth)]
+    pub fn layer_depth(&self, layer_id: u32) -> u32 {
+        let mut depth = 0;
+        let mut cur = self
+            .sprite
+            .layer(LayerId::new(layer_id))
+            .and_then(|l| l.parent);
+        while let Some(p) = cur {
+            if depth as usize > self.sprite.layers.len() {
+                break;
+            }
+            depth += 1;
+            cur = self.sprite.layer(p).and_then(|l| l.parent);
+        }
+        depth
+    }
+
     /// `true` when the named layer refuses edits: it or a group it is
     /// nested in is locked.
     #[wasm_bindgen(js_name = layerLocked)]
@@ -278,6 +297,18 @@ mod tests {
         assert!(doc.undo());
         assert!(!doc.layer_locked(0));
         doc.apply_tool("pencil", 1, 1, 0xFF0000FF).expect("paint");
+    }
+
+    #[test]
+    fn layer_depth_counts_parent_groups() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert_eq!(doc.layer_depth(0), 0);
+        let mut group = pincel_core::Layer::group(LayerId::new(5), "g");
+        group.parent = None;
+        doc.sprite.layers.push(group);
+        doc.sprite.layers[0].parent = Some(LayerId::new(5));
+        assert_eq!(doc.layer_depth(0), 1);
+        assert_eq!(doc.layer_depth(99), 0);
     }
 
     #[test]
