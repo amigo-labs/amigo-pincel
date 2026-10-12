@@ -9,7 +9,8 @@ responsive editor frame for both modes (section "2026-10-11 — one
 responsive editor frame") and the 2026-10-12 follow-ups (DE/EN, one
 layers panel, iPad modifiers + pen pressure) and the second batch
 (selection-aware Image effects, palette presets + `.gpl`, German website,
-one autosave session, PixelEditor split). Before it: PR #53 —
+one autosave session, PixelEditor split) and a third (layer groups,
+Aseprite property maps, pen tilt). Before it: PR #53 —
 M16 two cores, one shell (merged), PR #52 — M15 Fineliner parity (merged).
 `amigo-fineliner` is archived.
 
@@ -47,14 +48,30 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- **Pen tilt** (pressure is done for the Image-mode brush / eraser;
-  Pixel-mode tools stay pressure-free by design).
-- **Drag a layer into / out of a group** (Pixel mode). Drag-reorder keeps
-  a layer among its siblings (spec §15, 2026-05-31).
-- **Aseprite round-trip, remaining:** user-data property maps and tag
-  directions > 3 are still dropped (spec §7.1).
+- **Aseprite round-trip, remaining:** the External Files chunk (`0x2008`,
+  which property maps with a non-zero key reference), user data on
+  tilesets / tiles, and slices' note text and properties (spec §7.1).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-12 — groups, Aseprite properties, pen tilt (PR #55)
+
+User picked the three remaining codeable items. Spec §3.2, §7.1, §9.2
+(layers panel), §17.4 and three Decision Log rows (the 2026-05-31
+sibling-only reorder row is marked superseded).
+
+- **Drag a layer into / out of a group** (Pixel mode). Core
+  `MoveLayerTo { layer, target, Above | Below | Into }` (one undo entry,
+  contiguity kept, `.aseprite` round-trip tested); wasm `moveLayerTo`,
+  `addGroup`, `layerParent`. The panel lists layers as a tree, drops by
+  row zone (edges = above / below, a group's middle = into), Alt+←/→ on a
+  grip; Layer ▸ New Group and an Add group button. E2E in `layers.spec.ts`.
+- **Aseprite round-trip:** user-data property maps (opaque bytes, nested
+  maps included) and tag directions > 3 survive open → save; writer
+  gains `UserData::properties` and `AnimationDirection::Other`.
+- **Pen tilt** (Image mode): flat-tip angle slider and "Tilt turns the
+  nib" (follows the stylus azimuth). E2E in `pressure.spec.ts` via CDP
+  `tiltX` / `tiltY`.
 
 ## 2026-10-12 — effects, palettes, German site, PixelEditor split (PR #55)
 
