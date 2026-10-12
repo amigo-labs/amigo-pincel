@@ -1,5 +1,6 @@
 // Document edits: frames, playback, undo / redo, selection and layer commands.
 
+import type { DropPlace } from '../../lib/components/layers/layers';
 import { t } from '../../lib/i18n/index.svelte';
 import {
   type OnionSettings,
@@ -94,6 +95,38 @@ export function addLayer() {
   } catch (err) {
     ed.status = t('status.failed', {
       action: t('act.addLayer'),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Add an empty group on top and make it the active row. */
+export function addGroup() {
+  if (!ed.doc) return;
+  try {
+    let groups = 0;
+    for (let i = 0; i < ed.doc.layerCount; i += 1) {
+      if (ed.doc.layerKind(ed.doc.layerIdAt(i)) === 'group') groups += 1;
+    }
+    ed.activeLayerId = ed.doc.addGroup(`Group ${groups + 1}`);
+    afterLayerEdit();
+  } catch (err) {
+    ed.status = t('status.failed', {
+      action: t('act.addGroup'),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/** Move a layer (with its subtree) above / below another or into a group. */
+export function moveLayerTo(layerId: number, targetId: number, place: DropPlace) {
+  if (!ed.doc) return;
+  try {
+    ed.doc.moveLayerTo(layerId, targetId, place);
+    afterLayerEdit();
+  } catch (err) {
+    ed.status = t('status.failed', {
+      action: t('act.layerMove'),
       error: err instanceof Error ? err.message : String(err),
     });
   }

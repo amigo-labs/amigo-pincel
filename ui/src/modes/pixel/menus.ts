@@ -59,6 +59,7 @@ export interface PixelMenuContext {
   scaleImage(): void;
   crop(): void;
   addLayer(): void;
+  addGroup(): void;
   duplicateLayer(): void;
   removeLayer(): void;
   mergeDown(): void;
@@ -181,6 +182,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       label: t('menu.layer'),
       items: [
         { label: t('menu.newLayer'), disabled: noDoc, run: c.addLayer },
+        { label: t('menu.newGroup'), disabled: noDoc, run: c.addGroup },
         { label: t('menu.duplicateLayer'), disabled: noDoc, run: c.duplicateLayer },
         { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
         { label: t('menu.deleteLayer'), disabled: noDoc || c.layerCount <= 1, run: c.removeLayer },

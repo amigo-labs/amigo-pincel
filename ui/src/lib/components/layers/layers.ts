@@ -21,9 +21,14 @@ export interface LayerRow {
   blend: string;
   /** Group nesting depth (Pixel mode), `0` at the root. */
   depth?: number;
+  /** A group: other layers can be dropped into it. */
+  isGroup?: boolean;
   /** Small tag after the name, e.g. the tilemap / group kind. */
   badge?: string;
 }
+
+/** Where a dragged layer lands relative to the row it is dropped on. */
+export type DropPlace = 'above' | 'below' | 'into';
 
 /** RGBA8 thumbnail pixels, row-major. */
 export interface Thumb {

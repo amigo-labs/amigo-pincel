@@ -115,6 +115,7 @@ export const de: Record<MessageKey, string> = {
   'menu.language': 'Sprache',
 
   // Layers
+  'layers.addGroup': 'Gruppe hinzufügen',
   'layers.add': 'Ebene hinzufügen',
   'layers.duplicate': 'Ebene duplizieren',
   'layers.mergeDown': 'Nach unten vereinen',
@@ -219,6 +220,7 @@ export const de: Record<MessageKey, string> = {
   'menu.resizeCanvas': 'Arbeitsfläche ändern…',
   'menu.scaleImage': 'Bild skalieren…',
   'menu.crop': 'Auf Auswahl zuschneiden',
+  'menu.newGroup': 'Neue Gruppe',
   'menu.newLayer': 'Neue Ebene',
   'menu.duplicateLayer': 'Ebene duplizieren',
   'menu.deleteLayer': 'Ebene löschen',
@@ -535,6 +537,8 @@ export const de: Record<MessageKey, string> = {
   'act.move': 'Verschieben',
   'act.frameSwitch': 'Framewechsel',
   'act.addLayer': 'Ebene hinzufügen',
+  'act.addGroup': 'Gruppe hinzufügen',
+  'act.layerMove': 'Ebene verschieben',
   'act.addFrame': 'Frame hinzufügen',
   'act.removeFrame': 'Frame entfernen',
   'act.open': 'Öffnen',

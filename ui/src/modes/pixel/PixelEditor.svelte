@@ -39,6 +39,7 @@
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import {
     addFrame,
+    addGroup,
     addLayer,
     applyOnion,
     deleteSelectionPixels,
@@ -47,6 +48,7 @@
     duplicateLayer,
     flattenLayers,
     mergeDownLayer,
+    moveLayerTo,
     redo,
     removeFrame,
     removeLayerById,
@@ -237,6 +239,7 @@
       scaleImage: () => imageAction('canvas:scale'),
       crop: () => imageAction('canvas:crop'),
       addLayer,
+      addGroup,
       duplicateLayer: () => {
         const id = targetLayer();
         if (id !== null) duplicateLayer(id);
@@ -663,6 +666,8 @@
       }
     }}
     onAddLayer={addLayer}
+    onAddGroup={addGroup}
+    onMove={moveLayerTo}
     onSetOpacity={(layerId, opacity, commit) => {
       if (!ed.doc) return;
       try {

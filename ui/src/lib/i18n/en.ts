@@ -109,6 +109,7 @@ export const en = {
 
   // Layers
   'layers.add': 'Add layer',
+  'layers.addGroup': 'Add group',
   'layers.duplicate': 'Duplicate layer',
   'layers.mergeDown': 'Merge down',
   'layers.delete': 'Delete layer',
@@ -213,6 +214,7 @@ export const en = {
   'menu.scaleImage': 'Scale Image…',
   'menu.crop': 'Crop to Selection',
   'menu.newLayer': 'New Layer',
+  'menu.newGroup': 'New Group',
   'menu.duplicateLayer': 'Duplicate Layer',
   'menu.deleteLayer': 'Delete Layer',
   'menu.mergeDown': 'Merge Down',
@@ -528,6 +530,8 @@ export const en = {
   'act.move': 'Move',
   'act.frameSwitch': 'Frame switch',
   'act.addLayer': 'Add layer',
+  'act.addGroup': 'Add group',
+  'act.layerMove': 'Layer move',
   'act.addFrame': 'Add frame',
   'act.removeFrame': 'Remove frame',
   'act.open': 'Open',

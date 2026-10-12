@@ -4,13 +4,15 @@
   // opacity and blend mode below; add / duplicate / merge / delete in the
   // header and the whole-stack actions in the footer. Reordering uses
   // pointer events on the grip (HTML drag-and-drop does not work with
-  // touch) and the arrow keys on a focused grip.
+  // touch) and the arrow keys on a focused grip. With `onMove` the drop
+  // also picks above / below / into-a-group from where on the row the
+  // pointer is, and Alt+←/→ move a layer out of / into a group.
   import Icon from '../icons/Icon.svelte';
   import IconButton from '../layout/IconButton.svelte';
   import Panel from '../layout/Panel.svelte';
   import { t } from '../../i18n/index.svelte';
   import LayerThumbnail from './LayerThumbnail.svelte';
-  import type { BlendOption, LayerRow, Thumb } from './layers';
+  import type { BlendOption, DropPlace, LayerRow, Thumb } from './layers';
 
   interface Props {
     /** Top-most first. */
@@ -29,6 +31,11 @@
     onRename: (row: LayerRow, name: string) => void;
     /** Move `row` to `target`'s slot. */
     onReorder: (row: LayerRow, target: LayerRow) => void;
+    /** Move `row` above / below `target` or into it (a group), across
+     *  groups; replaces `onReorder` for pointer drags when given. */
+    onMove?: (row: LayerRow, target: LayerRow, place: DropPlace) => void;
+    /** Add an empty group (header button shown when given). */
+    onAddGroup?: () => void;
     /** `opacity` is `0..=1`; `commit` marks the end of a slider drag. */
     onOpacity: (row: LayerRow, opacity: number, commit: boolean) => void;
     onBlend: (row: LayerRow, mode: string) => void;
@@ -53,6 +60,8 @@
     onToggleLocked,
     onRename,
     onReorder,
+    onMove,
+    onAddGroup,
     onOpacity,
     onBlend,
     onAdd,
@@ -92,36 +101,68 @@
     }
   }
 
-  // Pointer drag on a row's grip; `over` is the row under the pointer.
-  let drag = $state<{ key: string; over: string | null } | null>(null);
+  // Pointer drag on a row's grip; `over` is the row under the pointer and
+  // `place` where on it the drop lands (with `onMove`).
+  let drag = $state<{ key: string; over: string | null; place: DropPlace } | null>(null);
   const dragIndex = $derived(drag ? rows.findIndex((r) => r.key === drag?.key) : -1);
 
-  function rowAt(e: PointerEvent): string | null {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    return el?.closest<HTMLElement>('[data-layer-key]')?.dataset.layerKey ?? null;
+  // Above / below / into from the pointer's height on the row: the outer
+  // quarters are the gaps above and below it; a group's middle takes the
+  // layer in (as does its lower edge, which is the slot of its top child),
+  // anything else's middle swaps places in the drag's direction.
+  function placeOn(el: HTMLElement, row: LayerRow, clientY: number): DropPlace {
+    const box = el.getBoundingClientRect();
+    const f = box.height > 0 ? (clientY - box.top) / box.height : 0.5;
+    if (f < 0.25) return 'above';
+    if (row.isGroup) return 'into';
+    if (f > 0.75) return 'below';
+    return rows.indexOf(row) < dragIndex ? 'above' : 'below';
   }
 
   function onGripDown(e: PointerEvent, row: LayerRow): void {
     if (e.button !== 0) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag = { key: row.key, over: null };
+    drag = { key: row.key, over: null, place: 'above' };
   }
 
   function onGripMove(e: PointerEvent): void {
-    if (drag) drag.over = rowAt(e);
+    if (!drag) return;
+    const el = document
+      .elementFromPoint(e.clientX, e.clientY)
+      ?.closest<HTMLElement>('[data-layer-key]');
+    const row = rows.find((r) => r.key === el?.dataset.layerKey);
+    drag.over = row?.key ?? null;
+    if (el && row) drag.place = placeOn(el, row, e.clientY);
   }
 
   function onGripUp(): void {
     if (!drag) return;
-    const { key, over } = drag;
+    const { key, over, place } = drag;
     drag = null;
     const from = rows.find((r) => r.key === key);
     const to = rows.find((r) => r.key === over);
-    if (from && to && from !== to) onReorder(from, to);
+    if (!from || !to || from === to) return;
+    if (onMove) onMove(from, to, place);
+    else onReorder(from, to);
   }
 
   function onGripKey(e: KeyboardEvent, row: LayerRow, i: number): void {
+    if (onMove && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const depth = row.depth ?? 0;
+      if (e.key === 'ArrowLeft') {
+        // Out of the enclosing group: just above it.
+        const parent = rows.slice(0, i).findLast((r) => (r.depth ?? 0) < depth);
+        if (parent) onMove(row, parent, 'above');
+      } else {
+        // Into the nearest group above at the same level.
+        const group = rows.slice(0, i).findLast((r) => r.isGroup && (r.depth ?? 0) === depth);
+        if (group) onMove(row, group, 'into');
+      }
+      return;
+    }
     const step = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
     if (step === 0) return;
     e.preventDefault();
@@ -136,9 +177,30 @@
 <Panel count={rows.length} bodyClass="flex min-h-0 flex-col gap-2 px-2 pb-2">
   {#snippet actions()}
     <IconButton icon="plus" label={t('layers.add')} size="sm" onclick={onAdd} />
-    <IconButton icon="duplicate" label={t('layers.duplicate')} size="sm" disabled={!canDuplicate} onclick={onDuplicate} />
-    <IconButton icon="merge-down" label={t('layers.mergeDown')} size="sm" disabled={!canMergeDown} onclick={onMergeDown} />
-    <IconButton icon="trash" label={t('layers.delete')} size="sm" disabled={!canDelete} onclick={onDelete} />
+    {#if onAddGroup}
+      <IconButton icon="folder-plus" label={t('layers.addGroup')} size="sm" onclick={onAddGroup} />
+    {/if}
+    <IconButton
+      icon="duplicate"
+      label={t('layers.duplicate')}
+      size="sm"
+      disabled={!canDuplicate}
+      onclick={onDuplicate}
+    />
+    <IconButton
+      icon="merge-down"
+      label={t('layers.mergeDown')}
+      size="sm"
+      disabled={!canMergeDown}
+      onclick={onMergeDown}
+    />
+    <IconButton
+      icon="trash"
+      label={t('layers.delete')}
+      size="sm"
+      disabled={!canDelete}
+      onclick={onDelete}
+    />
   {/snippet}
 
   {#if rows.length === 0}
@@ -153,8 +215,10 @@
           class="layer-row flex items-center gap-1 rounded border py-0.5 pr-1"
           class:layer-active={isActive}
           class:border-transparent={!isActive}
-          class:drop-above={isOver && i < dragIndex}
-          class:drop-below={isOver && i > dragIndex}
+          class:drop-above={isOver && (onMove ? drag?.place === 'above' : i < dragIndex)}
+          class:drop-below={isOver && (onMove ? drag?.place === 'below' : i > dragIndex)}
+          class:drop-into={isOver && onMove !== undefined && drag?.place === 'into'}
+          data-depth={row.depth ?? 0}
           class:opacity-50={drag?.key === row.key}
           style:padding-left="{(row.depth ?? 0) * 0.75}rem"
         >
@@ -237,7 +301,11 @@
   {/if}
 
   {#if active}
-    <div class="flex shrink-0 flex-col gap-1.5 rounded border border-pc-border p-2 text-xs text-pc-muted" role="group" aria-label={t('layers.properties')}>
+    <div
+      class="flex shrink-0 flex-col gap-1.5 rounded border border-pc-border p-2 text-xs text-pc-muted"
+      role="group"
+      aria-label={t('layers.properties')}
+    >
       <label class="flex items-center gap-2">
         <span class="w-16 shrink-0">{t('layers.opacity')}</span>
         <input
@@ -270,9 +338,16 @@
 
   <div class="flex shrink-0 gap-1 text-xs">
     {#if onMergeVisible}
-      <button type="button" class="panel-btn flex-1" disabled={rows.length < 2} onclick={onMergeVisible}>{t('layers.mergeVisible')}</button>
+      <button
+        type="button"
+        class="panel-btn flex-1"
+        disabled={rows.length < 2}
+        onclick={onMergeVisible}>{t('layers.mergeVisible')}</button
+      >
     {/if}
-    <button type="button" class="panel-btn flex-1" disabled={rows.length < 2} onclick={onFlatten}>{t('layers.flatten')}</button>
+    <button type="button" class="panel-btn flex-1" disabled={rows.length < 2} onclick={onFlatten}
+      >{t('layers.flatten')}</button
+    >
   </div>
 </Panel>
 
@@ -286,6 +361,9 @@
   }
   .drop-below {
     box-shadow: inset 0 -2px 0 var(--color-pc-accent);
+  }
+  .drop-into {
+    box-shadow: inset 0 0 0 2px var(--color-pc-accent);
   }
   .grip {
     touch-action: none;

@@ -104,6 +104,10 @@ export const ICONS = {
   rename: [{ d: 'M4 20h16' }, { d: 'M6 16l1-3 8-8 2 2-8 8z' }],
   shift: [{ d: 'M12 4l8 8h-4v7H8v-7H4z' }],
   option: [{ d: 'M3 6h5l7 12h6M14 6h7' }],
+  'folder-plus': [
+    { d: 'M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z' },
+    { d: 'M12 11v6M9 14h6' },
+  ],
   duplicate: [{ d: 'M8 8h12v12H8z' }, { d: 'M4 16V4h12' }],
   'merge-down': [{ d: 'M12 4v12M7 11l5 5 5-5' }, { d: 'M5 20h14' }],
   layers: [{ d: 'M12 3l9 5-9 5-9-5z' }, { d: 'M3 13l9 5 9-5' }],

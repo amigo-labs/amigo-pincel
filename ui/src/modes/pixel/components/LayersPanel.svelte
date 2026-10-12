@@ -2,9 +2,15 @@
   // Pixel mode's layers panel: the shared panel (spec §9.2) over the wasm
   // `Document`, which stays the source of truth. `rev` is the editor's
   // change counter; the rows re-read the document whenever it moves.
-  // Rows address layers by id; groups indent and carry a kind badge.
+  // Rows address layers by id and follow the layer tree: a group's header
+  // row sits above its (indented) children, top-most first at every level.
+  // Groups carry a kind badge and take dropped layers.
   import LayersPanel from '../../../lib/components/layers/LayersPanel.svelte';
-  import { blendOptions, type LayerRow } from '../../../lib/components/layers/layers';
+  import {
+    blendOptions,
+    type DropPlace,
+    type LayerRow,
+  } from '../../../lib/components/layers/layers';
   import { blendModeNames, type Document } from '../../../lib/core';
   import { t } from '../../../lib/i18n/index.svelte';
 
@@ -18,6 +24,8 @@
     onToggleLocked: (layerId: number, editable: boolean) => void;
     onRename: (layerId: number, name: string) => void;
     onReorder: (layerId: number, targetId: number) => void;
+    onMove: (layerId: number, targetId: number, place: DropPlace) => void;
+    onAddGroup: () => void;
     /** `opacity` is `0..=255`; `commit` ends a slider drag. */
     onSetOpacity: (layerId: number, opacity: number, commit: boolean) => void;
     onSetBlendMode: (layerId: number, mode: string) => void;
@@ -35,7 +43,8 @@
     void p.rev;
     const doc = p.doc;
     if (!doc) return [];
-    const list: Row[] = [];
+    // Children of each parent (`-1` = the root), bottom first.
+    const children: Record<number, number[]> = {};
     for (let i = 0; i < doc.layerCount; i += 1) {
       let id: number;
       try {
@@ -43,6 +52,20 @@
       } catch {
         continue;
       }
+      const parent = doc.layerParent(id) ?? -1;
+      (children[parent] ??= []).push(id);
+    }
+    const order: number[] = [];
+    const walk = (parent: number, guard: number) => {
+      if (guard > doc.layerCount) return;
+      for (const id of [...(children[parent] ?? [])].reverse()) {
+        order.push(id);
+        walk(id, guard + 1);
+      }
+    };
+    walk(-1, 0);
+    const list: Row[] = [];
+    for (const id of order) {
       const kind = doc.layerKind(id);
       const editable = doc.layerEditable(id);
       list.push({
@@ -56,10 +79,13 @@
         opacity: doc.layerOpacity(id) / 255,
         blend: doc.layerBlendMode(id),
         depth: doc.layerDepth(id),
-        ...(kind === 'image' ? {} : { badge: t(kind === 'group' ? 'layers.kind.group' : 'layers.kind.tilemap') }),
+        isGroup: kind === 'group',
+        ...(kind === 'image'
+          ? {}
+          : { badge: t(kind === 'group' ? 'layers.kind.group' : 'layers.kind.tilemap') }),
       });
     }
-    return list.reverse();
+    return list;
   });
 
   const blendModes = $derived(p.doc ? blendOptions(blendModeNames()) : []);
@@ -68,7 +94,9 @@
   const canMergeDown = $derived.by(() => {
     if (!active || active.kind !== 'image') return false;
     const below = rows[activeIndex + 1];
-    return below !== undefined && below.kind === 'image' && (below.depth ?? 0) === (active.depth ?? 0);
+    return (
+      below !== undefined && below.kind === 'image' && (below.depth ?? 0) === (active.depth ?? 0)
+    );
   });
 </script>
 
@@ -96,6 +124,8 @@
   onToggleLocked={(row) => p.onToggleLocked(row.ref, row.locked)}
   onRename={(row, name) => p.onRename(row.ref, name)}
   onReorder={(row, target) => p.onReorder(row.ref, target.ref)}
+  onMove={(row, target, place) => p.onMove(row.ref, target.ref, place)}
+  onAddGroup={p.onAddGroup}
   onOpacity={(row, opacity, commit) => p.onSetOpacity(row.ref, Math.round(opacity * 255), commit)}
   onBlend={(row, mode) => p.onSetBlendMode(row.ref, mode)}
   onAdd={p.onAddLayer}
