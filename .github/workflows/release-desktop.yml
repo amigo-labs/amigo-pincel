@@ -37,7 +37,7 @@ jobs:
           - platform: windows-latest
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: install linux system libraries
         if: matrix.platform == 'ubuntu-latest'
         run: |
@@ -54,10 +54,10 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: 'v0.13.1'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -69,7 +69,7 @@ jobs:
         working-directory: ui
         run: pnpm install --frozen-lockfile
       - name: build + attach desktop bundles
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
