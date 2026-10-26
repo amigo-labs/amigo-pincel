@@ -18,6 +18,15 @@ collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
+- **Updater signing key (blocks v1.0.0)** — run
+  `pnpm --dir ui tauri signer generate -w ~/.tauri/pincel.key`, store the
+  private key and its password as the secrets `TAURI_SIGNING_PRIVATE_KEY`
+  / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and put the public key into
+  `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`, now a
+  placeholder the release job rejects). See `docs/RELEASING.md`.
+- **release-please** — Settings → Actions → General: "Allow GitHub
+  Actions to create and approve pull requests". Optional
+  `RELEASE_PLEASE_TOKEN` so CI also runs on the release PR.
 - **npm** — `NPM_TOKEN` enables the guarded `publish-npm` release job.
   See `docs/RELEASING.md`.
 - **Cloudflare hostname** — site at `https://pincel.amigo-labs.dev/`,
@@ -36,8 +45,9 @@ collaboration) are out of scope.
 - Lighthouse PWA score ≥ 90.
 - Cross-validate a Pincel-saved file in upstream Aseprite; `amigo_assets`
   loads a Pincel tilemap.
-- Real Tauri installs on Windows/macOS/Linux (run the manual
-  `release-desktop` workflow; macOS icon now present).
+- Real Tauri installs on Windows/macOS/Linux from the v1.0.0 release,
+  then the self-update to the next release (Windows: installs on exit;
+  macOS / AppImage: on the next start).
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
@@ -45,6 +55,20 @@ collaboration) are out of scope.
   tilesets, indexed painting, …).
 
 Detail on each item lives in the sections further down.
+
+## 2026-10-26 — release-please and the self-updater
+
+Releases as in amigo-blinzel (spec §15, 2026-10-26; `docs/RELEASING.md`).
+
+- Conventional Commits from now on (CLAUDE.md §2.4, §8); one workspace
+  version; `release-please-config.json`, `.release-please-manifest.json`
+  (bootstrap at v0.1.9, first release `Release-As: 1.0.0`).
+- `release-please.yml` keeps the release PR; `release.yml` builds web +
+  Windows / macOS / Linux installers, SHA256SUMS, `latest.json`, then
+  publishes. `release-desktop.yml` removed.
+- `src-tauri/src/updater.rs`: daily silent update check, Help menu entries,
+  `updater.json`; unit tests for the schedule and the settings file.
+- Dependabot commits as `chore(deps)` / `ci`.
 
 ## 2026-10-13 — last Aseprite round-trip gaps (PR after #55)
 
