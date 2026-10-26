@@ -4,14 +4,18 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use serde::Deserialize;
 use tauri::menu::{
     AboutMetadata, CheckMenuItemBuilder, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu,
     SubmenuBuilder,
 };
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
+#[cfg(target_os = "linux")]
+mod linux_install;
 mod updater;
 
 // Sync helpers split out from the async commands so unit tests can
@@ -355,13 +359,31 @@ fn first_file_arg(argv: &[String]) -> Option<String> {
     argv.iter().skip(1).find(|a| !a.starts_with('-')).cloned()
 }
 
+/// The main window starts hidden (`visible: false`) and shows once the
+/// page has loaded, so it never flashes empty; after this long it shows
+/// regardless (amigo-blinzel's 400 ms).
+const SHOW_DEADLINE: Duration = Duration::from_millis(400);
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+    }
+}
+
 fn main() {
+    #[cfg(target_os = "linux")]
+    if let Some(code) = linux_install::run_cli(&std::env::args().collect::<Vec<_>>()) {
+        std::process::exit(code);
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Second-instance: foreground the existing window and
             // forward any opened file to the renderer. Errors are
             // logged but non-fatal.
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
                 let _ = window.set_focus();
             }
             if let Some(path) = first_file_arg(&argv) {
@@ -377,11 +399,21 @@ fn main() {
             set_recent_menu,
             set_menu_language
         ])
+        .on_page_load(|webview, payload| {
+            if payload.event() == PageLoadEvent::Finished {
+                let _ = webview.window().show();
+            }
+        })
         .setup(|app| {
             let handle = app.handle();
             let menu = build_menu(handle)?;
             app.set_menu(menu)?;
             updater::spawn_background_check(handle);
+            let deadline = handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(SHOW_DEADLINE);
+                show_main_window(&deadline);
+            });
             // First-launch CLI arg (file-association on Windows /
             // Linux, also macOS when launched from a shell).
             let argv: Vec<String> = std::env::args().collect();
@@ -486,6 +518,25 @@ mod tests {
         assert_eq!(labels_for("de").file, "Datei");
         assert_eq!(labels_for("en").file, "File");
         assert_eq!(labels_for("fr").file, "File");
+    }
+
+    // The NSIS hooks register every file association of tauri.conf.json
+    // under its ProgID (the association's `name`).
+    #[test]
+    fn nsis_hooks_cover_every_file_association() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let hooks = include_str!("../windows/hooks.nsh");
+        for association in conf["bundle"]["fileAssociations"].as_array().unwrap() {
+            let progid = association["name"].as_str().unwrap();
+            for ext in association["ext"].as_array().unwrap() {
+                let line = format!(
+                    "!insertmacro ${{OP}} \"{}\" \"{progid}\"",
+                    ext.as_str().unwrap()
+                );
+                assert!(hooks.contains(&line), "missing in hooks.nsh: {line}");
+            }
+        }
     }
 
     #[test]

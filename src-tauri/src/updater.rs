@@ -8,8 +8,9 @@
 //! macOS and the Linux AppImage replace the installed bundle right away.
 //! Windows keeps the verified installer until the app exits and runs it
 //! then (passive NSIS / MSI), because it can't replace a running app.
-//! Debug builds and Linux packages owned by a package manager (.deb /
-//! .rpm) never update themselves.
+//! Debug builds, Linux packages owned by a package manager (.deb / .rpm)
+//! and an AppImage that wasn't installed with `--install` never update
+//! themselves.
 
 use std::fs;
 use std::path::PathBuf;
@@ -64,14 +65,15 @@ fn is_due(settings: &Settings, now: u64) -> bool {
 }
 
 /// Whether this copy may update itself: a release build, and on Linux
-/// only the AppImage (packages belong to the package manager).
+/// only the AppImage installed with `--install` (packages belong to the
+/// package manager, a downloaded AppImage stays as it is).
 pub fn supported() -> bool {
     if cfg!(debug_assertions) {
         return false;
     }
-    if cfg!(target_os = "linux") {
-        return std::env::var_os("APPIMAGE").is_some();
-    }
+    #[cfg(target_os = "linux")]
+    return crate::linux_install::running_installed();
+    #[cfg(not(target_os = "linux"))]
     true
 }
 
