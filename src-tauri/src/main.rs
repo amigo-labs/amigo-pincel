@@ -520,6 +520,43 @@ mod tests {
         assert_eq!(labels_for("fr").file, "File");
     }
 
+    /// IHDR colour type of a PNG, `None` if `bytes` is no PNG.
+    fn png_color_type(bytes: &[u8]) -> Option<u8> {
+        bytes.starts_with(b"\x89PNG\r\n\x1a\n").then(|| bytes[25])
+    }
+
+    // Tauri's codegen decodes the bundle icons and rejects anything but
+    // RGBA PNGs (colour type 6); an indexed 256 px entry in icon.ico broke
+    // the first Windows release build.
+    #[test]
+    fn bundle_icons_are_rgba_pngs() {
+        let ico: &[u8] = include_bytes!("../icons/icon.ico");
+        let count = u16::from_le_bytes([ico[4], ico[5]]) as usize;
+        assert!(count > 0, "icon.ico has no entries");
+        for i in 0..count {
+            let entry = &ico[6 + 16 * i..22 + 16 * i];
+            let size = u32::from_le_bytes([entry[8], entry[9], entry[10], entry[11]]) as usize;
+            let offset = u32::from_le_bytes([entry[12], entry[13], entry[14], entry[15]]) as usize;
+            if let Some(color_type) = png_color_type(&ico[offset..offset + size]) {
+                assert_eq!(color_type, 6, "icon.ico entry {i} is not an RGBA PNG");
+            }
+        }
+        for (name, png) in [
+            ("32x32.png", include_bytes!("../icons/32x32.png").as_slice()),
+            (
+                "128x128.png",
+                include_bytes!("../icons/128x128.png").as_slice(),
+            ),
+            (
+                "128x128@2x.png",
+                include_bytes!("../icons/128x128@2x.png").as_slice(),
+            ),
+            ("icon.png", include_bytes!("../icons/icon.png").as_slice()),
+        ] {
+            assert_eq!(png_color_type(png), Some(6), "{name} is not an RGBA PNG");
+        }
+    }
+
     // The NSIS hooks register every file association of tauri.conf.json
     // under its ProgID (the association's `name`).
     #[test]
