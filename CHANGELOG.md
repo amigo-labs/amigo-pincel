@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.0.0...v1.0.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* **tauri:** Windows app icon as RGBA so the Windows build embeds it ([8fad095](https://github.com/amigo-labs/amigo-pincel/commit/8fad095293c8d6548ccbbf6c8c773faf1a11aa18))
+* **tauri:** Windows app icon as RGBA so the Windows build embeds it ([fc84db9](https://github.com/amigo-labs/amigo-pincel/commit/fc84db951221f09abe759a1e3d55f18ff2ca8de1))
+
 ## [1.0.0](https://github.com/amigo-labs/amigo-pincel/compare/v0.1.9...v1.0.0) (2026-10-26)
 
 

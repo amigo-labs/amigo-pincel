@@ -109,7 +109,7 @@ dependencies = [
 
 [[package]]
 name = "aseprite-writer"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "aseprite-loader",
  "flate2",
@@ -3061,7 +3061,7 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "pincel-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "ab_glyph",
  "aseprite-loader",
@@ -3074,14 +3074,14 @@ dependencies = [
 
 [[package]]
 name = "pincel-effects"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "pincel-image-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "ab_glyph",
  "image",
@@ -3096,7 +3096,7 @@ dependencies = [
 
 [[package]]
 name = "pincel-image-wasm"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -3113,7 +3113,7 @@ dependencies = [
 
 [[package]]
 name = "pincel-tauri"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "pincel-core",
  "serde",
@@ -3128,7 +3128,7 @@ dependencies = [
 
 [[package]]
 name = "pincel-wasm"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "pincel-core",
  "pincel-effects",
