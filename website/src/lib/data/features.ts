@@ -26,6 +26,7 @@ export const featureSections: FeatureSection[] = [
   { id: 'file-format', icon: 'file' },
   { id: 'tablet', icon: 'tablet', status: 'in-progress' },
   { id: 'image-mode', icon: 'brush' },
+  { id: 'desktop', icon: 'download' },
   { id: 'pwa', icon: 'offline' },
   { id: 'roadmap', icon: 'sparkle', status: 'planned' },
 ];

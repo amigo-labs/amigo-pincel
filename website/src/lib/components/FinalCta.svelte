@@ -10,6 +10,7 @@
     {m().nav.openEditor}
     <PixelIcon name="arrow-right" size={20} />
   </a>
+  <p class="sub"><Rich text={m().finalCta.desktop} /></p>
   <p class="sub"><Rich text={m().finalCta.sub} /></p>
 </div>
 

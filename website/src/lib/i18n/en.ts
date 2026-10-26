@@ -12,6 +12,7 @@ export const en = {
     about: 'About',
     primary: 'Primary',
     openEditor: 'Open Editor',
+    download: 'Download',
     language: 'Language',
   },
   logo: { home: 'Pincel — home' },
@@ -24,7 +25,7 @@ export const en = {
     off: 'off',
   },
   hero: {
-    caption: 'Pixel-art & image editor · v0.1',
+    caption: 'Pixel-art & image editor · v{version}',
     title: 'A pixel-art and\nimage editor\nfor the web.',
     tagline:
       'Open source. Free. Two editors in one: make sprites, tilemaps, and animations, save as Aseprite-compatible `.aseprite` and drop them into your game. Edit photos, screenshots, and artwork with layers, brushes, selections, and effects — PNG, JPEG, WebP, TIFF and more. No account, no upload, no catch.',
@@ -79,7 +80,10 @@ export const en = {
     edit: { title: '2. Edit', text: 'Paint, animate, build tilemaps, define slices.' },
     save: { title: '3. Save', text: 'Save back to `.aseprite`. Your engine hot-reloads.' },
   },
-  finalCta: { sub: 'Or: `npm install @amigo-labs/pincel` to [embed it](/embed) →' },
+  finalCta: {
+    desktop: 'Or as a desktop app for Windows, macOS, and Linux: [download it](/download) →',
+    sub: 'Or: `npm install @amigo-labs/pincel` to [embed it](/embed) →',
+  },
   featureSection: {
     inProgress: 'in progress',
     planned: 'planned',
@@ -206,6 +210,12 @@ export const en = {
           'A paint.net-style editor in the same app for everything that is not pixel art: PNG, JPEG, WebP, BMP, GIF and TIFF open with layers, blend modes, brushes, shapes, text, selections, transforms, and the full effects and adjustments set — limited to the selection when there is one. Large canvases render viewport-first. Save as OpenRaster to keep the layers, export flat images.',
         shortcuts: [],
       },
+      desktop: {
+        heading: 'Desktop App',
+        description:
+          'Native builds for Windows, macOS, and Linux via Tauri: the same editor with the system file dialogs, file associations, and "Open with" from Explorer, Finder, or the file manager. It installs for you only, without administrator rights, and updates itself in the background — every update signature-checked.',
+        shortcuts: [],
+      },
       pwa: {
         heading: 'PWA',
         description:
@@ -215,10 +225,64 @@ export const en = {
       roadmap: {
         heading: "What's Coming",
         description:
-          'Native desktop builds via Tauri. Lua scripting. Custom brushes. Headless Node API for asset pipelines. A read-only viewer for embeds. We ship in small, honest increments.',
+          'Lua scripting. Custom brushes. Headless Node API for asset pipelines. A read-only viewer for embeds. We ship in small, honest increments.',
         shortcuts: [],
       },
     },
+  },
+  download: {
+    seoTitle: 'Download — Pincel',
+    seoDescription:
+      'Download Pincel, the pixel-art and image editor, for Windows, macOS, and Linux. Free and open source; installs without administrator rights and updates itself.',
+    caption: 'Download',
+    title: 'Pincel on your desktop.',
+    lede: 'Version {version} for Windows, macOS, and Linux. The same editor as in the browser, as a native app: it opens your files straight from Explorer, Finder, or the file manager and keeps itself up to date.',
+    for: {
+      windows: 'Download for Windows',
+      macos: 'Download for macOS',
+      linux: 'Download for Linux',
+    },
+    platforms: 'Platforms',
+    requires: 'Requires',
+    windows: {
+      heading: 'Windows',
+      requires: 'Windows 10 or 11, x64 (on ARM through the built-in x64 emulation).',
+      setup: 'Installer (.exe)',
+      msi: 'MSI package',
+      install:
+        "The installer sets Pincel up for you only, in `%LOCALAPPDATA%\\Pincel`, without administrator rights, with a Start menu entry. It registers Pincel for `.aseprite`, PNG, JPEG, WebP, and the other formats it opens; Windows lets only you choose the default app, so the first install opens Settings → Default apps on Pincel's page. Uninstall: Settings → Apps → Installed apps. The MSI package installs for all users and needs administrator rights.",
+      firstStart:
+        '**First start:** the installer is not signed with a code-signing certificate, so SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.',
+    },
+    macos: {
+      heading: 'macOS',
+      requires: 'macOS 10.13 or newer; one app for Apple silicon and Intel.',
+      dmg: 'Disk image (.dmg)',
+      install:
+        'Open the disk image and drag Pincel into Applications. Finder then offers it under "Open With" for the formats it opens; make it the default through "Get Info" → "Open with" → "Change All".',
+      firstStart:
+        "**First start:** the app is not notarized by Apple, so macOS won't open it at first. Control-click it in Applications, choose **Open**, and confirm; on macOS 15 and newer, open it once, then go to System Settings → Privacy & Security → **Open Anyway**. Or in Terminal: `xattr -dr com.apple.quarantine /Applications/Pincel.app`.",
+    },
+    linux: {
+      heading: 'Linux',
+      requires: 'x64 with glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36, and later.',
+      appimage: 'AppImage',
+      deb: '.deb (Debian, Ubuntu)',
+      rpm: '.rpm (Fedora, openSUSE)',
+      install:
+        'The AppImage runs as downloaded once it is executable. To install it for you, without root — with a `pincel` command, an application-menu entry, and "Open with" for its formats:',
+      after:
+        'That copies it to `~/.local/share/pincel` and links `~/.local/bin/pincel`; uninstall with `pincel --uninstall`. On Ubuntu 24.04 and newer, AppImages need `libfuse2t64` (`sudo apt install libfuse2t64`). The .deb and .rpm packages install through your package manager instead and are updated with it.',
+    },
+    verifyTitle: 'Verify',
+    verify:
+      'The checksums of all files are in [SHA256SUMS]({sums}). On Windows: `Get-FileHash pincel-windows-x64-setup.exe`; on macOS and Linux: `shasum -a 256` or `sha256sum`.',
+    updatesTitle: 'Updates',
+    updates:
+      'The desktop app asks GitHub at most once a day for a new version, downloads it in the background, and checks its signature before installing; it takes effect at the next start (on Windows once you quit Pincel). Help → **Check for Updates…** checks right away, Help → **Install Updates Automatically** turns it off. The .deb and .rpm packages and an AppImage that was not installed with `--install` leave updates to you.',
+    releases: 'All releases and release notes',
+    webTitle: 'Or just use the browser',
+    web: 'Nothing to install: the editor runs in any modern browser, works offline, and installs from there as an app (PWA). Your files stay on your device either way.',
   },
   about: {
     seoTitle: 'About — Pincel',

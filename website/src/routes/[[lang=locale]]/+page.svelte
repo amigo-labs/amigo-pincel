@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { lang, m } from '#lib/i18n/index.ts';
+  import { lang, localized, m } from '#lib/i18n/index.ts';
   import Hero from '#lib/components/Hero.svelte';
   import Section from '#lib/components/Section.svelte';
   import FeatureGrid from '#lib/components/FeatureGrid.svelte';
@@ -7,6 +7,7 @@
   import HowItWorks from '#lib/components/HowItWorks.svelte';
   import FinalCta from '#lib/components/FinalCta.svelte';
   import SeoHead from '#lib/components/SeoHead.svelte';
+  import { absoluteUrl, version } from '#lib/config.ts';
 
   const jsonLd = $derived({
     '@context': 'https://schema.org',
@@ -16,6 +17,8 @@
     inLanguage: lang(),
     applicationCategory: 'DesignApplication',
     operatingSystem: 'Web, Windows, macOS, Linux, iPadOS',
+    softwareVersion: version,
+    downloadUrl: absoluteUrl(localized('/download')),
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
     license: 'https://opensource.org/licenses/MIT',
   });

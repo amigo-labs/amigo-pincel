@@ -63,7 +63,9 @@ needs a code change becomes a new release instead.
 
 ### Release files
 
-Stable names, so `releases/latest/download/<name>` always works:
+Stable names, so `releases/latest/download/<name>` always works — the
+website's download page (`website/src/lib/config.ts`, `downloads`) links
+them that way, so renaming a file means changing it there too:
 
 | File | What |
 |------|------|

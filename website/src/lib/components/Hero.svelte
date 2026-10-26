@@ -1,15 +1,16 @@
 <script lang="ts">
   import { m } from '#lib/i18n/index.ts';
   import Rich from './Rich.svelte';
-  import { appPath } from '#lib/config.ts';
+  import { appPath, repoUrl, version } from '#lib/config.ts';
   import PixelIcon from './PixelIcon.svelte';
   import HeroScene from './HeroScene.svelte';
+  import DownloadButton from './DownloadButton.svelte';
 </script>
 
 <section class="hero crt-target">
   <div class="container">
     <div class="copy">
-      <p class="caption">{m().hero.caption}</p>
+      <p class="caption">{m().hero.caption.replace('{version}', version)}</p>
       <h1 class="h-display"><Rich text={m().hero.title} /></h1>
       <p class="tagline-sub"><Rich text={m().hero.tagline} /></p>
       <div class="ctas">
@@ -17,7 +18,8 @@
           {m().nav.openEditor}
           <PixelIcon name="arrow-right" size={16} />
         </a>
-        <a class="btn-pixel btn-pixel--secondary" href="https://github.com/amigo-labs/amigo-pincel">
+        <DownloadButton />
+        <a class="btn-pixel btn-pixel--tertiary" href={repoUrl}>
           <PixelIcon name="github" size={16} />
           {m().hero.github}
         </a>
