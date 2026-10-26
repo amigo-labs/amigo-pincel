@@ -69,6 +69,12 @@ Releases as in amigo-blinzel (spec §15, 2026-10-26; `docs/RELEASING.md`).
 - `src-tauri/src/updater.rs`: daily silent update check, Help menu entries,
   `updater.json`; unit tests for the schedule and the settings file.
 - Dependabot commits as `chore(deps)` / `ci`.
+- Setup and start-up as in amigo-blinzel, no resident mode / tray:
+  per-user NSIS setup (de/en, `/S`, Default apps registration via
+  `src-tauri/windows/hooks.nsh`), winget templates, Linux
+  `--install` / `--uninstall` for the AppImage, window shown only once
+  the page has loaded. Open: visual check of the setup on Windows 11 and
+  of `--install` on a Linux desktop.
 
 ## 2026-10-13 — last Aseprite round-trip gaps (PR after #55)
 

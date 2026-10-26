@@ -95,11 +95,44 @@ amigo-blinzel's updater:
 - **Menu:** Help → "Check for Updates…" (reports the result) and "Install
   Updates Automatically" (default on). Both are stored in `updater.json` in
   the app config directory.
-- **Never:** debug builds, and Linux `.deb` / `.rpm` installs (they belong
-  to the package manager).
+- **Never:** debug builds, Linux `.deb` / `.rpm` installs (they belong
+  to the package manager) and an AppImage that wasn't installed with
+  `--install` (a portable download stays as it is).
 
 Rollback after failed starts (amigo-blinzel has it) is not ported: Tauri
 has no mechanism for it.
+
+## Setup and start-up (desktop)
+
+Also modelled on amigo-blinzel (spec §15, 2026-10-26). There is no
+resident mode and no tray: closing the window ends Pincel.
+
+- **Windows:** `pincel-windows-x64-setup.exe` (Tauri's NSIS setup,
+  `bundle.windows.nsis` in `src-tauri/tauri.conf.json`):
+  - installs per user, without admin rights, to
+    `%LOCALAPPDATA%\Pincel`, with a Start menu shortcut and an "Installed
+    apps" entry (publisher amigo-labs);
+  - speaks English or German, following the system language;
+  - `src-tauri/windows/hooks.nsh` registers Pincel for its file types
+    (Capabilities, RegisteredApplications, Open with). Windows lets only
+    the user choose defaults, so a first interactive install opens
+    Settings → Default apps on Pincel's page;
+  - silent with `/S`, with a progress bar but no questions with `/P`
+    (winget, the updater); uninstall through Settings → Apps.
+  - `packaging/winget/` holds the winget manifest templates.
+- **Linux:** the AppImage is portable as downloaded.
+  `./pincel-linux-x64.AppImage --install` copies it to
+  `~/.local/share/pincel/pincel.AppImage`, links `~/.local/bin/pincel`
+  and adds the desktop entry (with the MIME types it opens, plus an
+  Aseprite MIME type) and icons; this copy updates itself.
+  `pincel --uninstall` removes all of it. `.deb` / `.rpm` stay with the
+  package manager.
+- **macOS:** the universal `.dmg`; drag Pincel to Applications.
+- **Start:** the window starts hidden on the editor's background colour
+  and shows once the page has loaded (after 400 ms at the latest), so it
+  never flashes white or empty. A second start hands its file to the
+  running window and brings it to the front (also out of the minimized
+  state).
 
 ## One-time setup
 
