@@ -43,7 +43,7 @@
     ],
     "category": "GraphicsAndDesign",
     "shortDescription": "Pixel-art and image editor.",
-    "longDescription": "Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation, plus a paint.net-style image editor for everyday raster work (PNG, JPEG, WebP, BMP, GIF, TIFF). The native desktop build shares one Svelte UI and the two Rust cores with the PWA.",
+    "longDescription": "Pincel is a pixel-art and image editor in one app: a pixel-art editor at the feature level of Aseprite for game assets, and a paint.net-style layered image editor for photos, screenshots, mockups and artwork (PNG, JPEG, WebP, BMP, GIF, TIFF). The native desktop build shares one Svelte UI and the two Rust cores with the PWA.",
     "fileAssociations": [
       {
         "ext": [

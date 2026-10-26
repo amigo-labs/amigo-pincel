@@ -51,7 +51,7 @@ export default defineConfig({
       manifest: {
         name: 'Pincel',
         short_name: 'Pincel',
-        description: 'Pixel-art editor for game asset creation, plus a paint.net-style image editor.',
+        description: 'Pixel-art and image editor: Aseprite-compatible sprites, tilemaps and animation, plus layered editing of photos, screenshots and artwork.',
         start_url: base,
         scope: base,
         display: 'standalone',

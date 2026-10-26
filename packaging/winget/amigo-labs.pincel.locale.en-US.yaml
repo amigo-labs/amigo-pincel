@@ -8,7 +8,7 @@ PackageUrl: https://pincel.amigo-labs.dev/
 License: MIT OR Apache-2.0
 LicenseUrl: https://github.com/amigo-labs/amigo-pincel/blob/main/LICENSE-MIT
 ShortDescription: Pixel-art and image editor
-Description: A pixel-art editor at the feature level of Aseprite for game assets, plus a paint.net-style image editor for everyday raster work (PNG, JPEG, WebP, BMP, GIF, TIFF).
+Description: A pixel-art and image editor in one app — a pixel-art editor at the feature level of Aseprite for game assets, and a paint.net-style layered image editor for photos, screenshots, mockups and artwork (PNG, JPEG, WebP, BMP, GIF, TIFF).
 Tags:
   - pixel-art
   - aseprite
