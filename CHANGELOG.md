@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.0.0](https://github.com/amigo-labs/amigo-pincel/compare/v0.1.9...v1.0.0) (2026-10-26)
+
+
+### Features
+
+* **release:** release-please, self-updater, setup and start-up as in amigo-blinzel ([2695564](https://github.com/amigo-labs/amigo-pincel/commit/269556452826ee235680fdae5adc13d594ef15ee))
+* **release:** web and desktop installers in every release, published as one ([f24056e](https://github.com/amigo-labs/amigo-pincel/commit/f24056e0687e86ce7903c43a38cc451a5652a35b))
+* **tauri:** setup and start-up behaviour as in amigo-blinzel ([50083e6](https://github.com/amigo-labs/amigo-pincel/commit/50083e65f40fce3da0790d94005c0f323582e992))
+* **tauri:** silent self-updater, as in amigo-blinzel ([50d963a](https://github.com/amigo-labs/amigo-pincel/commit/50d963a7e08caa729cb71b8b02b9af04c7742b58))
+
+
+### Bug Fixes
+
+* **release:** point the Tauri CLI at src-tauri ([add5c95](https://github.com/amigo-labs/amigo-pincel/commit/add5c95d6c00a3d52328f619f3ee4b539217ffd1))
+* **tauri:** keep the setup's Capabilities under the installer's own key ([ef95e22](https://github.com/amigo-labs/amigo-pincel/commit/ef95e22d4df63d1704e2bafb36bbd6ed759aff40))
+* **tauri:** offer Default apps once, also across interactive upgrades ([10f70d8](https://github.com/amigo-labs/amigo-pincel/commit/10f70d814d108022dc4902573f99219b7d4bb0af))
+* **tauri:** updater settings written whole and one at a time ([69cf888](https://github.com/amigo-labs/amigo-pincel/commit/69cf888a9ca0cba0b9b5df09c6230cd167cebbf1))
+
+## Changelog
+
 ## Before 1.0.0 (v0.1.x pre-releases)
 
 The v0.1.x pre-releases (one per push to `main`) built up the full
