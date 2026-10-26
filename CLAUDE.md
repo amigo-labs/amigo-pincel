@@ -8,7 +8,7 @@ Read this entire file before starting any task. Re-read Section 3 ("Session Mana
 
 ## 1. Project Overview
 
-Pincel is a pixel-art editor at the feature level of Aseprite, focused on game asset creation — and, since M16, a paint.net-style image editor in the same app. It ships as a PWA and a native Tauri app sharing one Svelte UI and two Rust cores: `pincel-core` behind **Pixel mode** and `pincel-image-core` (the former sister project `amigo-fineliner`) behind **Image mode**. The mode follows the document (`.aseprite` → Pixel; PNG / JPEG / WebP / BMP / GIF / TIFF → Image). The two cores stay separate on purpose — see the spec's Decision Log, 2026-09-06 "Two cores, one shell". `crates/pincel-effects` serves both.
+Pincel is a pixel-art and image editor in one app: a pixel-art editor at the feature level of Aseprite, focused on game asset creation, and — since M16 — a paint.net-style image editor for photos, screenshots, mockups and artwork. It ships as a PWA and a native Tauri app sharing one Svelte UI and two Rust cores: `pincel-core` behind **Pixel mode** and `pincel-image-core` (the former sister project `amigo-fineliner`) behind **Image mode**. The mode follows the document (`.aseprite` → Pixel; PNG / JPEG / WebP / BMP / GIF / TIFF → Image). The two cores stay separate on purpose — see the spec's Decision Log, 2026-09-06 "Two cores, one shell". `crates/pincel-effects` serves both.
 
 The full design specification lives in **`docs/specs/pincel.md`**. That document is the source of truth for *what* to build. This file is the source of truth for *how* to build it.
 

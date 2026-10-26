@@ -1,17 +1,20 @@
 # Pincel
 
-Pincel is a pixel-art editor for game asset creation, aiming at the feature
-level of [Aseprite](https://www.aseprite.org/) — and, since M16, a
-paint.net-style image editor in the same app. One Svelte UI and two Rust
-cores ship two ways: as an installable PWA (WebAssembly) and as a native
-desktop app (Tauri 2).
+Pincel is a pixel-art and image editor in one app. For pixel art and game
+assets it aims at the feature level of [Aseprite](https://www.aseprite.org/);
+for everything else — photos, screenshots, UI mockups, artwork — it is a
+paint.net-style layered image editor. One Svelte UI and two Rust cores ship
+two ways: as an installable PWA (WebAssembly) and as a native desktop app
+(Tauri 2).
 
-- **Pixel mode** reads and writes the `.aseprite` file format, including
-  tilemaps, tilesets, slices, and animation tags.
+- **Pixel mode** makes sprites, tilemaps and animations and reads and writes
+  the `.aseprite` file format, including tilemaps, tilesets, slices, and
+  animation tags.
 - **Image mode** (formerly the sister project `amigo-fineliner`) edits
-  layered raster images with soft brushes, selections, effects and
-  adjustments; it opens PNG / JPEG / WebP / BMP / GIF / TIFF and exports
-  PNG / JPEG / WebP.
+  layered raster images with brushes, shapes, text, selections,
+  transforms, effects and adjustments; it opens PNG / JPEG / WebP / BMP /
+  GIF / TIFF, saves layered OpenRaster (`.ora`) and exports PNG / JPEG /
+  WebP.
 
 The mode follows the document: `.aseprite` opens in Pixel mode, images open
 in Image mode, and the New dialog offers both.
@@ -31,6 +34,11 @@ in Image mode, and the New dialog offers both.
 - **Game-asset workflow first.** First-class tilemaps with tileset
   editing, slices with 9-patch + pivots, animation tags. Engine
   hot-reload via file watching (`amigo_assets`).
+- **A real image editor next to it.** Layers, blend modes, soft brushes
+  with pen pressure and tilt, selections, transforms and the full effects
+  and adjustments set for any PNG, JPEG, WebP or TIFF — no second app for
+  the screenshot, the photo or the mockup. Effects are shared by both
+  modes.
 - **Document state in pure Rust memory.** The canvas is render-target
   only — never a data source. Avoids the architectural failure mode
   that forced Piskel into a multi-year rewrite (browser
@@ -38,9 +46,9 @@ in Image mode, and the New dialog offers both.
 - **PWA-first, mobile-aware.** Modern `PointerEvent` end-to-end, pen
   pressure / tilt from day one, pinch-to-zoom standard. iPad with
   Apple Pencil is a reference target.
-- **Embeddable.** `@amigo-labs/pincel` ships as an npm package with a
-  stable public API from Phase 1 — embed Pincel into level editors,
-  asset pipelines, or other tools.
+- **Embeddable.** `@amigo-labs/pincel` ships Pixel mode as an npm package
+  with a stable public API from Phase 1 — embed Pincel into level
+  editors, asset pipelines, or other tools.
 
 ## Try it
 

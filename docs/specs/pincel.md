@@ -1,4 +1,4 @@
-# Pincel — Pixel-Art Editor for Game Asset Creation
+# Pincel — Pixel-Art and Image Editor
 
 > **Status:** Draft, Specification v0.1
 > **Type:** Living Document
@@ -11,14 +11,14 @@
 
 ### 1.1 Goals
 
-Pincel is a pixel-art editor at the feature level of Aseprite, focused on **game asset creation**. It ships as:
+Pincel is a pixel-art and image editor in one app: a pixel-art editor at the feature level of Aseprite, focused on **game asset creation**, and next to it a general-purpose, paint.net-style image editor for photos, screenshots, mockups and artwork. It ships as:
 
 - A **standalone Progressive Web App** (PWA, installable, offline-capable)
 - A **native desktop app** via Tauri (sharing the same UI codebase)
 
-The two builds share one Svelte UI and one Rust core. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
+The two builds share one Svelte UI and the same Rust cores. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
 
-**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates `fineliner-core` / `fineliner-wasm` live in this workspace). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
+**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates live in this workspace as `pincel-image-core` / `pincel-image-wasm`). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
 
 ### 1.2 Engine Interop Strategy
 
@@ -32,7 +32,7 @@ This keeps both projects fully decoupled. Pincel works for Amigo Engine users *a
 
 ### 1.3 Non-Goals (Phase 1)
 
-- No proprietary file format. `.aseprite` is the only source-of-truth format.
+- No proprietary file format. `.aseprite` is Pixel mode's only source-of-truth format; Image mode keeps layers in OpenRaster (`.ora`).
 - No Lua scripting / Aseprite extension API compatibility.
 - No plugin system.
 - No collaborative / multi-user editing.
