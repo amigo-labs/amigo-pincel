@@ -183,6 +183,9 @@ jobs:
       - name: build desktop bundles
         working-directory: ui
         env:
+          # The CLI looks for tauri.conf.json in the working directory and
+          # below, never in the sibling src-tauri/.
+          TAURI_APP_PATH: ../src-tauri
           VITE_APP_VERSION: ${{ inputs.tag }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
