@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { absoluteUrl, siteUrl } from '$lib/config';
-  import { LANGS, lang, localized, m, unlocalized } from '$lib/i18n';
+  import { absoluteUrl, siteUrl } from '#lib/config.ts';
+  import { LANGS, lang, localized, m, unlocalized } from '#lib/i18n/index.ts';
 
   interface Props {
     title: string;

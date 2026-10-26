@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { m } from '$lib/i18n';
-  import type { FeatureSection } from '$lib/data/features';
+  import { m } from '#lib/i18n/index.ts';
+  import type { FeatureSection } from '#lib/data/features.ts';
   import PixelIcon from './PixelIcon.svelte';
 
   interface Props {

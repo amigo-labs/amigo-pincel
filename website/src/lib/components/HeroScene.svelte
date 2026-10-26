@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { m } from '$lib/i18n';
+  import { m } from '#lib/i18n/index.ts';
   // Pixel-art scene drawn inline as SVG. 64×48 grid scaled up, recognizably
   // "made-in-Pincel". Static by default, gains a subtle torch flicker animation
   // unless prefers-reduced-motion is set.

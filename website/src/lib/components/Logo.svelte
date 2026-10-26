@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { localized, m } from '$lib/i18n';
+  import { localized, m } from '#lib/i18n/index.ts';
 
   interface Props {
     size?: number;

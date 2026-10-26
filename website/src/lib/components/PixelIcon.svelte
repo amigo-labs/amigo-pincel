@@ -307,7 +307,7 @@
   {#each grid as row, y (y)}
     {#each row.split('') as cell, x (x)}
       {#if cell === '#'}
-        <rect x={x} y={y} width="1" height="1" />
+        <rect {x} {y} width="1" height="1" />
       {/if}
     {/each}
   {/each}

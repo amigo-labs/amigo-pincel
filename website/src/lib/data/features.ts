@@ -1,10 +1,10 @@
 // Structure of the /features page: one section per id, in page order. The
-// copy (heading, description, shortcut labels) lives in `$lib/i18n`, keyed
+// copy (heading, description, shortcut labels) lives in `#lib/i18n/index.js`, keyed
 // by the same id; `shortcuts` here are the key combos, in label order.
 
 import type { ComponentProps } from 'svelte';
-import type PixelIcon from '$lib/components/PixelIcon.svelte';
-import type { Messages } from '$lib/i18n';
+import type PixelIcon from '#lib/components/PixelIcon.svelte';
+import type { Messages } from '#lib/i18n/index.ts';
 
 type IconName = ComponentProps<typeof PixelIcon>['name'];
 

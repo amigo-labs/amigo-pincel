@@ -8,14 +8,7 @@
     children?: import('svelte').Snippet;
   }
 
-  const {
-    id,
-    eyebrow,
-    title,
-    align = 'left',
-    tone = 'default',
-    children,
-  }: Props = $props();
+  const { id, eyebrow, title, align = 'left', tone = 'default', children }: Props = $props();
 </script>
 
 <section {id} class:elevated={tone === 'elevated'} class:center={align === 'center'}>

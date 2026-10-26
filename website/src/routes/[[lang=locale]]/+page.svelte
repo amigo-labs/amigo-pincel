@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { lang, m } from '$lib/i18n';
-  import Hero from '$lib/components/Hero.svelte';
-  import Section from '$lib/components/Section.svelte';
-  import FeatureGrid from '$lib/components/FeatureGrid.svelte';
-  import ComparisonTable from '$lib/components/ComparisonTable.svelte';
-  import HowItWorks from '$lib/components/HowItWorks.svelte';
-  import FinalCta from '$lib/components/FinalCta.svelte';
-  import SeoHead from '$lib/components/SeoHead.svelte';
+  import { lang, m } from '#lib/i18n/index.ts';
+  import Hero from '#lib/components/Hero.svelte';
+  import Section from '#lib/components/Section.svelte';
+  import FeatureGrid from '#lib/components/FeatureGrid.svelte';
+  import ComparisonTable from '#lib/components/ComparisonTable.svelte';
+  import HowItWorks from '#lib/components/HowItWorks.svelte';
+  import FinalCta from '#lib/components/FinalCta.svelte';
+  import SeoHead from '#lib/components/SeoHead.svelte';
 
   const jsonLd = $derived({
     '@context': 'https://schema.org',
