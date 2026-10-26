@@ -1,6 +1,6 @@
 [package]
 name = "pincel-image-wasm"
-version = "0.1.0"
+version.workspace = true
 description = "WebAssembly bindings for Pincel's Image mode core (pincel-image-core; wasm-bindgen / wasm-pack target)"
 edition.workspace = true
 license.workspace = true

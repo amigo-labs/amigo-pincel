@@ -1,6 +1,6 @@
 [package]
 name = "aseprite-writer"
-version = "0.1.0"
+version.workspace = true
 description = "Aseprite v1.3 file format writer (standalone, no Pincel dependency)"
 edition.workspace = true
 license.workspace = true
