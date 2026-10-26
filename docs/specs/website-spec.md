@@ -78,6 +78,7 @@ The site speaks to four reader-mindsets. Every page must have something for at l
 /                Home (hero + features + CTA)
 /features        Feature deep-dive with screenshots and short clips
 /app             The editor itself (loads pincel-wasm)
+/download        Desktop installers (Windows, macOS, Linux), install and first-start notes
 /embed           For tool makers; code samples, API reference summary
 /about           Project story, open-source posture, amigo-labs context
 /changelog       Release notes, version history (Phase 2)
@@ -91,6 +92,7 @@ The site speaks to four reader-mindsets. Every page must have something for at l
 - `/`
 - `/features`
 - `/app`
+- `/download` (added 2026-10-26, with the first desktop release)
 - `/embed`
 - `/about`
 
@@ -106,7 +108,7 @@ The site speaks to four reader-mindsets. Every page must have something for at l
 Top bar, fixed, transparent over hero, solid below the fold:
 
 ```
-PINCEL    Home  Features  For Devs  About    [Open Editor →]
+PINCEL    Home  Features  Download  For Devs  About    [Open Editor →]
 ```
 
 Footer:
@@ -137,7 +139,8 @@ Sections, top to bottom:
 - **Sub-tagline (one short paragraph):**
   *"Make sprites, tilemaps, and animations in your browser. Save as `.aseprite`. Drop into your game. No account, no upload, no catch."*
 - **Primary CTA:** `[ Open Editor → ]` — links to `/app`
-- **Secondary CTA:** `[ View on GitHub ]` — links to repo
+- **Secondary CTA:** `[ ⤓ Download ]` — links to `/download`; in the browser it becomes "Download for Windows / macOS / Linux" and links the installer for the visitor's system (§4.6)
+- **Tertiary link:** `View on GitHub` — links to repo
 - **Hero visual:** an animated pixel-art scene (looped, ~2-4 seconds, ≤16 frames). Built in Pincel. Shows a small character running, a torch flickering, a tilemap-built room. No video — it's a sprite sheet, animated via CSS `steps()`. Demonstrates the product *with* the product.
 
 Constraints:
@@ -201,7 +204,7 @@ Visual: three pixel-art panels with arrows.
 
 Big, centered, final push: `[ Open Editor → ]`
 
-Below in smaller text: *"Or: `npm install @amigo-labs/pincel` to embed it →"* (links to `/embed`)
+Below in smaller text: *"Or as a desktop app for Windows, macOS, and Linux: download it →"* (links to `/download`) and *"Or: `npm install @amigo-labs/pincel` to embed it →"* (links to `/embed`)
 
 ---
 
@@ -318,6 +321,18 @@ Three paragraphs, no headshots, no startup-vibe.
 > No funding round. No subscription tier coming. No "open core" gotcha. The plan is to keep the tool good and the codebase clean, and to maintain it for as long as people use it.
 
 Below: a small section listing the team (probably just Daniel for now, with a note that contributors are welcome). Link to GitHub.
+
+### 4.6 `/download`
+
+**Purpose:** get the desktop app onto the visitor's machine, and through its first start.
+
+- **Head:** version (from `ui/package.json`, which release-please bumps), one-line pitch, the detected-system download button (only when a system is detected), a link to all releases, jump links per system.
+- **One section per system** (Windows, macOS, Linux): requirements, one button per installer (the recommended one primary), where it installs and how to uninstall, and the first-start warning the unsigned build triggers (SmartScreen, Gatekeeper). Linux shows the `--install` command.
+- **Verify:** `SHA256SUMS` and the commands to check it.
+- **Updates:** how the self-updater works and how to turn it off.
+- **Web:** the editor needs no install — `[ Open Editor → ]`.
+
+Links point to `github.com/amigo-labs/amigo-pincel/releases/latest/download/<name>` with the stable asset names of `docs/RELEASING.md`, so the page never needs an edit for a release. Detection runs in the browser from the user agent (`src/lib/platform.ts`); nothing is sent or stored. Phones, tablets, ChromeOS and ARM Linux get no direct link.
 
 ---
 
@@ -617,6 +632,7 @@ No machine translation. Every translation is reviewed by a native speaker before
 | 2026-10-11 | The site presents both modes: Pixel mode stays the lead (hero, feature order), Image mode gets a feature section, a grid tile and a comparison row | Image mode (the former Fineliner) ships in the same app; the site said nothing about it. Pixel art remains the product's focus and audience, so it keeps the headline. |
 | 2026-05-07 | English-only at launch; German Phase 2 | Audience is English-speaking primarily; German is the natural second locale via amigo-labs context |
 | 2026-10-12 | German site under `/de` via an optional `[[lang=locale]]` route parameter and typed TypeScript dictionaries (`src/lib/i18n/{en,de}.ts`) instead of JSON files, no i18n dependency | SvelteKit has no built-in i18n, so §11's original wording could not be implemented as written. An optional parameter keeps the English URLs unchanged and prerenders `/de/*` as plain static files; typing `de` against `en` catches missing copy at `pnpm check`, the same pattern the editor uses (pincel spec §9.5) |
+| 2026-10-26 | `/download` page and a Download CTA (hero, header, final CTA, feature section "Desktop App") | The desktop app ships with release-please releases (pincel spec §15, 2026-10-26), but the site only linked the web editor. Links use GitHub's `releases/latest/download/` with stable asset names, so a release needs no site change; the hero button offers the visitor's installer when it can tell the system, else it links the page. |
 | 2026-05-07 | Honest comparison table including where Aseprite wins | Trust-building with the skeptical audience; "we beat them at everything" tables are widely distrusted |
 | 2026-05-07 | `/app` is a separate Vite entry, isolated bundle | Marketing site stays fast; editor route doesn't drag down the home page |
 | 2026-05-11 | `brand-primary` is PICO-8 blue (#29adff), not PICO-8 pink (#ff77a8); `brand-secondary` retired | Owner preference. Blue keeps the PICO-8 identity, gives strong contrast on the dark base, and avoids overlap with the pink-saturated pixel-art tooling space (Aseprite, Piskel branding). `brand-secondary` was unused — single brand accent simplifies the token set. |

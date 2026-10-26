@@ -8,6 +8,7 @@
   const navItems = $derived([
     { path: '/', label: m().nav.home },
     { path: '/features', label: m().nav.features },
+    { path: '/download', label: m().nav.download },
     { path: '/embed', label: m().nav.devs },
     { path: '/about', label: m().nav.about },
   ]);

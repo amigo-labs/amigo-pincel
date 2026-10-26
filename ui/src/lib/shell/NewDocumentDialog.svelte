@@ -1,11 +1,10 @@
 <script lang="ts">
-  // "New document" dialog of the shell: choose the editor mode and the
-  // canvas size. Pixel sprites keep the historical 64×64 default and the
-  // 4096 cap; images default to 800×600 and are capped by the edge / area
-  // limits of the image core's memory (see MAX_CANVAS_DIM / clampCanvasSize).
+  // "New document" dialog of the shell (File ▸ New… in an editor): choose
+  // the editor mode and the canvas size. The start screen offers the same
+  // inline (StartScreen.svelte); limits and defaults are in `new-doc.ts`.
   import type { EditorMode, NewDocParams } from './types';
   import { t } from '../i18n/index.svelte';
-  import { MAX_CANVAS_DIM, clampCanvasSize } from '../../modes/image/stores/editor.svelte';
+  import { NEW_DOC_LIMITS as LIMITS, newDocParams } from './new-doc';
 
   let {
     initialMode,
@@ -16,11 +15,6 @@
     onCreate: (params: NewDocParams) => void;
     onCancel: () => void;
   } = $props();
-
-  const LIMITS: Record<EditorMode, { max: number; width: number; height: number }> = {
-    pixel: { max: 4096, width: 64, height: 64 },
-    image: { max: MAX_CANVAS_DIM, width: 800, height: 600 },
-  };
 
   // The shell remounts the dialog per open, so the initial props are the
   // only ones this instance sees.
@@ -38,15 +32,8 @@
     height = LIMITS[next].height;
   }
 
-  function clamp(v: number, max: number): number {
-    return Math.max(1, Math.min(max, Math.floor(Number.isFinite(v) ? v : 1)));
-  }
-
   function submit() {
-    const max = LIMITS[mode].max;
-    const [w, h] =
-      mode === 'image' ? clampCanvasSize(width, height) : [clamp(width, max), clamp(height, max)];
-    onCreate({ mode, width: w, height: h });
+    onCreate(newDocParams(mode, width, height));
   }
 
   // Keys typed in the dialog must not reach the mounted editor's

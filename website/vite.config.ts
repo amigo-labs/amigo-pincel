@@ -2,9 +2,18 @@ import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 
+// The released version for the hero caption and the download page.
+const { version } = JSON.parse(
+  readFileSync(new URL('../ui/package.json', import.meta.url), 'utf8'),
+) as { version: string };
+
 export default defineConfig({
+  define: {
+    __PINCEL_VERSION__: JSON.stringify(version),
+  },
   plugins: [
     tailwindcss(),
     // SvelteKit 3 takes its configuration here; svelte.config.js is gone.
@@ -23,7 +32,7 @@ export default defineConfig({
       prerender: {
         // The German pages (website spec §11) are linked from the language
         // switch too; listing them keeps them built if a link ever moves.
-        entries: ['*', '/de', '/de/features', '/de/about', '/de/embed'],
+        entries: ['*', '/de', '/de/features', '/de/about', '/de/embed', '/de/download'],
         handleHttpError: 'warn',
       },
       compilerOptions: {

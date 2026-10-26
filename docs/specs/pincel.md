@@ -561,7 +561,7 @@ Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists 
 
 **Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background.
 
-The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents), the New-document dialog with a mode choice, file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
+The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents — the two New cards open in place as an accordion with the canvas size and Create, no dialog on top), the New-document dialog with a mode choice (File ▸ New… from an editor), file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
 
 ### 9.3 WASM Boundary Contract
 

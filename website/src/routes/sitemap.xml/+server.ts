@@ -6,7 +6,7 @@ export const prerender = true;
 
 const BASE = siteUrl;
 
-const routes = ['/', '/features', '/embed', '/about'];
+const routes = ['/', '/features', '/download', '/embed', '/about'];
 
 // Every page in every language, each listing its translations
 // (`xhtml:link` hreflang alternates, website spec §7.3 / §11).
