@@ -13,7 +13,8 @@
 //! themselves.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::PoisonError;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -87,18 +88,48 @@ fn settings_path(app: &AppHandle) -> Option<PathBuf> {
 /// The stored settings, or the defaults.
 pub fn load_settings(app: &AppHandle) -> Settings {
     settings_path(app)
-        .and_then(|path| fs::read(path).ok())
+        .map(|path| load_settings_at(&path))
+        .unwrap_or_default()
+}
+
+fn load_settings_at(path: &Path) -> Settings {
+    fs::read(path)
         .map(|bytes| parse_settings(&bytes))
         .unwrap_or_default()
 }
 
-fn save_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
-    let path = settings_path(app).ok_or_else(|| "no app config directory".to_string())?;
+/// Write the whole file or nothing: a temporary file renamed over the
+/// old one, so a reader never sees half a file (which would read as the
+/// defaults and turn automatic updates back on).
+fn save_settings_at(path: &Path, settings: &Settings) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
     let bytes = serde_json::to_vec_pretty(settings).map_err(|e| e.to_string())?;
-    fs::write(path, bytes).map_err(|e| e.to_string())
+    let partial = path.with_extension("json.tmp");
+    fs::write(&partial, bytes).map_err(|e| e.to_string())?;
+    fs::rename(&partial, path).map_err(|e| e.to_string())
+}
+
+/// Serializes every read-modify-write of the settings file, so the
+/// background check's `last_check` can't undo a menu toggle.
+static SETTINGS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn update_settings_at(path: &Path, change: impl FnOnce(&mut Settings)) -> Result<(), String> {
+    // The lock guards no data of its own, so a poisoned one is still good.
+    let _guard = SETTINGS_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut settings = load_settings_at(path);
+    change(&mut settings);
+    save_settings_at(path, &settings)
+}
+
+fn update_settings(app: &AppHandle, change: impl FnOnce(&mut Settings)) {
+    let result = settings_path(app)
+        .ok_or_else(|| "no app config directory".to_string())
+        .and_then(|path| update_settings_at(&path, change));
+    if let Err(e) = result {
+        eprintln!("pincel: saving updater settings failed: {e}");
+    }
 }
 
 fn now_secs() -> u64 {
@@ -161,12 +192,7 @@ async fn fetch(app: &AppHandle) -> Result<Outcome, String> {
 }
 
 fn record_check(app: &AppHandle, now: u64) {
-    // Re-read so a menu toggle made meanwhile survives.
-    let mut settings = load_settings(app);
-    settings.last_check = now;
-    if let Err(e) = save_settings(app, &settings) {
-        eprintln!("pincel: saving updater settings failed: {e}");
-    }
+    update_settings(app, |settings| settings.last_check = now);
 }
 
 /// Start the daily background check, 10 s after launch, on its own
@@ -210,11 +236,7 @@ pub fn check_now(app: &AppHandle) {
 /// "Install Updates Automatically": flip and store the setting (the menu
 /// checkbox toggles itself).
 pub fn toggle_auto(app: &AppHandle) {
-    let mut settings = load_settings(app);
-    settings.auto_update = !settings.auto_update;
-    if let Err(e) = save_settings(app, &settings) {
-        eprintln!("pincel: saving updater settings failed: {e}");
-    }
+    update_settings(app, |settings| settings.auto_update = !settings.auto_update);
 }
 
 /// Run an update held for exit (Windows). The installer takes over and
@@ -264,6 +286,30 @@ mod tests {
         };
         let bytes = serde_json::to_vec(&s).unwrap();
         assert_eq!(parse_settings(&bytes), s);
+    }
+
+    #[test]
+    fn update_settings_keeps_concurrent_toggle() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_FILE);
+        let toggler = {
+            let path = path.clone();
+            std::thread::spawn(move || {
+                for _ in 0..101 {
+                    update_settings_at(&path, |s| s.auto_update = !s.auto_update).unwrap();
+                }
+            })
+        };
+        for now in 1..=100 {
+            update_settings_at(&path, |s| s.last_check = now).unwrap();
+            // Never a half-written file.
+            serde_json::from_slice::<Settings>(&fs::read(&path).unwrap()).unwrap();
+        }
+        toggler.join().unwrap();
+        let settings = load_settings_at(&path);
+        // 101 toggles from the default `true`: none was lost.
+        assert!(!settings.auto_update);
+        assert_eq!(settings.last_check, 100);
     }
 
     #[test]
