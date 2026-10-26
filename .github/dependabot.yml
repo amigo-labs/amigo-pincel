@@ -7,10 +7,16 @@
 # disagree on the minor version, and Dependabot cannot group across
 # ecosystems. Minor and major Tauri bumps are therefore ignored here and
 # done by hand on both sides at once (ui/package.json pins `~2.x`).
+#
+# Commit prefixes follow Conventional Commits (release-please, CLAUDE.md
+# §2.4): dependency bumps are chore(deps) and action bumps ci, so neither
+# starts a release on its own.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
@@ -22,6 +28,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /ui
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
@@ -33,6 +41,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /website
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
@@ -41,6 +51,8 @@ updates:
 
   - package-ecosystem: github-actions
     directory: /
+    commit-message:
+      prefix: "ci"
     schedule:
       interval: monthly
     groups:
