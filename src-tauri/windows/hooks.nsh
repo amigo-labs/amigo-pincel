@@ -3,8 +3,11 @@
 ; application for its file types (Capabilities, RegisteredApplications,
 ; OpenWithProgids), so it shows up under Settings > Default apps and in
 ; "Open with". Windows lets the user, not the installer, pick defaults, so
-; a first interactive install opens Default apps on Pincel's page.
-; Silent (/S, winget) and passive (/P, the updater) installs don't.
+; the first interactive install opens Default apps on Pincel's page, once:
+; the value DefaultAppsOffered under Tauri's product key remembers it
+; across upgrades, including the interactive "uninstall first" path, which
+; deletes the uninstall key. Only "delete app data" on uninstall clears it.
+; Silent (/S, winget) and passive (/P, the updater) installs never open it.
 ; See docs/RELEASING.md and docs/specs/pincel.md §15, 2026-10-26.
 ;
 ; The type list mirrors bundle.fileAssociations in tauri.conf.json (the
@@ -14,8 +17,6 @@
 ; Under Tauri's own key (Software\<publisher>\<product>, which holds the
 ; install location).
 !define PINCEL_CAPABILITIES "${MANUPRODUCTKEY}\Capabilities"
-
-Var PincelFirstInstall
 
 !macro PINCEL_REGISTER_TYPE EXT PROGID
   WriteRegStr SHCTX "${PINCEL_CAPABILITIES}\FileAssociations" ".${EXT}" "${PROGID}"
@@ -40,13 +41,6 @@ Var PincelFirstInstall
   !insertmacro ${OP} "tiff" "TIFF Image"
 !macroend
 
-!macro NSIS_HOOK_PREINSTALL
-  ReadRegStr $0 SHCTX "${UNINSTKEY}" "DisplayVersion"
-  ${If} $0 == ""
-    StrCpy $PincelFirstInstall 1
-  ${EndIf}
-!macroend
-
 !macro NSIS_HOOK_POSTINSTALL
   WriteRegStr SHCTX "${PINCEL_CAPABILITIES}" "ApplicationName" "${PRODUCTNAME}"
   WriteRegStr SHCTX "${PINCEL_CAPABILITIES}" "ApplicationDescription" "Pixel-art and image editor"
@@ -56,10 +50,12 @@ Var PincelFirstInstall
   ; SHCNE_ASSOCCHANGED: Explorer re-reads the associations.
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 
-  ${If} $PincelFirstInstall = 1
+  ReadRegStr $0 SHCTX "${MANUPRODUCTKEY}" "DefaultAppsOffered"
+  ${If} $0 == ""
   ${AndIf} $PassiveMode <> 1
   ${AndIfNot} ${Silent}
     ExecShell "open" "ms-settings:defaultapps?registeredAppUser=${PRODUCTNAME}"
+    WriteRegStr SHCTX "${MANUPRODUCTKEY}" "DefaultAppsOffered" "1"
   ${EndIf}
 !macroend
 
