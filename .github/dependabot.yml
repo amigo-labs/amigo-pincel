@@ -38,6 +38,9 @@ updates:
     ignore:
       - dependency-name: "@tauri-apps/*"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # typescript-eslint doesn't support TypeScript 7 yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /website
@@ -48,6 +51,10 @@ updates:
     groups:
       website:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint doesn't support TypeScript 7 yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
