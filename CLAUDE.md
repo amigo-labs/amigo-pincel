@@ -43,13 +43,16 @@ Tools, UI components, and rendering adapters are test-after: ship the implementa
 
 ### 2.4 Micro-commits
 
-One concept per commit. Commit messages start with the crate name in brackets:
+One concept per commit. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`, the scope being the crate or area (`pincel-core`, `aseprite-writer`, `pincel-wasm`, `ui`, `tauri`, `website`, `spec`, …):
 
 ```
-[pincel-core] add Sprite struct with Layers and Frames
-[aseprite-writer] implement Layer Chunk (0x2004) write
-[ui] wire Pencil tool onPointerDown handler
+feat(pincel-core): add Sprite struct with Layers and Frames
+feat(aseprite-writer): implement Layer Chunk (0x2004) write
+fix(ui): keep the Pencil stroke when the pointer leaves the canvas
+docs(spec): Decision Log entry for the updater
 ```
+
+The type drives releases (release-please, `docs/RELEASING.md`): `feat` and `fix` (and `perf`, `revert`) go into `CHANGELOG.md` and start a release; `docs`, `refactor`, `test`, `build`, `ci` and `chore` don't. A breaking change (`feat!:` or a `BREAKING CHANGE:` footer) bumps the major version — only on purpose.
 
 If a commit message needs an "and" between two unrelated changes, split it.
 
@@ -319,7 +322,7 @@ Tests run in CI on every push. Keep the full test suite under 60 seconds. If a t
 
 - `main` is protected; all changes via PR
 - Branch names: `feat/<short-desc>`, `fix/<short-desc>`, `chore/<short-desc>`, `spec/<short-desc>`
-- PR title matches commit message convention: `[crate] action`
+- PR title matches commit message convention: `type(scope): description`
 - PR description includes:
   - Spec section reference (e.g., "Implements §5.2 Pencil Tool")
   - Test evidence (test names that cover the change)

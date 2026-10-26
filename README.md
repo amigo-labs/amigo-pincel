@@ -45,8 +45,11 @@ in Image mode, and the New dialog offers both.
 ## Try it
 
 - **Web (PWA):** https://pincel.amigo-labs.dev/app
-- **Desktop installers:** see the latest [GitHub release][releases]
-  for Windows / macOS / Linux builds.
+- **Desktop installers:** the latest [GitHub release][releases] has
+  `pincel-windows-x64-setup.exe` (or `.msi`), `pincel-macos-universal.dmg`
+  and `pincel-linux-x64.AppImage` (or `.deb` / `.rpm`). The installed app
+  updates itself (Help → Check for Updates…); releases are described in
+  [`docs/RELEASING.md`](docs/RELEASING.md).
 
 [releases]: https://github.com/amigo-labs/amigo-pincel/releases/latest
 
