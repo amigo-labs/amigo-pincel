@@ -7,9 +7,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Deserialize;
 use tauri::menu::{
-    AboutMetadata, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder,
+    AboutMetadata, CheckMenuItemBuilder, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu,
+    SubmenuBuilder,
 };
 use tauri::{AppHandle, Emitter, Manager, Wry};
+
+mod updater;
 
 // Sync helpers split out from the async commands so unit tests can
 // exercise the FS round-trip without spinning up a Tokio runtime.
@@ -76,6 +79,14 @@ struct Labels {
     reset_zoom: &'static str,
     help: &'static str,
     about: &'static str,
+    check_updates: &'static str,
+    auto_update: &'static str,
+    /// Dialog text after a manual check.
+    update_none: &'static str,
+    /// `{version}` is replaced.
+    update_ready: &'static str,
+    /// `{error}` is replaced.
+    update_failed: &'static str,
 }
 
 const LABELS_EN: Labels = Labels {
@@ -101,6 +112,11 @@ const LABELS_EN: Labels = Labels {
     reset_zoom: "Reset Zoom",
     help: "Help",
     about: "About Pincel",
+    check_updates: "Check for Updates\u{2026}",
+    auto_update: "Install Updates Automatically",
+    update_none: "Pincel is up to date.",
+    update_ready: "Pincel {version} has been downloaded and is used from the next start.",
+    update_failed: "Checking for updates failed: {error}",
 };
 
 const LABELS_DE: Labels = Labels {
@@ -126,6 +142,11 @@ const LABELS_DE: Labels = Labels {
     reset_zoom: "Zoom zur\u{fc}cksetzen",
     help: "Hilfe",
     about: "\u{dc}ber Pincel",
+    check_updates: "Nach Updates suchen\u{2026}",
+    auto_update: "Updates automatisch installieren",
+    update_none: "Pincel ist auf dem neuesten Stand.",
+    update_ready: "Pincel {version} wurde geladen und wird ab dem n\u{e4}chsten Start verwendet.",
+    update_failed: "Die Suche nach Updates ist fehlgeschlagen: {error}",
 };
 
 /// True while the native menu shows German labels.
@@ -313,6 +334,15 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             }),
         )?)
         .build()?;
+    if updater::supported() {
+        let check = MenuItemBuilder::with_id(updater::MENU_CHECK, l.check_updates).build(app)?;
+        let auto = CheckMenuItemBuilder::with_id(updater::MENU_AUTO, l.auto_update)
+            .checked(updater::load_settings(app).auto_update)
+            .build(app)?;
+        help.append(&PredefinedMenuItem::separator(app)?)?;
+        help.append(&check)?;
+        help.append(&auto)?;
+    }
 
     Menu::with_items(app, &[&file, &edit, &view, &help])
 }
@@ -339,6 +369,8 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::UpdaterState::default())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             write_file_bytes,
@@ -349,6 +381,7 @@ fn main() {
             let handle = app.handle();
             let menu = build_menu(handle)?;
             app.set_menu(menu)?;
+            updater::spawn_background_check(handle);
             // First-launch CLI arg (file-association on Windows /
             // Linux, also macOS when launched from a shell).
             let argv: Vec<String> = std::env::args().collect();
@@ -366,8 +399,15 @@ fn main() {
         })
         .on_menu_event(|app, event| {
             // The id field carries our `menu:<action>` / `recent:<docId>`
-            // string. The renderer parses the prefix to dispatch.
-            let _ = app.emit("menu", event.id().0.clone());
+            // string. The renderer parses the prefix to dispatch; the
+            // `updater:` entries stay native.
+            match event.id().0.as_str() {
+                updater::MENU_CHECK => updater::check_now(app),
+                updater::MENU_AUTO => updater::toggle_auto(app),
+                id => {
+                    let _ = app.emit("menu", id.to_string());
+                }
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building Pincel")
@@ -376,9 +416,11 @@ fn main() {
 
 // macOS file-open events (Finder double-click, `open -a`, Dock drop)
 // arrive here as `RunEvent::Opened { urls }`. The variant only exists
-// on macOS; everywhere else the handler is a no-op.
-#[allow(unused_variables)]
+// on macOS. On exit, an update held for it (Windows) is installed.
 fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
+    if let tauri::RunEvent::Exit = event {
+        updater::install_on_exit(app);
+    }
     #[cfg(target_os = "macos")]
     if let tauri::RunEvent::Opened { urls } = event {
         for url in urls {
