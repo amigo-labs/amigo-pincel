@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.0.1...v1.1.0) (2026-10-26)
+
+
+### Features
+
+* desktop downloads on the website, New cards open in place on the start screen ([8d3e411](https://github.com/amigo-labs/amigo-pincel/commit/8d3e411e34403c37b54c7858046caab5763a8d93))
+* **ui:** New cards on the start screen open in place ([f3eb37a](https://github.com/amigo-labs/amigo-pincel/commit/f3eb37a29c5696f5c3462a952f646efc6502dacd))
+
 ## [1.0.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.0.0...v1.0.1) (2026-10-26)
 
 
