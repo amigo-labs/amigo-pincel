@@ -48,7 +48,7 @@ jobs:
     outputs:
       has_npm: ${{ steps.caps.outputs.has_npm }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - name: Tag matches the crate version
@@ -75,10 +75,10 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: 'v0.13.1'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -110,7 +110,7 @@ jobs:
           mkdir dist
           ( cd ui/dist && zip -qr ../../dist/pincel-web.zip . )
           ls -lh dist/pincel-web.zip
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web
           path: dist/pincel-web.zip
@@ -139,7 +139,7 @@ jobs:
             args: ''
             bundle: target/release/bundle
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - name: Updater signing key is set
@@ -164,10 +164,10 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: 'v0.13.1'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -221,7 +221,7 @@ jobs:
               ;;
           esac
           ls -l dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
           path: dist/*
@@ -233,7 +233,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - uses: actions/download-artifact@v4
@@ -291,7 +291,7 @@ jobs:
     if: needs.web.outputs.has_npm == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
@@ -301,10 +301,10 @@ jobs:
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
           version: 'v0.13.1'
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'

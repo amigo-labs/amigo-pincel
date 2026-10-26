@@ -41,7 +41,7 @@ jobs:
           manifest-file: .release-please-manifest.json
       # release-please bumps Cargo.toml only; `cargo build --locked` in the
       # release needs the lock file to agree.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: steps.release.outputs.pr
         with:
           ref: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
