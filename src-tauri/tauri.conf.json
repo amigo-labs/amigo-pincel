@@ -136,7 +136,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_TAURI_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMxMzc4MzEyNEM0Q0Y5NzcKUldSMytVeE1Fb00zTVV6QTF3bktkMFNsSFVUL2ZxSHBKT2xmdGVxOHpKcXRaTFVTb1ZqQWNYb0YK",
       "endpoints": [
         "https://github.com/amigo-labs/amigo-pincel/releases/latest/download/latest.json"
       ],

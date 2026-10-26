@@ -18,12 +18,11 @@ collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Updater signing key (blocks v1.0.0)** — run
-  `pnpm --dir ui tauri signer generate -w ~/.tauri/pincel.key`, store the
-  private key and its password as the secrets `TAURI_SIGNING_PRIVATE_KEY`
-  / `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, and put the public key into
-  `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`, now a
-  placeholder the release job rejects). See `docs/RELEASING.md`.
+- **Updater signing key (blocks v1.0.0)** — the key pair is generated and
+  its public half is in `src-tauri/tauri.conf.json`. Still yours: store
+  the private key as the secret `TAURI_SIGNING_PRIVATE_KEY` (no password
+  secret needed) and keep a copy in your password manager. See
+  `docs/RELEASING.md`.
 - **release-please** — Settings → Actions → General: "Allow GitHub
   Actions to create and approve pull requests". Optional
   `RELEASE_PLEASE_TOKEN` so CI also runs on the release PR.

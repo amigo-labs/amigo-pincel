@@ -146,19 +146,25 @@ resident mode and no tray: closing the window ends Pincel.
 
 ### Updater signing key (required)
 
-The release job refuses to run without it.
+The release job refuses to run without it. The key pair exists (minisign
+key ID `313783124C4CF977`, no password): its public half is
+`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, the private half
+lives only in the repository secret `TAURI_SIGNING_PRIVATE_KEY` (and in
+the maintainer's password manager). `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+stays unset.
 
-1. `pnpm --dir ui tauri signer generate -w ~/.tauri/pincel.key` (choose a
-   password).
-2. Add the private key (the file's content) as the secret
-   `TAURI_SIGNING_PRIVATE_KEY` and the password as
-   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
-3. Put the public key (`~/.tauri/pincel.key.pub`) into
-   `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`, replacing the
-   placeholder, and merge that.
-4. Keep the private key safe outside the repository. If it is lost,
-   installed copies accept no further updates. A new key reaches installed
-   copies only through a release still signed with the old one.
+Keep the private key safe outside the repository. If it is lost,
+installed copies accept no further updates. To replace it:
+
+1. `pnpm --dir ui tauri signer generate --ci -w ~/.tauri/pincel.key`
+   (`--ci`: no password; drop it to set one, then also set
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
+2. Store the file's content as the secret `TAURI_SIGNING_PRIVATE_KEY`.
+3. Put `~/.tauri/pincel.key.pub` into `plugins.updater.pubkey` and merge
+   that.
+4. A new key reaches installed copies only through a release still signed
+   with the old one, so ship one release with the old key that carries
+   the new public key first.
 
 ### npm publish (`pincel-wasm`)
 
