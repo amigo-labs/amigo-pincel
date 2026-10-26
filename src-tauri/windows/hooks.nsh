@@ -11,8 +11,9 @@
 ; ProgID is each association's `name`); a test in src/main.rs keeps the
 ; two in step.
 
-!define PINCEL_APP_KEY "Software\amigo-labs\Pincel"
-!define PINCEL_CAPABILITIES "${PINCEL_APP_KEY}\Capabilities"
+; Under Tauri's own key (Software\<publisher>\<product>, which holds the
+; install location).
+!define PINCEL_CAPABILITIES "${MANUPRODUCTKEY}\Capabilities"
 
 Var PincelFirstInstall
 
@@ -67,8 +68,7 @@ Var PincelFirstInstall
   ${If} $UpdateMode <> 1
     !insertmacro PINCEL_TYPES PINCEL_UNREGISTER_TYPE
     DeleteRegValue SHCTX "Software\RegisteredApplications" "${PRODUCTNAME}"
-    DeleteRegKey SHCTX "${PINCEL_APP_KEY}"
-    DeleteRegKey /ifempty SHCTX "Software\amigo-labs"
+    DeleteRegKey SHCTX "${PINCEL_CAPABILITIES}"
     System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
   ${EndIf}
 !macroend
