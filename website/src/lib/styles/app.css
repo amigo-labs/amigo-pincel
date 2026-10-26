@@ -84,7 +84,10 @@ body {
   color: var(--color-bg-base);
   box-shadow: 4px 4px 0 var(--color-bg-base);
   text-decoration: none;
-  transition: filter 120ms ease-out, transform 80ms ease-out, box-shadow 80ms ease-out;
+  transition:
+    filter 120ms ease-out,
+    transform 80ms ease-out,
+    box-shadow 80ms ease-out;
   cursor: pointer;
 }
 .btn-pixel:hover {
@@ -128,7 +131,10 @@ body {
   background-color: var(--color-bg-card);
   border: 1px solid var(--color-border-subtle);
   padding: 1.5rem;
-  transition: border-color 150ms ease-out, transform 150ms ease-out, box-shadow 150ms ease-out;
+  transition:
+    border-color 150ms ease-out,
+    transform 150ms ease-out,
+    box-shadow 150ms ease-out;
 }
 .card-pixel:hover {
   border-color: var(--color-border-strong);

@@ -2,7 +2,7 @@
   // Renders a copy string with the small inline markup the dictionaries
   // use: `code`, [text](url), **bold**, and "\n" as a line break.
   // Internal links (`/…`) get the page's language prefix.
-  import { localized } from '$lib/i18n';
+  import { localized } from '#lib/i18n/index.ts';
 
   interface Props {
     text: string;

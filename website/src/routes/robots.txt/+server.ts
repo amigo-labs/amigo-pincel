@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { siteUrl } from '$lib/config';
+import { siteUrl } from '#lib/config.ts';
 
 export const prerender = true;
 

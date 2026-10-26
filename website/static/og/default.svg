@@ -27,7 +27,7 @@
 
   <!-- Wordmark -->
   <text x="80" y="380" font-family="'VT323', monospace" font-size="160" fill="#fff1e8" letter-spacing="6">PINCEL</text>
-  <text x="80" y="450" font-family="'Inter', system-ui, sans-serif" font-size="36" fill="#c2c3c7" font-weight="500">A pixel-art editor for the web.</text>
+  <text x="80" y="450" font-family="'Inter', system-ui, sans-serif" font-size="36" fill="#c2c3c7" font-weight="500">A pixel-art and image editor for the web.</text>
   <text x="80" y="500" font-family="'Inter', system-ui, sans-serif" font-size="28" fill="#83769c" font-weight="400">Aseprite-compatible · Open source · Free</text>
 
   <!-- Tag line in bottom-right -->

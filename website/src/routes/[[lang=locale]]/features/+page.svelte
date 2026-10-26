@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { m } from '$lib/i18n';
-  import SeoHead from '$lib/components/SeoHead.svelte';
-  import FeatureSection from '$lib/components/FeatureSection.svelte';
-  import { featureSections } from '$lib/data/features';
+  import { m } from '#lib/i18n/index.ts';
+  import SeoHead from '#lib/components/SeoHead.svelte';
+  import FeatureSection from '#lib/components/FeatureSection.svelte';
+  import { featureSections } from '#lib/data/features.ts';
 </script>
 
 <SeoHead title={m().features.seoTitle} description={m().features.seoDescription} />

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import '$lib/styles/app.css';
-  import Header from '$lib/components/Header.svelte';
-  import Footer from '$lib/components/Footer.svelte';
-  import { crt } from '$lib/stores/crt.svelte';
+  import '#lib/styles/app.css';
+  import Header from '#lib/components/Header.svelte';
+  import Footer from '#lib/components/Footer.svelte';
+  import { crt } from '#lib/stores/crt.svelte.ts';
   import { onMount } from 'svelte';
 
   const { children } = $props();

@@ -11,6 +11,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
+version = "0.1.0" # x-release-please-version
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/amigo-labs/amigo-pincel"
@@ -18,12 +19,12 @@ rust-version = "1.88"
 
 [workspace.dependencies]
 aseprite-loader = "0.4.2"
-aseprite-writer = { version = "0.1.0", path = "crates/aseprite-writer" }
+aseprite-writer = { version = "0.1.0", path = "crates/aseprite-writer" } # x-release-please-version
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 flate2 = "1"
-pincel-core = { version = "0.1.0", path = "crates/pincel-core" }
-pincel-effects = { version = "0.1.0", path = "crates/pincel-effects" }
-pincel-image-core = { version = "0.1.0", path = "crates/pincel-image-core" }
+pincel-core = { version = "0.1.0", path = "crates/pincel-core" } # x-release-please-version
+pincel-effects = { version = "0.1.0", path = "crates/pincel-effects" } # x-release-please-version
+pincel-image-core = { version = "0.1.0", path = "crates/pincel-image-core" } # x-release-please-version
 png = "0.18"
 ab_glyph = "0.2"
 thiserror = "2"

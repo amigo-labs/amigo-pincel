@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { m, type Messages } from '$lib/i18n';
+  import { m, type Messages } from '#lib/i18n/index.ts';
 
   type NoteKey = keyof Messages['comparison']['notes'];
   type Mark = '✅' | '❌' | '🟡';

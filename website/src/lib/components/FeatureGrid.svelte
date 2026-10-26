@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { m } from '$lib/i18n';
+  import { m } from '#lib/i18n/index.ts';
   import type { ComponentProps } from 'svelte';
   import PixelIcon from './PixelIcon.svelte';
 

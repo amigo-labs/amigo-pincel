@@ -1,4 +1,4 @@
-# Pincel — Pixel-Art Editor for Game Asset Creation
+# Pincel — Pixel-Art and Image Editor
 
 > **Status:** Draft, Specification v0.1
 > **Type:** Living Document
@@ -11,14 +11,14 @@
 
 ### 1.1 Goals
 
-Pincel is a pixel-art editor at the feature level of Aseprite, focused on **game asset creation**. It ships as:
+Pincel is a pixel-art and image editor in one app: a pixel-art editor at the feature level of Aseprite, focused on **game asset creation**, and next to it a general-purpose, paint.net-style image editor for photos, screenshots, mockups and artwork. It ships as:
 
 - A **standalone Progressive Web App** (PWA, installable, offline-capable)
 - A **native desktop app** via Tauri (sharing the same UI codebase)
 
-The two builds share one Svelte UI and one Rust core. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
+The two builds share one Svelte UI and the same Rust cores. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
 
-**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates `fineliner-core` / `fineliner-wasm` live in this workspace). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
+**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates live in this workspace as `pincel-image-core` / `pincel-image-wasm`). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
 
 ### 1.2 Engine Interop Strategy
 
@@ -32,7 +32,7 @@ This keeps both projects fully decoupled. Pincel works for Amigo Engine users *a
 
 ### 1.3 Non-Goals (Phase 1)
 
-- No proprietary file format. `.aseprite` is the only source-of-truth format.
+- No proprietary file format. `.aseprite` is Pixel mode's only source-of-truth format; Image mode keeps layers in OpenRaster (`.ora`).
 - No Lua scripting / Aseprite extension API compatibility.
 - No plugin system.
 - No collaborative / multi-user editing.
@@ -811,6 +811,8 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-12 | Pen tilt in Image mode: `Brush::angle` (flat tip, degrees, default 45 = the old fixed nib) and `follow_tilt`; per-point `azimuth` travels with pressure as `PenSamples`, `null` / NaN where the pen reports no tilt; the nib angle interpolates the short way round mod 180° | Azimuth is what styluses report reliably (twist is rare); the flat nib is the one tip it visibly changes. Mod-180 interpolation because a flat nib is symmetric, so it never spins through 90° between two samples. Round tips ignore it; Pixel mode stays tilt-free like it stays pressure-free |
 | 2026-10-13 | The last Aseprite round-trip gaps close by keeping the data, not interpreting it: External Files entries as a list on `Metadata`, tileset and tile user data on `Tileset` (tiles sparse in a `BTreeMap` by id), slice note and properties on `Slice` beside the overlay colour; our raw chunk walk reads the External Files chunk, the writer emits it first in frame 0 | Pincel edits none of it, so a faithful copy is the whole requirement. A sparse map keeps tile data aligned without touching every `TileImage` and without any command having to maintain it (tiles are only appended). `aseprite-loader` 0.4.2 cannot name entry type 3 (its `Unknown` variant shares the discriminant), which is why the type byte is read from the raw chunk |
 | 2026-10-13 | One Worker serves `pincel.amigo-labs.dev`: the marketing site at `/` and the editor at `/app/`, both static assets of `amigo-pincel` (root `wrangler.toml`). Cloudflare's Git integration runs `scripts/cf-build.sh`, which installs Rust + wasm-pack, builds the site into `website/build/` and the editor (release wasm) into `ui/dist/app/`, then copies the latter to `website/build/app/`. Supersedes the two-Worker split of 2026-10-11: `ui/wrangler.toml` (`pincel-app`) and the secret-guarded `deploy-web` release job are removed. | The repo is already connected to Cloudflare; the split needed extra API-token secrets nobody had set, so `/app/` never went live, and PR previews could not show the editor at all. One build makes every preview URL carry the editor and needs no secrets. The cost is Rust in Cloudflare's build image, which `amigo-fineliner` already did the same way (its `scripts/cf-build.sh`); the build takes a few minutes. |
+| 2026-10-26 | Releases as in amigo-blinzel: release-please keeps a release PR open on `main` (one workspace version in `Cargo.toml`, `ui/package.json`, `src-tauri/tauri.conf.json`; `CHANGELOG.md` from Conventional Commits, which replace the `[crate] action` messages, CLAUDE.md §2.4). Merging it tags `v<version>` and creates a draft; `release.yml` builds the web bundle and the Tauri installers (Windows x64, macOS universal, Linux x64), SHA256SUMS and the updater's `latest.json`, then publishes. The first release is 1.0.0. The desktop app updates itself silently through `tauri-plugin-updater` (new dependency): one check a day, 10 s after start, signature checked against the Tauri updater key, installed for the next start (Windows: when the app exits); Help menu "Check for Updates…" and "Install Updates Automatically" (`updater.json` in the app config dir). Debug builds and Linux .deb / .rpm installs don't update. Supersedes the push-to-main patch releases and the manual `release-desktop` workflow. | One release flow for the amigo apps; a changelog and a reviewable version bump instead of a tag per push; installers and update manifest published together, so no updater sees a release without its files. The Tauri plugin instead of blinzel's own WinHTTP / Ed25519 updater, because Pincel is a Tauri app and the plugin already downloads, verifies and swaps per platform. Its minisign signature replaces blinzel's signed SHA256SUMS (those stay, unsigned). Not ported: blinzel's rollback after three failed starts (no Tauri mechanism); .deb / .rpm would need root, so they stay with the package manager. |
+| 2026-10-26 | Desktop setup and start-up as in amigo-blinzel, without its resident mode / tray (closing ends the app). Windows: Tauri's NSIS setup per user without admin, English / German by system language, `/S` silent, hooks (`src-tauri/windows/hooks.nsh`) that register Capabilities / RegisteredApplications / OpenWithProgids and open Default apps after a first interactive install; winget templates in `packaging/winget/`. Linux: `pincel --install` / `--uninstall` from the AppImage (`~/.local/share/pincel`, `~/.local/bin/pincel`, desktop entry, MIME, icons); only that copy updates itself. Start: window hidden on the app background until the page has loaded (≤ 400 ms), second start unminimizes and focuses. | Same install and start-up experience across the amigo apps. Tauri's NSIS setup instead of blinzel's own setup dialog: it already does per-user install, shortcuts, uninstall entry and silent mode, the hooks add what it lacks (Default apps listing). Resident mode and tray were explicitly not wanted. No Windows version gate (blinzel requires 11 24H2 for its Direct3D path; WebView2 runs on 10 1809+). |
 
 ---
 

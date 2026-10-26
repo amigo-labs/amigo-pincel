@@ -25,9 +25,9 @@ export const en = {
   },
   hero: {
     caption: 'Pixel-art & image editor · v0.1',
-    title: 'A pixel-art editor\nfor the web.',
+    title: 'A pixel-art and\nimage editor\nfor the web.',
     tagline:
-      'Aseprite-compatible. Open source. Free. Make sprites, tilemaps, and animations in your browser. Save as `.aseprite`. Drop into your game. Need to touch up a screenshot or a photo? The Image mode opens PNG, JPEG and WebP with layers and effects. No account, no upload, no catch.',
+      'Open source. Free. Two editors in one: make sprites, tilemaps, and animations, save as Aseprite-compatible `.aseprite` and drop them into your game. Edit photos, screenshots, and artwork with layers, brushes, selections, and effects — PNG, JPEG, WebP, TIFF and more. No account, no upload, no catch.',
     github: 'View on GitHub',
     scene: 'A small blue character standing in a stone room lit by a flickering torch.',
   },
@@ -59,7 +59,7 @@ export const en = {
     image: {
       title: 'Image Mode',
       description:
-        'Layers, blend modes, selections, effects for screenshots and photos. Saves .ora.',
+        'Layers, brushes, selections, effects, and adjustments for photos, screenshots, and artwork. Saves .ora.',
     },
     offline: {
       title: 'Offline PWA',
@@ -100,7 +100,7 @@ export const en = {
       timeline: 'Animation timeline + tags',
       tablet: 'Tablet / pen support',
       browser: 'Runs in browser',
-      photo: 'Layered photo / screenshot editing',
+      photo: 'Layered image editing (photos, screenshots)',
       desktop: 'Native desktop app',
       library: 'Embeddable as a library',
       scripting: 'Lua scripting / extensions',
@@ -124,15 +124,15 @@ export const en = {
     },
   },
   home: {
-    seoTitle: 'Pincel — a pixel-art editor for the web',
+    seoTitle: 'Pincel — a pixel-art and image editor for the web',
     seoDescription:
-      'Aseprite-compatible pixel-art editor that runs in your browser, plus a layered image mode for screenshots and photos. Open source, free, with tilemaps, slices, animation, and tablet support.',
+      'Pixel-art and image editor that runs in your browser: Aseprite-compatible sprites, tilemaps, slices, and animation, plus layered editing of photos and screenshots with brushes, selections, and effects. Open source, free, with tablet support.',
     jsonLd:
-      'A pixel-art editor for the web, with a layered image mode for everyday editing. Aseprite-compatible, open source, free. Make sprites, tilemaps, and animations in your browser.',
+      'A pixel-art and image editor for the web. Aseprite-compatible sprites, tilemaps, and animations, and layered editing of PNG, JPEG, WebP, and TIFF images. Open source, free.',
     pitch:
-      "Pincel is built for game developers and pixel artists who want a serious tool that runs in a browser tab. It reads and writes the Aseprite file format, so your work fits into existing pipelines. It supports tilemaps, slices, animation tags, palettes, and indexed color — the things you actually need. Next to it sits an Image mode for everything that isn't pixel art — screenshots, photos, UI mockups — with layers, blend modes, selections, effects and adjustments, saved as OpenRaster so GIMP and Krita open it too. It runs offline as a PWA, speaks English and German, and you can install it on iPad. It's open source under MIT or Apache 2.0, and it will stay that way.",
+      "Pincel is two editors in one browser tab, and the file decides which one opens. Pixel mode is built for game developers and pixel artists: it reads and writes the Aseprite file format, so your work fits into existing pipelines, with tilemaps, slices, animation tags, palettes, and indexed color — the things you actually need. Image mode is a full paint.net-style editor for everything else — photos, screenshots, UI mockups, artwork — with layers, blend modes, brushes, selections, transforms, effects, and adjustments; it opens PNG, JPEG, WebP, BMP, GIF, and TIFF and saves OpenRaster so GIMP and Krita open it too. Both run offline as a PWA or as a desktop app, speak English and German, and work on an iPad. It's open source under MIT or Apache 2.0, and it will stay that way.",
     whatEyebrow: 'What it does',
-    whatTitle: 'Built for game-dev workflows.',
+    whatTitle: 'From game assets to everyday images.',
     compareEyebrow: 'Honest comparison',
     compareTitle: 'Where it stands today.',
     howEyebrow: 'In three steps',
@@ -141,7 +141,7 @@ export const en = {
   features: {
     seoTitle: 'Features — Pincel',
     seoDescription:
-      "Every feature in Pincel, deep-dive style: canvas, tools, layers, animation, tilemaps, slices, palette, file format, tablet support, PWA, and what's coming next.",
+      "Every feature in Pincel, deep-dive style: canvas, tools, layers, animation, tilemaps, slices, palette, file format, image mode, tablet support, PWA, and what's coming next.",
     caption: 'Feature deep-dive',
     title: 'Everything Pincel does today.',
     lede: "Dense, honest, screenshot-led. Where a feature is still in progress, we say so. Where it's planned but not built, we say that too.",
@@ -226,7 +226,7 @@ export const en = {
       'Pincel is part of amigo-labs, an open-source ecosystem of game-development tools built in Rust. Free, MIT or Apache 2.0, no funding round, no subscription tier.',
     caption: 'About',
     title: 'A pixel-art editor — and an image editor — with a long view.',
-    p1: 'Pincel is part of [amigo-labs](https://amigo-labs.dev), an open-source ecosystem of game-development tools built in Rust. The flagship is amigo-engine — a deterministic ECS-based 2D engine with a built-in level editor, AI asset pipelines, and chiptune music tooling. Pincel fills the pixel-art-editor gap in that ecosystem, and stands alone for anyone outside it. Its Image mode began as the sister project Fineliner, a paint.net-style editor; the two now share one app, one effects engine and one release.',
+    p1: 'Pincel is part of [amigo-labs](https://amigo-labs.dev), an open-source ecosystem of game-development tools built in Rust. The flagship is amigo-engine — a deterministic ECS-based 2D engine with a built-in level editor, AI asset pipelines, and chiptune music tooling. Pincel fills the editor gap in that ecosystem — for pixel art and for every other image — and stands alone for anyone outside it. Its Image mode began as the sister project Fineliner, a paint.net-style editor; the two now share one app, one effects engine and one release.',
     p2: "The project is open source under MIT or Apache 2.0 — your choice. The format we use is Aseprite's, which is documented and reimplementable. We are not affiliated with the Aseprite project, and we don't compete with it: Aseprite has 14 years of refinement and a deep feature set we won't catch up to overnight. Pincel exists for people who want a free, web-based, embeddable alternative.",
     p3: 'No funding round. No subscription tier coming. No "open core" gotcha. The plan is to keep the tool good and the codebase clean, and to maintain it for as long as people use it.',
     builtTitle: 'Built with Pincel itself',

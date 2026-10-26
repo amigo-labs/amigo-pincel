@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { localized, m } from '$lib/i18n';
-  import Rich from '$lib/components/Rich.svelte';
-  import SeoHead from '$lib/components/SeoHead.svelte';
-  import PixelIcon from '$lib/components/PixelIcon.svelte';
+  import { localized, m } from '#lib/i18n/index.ts';
+  import Rich from '#lib/components/Rich.svelte';
+  import SeoHead from '#lib/components/SeoHead.svelte';
+  import PixelIcon from '#lib/components/PixelIcon.svelte';
 
   const install = `npm install @amigo-labs/pincel`;
 

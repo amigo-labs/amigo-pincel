@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { localized, m } from '$lib/i18n';
+  import { localized, m } from '#lib/i18n/index.ts';
   import Rich from './Rich.svelte';
-  import { crt } from '$lib/stores/crt.svelte';
+  import { crt } from '#lib/stores/crt.svelte.ts';
   import PixelIcon from './PixelIcon.svelte';
 
   const year = new Date().getFullYear();

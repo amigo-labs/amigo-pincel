@@ -7,10 +7,16 @@
 # disagree on the minor version, and Dependabot cannot group across
 # ecosystems. Minor and major Tauri bumps are therefore ignored here and
 # done by hand on both sides at once (ui/package.json pins `~2.x`).
+#
+# Commit prefixes follow Conventional Commits (release-please, CLAUDE.md
+# §2.4): dependency bumps are chore(deps) and action bumps ci, so neither
+# starts a release on its own.
 version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
@@ -22,6 +28,8 @@ updates:
 
   - package-ecosystem: npm
     directory: /ui
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
@@ -30,17 +38,28 @@ updates:
     ignore:
       - dependency-name: "@tauri-apps/*"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # typescript-eslint doesn't support TypeScript 7 yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /website
+    commit-message:
+      prefix: "chore(deps)"
     schedule:
       interval: weekly
     groups:
       website:
         patterns: ["*"]
+    ignore:
+      # typescript-eslint doesn't support TypeScript 7 yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
+    commit-message:
+      prefix: "ci"
     schedule:
       interval: monthly
     groups:

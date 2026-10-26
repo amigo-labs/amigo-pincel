@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { LANGS, lang, localized, m, unlocalized } from '$lib/i18n';
-  import { appPath } from '$lib/config';
+  import { LANGS, lang, localized, m, unlocalized } from '#lib/i18n/index.ts';
+  import { appPath } from '#lib/config.ts';
   import { page } from '$app/state';
   import Logo from './Logo.svelte';
   import PixelIcon from './PixelIcon.svelte';

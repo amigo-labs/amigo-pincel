@@ -1,0 +1,40 @@
+# Installer manifest: Tauri's NSIS setup installs per user without admin
+# rights (src-tauri/tauri.conf.json, bundle.windows.nsis).
+PackageIdentifier: amigo-labs.pincel
+PackageVersion: "{{VERSION}}"
+# WebView2 (preinstalled on Windows 11) needs Windows 10 1809 or later.
+MinimumOSVersion: 10.0.17763.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+InstallerSwitches:
+  Silent: /S
+  SilentWithProgress: /P
+UpgradeBehavior: install
+# The "Installed apps" entry the setup writes (HKCU\...\Uninstall\Pincel).
+ProductCode: Pincel
+AppsAndFeaturesEntries:
+  - DisplayName: Pincel
+    Publisher: amigo-labs
+    ProductCode: Pincel
+FileExtensions:
+  - aseprite
+  - ase
+  - ora
+  - png
+  - jpg
+  - jpeg
+  - webp
+  - bmp
+  - gif
+  - tif
+  - tiff
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/amigo-labs/amigo-pincel/releases/download/v{{VERSION}}/pincel-windows-x64-setup.exe
+    InstallerSha256: "{{SHA256_X64}}"
+ManifestType: installer
+ManifestVersion: 1.9.0

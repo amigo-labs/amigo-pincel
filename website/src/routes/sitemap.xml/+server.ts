@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
-import { siteUrl } from '$lib/config';
-import { LANGS, localized } from '$lib/i18n';
+import { siteUrl } from '#lib/config.ts';
+import { LANGS, localized } from '#lib/i18n/index.ts';
 
 export const prerender = true;
 
