@@ -285,7 +285,7 @@
   <StartScreen
     {recents}
     {busy}
-    onNew={requestNew}
+    onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => void openRecent(r)}
     onDropFile={(f) => void onDropFile(f)}

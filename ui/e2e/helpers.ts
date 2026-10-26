@@ -6,24 +6,23 @@ export async function gotoStart(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
 }
 
-/** Creates a new document of `mode` through the start screen and the New dialog. */
+/** Creates a new document of `mode` through the start screen's New card. */
 export async function createDocument(
   page: Page,
   mode: 'pixel' | 'image',
   size?: { width: number; height: number },
 ): Promise<void> {
   await gotoStart(page);
-  await page
-    .getByRole('button', { name: mode === 'pixel' ? 'New pixel sprite' : 'New image' })
-    .click();
-  const dialog = page.getByRole('dialog', { name: 'New document' });
-  await expect(dialog).toBeVisible();
+  const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
+  await page.getByRole('button', { name }).click();
+  const card = page.getByRole('form', { name });
+  await expect(card).toBeVisible();
   if (size) {
-    await dialog.getByLabel('Width').fill(String(size.width));
-    await dialog.getByLabel('Height').fill(String(size.height));
+    await card.getByLabel('Width').fill(String(size.width));
+    await card.getByLabel('Height').fill(String(size.height));
   }
-  await dialog.getByRole('button', { name: 'Create' }).click();
-  await expect(dialog).toBeHidden();
+  await card.getByRole('button', { name: 'Create' }).click();
+  await expect(card).toBeHidden();
   // The editor's core is loaded once the top bar names the document.
   // (Huge canvases take a while to allocate on the unoptimized CI wasm.)
   await expect(page.getByRole('banner').getByText('No document')).toHaveCount(0, {
