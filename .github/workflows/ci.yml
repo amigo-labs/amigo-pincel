@@ -107,11 +107,21 @@ jobs:
       - name: build
         run: pnpm build
       # Playwright drives the built bundle through `vite preview`
-      # (ui/playwright.config.ts). Browsers are not cached: the
-      # chromium download is ~1 min and the cache key would have to
-      # track the exact @playwright/test version anyway.
+      # (ui/playwright.config.ts). The browser download is cached; the
+      # @playwright/test version is pinned by pnpm-lock.yaml, so its hash
+      # is an exact key. System libraries live outside the cache and are
+      # installed separately on a hit.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
       - name: install playwright chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
+      - name: install playwright system libraries
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
       - name: e2e
         run: pnpm test:e2e
       - name: upload playwright report
