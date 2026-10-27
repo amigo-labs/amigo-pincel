@@ -18,11 +18,12 @@ collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Updater signing key** — the organization's key (`5C882412026EA1D4`,
-  with password) as the organization secrets `TAURI_SIGNING_PRIVATE_KEY`
-  and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; delete the repository secret
-  `TAURI_SIGNING_PRIVATE_KEY` of amigo-pincel, which would shadow it,
-  before merging the 1.1.1 release PR. See `docs/RELEASING.md`.
+- **Updater signing key** — the organization's new key
+  (`3098504C1538B8F6`, with password) as the organization secrets
+  `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
+  no repository secret of that name in amigo-pincel, which would shadow
+  it. Then merge the 1.1.2 release PR; the v1.1.1 draft (signing failed:
+  wrong password) can be deleted. See `docs/RELEASING.md`.
 - **release-please** — `RELEASE_PLEASE_TOKEN` as an organization secret
   (fine-grained PAT, Contents + Pull requests write); "Allow GitHub
   Actions to create and approve pull requests" stays off.
