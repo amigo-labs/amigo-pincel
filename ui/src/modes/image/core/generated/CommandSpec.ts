@@ -39,7 +39,31 @@ tilt_angle: boolean,
  * Identifies the pointer drag; segments sharing it merge into one undo
  * step. The UI assigns a fresh id per pointer-down.
  */
-stroke_id: number, } | { "type": "eraser_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, mode: string, background: [number, number, number, number], points: Array<[number, number]>, 
+stroke_id: number, } | { "type": "recolor_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
+/**
+ * The color being replaced.
+ */
+from: [number, number, number, number], 
+/**
+ * The color painted in its place.
+ */
+to: [number, number, number, number], 
+/**
+ * How far a pixel may differ from `from` and still count, 0–255.
+ */
+tolerance: number, points: Array<[number, number]>, 
+/**
+ * Pen input, as for `PencilStroke`.
+ */
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "smudge_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
+/**
+ * How far a color is dragged, 0.0–1.0.
+ */
+strength: number, points: Array<[number, number]>, 
+/**
+ * Pen input, as for `PencilStroke`.
+ */
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "eraser_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, mode: string, background: [number, number, number, number], points: Array<[number, number]>, 
 /**
  * Pen pressure per point, as for `PencilStroke`.
  */

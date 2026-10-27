@@ -5,6 +5,8 @@ import {
   initCore,
   type PencilStrokeCommand,
   type EraserStrokeCommand,
+  type RecolorStrokeCommand,
+  type SmudgeStrokeCommand,
   type FillBucketCommand,
   type TranslateLayerCommand,
   type TranslateSelectionCommand,
@@ -607,6 +609,61 @@ export function eraseStroke(
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
     mode: tool.eraserMode,
     background: activeColor(true), // 'To Background' erases to the bg swatch
+    points,
+    ...penFields(pressure, azimuth),
+    stroke_id: strokeId,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Recolors along the given points: the foreground replaces the background
+ *  color wherever the stroke finds it, within the tool's tolerance. */
+export function recolorStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
+): void {
+  if (editor.handle === null || points.length === 0) {
+    return;
+  }
+  const cmd: RecolorStrokeCommand = {
+    type: 'recolor_stroke',
+    layer: editor.activeLayer,
+    size: tool.size,
+    opacity: opacity01(),
+    shape: tool.shape,
+    hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    from: activeColor(true),
+    to: activeColor(false),
+    tolerance: tool.recolorTolerance,
+    points,
+    ...penFields(pressure, azimuth),
+    stroke_id: strokeId,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Smudges along the given points. */
+export function smudgeStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
+): void {
+  if (editor.handle === null || points.length === 0) {
+    return;
+  }
+  const cmd: SmudgeStrokeCommand = {
+    type: 'smudge_stroke',
+    layer: editor.activeLayer,
+    size: tool.size,
+    opacity: opacity01(),
+    shape: tool.shape,
+    hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    strength: Math.min(1, Math.max(0, tool.smudgeStrength / 100)),
     points,
     ...penFields(pressure, azimuth),
     stroke_id: strokeId,

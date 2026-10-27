@@ -362,6 +362,8 @@ export const en = {
   'tool.brush': 'Brush',
   'tool.eraser': 'Eraser',
   'tool.gradient': 'Gradient',
+  'tool.recolor': 'Recolor',
+  'tool.smudge': 'Smudge',
   'tool.fill': 'Fill',
   'tool.eyedropper': 'Eyedropper',
   'tool.line': 'Line',
@@ -382,6 +384,8 @@ export const en = {
   // Tool options
   'opt.size': 'Size',
   'opt.opacity': 'Opacity',
+  'opt.recolorHint': 'Paints the foreground over the background colour.',
+  'opt.strength': 'Strength',
   'opt.gradientKind': 'Ramp',
   'opt.gradientLinear': 'Linear',
   'opt.gradientReflected': 'Reflected',

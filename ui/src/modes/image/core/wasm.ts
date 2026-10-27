@@ -144,6 +144,46 @@ export interface TranslateSelectionCommand {
   dy: number;
 }
 
+/** A recolor stroke: writes `to` only where it finds `from`. */
+export interface RecolorStrokeCommand {
+  type: 'recolor_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  from: [number, number, number, number];
+  to: [number, number, number, number];
+  tolerance: number;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
+/** A smudge stroke: carries color along the stroke. */
+export interface SmudgeStrokeCommand {
+  type: 'smudge_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  strength: number;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
 /** The five ramps a gradient drag can describe. */
 export type GradientKind = 'linear' | 'reflected' | 'radial' | 'conical' | 'diamond';
 
@@ -319,6 +359,8 @@ export interface DrawTextCommand {
 export type ToolCommand =
   | PencilStrokeCommand
   | EraserStrokeCommand
+  | RecolorStrokeCommand
+  | SmudgeStrokeCommand
   | FillBucketCommand
   | TranslateLayerCommand
   | TranslateSelectionCommand

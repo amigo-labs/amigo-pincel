@@ -2,6 +2,15 @@
   // Tool options bar (spec §16.3, §9.2). Controls shown depend on the active
   // tool. Bindings write straight into the tool store.
   import { tool, editor, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
+
+  // Size, tip, hardness and the pressure toggles are the same four tools'
+  // business; each adds its own control below them.
+  const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
+    'pencil',
+    'eraser',
+    'recolor',
+    'smudge',
+  ]);
   import {
     deselect,
     invertSelection,
@@ -25,7 +34,7 @@
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
-  {#if tool.kind === 'pencil' || tool.kind === 'eraser'}
+  {#if BRUSH_TOOLS.has(tool.kind)}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
       <input type="range" min="1" max="500" bind:value={tool.size} class="w-32" />
@@ -88,6 +97,19 @@
           <option value="to_transparent">{t('opt.toTransparent')}</option>
           <option value="to_background">{t('opt.toBackground')}</option>
         </select>
+      </label>
+    {:else if tool.kind === 'recolor'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.tolerance')}</span>
+        <input type="range" min="0" max="255" bind:value={tool.recolorTolerance} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.recolorTolerance}</span>
+      </label>
+      <span class="text-pc-faint">{t('opt.recolorHint')}</span>
+    {:else if tool.kind === 'smudge'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.strength')}</span>
+        <input type="range" min="1" max="100" bind:value={tool.smudgeStrength} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.smudgeStrength}%</span>
       </label>
     {/if}
   {:else if tool.kind === 'fill'}

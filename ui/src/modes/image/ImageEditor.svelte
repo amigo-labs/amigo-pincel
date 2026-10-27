@@ -175,6 +175,16 @@
         tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
       },
       {
+        id: 'recolor',
+        label: t('tool.recolor'),
+        tools: [{ id: 'recolor', label: t('tool.recolor'), icon: 'recolor' }],
+      },
+      {
+        id: 'smudge',
+        label: t('tool.smudge'),
+        tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
+      },
+      {
         id: 'gradient',
         label: t('tool.gradient'),
         tools: [{ id: 'gradient', label: t('tool.gradient'), icon: 'gradient' }],

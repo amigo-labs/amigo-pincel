@@ -4,6 +4,8 @@
 import {
   paintStroke,
   eraseStroke,
+  recolorStroke,
+  smudgeStroke,
   fillAt,
   moveLayer,
   sampleColor,
@@ -68,6 +70,9 @@ function azimuthOf(e: PointerEvent): number | null {
   return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
 }
 
+/** Tools that paint along a polyline, coalesced pen samples and all. */
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
+
 /** The three drag-to-move tools: the layer, the selected pixels, the
  *  outline alone. `move_mask` writes no pixels, so it stays out of
  *  `WRITES_PIXELS` and works on a locked layer. */
@@ -79,6 +84,8 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'eraser',
   'fill',
   'gradient',
+  'recolor',
+  'smudge',
   'move',
   'move_selection',
   'text',
@@ -310,6 +317,14 @@ export function attachTools(
         eraseStroke([point], strokeId, [lastPressure], [lastAzimuth]);
         redraw();
         break;
+      case 'recolor':
+        recolorStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        redraw();
+        break;
+      case 'smudge':
+        // A single dab only picks colour up; the stroke starts on the move.
+        smudgeStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        break;
       case 'fill':
         fillAt(point[0], point[1], useBackground);
         redraw();
@@ -367,7 +382,7 @@ export function attachTools(
       return;
     }
 
-    if (gestureKind === 'pencil' || gestureKind === 'eraser') {
+    if (BRUSH_TOOLS.has(gestureKind)) {
       // A pen reports several samples per frame; paint them all so fast
       // strokes keep their shape and pressure.
       const samples = e.getCoalescedEvents?.() ?? [];
@@ -381,6 +396,8 @@ export function attachTools(
         azimuth.push(azimuthOf(ev));
       }
       if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure, azimuth);
+      else if (gestureKind === 'recolor') recolorStroke(points, strokeId, pressure, azimuth);
+      else if (gestureKind === 'smudge') smudgeStroke(points, strokeId, pressure, azimuth);
       else eraseStroke(points, strokeId, pressure, azimuth);
       redraw();
       last = points[points.length - 1] ?? point;

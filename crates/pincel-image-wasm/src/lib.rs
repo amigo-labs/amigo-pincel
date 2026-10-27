@@ -15,9 +15,10 @@ use pincel_image_core::command::{
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
     Fill, FillOptions, Gradient, GradientChannel, GradientKind, ImageBuffer, Interpolation, Move,
-    PenSamples, Pencil, Point, PressureDynamics, Rect, SampleSize, SampleSource, SelectionMask,
-    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, apply_mode,
-    compose, compose_region, delete_selection, magic_wand, masked_region, scale,
+    PenSamples, Pencil, Point, PressureDynamics, Recolor, Rect, SampleSize, SampleSource,
+    SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, Text, TextAlign,
+    TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand, masked_region,
+    scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -448,6 +449,69 @@ enum CommandSpec {
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
     },
+    /// A recolor stroke: paints `to` only over pixels within `tolerance`
+    /// of `from` (spec §5.4).
+    RecolorStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// The color being replaced.
+        #[serde(default)]
+        from: [u8; 4],
+        /// The color painted in its place.
+        #[serde(default)]
+        to: [u8; 4],
+        /// How far a pixel may differ from `from` and still count, 0–255.
+        #[serde(default)]
+        tolerance: u8,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
+    /// A smudge stroke: carries color along the stroke (spec §5.4).
+    SmudgeStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// How far a color is dragged, 0.0–1.0.
+        #[serde(default = "default_opacity")]
+        strength: f32,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
     /// An eraser stroke over a polyline of `[x, y]` points.
     EraserStroke {
         layer: usize,
@@ -715,6 +779,8 @@ impl CommandSpec {
             | Self::TranslateLayer { layer, .. }
             | Self::TranslateSelection { layer, .. }
             | Self::DrawGradient { layer, .. }
+            | Self::RecolorStroke { layer, .. }
+            | Self::SmudgeStroke { layer, .. }
             | Self::DeleteSelection { layer }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
@@ -763,6 +829,91 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 azimuth: &azimuth,
             };
             match Pencil::new(brush).stroke_with_pen(layer, &pts, pen, &bus.document) {
+                Some(cmd) => bus
+                    .apply(Box::new(cmd.with_stroke(stroke_id)))
+                    .map_err(to_js),
+                None => Ok(()), // stroke missed the canvas — no-op
+            }
+        }
+        CommandSpec::RecolorStroke {
+            layer,
+            size,
+            opacity,
+            shape,
+            hardness,
+            from,
+            to,
+            tolerance,
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
+            stroke_id,
+        } => {
+            let replacement = Color::rgba(to[0], to[1], to[2], to[3]);
+            let brush = Brush::new(size, replacement, opacity)
+                .with_shape(parse_shape(&shape))
+                .with_hardness(hardness)
+                .with_dynamics(PressureDynamics {
+                    size: pressure_size,
+                    opacity: pressure_opacity,
+                })
+                .with_angle(angle)
+                .with_follow_tilt(tilt_angle);
+            let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            let tool = Recolor::new(
+                brush,
+                Color::rgba(from[0], from[1], from[2], from[3]),
+                replacement,
+                tolerance,
+            );
+            match tool.stroke_with_pen(layer, &pts, pen, &bus.document) {
+                Some(cmd) => bus
+                    .apply(Box::new(cmd.with_stroke(stroke_id)))
+                    .map_err(to_js),
+                None => Ok(()), // stroke missed the canvas — no-op
+            }
+        }
+        CommandSpec::SmudgeStroke {
+            layer,
+            size,
+            opacity,
+            shape,
+            hardness,
+            strength,
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
+            stroke_id,
+        } => {
+            let brush = Brush::new(size, Color::TRANSPARENT, opacity)
+                .with_shape(parse_shape(&shape))
+                .with_hardness(hardness)
+                .with_dynamics(PressureDynamics {
+                    size: pressure_size,
+                    opacity: pressure_opacity,
+                })
+                .with_angle(angle)
+                .with_follow_tilt(tilt_angle);
+            let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            match Smudge::new(brush, strength).stroke_with_pen(layer, &pts, pen, &bus.document) {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),

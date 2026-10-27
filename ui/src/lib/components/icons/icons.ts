@@ -66,6 +66,17 @@ export const ICONS = {
     { d: 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3' },
   ],
   // A dashed marquee with the move cross: the pixels inside travel …
+  // Two swatches with an arrow between: this colour becomes that one.
+  recolor: [
+    { d: 'M3 5h7v7H3z', fill: true },
+    { d: 'M14 12h7v7h-7z' },
+    { d: 'M11 7h6M14.5 4.5L17.5 7l-3 2.5' },
+  ],
+  // A fingertip dragging a trail behind it.
+  smudge: [
+    { d: 'M14 4c-1.4 0-2.5 1.1-2.5 2.5V13l-1.6-1.6a1.8 1.8 0 0 0-2.6 2.6l4.1 4.3a5 5 0 0 0 3.6 1.5h1a4.5 4.5 0 0 0 4.5-4.5V6.5a2.5 2.5 0 0 0-5 0' },
+    { d: 'M3 20c2-1.5 4-2 6-1.6', dash: true },
+  ],
   // A box that fades from solid to empty, with the drag's arrow across it.
   gradient: [
     { d: 'M3 5h18v14H3z' },

@@ -85,6 +85,8 @@ export const TOOL_GROUP_KEYS: Record<string, string> = {
   fill: 'g',
   gradient: 'n',
   eyedropper: 'i',
+  recolor: 'r',
+  smudge: 's',
   line: 'l',
   shapes: 'u',
   text: 't',

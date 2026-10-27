@@ -111,3 +111,32 @@ test('image mode: the Gradient tool paints a ramp', async ({ page }) => {
   await undo.click();
   await expect(undo).toBeDisabled();
 });
+
+test('image mode: Recolor writes only over the colour it replaces', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+
+  // Paint a black line on the transparent canvas, then recolor it.
+  await drag(page, imageCanvas(page), [0.1, 0.5], [0.9, 0.5]);
+  await page.keyboard.press('r');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Recolor');
+  await expect(page.getByLabel('Tolerance')).toBeVisible();
+
+  await drag(page, imageCanvas(page), [0.1, 0.5], [0.9, 0.5]);
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(undo).toBeEnabled(); // the first stroke is still there
+});
+
+test('image mode: Smudge drags along a stroke', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+
+  await drag(page, imageCanvas(page), [0.1, 0.4], [0.5, 0.4]);
+  await page.keyboard.press('s');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Smudge');
+  await expect(page.getByLabel('Strength')).toBeVisible();
+
+  await drag(page, imageCanvas(page), [0.4, 0.4], [0.9, 0.4]);
+  await expect(undo).toBeEnabled();
+});

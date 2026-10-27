@@ -282,6 +282,8 @@
     eraser: 'crosshair',
     fill: 'cell',
     gradient: 'crosshair',
+    recolor: 'crosshair',
+    smudge: 'crosshair',
     eyedropper: 'copy',
     move: 'move',
     move_selection: 'move',

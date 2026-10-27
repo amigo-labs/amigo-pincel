@@ -99,6 +99,8 @@ export type ToolKind =
   | 'hand'
   | 'zoom'
   | 'gradient'
+  | 'recolor'
+  | 'smudge'
   | 'line'
   | 'rectangle'
   | 'rounded_rect'
@@ -192,6 +194,10 @@ export const tool = $state({
   foreground: '#000000',
   /** Background color as #RRGGBB (spec §4.2 default white). */
   background: '#ffffff',
+  /** Recolor: how far a pixel may differ from the background color, 0–255. */
+  recolorTolerance: 32,
+  /** Smudge: how far a color is dragged, 1–100 (%). */
+  smudgeStrength: 60,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */

@@ -369,6 +369,8 @@ export const de: Record<MessageKey, string> = {
   'tool.brush': 'Pinsel',
   'tool.eraser': 'Radierer',
   'tool.gradient': 'Verlauf',
+  'tool.recolor': 'Umfärben',
+  'tool.smudge': 'Wischfinger',
   'tool.fill': 'Füllen',
   'tool.eyedropper': 'Pipette',
   'tool.line': 'Linie',
@@ -389,6 +391,8 @@ export const de: Record<MessageKey, string> = {
   // Tool options
   'opt.size': 'Größe',
   'opt.opacity': 'Deckkraft',
+  'opt.recolorHint': 'Malt die Vordergrund- über die Hintergrundfarbe.',
+  'opt.strength': 'Stärke',
   'opt.gradientKind': 'Verlaufsart',
   'opt.gradientLinear': 'Linear',
   'opt.gradientReflected': 'Gespiegelt',
