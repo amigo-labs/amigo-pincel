@@ -18,16 +18,18 @@ collaboration) are out of scope.
 
 ### 🔓 Needs you (blocks the actual published release)
 
-- **Updater signing key (blocks v1.0.0)** — the key pair is generated and
-  its public half is in `src-tauri/tauri.conf.json`. Still yours: store
-  the private key as the secret `TAURI_SIGNING_PRIVATE_KEY` (no password
-  secret needed) and keep a copy in your password manager. See
-  `docs/RELEASING.md`.
-- **release-please** — Settings → Actions → General: "Allow GitHub
-  Actions to create and approve pull requests". Optional
-  `RELEASE_PLEASE_TOKEN` so CI also runs on the release PR.
-- **npm** — `NPM_TOKEN` enables the guarded `publish-npm` release job.
-  See `docs/RELEASING.md`.
+- **Updater signing key** — the organization's key (`5C882412026EA1D4`,
+  with password) as the organization secrets `TAURI_SIGNING_PRIVATE_KEY`
+  and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; delete the repository secret
+  `TAURI_SIGNING_PRIVATE_KEY` of amigo-pincel, which would shadow it,
+  before merging the 1.1.1 release PR. See `docs/RELEASING.md`.
+- **release-please** — `RELEASE_PLEASE_TOKEN` as an organization secret
+  (fine-grained PAT, Contents + Pull requests write); "Allow GitHub
+  Actions to create and approve pull requests" stays off.
+- **npm** — `publish-npm` failed for 1.1.0 with `E404 PUT
+  …/pincel-wasm`: `NPM_TOKEN` may not create the package. Decide the
+  package name (the website says `@amigo-labs/pincel`) and give the
+  token publish rights for it. See `docs/RELEASING.md`.
 - **Cloudflare hostname** — site at `https://pincel.amigo-labs.dev/`,
   editor at `/app/`, both from the `amigo-pincel` Worker's Git build
   (spec §15, 2026-10-13; no secrets). Still yours: attach
