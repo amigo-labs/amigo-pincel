@@ -58,6 +58,57 @@ collaboration) are out of scope.
 
 Detail on each item lives in the sections further down.
 
+## 2026-10-27 — one menu bar per platform, and the Image-mode tool gap
+
+Branch `claude/confident-hopper-o7fo67`. Spec §5.2 (retitled), §5.4 (new),
+§9.2, §9.4, §9.5, §11.3 and two Decision Log rows.
+
+- **The native menu bar is macOS-only.** Windows and Linux stacked two
+  menu bars: M11.3 installed the native one everywhere and the one-frame
+  rebuild renders the in-app bar without asking the host. `NATIVE_MENU`
+  (`cfg!(target_os = "macos")`) gates `setup()`, `set_menu_language` —
+  which rebuilds and re-installs the menu itself, so a guard in `setup()`
+  alone would not have held — and `set_recent_menu`; the commands stay
+  registered and no-op elsewhere. macOS keeps its menu: the bar belongs to
+  the screen, the App menu is a platform requirement, and WKWebView routes
+  Cmd+C / V through Edit ▸ Copy / Paste.
+- **Nothing is lost with it.** `hasNativeMenu()` replaces `isTauri()` as
+  the accelerator gate (otherwise Ctrl+S / O / Z would be dead), the in-app
+  bar gains a Help menu (About Pincel, Check for Updates…, Install Updates
+  Automatically, via three new `updater_*` commands), the start screen gets
+  an About button since it mounts no menu bar, and Image mode gains
+  File ▸ Open Recent.
+- **`cargo test -p pincel-tauri` now runs in CI** — the `tauri` job only
+  ever ran `cargo check`, so 26 tests never ran anywhere.
+- **Image-mode tools, from 12 to 19.** New in the core: Gradient (five
+  ramps, Color / Transparency channels), Recolor, Smudge, and
+  `Move::translate_selection` / `SelectionMask::translated`. New in the
+  rail: Line on `L` (the key was bound and dead), the four shapes as
+  variants instead of a dropdown, Pan `H`, Zoom `Z`, Recolor `R`, Smudge
+  `S`, Gradient `N`, and Move as three variants. Select ▸ Expand /
+  Contract / Feather take a radius in both modes.
+- Still absent against paint.net: clone stamp, bézier curves, custom and
+  textured brushes.
+- **Review round (Copilot, 8 findings, all real).** Gradient opacity was
+  applied twice (endpoint alphas *and* the command); shapes committed the
+  tool active on release rather than the one the drag began with; the
+  floating zoom control sits inside the viewport whose capture handler
+  serves Pan and Zoom, so its buttons never saw their own clicks; a Zoom
+  release skipped `pinch.up`, leaving a finger registered that turned the
+  next tap into a phantom pinch; the About dialog suspended no editor
+  shortcut. Deeper: a pointer drag arrives as one command per event, so
+  Smudge forgot its carried colour and Recolor judged eligibility against
+  its own half-finished writes at every event boundary — both now take the
+  drag's memory (`SmudgeCarry`, `RecolorOrigins`) from the wasm layer,
+  keyed by `stroke_id`. And `MoveSelection` moves the outline with its
+  pixels, so a second drag carries the patch on.
+  Left open on its thread: narrowing `gestureControl.cancel`'s rollback to
+  the current gesture — older than this branch, and unreachable now that
+  the stale pointer is gone.
+- **Not verifiable here:** the macOS half of the menu change. One person
+  on a Mac has to confirm the menu is still there, the in-app bar has no
+  Help menu, and Cmd+S / Cmd+Z fire exactly once.
+
 ## 2026-10-26 — release-please and the self-updater
 
 Releases as in amigo-blinzel (spec §15, 2026-10-26; `docs/RELEASING.md`).

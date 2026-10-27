@@ -3,6 +3,8 @@
 // and Image mode; each editor binds the actions it supports. Menus and
 // tooltips print their hints from here, so labels never drift from keys.
 
+import { isMac } from '../platform';
+
 /** A key chord. `key` is matched case-insensitively against `KeyboardEvent.key`. */
 export interface Chord {
   key: string;
@@ -73,22 +75,28 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
  */
 export const TOOL_GROUP_KEYS: Record<string, string> = {
   move: 'v',
+  hand: 'h',
+  zoom: 'z',
   select: 'm',
   lasso: 'q',
   wand: 'w',
   pencil: 'b',
   eraser: 'e',
   fill: 'g',
+  gradient: 'n',
   eyedropper: 'i',
+  recolor: 'r',
+  smudge: 's',
   line: 'l',
   shapes: 'u',
   text: 't',
 };
 
 /**
- * Chords the native Tauri menu binds as accelerators (src-tauri/src/main.rs).
- * In the desktop app the editors leave these to the menu so an action never
- * fires twice; the web build handles them itself.
+ * Chords the native menu binds as accelerators (src-tauri/src/main.rs).
+ * That menu exists on macOS only, so the editors leave these to it where
+ * `hasNativeMenu()` holds and an action would otherwise fire twice; the web
+ * build and the Windows / Linux desktop app handle them themselves.
  */
 export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<ShortcutAction>([
   'open',
@@ -100,7 +108,7 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'redo',
 ]);
 
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent);
+const IS_MAC = isMac();
 
 function keyLabel(key: string): string {
   if (key === 'Delete') return 'Del';

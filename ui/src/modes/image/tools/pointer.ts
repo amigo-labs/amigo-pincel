@@ -4,6 +4,8 @@
 import {
   paintStroke,
   eraseStroke,
+  recolorStroke,
+  smudgeStroke,
   fillAt,
   moveLayer,
   sampleColor,
@@ -12,9 +14,14 @@ import {
   selectPolygon,
   selectWand,
   drawShape,
+  drawGradient,
+  moveSelectionContent,
+  moveSelectionMask,
 } from '../core/controller';
 import {
   editor,
+  isShapeTool,
+  shapeOf,
   tool,
   selectionPreview,
   shapePreview,
@@ -63,8 +70,31 @@ function azimuthOf(e: PointerEvent): number | null {
   return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
 }
 
+/** Tools that paint along a polyline, coalesced pen samples and all. */
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
+
+/** The three drag-to-move tools: the layer, the selected pixels, the
+ *  outline alone. `move_mask` writes no pixels, so it stays out of
+ *  `WRITES_PIXELS` and works on a locked layer. */
+const MOVE_TOOLS: ReadonlySet<ToolKind> = new Set(['move', 'move_selection', 'move_mask']);
+
 /** Tools that write into the active layer's pixels. */
-const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
+const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
+  'pencil',
+  'eraser',
+  'fill',
+  'gradient',
+  'recolor',
+  'smudge',
+  'move',
+  'move_selection',
+  'text',
+  'line',
+  'rectangle',
+  'rounded_rect',
+  'ellipse',
+  'polygon',
+]);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -178,7 +208,7 @@ export function attachTools(
       DRAG_SELECT.has(tool.kind) ||
       tool.kind === 'polygon_lasso' ||
       tool.kind === 'magic_wand' ||
-      tool.kind === 'shapes' ||
+      isShapeTool(tool.kind) ||
       tool.kind === 'text';
     if (selectionOrPlacement && e.button !== 0) {
       return;
@@ -212,7 +242,9 @@ export function attachTools(
       return;
     }
 
-    if (tool.kind === 'shapes') {
+    // The gradient drags like a shape and previews as the ramp's own line.
+    const shape = tool.kind === 'gradient' ? 'line' : shapeOf(tool.kind);
+    if (shape !== null) {
       active = true;
       activePointer = e.pointerId;
       gestureKind = tool.kind;
@@ -220,7 +252,7 @@ export function attachTools(
       last = point;
       canvas.setPointerCapture(e.pointerId);
       shapePreview.value = {
-        kind: tool.shapeKind,
+        kind: shape,
         a: point,
         b: point,
         sides: tool.shapeSides,
@@ -285,6 +317,14 @@ export function attachTools(
         eraseStroke([point], strokeId, [lastPressure], [lastAzimuth]);
         redraw();
         break;
+      case 'recolor':
+        recolorStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        redraw();
+        break;
+      case 'smudge':
+        // A single dab only picks colour up; the stroke starts on the move.
+        smudgeStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        break;
       case 'fill':
         fillAt(point[0], point[1], useBackground);
         redraw();
@@ -293,6 +333,8 @@ export function attachTools(
         sampleColor(point[0], point[1], useBackground);
         break;
       case 'move':
+      case 'move_selection':
+      case 'move_mask':
         break;
     }
   };
@@ -326,10 +368,11 @@ export function attachTools(
       return;
     }
 
-    if (gestureKind === 'shapes' && start) {
-      const b = constrainShape(start, point, tool.shapeKind, shiftHeld(e));
+    const dragShape = gestureKind === 'gradient' ? 'line' : shapeOf(gestureKind);
+    if (dragShape !== null && start) {
+      const b = constrainShape(start, point, dragShape, shiftHeld(e));
       shapePreview.value = {
-        kind: tool.shapeKind,
+        kind: dragShape,
         a: start,
         b,
         sides: tool.shapeSides,
@@ -339,7 +382,7 @@ export function attachTools(
       return;
     }
 
-    if (gestureKind === 'pencil' || gestureKind === 'eraser') {
+    if (BRUSH_TOOLS.has(gestureKind)) {
       // A pen reports several samples per frame; paint them all so fast
       // strokes keep their shape and pressure.
       const samples = e.getCoalescedEvents?.() ?? [];
@@ -353,6 +396,8 @@ export function attachTools(
         azimuth.push(azimuthOf(ev));
       }
       if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure, azimuth);
+      else if (gestureKind === 'recolor') recolorStroke(points, strokeId, pressure, azimuth);
+      else if (gestureKind === 'smudge') smudgeStroke(points, strokeId, pressure, azimuth);
       else eraseStroke(points, strokeId, pressure, azimuth);
       redraw();
       last = points[points.length - 1] ?? point;
@@ -392,13 +437,23 @@ export function attachTools(
         }
       }
       selectionPreview.value = null;
-    } else if (gestureKind === 'shapes' && start && last) {
-      drawShape(start, last);
+    } else if (gestureKind === 'gradient' && start && last) {
+      drawGradient(start, last);
       redraw();
-    } else if (gestureKind === 'move' && start && last) {
+    } else if (isShapeTool(gestureKind) && start && last) {
+      // The shape the gesture began with, not whatever `U` has selected
+      // since: the commit has to match the preview being dragged.
+      const committed = shapeOf(gestureKind);
+      if (committed !== null) {
+        drawShape(start, last, committed);
+        redraw();
+      }
+    } else if (MOVE_TOOLS.has(gestureKind) && start && last) {
       const dx = Math.round(last[0] - start[0]);
       const dy = Math.round(last[1] - start[1]);
-      moveLayer(dx, dy);
+      if (gestureKind === 'move_selection') moveSelectionContent(dx, dy);
+      else if (gestureKind === 'move_mask') moveSelectionMask(dx, dy);
+      else moveLayer(dx, dy);
       redraw();
     }
     // Always clear the shape preview, even if the tool changed mid-drag, so a

@@ -93,16 +93,16 @@ impl Eraser {
             EraserMode::ToTransparent => {
                 let strength = self.brush.opacity;
                 self.brush
-                    .rasterize(layer_index, points, pen, doc, strength, |eff, dst| {
-                        erase_to_transparent(dst, eff)
+                    .rasterize(layer_index, points, pen, doc, strength, |p| {
+                        erase_to_transparent(p.dst, p.eff)
                     })?
             }
             EraserMode::ToBackground => {
                 let bg = self.background;
                 let strength = self.brush.opacity * (bg.a as f32 / 255.0);
                 self.brush
-                    .rasterize(layer_index, points, pen, doc, strength, |eff, dst| {
-                        src_over(bg, eff, dst)
+                    .rasterize(layer_index, points, pen, doc, strength, |p| {
+                        src_over(bg, p.eff, p.dst)
                     })?
             }
         };

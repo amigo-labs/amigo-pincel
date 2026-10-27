@@ -8,16 +8,17 @@ use pincel_effects::{EffectImage, EffectSpec};
 use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
 use pincel_image_core::command::{
     AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
-    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, RemoveLayer, RenameLayer,
-    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
-    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
+    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, RemoveLayer,
+    RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
+    SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
-    Fill, FillOptions, ImageBuffer, Interpolation, Move, PenSamples, Pencil, Point,
-    PressureDynamics, Rect, SampleSize, SampleSource, SelectionMask, SelectionMode, Shape,
-    ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, apply_mode, compose, compose_region,
-    delete_selection, magic_wand, masked_region, scale,
+    Fill, FillOptions, Gradient, GradientChannel, GradientKind, ImageBuffer, Interpolation, Move,
+    PenSamples, Pencil, Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSize,
+    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge,
+    SmudgeCarry, Text, TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection,
+    magic_wand, masked_region, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -31,6 +32,11 @@ thread_local! {
     static DOCUMENTS: RefCell<HashMap<u32, CommandBus>> = RefCell::new(HashMap::new());
     /// Next handle to hand out; monotonically increasing.
     static NEXT_HANDLE: Cell<u32> = const { Cell::new(0) };
+    /// What the brush tools carry across the commands of one pointer drag.
+    /// A drag arrives as one command per pointer event — merged into a
+    /// single undo step by `stroke_id` — so a tool that remembers something
+    /// between dabs has to remember it here, not inside one call.
+    static STROKES: RefCell<HashMap<u32, StrokeScratch>> = RefCell::new(HashMap::new());
     /// Registered font byte blobs, indexed by font id (see `register_font`).
     /// The Text tool re-parses these per commit (ADR-012), so JS uploads each
     /// face once and references it by id rather than passing bytes per command.
@@ -69,6 +75,36 @@ fn insert(bus: CommandBus) -> u32 {
     });
     DOCUMENTS.with(|docs| docs.borrow_mut().insert(handle, bus));
     handle
+}
+
+/// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
+#[derive(Default)]
+struct StrokeScratch {
+    id: u64,
+    smudge: SmudgeCarry,
+    recolor: RecolorOrigins,
+}
+
+impl StrokeScratch {
+    /// Start over when this is a different drag than the one we remember.
+    fn rewind(&mut self, id: u64) {
+        if self.id != id {
+            self.id = id;
+            self.smudge.clear();
+            self.recolor.clear();
+        }
+    }
+}
+
+/// Runs `f` against this document's scratch for `stroke_id`, starting a fresh
+/// one when the drag has changed.
+fn with_stroke<T>(handle: u32, stroke_id: u64, f: impl FnOnce(&mut StrokeScratch) -> T) -> T {
+    STROKES.with(|strokes| {
+        let mut strokes = strokes.borrow_mut();
+        let scratch = strokes.entry(handle).or_default();
+        scratch.rewind(stroke_id);
+        f(scratch)
+    })
 }
 
 /// Runs `f` against the bus for `handle`, mapping a missing handle to a JS error.
@@ -127,6 +163,9 @@ pub fn save_project(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
 pub fn close_document(handle: u32) {
     DOCUMENTS.with(|docs| {
         docs.borrow_mut().remove(&handle);
+    });
+    STROKES.with(|strokes| {
+        strokes.borrow_mut().remove(&handle);
     });
 }
 
@@ -314,6 +353,38 @@ fn parse_shape_mode(s: &str) -> ShapeMode {
     }
 }
 
+fn parse_gradient_kind(s: &str) -> GradientKind {
+    match s {
+        "reflected" => GradientKind::Reflected,
+        "radial" => GradientKind::Radial,
+        "conical" => GradientKind::Conical,
+        "diamond" => GradientKind::Diamond,
+        _ => GradientKind::Linear,
+    }
+}
+
+fn parse_gradient_channel(s: &str) -> GradientChannel {
+    match s {
+        "transparency" => GradientChannel::Transparency,
+        _ => GradientChannel::Color,
+    }
+}
+
+/// Full strength when JS omits the gradient's opacity.
+fn default_opacity() -> f32 {
+    1.0
+}
+
+/// Default gradient kind when JS omits it.
+fn default_gradient_kind() -> String {
+    "linear".to_string()
+}
+
+/// Default gradient channel when JS omits it.
+fn default_gradient_channel() -> String {
+    "color".to_string()
+}
+
 /// Default shape dash pattern when JS omits it.
 fn default_dash() -> String {
     "solid".to_string()
@@ -416,6 +487,69 @@ enum CommandSpec {
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
     },
+    /// A recolor stroke: paints `to` only over pixels within `tolerance`
+    /// of `from` (spec §5.4).
+    RecolorStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// The color being replaced.
+        #[serde(default)]
+        from: [u8; 4],
+        /// The color painted in its place.
+        #[serde(default)]
+        to: [u8; 4],
+        /// How far a pixel may differ from `from` and still count, 0–255.
+        #[serde(default)]
+        tolerance: u8,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
+    /// A smudge stroke: carries color along the stroke (spec §5.4).
+    SmudgeStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// How far a color is dragged, 0.0–1.0.
+        #[serde(default = "default_opacity")]
+        strength: f32,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
     /// An eraser stroke over a polyline of `[x, y]` points.
     EraserStroke {
         layer: usize,
@@ -460,6 +594,11 @@ enum CommandSpec {
     },
     /// Translate a layer's contents by `(dx, dy)` pixels (the Move tool).
     TranslateLayer { layer: usize, dx: i32, dy: i32 },
+    /// Move the selected pixels of `layer` by `(dx, dy)`, leaving
+    /// transparency behind. Without a selection this moves the whole layer.
+    TranslateSelection { layer: usize, dx: i32, dy: i32 },
+    /// Move the selection outline by `(dx, dy)`, leaving the pixels alone.
+    TranslateSelectionMask { dx: i32, dy: i32 },
     /// Erase the selected pixels of `layer` to transparent; the whole layer
     /// when no selection is active (Edit ▸ Clear / Delete key).
     DeleteSelection { layer: usize },
@@ -602,6 +741,25 @@ enum CommandSpec {
         #[serde(default = "default_dash")]
         dash: String,
     },
+    /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
+    /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
+    DrawGradient {
+        layer: usize,
+        #[serde(default = "default_gradient_kind")]
+        kind: String,
+        #[serde(default = "default_gradient_channel")]
+        channel: String,
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+        #[serde(default)]
+        from: [u8; 4],
+        #[serde(default)]
+        to: [u8; 4],
+        #[serde(default = "default_opacity")]
+        opacity: f32,
+    },
     /// Rasterize `text` onto `layer` at `(x, y)` using a `register_font` id
     /// (spec §9.2 Text; ADR-012). A no-op if the font id or geometry is invalid.
     DrawText {
@@ -635,7 +793,7 @@ pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
         if target.is_some_and(|i| layer_locked(&bus.document, i)) {
             return Err(JsError::new(LOCKED));
         }
-        run_command(bus, spec)
+        run_command(handle, bus, spec)
     })
 }
 
@@ -657,6 +815,10 @@ impl CommandSpec {
             | Self::EraserStroke { layer, .. }
             | Self::FillBucket { layer, .. }
             | Self::TranslateLayer { layer, .. }
+            | Self::TranslateSelection { layer, .. }
+            | Self::DrawGradient { layer, .. }
+            | Self::RecolorStroke { layer, .. }
+            | Self::SmudgeStroke { layer, .. }
             | Self::DeleteSelection { layer }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
@@ -667,7 +829,7 @@ impl CommandSpec {
     }
 }
 
-fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
+fn run_command(handle: u32, bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
     match spec {
         CommandSpec::PencilStroke {
             layer,
@@ -705,6 +867,103 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 azimuth: &azimuth,
             };
             match Pencil::new(brush).stroke_with_pen(layer, &pts, pen, &bus.document) {
+                Some(cmd) => bus
+                    .apply(Box::new(cmd.with_stroke(stroke_id)))
+                    .map_err(to_js),
+                None => Ok(()), // stroke missed the canvas — no-op
+            }
+        }
+        CommandSpec::RecolorStroke {
+            layer,
+            size,
+            opacity,
+            shape,
+            hardness,
+            from,
+            to,
+            tolerance,
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
+            stroke_id,
+        } => {
+            let replacement = Color::rgba(to[0], to[1], to[2], to[3]);
+            let brush = Brush::new(size, replacement, opacity)
+                .with_shape(parse_shape(&shape))
+                .with_hardness(hardness)
+                .with_dynamics(PressureDynamics {
+                    size: pressure_size,
+                    opacity: pressure_opacity,
+                })
+                .with_angle(angle)
+                .with_follow_tilt(tilt_angle);
+            let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            let tool = Recolor::new(
+                brush,
+                Color::rgba(from[0], from[1], from[2], from[3]),
+                replacement,
+                tolerance,
+            );
+            let committed = with_stroke(handle, stroke_id, |scratch| {
+                tool.stroke_with_pen(layer, &pts, pen, &bus.document, &mut scratch.recolor)
+            });
+            match committed {
+                Some(cmd) => bus
+                    .apply(Box::new(cmd.with_stroke(stroke_id)))
+                    .map_err(to_js),
+                None => Ok(()), // stroke missed the canvas — no-op
+            }
+        }
+        CommandSpec::SmudgeStroke {
+            layer,
+            size,
+            opacity,
+            shape,
+            hardness,
+            strength,
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth,
+            angle,
+            tilt_angle,
+            stroke_id,
+        } => {
+            let brush = Brush::new(size, Color::TRANSPARENT, opacity)
+                .with_shape(parse_shape(&shape))
+                .with_hardness(hardness)
+                .with_dynamics(PressureDynamics {
+                    size: pressure_size,
+                    opacity: pressure_opacity,
+                })
+                .with_angle(angle)
+                .with_follow_tilt(tilt_angle);
+            let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
+            let azimuth = azimuth_samples(&azimuth);
+            let pen = PenSamples {
+                pressure: &pressure,
+                azimuth: &azimuth,
+            };
+            let committed = with_stroke(handle, stroke_id, |scratch| {
+                Smudge::new(brush, strength).stroke_with_pen(
+                    layer,
+                    &pts,
+                    pen,
+                    &bus.document,
+                    &mut scratch.smudge,
+                )
+            });
+            match committed {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
@@ -783,6 +1042,27 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
                 None => Ok(()),
             }
+        }
+        CommandSpec::TranslateSelection { layer, dx, dy } => {
+            match Move.translate_selection(layer, dx, dy, &bus.document) {
+                // The outline travels with its content, so a second drag
+                // carries the patch on rather than the hole it left.
+                Some(pixels) => bus
+                    .apply(Box::new(MoveSelection::new(pixels, dx, dy)))
+                    .map_err(to_js),
+                None => Ok(()), // zero offset, empty selection or bad layer
+            }
+        }
+        CommandSpec::TranslateSelectionMask { dx, dy } => {
+            let Some(mask) = bus.document.selection.as_ref() else {
+                return Ok(()); // nothing selected: nothing to move
+            };
+            if dx == 0 && dy == 0 {
+                return Ok(());
+            }
+            let moved = mask.translated(dx, dy);
+            bus.apply(Box::new(SetSelection::replace(moved)))
+                .map_err(to_js)
         }
         CommandSpec::DeleteSelection { layer } => {
             match delete_selection(layer, &bus.document) {
@@ -1019,6 +1299,32 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             match built.and_then(|s| Shapes::new(s, style).draw(layer, &bus.document)) {
                 Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
                 None => Ok(()), // invalid geometry or off-canvas — no-op
+            }
+        }
+        CommandSpec::DrawGradient {
+            layer,
+            kind,
+            channel,
+            x0,
+            y0,
+            x1,
+            y1,
+            from,
+            to,
+            opacity,
+        } => {
+            let tool = Gradient {
+                kind: parse_gradient_kind(&kind),
+                channel: parse_gradient_channel(&channel),
+                from: Color::rgba(from[0], from[1], from[2], from[3]),
+                to: Color::rgba(to[0], to[1], to[2], to[3]),
+                opacity,
+            };
+            let a = Point::new(x0, y0);
+            let b = Point::new(x1, y1);
+            match tool.draw(layer, a, b, &bus.document) {
+                Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
+                None => Ok(()), // zero-length drag, empty selection, bad layer
             }
         }
         CommandSpec::DrawText {

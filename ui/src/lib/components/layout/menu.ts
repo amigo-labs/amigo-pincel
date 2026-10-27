@@ -51,7 +51,3 @@ export function tidy(items: MenuItem[]): MenuItem[] {
   while (out.at(-1)?.kind === 'separator') out.pop();
   return out;
 }
-
-/** Platform label of the primary modifier for shortcut hints. */
-export const MOD =
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent) ? '⌘' : 'Ctrl+';

@@ -3,6 +3,8 @@ import type {
   BrushShape,
   DashPattern,
   EraserMode,
+  GradientChannel,
+  GradientKind,
   LayerInfo,
   SampleSource,
   ShapeKind,
@@ -87,13 +89,45 @@ export type ToolKind =
   | 'fill'
   | 'eyedropper'
   | 'move'
+  | 'move_selection'
+  | 'move_mask'
   | 'rect_select'
   | 'ellipse_select'
   | 'lasso'
   | 'polygon_lasso'
   | 'magic_wand'
-  | 'shapes'
+  | 'hand'
+  | 'zoom'
+  | 'gradient'
+  | 'recolor'
+  | 'smudge'
+  | 'line'
+  | 'rectangle'
+  | 'rounded_rect'
+  | 'ellipse'
+  | 'polygon'
   | 'text';
+
+/** The geometry each shape tool draws. The rail shows them as variants of
+ *  one button, with Line on its own key, as Pixel mode does (spec §9.2);
+ *  outline / fill stays an option rather than a sixth variant, because the
+ *  image core styles a shape instead of baking fill into its kind. */
+const SHAPE_OF: Partial<Record<ToolKind, ShapeKind>> = {
+  line: 'line',
+  rectangle: 'rectangle',
+  rounded_rect: 'rounded_rectangle',
+  ellipse: 'ellipse',
+  polygon: 'polygon',
+};
+
+/** The shape `kind` draws, or `null` if it is not a shape tool. */
+export function shapeOf(kind: ToolKind): ShapeKind | null {
+  return SHAPE_OF[kind] ?? null;
+}
+
+export function isShapeTool(kind: ToolKind): boolean {
+  return shapeOf(kind) !== null;
+}
 
 /** Shape of an in-progress selection gesture, drawn by the overlay (spec §8.5). */
 export type SelectionPreview = {
@@ -160,8 +194,14 @@ export const tool = $state({
   foreground: '#000000',
   /** Background color as #RRGGBB (spec §4.2 default white). */
   background: '#ffffff',
-  /** Shapes: which geometry to draw (spec §9.2 Shapes). */
-  shapeKind: 'rectangle' as ShapeKind,
+  /** Recolor: how far a pixel may differ from the background color, 0–255. */
+  recolorTolerance: 32,
+  /** Smudge: how far a color is dragged, 1–100 (%). */
+  smudgeStrength: 60,
+  /** Gradient: which ramp the drag describes (spec §5.4). */
+  gradientKind: 'linear' as GradientKind,
+  /** Gradient: paint color, or fade the alpha that is already there. */
+  gradientChannel: 'color' as GradientChannel,
   /** Shapes: outline / fill / fill+outline. */
   shapeMode: 'outline' as ShapeMode,
   /** Shapes: centered stroke width in pixels, 1–500. */

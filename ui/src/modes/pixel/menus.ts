@@ -3,6 +3,8 @@
 // actions in, so the editor keeps no menu markup.
 
 import { effectMenus } from '../../lib/effects/menu';
+import { helpMenus } from '../../lib/help/menu';
+import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
@@ -52,7 +54,8 @@ export interface PixelMenuContext {
   selectAll(): void;
   deselect(): void;
   invertSelection(): void;
-  growSelection(delta: 1 | -1): void;
+  /** Opens the radius prompt for Select ▸ Expand… / Contract…. */
+  growSelection(mode: 'expand' | 'contract'): void;
   transformCanvas(op: TransformOp): void;
   transformLayer(op: TransformOp): void;
   resizeCanvas(): void;
@@ -98,16 +101,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       items: tidy([
         { label: t('menu.new'), disabled: c.busy, run: c.newDoc },
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
-        ...(c.recents
-          ? [
-              {
-                kind: 'submenu' as const,
-                label: t('menu.openRecent'),
-                disabled: c.recents.length === 0 || c.busy,
-                items: c.recents.map((r) => ({ label: r.name, run: () => c.openRecent(r) })),
-              },
-            ]
-          : []),
+        ...recentMenuItems(c.recents, c.openRecent, c.busy),
         { kind: 'separator' },
         {
           label: c.canSaveInPlace ? t('menu.save') : t('menu.saveDownload'),
@@ -162,8 +156,12 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           run: c.invertSelection,
         },
         { kind: 'separator' },
-        { label: t('menu.expand1'), disabled: !c.hasSelection, run: () => c.growSelection(1) },
-        { label: t('menu.contract1'), disabled: !c.hasSelection, run: () => c.growSelection(-1) },
+        { label: t('menu.expand'), disabled: !c.hasSelection, run: () => c.growSelection('expand') },
+        {
+          label: t('menu.contract'),
+          disabled: !c.hasSelection,
+          run: () => c.growSelection('contract'),
+        },
       ],
     },
     {
@@ -235,5 +233,6 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         languageMenu(),
       ],
     },
+    ...helpMenus(),
   ];
 }

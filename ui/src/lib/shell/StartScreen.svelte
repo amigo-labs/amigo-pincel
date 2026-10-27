@@ -9,8 +9,10 @@
   import type { RecentFile } from '../idb/recent-files';
   import type { EditorMode, NewDocParams } from './types';
   import Icon from '../components/icons/Icon.svelte';
+  import { openAbout } from '../help/state.svelte';
   import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
   import { setLocale } from '../i18n/locale';
+  import { hasNativeMenu } from '../platform';
   import { NEW_DOC_LIMITS, newDocParams } from './new-doc';
 
   let {
@@ -96,19 +98,26 @@
   >
     <div class="flex items-start justify-between gap-3">
       <h1 id="start-title" class="text-2xl font-semibold tracking-wide">Pincel</h1>
-      <select
-        class="opt-field text-xs"
-        aria-label={t('start.language')}
-        value={locale()}
-        onchange={(e) => {
-          const v = e.currentTarget.value;
-          if (isLocale(v)) setLocale(v);
-        }}
-      >
-        {#each LOCALES as l (l.id)}
-          <option value={l.id}>{l.label}</option>
-        {/each}
-      </select>
+      <div class="flex items-center gap-2">
+        <!-- No menu bar is mounted here, so About needs its own way in
+             wherever the OS draws no native Help menu (spec §11.3). -->
+        {#if !hasNativeMenu()}
+          <button class="panel-btn text-xs" onclick={openAbout}>{t('menu.about')}</button>
+        {/if}
+        <select
+          class="opt-field text-xs"
+          aria-label={t('start.language')}
+          value={locale()}
+          onchange={(e) => {
+            const v = e.currentTarget.value;
+            if (isLocale(v)) setLocale(v);
+          }}
+        >
+          {#each LOCALES as l (l.id)}
+            <option value={l.id}>{l.label}</option>
+          {/each}
+        </select>
+      </div>
     </div>
     <p class="mt-1 text-sm text-pc-muted">{t('start.tagline')}</p>
 

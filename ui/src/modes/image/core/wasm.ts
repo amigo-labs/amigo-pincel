@@ -136,6 +136,81 @@ export interface TranslateLayerCommand {
   dy: number;
 }
 
+/** Moves the selected pixels; the whole layer when nothing is selected. */
+export interface TranslateSelectionCommand {
+  type: 'translate_selection';
+  layer: number;
+  dx: number;
+  dy: number;
+}
+
+/** A recolor stroke: writes `to` only where it finds `from`. */
+export interface RecolorStrokeCommand {
+  type: 'recolor_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  from: [number, number, number, number];
+  to: [number, number, number, number];
+  tolerance: number;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
+/** A smudge stroke: carries color along the stroke. */
+export interface SmudgeStrokeCommand {
+  type: 'smudge_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  strength: number;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
+/** The five ramps a gradient drag can describe. */
+export type GradientKind = 'linear' | 'reflected' | 'radial' | 'conical' | 'diamond';
+
+/** Whether the ramp paints color or fades alpha. */
+export type GradientChannel = 'color' | 'transparency';
+
+export interface DrawGradientCommand {
+  type: 'draw_gradient';
+  layer: number;
+  kind: GradientKind;
+  channel: GradientChannel;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  from: [number, number, number, number];
+  to: [number, number, number, number];
+  opacity: number;
+}
+
+/** Moves the selection outline, leaving the pixels under it alone. */
+export interface TranslateSelectionMaskCommand {
+  type: 'translate_selection_mask';
+  dx: number;
+  dy: number;
+}
+
 /** Erase the selected pixels of a layer — the whole layer when no selection
  * is active (Edit ▸ Clear / Delete key). */
 export interface DeleteSelectionCommand {
@@ -284,13 +359,18 @@ export interface DrawTextCommand {
 export type ToolCommand =
   | PencilStrokeCommand
   | EraserStrokeCommand
+  | RecolorStrokeCommand
+  | SmudgeStrokeCommand
   | FillBucketCommand
   | TranslateLayerCommand
+  | TranslateSelectionCommand
+  | TranslateSelectionMaskCommand
   | DeleteSelectionCommand
   | LayerCommand
   | SelectionCommand
   | TransformCommand
   | DrawShapeCommand
+  | DrawGradientCommand
   | DrawTextCommand;
 
 let initialized: Promise<unknown> | null = null;

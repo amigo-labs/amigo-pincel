@@ -41,6 +41,9 @@
     deselect,
     deleteSelection,
     invertSelection,
+    expandSelection,
+    contractSelection,
+    featherSelection,
     type ExportFormat,
   } from './core/controller';
   import { gestureControl } from './tools/pointer';
@@ -70,14 +73,18 @@
   } from '../../lib/shell/shortcuts';
   import { hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
-  import { upsertRecent } from '../../lib/idb/recent-files';
+  import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
   import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
-  import { isTauri } from '../../lib/platform';
+  import { helpMenus } from '../../lib/help/menu';
+  import { help } from '../../lib/help/state.svelte';
+  import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+  import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
+  import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
@@ -89,6 +96,7 @@
     onRequestNew,
     onRequestOpen,
     onDirtyChange,
+    onOpenRecent,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -115,7 +123,21 @@
       {
         id: 'move',
         label: t('tool.move'),
-        tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }],
+        tools: [
+          { id: 'move', label: t('tool.moveLayer'), icon: 'move' },
+          { id: 'move_selection', label: t('tool.moveSelection'), icon: 'move-selection' },
+          { id: 'move_mask', label: t('tool.moveMask'), icon: 'move-mask' },
+        ],
+      },
+      {
+        id: 'hand',
+        label: t('tool.hand'),
+        tools: [{ id: 'hand', label: t('tool.hand'), icon: 'hand' }],
+      },
+      {
+        id: 'zoom',
+        label: t('tool.zoom'),
+        tools: [{ id: 'zoom', label: t('tool.zoom'), icon: 'zoom-in' }],
       },
       {
         id: 'select',
@@ -154,14 +176,39 @@
         tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
       },
       {
+        id: 'recolor',
+        label: t('tool.recolor'),
+        tools: [{ id: 'recolor', label: t('tool.recolor'), icon: 'recolor' }],
+      },
+      {
+        id: 'smudge',
+        label: t('tool.smudge'),
+        tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
+      },
+      {
+        id: 'gradient',
+        label: t('tool.gradient'),
+        tools: [{ id: 'gradient', label: t('tool.gradient'), icon: 'gradient' }],
+      },
+      {
         id: 'eyedropper',
         label: t('tool.eyedropper'),
         tools: [{ id: 'eyedropper', label: t('tool.eyedropper'), icon: 'eyedropper' }],
       },
       {
+        id: 'line',
+        label: t('tool.line'),
+        tools: [{ id: 'line', label: t('tool.line'), icon: 'line' }],
+      },
+      {
         id: 'shapes',
         label: t('tool.shapes'),
-        tools: [{ id: 'shapes', label: t('tool.shapes'), icon: 'shapes' }],
+        tools: [
+          { id: 'rectangle', label: t('tool.rectangle'), icon: 'rect' },
+          { id: 'rounded_rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
+          { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
+          { id: 'polygon', label: t('tool.polygon'), icon: 'polygon' },
+        ],
       },
       {
         id: 'text',
@@ -175,9 +222,44 @@
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
   );
 
+  // Select ▸ Expand / Contract / Feather ask for a radius; the core takes
+  // one, the options bar used to pin it to 1 / 1 / 2 px.
+  type RadiusOp = 'expand' | 'contract' | 'feather';
+  let radiusOp = $state<RadiusOp | null>(null);
+  const RADIUS_TITLES: Record<RadiusOp, 'menu.expand' | 'menu.contract' | 'menu.feather'> = {
+    expand: 'menu.expand',
+    contract: 'menu.contract',
+    feather: 'menu.feather',
+  };
+
+  function openRadius(op: RadiusOp): void {
+    radiusOp = op;
+  }
+
+  function applyRadius(radius: number): void {
+    const op = radiusOp;
+    radiusOp = null;
+    if (op === 'expand') expandSelection(radius);
+    else if (op === 'contract') contractSelection(radius);
+    else if (op === 'feather') featherSelection(radius);
+  }
+
   // Recents need something a re-open can use: an FSA handle (web) or a
   // path (Tauri). Same gate as the Pixel editor / the shell.
   const recentsAvailable = (hasFsAccess() || isTauri()) && isIdbAvailable();
+
+  // File ▸ Open Recent. `null` keeps the entry out of the menu where the
+  // registry cannot work at all; an empty array shows it disabled.
+  let recents = $state<RecentFile[]>([]);
+
+  async function refreshRecents(): Promise<void> {
+    if (!recentsAvailable) return;
+    try {
+      recents = await listRecents();
+    } catch (err) {
+      console.error('listRecents failed', err);
+    }
+  }
 
   async function recordRecent(
     file: Pick<SaveTarget, 'name' | 'handle' | 'path'> | null,
@@ -191,6 +273,7 @@
         path: file.path,
         mode: 'image',
       });
+      await refreshRecents();
     } catch (err) {
       console.error('upsertRecent failed', err);
     }
@@ -244,6 +327,7 @@
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     autosave.start();
+    void refreshRecents();
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -272,11 +356,13 @@
   function onKeydown(e: KeyboardEvent): void {
     // Ignore shortcuts while typing in a field (text-entry overlay included)
     // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || isTypingTarget(e.target)) {
+    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
-    if (action !== null && isTauri() && NATIVE_MENU_ACTIONS.has(action)) return;
+    // Only a native menu bar fires these as accelerators (spec §9.4);
+    // without one the editor has to handle them itself.
+    if (action !== null && hasNativeMenu() && NATIVE_MENU_ACTIONS.has(action)) return;
     if (action !== null && runShortcut(action)) {
       e.preventDefault();
       return;
@@ -357,7 +443,8 @@
 
   // The dialogs own Enter / Escape; keep the editor's shortcuts out.
   $effect(() => {
-    ui.modalOpen = effectOpen !== null || transformDialog !== null || jpegDialogOpen;
+    ui.modalOpen =
+      effectOpen !== null || transformDialog !== null || jpegDialogOpen || radiusOp !== null;
   });
 
   const hasDoc = $derived(editor.handle !== null);
@@ -371,6 +458,7 @@
       items: tidy([
         { label: t('menu.new'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
+        ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         { kind: 'separator' },
         {
           label: t('menu.save'),
@@ -431,6 +519,21 @@
           shortcut: hint('deselect'),
           disabled: !editor.hasSelection,
           run: deselect,
+        },
+        {
+          label: t('menu.expand'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('expand'),
+        },
+        {
+          label: t('menu.contract'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('contract'),
+        },
+        {
+          label: t('menu.feather'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('feather'),
         },
         {
           label: t('menu.invertSelection'),
@@ -532,6 +635,7 @@
         languageMenu(),
       ],
     },
+    ...helpMenus(),
   ]);
 
   // Warn before discarding edits on reload/close.
@@ -614,6 +718,15 @@
       renaming = null;
       renameLayer(index, name);
     }}
+  />
+{/if}
+
+{#if radiusOp}
+  <RadiusDialog
+    title={t(RADIUS_TITLES[radiusOp])}
+    value={radiusOp === 'feather' ? 2 : 1}
+    onCancel={() => (radiusOp = null)}
+    onApply={applyRadius}
   />
 {/if}
 

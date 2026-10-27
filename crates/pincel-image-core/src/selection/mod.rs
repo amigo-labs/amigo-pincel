@@ -82,6 +82,28 @@ pub struct SelectionMask {
 }
 
 impl SelectionMask {
+    /// Shifts the whole mask by `(dx, dy)`. Coverage pushed off the canvas
+    /// is dropped, so moving a selection out and back does not restore it —
+    /// undo does.
+    pub fn translated(&self, dx: i32, dy: i32) -> Self {
+        let mut out = Self::new_empty(self.width, self.height);
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let cov = self.coverage(x, y);
+                if cov == 0 {
+                    continue;
+                }
+                let nx = x as i32 + dx;
+                let ny = y as i32 + dy;
+                if nx < 0 || ny < 0 || nx >= self.width as i32 || ny >= self.height as i32 {
+                    continue;
+                }
+                out.set(nx as u32, ny as u32, cov);
+            }
+        }
+        out
+    }
+
     /// Creates a mask with nothing selected (all zero).
     pub fn new_empty(width: u32, height: u32) -> Self {
         Self {
@@ -371,6 +393,29 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn translated_shifts_coverage() {
+        let mut m = SelectionMask::new_empty(4, 1);
+        m.set(0, 0, 255);
+        let moved = m.translated(2, 0);
+        assert_eq!(moved.coverage(0, 0), 0);
+        assert_eq!(moved.coverage(2, 0), 255);
+    }
+
+    #[test]
+    fn translated_drops_coverage_pushed_off_the_canvas() {
+        let mut m = SelectionMask::new_empty(4, 1);
+        m.set(3, 0, 255);
+        assert!(m.translated(1, 0).is_empty());
+    }
+
+    #[test]
+    fn translated_keeps_partial_coverage() {
+        let mut m = SelectionMask::new_empty(4, 1);
+        m.set(0, 0, 100);
+        assert_eq!(m.translated(1, 0).coverage(1, 0), 100);
+    }
 
     #[test]
     fn new_full_selects_everything() {

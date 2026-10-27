@@ -257,9 +257,96 @@ pub fn install_on_exit(app: &AppHandle) {
     }
 }
 
+/// What the in-app Help menu needs to draw its update entries
+/// (spec §11.3). The native macOS menu reads `supported()` and
+/// `load_settings` directly instead, at build time.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdaterInfo {
+    /// This copy may replace itself — see [`supported`]. False hides the
+    /// update entries, so a packaged or debug build offers nothing it
+    /// cannot deliver.
+    pub supported: bool,
+    pub auto_update: bool,
+    /// Version already downloaded in this session, if any.
+    pub ready: Option<String>,
+}
+
+/// Read the updater's state for the Help menu.
+#[tauri::command]
+pub async fn updater_state(app: AppHandle) -> UpdaterInfo {
+    // `try_lock`: a running background check holds the lock for the whole
+    // download, and a menu must not wait on the network to open.
+    let ready = {
+        let state = app.state::<UpdaterState>();
+        let pending = state.inner.try_lock();
+        pending.ok().and_then(|pending| pending.ready.clone())
+    };
+    UpdaterInfo {
+        supported: supported(),
+        auto_update: load_settings(&app).auto_update,
+        ready,
+    }
+}
+
+/// "Check for Updates…" from the in-app Help menu. `Ok(None)` is up to
+/// date, `Ok(Some(version))` was downloaded and runs from the next start.
+///
+/// Unlike [`check_now`] — the macOS menu's entry, which reports through a
+/// native dialog — this reports back to the renderer, and needs no thread
+/// of its own because the command is already async.
+#[tauri::command]
+pub async fn updater_check(app: AppHandle) -> Result<Option<String>, String> {
+    if !supported() {
+        return Ok(None);
+    }
+    let result = fetch(&app).await;
+    // A failed check still counts as one, as in the background path.
+    record_check(&app, now_secs());
+    match result? {
+        Outcome::UpToDate => Ok(None),
+        Outcome::Ready(version) => Ok(Some(version)),
+    }
+}
+
+/// "Install Updates Automatically" from the in-app Help menu. A setter
+/// rather than a toggle, and it answers with what is actually stored, so
+/// a failed write shows up as the checkbox staying where it was.
+#[tauri::command]
+pub async fn updater_set_auto(app: AppHandle, enabled: bool) -> bool {
+    update_settings(&app, |settings| settings.auto_update = enabled);
+    load_settings(&app).auto_update
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // The renderer reads these three keys by name (ui/src/lib/help/).
+    // A rename here is a silent break there, so pin the shape.
+    #[test]
+    fn updater_info_serializes_in_camel_case() {
+        let json = serde_json::to_value(UpdaterInfo {
+            supported: true,
+            auto_update: false,
+            ready: Some("1.2.3".to_string()),
+        })
+        .expect("UpdaterInfo serializes");
+        assert_eq!(json["supported"], serde_json::json!(true));
+        assert_eq!(json["autoUpdate"], serde_json::json!(false));
+        assert_eq!(json["ready"], serde_json::json!("1.2.3"));
+    }
+
+    #[test]
+    fn updater_info_reports_no_pending_version_as_null() {
+        let json = serde_json::to_value(UpdaterInfo {
+            supported: false,
+            auto_update: true,
+            ready: None,
+        })
+        .expect("UpdaterInfo serializes");
+        assert!(json["ready"].is_null());
+    }
 
     #[test]
     fn parse_settings_missing_fields_use_defaults() {

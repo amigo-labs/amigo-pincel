@@ -1,7 +1,16 @@
 <script lang="ts">
   // Tool options bar (spec §16.3, §9.2). Controls shown depend on the active
   // tool. Bindings write straight into the tool store.
-  import { tool, editor, type ToolKind } from '../../stores/editor.svelte';
+  import { tool, editor, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
+
+  // Size, tip, hardness and the pressure toggles are the same four tools'
+  // business; each adds its own control below them.
+  const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
+    'pencil',
+    'eraser',
+    'recolor',
+    'smudge',
+  ]);
   import {
     deselect,
     invertSelection,
@@ -25,7 +34,7 @@
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
-  {#if tool.kind === 'pencil' || tool.kind === 'eraser'}
+  {#if BRUSH_TOOLS.has(tool.kind)}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
       <input type="range" min="1" max="500" bind:value={tool.size} class="w-32" />
@@ -88,6 +97,19 @@
           <option value="to_transparent">{t('opt.toTransparent')}</option>
           <option value="to_background">{t('opt.toBackground')}</option>
         </select>
+      </label>
+    {:else if tool.kind === 'recolor'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.tolerance')}</span>
+        <input type="range" min="0" max="255" bind:value={tool.recolorTolerance} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.recolorTolerance}</span>
+      </label>
+      <span class="text-pc-faint">{t('opt.recolorHint')}</span>
+    {:else if tool.kind === 'smudge'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.strength')}</span>
+        <input type="range" min="1" max="100" bind:value={tool.smudgeStrength} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.smudgeStrength}%</span>
       </label>
     {/if}
   {:else if tool.kind === 'fill'}
@@ -160,19 +182,34 @@
         <option value="all_layers">{t('opt.allLayers')}</option>
       </select>
     </label>
-  {:else if tool.kind === 'shapes'}
+  {:else if tool.kind === 'gradient'}
     <label class="flex items-center gap-2">
-      <span class="text-pc-muted">{t('opt.shape')}</span>
-      <select bind:value={tool.shapeKind} class="rounded bg-pc-raised px-2 py-1">
-        <option value="line">{t('tool.line')}</option>
-        <option value="rectangle">{t('tool.rectangle')}</option>
-        <option value="rounded_rectangle">{t('tool.roundedRect')}</option>
-        <option value="ellipse">{t('tool.ellipse')}</option>
-        <option value="polygon">{t('tool.polygon')}</option>
+      <span class="text-pc-muted">{t('opt.gradientKind')}</span>
+      <select bind:value={tool.gradientKind} class="rounded bg-pc-raised px-2 py-1">
+        <option value="linear">{t('opt.gradientLinear')}</option>
+        <option value="reflected">{t('opt.gradientReflected')}</option>
+        <option value="radial">{t('opt.gradientRadial')}</option>
+        <option value="conical">{t('opt.gradientConical')}</option>
+        <option value="diamond">{t('opt.gradientDiamond')}</option>
       </select>
     </label>
 
-    {#if tool.shapeKind !== 'line'}
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.gradientChannel')}</span>
+      <select bind:value={tool.gradientChannel} class="rounded bg-pc-raised px-2 py-1">
+        <option value="color">{t('opt.gradientColor')}</option>
+        <option value="transparency">{t('opt.gradientTransparency')}</option>
+      </select>
+    </label>
+
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.opacity')}</span>
+      <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
+      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+    </label>
+    <span class="text-pc-faint">{t('opt.gradientHint')}</span>
+  {:else if isShapeTool(tool.kind)}
+    {#if tool.kind !== 'line'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.mode')}</span>
         <select bind:value={tool.shapeMode} class="rounded bg-pc-raised px-2 py-1">
@@ -198,7 +235,7 @@
       </select>
     </label>
 
-    {#if tool.shapeKind === 'polygon'}
+    {#if tool.kind === 'polygon'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.sides')}</span>
         <input type="range" min="3" max="100" bind:value={tool.shapeSides} class="w-24" />
@@ -206,7 +243,7 @@
       </label>
     {/if}
 
-    {#if tool.shapeKind === 'rounded_rectangle'}
+    {#if tool.kind === 'rounded_rect'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.radius')}</span>
         <input type="range" min="0" max="200" bind:value={tool.cornerRadius} class="w-24" />

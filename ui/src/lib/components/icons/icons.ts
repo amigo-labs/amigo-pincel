@@ -56,9 +56,43 @@ export const ICONS = {
     { d: 'M19 2v3M17.5 3.5h3M8 4v3M6.5 5.5h3M20 10v3M18.5 11.5h3' },
   ],
   text: [{ d: 'M5 7V4h14v3' }, { d: 'M12 4v16' }, { d: 'M9 20h6' }],
+  hand: [
+    { d: 'M9 11V5.5a1.5 1.5 0 0 1 3 0V11' },
+    { d: 'M12 11V4.5a1.5 1.5 0 0 1 3 0V11' },
+    { d: 'M15 11V6.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7l-2.2-3.4a1.5 1.5 0 0 1 2.4-1.8L9 15V8.5a1.5 1.5 0 0 1 3 0' },
+  ],
   move: [
     { d: 'M12 3v18M3 12h18' },
     { d: 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3' },
+  ],
+  // A dashed marquee with the move cross: the pixels inside travel …
+  // Two swatches with an arrow between: this colour becomes that one.
+  recolor: [
+    { d: 'M3 5h7v7H3z', fill: true },
+    { d: 'M14 12h7v7h-7z' },
+    { d: 'M11 7h6M14.5 4.5L17.5 7l-3 2.5' },
+  ],
+  // A fingertip dragging a trail behind it.
+  smudge: [
+    { d: 'M14 4c-1.4 0-2.5 1.1-2.5 2.5V13l-1.6-1.6a1.8 1.8 0 0 0-2.6 2.6l4.1 4.3a5 5 0 0 0 3.6 1.5h1a4.5 4.5 0 0 0 4.5-4.5V6.5a2.5 2.5 0 0 0-5 0' },
+    { d: 'M3 20c2-1.5 4-2 6-1.6', dash: true },
+  ],
+  // A box that fades from solid to empty, with the drag's arrow across it.
+  gradient: [
+    { d: 'M3 5h18v14H3z' },
+    { d: 'M6 8h3v8H6z', fill: true },
+    { d: 'M11 10h2.5v4H11z', fill: true },
+    { d: 'M16 12h1v1h-1z', fill: true },
+  ],
+  'move-selection': [
+    { d: 'M3 3h9v9H3z', dash: true },
+    { d: 'M16 10v11M10.5 16h11' },
+    { d: 'M14 13l2-2 2 2M14 19l2 2 2-2M13 14l-2 2 2 2M19 14l2 2-2 2' },
+  ],
+  // … and the same marquee with the cross outside it: only the outline does.
+  'move-mask': [
+    { d: 'M8 8h9v9H8z', dash: true },
+    { d: 'M4 2v6M1 5h6' },
   ],
   stamp: [{ d: GRID }, { d: 'M12 12h8v8h-8z', fill: true }],
   slice: [{ d: 'M4 4h16v16H4z' }, { d: 'M9 4v16M15 4v16M4 9h16M4 15h16', dash: true }],

@@ -10,6 +10,7 @@
     MAX_ZOOM,
   } from '../../stores/editor.svelte';
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
+  import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isTypingTarget } from '../../../../lib/shell/shortcuts';
   import { readCompositeRegion, renderText, undo } from '../../core/controller';
   import { PinchTracker } from '../../../../lib/view/pinch';
@@ -94,6 +95,9 @@
   function onPointerDownCapture(e: PointerEvent): void {
     if (pinch.down(e)) {
       e.stopPropagation();
+      // A second finger ends any Zoom framing in progress, or its box would
+      // stay live and swallow the moves the pinch needs.
+      zoomBox = null;
       gestureControl.cancel();
       if (editor.undoDepth > gestureUndoDepth) undo();
       pinchZoom0 = view.zoom;
@@ -110,10 +114,39 @@
       startPan(e);
       return;
     }
+    // Hand and Zoom move the viewport, not the document, so they are served
+    // here — beside the Space-drag they generalise — and never reach the
+    // tool dispatcher (spec §9.2 tool rail). The floating ZoomControl is a
+    // child of the viewport, so its buttons would otherwise never see their
+    // own clicks: with Zoom selected, "Zoom out" would zoom in.
+    if (e.button === 0 && editor.handle !== null && !onInteractiveTarget(e)) {
+      if (tool.kind === 'hand') {
+        e.stopPropagation();
+        e.preventDefault();
+        startPan(e);
+        return;
+      }
+      if (tool.kind === 'zoom') {
+        e.stopPropagation();
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        zoomBox = { x0: x, y0: y, x1: x, y1: y };
+        viewport.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
     gestureUndoDepth = editor.undoDepth;
   }
 
   function onPointerMoveCapture(e: PointerEvent): void {
+    if (zoomBox) {
+      e.stopPropagation();
+      const rect = viewport.getBoundingClientRect();
+      zoomBox = { ...zoomBox, x1: e.clientX - rect.left, y1: e.clientY - rect.top };
+      return;
+    }
     const f = pinch.move(e);
     if (f) {
       e.stopPropagation();
@@ -127,9 +160,25 @@
   }
 
   function onPointerUpCapture(e: PointerEvent): void {
+    // Always retire the pointer, whatever the gesture was: the tracker keys
+    // its touches by pointer id and only `up` removes them, so a Zoom release
+    // that skipped this left a finger registered forever — the next tap then
+    // counted as a second finger and rolled back the previous edit.
     const pinched = pinch.suppressing;
     pinch.up(e);
+    if (zoomBox) {
+      e.stopPropagation();
+      commitZoom(e);
+      return;
+    }
     if (pinched) e.stopPropagation();
+  }
+
+  /** True when the event started on a control inside the viewport (the
+   *  floating zoom buttons), which owns the click rather than the canvas. */
+  function onInteractiveTarget(e: PointerEvent): boolean {
+    const el = e.target;
+    return el instanceof Element && el.closest('button, input, select, a') !== null;
   }
 
   // Middle-button drag, or any drag with Space held, pans (the tool
@@ -147,6 +196,33 @@
     } else {
       spaceDown = false;
     }
+  }
+
+  // Zoom tool: a drag frames the area to fill the viewport, a click steps
+  // one notch — in, or out with Alt (the latching toggle counts too, so a
+  // touch device can zoom out without a keyboard).
+  const ZOOM_STEP = 1.6;
+  const ZOOM_DRAG_MIN = 8;
+  let zoomBox = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+
+  function commitZoom(e: PointerEvent): void {
+    const box = zoomBox;
+    zoomBox = null;
+    if (!box || !viewport) return;
+    const w = Math.abs(box.x1 - box.x0);
+    const h = Math.abs(box.y1 - box.y0);
+    const cx = (box.x0 + box.x1) / 2;
+    const cy = (box.y0 + box.y1) / 2;
+    if (w < ZOOM_DRAG_MIN || h < ZOOM_DRAG_MIN) {
+      zoomAround(view.zoom * (altHeld(e) ? 1 / ZOOM_STEP : ZOOM_STEP), box.x0, box.y0);
+      return;
+    }
+    const z = view.zoom * Math.min(viewport.clientWidth / w, viewport.clientHeight / h);
+    zoomAround(z, cx, cy);
+    // `zoomAround` kept the framed centre where it was; bring it to the
+    // middle of the viewport.
+    view.panX += viewport.clientWidth / 2 - cx;
+    view.panY += viewport.clientHeight / 2 - cy;
   }
 
   function startPan(e: PointerEvent): void {
@@ -221,18 +297,39 @@
     pencil: 'crosshair',
     eraser: 'crosshair',
     fill: 'cell',
+    gradient: 'crosshair',
+    recolor: 'crosshair',
+    smudge: 'crosshair',
     eyedropper: 'copy',
     move: 'move',
+    move_selection: 'move',
+    move_mask: 'move',
     rect_select: 'crosshair',
     ellipse_select: 'crosshair',
     lasso: 'crosshair',
     polygon_lasso: 'crosshair',
     magic_wand: 'cell',
-    shapes: 'crosshair',
+    hand: 'grab',
+    zoom: 'zoom-in',
+    line: 'crosshair',
+    rectangle: 'crosshair',
+    rounded_rect: 'crosshair',
+    ellipse: 'crosshair',
+    polygon: 'crosshair',
     text: 'text',
   };
   const cursor = $derived(
     panning ? 'grabbing' : spaceDown ? 'grab' : (toolCursors[tool.kind] ?? 'default'),
+  );
+  const zoomRect = $derived(
+    zoomBox === null
+      ? null
+      : {
+          left: Math.min(zoomBox.x0, zoomBox.x1),
+          top: Math.min(zoomBox.y0, zoomBox.y1),
+          width: Math.abs(zoomBox.x1 - zoomBox.x0),
+          height: Math.abs(zoomBox.y1 - zoomBox.y0),
+        },
   );
   const stageTransform = $derived(`translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`);
 
@@ -334,6 +431,13 @@
   </div>
 
   <CanvasOverlay />
+
+  {#if zoomRect}
+    <div
+      class="pointer-events-none absolute border border-pc-accent bg-pc-accent/10"
+      style="left: {zoomRect.left}px; top: {zoomRect.top}px; width: {zoomRect.width}px; height: {zoomRect.height}px;"
+    ></div>
+  {/if}
 
   <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
   {#if editor.handle !== null}

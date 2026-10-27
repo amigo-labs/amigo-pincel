@@ -36,6 +36,8 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
+  import { help } from '../../lib/help/state.svelte';
+  import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import {
     addFrame,
@@ -78,6 +80,7 @@
     openNewDialog,
     openOpened,
     openRecent,
+    nativeMenuHost,
     openSheetDialog,
     recentsAvailable,
     save,
@@ -232,7 +235,7 @@
       selectAll: () => selectAction('all'),
       deselect: () => selectAction('none'),
       invertSelection: () => selectAction('invert'),
-      growSelection: (d) => selectAction(d > 0 ? 'expand' : 'contract'),
+      growSelection: (mode) => (dialogs.selectionRadius = mode),
       transformCanvas: (op) => imageAction(`canvas:${op}`),
       transformLayer: (op) => imageAction(`layer:${op}`),
       resizeCanvas: () => imageAction('canvas:resize'),
@@ -280,8 +283,10 @@
       view.spaceDown = true;
       return;
     }
-    // Dialogs own the keyboard while open.
+    // Dialogs own the keyboard while open — the shell's About dialog too,
+    // which is mounted by App.svelte rather than by this editor.
     if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || autosave.snapshots.length > 0) return;
+    if (dialogs.selectionRadius || help.about) return;
     if (e.key === 'Escape') {
       if (dialogs.confirm) {
         dialogs.confirm = null;
@@ -308,13 +313,13 @@
       toggleProbe();
       return;
     }
-    // The keyboard map both modes share (lib/shell/shortcuts.ts). In the
-    // desktop app the native menu owns its accelerators (New / Open /
-    // Save / Export / Undo / Redo) — handling them here too would
-    // double-fire.
+    // The keyboard map both modes share (lib/shell/shortcuts.ts). Where the
+    // OS draws the menu bar (macOS desktop app) that menu owns its
+    // accelerators (New / Open / Save / Export / Undo / Redo) — handling
+    // them here too would double-fire. Everywhere else they are ours.
     const action = actionFor(e);
     if (action !== null) {
-      if (tauriHost && NATIVE_MENU_ACTIONS.has(action)) return;
+      if (nativeMenuHost && NATIVE_MENU_ACTIONS.has(action)) return;
       if (runShortcut(action)) e.preventDefault();
       return;
     }
@@ -968,6 +973,19 @@
     onRecover={(snap) => void autosave.recover(snap)}
     onDiscard={(id) => void autosave.discard(id)}
     onDismiss={() => autosave.dismiss()}
+  />
+{/if}
+
+{#if dialogs.selectionRadius}
+  {@const op = dialogs.selectionRadius}
+  <RadiusDialog
+    title={t(op === 'expand' ? 'menu.expand' : 'menu.contract')}
+    value={1}
+    onCancel={() => (dialogs.selectionRadius = null)}
+    onApply={(radius) => {
+      dialogs.selectionRadius = null;
+      selectAction(op, radius);
+    }}
   />
 {/if}
 

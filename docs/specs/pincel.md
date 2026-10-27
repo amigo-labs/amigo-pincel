@@ -18,7 +18,7 @@ Pincel is a pixel-art and image editor in one app: a pixel-art editor at the fea
 
 The two builds share one Svelte UI and the same Rust cores. The native build adds OS file-system integration via Tauri commands; the PWA uses File System Access API with download fallback.
 
-**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its spec lives in that repo's `docs/specs/fineliner.md`; its crates live in this workspace as `pincel-image-core` / `pincel-image-wasm`). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
+**Two modes (since 2026-09-06).** The app hosts two editors behind one shell: **Pixel mode** (this spec — sprites, frames, palettes, tilemaps, `.aseprite`) and **Image mode**, the general-purpose paint.net-style editor formerly shipped as the sister project `amigo-fineliner` (its tool set is §5.4; its crates live in this workspace as `pincel-image-core` / `pincel-image-wasm`, and the archived sibling's `docs/specs/fineliner.md` holds its original design notes). The mode is a property of the open document: `.aseprite` opens in Pixel mode, PNG / JPEG / WebP / BMP / GIF / TIFF open in Image mode, and the New dialog offers both. The two Rust cores stay separate (different document models and compositing semantics); they share the effects crate, the Svelte shell, file I/O, persistence, PWA and Tauri layers. See §15 (2026-09-06, "Two cores, one shell").
 
 ### 1.2 Engine Interop Strategy
 
@@ -390,7 +390,7 @@ pub trait Tool {
 
 Tools never mutate the document directly. They emit `Command`s. The command bus applies them and pushes onto the undo stack.
 
-### 5.2 Phase 1 Tool Set
+### 5.2 Phase 1 Tool Set (Pixel mode)
 
 | Tool | Behavior |
 |------|----------|
@@ -411,6 +411,33 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 When the active layer is a Tilemap, the UI exposes a Tileset Panel showing all tiles in the layer's tileset. Clicking a tile enters "edit tile" sub-mode: the canvas shows that single tile at high zoom, normal image tools (Pencil, Eraser, etc.) operate on it. Returning to the tilemap view auto-updates all instances of that tile in the layer.
 
 Auto-tile-detection (Aseprite's "Auto" mode where painting on the tilemap layer at tile resolution either reuses or creates tiles) is **deferred to Phase 2**. Phase 1 supports manual tile placement and explicit tile editing.
+
+### 5.4 Image mode tool set
+
+Image mode is the paint.net-style editor (§1.1). Its tools live in `crates/pincel-image-core/src/tools/`; the rail, options bar and keys are §9.2 and §9.4. Where a key appears in both modes it means the same thing; a tool only one mode has keeps its key to itself.
+
+| Tool | Key | Behavior |
+|------|-----|----------|
+| Move | `V` | Three variants: the whole layer, the selected pixels (lifted, leaving transparency, composited back at the offset), or the selection outline alone |
+| Pan | `H` | Drags the viewport. The same gesture as Space-drag and middle-drag, as a rail button |
+| Zoom | `Z` | Click steps in, Alt+click out; a drag frames the area to fill the viewport |
+| Marquee | `M` | Rectangle and ellipse selection, with a feather radius |
+| Lasso | `Q` | Freehand and polygonal; the polygon closes on the first vertex, a double-click or Enter |
+| Magic Wand | `W` | Contiguous or global color selection with a tolerance, sampling the layer or the composite |
+| Brush | `B` | Hard round / soft round / flat tip, size, hardness, opacity, pressure size / opacity, nib angle following tilt |
+| Eraser | `E` | To transparent, or to the background color |
+| Recolor | `R` | A brush that writes only where it finds the background color, within a tolerance, and paints the foreground there |
+| Smudge | `S` | Carries the color under the tip along the stroke. Strength governs how far: 0 changes nothing, 1 drags one color the whole way |
+| Paint Bucket | `G` | Flood fill, contiguous or global, with a tolerance, sampling the layer or the composite |
+| Gradient | `N` | Linear / reflected / radial / conical / diamond ramp along the drag, in the Color or Transparency channel |
+| Eyedropper | `I` | Samples 1 / 3 / 5 / 11 / 31 px from the layer or the composite |
+| Line | `L` | A straight line with the shape style (width, dash, anti-alias) |
+| Shapes | `U` | Rectangle, rounded rectangle, ellipse and regular polygon, as outline / fill / both |
+| Text | `T` | Rasterised on commit, with alignment, faux bold / italic and anti-alias |
+
+All selection modes combine with Shift (add), Alt (subtract) and both (intersect), and every pixel tool is bounded by the active selection, feathered edges included.
+
+Not implemented: a clone stamp, bézier curves, and custom or textured brushes. Selection arithmetic beyond the four modes (saving a selection, transforming one) is Phase 2 (§13).
 
 ---
 
@@ -532,7 +559,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Top bar: File Edit Select Image Layer [Frame] Effects Adjustments View │
-│          · document name ● · undo / redo · panels toggle               │
+│          [Help] · document name ● · undo / redo · panels toggle        │
 ├──────┬────────────────────────────────────────────────┬────────────────┤
 │ Tool │ Options bar: variants of the active tool group │  Colors        │
 │ rail │ + that tool's options                          ├────────────────┤
@@ -547,7 +574,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 └──────┴────────────────────────────────────────────────┴────────────────┘
 ```
 
-Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens.
+Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens. A Help menu (About Pincel, and in the desktop app the updater's manual check and its auto-install toggle) closes the bar wherever the OS draws no native menu bar — the web build and the Windows / Linux desktop app; on macOS the native Help menu serves those entries instead (§11.3).
 
 **Responsive layout.** The frame restructures at Tailwind's `sm` / `lg` widths:
 
@@ -587,13 +614,13 @@ const events = doc.drainEvents();
 
 ### 9.4 Input Handling
 
-Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. In the desktop app the native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice.
+Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
 
 Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes and snaps lines to 45°, adds to a selection; Alt subtracts; both intersect.
 
 ### 9.5 Language
 
-The UI ships in English and German. Strings live in a typed dictionary under `ui/src/lib/i18n/` — `en.ts` defines every key, other locales are typed against it so a missing translation fails the type check — and components read them through `t(key, params)`, which follows the reactive locale. The first launch follows the browser language (`de-*` → German, anything else → English); the choice made on the start screen or under View ▸ Language is stored in the IndexedDB `prefs` store and wins from then on. The desktop app rebuilds its native menu in the same language (`set_menu_language`). File formats, layer names and other document content are never translated.
+The UI ships in English and German. Strings live in a typed dictionary under `ui/src/lib/i18n/` — `en.ts` defines every key, other locales are typed against it so a missing translation fails the type check — and components read them through `t(key, params)`, which follows the reactive locale. The first launch follows the browser language (`de-*` → German, anything else → English); the choice made on the start screen or under View ▸ Language is stored in the IndexedDB `prefs` store and wins from then on. The macOS desktop app rebuilds its native menu in the same language (`set_menu_language`); on Windows and Linux there is no native menu and the command is a no-op. File formats, layer names and other document content are never translated.
 
 ---
 
@@ -657,7 +684,7 @@ The native build uses these instead of the File System Access API. `pincel-core`
 
 - File-association: register `.aseprite` and `.ase` (with user opt-in on first launch)
 - Recent-files in OS jump lists (Windows) / dock menu (macOS)
-- Native menu bar with shortcuts matching the in-app Top Bar
+- Native menu bar **on macOS only** — there it is the screen's menu bar, not a second row inside the window, and the App menu with Quit / About is a platform requirement. Windows and Linux show the in-app menu bar alone, which lists a superset of the native menu's entries (Help included).
 
 ### 11.4 Capability Detection in UI
 
@@ -816,6 +843,8 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-27 | Updater signing key: the one password-protected key of amigo-labs' desktop apps (minisign `5C882412026EA1D4`, organization secrets `TAURI_SIGNING_PRIVATE_KEY` / `_PASSWORD`, shared with amigo-downloader) replaces Pincel's own key (`313783124C4CF977`) from 1.1.1. `release.yml` checks the key ID of every signature against `plugins.updater.pubkey` before publishing. | One key and one rotation for all of the organization's Tauri apps. The switch needed no transition release: no copy of 1.0.1 / 1.1.0 had been downloaded. `tauri build` signs with any key the secret holds, so a mismatch (e.g. a repository secret shadowing the organization's) would otherwise ship updates nobody can install. |
 | 2026-10-27 | The organization's updater key is replaced by a new password-protected pair, minisign `3098504C1538B8F6` (same organization secrets; amigo-downloader gets the same public key). 1.1.2 is the first release signed with it; v1.1.1 stays an unpublished draft. | The password for `5C882412026EA1D4` did not match its key in the organization secrets (1.1.1's builds failed with "Wrong password for that key"), and no app had shipped an update signed with it, so a fresh pair, tested before it was stored, cost nothing. |
 | 2026-10-27 | `compose()` renders the four non-separable HSL modes (Hue / Saturation / Color / Luminosity) with the W3C compositing-and-blending definitions: `Lum` = 0.3·R + 0.59·G + 0.11·B, `SetLum` / `ClipColor` / `Sat` / `SetSat` in `f64`, the blend term rounded half away from zero, then the same alpha compositing as the separable modes. Supersedes the 2026-07-09 "render as Normal until Phase 2". | A `.aseprite` with a Color or Luminosity layer looked different in Pincel than in Aseprite, which uses the same definitions and weights. The modes are a few pure functions, not a Phase 2 feature. Aseprite pixel-exact parity stays out of scope (its fixed-point rounding differs); tests pin values from an independent float64 implementation and the luminance invariants. |
+| 2026-10-27 | The native menu bar is macOS-only: a `NATIVE_MENU` const (`cfg!(target_os = "macos")`) gates `app.set_menu` in `setup()` and turns the `set_recent_menu` / `set_menu_language` commands into no-ops elsewhere, so the renderer keeps one code path. Windows and Linux show only the in-app menu bar, which gains a Help menu (About Pincel, and under Tauri "Check for Updates…" / "Install Updates Automatically") and File ▸ Open Recent in Image mode. `hasNativeMenu()` (`ui/src/lib/platform/`) replaces `isTauri()` as the gate that leaves `NATIVE_MENU_ACTIONS` to the menu. | Windows and Linux showed two menu bars stacked, the in-app one a superset of the native one: M11.3 installed the native menu on every platform and the one-frame rebuild (2026-10-11) rendered the in-app bar without asking the host. macOS cannot drop its menu — the menu bar belongs to the screen rather than the window, the App menu is a platform requirement, and WKWebView routes Cmd+C / V through Edit ▸ Copy / Paste; WebView2 and WebKitGTK handle those chords in the renderer, as they already do in the web build, so the predefined items are not missed there. Everything the native menu was the only access to moves into the in-app bar, so no platform loses a feature. `cfg!` rather than `#[cfg]` because CI builds the desktop shell on Linux only: an attribute would stop type-checking the macOS path entirely, and would need ~10 annotations plus a `dead_code` allow on `RecentMenuItem`. |
+| 2026-10-27 | Image mode gains Gradient, Recolor and Smudge, and the tool rail lists Line, the four shapes, Pan, Zoom and the two selection moves as their own buttons. The set is written down in §5.4 — the first tool spec Image mode has in this repository. | The rail showed ten buttons against paint.net's nineteen, and some of the gap was not even missing code: `Shape::Line` existed with `L` bound in the shared keymap and no group to select, the shapes were a dropdown where §9.2 asks for rail variants, and pan and zoom were gestures a tablet had no way to reach. Gradient, Recolor and Smudge were genuinely absent — `STATUS.md` listed them as deliberately not ported when Fineliner's own M13 never shipped. A clone stamp stays out: it needs a source anchor that survives the stroke and a second cursor, which is a UI problem of its own. Image mode's tools had no spec in this repository at all — the code's `spec §16.2` comments point at the archived sibling's `fineliner.md` — so §5.4 states the set, and §5.2 is retitled as Pixel mode's. |
 
 ---
 

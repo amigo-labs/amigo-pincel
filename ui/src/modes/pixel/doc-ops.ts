@@ -29,7 +29,7 @@ export function resetColors() {
   colors.bgAlpha = 255;
 }
 
-export function selectAction(action: SelectAction) {
+export function selectAction(action: SelectAction, radius = 1) {
   if (!ed.doc) return;
   try {
     switch (action) {
@@ -43,10 +43,10 @@ export function selectAction(action: SelectAction) {
         ed.doc.invertSelection();
         break;
       case 'expand':
-        ed.doc.expandSelection(1);
+        ed.doc.expandSelection(radius);
         break;
       case 'contract':
-        ed.doc.contractSelection(1);
+        ed.doc.contractSelection(radius);
         break;
     }
   } catch (err) {

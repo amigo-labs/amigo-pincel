@@ -5,8 +5,13 @@ import {
   initCore,
   type PencilStrokeCommand,
   type EraserStrokeCommand,
+  type RecolorStrokeCommand,
+  type SmudgeStrokeCommand,
   type FillBucketCommand,
   type TranslateLayerCommand,
+  type TranslateSelectionCommand,
+  type TranslateSelectionMaskCommand,
+  type DrawGradientCommand,
   type LayerCommand,
   type SelectionCommand,
   type SelectionMode,
@@ -16,6 +21,7 @@ import {
   type BlendMode,
   type Rgba,
   type DrawShapeCommand,
+  type ShapeKind,
   type DrawTextCommand,
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
@@ -364,14 +370,18 @@ export function clearEffectPreview(): void {
  * `a`/`b` are the drag endpoints (line) or opposite corners of the drag box
  * (rectangle/rounded/ellipse); a polygon is inscribed in that box. Stroke uses
  * the foreground color, fill the background color, both at the tool opacity. */
-export function drawShape(a: [number, number], b: [number, number]): void {
+export function drawShape(
+  a: [number, number],
+  b: [number, number],
+  shape: ShapeKind,
+): void {
   if (editor.handle === null) {
     return;
   }
   const cmd: DrawShapeCommand = {
     type: 'draw_shape',
     layer: editor.activeLayer,
-    shape: tool.shapeKind,
+    shape: shape,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground),
@@ -379,7 +389,7 @@ export function drawShape(a: [number, number], b: [number, number]): void {
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   };
-  if (tool.shapeKind === 'polygon') {
+  if (shape === 'polygon') {
     const w = Math.abs(b[0] - a[0]);
     const h = Math.abs(b[1] - a[1]);
     cmd.center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -388,7 +398,7 @@ export function drawShape(a: [number, number], b: [number, number]): void {
     cmd.rotation = 0;
   } else {
     cmd.points = [a, b];
-    if (tool.shapeKind === 'rounded_rectangle') {
+    if (shape === 'rounded_rectangle') {
       cmd.corner_radius = tool.cornerRadius;
     }
   }
@@ -611,6 +621,61 @@ export function eraseStroke(
   syncInfo();
 }
 
+/** Recolors along the given points: the foreground replaces the background
+ *  color wherever the stroke finds it, within the tool's tolerance. */
+export function recolorStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
+): void {
+  if (editor.handle === null || points.length === 0) {
+    return;
+  }
+  const cmd: RecolorStrokeCommand = {
+    type: 'recolor_stroke',
+    layer: editor.activeLayer,
+    size: tool.size,
+    opacity: opacity01(),
+    shape: tool.shape,
+    hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    from: activeColor(true),
+    to: activeColor(false),
+    tolerance: tool.recolorTolerance,
+    points,
+    ...penFields(pressure, azimuth),
+    stroke_id: strokeId,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Smudges along the given points. */
+export function smudgeStroke(
+  points: Array<[number, number]>,
+  strokeId: number,
+  pressure: number[] = [],
+  azimuth: Array<number | null> = [],
+): void {
+  if (editor.handle === null || points.length === 0) {
+    return;
+  }
+  const cmd: SmudgeStrokeCommand = {
+    type: 'smudge_stroke',
+    layer: editor.activeLayer,
+    size: tool.size,
+    opacity: opacity01(),
+    shape: tool.shape,
+    hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    strength: Math.min(1, Math.max(0, tool.smudgeStrength / 100)),
+    points,
+    ...penFields(pressure, azimuth),
+    stroke_id: strokeId,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
 /** Flood-fills from the given canvas-space point with the active color. */
 export function fillAt(x: number, y: number, useBackground = false): void {
   if (editor.handle === null) {
@@ -650,6 +715,63 @@ export function moveLayer(dx: number, dy: number): void {
   const cmd: TranslateLayerCommand = {
     type: 'translate_layer',
     layer: editor.activeLayer,
+    dx,
+    dy,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Move Selected Pixels: drags the selection's content, leaving
+ *  transparency behind. Without a selection this moves the whole layer. */
+export function moveSelectionContent(dx: number, dy: number): void {
+  if (editor.handle === null || (dx === 0 && dy === 0)) {
+    return;
+  }
+  const cmd: TranslateSelectionCommand = {
+    type: 'translate_selection',
+    layer: editor.activeLayer,
+    dx,
+    dy,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Gradient: the drag a → b is the ramp (spec §5.4). The foreground is
+ *  the start color, the background the end; Transparency mode ignores both
+ *  and fades what is already there. */
+export function drawGradient(a: [number, number], b: [number, number]): void {
+  if (editor.handle === null) {
+    return;
+  }
+  const cmd: DrawGradientCommand = {
+    type: 'draw_gradient',
+    layer: editor.activeLayer,
+    kind: tool.gradientKind,
+    channel: tool.gradientChannel,
+    x0: a[0],
+    y0: a[1],
+    x1: b[0],
+    y1: b[1],
+    // Opaque endpoints: `Gradient::sample` applies `opacity` itself, and
+    // `colorWithOpacity` would square it — a 50 % Colour ramp painted at 25 %
+    // while the Transparency channel used 50 %.
+    from: activeColor(false),
+    to: activeColor(true),
+    opacity: opacity01(),
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Move Selection: drags the outline only. */
+export function moveSelectionMask(dx: number, dy: number): void {
+  if (editor.handle === null || (dx === 0 && dy === 0)) {
+    return;
+  }
+  const cmd: TranslateSelectionMaskCommand = {
+    type: 'translate_selection_mask',
     dx,
     dy,
   };

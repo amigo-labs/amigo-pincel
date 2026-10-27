@@ -20,7 +20,7 @@ pub use properties::{
     RenameLayer, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
 };
 pub use resize::{Anchor, ResizeCanvas};
-pub use selection::SetSelection;
+pub use selection::{MoveSelection, SetSelection};
 pub use transform::{
     CanvasRotation, CropToSelection, FlipCanvas, LayerTransform, RotateCanvas, RotateLayer90,
     ScaleImage, TransformLayer,
