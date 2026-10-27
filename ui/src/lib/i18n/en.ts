@@ -75,6 +75,10 @@ export const en = {
   'fileAssoc.dontShow': 'Don’t show this again',
   'fileAssoc.gotIt': 'Got it',
 
+  'about.version': 'Version {version}',
+  'about.tagline': 'A pixel-art and image editor in one app.',
+  'about.close': 'Close',
+
   // Editor frame
   'frame.unsaved': '{title} — unsaved changes',
   'frame.toolOptions': 'Tool options',
@@ -182,6 +186,8 @@ export const en = {
   'menu.view': 'View',
   'menu.effects': 'Effects',
   'menu.adjustments': 'Adjustments',
+  'menu.help': 'Help',
+  'menu.about': 'About Pincel',
   'menu.new': 'New…',
   'menu.open': 'Open…',
   'menu.openRecent': 'Open Recent',

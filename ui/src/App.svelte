@@ -7,6 +7,8 @@
   import { onMount, type Component } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import AboutDialog from './lib/components/AboutDialog.svelte';
+  import { closeAbout, help } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -350,6 +352,10 @@
 
 {#if fileAssocOpen}
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+{/if}
+
+{#if help.about}
+  <AboutDialog onClose={closeAbout} />
 {/if}
 
 {#if shellError}

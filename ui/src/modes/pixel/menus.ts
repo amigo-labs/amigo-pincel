@@ -3,6 +3,7 @@
 // actions in, so the editor keeps no menu markup.
 
 import { effectMenus } from '../../lib/effects/menu';
+import { helpMenus } from '../../lib/help/menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
@@ -235,5 +236,6 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         languageMenu(),
       ],
     },
+    ...helpMenus(),
   ];
 }

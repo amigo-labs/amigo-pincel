@@ -82,6 +82,10 @@ export const de: Record<MessageKey, string> = {
   'fileAssoc.dontShow': 'Nicht mehr anzeigen',
   'fileAssoc.gotIt': 'Verstanden',
 
+  'about.version': 'Version {version}',
+  'about.tagline': 'Ein Pixelart- und Bildeditor in einer App.',
+  'about.close': 'Schließen',
+
   // Editor frame
   'frame.unsaved': '{title} – ungespeicherte Änderungen',
   'frame.toolOptions': 'Werkzeugoptionen',
@@ -189,6 +193,8 @@ export const de: Record<MessageKey, string> = {
   'menu.view': 'Ansicht',
   'menu.effects': 'Effekte',
   'menu.adjustments': 'Korrekturen',
+  'menu.help': 'Hilfe',
+  'menu.about': 'Über Pincel',
   'menu.new': 'Neu…',
   'menu.open': 'Öffnen…',
   'menu.openRecent': 'Zuletzt geöffnet',

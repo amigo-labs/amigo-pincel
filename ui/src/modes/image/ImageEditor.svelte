@@ -74,6 +74,7 @@
   import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
+  import { helpMenus } from '../../lib/help/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
@@ -534,6 +535,7 @@
         languageMenu(),
       ],
     },
+    ...helpMenus(),
   ]);
 
   // Warn before discarding edits on reload/close.

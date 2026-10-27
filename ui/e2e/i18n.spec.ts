@@ -31,7 +31,8 @@ test('View ▸ Language switches the editor', async ({ page }) => {
   await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
   await expect(page.getByRole('button', { name: 'Vergrößern' })).toBeVisible();
   const bar = page.getByRole('menubar');
-  for (const name of ['Datei', 'Bearbeiten', 'Auswahl', 'Bild', 'Ebene', 'Frame', 'Effekte', 'Ansicht']) {
+  const menus = ['Datei', 'Bearbeiten', 'Auswahl', 'Bild', 'Ebene', 'Frame', 'Effekte', 'Ansicht', 'Hilfe'];
+  for (const name of menus) {
     await expect(bar.getByRole('menuitem', { name, exact: true })).toBeVisible();
   }
   await expect(page.getByRole('region', { name: 'Ebenen' })).toBeVisible();
