@@ -16,9 +16,10 @@ name: Release
 # warn on first launch. The updater only installs what is signed with the
 # Tauri updater key.
 #
-# Needed:
-#   secret   TAURI_SIGNING_PRIVATE_KEY           updater key (tauri signer generate)
-#   secret   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (may be empty)
+# Needed (organization secrets of amigo-labs; a repository secret of the
+# same name would shadow them):
+#   secret   TAURI_SIGNING_PRIVATE_KEY           the organization's updater key
+#   secret   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
 #   secret   NPM_TOKEN                           optional: publishes pincel-wasm
 
 on:
@@ -243,6 +244,32 @@ jobs:
       - name: SHA256SUMS
         working-directory: dist
         run: sha256sum pincel-* | grep -v '\.sig$' > SHA256SUMS && cat SHA256SUMS
+      # `tauri build` signs with whatever key the secret holds; the app
+      # accepts only the key in plugins.updater.pubkey. A mismatch (say, a
+      # repository secret shadowing the organization's) would publish
+      # updates no installed copy accepts, so it stops the release here.
+      - name: Signatures match the updater key
+        run: |
+          python3 - <<'EOF'
+          import base64, glob, json, sys
+
+          def key_id(text):
+              # minisign: base64 of a comment line and a base64 key or
+              # signature whose bytes 2..10 are the key ID.
+              line = base64.b64decode(text).decode().splitlines()[1]
+              return base64.b64decode(line)[2:10][::-1].hex().upper()
+
+          conf = json.load(open("src-tauri/tauri.conf.json"))
+          want = key_id(conf["plugins"]["updater"]["pubkey"])
+          sigs = sorted(glob.glob("dist/*.sig"))
+          bad = [(p, key_id(open(p).read())) for p in sigs]
+          bad = [(p, k) for p, k in bad if k != want]
+          for p, k in bad:
+              print(f"::error::{p} is signed by key {k}, the app trusts {want}")
+          if len(sigs) < 4 or bad:
+              sys.exit(1)
+          print(f"{len(sigs)} signatures by key {want}")
+          EOF
       # The updater manifest (tauri-plugin-updater's static JSON). The
       # notes are the draft's changelog that release-please wrote.
       - name: latest.json
