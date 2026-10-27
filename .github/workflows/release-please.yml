@@ -6,11 +6,11 @@ name: Release Please
 # release. Merging it tags v<version>, creates the release as a draft and
 # builds and publishes it (release.yml). See docs/RELEASING.md.
 #
-# Token: RELEASE_PLEASE_TOKEN (a fine-grained PAT or GitHub App token with
-# contents and pull-requests write) if set, so CI also runs on the release
-# PR; without it the workflow's own token does the same, but GitHub then
-# starts no CI on that PR. Either way the repository must allow GitHub
-# Actions to create pull requests (Settings, Actions, General).
+# Token: RELEASE_PLEASE_TOKEN (an organization secret: a fine-grained PAT
+# with contents and pull-requests write), so CI also runs on the release
+# PR, and "Allow GitHub Actions to create and approve pull requests" stays
+# off. Without it the workflow's own token is used, which needs that
+# setting on (Settings, Actions, General) and starts no CI on the PR.
 
 on:
   push:

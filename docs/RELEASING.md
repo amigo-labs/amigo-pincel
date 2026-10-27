@@ -138,35 +138,56 @@ resident mode and no tray: closing the window ends Pincel.
 
 ## One-time setup
 
-### Repository settings
+### Release PR token
 
-- Settings → Actions → General → "Allow GitHub Actions to create and
-  approve pull requests" must be on (release-please opens the release PR).
-- Optional secret `RELEASE_PLEASE_TOKEN` (fine-grained PAT or GitHub App
-  token with contents and pull-requests write). Without it the release PR
-  is opened with the workflow's own token, and GitHub starts no CI on it.
+release-please opens the release PR and pushes `Cargo.lock` to it with
+the organization secret `RELEASE_PLEASE_TOKEN`: a fine-grained personal
+access token, resource owner amigo-labs, for amigo-pincel and
+amigo-blinzel, with **Contents** and **Pull requests** read and write.
+GitHub then runs CI on the release PR too, and Settings → Actions →
+General → "Allow GitHub Actions to create and approve pull requests"
+stays **off**.
+
+- Keep the token in the password manager; GitHub shows it only once.
+- When it expires, release-please fails with "not permitted to create
+  pull requests": regenerate the token and update the organization
+  secret. Don't turn the setting back on.
+- A repository secret of the same name would shadow the organization's;
+  there is none.
+- Without any token the workflow falls back to its own `GITHUB_TOKEN`,
+  which needs the setting above on and starts no CI on the PR.
 
 ### Updater signing key (required)
 
-The release job refuses to run without it. The key pair exists (minisign
-key ID `313783124C4CF977`, no password): its public half is
-`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, the private half
-lives only in the repository secret `TAURI_SIGNING_PRIVATE_KEY` (and in
-the maintainer's password manager). `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-stays unset.
+The desktop apps of amigo-labs (Pincel, amigo-downloader) share one
+updater key, minisign key ID `5C882412026EA1D4`, protected by a
+password. Its public half is `plugins.updater.pubkey` in
+`src-tauri/tauri.conf.json`; the private half and its password are the
+**organization secrets** `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (and live in the maintainer's
+password manager). Pincel used a key of its own (`313783124C4CF977`)
+up to 1.1.0, before any copy was downloaded; 1.1.1 is the first release
+signed with the organization's.
 
-Keep the private key safe outside the repository. If it is lost,
-installed copies accept no further updates. To replace it:
+- A repository secret of the same name shadows the organization secret.
+  amigo-pincel has none, and must not get one.
+- The release job refuses to run without the key. Before it publishes,
+  it checks that every `.sig` carries the key ID of
+  `plugins.updater.pubkey`, so a wrong key stops the release instead of
+  shipping updates no installed copy accepts. A wrong password already
+  fails `tauri build`.
 
-1. `pnpm --dir ui tauri signer generate --ci -w ~/.tauri/pincel.key`
-   (`--ci`: no password; drop it to set one, then also set
-   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`).
-2. Store the file's content as the secret `TAURI_SIGNING_PRIVATE_KEY`.
-3. Put `~/.tauri/pincel.key.pub` into `plugins.updater.pubkey` and merge
-   that.
-4. A new key reaches installed copies only through a release still signed
-   with the old one, so ship one release with the old key that carries
-   the new public key first.
+Keep the private key safe outside GitHub. If it is lost, installed
+copies of every app that trusts it accept no further updates. To
+replace it (for all apps at once):
+
+1. `pnpm --dir ui tauri signer generate -w ~/.tauri/amigo-labs.key`
+   (asks for the new password).
+2. In every app, put `~/.tauri/amigo-labs.key.pub` into
+   `plugins.updater.pubkey` and ship one release **still signed with the
+   old key**: a new key reaches installed copies only through it.
+3. Then store the new key and password in the two organization secrets;
+   later releases are signed with it.
 
 ### npm publish (`pincel-wasm`)
 
