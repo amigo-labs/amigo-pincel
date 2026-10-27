@@ -27,10 +27,17 @@ collaboration) are out of scope.
 - **release-please** — `RELEASE_PLEASE_TOKEN` as an organization secret
   (fine-grained PAT, Contents + Pull requests write); "Allow GitHub
   Actions to create and approve pull requests" stays off.
-- **npm** — `publish-npm` failed for 1.1.0 with `E404 PUT
-  …/pincel-wasm`: `NPM_TOKEN` may not create the package. Decide the
-  package name (the website says `@amigo-labs/pincel`) and give the
-  token publish rights for it. See `docs/RELEASING.md`.
+- **npm** — `publish-npm` failed for 1.1.0 and 1.3.0 with `E404 PUT
+  …/pincel-wasm`. Decided (spec §15, 2026-10-27): the package is
+  `@amigo-labs/pincel-wasm` and the job authenticates through OIDC
+  trusted publishing, no token — npm revoked the classic tokens and its
+  "stage only" granular tokens cannot publish a version. Still yours,
+  in this order: publish the package by hand once (`npm login`, 2FA),
+  add the trusted publisher for `amigo-labs/amigo-pincel` /
+  `release.yml` in its package settings, then set the repository
+  variable `PUBLISH_NPM` to `true` — an unvalidated trusted publisher
+  expires after two days. `@amigo-labs/pincel` stays the embed
+  package's name (the website advertises it). See `docs/RELEASING.md`.
 - **Cloudflare hostname** — site at `https://pincel.amigo-labs.dev/`,
   editor at `/app/`, both from the `amigo-pincel` Worker's Git build
   (spec §15, 2026-10-13; no secrets). Still yours: attach

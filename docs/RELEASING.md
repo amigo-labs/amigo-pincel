@@ -53,7 +53,7 @@ started at 0.1.9, the last tag of the old push-to-release flow;
 | `release.yml` → `web` | after a release PR is merged, or by hand | Checks tag = crate version and the updater public key, runs the Rust test gate, builds the optimized wasm and the web bundle → `pincel-web.zip` |
 | `release.yml` → `desktop` (3 runners) | same | `pnpm tauri build` on Windows (x64), macOS (universal) and Ubuntu 22.04 (x64); installers plus signed updater artifacts |
 | `release.yml` → `publish` | all builds green | `SHA256SUMS`, the updater manifest `latest.json`, uploads everything to the draft, then publishes it as latest |
-| `release.yml` → `publish-npm` | `NPM_TOKEN` set | Publishes `pincel-wasm` to npm at the release version |
+| `release.yml` → `publish-npm` | repository variable `PUBLISH_NPM` is `true` | Publishes `@amigo-labs/pincel-wasm` to npm at the release version, through OIDC trusted publishing (no token) |
 
 The files go up before the release is published, so neither the download
 links nor the updaters ever see a release without its files. If a build
@@ -196,13 +196,47 @@ replace it (for all apps at once):
    and delete `UPDATER_SIGNING_KEY_ID`; later releases are signed with
    the new key and checked against the app's public key again.
 
-### npm publish (`pincel-wasm`)
+### npm publish (`@amigo-labs/pincel-wasm`)
 
-1. Create an npm automation token with publish rights for the
-   `pincel-wasm` package name.
-2. Add it as the `NPM_TOKEN` repo secret.
+No secret. The job authenticates through npm's **OIDC trusted
+publishing**: npm revoked every classic token in December 2025, and a
+granular token of the "Read and write (stage only)" kind — the one npm
+steers automation to — may not publish a version at all, which npm
+answers with a bare `404 Not Found - PUT`. Direct publishing through
+bypass-2FA tokens goes away in January 2027.
 
-The package is published with `--access public` at the release version.
+One-time setup, in this order:
+
+1. **Publish 1.x.y by hand once.** A trusted publisher is configured in
+   the package's settings, so the package has to exist first. With the
+   wasm toolchain in place (`wasm-pack`, target `wasm32-unknown-unknown`):
+
+   ```bash
+   pnpm --dir ui wasm:build:release
+   cd crates/pincel-wasm/pkg
+   npm login   # a two-hour session token, confirmed with 2FA
+   npm publish --access public
+   ```
+
+   `--access public` is required: a scoped package is private by default.
+2. **Add the trusted publisher.** npmjs.com → the package → Settings →
+   Trusted publisher → GitHub Actions, organization/repository
+   `amigo-labs/amigo-pincel`, workflow `release.yml`, no environment.
+   npm does not verify the entry when it is saved — a wrong workflow
+   filename surfaces only on the next publish. An entry that has not
+   seen a successful publish **expires after two days**; delete it,
+   recreate it and release again.
+3. **Set the repository variable `PUBLISH_NPM` to `true`** (Settings →
+   Secrets and variables → Actions → Variables). Without it `publish-npm`
+   is skipped, so a release never fails over npm while the trusted
+   publisher is not in place.
+
+From then on every release publishes the package at the crate version,
+with a provenance attestation npm attaches on its own. The OIDC exchange
+needs `id-token: write` in `publish-npm` **and** at the call site in
+`release-please.yml`; a called workflow's jobs never hold more than the
+caller grants. npm >= 11.5.1 and Node >= 22.14 are required — the job
+installs `npm@latest` over the runner image's npm for that.
 
 ### Web deploy (Cloudflare)
 
