@@ -13,7 +13,9 @@ mod eyedropper;
 mod fill;
 mod gradient;
 mod move_tool;
+mod recolor;
 mod shapes;
+mod smudge;
 mod text;
 
 pub use delete::delete_selection;
@@ -22,7 +24,9 @@ pub use eyedropper::{Eyedropper, SampleSize};
 pub use fill::{Fill, FillOptions, SampleSource};
 pub use gradient::{Gradient, GradientChannel, GradientKind};
 pub use move_tool::Move;
+pub use recolor::Recolor;
 pub use shapes::{DashPattern, Shape, ShapeMode, ShapeStyle, Shapes};
+pub use smudge::Smudge;
 pub use text::{Text, TextAlign, TextStyle};
 
 use crate::color::Color;
@@ -229,7 +233,7 @@ impl Brush {
         mut op: F,
     ) -> Option<(Rect, ImageBuffer)>
     where
-        F: FnMut(f32, Color) -> Color,
+        F: FnMut(DabPixel) -> Color,
     {
         if strength <= 0.0 {
             return None;
@@ -289,7 +293,7 @@ impl Brush {
     /// origin is `ctx.region`'s top-left), applying `op` per covered pixel.
     fn stamp<F>(&self, buf: &mut ImageBuffer, center: Point, dab: Dab, ctx: &StrokeCtx, op: &mut F)
     where
-        F: FnMut(f32, Color) -> Color,
+        F: FnMut(DabPixel) -> Color,
     {
         let region = ctx.region;
         let radius = self.dab_radius(dab.p);
@@ -327,7 +331,13 @@ impl Brush {
                 let dst = buf
                     .get_pixel(lx as u32, ly as u32)
                     .unwrap_or(Color::TRANSPARENT);
-                buf.set_pixel(lx as u32, ly as u32, op(eff, dst));
+                let pixel = DabPixel {
+                    eff,
+                    dst,
+                    dx: cx - center.x.round() as i32,
+                    dy: cy - center.y.round() as i32,
+                };
+                buf.set_pixel(lx as u32, ly as u32, op(pixel));
             }
         }
     }
@@ -343,7 +353,7 @@ impl Brush {
         ctx: &StrokeCtx,
         op: &mut F,
     ) where
-        F: FnMut(f32, Color) -> Color,
+        F: FnMut(DabPixel) -> Color,
     {
         let dist = a.distance(b);
         // Spacing of a quarter dab diameter keeps strokes solid without
@@ -365,6 +375,18 @@ impl Brush {
             self.stamp(buf, p, dab, ctx, op);
         }
     }
+}
+
+/// One pixel under a dab, handed to the per-tool operation.
+pub(crate) struct DabPixel {
+    /// Coverage after brush falloff, pressure and the selection, 0.0–1.0.
+    pub eff: f32,
+    /// The pixel as it stands before this dab.
+    pub dst: Color,
+    /// Offset from the dab's centre, in whole pixels. The smudge reads its
+    /// carried sample by this; every other tool ignores it.
+    pub dx: i32,
+    pub dy: i32,
 }
 
 /// Pressure and nib angle (radians) of one dab.
@@ -452,11 +474,11 @@ impl Pencil {
     ) -> Option<SetPixels> {
         let color = self.brush.color;
         let ca = color.a as f32 / 255.0 * self.brush.opacity;
-        let (region, after) =
-            self.brush
-                .rasterize(layer_index, points, pen, doc, ca, |eff, dst| {
-                    src_over(color, eff, dst)
-                })?;
+        let (region, after) = self
+            .brush
+            .rasterize(layer_index, points, pen, doc, ca, |p| {
+                src_over(color, p.eff, p.dst)
+            })?;
         Some(SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
     }
 }
