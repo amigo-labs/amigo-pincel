@@ -8,7 +8,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import AboutDialog from './lib/components/AboutDialog.svelte';
-  import { closeAbout, help } from './lib/help/state.svelte';
+  import { closeAbout, help, loadUpdaterState } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -231,6 +231,7 @@
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenOpenFile: UnlistenFn | null = null;
     if (tauriHost) {
+      void loadUpdaterState();
       wireNativeMenu({
         'menu:new': () => guard(() => requestNew(currentMode)),
         'menu:open': () => guard(() => void openFromPicker()),

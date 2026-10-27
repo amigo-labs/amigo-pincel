@@ -85,6 +85,10 @@ export const de: Record<MessageKey, string> = {
   'about.version': 'Version {version}',
   'about.tagline': 'Ein Pixelart- und Bildeditor in einer App.',
   'about.close': 'Schließen',
+  'about.checking': 'Suche nach Updates…',
+  'about.upToDate': 'Pincel ist auf dem neuesten Stand.',
+  'about.ready': 'Pincel {version} wurde geladen und wird ab dem nächsten Start verwendet.',
+  'about.failed': 'Die Suche nach Updates ist fehlgeschlagen: {error}',
 
   // Editor frame
   'frame.unsaved': '{title} – ungespeicherte Änderungen',
@@ -195,6 +199,8 @@ export const de: Record<MessageKey, string> = {
   'menu.adjustments': 'Korrekturen',
   'menu.help': 'Hilfe',
   'menu.about': 'Über Pincel',
+  'menu.checkUpdates': 'Nach Updates suchen…',
+  'menu.autoUpdate': 'Updates automatisch installieren',
   'menu.new': 'Neu…',
   'menu.open': 'Öffnen…',
   'menu.openRecent': 'Zuletzt geöffnet',

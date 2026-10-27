@@ -1,9 +1,9 @@
 // The Help menu both modes append to their menu bar (spec §9.2).
 
-import type { MenuDef } from '../components/layout/menu';
+import { tidy, type MenuDef, type MenuItem } from '../components/layout/menu';
 import { t } from '../i18n/index.svelte';
 import { hasNativeMenu } from '../platform';
-import { openAbout } from './state.svelte';
+import { help, openAbout, runUpdateCheck, setAutoUpdate } from './state.svelte';
 
 /**
  * The Help menu, or nothing where the OS already draws one: on macOS the
@@ -12,11 +12,26 @@ import { openAbout } from './state.svelte';
  */
 export function helpMenus(): MenuDef[] {
   if (hasNativeMenu()) return [];
+  const updater = help.updater;
+  // No update entries where nothing can be installed: a browser, a debug
+  // build, or a copy a package manager owns (`updater::supported()`).
+  const updates: MenuItem[] =
+    updater !== null && updater.supported
+      ? [
+          { kind: 'separator' },
+          { label: t('menu.checkUpdates'), disabled: help.checking, run: runUpdateCheck },
+          {
+            label: t('menu.autoUpdate'),
+            checked: updater.autoUpdate,
+            run: () => setAutoUpdate(!updater.autoUpdate),
+          },
+        ]
+      : [];
   return [
     {
       id: 'help',
       label: t('menu.help'),
-      items: [{ label: t('menu.about'), run: openAbout }],
+      items: tidy([{ label: t('menu.about'), run: openAbout }, ...updates]),
     },
   ];
 }

@@ -78,6 +78,10 @@ export const en = {
   'about.version': 'Version {version}',
   'about.tagline': 'A pixel-art and image editor in one app.',
   'about.close': 'Close',
+  'about.checking': 'Checking for updates…',
+  'about.upToDate': 'Pincel is up to date.',
+  'about.ready': 'Pincel {version} has been downloaded and is used from the next start.',
+  'about.failed': 'Checking for updates failed: {error}',
 
   // Editor frame
   'frame.unsaved': '{title} — unsaved changes',
@@ -188,6 +192,8 @@ export const en = {
   'menu.adjustments': 'Adjustments',
   'menu.help': 'Help',
   'menu.about': 'About Pincel',
+  'menu.checkUpdates': 'Check for Updates…',
+  'menu.autoUpdate': 'Install Updates Automatically',
   'menu.new': 'New…',
   'menu.open': 'Open…',
   'menu.openRecent': 'Open Recent',

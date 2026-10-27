@@ -9,7 +9,22 @@
 // renders the dialog: that covers the start screen, where no editor and so
 // no menu bar is mounted at all.
 
-export const help = $state<{ about: boolean }>({ about: false });
+import { isTauri } from '../platform';
+import { updaterCheck, updaterSetAuto, updaterState, type UpdaterInfo } from './updater';
+
+/** Outcome of a manual update check, shown in the About dialog. */
+export type UpdateResult =
+  | { kind: 'upToDate' }
+  | { kind: 'ready'; version: string }
+  | { kind: 'failed'; error: string };
+
+export const help = $state<{
+  about: boolean;
+  /** `null` until loaded, and forever outside the desktop app. */
+  updater: UpdaterInfo | null;
+  checking: boolean;
+  result: UpdateResult | null;
+}>({ about: false, updater: null, checking: false, result: null });
 
 /** Open the About dialog (Help ▸ About Pincel, or the start screen's button). */
 export function openAbout(): void {
@@ -18,4 +33,45 @@ export function openAbout(): void {
 
 export function closeAbout(): void {
   help.about = false;
+}
+
+/** Load what the Help menu draws its update entries from. No-op in a browser. */
+export async function loadUpdaterState(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    help.updater = await updaterState();
+  } catch (err) {
+    console.error('updater_state failed', err);
+  }
+}
+
+/** Help ▸ Check for Updates…: the About dialog reports the outcome. */
+export function runUpdateCheck(): void {
+  if (help.checking) return;
+  help.checking = true;
+  help.result = null;
+  help.about = true;
+  updaterCheck()
+    .then((version) => {
+      help.result = version === null ? { kind: 'upToDate' } : { kind: 'ready', version };
+      if (version !== null && help.updater !== null) help.updater.ready = version;
+    })
+    .catch((err: unknown) => {
+      help.result = { kind: 'failed', error: String(err) };
+    })
+    .finally(() => {
+      help.checking = false;
+    });
+}
+
+/** Help ▸ Install Updates Automatically. The checkbox follows the stored
+ *  value, not the click, so a failed write leaves it where it was. */
+export function setAutoUpdate(enabled: boolean): void {
+  updaterSetAuto(enabled)
+    .then((stored) => {
+      if (help.updater !== null) help.updater.autoUpdate = stored;
+    })
+    .catch((err: unknown) => {
+      console.error('updater_set_auto failed', err);
+    });
 }
