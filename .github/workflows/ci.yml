@@ -60,8 +60,14 @@ jobs:
             librsvg2-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: check
-        run: cargo check -p pincel-tauri
+        with:
+          # Bumped from the implicit v0: the old cache was filled by a job
+          # whose `cargo check` only ever produced .rmeta, so `cargo test`
+          # rebuilt the whole tauri tree (1m43s) on every run and never got
+          # to store it back -- rust-cache skips saving on a full key match.
+          prefix-key: v1-rust
+      # `cargo test` compiles strictly more than `cargo check`, so a separate
+      # check step only duplicated work.
       - name: test
         run: cargo test -p pincel-tauri
 
@@ -77,11 +83,11 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - uses: jetli/wasm-pack-action@v0.4.0
+      - uses: taiki-e/install-action@v2
         with:
           # Pinned: `latest` lets a new wasm-pack release break builds
           # unannounced.
-          version: 'v0.13.1'
+          tool: wasm-pack@0.13.1
       - uses: pnpm/action-setup@v6
         with:
           version: 10
@@ -101,11 +107,21 @@ jobs:
       - name: build
         run: pnpm build
       # Playwright drives the built bundle through `vite preview`
-      # (ui/playwright.config.ts). Browsers are not cached: the
-      # chromium download is ~1 min and the cache key would have to
-      # track the exact @playwright/test version anyway.
+      # (ui/playwright.config.ts). The browser download is cached; the
+      # @playwright/test version is pinned by pnpm-lock.yaml, so its hash
+      # is an exact key. System libraries live outside the cache and are
+      # installed separately on a hit.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('ui/pnpm-lock.yaml') }}
       - name: install playwright chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps chromium
+      - name: install playwright system libraries
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
       - name: e2e
         run: pnpm test:e2e
       - name: upload playwright report
