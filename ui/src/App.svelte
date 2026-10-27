@@ -308,6 +308,7 @@
         onRequestOpen={() => guard(() => void openFromPicker())}
         onOpenForeign={openFile}
         onDirtyChange={(dirty) => (session.dirty = dirty)}
+        onOpenRecent={(r) => guard(() => void openRecent(r))}
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}

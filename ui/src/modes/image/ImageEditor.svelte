@@ -70,11 +70,12 @@
   } from '../../lib/shell/shortcuts';
   import { hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
-  import { upsertRecent } from '../../lib/idb/recent-files';
+  import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
   import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
+  import { recentMenuItems } from '../../lib/components/layout/recent-menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
@@ -90,6 +91,7 @@
     onRequestNew,
     onRequestOpen,
     onDirtyChange,
+    onOpenRecent,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -180,6 +182,19 @@
   // path (Tauri). Same gate as the Pixel editor / the shell.
   const recentsAvailable = (hasFsAccess() || isTauri()) && isIdbAvailable();
 
+  // File ▸ Open Recent. `null` keeps the entry out of the menu where the
+  // registry cannot work at all; an empty array shows it disabled.
+  let recents = $state<RecentFile[]>([]);
+
+  async function refreshRecents(): Promise<void> {
+    if (!recentsAvailable) return;
+    try {
+      recents = await listRecents();
+    } catch (err) {
+      console.error('listRecents failed', err);
+    }
+  }
+
   async function recordRecent(
     file: Pick<SaveTarget, 'name' | 'handle' | 'path'> | null,
   ): Promise<void> {
@@ -192,6 +207,7 @@
         path: file.path,
         mode: 'image',
       });
+      await refreshRecents();
     } catch (err) {
       console.error('upsertRecent failed', err);
     }
@@ -245,6 +261,7 @@
       : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     autosave.start();
+    void refreshRecents();
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -374,6 +391,7 @@
       items: tidy([
         { label: t('menu.new'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
+        ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         { kind: 'separator' },
         {
           label: t('menu.save'),

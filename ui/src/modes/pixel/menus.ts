@@ -4,6 +4,7 @@
 
 import { effectMenus } from '../../lib/effects/menu';
 import { helpMenus } from '../../lib/help/menu';
+import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
@@ -99,16 +100,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       items: tidy([
         { label: t('menu.new'), disabled: c.busy, run: c.newDoc },
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
-        ...(c.recents
-          ? [
-              {
-                kind: 'submenu' as const,
-                label: t('menu.openRecent'),
-                disabled: c.recents.length === 0 || c.busy,
-                items: c.recents.map((r) => ({ label: r.name, run: () => c.openRecent(r) })),
-              },
-            ]
-          : []),
+        ...recentMenuItems(c.recents, c.openRecent, c.busy),
         { kind: 'separator' },
         {
           label: c.canSaveInPlace ? t('menu.save') : t('menu.saveDownload'),

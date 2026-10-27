@@ -2,6 +2,7 @@
 // (src/modes/pixel/PixelEditor.svelte, src/modes/image/ImageEditor.svelte).
 // See docs/specs/pincel.md §1.1 "Two modes" and §9.2.
 import type { OpenedFile } from '../fs';
+import type { RecentFile } from '../idb/recent-files';
 import type { EditorMenuHandlers } from '../menu';
 
 /** Which editor a document lives in. */
@@ -34,6 +35,10 @@ export interface EditorProps {
   onOpenForeign: (file: OpenedFile) => void;
   /** Mirror of the editor's dirty state, for the shell's guards. */
   onDirtyChange: (dirty: boolean) => void;
+  /** Re-open a recent through the shell, which reads the file (FSA handle
+   *  or Tauri path), runs the unsaved-changes guard and routes it to the
+   *  mode the format belongs to. */
+  onOpenRecent: (recent: RecentFile) => void;
   /** Native-menu (Tauri) items the editor serves; `null` on unmount. */
   registerMenuHandlers: (handlers: EditorMenuHandlers | null) => void;
 }
