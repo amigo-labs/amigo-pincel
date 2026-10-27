@@ -15,6 +15,8 @@ import {
 } from '../core/controller';
 import {
   editor,
+  isShapeTool,
+  shapeOf,
   tool,
   selectionPreview,
   shapePreview,
@@ -64,7 +66,18 @@ function azimuthOf(e: PointerEvent): number | null {
 }
 
 /** Tools that write into the active layer's pixels. */
-const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'move', 'shapes', 'text']);
+const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
+  'pencil',
+  'eraser',
+  'fill',
+  'move',
+  'text',
+  'line',
+  'rectangle',
+  'rounded_rect',
+  'ellipse',
+  'polygon',
+]);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -178,7 +191,7 @@ export function attachTools(
       DRAG_SELECT.has(tool.kind) ||
       tool.kind === 'polygon_lasso' ||
       tool.kind === 'magic_wand' ||
-      tool.kind === 'shapes' ||
+      isShapeTool(tool.kind) ||
       tool.kind === 'text';
     if (selectionOrPlacement && e.button !== 0) {
       return;
@@ -212,7 +225,8 @@ export function attachTools(
       return;
     }
 
-    if (tool.kind === 'shapes') {
+    const shape = shapeOf(tool.kind);
+    if (shape !== null) {
       active = true;
       activePointer = e.pointerId;
       gestureKind = tool.kind;
@@ -220,7 +234,7 @@ export function attachTools(
       last = point;
       canvas.setPointerCapture(e.pointerId);
       shapePreview.value = {
-        kind: tool.shapeKind,
+        kind: shape,
         a: point,
         b: point,
         sides: tool.shapeSides,
@@ -326,10 +340,11 @@ export function attachTools(
       return;
     }
 
-    if (gestureKind === 'shapes' && start) {
-      const b = constrainShape(start, point, tool.shapeKind, shiftHeld(e));
+    const dragShape = shapeOf(gestureKind);
+    if (dragShape !== null && start) {
+      const b = constrainShape(start, point, dragShape, shiftHeld(e));
       shapePreview.value = {
-        kind: tool.shapeKind,
+        kind: dragShape,
         a: start,
         b,
         sides: tool.shapeSides,
@@ -392,7 +407,7 @@ export function attachTools(
         }
       }
       selectionPreview.value = null;
-    } else if (gestureKind === 'shapes' && start && last) {
+    } else if (isShapeTool(gestureKind) && start && last) {
       drawShape(start, last);
       redraw();
     } else if (gestureKind === 'move' && start && last) {

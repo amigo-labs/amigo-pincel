@@ -121,6 +121,16 @@
         tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }],
       },
       {
+        id: 'hand',
+        label: t('tool.hand'),
+        tools: [{ id: 'hand', label: t('tool.hand'), icon: 'hand' }],
+      },
+      {
+        id: 'zoom',
+        label: t('tool.zoom'),
+        tools: [{ id: 'zoom', label: t('tool.zoom'), icon: 'zoom-in' }],
+      },
+      {
         id: 'select',
         label: t('tool.marquee'),
         tools: [
@@ -162,9 +172,19 @@
         tools: [{ id: 'eyedropper', label: t('tool.eyedropper'), icon: 'eyedropper' }],
       },
       {
+        id: 'line',
+        label: t('tool.line'),
+        tools: [{ id: 'line', label: t('tool.line'), icon: 'line' }],
+      },
+      {
         id: 'shapes',
         label: t('tool.shapes'),
-        tools: [{ id: 'shapes', label: t('tool.shapes'), icon: 'shapes' }],
+        tools: [
+          { id: 'rectangle', label: t('tool.rectangle'), icon: 'rect' },
+          { id: 'rounded_rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
+          { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
+          { id: 'polygon', label: t('tool.polygon'), icon: 'polygon' },
+        ],
       },
       {
         id: 'text',

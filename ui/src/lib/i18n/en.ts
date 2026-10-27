@@ -344,6 +344,8 @@ export const en = {
   'effectDlg.reset': 'Reset',
 
   // Tools
+  'tool.hand': 'Pan',
+  'tool.zoom': 'Zoom',
   'tool.move': 'Move',
   'tool.marquee': 'Marquee',
   'tool.rectSelect': 'Rectangle Select',

@@ -351,6 +351,8 @@ export const de: Record<MessageKey, string> = {
   'effectDlg.reset': 'Zurücksetzen',
 
   // Tools
+  'tool.hand': 'Verschieben (Ansicht)',
+  'tool.zoom': 'Zoom',
   'tool.move': 'Verschieben',
   'tool.marquee': 'Auswahlrechteck',
   'tool.rectSelect': 'Rechteckauswahl',

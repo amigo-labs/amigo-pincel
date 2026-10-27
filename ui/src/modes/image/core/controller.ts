@@ -18,7 +18,7 @@ import {
   type DrawShapeCommand,
   type DrawTextCommand,
 } from './wasm';
-import { editor, tool } from '../stores/editor.svelte';
+import { editor, shapeOf, tool } from '../stores/editor.svelte';
 import {
   saveBytes,
   saveExport,
@@ -365,13 +365,14 @@ export function clearEffectPreview(): void {
  * (rectangle/rounded/ellipse); a polygon is inscribed in that box. Stroke uses
  * the foreground color, fill the background color, both at the tool opacity. */
 export function drawShape(a: [number, number], b: [number, number]): void {
-  if (editor.handle === null) {
+  const shape = shapeOf(tool.kind);
+  if (editor.handle === null || shape === null) {
     return;
   }
   const cmd: DrawShapeCommand = {
     type: 'draw_shape',
     layer: editor.activeLayer,
-    shape: tool.shapeKind,
+    shape: shape,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground),
@@ -379,7 +380,7 @@ export function drawShape(a: [number, number], b: [number, number]): void {
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   };
-  if (tool.shapeKind === 'polygon') {
+  if (shape === 'polygon') {
     const w = Math.abs(b[0] - a[0]);
     const h = Math.abs(b[1] - a[1]);
     cmd.center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -388,7 +389,7 @@ export function drawShape(a: [number, number], b: [number, number]): void {
     cmd.rotation = 0;
   } else {
     cmd.points = [a, b];
-    if (tool.shapeKind === 'rounded_rectangle') {
+    if (shape === 'rounded_rectangle') {
       cmd.corner_radius = tool.cornerRadius;
     }
   }

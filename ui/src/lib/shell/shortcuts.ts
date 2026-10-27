@@ -75,6 +75,8 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
  */
 export const TOOL_GROUP_KEYS: Record<string, string> = {
   move: 'v',
+  hand: 'h',
+  zoom: 'z',
   select: 'm',
   lasso: 'q',
   wand: 'w',
