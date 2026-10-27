@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, gotoStart, menu } from './helpers';
+import { createDocument, drag, gotoStart, imageCanvas, menu, pixelCanvas } from './helpers';
 
 // The Help menu exists wherever the OS draws no native menu bar — the web
 // build included, which is what these tests run against (spec §11.3).
@@ -20,6 +20,30 @@ for (const mode of ['pixel', 'image'] as const) {
 
     await dialog.getByRole('button', { name: 'Close' }).click();
     await expect(dialog).toBeHidden();
+  });
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode} mode: the About dialog holds the keyboard`, async ({ page }) => {
+    await createDocument(page, mode, { width: 64, height: 64 });
+    const canvas = mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
+    await drag(page, canvas, [0.2, 0.5], [0.8, 0.5]);
+    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    await expect(undo).toBeEnabled();
+
+    await menu(page, 'Help', 'About Pincel');
+    const dialog = page.getByRole('dialog', { name: 'About Pincel' });
+    await expect(dialog).toBeVisible();
+
+    // Neither an undo nor a tool key may reach the editor behind the dialog.
+    await page.keyboard.press('Control+z');
+    await page.keyboard.press('e');
+    await expect(dialog).toBeVisible();
+    await expect(undo).toBeEnabled();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(undo).toBeEnabled();
   });
 }
 

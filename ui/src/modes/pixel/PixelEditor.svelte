@@ -36,6 +36,7 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
+  import { help } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import {
@@ -282,8 +283,10 @@
       view.spaceDown = true;
       return;
     }
-    // Dialogs own the keyboard while open.
+    // Dialogs own the keyboard while open — the shell's About dialog too,
+    // which is mounted by App.svelte rather than by this editor.
     if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || autosave.snapshots.length > 0) return;
+    if (dialogs.selectionRadius || help.about) return;
     if (e.key === 'Escape') {
       if (dialogs.confirm) {
         dialogs.confirm = null;

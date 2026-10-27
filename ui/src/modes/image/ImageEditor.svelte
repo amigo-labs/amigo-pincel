@@ -78,6 +78,7 @@
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
+  import { help } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
@@ -355,7 +356,7 @@
   function onKeydown(e: KeyboardEvent): void {
     // Ignore shortcuts while typing in a field (text-entry overlay included)
     // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || isTypingTarget(e.target)) {
+    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
