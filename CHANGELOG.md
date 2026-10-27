@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.1.2...v1.2.0) (2026-10-27)
+
+
+### Features
+
+* **pincel-core:** HSL blend modes; LF line endings from feat/blend-modes ([32280da](https://github.com/amigo-labs/amigo-pincel/commit/32280da7969d1b9dd57716cb772c6aae730d70b1))
+* **pincel-core:** render the Hue, Saturation, Color and Luminosity blend modes ([581218e](https://github.com/amigo-labs/amigo-pincel/commit/581218e21ba2637dd9e26ca5f8986af831f5ae3f))
+
 ## [1.1.2](https://github.com/amigo-labs/amigo-pincel/compare/v1.1.1...v1.1.2) (2026-10-27)
 
 
