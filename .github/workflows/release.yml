@@ -248,10 +248,15 @@ jobs:
       # accepts only the key in plugins.updater.pubkey. A mismatch (say, a
       # repository secret shadowing the organization's) would publish
       # updates no installed copy accepts, so it stops the release here.
+      # The one release of a key rotation that carries the new public key
+      # but is still signed with the old key sets the repository variable
+      # UPDATER_SIGNING_KEY_ID to the old key's ID (docs/RELEASING.md).
       - name: Signatures match the updater key
+        env:
+          EXPECTED_KEY_ID: ${{ vars.UPDATER_SIGNING_KEY_ID }}
         run: |
           python3 - <<'EOF'
-          import base64, glob, json, sys
+          import base64, glob, json, os, sys
 
           def key_id(text):
               # minisign: base64 of a comment line and a base64 key or
@@ -261,11 +266,15 @@ jobs:
 
           conf = json.load(open("src-tauri/tauri.conf.json"))
           want = key_id(conf["plugins"]["updater"]["pubkey"])
+          override = os.environ.get("EXPECTED_KEY_ID", "").strip().upper()
+          if override:
+              print(f"::warning::UPDATER_SIGNING_KEY_ID: expecting key {override}, the app trusts {want}")
+              want = override
           sigs = sorted(glob.glob("dist/*.sig"))
           bad = [(p, key_id(open(p).read())) for p in sigs]
           bad = [(p, k) for p, k in bad if k != want]
           for p, k in bad:
-              print(f"::error::{p} is signed by key {k}, the app trusts {want}")
+              print(f"::error::{p} is signed by key {k}, expected {want}")
           if len(sigs) < 4 or bad:
               sys.exit(1)
           print(f"{len(sigs)} signatures by key {want}")

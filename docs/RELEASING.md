@@ -185,9 +185,13 @@ replace it (for all apps at once):
    (asks for the new password).
 2. In every app, put `~/.tauri/amigo-labs.key.pub` into
    `plugins.updater.pubkey` and ship one release **still signed with the
-   old key**: a new key reaches installed copies only through it.
-3. Then store the new key and password in the two organization secrets;
-   later releases are signed with it.
+   old key**: a new key reaches installed copies only through it. For
+   that release, set the repository variable `UPDATER_SIGNING_KEY_ID`
+   (Settings → Secrets and variables → Actions → Variables) to the old
+   key's ID, or the signature check stops it.
+3. Then store the new key and password in the two organization secrets
+   and delete `UPDATER_SIGNING_KEY_ID`; later releases are signed with
+   the new key and checked against the app's public key again.
 
 ### npm publish (`pincel-wasm`)
 
