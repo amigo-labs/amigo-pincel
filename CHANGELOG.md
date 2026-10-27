@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.3.0...v1.3.1) (2026-10-27)
+
+
+### Miscellaneous
+
+* force the 1.3.1 release to validate the trusted publisher ([ef4d693](https://github.com/amigo-labs/amigo-pincel/commit/ef4d693b7836e678eaca15e18660b3c3f0e704d2))
+
 ## [1.3.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.2.0...v1.3.0) (2026-10-27)
 
 
