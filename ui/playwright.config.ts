@@ -12,13 +12,6 @@ export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
-  // Playwright defaults to a single worker under CI, which ran the specs
-  // serially for ~56s. The runner has 4 vCPUs and `vite preview` needs one,
-  // so two is the safe step up: measured over all 62 tests, it takes the
-  // suite from 1m24s to 49s with no flakes. Spread rather than a plain
-  // `: undefined`, which exactOptionalPropertyTypes rejects -- leaving the
-  // key out is what restores Playwright's own local default.
-  ...(process.env.CI ? { workers: 2 } : {}),
   retries: 0,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   timeout: 30_000,
