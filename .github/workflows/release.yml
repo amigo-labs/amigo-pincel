@@ -374,6 +374,13 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+      # wasm-pack copies the crate's license files into pkg/ but leaves
+      # them out of the `files` it generates, and npm only ever includes
+      # a file named exactly LICENSE on its own. Without this the tarball
+      # ships compiled code under a dual license with neither text.
+      - name: ship the license texts
+        working-directory: crates/pincel-wasm/pkg
+        run: npm pkg set "files[]=LICENSE-MIT" "files[]=LICENSE-APACHE"
       - name: publish
         working-directory: crates/pincel-wasm/pkg
         run: npm publish --access public

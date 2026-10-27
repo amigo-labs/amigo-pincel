@@ -213,12 +213,20 @@ One-time setup, in this order:
 
    ```bash
    pnpm --dir ui wasm:build:release
+   # the crate disables wasm-pack's bundled binaryen (Cargo.toml), so run
+   # wasm-opt the way the job does — without it the tarball is ~16 % larger
+   pnpm --package=binaryen dlx wasm-opt -O3 \
+     -o crates/pincel-wasm/pkg/pincel_wasm_bg.wasm \
+        crates/pincel-wasm/pkg/pincel_wasm_bg.wasm
    cd crates/pincel-wasm/pkg
+   npm pkg set "files[]=LICENSE-MIT" "files[]=LICENSE-APACHE"
    npm login   # a two-hour session token, confirmed with 2FA
    npm publish --access public
    ```
 
    `--access public` is required: a scoped package is private by default.
+   Check what goes up with `npm pack --dry-run` first — seven files, about
+   400 kB.
 2. **Add the trusted publisher.** npmjs.com → the package → Settings →
    Trusted publisher → GitHub Actions, organization/repository
    `amigo-labs/amigo-pincel`, workflow `release.yml`, no environment.
