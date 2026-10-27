@@ -34,7 +34,9 @@ collaboration) are out of scope.
   "stage only" granular tokens cannot publish a version. Still yours,
   in this order: publish the package by hand once (`npm login`, 2FA),
   add the trusted publisher for `amigo-labs/amigo-pincel` /
-  `release.yml` in its package settings, then set the repository
+  `release-please.yml` in its package settings (npm validates the run's
+  entry workflow, not the `release.yml` that holds the publish), then
+  set the repository
   variable `PUBLISH_NPM` to `true` — an unvalidated trusted publisher
   expires after two days. `@amigo-labs/pincel` stays the embed
   package's name (the website advertises it). See `docs/RELEASING.md`.

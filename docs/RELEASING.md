@@ -53,7 +53,7 @@ started at 0.1.9, the last tag of the old push-to-release flow;
 | `release.yml` → `web` | after a release PR is merged, or by hand | Checks tag = crate version and the updater public key, runs the Rust test gate, builds the optimized wasm and the web bundle → `pincel-web.zip` |
 | `release.yml` → `desktop` (3 runners) | same | `pnpm tauri build` on Windows (x64), macOS (universal) and Ubuntu 22.04 (x64); installers plus signed updater artifacts |
 | `release.yml` → `publish` | all builds green | `SHA256SUMS`, the updater manifest `latest.json`, uploads everything to the draft, then publishes it as latest |
-| `release.yml` → `publish-npm` | repository variable `PUBLISH_NPM` is `true` | Publishes `@amigo-labs/pincel-wasm` to npm at the release version, through OIDC trusted publishing (no token) |
+| `release.yml` → `publish-npm` | repository variable `PUBLISH_NPM` is `true`, and the run came from a release PR (not a manual one) | Publishes `@amigo-labs/pincel-wasm` to npm at the release version, through OIDC trusted publishing (no token) |
 
 The files go up before the release is published, so neither the download
 links nor the updaters ever see a release without its files. If a build
@@ -229,22 +229,39 @@ One-time setup, in this order:
    400 kB.
 2. **Add the trusted publisher.** npmjs.com → the package → Settings →
    Trusted publisher → GitHub Actions, organization/repository
-   `amigo-labs/amigo-pincel`, workflow `release.yml`, no environment.
-   npm does not verify the entry when it is saved — a wrong workflow
-   filename surfaces only on the next publish. An entry that has not
-   seen a successful publish **expires after two days**; delete it,
-   recreate it and release again.
+   `amigo-labs/amigo-pincel`, workflow **`release-please.yml`**, no
+   environment.
+
+   Not `release.yml`, although that is the file holding the `npm
+   publish`: npm validates the **entry workflow of the run**, and an
+   automatic release enters through `release-please.yml`, which calls
+   `release.yml` with `workflow_call`. npm's own
+   [troubleshooting](https://docs.npmjs.com/trusted-publishers#troubleshooting)
+   spells this out, and it allows one trusted publisher per package
+   ([npm/documentation#1755](https://github.com/npm/documentation/issues/1755)
+   asks for more). npm does not verify the entry when it is saved — a
+   wrong workflow filename surfaces only on the next publish. An entry
+   that has not seen a successful publish **expires after two days**, so
+   add it when a release is actually due; otherwise delete it, recreate
+   it and release again.
 3. **Set the repository variable `PUBLISH_NPM` to `true`** (Settings →
    Secrets and variables → Actions → Variables). Without it `publish-npm`
    is skipped, so a release never fails over npm while the trusted
    publisher is not in place.
 
-From then on every release publishes the package at the crate version,
-with a provenance attestation npm attaches on its own. The OIDC exchange
-needs `id-token: write` in `publish-npm` **and** at the call site in
-`release-please.yml`; a called workflow's jobs never hold more than the
-caller grants. npm >= 11.5.1 and Node >= 22.14 are required — the job
-installs `npm@latest` over the runner image's npm for that.
+From then on every release merged through a release PR publishes the
+package at the crate version, with a provenance attestation npm attaches
+on its own. The OIDC exchange needs `id-token: write` in `publish-npm`
+**and** at the call site in `release-please.yml`; a called workflow's
+jobs never hold more than the caller grants. npm >= 11.5.1 and Node >=
+22.14 are required — the job installs `npm@latest` over the runner
+image's npm for that.
+
+A **manual run** of `release.yml` (Actions → Release → Run workflow, the
+rebuild path for an existing tag) skips `publish-npm`: the run's entry
+workflow is then `release.yml`, an identity the one trusted publisher
+cannot match, so the publish could only fail. Push that version with the
+by-hand sequence of step 1 instead.
 
 ### Web deploy (Cloudflare)
 

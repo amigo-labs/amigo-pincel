@@ -320,15 +320,23 @@ jobs:
   # Authenticates through npm's OIDC trusted publishing, not a token:
   # npm revoked all classic tokens in December 2025, and a granular
   # token of the "Read and write (stage only)" kind — the one npm steers
-  # automation to — may not publish a version at all. The trusted
-  # publisher is configured once in the package settings on npmjs.com
-  # (repository amigo-labs/amigo-pincel, workflow release.yml); the
-  # publish then needs `id-token: write` and npm >= 11.5.1, and npm
-  # attaches a provenance attestation on its own. See docs/RELEASING.md.
+  # automation to — may not publish a version at all. The publish needs
+  # `id-token: write` and npm >= 11.5.1, and npm attaches a provenance
+  # attestation on its own.
+  #
+  # The trusted publisher is configured once in the package settings on
+  # npmjs.com and names **release-please.yml**, not this file: npm
+  # validates the entry workflow of the run, not the one holding the
+  # `npm publish` (docs.npmjs.com/trusted-publishers, Troubleshooting),
+  # and automatic releases enter through release-please.yml's
+  # `workflow_call`. npm allows one trusted publisher per package, so a
+  # `workflow_dispatch` run of this file — a rebuild on an existing tag —
+  # carries an identity no entry can match and is skipped below; publish
+  # that one by hand (docs/RELEASING.md).
   publish-npm:
     name: publish @amigo-labs/pincel-wasm to npm (guarded)
     needs: [web, publish]
-    if: vars.PUBLISH_NPM == 'true'
+    if: vars.PUBLISH_NPM == 'true' && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
