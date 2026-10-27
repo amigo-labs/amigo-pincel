@@ -38,8 +38,9 @@ pub use render::{compose, compose_over, compose_region};
 pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand, masked_region};
 pub use tools::{
     Brush, BrushShape, DEFAULT_BRUSH_ANGLE, DashPattern, Eraser, EraserMode, Eyedropper, Fill,
-    FillOptions, Move, PenSamples, Pencil, PressureDynamics, SampleSize, SampleSource, Shape,
-    ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, delete_selection,
+    FillOptions, Gradient, GradientChannel, GradientKind, Move, PenSamples, Pencil,
+    PressureDynamics, SampleSize, SampleSource, Shape, ShapeMode, ShapeStyle, Shapes, Text,
+    TextAlign, TextStyle, delete_selection,
 };
 pub use transform::{
     Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,
