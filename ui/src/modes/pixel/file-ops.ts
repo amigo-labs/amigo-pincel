@@ -18,7 +18,7 @@ import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
 import { type RecentFile, listRecents, upsertRecent } from '../../lib/idb/recent-files';
-import { isTauri } from '../../lib/platform';
+import { hasNativeMenu, isTauri } from '../../lib/platform';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { disposeDoc, resetDocViewState } from './doc-ops';
 import { afterImageCommand } from './image-ops';
@@ -44,6 +44,10 @@ export function isDocDirty(): boolean {
 export const fsAccessAvailable = hasFsAccess();
 
 export const tauriHost = isTauri();
+
+/** True only where the OS draws the menu bar (macOS desktop app), which
+ *  is then the owner of the `NATIVE_MENU_ACTIONS` chords (spec §9.4). */
+export const nativeMenuHost = hasNativeMenu();
 
 export const idbAvailable = isIdbAvailable();
 

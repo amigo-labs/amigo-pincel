@@ -74,7 +74,7 @@
   import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
-  import { isTauri } from '../../lib/platform';
+  import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
@@ -276,7 +276,9 @@
       return;
     }
     const action = actionFor(e);
-    if (action !== null && isTauri() && NATIVE_MENU_ACTIONS.has(action)) return;
+    // Only a native menu bar fires these as accelerators (spec §9.4);
+    // without one the editor has to handle them itself.
+    if (action !== null && hasNativeMenu() && NATIVE_MENU_ACTIONS.has(action)) return;
     if (action !== null && runShortcut(action)) {
       e.preventDefault();
       return;

@@ -38,6 +38,18 @@ async fn write_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
     write_path(&path, &bytes)
 }
 
+/// Whether this build installs a native menu bar (spec §11.3).
+///
+/// macOS only: there the menu bar belongs to the screen rather than the
+/// window, and the App menu with Quit / About is a platform requirement.
+/// On Windows and Linux it would stack on top of the in-app menu bar,
+/// which lists a superset of its entries, so the app ships that one alone.
+///
+/// A `const` rather than `#[cfg]` on every menu item: CI builds this crate
+/// on Linux only, and an attribute would take the whole macOS path out of
+/// the type check.
+const NATIVE_MENU: bool = cfg!(target_os = "macos");
+
 #[derive(Deserialize)]
 struct RecentMenuItem {
     id: String,
@@ -50,6 +62,10 @@ struct RecentMenuItem {
 // placeholder so the submenu remains visible but inert.
 #[tauri::command]
 async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(), String> {
+    if !NATIVE_MENU {
+        // No native menu to feed; the in-app File menu lists the recents.
+        return Ok(());
+    }
     let menu = app.menu().ok_or_else(|| "no menu installed".to_string())?;
     let submenu = find_submenu(&menu, RECENT_MENU_ID)
         .ok_or_else(|| "open-recent submenu not found".to_string())?;
@@ -174,6 +190,10 @@ fn current_labels() -> &'static Labels {
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
     GERMAN.store(lang == "de", Ordering::Relaxed);
+    if !NATIVE_MENU {
+        // Nothing to relabel: the in-app menu bar follows the locale itself.
+        return Ok(());
+    }
     let recents: Vec<RecentMenuItem> = app
         .menu()
         .and_then(|menu| find_submenu(&menu, RECENT_MENU_ID))
@@ -406,8 +426,10 @@ fn main() {
         })
         .setup(|app| {
             let handle = app.handle();
-            let menu = build_menu(handle)?;
-            app.set_menu(menu)?;
+            if NATIVE_MENU {
+                let menu = build_menu(handle)?;
+                app.set_menu(menu)?;
+            }
             updater::spawn_background_check(handle);
             let deadline = handle.clone();
             std::thread::spawn(move || {

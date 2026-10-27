@@ -78,6 +78,7 @@
     openNewDialog,
     openOpened,
     openRecent,
+    nativeMenuHost,
     openSheetDialog,
     recentsAvailable,
     save,
@@ -308,13 +309,13 @@
       toggleProbe();
       return;
     }
-    // The keyboard map both modes share (lib/shell/shortcuts.ts). In the
-    // desktop app the native menu owns its accelerators (New / Open /
-    // Save / Export / Undo / Redo) — handling them here too would
-    // double-fire.
+    // The keyboard map both modes share (lib/shell/shortcuts.ts). Where the
+    // OS draws the menu bar (macOS desktop app) that menu owns its
+    // accelerators (New / Open / Save / Export / Undo / Redo) — handling
+    // them here too would double-fire. Everywhere else they are ours.
     const action = actionFor(e);
     if (action !== null) {
-      if (tauriHost && NATIVE_MENU_ACTIONS.has(action)) return;
+      if (nativeMenuHost && NATIVE_MENU_ACTIONS.has(action)) return;
       if (runShortcut(action)) e.preventDefault();
       return;
     }
