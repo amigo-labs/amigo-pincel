@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.3.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.2.0...v1.3.0) (2026-10-27)
+
+
+### Features
+
+* **pincel-image-core:** move the selected pixels, and the selection alone ([5575dcf](https://github.com/amigo-labs/amigo-pincel/commit/5575dcff9d43ec2430ae29ee6dea8f04aed09152))
+* **pincel-image-core:** the Gradient tool ([66ededd](https://github.com/amigo-labs/amigo-pincel/commit/66ededdfa9925896c9cc7591345b55c4b26287bb))
+* **pincel-image-core:** the Recolor and Smudge tools ([7412859](https://github.com/amigo-labs/amigo-pincel/commit/74128595e580594e9bbbce9cdc7d8deaa22dba17))
+* **pincel-image-core:** the selection outline travels with its pixels ([5da1bcb](https://github.com/amigo-labs/amigo-pincel/commit/5da1bcb6574c8d1e20a6a9a8757be6cf00352906))
+* **tauri:** updater commands for the in-app Help menu ([3b48369](https://github.com/amigo-labs/amigo-pincel/commit/3b48369e7e917e9ddb7b3ab9d0cb9ea983b2867d))
+* **ui:** check for updates from the Help menu ([78247ae](https://github.com/amigo-labs/amigo-pincel/commit/78247ae3b4b93ca96fad47622b4433f11324f7d4))
+* **ui:** expand, contract and feather the selection by a radius ([f57fc16](https://github.com/amigo-labs/amigo-pincel/commit/f57fc16824f50cf46c8358f4d45fa42c84d2e1e2))
+* **ui:** File ▸ Open Recent in Image mode ([9e05daf](https://github.com/amigo-labs/amigo-pincel/commit/9e05daf83e7c7bc1f7e77f81b192d6d64bfeafe2))
+* **ui:** Help menu with About Pincel ([785fa64](https://github.com/amigo-labs/amigo-pincel/commit/785fa64b6b4807cd195d227e8b07476a9c6c870b))
+* **ui:** line, the four shapes, pan and zoom as Image-mode rail tools ([abbe448](https://github.com/amigo-labs/amigo-pincel/commit/abbe448d49a8e9d4501ac3dec0d3aff553c73a4e))
+* **ui:** move the selected pixels, or the selection alone ([a9ea6da](https://github.com/amigo-labs/amigo-pincel/commit/a9ea6dac0318c28162d0c33b972cdbafb5d60c05))
+* **ui:** the Gradient tool ([6036064](https://github.com/amigo-labs/amigo-pincel/commit/603606406e30a674792c328d6cd6b08e4e23dca7))
+* **ui:** the Recolor and Smudge tools ([53a2c0f](https://github.com/amigo-labs/amigo-pincel/commit/53a2c0f6a13f2c7775ef95f79e8583be6b6a56eb))
+
+
+### Bug Fixes
+
+* **pincel-image-core:** carry Smudge and Recolor state across a drag ([9a3dc0e](https://github.com/amigo-labs/amigo-pincel/commit/9a3dc0ee5898ea1458d9d14e5c9d278b9ec76e42))
+* **tauri:** install the native menu only on macOS ([046b87c](https://github.com/amigo-labs/amigo-pincel/commit/046b87c5b9cd3c1b65b8c7eff5192f7781869b7e))
+* **tauri:** one menu bar per platform, and the Image-mode tools paint.net has ([95b9b18](https://github.com/amigo-labs/amigo-pincel/commit/95b9b180869c79ca8aa0d14ea64e66a4e9c4969e))
+* **ui:** four defects from the review of the new tools ([e1bed0e](https://github.com/amigo-labs/amigo-pincel/commit/e1bed0e3242c4346f31732e805f31a349caf6453))
+* **ui:** the About dialog holds the keyboard while it is open ([9574a2d](https://github.com/amigo-labs/amigo-pincel/commit/9574a2d6f2ff4dfaea0d77c06d3cb4a40eea21b6))
+
 ## [1.2.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.1.2...v1.2.0) (2026-10-27)
 
 
