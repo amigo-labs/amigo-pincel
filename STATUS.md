@@ -989,10 +989,10 @@ the findings don't get lost — each is scoped and ready to pick up:
   `$derived.by(() => { void rev; … idAt loop })` shape; a shared
   `deriveRows` helper was considered and skipped (indirection vs. ~20
   duplicated lines). Revisit if a fourth panel appears.
-- **Group opacity / blend-mode folding** and the four **HSL blend
-  modes** render children/Normal for now (spec §15 Decision Log,
-  2026-07-09); Aseprite pixel-parity for blend rounding is explicitly
-  out of scope until someone needs it.
+- **Group opacity / blend-mode folding** — group layers still render
+  their children unfolded (spec §15 Decision Log, 2026-07-09). The four
+  HSL blend modes render since 2026-10-27; Aseprite pixel-parity for
+  blend rounding is explicitly out of scope until someone needs it.
 - **Tauri `read_file_bytes` / `write_file_bytes` accept arbitrary
   paths** — acceptable for a local editor, but unscoped; consider
   restricting to dialog-granted paths.

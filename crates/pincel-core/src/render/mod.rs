@@ -1,9 +1,8 @@
 //! Composition pipeline. See `docs/specs/pincel.md` §4.
 //!
 //! Covers the RGBA color mode, image cels and tilemap cels, and every
-//! separable blend mode (the four non-separable HSL modes fall back to
-//! `Normal` — spec §15 Decision Log, 2026-07-09), plus the onion-skin
-//! pass (spec §4.2). Indexed color, linked cels and decoration overlays
+//! blend mode — separable and the four non-separable HSL modes (spec §15
+//! Decision Log, 2026-10-27) — plus the onion-skin pass (spec §4.2). Indexed color, linked cels and decoration overlays
 //! raise [`RenderError`] and arrive in later milestones.
 
 mod blend;

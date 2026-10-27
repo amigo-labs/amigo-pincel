@@ -201,9 +201,8 @@ pub struct AtlasOutput {
 /// Inherited from `compose()`: the sprite must use [`crate::ColorMode::Rgba`].
 /// Indexed or grayscale color and linked cels fail with
 /// [`ExportError::Render`] carrying the underlying [`RenderError`]. Image and
-/// tilemap layers both compose, under every separable blend mode (the four
-/// non-separable HSL modes render as `Normal`). Export does not work around
-/// these limits — it widens automatically as `compose()` does.
+/// tilemap layers both compose, under every blend mode. Export does not work
+/// around these limits — it widens automatically as `compose()` does.
 ///
 /// # Errors
 ///
