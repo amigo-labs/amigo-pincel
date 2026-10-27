@@ -29,6 +29,15 @@ export async function createDocument(
     timeout: 60_000,
   });
   await expect(page.getByRole('menubar').or(page.getByRole('button', { name: 'Menu' }))).toBeVisible();
+  // The top bar names the document a moment before the editor mounts its
+  // drawing surface — Image mode keeps the stage at `display: none` until
+  // the core hands back a document. Wait for the surface, or the first
+  // `drag()` of a spec races it and reads a null bounding box.
+  // Same generous budget as the banner above: a huge canvas takes a while
+  // to allocate on the unoptimized CI wasm.
+  await expect(mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page)).toBeVisible({
+    timeout: 60_000,
+  });
 }
 
 /** The Pixel-mode drawing surface. */
@@ -48,6 +57,7 @@ export async function drag(
   from: [number, number],
   to: [number, number],
 ): Promise<void> {
+  await target.waitFor({ state: 'visible' });
   const box = await target.boundingBox();
   if (!box) throw new Error('drag target is not visible');
   const at = ([fx, fy]: [number, number]) =>
