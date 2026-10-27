@@ -417,7 +417,10 @@ fn main() {
             read_file_bytes,
             write_file_bytes,
             set_recent_menu,
-            set_menu_language
+            set_menu_language,
+            updater::updater_state,
+            updater::updater_check,
+            updater::updater_set_auto
         ])
         .on_page_load(|webview, payload| {
             if payload.event() == PageLoadEvent::Finished {
