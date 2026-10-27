@@ -21,9 +21,10 @@ import {
   type BlendMode,
   type Rgba,
   type DrawShapeCommand,
+  type ShapeKind,
   type DrawTextCommand,
 } from './wasm';
-import { editor, shapeOf, tool } from '../stores/editor.svelte';
+import { editor, tool } from '../stores/editor.svelte';
 import {
   saveBytes,
   saveExport,
@@ -369,9 +370,12 @@ export function clearEffectPreview(): void {
  * `a`/`b` are the drag endpoints (line) or opposite corners of the drag box
  * (rectangle/rounded/ellipse); a polygon is inscribed in that box. Stroke uses
  * the foreground color, fill the background color, both at the tool opacity. */
-export function drawShape(a: [number, number], b: [number, number]): void {
-  const shape = shapeOf(tool.kind);
-  if (editor.handle === null || shape === null) {
+export function drawShape(
+  a: [number, number],
+  b: [number, number],
+  shape: ShapeKind,
+): void {
+  if (editor.handle === null) {
     return;
   }
   const cmd: DrawShapeCommand = {
@@ -750,9 +754,12 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
     y0: a[1],
     x1: b[0],
     y1: b[1],
-    from: colorWithOpacity(tool.foreground),
-    to: colorWithOpacity(tool.background),
-    opacity: tool.opacity / 100,
+    // Opaque endpoints: `Gradient::sample` applies `opacity` itself, and
+    // `colorWithOpacity` would square it — a 50 % Colour ramp painted at 25 %
+    // while the Transparency channel used 50 %.
+    from: activeColor(false),
+    to: activeColor(true),
+    opacity: opacity01(),
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();

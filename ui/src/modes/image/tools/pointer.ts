@@ -441,8 +441,13 @@ export function attachTools(
       drawGradient(start, last);
       redraw();
     } else if (isShapeTool(gestureKind) && start && last) {
-      drawShape(start, last);
-      redraw();
+      // The shape the gesture began with, not whatever `U` has selected
+      // since: the commit has to match the preview being dragged.
+      const committed = shapeOf(gestureKind);
+      if (committed !== null) {
+        drawShape(start, last, committed);
+        redraw();
+      }
     } else if (MOVE_TOOLS.has(gestureKind) && start && last) {
       const dx = Math.round(last[0] - start[0]);
       const dy = Math.round(last[1] - start[1]);

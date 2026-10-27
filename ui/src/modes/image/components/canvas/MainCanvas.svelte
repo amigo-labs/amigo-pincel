@@ -95,6 +95,9 @@
   function onPointerDownCapture(e: PointerEvent): void {
     if (pinch.down(e)) {
       e.stopPropagation();
+      // A second finger ends any Zoom framing in progress, or its box would
+      // stay live and swallow the moves the pinch needs.
+      zoomBox = null;
       gestureControl.cancel();
       if (editor.undoDepth > gestureUndoDepth) undo();
       pinchZoom0 = view.zoom;
@@ -113,8 +116,10 @@
     }
     // Hand and Zoom move the viewport, not the document, so they are served
     // here — beside the Space-drag they generalise — and never reach the
-    // tool dispatcher (spec §9.2 tool rail).
-    if (e.button === 0 && editor.handle !== null) {
+    // tool dispatcher (spec §9.2 tool rail). The floating ZoomControl is a
+    // child of the viewport, so its buttons would otherwise never see their
+    // own clicks: with Zoom selected, "Zoom out" would zoom in.
+    if (e.button === 0 && editor.handle !== null && !onInteractiveTarget(e)) {
       if (tool.kind === 'hand') {
         e.stopPropagation();
         e.preventDefault();
@@ -155,14 +160,25 @@
   }
 
   function onPointerUpCapture(e: PointerEvent): void {
+    // Always retire the pointer, whatever the gesture was: the tracker keys
+    // its touches by pointer id and only `up` removes them, so a Zoom release
+    // that skipped this left a finger registered forever — the next tap then
+    // counted as a second finger and rolled back the previous edit.
+    const pinched = pinch.suppressing;
+    pinch.up(e);
     if (zoomBox) {
       e.stopPropagation();
       commitZoom(e);
       return;
     }
-    const pinched = pinch.suppressing;
-    pinch.up(e);
     if (pinched) e.stopPropagation();
+  }
+
+  /** True when the event started on a control inside the viewport (the
+   *  floating zoom buttons), which owns the click rather than the canvas. */
+  function onInteractiveTarget(e: PointerEvent): boolean {
+    const el = e.target;
+    return el instanceof Element && el.closest('button, input, select, a') !== null;
   }
 
   // Middle-button drag, or any drag with Space held, pans (the tool

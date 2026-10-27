@@ -41,6 +41,22 @@ test('image mode: the Line tool draws and undoes', async ({ page }) => {
   await expect(undo).toBeDisabled();
 });
 
+test('image mode: the zoom buttons still work with the Zoom tool selected', async ({ page }) => {
+  // The floating control is a child of the viewport, whose capture handler
+  // serves the Pan and Zoom tools — it must not swallow the buttons' clicks.
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  await page.keyboard.press('z');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Zoom');
+
+  const zoom = page.getByRole('button', { name: 'Actual size' });
+  await zoom.click();
+  await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveText('100%');
+
+  // "Zoom out" must zoom out, not in through the viewport gesture.
+  await page.getByRole('button', { name: 'Zoom out' }).click();
+  await expect(page.getByRole('button', { name: 'Fit to window' })).not.toHaveText('100%');
+});
+
 test('image mode: Pan and Zoom are rail tools', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   await page.keyboard.press('h');
