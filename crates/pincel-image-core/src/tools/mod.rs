@@ -460,7 +460,7 @@ impl Pencil {
 }
 
 /// Straight-alpha source-over of `src` (with effective alpha `sa`) onto `dst`.
-fn src_over(src: Color, sa: f32, dst: Color) -> Color {
+pub(crate) fn src_over(src: Color, sa: f32, dst: Color) -> Color {
     let da = dst.a as f32 / 255.0;
     let out_a = sa + da * (1.0 - sa);
     if out_a <= 0.0 {
