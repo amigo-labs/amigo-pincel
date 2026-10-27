@@ -89,6 +89,22 @@ Branch `claude/confident-hopper-o7fo67`. Spec §5.2 (retitled), §5.4 (new),
   Contract / Feather take a radius in both modes.
 - Still absent against paint.net: clone stamp, bézier curves, custom and
   textured brushes.
+- **Review round (Copilot, 8 findings, all real).** Gradient opacity was
+  applied twice (endpoint alphas *and* the command); shapes committed the
+  tool active on release rather than the one the drag began with; the
+  floating zoom control sits inside the viewport whose capture handler
+  serves Pan and Zoom, so its buttons never saw their own clicks; a Zoom
+  release skipped `pinch.up`, leaving a finger registered that turned the
+  next tap into a phantom pinch; the About dialog suspended no editor
+  shortcut. Deeper: a pointer drag arrives as one command per event, so
+  Smudge forgot its carried colour and Recolor judged eligibility against
+  its own half-finished writes at every event boundary — both now take the
+  drag's memory (`SmudgeCarry`, `RecolorOrigins`) from the wasm layer,
+  keyed by `stroke_id`. And `MoveSelection` moves the outline with its
+  pixels, so a second drag carries the patch on.
+  Left open on its thread: narrowing `gestureControl.cancel`'s rollback to
+  the current gesture — older than this branch, and unreachable now that
+  the stale pointer is gone.
 - **Not verifiable here:** the macOS half of the menu change. One person
   on a Mac has to confirm the menu is still there, the in-app bar has no
   Help menu, and Cmd+S / Cmd+Z fire exactly once.
