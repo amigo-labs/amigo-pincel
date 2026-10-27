@@ -17,6 +17,10 @@ async function layerNames(page: Page): Promise<string[]> {
 async function dragLayer(page: Page, from: string, to: string): Promise<void> {
   const grip = page.getByRole('button', { name: `Drag to reorder ${from}` });
   const target = page.getByRole('button', { name: `Drag to reorder ${to}` });
+  // Measure only what is on screen: a panel that is still rendering hands
+  // back a null box and the drag starts from nowhere.
+  await grip.waitFor({ state: 'visible' });
+  await target.waitFor({ state: 'visible' });
   const a = await grip.boundingBox();
   const b = await target.boundingBox();
   if (!a || !b) throw new Error('layer rows not visible');
@@ -36,8 +40,11 @@ function layerRow(page: Page, name: string) {
 /** Drags layer `from` onto row `to`, released at height `fy` (0 = top) of the row. */
 async function dropOnRow(page: Page, from: string, to: string, fy: number): Promise<void> {
   const grip = page.getByRole('button', { name: `Drag to reorder ${from}`, exact: true });
+  const row = layerRow(page, to);
+  await grip.waitFor({ state: 'visible' });
+  await row.waitFor({ state: 'visible' });
   const a = await grip.boundingBox();
-  const b = await layerRow(page, to).boundingBox();
+  const b = await row.boundingBox();
   if (!a || !b) throw new Error('layer rows not visible');
   await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
   await page.mouse.down();

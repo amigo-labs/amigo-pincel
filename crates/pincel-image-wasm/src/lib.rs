@@ -15,10 +15,10 @@ use pincel_image_core::command::{
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
     Fill, FillOptions, Gradient, GradientChannel, GradientKind, ImageBuffer, Interpolation, Move,
-    PenSamples, Pencil, Point, PressureDynamics, Recolor, Rect, SampleSize, SampleSource,
-    SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, Text, TextAlign,
-    TextStyle, apply_mode, compose, compose_region, delete_selection, magic_wand, masked_region,
-    scale,
+    PenSamples, Pencil, Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSize,
+    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge,
+    SmudgeCarry, Text, TextAlign, TextStyle, apply_mode, compose, compose_region, delete_selection,
+    magic_wand, masked_region, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -32,6 +32,11 @@ thread_local! {
     static DOCUMENTS: RefCell<HashMap<u32, CommandBus>> = RefCell::new(HashMap::new());
     /// Next handle to hand out; monotonically increasing.
     static NEXT_HANDLE: Cell<u32> = const { Cell::new(0) };
+    /// What the brush tools carry across the commands of one pointer drag.
+    /// A drag arrives as one command per pointer event — merged into a
+    /// single undo step by `stroke_id` — so a tool that remembers something
+    /// between dabs has to remember it here, not inside one call.
+    static STROKES: RefCell<HashMap<u32, StrokeScratch>> = RefCell::new(HashMap::new());
     /// Registered font byte blobs, indexed by font id (see `register_font`).
     /// The Text tool re-parses these per commit (ADR-012), so JS uploads each
     /// face once and references it by id rather than passing bytes per command.
@@ -70,6 +75,36 @@ fn insert(bus: CommandBus) -> u32 {
     });
     DOCUMENTS.with(|docs| docs.borrow_mut().insert(handle, bus));
     handle
+}
+
+/// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
+#[derive(Default)]
+struct StrokeScratch {
+    id: u64,
+    smudge: SmudgeCarry,
+    recolor: RecolorOrigins,
+}
+
+impl StrokeScratch {
+    /// Start over when this is a different drag than the one we remember.
+    fn rewind(&mut self, id: u64) {
+        if self.id != id {
+            self.id = id;
+            self.smudge.clear();
+            self.recolor.clear();
+        }
+    }
+}
+
+/// Runs `f` against this document's scratch for `stroke_id`, starting a fresh
+/// one when the drag has changed.
+fn with_stroke<T>(handle: u32, stroke_id: u64, f: impl FnOnce(&mut StrokeScratch) -> T) -> T {
+    STROKES.with(|strokes| {
+        let mut strokes = strokes.borrow_mut();
+        let scratch = strokes.entry(handle).or_default();
+        scratch.rewind(stroke_id);
+        f(scratch)
+    })
 }
 
 /// Runs `f` against the bus for `handle`, mapping a missing handle to a JS error.
@@ -128,6 +163,9 @@ pub fn save_project(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
 pub fn close_document(handle: u32) {
     DOCUMENTS.with(|docs| {
         docs.borrow_mut().remove(&handle);
+    });
+    STROKES.with(|strokes| {
+        strokes.borrow_mut().remove(&handle);
     });
 }
 
@@ -755,7 +793,7 @@ pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
         if target.is_some_and(|i| layer_locked(&bus.document, i)) {
             return Err(JsError::new(LOCKED));
         }
-        run_command(bus, spec)
+        run_command(handle, bus, spec)
     })
 }
 
@@ -791,7 +829,7 @@ impl CommandSpec {
     }
 }
 
-fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
+fn run_command(handle: u32, bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
     match spec {
         CommandSpec::PencilStroke {
             layer,
@@ -875,7 +913,10 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 replacement,
                 tolerance,
             );
-            match tool.stroke_with_pen(layer, &pts, pen, &bus.document) {
+            let committed = with_stroke(handle, stroke_id, |scratch| {
+                tool.stroke_with_pen(layer, &pts, pen, &bus.document, &mut scratch.recolor)
+            });
+            match committed {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),
@@ -913,7 +954,16 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 pressure: &pressure,
                 azimuth: &azimuth,
             };
-            match Smudge::new(brush, strength).stroke_with_pen(layer, &pts, pen, &bus.document) {
+            let committed = with_stroke(handle, stroke_id, |scratch| {
+                Smudge::new(brush, strength).stroke_with_pen(
+                    layer,
+                    &pts,
+                    pen,
+                    &bus.document,
+                    &mut scratch.smudge,
+                )
+            });
+            match committed {
                 Some(cmd) => bus
                     .apply(Box::new(cmd.with_stroke(stroke_id)))
                     .map_err(to_js),

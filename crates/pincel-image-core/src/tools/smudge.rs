@@ -15,6 +15,49 @@ use crate::document::Document;
 use crate::geometry::Point;
 use crate::tools::{Brush, PenSamples};
 
+/// What a smudge tip is carrying, indexed by a pixel's offset from the dab's
+/// centre so it stays aligned with the tip as the stroke moves.
+///
+/// One drag arrives as many commands (merged into one undo step by
+/// `stroke_id`), so this lives with the caller: built inside a single call,
+/// the tip would forget its colour at every pointer event and the result
+/// would depend on how the device batches them.
+#[derive(Debug, Default, Clone)]
+pub struct SmudgeCarry {
+    reach: i32,
+    span: usize,
+    slots: Vec<Option<Color>>,
+}
+
+impl SmudgeCarry {
+    /// Forget everything; a fresh drag starts over.
+    pub fn clear(&mut self) {
+        self.slots.clear();
+        self.span = 0;
+        self.reach = 0;
+    }
+
+    /// Size the carry for a tip of this reach, keeping what it holds when
+    /// the reach is unchanged.
+    fn fit(&mut self, reach: i32) {
+        if self.reach == reach && self.slots.len() == self.span * self.span {
+            return;
+        }
+        self.reach = reach;
+        self.span = (reach * 2 + 1) as usize;
+        self.slots = vec![None; self.span * self.span];
+    }
+
+    /// The slot for a dab-relative offset, or `None` outside the tip.
+    fn slot(&mut self, dx: i32, dy: i32) -> Option<&mut Option<Color>> {
+        let (ix, iy) = (dx + self.reach, dy + self.reach);
+        if ix < 0 || iy < 0 || ix >= self.span as i32 || iy >= self.span as i32 {
+            return None;
+        }
+        self.slots.get_mut(iy as usize * self.span + ix as usize)
+    }
+}
+
 /// The Smudge tool.
 #[derive(Debug, Clone, Copy)]
 pub struct Smudge {
@@ -35,40 +78,43 @@ impl Smudge {
     }
 
     /// Smudges along `points`.
+    ///
+    /// For a stroke delivered in one piece; a drag split across several
+    /// calls passes its own [`SmudgeCarry`] to [`Smudge::stroke_with_pen`].
     pub fn stroke(
         &self,
         layer_index: usize,
         points: &[Point],
         doc: &Document,
     ) -> Option<SetPixels> {
-        self.stroke_with_pen(layer_index, points, PenSamples::default(), doc)
+        self.stroke_with_pen(
+            layer_index,
+            points,
+            PenSamples::default(),
+            doc,
+            &mut SmudgeCarry::default(),
+        )
     }
 
-    /// [`Smudge::stroke`] with pen pressure and azimuth per point (spec §17.4).
+    /// [`Smudge::stroke`] with pen input, and the drag's own carried colour
+    /// (spec §17.4).
     pub fn stroke_with_pen(
         &self,
         layer_index: usize,
         points: &[Point],
         pen: PenSamples,
         doc: &Document,
+        carry: &mut SmudgeCarry,
     ) -> Option<SetPixels> {
-        // The carried sample is indexed by the pixel's offset from the dab's
-        // centre, so it stays aligned with the tip as the stroke moves. A
-        // slot is filled on first contact, which is why the very first dab
-        // only picks up and changes nothing.
-        let reach = self.brush.radius().ceil() as i32 + 1;
-        let span = (reach * 2 + 1) as usize;
-        let mut carried: Vec<Option<Color>> = vec![None; span * span];
+        carry.fit(self.brush.radius().ceil() as i32 + 1);
         let keep = self.strength;
 
         let (region, after) =
             self.brush
                 .rasterize(layer_index, points, pen, doc, self.brush.opacity, |p| {
-                    let (ix, iy) = (p.dx + reach, p.dy + reach);
-                    if ix < 0 || iy < 0 || ix >= span as i32 || iy >= span as i32 {
+                    let Some(slot) = carry.slot(p.dx, p.dy) else {
                         return p.dst;
-                    }
-                    let slot = &mut carried[iy as usize * span + ix as usize];
+                    };
                     let Some(sample) = *slot else {
                         // First contact: pick the color up, lay nothing down.
                         *slot = Some(p.dst);
@@ -106,6 +152,7 @@ mod tests {
     use super::*;
     use crate::command::Command;
     use crate::document::ImageBuffer;
+    use crate::tools::BrushShape;
 
     fn doc_with(w: u32, h: u32, paint: impl Fn(&mut ImageBuffer)) -> Document {
         let mut doc = Document::new(w, h).unwrap();
@@ -196,6 +243,63 @@ mod tests {
             doc.layers[0].pixels.get_pixel(12, 4).unwrap().r
         };
         assert!(run(0.9) < run(0.2), "0.9 should carry further than 0.2");
+    }
+
+    /// A soft tip at partial opacity: no dab fully replaces a pixel, so what
+    /// the tip carries and what the canvas holds never converge — which is
+    /// where losing the carry between batches shows.
+    fn soft() -> Smudge {
+        Smudge::new(
+            Brush::new(6, Color::BLACK, 0.5)
+                .with_shape(BrushShape::SoftRound)
+                .with_hardness(0.3),
+            0.8,
+        )
+    }
+
+    fn run_split(tool: &Smudge, carry: Option<&mut SmudgeCarry>) -> Vec<u8> {
+        let pts: Vec<Point> = (2..14).map(|x| Point::new(x as f32, 4.0)).collect();
+        let mut doc = half_and_half(16, 8);
+        let mut own = SmudgeCarry::default();
+        let shared = carry.is_some();
+        let carry = carry.unwrap_or(&mut own);
+        // Overlapping halves: consecutive commands share the point they meet
+        // at, as the pointer handler sends them.
+        for part in [&pts[..7], &pts[6..]] {
+            if !shared {
+                carry.clear();
+            }
+            let mut cmd = tool
+                .stroke_with_pen(0, part, PenSamples::default(), &doc, carry)
+                .unwrap();
+            cmd.apply(&mut doc).unwrap();
+        }
+        doc.layers[0].pixels.data().to_vec()
+    }
+
+    #[test]
+    fn a_split_stroke_matches_the_unsplit_one() {
+        // A pointer drag arrives as one command per event. Sharing the carry
+        // across them has to give the same picture as one long call, or the
+        // smear depends on how the device batches its moves.
+        let tool = soft();
+        let pts: Vec<Point> = (2..14).map(|x| Point::new(x as f32, 4.0)).collect();
+        let whole = {
+            let mut doc = half_and_half(16, 8);
+            let mut cmd = tool.stroke(0, &pts, &doc).unwrap();
+            cmd.apply(&mut doc).unwrap();
+            doc.layers[0].pixels.data().to_vec()
+        };
+        let mut carry = SmudgeCarry::default();
+        assert_eq!(whole, run_split(&tool, Some(&mut carry)));
+    }
+
+    #[test]
+    fn a_split_stroke_that_forgets_its_carry_differs() {
+        // The counter-test: this is what the bug looked like.
+        let tool = soft();
+        let mut carry = SmudgeCarry::default();
+        assert_ne!(run_split(&tool, Some(&mut carry)), run_split(&tool, None));
     }
 
     #[test]

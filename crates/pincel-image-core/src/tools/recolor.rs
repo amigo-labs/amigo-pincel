@@ -5,11 +5,38 @@
 //! touching what it encloses. paint.net's Recolor, with the tolerance the
 //! bucket already has.
 
+use std::collections::HashMap;
+
 use crate::color::Color;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
 use crate::tools::{Brush, PenSamples, src_over};
+
+/// What each pixel looked like before the drag touched it.
+///
+/// Eligibility has to be judged against that, not against the pixel as the
+/// stroke has left it: a soft dab edge shifts a pixel part of the way, and
+/// at zero tolerance it would then no longer match `from` when the tip's
+/// centre arrives. One drag arrives as many commands (merged into one undo
+/// step by `stroke_id`), so the caller keeps this across them.
+#[derive(Debug, Default, Clone)]
+pub struct RecolorOrigins {
+    seen: HashMap<(u32, u32), Color>,
+}
+
+impl RecolorOrigins {
+    /// Forget everything; a fresh drag starts over.
+    pub fn clear(&mut self) {
+        self.seen.clear();
+    }
+
+    /// The colour this pixel had on first contact, recording `now` if this
+    /// is the first time the drag has reached it.
+    fn origin(&mut self, x: u32, y: u32, now: Color) -> Color {
+        *self.seen.entry((x, y)).or_insert(now)
+    }
+}
 
 /// The Recolor tool — paints `to` only over pixels close to `from`.
 #[derive(Debug, Clone, Copy)]
@@ -36,22 +63,33 @@ impl Recolor {
     }
 
     /// Recolors along `points`, as [`Pencil::stroke`](super::Pencil::stroke).
+    ///
+    /// For a stroke delivered in one piece; a drag split across several
+    /// calls passes its own [`RecolorOrigins`] to [`Recolor::stroke_with_pen`].
     pub fn stroke(
         &self,
         layer_index: usize,
         points: &[Point],
         doc: &Document,
     ) -> Option<SetPixels> {
-        self.stroke_with_pen(layer_index, points, PenSamples::default(), doc)
+        self.stroke_with_pen(
+            layer_index,
+            points,
+            PenSamples::default(),
+            doc,
+            &mut RecolorOrigins::default(),
+        )
     }
 
-    /// [`Recolor::stroke`] with pen pressure and azimuth per point (spec §17.4).
+    /// [`Recolor::stroke`] with pen input, and the drag's own record of what
+    /// each pixel looked like before it (spec §17.4).
     pub fn stroke_with_pen(
         &self,
         layer_index: usize,
         points: &[Point],
         pen: PenSamples,
         doc: &Document,
+        origins: &mut RecolorOrigins,
     ) -> Option<SetPixels> {
         let to = self.to;
         let from = self.from;
@@ -61,7 +99,7 @@ impl Recolor {
         let (region, after) =
             self.brush
                 .rasterize(layer_index, points, pen, doc, strength, |p| {
-                    if p.dst.within_tolerance(from, tol) {
+                    if origins.origin(p.x, p.y, p.dst).within_tolerance(from, tol) {
                         src_over(to, p.eff, p.dst)
                     } else {
                         p.dst
@@ -76,6 +114,7 @@ mod tests {
     use super::*;
     use crate::command::Command;
     use crate::document::ImageBuffer;
+    use crate::tools::BrushShape;
 
     // A size-1 tip covers less than a whole pixel, so the tests use a
     // 4 px brush and assert "changed / unchanged" rather than exact values:
@@ -150,6 +189,71 @@ mod tests {
             loose.r < near_white.r,
             "16 tolerance should match: {loose:?}"
         );
+    }
+
+    /// A soft tip at zero tolerance: the dab edge shifts a pixel part of the
+    /// way, and judging eligibility from the stroke buffer would then rule it
+    /// out for the dabs that follow.
+    fn soft_tool(from: Color, to: Color) -> Recolor {
+        Recolor::new(
+            Brush::new(6, to, 1.0)
+                .with_shape(BrushShape::SoftRound)
+                .with_hardness(0.3),
+            from,
+            to,
+            0,
+        )
+    }
+
+    fn white_strip(w: u32, h: u32) -> Document {
+        doc_with(w, h, |b| {
+            for y in 0..h {
+                for x in 0..w {
+                    b.set_pixel(x, y, Color::WHITE);
+                }
+            }
+        })
+    }
+
+    fn run_split(tool: &Recolor, origins: Option<&mut RecolorOrigins>) -> Vec<u8> {
+        let pts: Vec<Point> = (2..14).map(|x| Point::new(x as f32, 4.0)).collect();
+        let mut doc = white_strip(16, 8);
+        let mut own = RecolorOrigins::default();
+        let shared = origins.is_some();
+        let origins = origins.unwrap_or(&mut own);
+        for part in [&pts[..7], &pts[6..]] {
+            if !shared {
+                origins.clear();
+            }
+            let mut cmd = tool
+                .stroke_with_pen(0, part, PenSamples::default(), &doc, origins)
+                .unwrap();
+            cmd.apply(&mut doc).unwrap();
+        }
+        doc.layers[0].pixels.data().to_vec()
+    }
+
+    #[test]
+    fn a_split_stroke_matches_the_unsplit_one() {
+        let tool = soft_tool(Color::WHITE, Color::BLACK);
+        let pts: Vec<Point> = (2..14).map(|x| Point::new(x as f32, 4.0)).collect();
+        let whole = {
+            let mut doc = white_strip(16, 8);
+            let mut cmd = tool.stroke(0, &pts, &doc).unwrap();
+            cmd.apply(&mut doc).unwrap();
+            doc.layers[0].pixels.data().to_vec()
+        };
+        let mut origins = RecolorOrigins::default();
+        assert_eq!(whole, run_split(&tool, Some(&mut origins)));
+    }
+
+    #[test]
+    fn a_split_stroke_that_forgets_its_origins_differs() {
+        // The counter-test: judging the second half against the half-recolored
+        // pixels leaves them stranded at zero tolerance.
+        let tool = soft_tool(Color::WHITE, Color::BLACK);
+        let mut origins = RecolorOrigins::default();
+        assert_ne!(run_split(&tool, Some(&mut origins)), run_split(&tool, None));
     }
 
     #[test]

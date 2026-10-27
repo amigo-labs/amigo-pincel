@@ -24,9 +24,9 @@ pub use eyedropper::{Eyedropper, SampleSize};
 pub use fill::{Fill, FillOptions, SampleSource};
 pub use gradient::{Gradient, GradientChannel, GradientKind};
 pub use move_tool::Move;
-pub use recolor::Recolor;
+pub use recolor::{Recolor, RecolorOrigins};
 pub use shapes::{DashPattern, Shape, ShapeMode, ShapeStyle, Shapes};
-pub use smudge::Smudge;
+pub use smudge::{Smudge, SmudgeCarry};
 pub use text::{Text, TextAlign, TextStyle};
 
 use crate::color::Color;
@@ -334,6 +334,9 @@ impl Brush {
                 let pixel = DabPixel {
                     eff,
                     dst,
+                    // Both are inside the region, so inside the canvas.
+                    x: cx as u32,
+                    y: cy as u32,
                     dx: cx - center.x.round() as i32,
                     dy: cy - center.y.round() as i32,
                 };
@@ -383,6 +386,10 @@ pub(crate) struct DabPixel {
     pub eff: f32,
     /// The pixel as it stands before this dab.
     pub dst: Color,
+    /// Canvas coordinates. Tools that carry state across the dabs of a
+    /// drag key it by this; the plain brushes ignore it.
+    pub x: u32,
+    pub y: u32,
     /// Offset from the dab's centre, in whole pixels. The smudge reads its
     /// carried sample by this; every other tool ignores it.
     pub dx: i32,
