@@ -36,6 +36,7 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
+  import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import {
     addFrame,
@@ -233,7 +234,7 @@
       selectAll: () => selectAction('all'),
       deselect: () => selectAction('none'),
       invertSelection: () => selectAction('invert'),
-      growSelection: (d) => selectAction(d > 0 ? 'expand' : 'contract'),
+      growSelection: (mode) => (dialogs.selectionRadius = mode),
       transformCanvas: (op) => imageAction(`canvas:${op}`),
       transformLayer: (op) => imageAction(`layer:${op}`),
       resizeCanvas: () => imageAction('canvas:resize'),
@@ -969,6 +970,19 @@
     onRecover={(snap) => void autosave.recover(snap)}
     onDiscard={(id) => void autosave.discard(id)}
     onDismiss={() => autosave.dismiss()}
+  />
+{/if}
+
+{#if dialogs.selectionRadius}
+  {@const op = dialogs.selectionRadius}
+  <RadiusDialog
+    title={t(op === 'expand' ? 'menu.expand' : 'menu.contract')}
+    value={1}
+    onCancel={() => (dialogs.selectionRadius = null)}
+    onApply={(radius) => {
+      dialogs.selectionRadius = null;
+      selectAction(op, radius);
+    }}
   />
 {/if}
 

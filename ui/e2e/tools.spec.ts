@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas } from './helpers';
+import { createDocument, drag, imageCanvas, menu } from './helpers';
 
 /** The tool-rail button that is currently pressed. */
 function activeTool(page: Page) {
@@ -55,3 +55,16 @@ test('image mode: Pan and Zoom are rail tools', async ({ page }) => {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByRole('button', { name: 'Fit' })).not.toHaveText(zoomBefore ?? '');
 });
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode} mode: Select ▸ Expand asks for a radius`, async ({ page }) => {
+    await createDocument(page, mode, { width: 64, height: 64 });
+    await page.keyboard.press('Control+a');
+    await menu(page, 'Select', 'Expand…');
+    const dialog = page.getByRole('dialog', { name: 'Expand…' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Radius (px)').fill('4');
+    await dialog.getByRole('button', { name: 'Apply' }).click();
+    await expect(dialog).toBeHidden();
+  });
+}

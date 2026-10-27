@@ -134,6 +134,8 @@ function dialogsInit() {
     resize: null as ResizeMode | null,
     sheet: false,
     renaming: null as { id: number; name: string } | null,
+    /** Select ▸ Expand… / Contract… awaiting a radius. */
+    selectionRadius: null as 'expand' | 'contract' | null,
     /** Tileset Editor sub-mode target. */
     editingTile: null as TileRef | null,
   };

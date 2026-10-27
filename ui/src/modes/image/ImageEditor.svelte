@@ -41,6 +41,9 @@
     deselect,
     deleteSelection,
     invertSelection,
+    expandSelection,
+    contractSelection,
+    featherSelection,
     type ExportFormat,
   } from './core/controller';
   import { gestureControl } from './tools/pointer';
@@ -80,6 +83,7 @@
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
+  import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
   // Shell contract (src/App.svelte mounts one editor per session): the
@@ -197,6 +201,28 @@
   const toolLabel = $derived(
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
   );
+
+  // Select ▸ Expand / Contract / Feather ask for a radius; the core takes
+  // one, the options bar used to pin it to 1 / 1 / 2 px.
+  type RadiusOp = 'expand' | 'contract' | 'feather';
+  let radiusOp = $state<RadiusOp | null>(null);
+  const RADIUS_TITLES: Record<RadiusOp, 'menu.expand' | 'menu.contract' | 'menu.feather'> = {
+    expand: 'menu.expand',
+    contract: 'menu.contract',
+    feather: 'menu.feather',
+  };
+
+  function openRadius(op: RadiusOp): void {
+    radiusOp = op;
+  }
+
+  function applyRadius(radius: number): void {
+    const op = radiusOp;
+    radiusOp = null;
+    if (op === 'expand') expandSelection(radius);
+    else if (op === 'contract') contractSelection(radius);
+    else if (op === 'feather') featherSelection(radius);
+  }
 
   // Recents need something a re-open can use: an FSA handle (web) or a
   // path (Tauri). Same gate as the Pixel editor / the shell.
@@ -397,7 +423,8 @@
 
   // The dialogs own Enter / Escape; keep the editor's shortcuts out.
   $effect(() => {
-    ui.modalOpen = effectOpen !== null || transformDialog !== null || jpegDialogOpen;
+    ui.modalOpen =
+      effectOpen !== null || transformDialog !== null || jpegDialogOpen || radiusOp !== null;
   });
 
   const hasDoc = $derived(editor.handle !== null);
@@ -472,6 +499,21 @@
           shortcut: hint('deselect'),
           disabled: !editor.hasSelection,
           run: deselect,
+        },
+        {
+          label: t('menu.expand'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('expand'),
+        },
+        {
+          label: t('menu.contract'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('contract'),
+        },
+        {
+          label: t('menu.feather'),
+          disabled: !editor.hasSelection,
+          run: () => openRadius('feather'),
         },
         {
           label: t('menu.invertSelection'),
@@ -656,6 +698,15 @@
       renaming = null;
       renameLayer(index, name);
     }}
+  />
+{/if}
+
+{#if radiusOp}
+  <RadiusDialog
+    title={t(RADIUS_TITLES[radiusOp])}
+    value={radiusOp === 'feather' ? 2 : 1}
+    onCancel={() => (radiusOp = null)}
+    onApply={applyRadius}
   />
 {/if}
 

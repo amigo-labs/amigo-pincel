@@ -54,7 +54,8 @@ export interface PixelMenuContext {
   selectAll(): void;
   deselect(): void;
   invertSelection(): void;
-  growSelection(delta: 1 | -1): void;
+  /** Opens the radius prompt for Select ▸ Expand… / Contract…. */
+  growSelection(mode: 'expand' | 'contract'): void;
   transformCanvas(op: TransformOp): void;
   transformLayer(op: TransformOp): void;
   resizeCanvas(): void;
@@ -155,8 +156,12 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           run: c.invertSelection,
         },
         { kind: 'separator' },
-        { label: t('menu.expand1'), disabled: !c.hasSelection, run: () => c.growSelection(1) },
-        { label: t('menu.contract1'), disabled: !c.hasSelection, run: () => c.growSelection(-1) },
+        { label: t('menu.expand'), disabled: !c.hasSelection, run: () => c.growSelection('expand') },
+        {
+          label: t('menu.contract'),
+          disabled: !c.hasSelection,
+          run: () => c.growSelection('contract'),
+        },
       ],
     },
     {
