@@ -111,6 +111,30 @@ test('image mode: the move tools drag pixels, the outline, or the layer', async 
   await expect(undo).toBeEnabled();
 });
 
+test('image mode: a moved selection can be moved again', async ({ page }) => {
+  // The outline travels with its content, so the second drag carries the
+  // patch on instead of lifting the transparency the first one left.
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+
+  await drag(page, imageCanvas(page), [0.1, 0.5], [0.4, 0.5]);
+  await page.keyboard.press('m');
+  await drag(page, imageCanvas(page), [0.05, 0.4], [0.45, 0.6]);
+
+  await page.keyboard.press('v');
+  await page.keyboard.press('v');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Move: Move Selected Pixels');
+
+  await drag(page, imageCanvas(page), [0.2, 0.5], [0.4, 0.5]);
+  await drag(page, imageCanvas(page), [0.4, 0.5], [0.6, 0.5]);
+  await expect(undo).toBeEnabled();
+
+  // Both moves are their own undo step, and both come back.
+  await undo.click();
+  await undo.click();
+  await expect(undo).toBeEnabled();
+});
+
 test('image mode: the Gradient tool paints a ramp', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   const undo = page.getByRole('button', { name: 'Undo', exact: true });

@@ -8,9 +8,9 @@ use pincel_effects::{EffectImage, EffectSpec};
 use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
 use pincel_image_core::command::{
     AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
-    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, RemoveLayer, RenameLayer,
-    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
-    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
+    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, RemoveLayer,
+    RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
+    SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
@@ -1045,7 +1045,11 @@ fn run_command(handle: u32, bus: &mut CommandBus, spec: CommandSpec) -> Result<(
         }
         CommandSpec::TranslateSelection { layer, dx, dy } => {
             match Move.translate_selection(layer, dx, dy, &bus.document) {
-                Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
+                // The outline travels with its content, so a second drag
+                // carries the patch on rather than the hole it left.
+                Some(pixels) => bus
+                    .apply(Box::new(MoveSelection::new(pixels, dx, dy)))
+                    .map_err(to_js),
                 None => Ok(()), // zero offset, empty selection or bad layer
             }
         }
