@@ -160,14 +160,17 @@ stays **off**.
 ### Updater signing key (required)
 
 The desktop apps of amigo-labs (Pincel, amigo-downloader) share one
-updater key, minisign key ID `5C882412026EA1D4`, protected by a
+updater key, minisign key ID `3098504C1538B8F6`, protected by a
 password. Its public half is `plugins.updater.pubkey` in
 `src-tauri/tauri.conf.json`; the private half and its password are the
 **organization secrets** `TAURI_SIGNING_PRIVATE_KEY` and
 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (and live in the maintainer's
 password manager). Pincel used a key of its own (`313783124C4CF977`)
-up to 1.1.0, before any copy was downloaded; 1.1.1 is the first release
-signed with the organization's.
+up to 1.1.0, before any copy was downloaded. 1.1.1 was to switch to the
+organization key `5C882412026EA1D4`, but its password was not on record,
+so that release was never published; the key was replaced by
+`3098504C1538B8F6` (2026-10-27), and 1.1.2 is the first release signed
+with the organization's.
 
 - A repository secret of the same name shadows the organization secret.
   amigo-pincel has none, and must not get one.
