@@ -65,6 +65,17 @@ export const ICONS = {
     { d: 'M12 3v18M3 12h18' },
     { d: 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3' },
   ],
+  // A dashed marquee with the move cross: the pixels inside travel …
+  'move-selection': [
+    { d: 'M3 3h9v9H3z', dash: true },
+    { d: 'M16 10v11M10.5 16h11' },
+    { d: 'M14 13l2-2 2 2M14 19l2 2 2-2M13 14l-2 2 2 2M19 14l2 2-2 2' },
+  ],
+  // … and the same marquee with the cross outside it: only the outline does.
+  'move-mask': [
+    { d: 'M8 8h9v9H8z', dash: true },
+    { d: 'M4 2v6M1 5h6' },
+  ],
   stamp: [{ d: GRID }, { d: 'M12 12h8v8h-8z', fill: true }],
   slice: [{ d: 'M4 4h16v16H4z' }, { d: 'M9 4v16M15 4v16M4 9h16M4 15h16', dash: true }],
 

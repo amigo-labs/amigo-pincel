@@ -7,6 +7,8 @@ import {
   type EraserStrokeCommand,
   type FillBucketCommand,
   type TranslateLayerCommand,
+  type TranslateSelectionCommand,
+  type TranslateSelectionMaskCommand,
   type LayerCommand,
   type SelectionCommand,
   type SelectionMode,
@@ -651,6 +653,36 @@ export function moveLayer(dx: number, dy: number): void {
   const cmd: TranslateLayerCommand = {
     type: 'translate_layer',
     layer: editor.activeLayer,
+    dx,
+    dy,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Move Selected Pixels: drags the selection's content, leaving
+ *  transparency behind. Without a selection this moves the whole layer. */
+export function moveSelectionContent(dx: number, dy: number): void {
+  if (editor.handle === null || (dx === 0 && dy === 0)) {
+    return;
+  }
+  const cmd: TranslateSelectionCommand = {
+    type: 'translate_selection',
+    layer: editor.activeLayer,
+    dx,
+    dy,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Move Selection: drags the outline only. */
+export function moveSelectionMask(dx: number, dy: number): void {
+  if (editor.handle === null || (dx === 0 && dy === 0)) {
+    return;
+  }
+  const cmd: TranslateSelectionMaskCommand = {
+    type: 'translate_selection_mask',
     dx,
     dy,
   };

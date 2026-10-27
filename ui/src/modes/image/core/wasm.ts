@@ -136,6 +136,21 @@ export interface TranslateLayerCommand {
   dy: number;
 }
 
+/** Moves the selected pixels; the whole layer when nothing is selected. */
+export interface TranslateSelectionCommand {
+  type: 'translate_selection';
+  layer: number;
+  dx: number;
+  dy: number;
+}
+
+/** Moves the selection outline, leaving the pixels under it alone. */
+export interface TranslateSelectionMaskCommand {
+  type: 'translate_selection_mask';
+  dx: number;
+  dy: number;
+}
+
 /** Erase the selected pixels of a layer — the whole layer when no selection
  * is active (Edit ▸ Clear / Delete key). */
 export interface DeleteSelectionCommand {
@@ -286,6 +301,8 @@ export type ToolCommand =
   | EraserStrokeCommand
   | FillBucketCommand
   | TranslateLayerCommand
+  | TranslateSelectionCommand
+  | TranslateSelectionMaskCommand
   | DeleteSelectionCommand
   | LayerCommand
   | SelectionCommand

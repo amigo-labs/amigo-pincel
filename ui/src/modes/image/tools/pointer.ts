@@ -12,6 +12,8 @@ import {
   selectPolygon,
   selectWand,
   drawShape,
+  moveSelectionContent,
+  moveSelectionMask,
 } from '../core/controller';
 import {
   editor,
@@ -65,12 +67,18 @@ function azimuthOf(e: PointerEvent): number | null {
   return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
 }
 
+/** The three drag-to-move tools: the layer, the selected pixels, the
+ *  outline alone. `move_mask` writes no pixels, so it stays out of
+ *  `WRITES_PIXELS` and works on a locked layer. */
+const MOVE_TOOLS: ReadonlySet<ToolKind> = new Set(['move', 'move_selection', 'move_mask']);
+
 /** Tools that write into the active layer's pixels. */
 const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'pencil',
   'eraser',
   'fill',
   'move',
+  'move_selection',
   'text',
   'line',
   'rectangle',
@@ -307,6 +315,8 @@ export function attachTools(
         sampleColor(point[0], point[1], useBackground);
         break;
       case 'move':
+      case 'move_selection':
+      case 'move_mask':
         break;
     }
   };
@@ -410,10 +420,12 @@ export function attachTools(
     } else if (isShapeTool(gestureKind) && start && last) {
       drawShape(start, last);
       redraw();
-    } else if (gestureKind === 'move' && start && last) {
+    } else if (MOVE_TOOLS.has(gestureKind) && start && last) {
       const dx = Math.round(last[0] - start[0]);
       const dy = Math.round(last[1] - start[1]);
-      moveLayer(dx, dy);
+      if (gestureKind === 'move_selection') moveSelectionContent(dx, dy);
+      else if (gestureKind === 'move_mask') moveSelectionMask(dx, dy);
+      else moveLayer(dx, dy);
       redraw();
     }
     // Always clear the shape preview, even if the tool changed mid-drag, so a

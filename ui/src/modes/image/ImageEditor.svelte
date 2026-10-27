@@ -122,7 +122,11 @@
       {
         id: 'move',
         label: t('tool.move'),
-        tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }],
+        tools: [
+          { id: 'move', label: t('tool.moveLayer'), icon: 'move' },
+          { id: 'move_selection', label: t('tool.moveSelection'), icon: 'move-selection' },
+          { id: 'move_mask', label: t('tool.moveMask'), icon: 'move-mask' },
+        ],
       },
       {
         id: 'hand',

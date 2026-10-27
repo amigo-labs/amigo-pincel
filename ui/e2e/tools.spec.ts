@@ -68,3 +68,29 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(dialog).toBeHidden();
   });
 }
+
+test('image mode: the move tools drag pixels, the outline, or the layer', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+
+  // Paint something, then select a corner of it.
+  await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
+  await page.keyboard.press('m');
+  await drag(page, imageCanvas(page), [0.1, 0.3], [0.5, 0.7]);
+
+  await page.keyboard.press('v');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Move: Move Layer');
+  await page.keyboard.press('v');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Move: Move Selected Pixels');
+
+  const steps = await undo.isEnabled();
+  expect(steps).toBe(true);
+  await drag(page, imageCanvas(page), [0.3, 0.5], [0.6, 0.5]);
+  // The move is one undo step of its own.
+  await undo.click();
+
+  await page.keyboard.press('v');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Move: Move Selection');
+  await drag(page, imageCanvas(page), [0.3, 0.5], [0.6, 0.5]);
+  await expect(undo).toBeEnabled();
+});

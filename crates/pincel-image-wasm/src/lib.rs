@@ -460,6 +460,11 @@ enum CommandSpec {
     },
     /// Translate a layer's contents by `(dx, dy)` pixels (the Move tool).
     TranslateLayer { layer: usize, dx: i32, dy: i32 },
+    /// Move the selected pixels of `layer` by `(dx, dy)`, leaving
+    /// transparency behind. Without a selection this moves the whole layer.
+    TranslateSelection { layer: usize, dx: i32, dy: i32 },
+    /// Move the selection outline by `(dx, dy)`, leaving the pixels alone.
+    TranslateSelectionMask { dx: i32, dy: i32 },
     /// Erase the selected pixels of `layer` to transparent; the whole layer
     /// when no selection is active (Edit ▸ Clear / Delete key).
     DeleteSelection { layer: usize },
@@ -657,6 +662,7 @@ impl CommandSpec {
             | Self::EraserStroke { layer, .. }
             | Self::FillBucket { layer, .. }
             | Self::TranslateLayer { layer, .. }
+            | Self::TranslateSelection { layer, .. }
             | Self::DeleteSelection { layer }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
@@ -783,6 +789,23 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
                 Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
                 None => Ok(()),
             }
+        }
+        CommandSpec::TranslateSelection { layer, dx, dy } => {
+            match Move.translate_selection(layer, dx, dy, &bus.document) {
+                Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
+                None => Ok(()), // zero offset, empty selection or bad layer
+            }
+        }
+        CommandSpec::TranslateSelectionMask { dx, dy } => {
+            let Some(mask) = bus.document.selection.as_ref() else {
+                return Ok(()); // nothing selected: nothing to move
+            };
+            if dx == 0 && dy == 0 {
+                return Ok(());
+            }
+            let moved = mask.translated(dx, dy);
+            bus.apply(Box::new(SetSelection::replace(moved)))
+                .map_err(to_js)
         }
         CommandSpec::DeleteSelection { layer } => {
             match delete_selection(layer, &bus.document) {

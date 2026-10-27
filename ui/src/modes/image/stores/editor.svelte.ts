@@ -87,6 +87,8 @@ export type ToolKind =
   | 'fill'
   | 'eyedropper'
   | 'move'
+  | 'move_selection'
+  | 'move_mask'
   | 'rect_select'
   | 'ellipse_select'
   | 'lasso'

@@ -283,6 +283,8 @@
     fill: 'cell',
     eyedropper: 'copy',
     move: 'move',
+    move_selection: 'move',
+    move_mask: 'move',
     rect_select: 'crosshair',
     ellipse_select: 'crosshair',
     lasso: 'crosshair',
