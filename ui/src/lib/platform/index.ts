@@ -25,3 +25,22 @@ export function isTauri(): boolean {
     typeof w.__TAURI__ !== 'undefined'
   );
 }
+
+/** True on macOS / iPadOS. Read from the user-agent platform token, which
+ *  is what every engine keeps through UA reduction and what `App.svelte`
+ *  already sniffs for the file-association prompt. */
+export function isMac(): boolean {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.userAgent);
+}
+
+/** True when the OS draws a native menu bar for this window: the desktop
+ *  app on macOS, where the menu bar belongs to the screen rather than the
+ *  window. That menu renders File / Edit / View / Help itself and owns
+ *  their accelerators (spec §9.4), so the in-app bar leaves both to it.
+ *
+ *  Everywhere else — the web build, and the desktop app on Windows and
+ *  Linux — the in-app menu bar is the only one, and the editors bind the
+ *  chords themselves. See docs/specs/pincel.md §11.3. */
+export function hasNativeMenu(): boolean {
+  return isTauri() && isMac();
+}
