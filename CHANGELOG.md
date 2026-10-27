@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.1.0...v1.1.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **tauri:** sign updates with the amigo-labs organization key ([f8e2ddc](https://github.com/amigo-labs/amigo-pincel/commit/f8e2ddc8300ea6a086a1f9b2a5c28b9b11cfb5bd))
+* **tauri:** updater trusts the amigo-labs signing key ([15608a0](https://github.com/amigo-labs/amigo-pincel/commit/15608a05c1eb2d340a58826adf8adb924441b608))
+
 ## [1.1.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.0.1...v1.1.0) (2026-10-26)
 
 
