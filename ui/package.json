@@ -11,18 +11,18 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg && wasm-pack build ../crates/pincel-image-wasm --target web --dev --out-dir pkg",
-    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg && wasm-pack build ../crates/pincel-image-wasm --target web --release --out-dir pkg",
+    "wasm:build": "wasm-pack build ../crates/pincel-wasm --target web --dev --out-dir pkg --scope amigo-labs && wasm-pack build ../crates/pincel-image-wasm --target web --dev --out-dir pkg",
+    "wasm:build:release": "wasm-pack build ../crates/pincel-wasm --target web --release --out-dir pkg --scope amigo-labs && wasm-pack build ../crates/pincel-image-wasm --target web --release --out-dir pkg",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@amigo-labs/pincel-wasm": "link:../crates/pincel-wasm/pkg",
     "@tauri-apps/api": "~2.11.1",
     "@tauri-apps/plugin-dialog": "~2.7.3",
-    "pincel-image-wasm": "link:../crates/pincel-image-wasm/pkg",
-    "pincel-wasm": "link:../crates/pincel-wasm/pkg"
+    "pincel-image-wasm": "link:../crates/pincel-image-wasm/pkg"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

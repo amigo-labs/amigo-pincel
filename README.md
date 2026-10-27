@@ -95,7 +95,7 @@ docs/specs/              Design specifications.
 
 ## Clone → running
 
-Build order matters: `ui/package.json` links `pincel-wasm` from
+Build order matters: `ui/package.json` links `@amigo-labs/pincel-wasm` from
 `crates/pincel-wasm/pkg/` (a generated, gitignored directory), so the wasm
 package must exist **before** `pnpm install`.
 
