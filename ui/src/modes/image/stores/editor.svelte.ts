@@ -3,6 +3,8 @@ import type {
   BrushShape,
   DashPattern,
   EraserMode,
+  GradientChannel,
+  GradientKind,
   LayerInfo,
   SampleSource,
   ShapeKind,
@@ -96,6 +98,7 @@ export type ToolKind =
   | 'magic_wand'
   | 'hand'
   | 'zoom'
+  | 'gradient'
   | 'line'
   | 'rectangle'
   | 'rounded_rect'
@@ -189,6 +192,10 @@ export const tool = $state({
   foreground: '#000000',
   /** Background color as #RRGGBB (spec §4.2 default white). */
   background: '#ffffff',
+  /** Gradient: which ramp the drag describes (spec §5.4). */
+  gradientKind: 'linear' as GradientKind,
+  /** Gradient: paint color, or fade the alpha that is already there. */
+  gradientChannel: 'color' as GradientChannel,
   /** Shapes: outline / fill / fill+outline. */
   shapeMode: 'outline' as ShapeMode,
   /** Shapes: centered stroke width in pixels, 1–500. */

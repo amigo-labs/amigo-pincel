@@ -83,6 +83,7 @@ export const TOOL_GROUP_KEYS: Record<string, string> = {
   pencil: 'b',
   eraser: 'e',
   fill: 'g',
+  gradient: 'n',
   eyedropper: 'i',
   line: 'l',
   shapes: 'u',

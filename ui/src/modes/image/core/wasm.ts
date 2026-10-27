@@ -144,6 +144,26 @@ export interface TranslateSelectionCommand {
   dy: number;
 }
 
+/** The five ramps a gradient drag can describe. */
+export type GradientKind = 'linear' | 'reflected' | 'radial' | 'conical' | 'diamond';
+
+/** Whether the ramp paints color or fades alpha. */
+export type GradientChannel = 'color' | 'transparency';
+
+export interface DrawGradientCommand {
+  type: 'draw_gradient';
+  layer: number;
+  kind: GradientKind;
+  channel: GradientChannel;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  from: [number, number, number, number];
+  to: [number, number, number, number];
+  opacity: number;
+}
+
 /** Moves the selection outline, leaving the pixels under it alone. */
 export interface TranslateSelectionMaskCommand {
   type: 'translate_selection_mask';
@@ -308,6 +328,7 @@ export type ToolCommand =
   | SelectionCommand
   | TransformCommand
   | DrawShapeCommand
+  | DrawGradientCommand
   | DrawTextCommand;
 
 let initialized: Promise<unknown> | null = null;

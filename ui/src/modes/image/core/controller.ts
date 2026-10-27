@@ -9,6 +9,7 @@ import {
   type TranslateLayerCommand,
   type TranslateSelectionCommand,
   type TranslateSelectionMaskCommand,
+  type DrawGradientCommand,
   type LayerCommand,
   type SelectionCommand,
   type SelectionMode,
@@ -671,6 +672,30 @@ export function moveSelectionContent(dx: number, dy: number): void {
     layer: editor.activeLayer,
     dx,
     dy,
+  };
+  core.applyCommand(editor.handle, cmd);
+  syncInfo();
+}
+
+/** Gradient: the drag a → b is the ramp (spec §5.4). The foreground is
+ *  the start color, the background the end; Transparency mode ignores both
+ *  and fades what is already there. */
+export function drawGradient(a: [number, number], b: [number, number]): void {
+  if (editor.handle === null) {
+    return;
+  }
+  const cmd: DrawGradientCommand = {
+    type: 'draw_gradient',
+    layer: editor.activeLayer,
+    kind: tool.gradientKind,
+    channel: tool.gradientChannel,
+    x0: a[0],
+    y0: a[1],
+    x1: b[0],
+    y1: b[1],
+    from: colorWithOpacity(tool.foreground),
+    to: colorWithOpacity(tool.background),
+    opacity: tool.opacity / 100,
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();

@@ -160,6 +160,32 @@
         <option value="all_layers">{t('opt.allLayers')}</option>
       </select>
     </label>
+  {:else if tool.kind === 'gradient'}
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.gradientKind')}</span>
+      <select bind:value={tool.gradientKind} class="rounded bg-pc-raised px-2 py-1">
+        <option value="linear">{t('opt.gradientLinear')}</option>
+        <option value="reflected">{t('opt.gradientReflected')}</option>
+        <option value="radial">{t('opt.gradientRadial')}</option>
+        <option value="conical">{t('opt.gradientConical')}</option>
+        <option value="diamond">{t('opt.gradientDiamond')}</option>
+      </select>
+    </label>
+
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.gradientChannel')}</span>
+      <select bind:value={tool.gradientChannel} class="rounded bg-pc-raised px-2 py-1">
+        <option value="color">{t('opt.gradientColor')}</option>
+        <option value="transparency">{t('opt.gradientTransparency')}</option>
+      </select>
+    </label>
+
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.opacity')}</span>
+      <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
+      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+    </label>
+    <span class="text-pc-faint">{t('opt.gradientHint')}</span>
   {:else if isShapeTool(tool.kind)}
     {#if tool.kind !== 'line'}
       <label class="flex items-center gap-2">

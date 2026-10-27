@@ -94,3 +94,20 @@ test('image mode: the move tools drag pixels, the outline, or the layer', async 
   await drag(page, imageCanvas(page), [0.3, 0.5], [0.6, 0.5]);
   await expect(undo).toBeEnabled();
 });
+
+test('image mode: the Gradient tool paints a ramp', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  await expect(undo).toBeDisabled();
+
+  await page.keyboard.press('n');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Gradient');
+  // The options bar offers the five ramps and the two channels.
+  await page.getByLabel('Ramp').selectOption('radial');
+  await page.getByLabel('Channel').selectOption('color');
+
+  await drag(page, imageCanvas(page), [0.5, 0.5], [0.9, 0.5]);
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(undo).toBeDisabled();
+});

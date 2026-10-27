@@ -14,10 +14,10 @@ use pincel_image_core::command::{
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
-    Fill, FillOptions, ImageBuffer, Interpolation, Move, PenSamples, Pencil, Point,
-    PressureDynamics, Rect, SampleSize, SampleSource, SelectionMask, SelectionMode, Shape,
-    ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, apply_mode, compose, compose_region,
-    delete_selection, magic_wand, masked_region, scale,
+    Fill, FillOptions, Gradient, GradientChannel, GradientKind, ImageBuffer, Interpolation, Move,
+    PenSamples, Pencil, Point, PressureDynamics, Rect, SampleSize, SampleSource, SelectionMask,
+    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Text, TextAlign, TextStyle, apply_mode,
+    compose, compose_region, delete_selection, magic_wand, masked_region, scale,
 };
 use serde::{Deserialize, Serialize};
 use std::cell::{Cell, RefCell};
@@ -314,6 +314,38 @@ fn parse_shape_mode(s: &str) -> ShapeMode {
     }
 }
 
+fn parse_gradient_kind(s: &str) -> GradientKind {
+    match s {
+        "reflected" => GradientKind::Reflected,
+        "radial" => GradientKind::Radial,
+        "conical" => GradientKind::Conical,
+        "diamond" => GradientKind::Diamond,
+        _ => GradientKind::Linear,
+    }
+}
+
+fn parse_gradient_channel(s: &str) -> GradientChannel {
+    match s {
+        "transparency" => GradientChannel::Transparency,
+        _ => GradientChannel::Color,
+    }
+}
+
+/// Full strength when JS omits the gradient's opacity.
+fn default_opacity() -> f32 {
+    1.0
+}
+
+/// Default gradient kind when JS omits it.
+fn default_gradient_kind() -> String {
+    "linear".to_string()
+}
+
+/// Default gradient channel when JS omits it.
+fn default_gradient_channel() -> String {
+    "color".to_string()
+}
+
 /// Default shape dash pattern when JS omits it.
 fn default_dash() -> String {
     "solid".to_string()
@@ -607,6 +639,25 @@ enum CommandSpec {
         #[serde(default = "default_dash")]
         dash: String,
     },
+    /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
+    /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
+    DrawGradient {
+        layer: usize,
+        #[serde(default = "default_gradient_kind")]
+        kind: String,
+        #[serde(default = "default_gradient_channel")]
+        channel: String,
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+        #[serde(default)]
+        from: [u8; 4],
+        #[serde(default)]
+        to: [u8; 4],
+        #[serde(default = "default_opacity")]
+        opacity: f32,
+    },
     /// Rasterize `text` onto `layer` at `(x, y)` using a `register_font` id
     /// (spec §9.2 Text; ADR-012). A no-op if the font id or geometry is invalid.
     DrawText {
@@ -663,6 +714,7 @@ impl CommandSpec {
             | Self::FillBucket { layer, .. }
             | Self::TranslateLayer { layer, .. }
             | Self::TranslateSelection { layer, .. }
+            | Self::DrawGradient { layer, .. }
             | Self::DeleteSelection { layer }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
@@ -1042,6 +1094,32 @@ fn run_command(bus: &mut CommandBus, spec: CommandSpec) -> Result<(), JsError> {
             match built.and_then(|s| Shapes::new(s, style).draw(layer, &bus.document)) {
                 Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
                 None => Ok(()), // invalid geometry or off-canvas — no-op
+            }
+        }
+        CommandSpec::DrawGradient {
+            layer,
+            kind,
+            channel,
+            x0,
+            y0,
+            x1,
+            y1,
+            from,
+            to,
+            opacity,
+        } => {
+            let tool = Gradient {
+                kind: parse_gradient_kind(&kind),
+                channel: parse_gradient_channel(&channel),
+                from: Color::rgba(from[0], from[1], from[2], from[3]),
+                to: Color::rgba(to[0], to[1], to[2], to[3]),
+                opacity,
+            };
+            let a = Point::new(x0, y0);
+            let b = Point::new(x1, y1);
+            match tool.draw(layer, a, b, &bus.document) {
+                Some(cmd) => bus.apply(Box::new(cmd)).map_err(to_js),
+                None => Ok(()), // zero-length drag, empty selection, bad layer
             }
         }
         CommandSpec::DrawText {

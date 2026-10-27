@@ -66,6 +66,13 @@ export const ICONS = {
     { d: 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3' },
   ],
   // A dashed marquee with the move cross: the pixels inside travel …
+  // A box that fades from solid to empty, with the drag's arrow across it.
+  gradient: [
+    { d: 'M3 5h18v14H3z' },
+    { d: 'M6 8h3v8H6z', fill: true },
+    { d: 'M11 10h2.5v4H11z', fill: true },
+    { d: 'M16 12h1v1h-1z', fill: true },
+  ],
   'move-selection': [
     { d: 'M3 3h9v9H3z', dash: true },
     { d: 'M16 10v11M10.5 16h11' },

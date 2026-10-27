@@ -175,6 +175,11 @@
         tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
       },
       {
+        id: 'gradient',
+        label: t('tool.gradient'),
+        tools: [{ id: 'gradient', label: t('tool.gradient'), icon: 'gradient' }],
+      },
+      {
         id: 'eyedropper',
         label: t('tool.eyedropper'),
         tools: [{ id: 'eyedropper', label: t('tool.eyedropper'), icon: 'eyedropper' }],

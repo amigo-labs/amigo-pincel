@@ -12,6 +12,7 @@ import {
   selectPolygon,
   selectWand,
   drawShape,
+  drawGradient,
   moveSelectionContent,
   moveSelectionMask,
 } from '../core/controller';
@@ -77,6 +78,7 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'pencil',
   'eraser',
   'fill',
+  'gradient',
   'move',
   'move_selection',
   'text',
@@ -233,7 +235,8 @@ export function attachTools(
       return;
     }
 
-    const shape = shapeOf(tool.kind);
+    // The gradient drags like a shape and previews as the ramp's own line.
+    const shape = tool.kind === 'gradient' ? 'line' : shapeOf(tool.kind);
     if (shape !== null) {
       active = true;
       activePointer = e.pointerId;
@@ -350,7 +353,7 @@ export function attachTools(
       return;
     }
 
-    const dragShape = shapeOf(gestureKind);
+    const dragShape = gestureKind === 'gradient' ? 'line' : shapeOf(gestureKind);
     if (dragShape !== null && start) {
       const b = constrainShape(start, point, dragShape, shiftHeld(e));
       shapePreview.value = {
@@ -417,6 +420,9 @@ export function attachTools(
         }
       }
       selectionPreview.value = null;
+    } else if (gestureKind === 'gradient' && start && last) {
+      drawGradient(start, last);
+      redraw();
     } else if (isShapeTool(gestureKind) && start && last) {
       drawShape(start, last);
       redraw();
