@@ -26,6 +26,8 @@ in Image mode, and the New dialog offers both.
 - **How to build it** lives in the working agreement: [`CLAUDE.md`](CLAUDE.md)
 - **Current state / next task**: [`STATUS.md`](STATUS.md)
 
+[![Release Please](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml/badge.svg)](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml)
+
 ## Why Pincel
 
 - **`.aseprite` is the source of truth.** No proprietary format, no
