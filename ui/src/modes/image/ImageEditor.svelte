@@ -112,6 +112,7 @@
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
   let pasteDialog = $state<{
+    handle: number;
     bytes: Uint8Array;
     width: number;
     height: number;
@@ -120,23 +121,33 @@
 
   // Edit ▸ Paste / Ctrl+V (spec §5.4): a new layer at the top-left; an image
   // larger than the canvas asks first whether to grow the canvas, like paint.net.
-  async function beginPaste(blob: Blob): Promise<void> {
-    if (editor.handle === null) return;
+  // `handle` is the document the paste was asked for: reading the clipboard
+  // and decoding are async, and a document opened meanwhile (or another
+  // editor mounted) must not receive it. Handles are never reused.
+  async function beginPaste(blob: Blob, handle: number): Promise<void> {
     const size = await imageSize(blob);
     const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (editor.handle !== handle) return;
     // A format the browser can't measure still goes to the core's decoder.
     if (!size || (size.width <= editor.width && size.height <= editor.height)) {
-      runPaste(bytes, false);
+      runPaste(handle, bytes, false);
       return;
     }
     const w = Math.max(editor.width, size.width);
     const h = Math.max(editor.height, size.height);
     const [cw, ch] = clampCanvasSize(w, h);
-    pasteDialog = { bytes, width: size.width, height: size.height, canExpand: cw === w && ch === h };
+    pasteDialog = {
+      handle,
+      bytes,
+      width: size.width,
+      height: size.height,
+      canExpand: cw === w && ch === h,
+    };
   }
 
-  function runPaste(bytes: Uint8Array, expand: boolean): void {
+  function runPaste(handle: number, bytes: Uint8Array, expand: boolean): void {
     pasteDialog = null;
+    if (editor.handle !== handle) return;
     try {
       pasteImage(bytes, expand);
       editor.notice = null;
@@ -146,16 +157,25 @@
   }
 
   async function pasteFromClipboard(): Promise<void> {
+    const handle = editor.handle;
+    if (handle === null) return;
     const blob = await clipboardImage();
-    if (blob) await beginPaste(blob);
+    if (editor.handle !== handle) return;
+    if (blob) await beginPaste(blob, handle);
     else editor.notice = t('paste.noImage');
   }
 
   function onPaste(e: ClipboardEvent): void {
-    if (editor.handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    const handle = editor.handle;
+    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    // The shell's dialogs (New document, unsaved changes, …) don't set
+    // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
+    if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
+      return;
+    }
     const image = pasteEventImage(e);
     e.preventDefault();
-    if (image) void beginPaste(image);
+    if (image) void beginPaste(image, handle);
     else editor.notice = t('paste.noImage');
   }
 
@@ -850,9 +870,9 @@
   <Modal
     title={t('paste.largerTitle')}
     applyLabel={paste.canExpand ? t('paste.expand') : t('paste.keep')}
-    onApply={() => runPaste(paste.bytes, paste.canExpand)}
+    onApply={() => runPaste(paste.handle, paste.bytes, paste.canExpand)}
     secondary={paste.canExpand
-      ? { label: t('paste.keep'), onClick: () => runPaste(paste.bytes, false) }
+      ? { label: t('paste.keep'), onClick: () => runPaste(paste.handle, paste.bytes, false) }
       : undefined}
     onClose={() => (pasteDialog = null)}
   >

@@ -74,3 +74,23 @@ test('Ctrl+V pastes the image a paste event carries', async ({ page }) => {
   });
   await expect(layerRows(page)).toHaveCount(2);
 });
+
+test('a paste inside the shell New dialog does not reach the canvas', async ({ page }) => {
+  await createDocument(page, 'image', { width: 80, height: 60 });
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  const box = dialog.getByLabel('Open like this on startup');
+  await box.focus();
+  await box.evaluate(async (el) => {
+    const canvas = new OffscreenCanvas(30, 20);
+    canvas.getContext('2d')?.fillRect(0, 0, 30, 20);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    const data = new DataTransfer();
+    data.items.add(new File([blob], 'clip.png', { type: 'image/png' }));
+    el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true }));
+  });
+  // Give a (wrongly) accepted paste time to decode and land before checking.
+  await page.waitForTimeout(500);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(layerRows(page)).toHaveCount(1);
+});
