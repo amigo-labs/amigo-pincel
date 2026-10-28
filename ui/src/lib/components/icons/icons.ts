@@ -72,17 +72,16 @@ export const ICONS = {
     { d: 'M14 12h7v7h-7z' },
     { d: 'M11 7h6M14.5 4.5L17.5 7l-3 2.5' },
   ],
-  // A fingertip dragging a trail behind it.
+  // A blob of paint pulled out into a tapering smear. (No hand: that
+  // shape belongs to Pan, and the two sat next to each other.)
   smudge: [
-    { d: 'M14 4c-1.4 0-2.5 1.1-2.5 2.5V13l-1.6-1.6a1.8 1.8 0 0 0-2.6 2.6l4.1 4.3a5 5 0 0 0 3.6 1.5h1a4.5 4.5 0 0 0 4.5-4.5V6.5a2.5 2.5 0 0 0-5 0' },
-    { d: 'M3 20c2-1.5 4-2 6-1.6', dash: true },
+    { d: 'M17.5 9a3.5 3.5 0 1 1 0 7c-4 0-8.5-1.2-14.5-3.5C9 10.2 13.5 9 17.5 9z', fill: true },
+    { d: 'M4 7.5h6M6 18h5' },
   ],
-  // A box that fades from solid to empty, with the drag's arrow across it.
+  // A box split by a ramp from empty to full: the blend between two colors.
   gradient: [
     { d: 'M3 5h18v14H3z' },
-    { d: 'M6 8h3v8H6z', fill: true },
-    { d: 'M11 10h2.5v4H11z', fill: true },
-    { d: 'M16 12h1v1h-1z', fill: true },
+    { d: 'M3 19L21 5v14z', fill: true },
   ],
   'move-selection': [
     { d: 'M3 3h9v9H3z', dash: true },
@@ -94,7 +93,12 @@ export const ICONS = {
     { d: 'M8 8h9v9H8z', dash: true },
     { d: 'M4 2v6M1 5h6' },
   ],
-  stamp: [{ d: GRID }, { d: 'M12 12h8v8h-8z', fill: true }],
+  // A rubber stamp: handle, block, and the print it leaves. (Slice keeps the grid.)
+  stamp: [
+    { d: 'M10 3h4v6h-4z' },
+    { d: 'M5 9h14v5H5z' },
+    { d: 'M4 19h16' },
+  ],
   slice: [{ d: 'M4 4h16v16H4z' }, { d: 'M9 4v16M15 4v16M4 9h16M4 15h16', dash: true }],
 
   // Actions
