@@ -17,6 +17,9 @@ pub struct PasteLayer {
     expand: bool,
     /// The inserted layer, captured on first apply so redo restores it exactly.
     layer: Option<Layer>,
+    /// Where the layer went on first apply; redo reuses it even if the
+    /// active layer changed in between, so later commands' indices hold.
+    index: Option<usize>,
     prev: Option<DocSnapshot>,
 }
 
@@ -27,6 +30,7 @@ impl PasteLayer {
             pixels: Some(pixels),
             expand,
             layer: None,
+            index: None,
             prev: None,
         }
     }
@@ -53,7 +57,8 @@ impl Command for PasteLayer {
             ),
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
-        if let Err(err) = doc.insert_layer(doc.active_layer_index() + 1, layer.clone()) {
+        let index = *self.index.get_or_insert(doc.active_layer_index() + 1);
+        if let Err(err) = doc.insert_layer(index, layer.clone()) {
             restore(doc, snap)?;
             self.layer = Some(layer);
             return Err(err);
@@ -149,6 +154,23 @@ mod tests {
         assert_eq!((doc.canvas.width(), doc.canvas.height()), (6, 6));
         assert_eq!(doc.layers[1].id, id);
         assert_eq!(doc.layers[1].pixels.get_pixel(5, 5), Some(Color::WHITE));
+    }
+
+    #[test]
+    fn paste_redo_keeps_the_first_insertion_index() {
+        // A/B stack, paste above A, undo, select B, redo: the paste must
+        // land between A and B again, not above B.
+        let mut doc = Document::new(4, 4).unwrap();
+        doc.add_layer("B").unwrap();
+        doc.set_active_layer(0).unwrap();
+        let mut cmd = PasteLayer::new(image(2, 2), false);
+        cmd.apply(&mut doc).unwrap();
+        let pasted = doc.layers[1].id;
+        cmd.revert(&mut doc).unwrap();
+        doc.set_active_layer(1).unwrap();
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].id, pasted);
+        assert_eq!(doc.layers[2].name, "B");
     }
 
     #[test]
