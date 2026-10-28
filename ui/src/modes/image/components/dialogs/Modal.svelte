@@ -12,9 +12,11 @@
     applyLabel: string;
     onApply: () => void;
     onClose: () => void;
+    /** An extra choice between Cancel and Apply. */
+    secondary?: { label: string; onClick: () => void } | undefined;
     children: Snippet;
   }
-  const { title, applyLabel, onApply, onClose, children }: Props = $props();
+  const { title, applyLabel, onApply, onClose, secondary, children }: Props = $props();
 
   let panel: HTMLDivElement;
 
@@ -48,7 +50,9 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     bind:this={panel}
-    class="w-72 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
+    class="max-w-[calc(100vw-2rem)] rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
+    class:w-72={!secondary}
+    class:w-96={secondary}
     role="dialog"
     aria-label={title}
     tabindex="-1"
@@ -60,6 +64,11 @@
 
     <div class="flex justify-end gap-2">
       <button class="rounded px-3 py-1 hover:bg-pc-hover" onclick={onClose}>{t('common.cancel')}</button>
+      {#if secondary}
+        <button class="rounded border border-pc-border px-3 py-1 hover:bg-pc-hover" onclick={secondary.onClick}>
+          {secondary.label}
+        </button>
+      {/if}
       <button class="rounded bg-pc-accent px-3 py-1 text-white" onclick={onApply}>
         {applyLabel}
       </button>

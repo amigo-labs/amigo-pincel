@@ -23,6 +23,7 @@ export type ShortcutAction =
   | 'exportSheet'
   | 'undo'
   | 'redo'
+  | 'paste'
   | 'selectAll'
   | 'deselect'
   | 'invertSelection'
@@ -51,6 +52,9 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
     { key: 'z', mod: true, shift: true },
     { key: 'y', mod: true },
   ],
+  // Menu hint only: editors leave the key to the browser, whose `paste`
+  // event carries the clipboard without a permission prompt.
+  paste: [{ key: 'v', mod: true }],
   selectAll: [{ key: 'a', mod: true }],
   deselect: [{ key: 'd', mod: true }],
   invertSelection: [{ key: 'i', mod: true, shift: true }],

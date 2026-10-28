@@ -5,6 +5,7 @@ import initWasm, {
   create_document,
   open_image,
   open_project,
+  paste_layer,
   save_project,
   close_document,
   composite,
@@ -388,6 +389,9 @@ export async function initCore(): Promise<void> {
 export const core = {
   createDocument: (width: number, height: number): number => create_document(width, height),
   openImage: (data: Uint8Array, mime: string): number => open_image(data, mime),
+  /** Pastes an encoded image as a new layer; `expand` grows a smaller canvas to fit (spec §5.4). */
+  pasteLayer: (handle: number, data: Uint8Array, expand: boolean): void =>
+    paste_layer(handle, data, expand),
   /** Opens an OpenRaster (`.ora`) project with all its layers. */
   openProject: (data: Uint8Array): number => open_project(data),
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
