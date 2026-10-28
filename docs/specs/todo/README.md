@@ -21,6 +21,7 @@ Every spec gives:
 
 | # | Spec | Mode | Size | Depends on | Why this position |
 |---|------|------|------|------------|-------------------|
+| 23 | [Performance: make it fly](23-performance.md) | both (Image first) | XL (7 × M) | — | Owner priority. Measured: Image compose 101 ms at 1K², 1.26 s at 4K² (9 `powf` per pixel and layer; a LUT alone is ≈ 7×). Step 0 (benchmarks + budgets) first; independent of the UI specs |
 | 18 | [MCP server: LLMs work with Pincel](18-mcp.md) | both | XL (6 × M) | — | The owner's top priority. Headless `pincel-mcp` first, then live control of the desktop app; phase 0 is a refactor that also tidies the wasm crates |
 | 01 | [Pixel pencil: sizes 1–8, Shift constrain, pixel-perfect](01-pixel-pencil.md) | Pixel | L (3 × M) | — | Fixes §5.2 promises that were never built. 02, 07 and 08-B build on its `PencilStroke` command |
 | 05 | [Copy, Cut, Paste in both modes](05-copy-cut-paste.md) | both | L (3 × M) | — | Basic editor equipment; users expect it first |
@@ -42,7 +43,8 @@ Every spec gives:
 Specs 09–13 (pixel grid, scaled export, save to original format, outline effect, shortcut overview) are being written; they slot in after 06.
 
 Notes on the order:
-- 18 (MCP) leads because the owner named it the most important feature. Its phase 0 and phases 1–4 (headless) don't touch the UI, so they can run in parallel with UI specs.
+- 23 (performance) and 18 (MCP) lead: the owner named both as top priorities, and neither blocks the UI specs. Within 23, step 1 (compositing kernel) is the biggest single win and can start right after step 0.
+- 18 (MCP) is the owner's most important feature. Its phase 0 and phases 1–4 (headless) don't touch the UI, so they can run in parallel with UI specs.
 - 03 can move ahead of 05 or 06 if Image-mode users report the ORA group problem. Opening a layered `.ora` from Krita or MyPaint already loses group opacity and visibility.
 - 01, 05 and 06 don't depend on each other and can run in parallel sessions on separate branches.
 
