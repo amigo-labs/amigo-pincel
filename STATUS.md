@@ -62,8 +62,15 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- Nothing open in-sandbox beyond Phase 2 (resolving external palettes /
-  tilesets, indexed painting, …).
+- **Competitor gaps (2026-10-28):** eight task specs under
+  `docs/specs/todo/`, ordered in its README. Start with
+  `01-pixel-pencil.md` (brush sizes 1–8 and Shift constrain promised by
+  §5.2 but never built, plus pixel-perfect), `05-copy-cut-paste.md`
+  (no Copy / Cut in either mode) or `06-animated-export.md` (no GIF /
+  APNG). `03-image-layer-groups.md` also fixes ORA group opacity /
+  visibility being dropped on open.
+- Beyond that, Phase 2 (resolving external palettes / tilesets, indexed
+  painting, …).
 
 Detail on each item lives in the sections further down.
 

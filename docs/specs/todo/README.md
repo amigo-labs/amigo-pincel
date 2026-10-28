@@ -1,0 +1,58 @@
+# Todo specs: gaps from the competitive landscape
+
+These specs come from the feature comparison in `docs/specs/pincel.md` §18 (2026-10-28). Each file is written so that **a fresh session with no prior context** can pick it up.
+
+Every spec gives:
+- the goal and the reason for it;
+- the current code, with paths and approximate line numbers. These drift, so grep for the names;
+- the design decisions, with a recommendation, including which ones need a Decision Log entry or the user's approval;
+- a commit and session plan sized per CLAUDE.md §3.2;
+- the tests that prove the feature, and what is out of scope.
+
+## How to start a session on one of these
+
+1. Read `CLAUDE.md` in full, then this README, then the chosen spec.
+2. Run the pre-flight checklist (CLAUDE.md §3.1). `cargo check` must be green before you start.
+3. Do **one** task from the spec's task list per session (one M task).
+4. The first commit of every spec is a `docs(spec)` commit: the Decision Log entry (§15) and the spec sections it touches. Decisions marked "stop and ask" (new dependencies, public API changes) go to the user **before** any code.
+5. When the spec's last task is done, set `status: done` in its front matter and move its row below to "Done".
+
+## Order and sizes
+
+| # | Spec | Mode | Size | Depends on | Why this position |
+|---|------|------|------|------------|-------------------|
+| 01 | [Pixel pencil: sizes 1–8, Shift constrain, pixel-perfect](01-pixel-pencil.md) | Pixel | L (3 × M) | — | Fixes §5.2 promises that were never built. 02, 07 and 08-B build on its `PencilStroke` command |
+| 05 | [Copy, Cut, Paste in both modes](05-copy-cut-paste.md) | both | L (3 × M) | — | Basic editor equipment; users expect it first |
+| 06 | [Animated export (APNG, GIF)](06-animated-export.md) | Pixel | L (3 × M) | — | How pixel art gets shared; APNG needs no new dependency |
+| 02 | [Pen pressure in Pixel mode](02-pixel-pressure.md) | Pixel | M | 01 | Small once 01 exists |
+| 07 | [Symmetry and tiled mode](07-symmetry-tiled-mode.md) | Pixel | L (2 × M) | 01 | Game-asset focus (seamless tiles) |
+| 03 | [Layer groups in Image mode](03-image-layer-groups.md) | Image | XL (4 × M) | — | Also fixes ORA group attributes being dropped on open (silent data loss) |
+| 04 | [PSD import](04-psd-import.md) | Image | L (2 × M) | 03 for groups (flat import works without it) | Needs a dependency decision |
+| 08 | [Dithered gradient, shading ink, RotSprite](08-pixel-tools.md) | Pixel | XL (3 independent parts) | 01 (shading ink only) | Polish for pixel artists |
+
+Two notes on the order:
+- 03 can move ahead of 05 or 06 if Image-mode users report the ORA group problem. Opening a layered `.ora` from Krita or MyPaint already loses group opacity and visibility.
+- 01, 05 and 06 don't depend on each other and can run in parallel sessions on separate branches.
+
+## Done
+
+_None yet._
+
+## Backlog: gaps found but not yet written as specs
+
+These come from the same comparison. They aren't commitments; write a spec here when one becomes next.
+
+| Gap | Who has it | Note |
+|-----|------------|------|
+| Layer masks and clipping masks | Resprite, Photopea, Krita, Affinity, Pixlr | Probably Image mode first |
+| Non-destructive layer effects and adjustment layers | Pixelorama (layer effects), Resprite (layer styles), Affinity, Photopea | Large; touches compose in both cores |
+| Reference layers | Aseprite | Small: a non-exported, non-editable layer kind |
+| Clone stamp, Bézier curves, custom brushes | Paint.NET, Krita, Photopea; Aseprite (custom brushes) | Spec §5.4 lists them as not implemented; custom brushes are §13.3 |
+| History panel (list of undo steps) | Photoshop-style editors, Krita, Photopea | Undo exists; only the panel is missing |
+| Command palette | Aseprite 1.3.16 (Run Command) | Could reuse the menu data from `EditorFrame` |
+| CLI batch export | Aseprite (`--batch`) | `docs/specs/cli.md` is a draft; no binary exists |
+| Isometric and hexagonal tilemaps; Godot / Tiled export | Pixelorama, Resprite | Extends M8 tilemaps |
+| Indexed-mode painting, auto-tilemap, scripting | Aseprite, Pixelorama | Already in §13 (Phase 2) |
+| PSD export | Resprite, Pixaki, Photopea | After 04 |
+| Native iPad app | Pixaki, Resprite | Pincel is a PWA on iPad; Tauri mobile has no iOS path today (§14 question 5) |
+| Paste into New Image (Ctrl+Alt+V) | Paint.NET | Cheap follow-up to 05 |
