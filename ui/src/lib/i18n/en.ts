@@ -49,6 +49,7 @@ export const en = {
   'newDoc.image': 'Image',
   'newDoc.w': 'W',
   'newDoc.h': 'H',
+  'newDoc.autoOpen': 'Open like this on startup',
 
   // Recovery dialog
   'recovery.title': 'Recover unsaved work?',

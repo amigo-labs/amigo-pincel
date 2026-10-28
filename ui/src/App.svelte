@@ -12,6 +12,7 @@
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
+  import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
   import type { EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
   import {
@@ -60,6 +61,9 @@
   let busy = $state(false);
   let shellError = $state<string | null>(null);
   let fileAssocOpen = $state(false);
+  // True until the "open like this on startup" pref is read, so the start
+  // screen doesn't flash before an autostarted document replaces it.
+  let booting = $state(true);
   // Native-menu items the mounted editor serves (Tauri only).
   let editorMenu: EditorMenuHandlers | null = null;
 
@@ -228,6 +232,14 @@
   onMount(() => {
     void initLocale();
     let cancelled = false;
+    void loadAutoNew()
+      .then((params) => {
+        // An OS-handed file that arrived meanwhile wins over the empty document.
+        if (!cancelled && params && session.mode === 'start') {
+          launch(params.mode, { file: null, create: params });
+        }
+      })
+      .finally(() => (booting = false));
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenOpenFile: UnlistenFn | null = null;
     if (tauriHost) {
@@ -284,7 +296,9 @@
   });
 </script>
 
-{#if session.mode === 'start'}
+{#if session.mode === 'start' && booting}
+  <div class="h-full bg-pc-bg"></div>
+{:else if session.mode === 'start'}
   <StartScreen
     {recents}
     {busy}

@@ -14,6 +14,7 @@
   import { setLocale } from '../i18n/locale';
   import { hasNativeMenu } from '../platform';
   import { NEW_DOC_LIMITS, newDocParams } from './new-doc';
+  import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
     recents,
@@ -152,7 +153,9 @@
               aria-label={t(card.title)}
               onsubmit={(e) => {
                 e.preventDefault();
-                onCreate(newDocParams(card.mode, width, height));
+                const params = newDocParams(card.mode, width, height);
+                if (autoNew.params?.mode === card.mode) setAutoNew(params);
+                onCreate(params);
               }}
             >
               <label class="flex items-center gap-1 text-xs text-pc-muted">
@@ -187,6 +190,17 @@
               <button type="submit" class="panel-btn panel-btn-primary ml-auto" disabled={busy}>
                 {t('common.create')}
               </button>
+              <label class="flex basis-full items-center gap-2 text-xs text-pc-muted">
+                <input
+                  type="checkbox"
+                  checked={autoNew.params?.mode === card.mode}
+                  onchange={(e) =>
+                    setAutoNew(
+                      e.currentTarget.checked ? newDocParams(card.mode, width, height) : null,
+                    )}
+                />
+                {t('newDoc.autoOpen')}
+              </label>
             </form>
           {/if}
         </div>

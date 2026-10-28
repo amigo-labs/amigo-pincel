@@ -54,6 +54,7 @@ export const de: Record<MessageKey, string> = {
   'newDoc.image': 'Bild',
   'newDoc.w': 'B',
   'newDoc.h': 'H',
+  'newDoc.autoOpen': 'Beim Start automatisch so öffnen',
 
   // Recovery dialog
   'recovery.title': 'Ungespeicherte Arbeit wiederherstellen?',

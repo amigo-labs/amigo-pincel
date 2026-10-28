@@ -5,6 +5,7 @@
   import type { EditorMode, NewDocParams } from './types';
   import { t } from '../i18n/index.svelte';
   import { NEW_DOC_LIMITS as LIMITS, newDocParams } from './new-doc';
+  import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
     initialMode,
@@ -33,7 +34,9 @@
   }
 
   function submit() {
-    onCreate(newDocParams(mode, width, height));
+    const params = newDocParams(mode, width, height);
+    if (autoNew.params?.mode === mode) setAutoNew(params);
+    onCreate(params);
   }
 
   // Keys typed in the dialog must not reach the mounted editor's
@@ -121,6 +124,16 @@
       </label>
       <span class="text-xs text-pc-faint">px</span>
     </div>
+
+    <label class="mt-3 flex items-center gap-2 text-xs text-pc-muted">
+      <input
+        type="checkbox"
+        checked={autoNew.params?.mode === mode}
+        onchange={(e) =>
+          setAutoNew(e.currentTarget.checked ? newDocParams(mode, width, height) : null)}
+      />
+      {t('newDoc.autoOpen')}
+    </label>
 
     <div class="mt-4 flex justify-end gap-2">
       <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
