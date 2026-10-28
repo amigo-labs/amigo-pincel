@@ -6,6 +6,7 @@
 
 mod layers;
 mod merge;
+mod paste;
 mod pixels;
 mod properties;
 mod resize;
@@ -15,6 +16,7 @@ mod transform;
 
 pub use layers::{AddLayer, DuplicateLayer, MoveLayer, RemoveLayer};
 pub use merge::{FlattenImage, MergeDown, MergeVisible};
+pub use paste::PasteLayer;
 pub use pixels::{PixelEdit, SetPixels};
 pub use properties::{
     RenameLayer, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
