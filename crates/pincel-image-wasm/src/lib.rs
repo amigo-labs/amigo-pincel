@@ -8,9 +8,10 @@ use pincel_effects::{EffectImage, EffectSpec};
 use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
 use pincel_image_core::command::{
     AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
-    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, RemoveLayer,
-    RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
-    SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
+    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, PasteLayer,
+    RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage,
+    SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection,
+    TransformLayer,
 };
 use pincel_image_core::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Document, Eraser, EraserMode, Eyedropper,
@@ -145,6 +146,19 @@ pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
     let doc =
         pincel_image_core::codec::from_ora_bytes(data).map_err(|e| JsError::new(&e.to_string()))?;
     Ok(insert(CommandBus::new(doc)))
+}
+
+/// Pastes an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a new layer above
+/// the active one, at the top-left (spec §5.4). With `expand`, a smaller
+/// canvas grows to fit it first; otherwise the image is cropped. One undo step.
+#[wasm_bindgen]
+pub fn paste_layer(handle: u32, data: &[u8], expand: bool) -> Result<(), JsError> {
+    let buffer =
+        pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
+    with_bus(handle, |bus| {
+        bus.apply(Box::new(PasteLayer::new(buffer, expand)))
+            .map_err(to_js)
+    })
 }
 
 /// Serializes the document as an OpenRaster (`.ora`) project with every
@@ -1801,6 +1815,31 @@ mod project_tests {
         })
         .expect("read");
         assert_eq!(names, vec!["Layer 1".to_string(), "Top".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod paste_tests {
+    use super::*;
+
+    #[test]
+    fn paste_layer_expands_canvas_and_undo_restores_it() {
+        let handle = insert(CommandBus::new(Document::new(4, 4).expect("doc")));
+        let png = to_png_bytes(&ImageBuffer::new_transparent(6, 5), 1).expect("png");
+        paste_layer(handle, &png, true).expect("paste");
+        let after = with_bus(handle, |bus| {
+            let doc = &bus.document;
+            Ok((doc.canvas.width(), doc.canvas.height(), doc.layers().len()))
+        })
+        .expect("read");
+        assert_eq!(after, (6, 5, 2));
+        let undone = with_bus(handle, |bus| {
+            bus.undo().map_err(to_js)?;
+            let doc = &bus.document;
+            Ok((doc.canvas.width(), doc.canvas.height(), doc.layers().len()))
+        })
+        .expect("undo");
+        assert_eq!(undone, (4, 4, 1));
     }
 }
 
