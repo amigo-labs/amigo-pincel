@@ -26,6 +26,11 @@ Every spec gives:
 | 01 | [Pixel pencil: sizes 1–8, Shift constrain, pixel-perfect](01-pixel-pencil.md) | Pixel | L (3 × M) | — | Fixes §5.2 promises that were never built. 02, 07 and 08-B build on its `PencilStroke` command |
 | 05 | [Copy, Cut, Paste in both modes](05-copy-cut-paste.md) | both | L (3 × M) | — | Basic editor equipment; users expect it first |
 | 06 | [Animated export (APNG, GIF)](06-animated-export.md) | Pixel | L (3 × M) | — | How pixel art gets shared; APNG needs no new dependency |
+| 11 | [Image mode: save back to the original format](11-save-original-format.md) | Image | M | — | Screenshot workflow: Ctrl+S on an opened PNG asks for an `.ora` today |
+| 09 | [Pixel grid and custom grid](09-pixel-grid.md) | Pixel | M | — | Basic pixel-art equipment; grid stored in the sprite via the Aseprite header |
+| 10 | [Scaled export (×1–×10)](10-scaled-export.md) | Pixel | S–M | — | Shareable exports; shares the upscale with 06 |
+| 12 | [Outline effect](12-outline-effect.md) | Pixel first, both | S–M | — | Everyday game-asset need; adds a color param kind to effects |
+| 13 | [Keyboard shortcuts overview](13-shortcut-overview.md) | both | S | — | Discoverability; 21 builds on it |
 | 02 | [Pen pressure in Pixel mode](02-pixel-pressure.md) | Pixel | M | 01 | Small once 01 exists |
 | 07 | [Symmetry and tiled mode](07-symmetry-tiled-mode.md) | Pixel | L (2 × M) | 01 | Game-asset focus (seamless tiles) |
 | 03 | [Layer groups in Image mode](03-image-layer-groups.md) | Image | XL (4 × M) | — | Also fixes ORA group attributes being dropped on open (silent data loss) |
@@ -40,8 +45,6 @@ Every spec gives:
 | 19 | [More languages: es, ja, fr, pt-BR](19-more-languages.md) | both | L (M + 4 × S) | — | Infrastructure (plurals, detection) first |
 | 20 | [First-run tutorial and samples](20-first-run-tutorial.md) | shell + both | M | — | Better after 19 if the tour should ship translated |
 | 21 | [Power-user keyboard](21-power-user-shortcuts.md) | both | L (3 × M) | 13 | Coverage, custom keymap, command palette |
-
-Specs 09–13 (pixel grid, scaled export, save to original format, outline effect, shortcut overview) are being written; they slot in after 06.
 
 Notes on the order:
 - 23 (performance) and 18 (MCP) lead: the owner named both as top priorities, and neither blocks the UI specs. Within 23, step 1 (compositing kernel) is the biggest single win and can start right after step 0.
