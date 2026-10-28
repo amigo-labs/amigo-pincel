@@ -956,4 +956,114 @@ The Pincel app itself is then a thin shell on top of this same package. This is 
 
 ---
 
+## 18. Competitive landscape
+
+Snapshot as of 2026-10-28, checked against vendor sites, docs, release pages and app stores (§18.6). GIMP and Photoshop are left out on purpose: Pincel doesn't compete with full-scale photo suites. §17 covers Piskel's architecture in depth; this section compares features and positioning.
+
+Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry marked \* comes from prior knowledge and was not re-checked in this pass. Re-check before quoting any of it externally; several of these tools ship monthly.
+
+### 18.1 Pixel-art editors — platforms and business
+
+| Tool | Win | Mac | Linux | Web | iPad | Android | Price / license | Latest release | Scripting | Embeddable |
+|------|-----|-----|-------|-----|------|---------|-----------------|----------------|-----------|------------|
+| **Pincel** | ✓ | ✓ | ✓ | ✓ PWA, offline | ~ PWA | ~ PWA | Free, MIT OR Apache-2.0 | active | ✗ (§13.5) | ✓ npm `@amigo-labs/pincel-wasm` |
+| Aseprite | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | $19.99 one-time; source-available EULA | 1.3.18.6, 2026-09 | ✓ Lua + extensions | ~ CLI batch |
+| LibreSprite | ✓ | ✓ | ✓ | ~ old online build | ✗ | ~ old APK | Free, GPL-2.0 (pre-EULA Aseprite fork) | 1.3, 2026-10 | ✓ JavaScript | ✗\* |
+| Pixelorama | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ APK | Free, MIT | 1.2.3, 2026-09 | ✓ extensions, shaders | ~ CLI export |
+| Piskel | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | Free, Apache-2.0 | 0.15.0, 2018 (master still gets fixes) | ✗\* | ✗\* |
+| Lospec Pixel Editor | ✗ | ✗ | ✗ | ✓ desktop browsers | ✗ | ✗ | Free, GPL-3.0 | discontinued (last commit 2024-06) | ✗ | ✗ |
+| Pro Motion NG | ✓ | ? | ? | ✗ | ✗ | ✗ | Free edition + $19; proprietary | V8.0.11, 2025-02 | ~ plugin interface | ? |
+| Pyxel Edit | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | Paid beta; proprietary | no dated release found | ? | ✗ |
+| Pixaki 4 | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | $20 one-time (Pro); proprietary | 4.6, 2025-02 | ✗? | ✗ |
+| Resprite | ✓ | ✓ | ✓ (since 2026-10) | ✗ | ✓ | ✓ | Trial, then subscription or $19.99; proprietary | 1.32.6, 2026-10 | ? | ✗? |
+
+### 18.2 Pixel-art editors — features
+
+| Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
+|------|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ~ Image mode only | ✗ |
+| Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
+| LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
+| Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
+| Piskel | ✓ / ✗\* / ✗\* | ✓ / ✓ / ✗\* | ✗ | ✗ | ✗\* | ✗\* | ? | ✗ | ✓\* | ✗ | ? | ✗\* |
+| Pro Motion NG | ✓ / ✓ / ? | ✓ / ✓ / ? | ✓ | ? | ✓ | ? | ✓ | ? | ? | ✓ bitmap fonts | ✓ | ? |
+| Pixaki 4 | ✓ / ✓ / ✓ | ✓ / ✓ / ? | ? | ? | ? | ✓ (Pro) | ✓ | ? | ~ colour select | ? | ? | ✓ layered (Pro) |
+| Resprite | ✓ / ? / ✓ + clipping masks, layer styles | ✓ / ✓ / ? | ✓ (Tiled `.tmx` / `.tsx`) | ? | ? | ✓ / ✓ | ✓ | ~ HSV, brightness / contrast, sharpen | ? | ✓ TTF / OTF + pixel fonts | ✓ | ✓ / ✓ |
+
+Lospec and Pyxel Edit are left out of the feature table: neither publishes a feature list that could be checked, and Lospec is discontinued.
+
+### 18.3 Image editors — platforms and business
+
+| Tool | Win | Mac | Linux | Web | iPad | Android | Price / license | Latest release | Scripting / plugins | Embeddable |
+|------|-----|-----|-------|-----|------|---------|-----------------|----------------|---------------------|------------|
+| **Pincel** | ✓ | ✓ | ✓ | ✓ PWA, offline | ~ PWA | ~ PWA | Free, MIT OR Apache-2.0 | active | ✗ | ✓ npm (Pixel core) |
+| Paint.NET | ✓ | ~ Wine (5.2 beta) | ~ Wine (5.2 beta) | ✗ | ✗ | ✗ | Free (paid Store version); proprietary | 5.1.12, 2026-03; 5.2 beta 2026-10 | ✓ .NET effect / FileType plugins | ✗ |
+| Pinta | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | Free, MIT | 3.1.2, 2026-04 | ✓ add-ins | ✗ |
+| Photopea | browser | browser | browser | ✓ works offline once loaded | browser | browser | Free with ads; Premium subscription; proprietary | continuous | ✓ scripts / actions | ✓ iframe + JSON API |
+| Pixlr E | ~ desktop app | ? | ✗ | ✓ | ~ Express app | ~ Express app | Free tier; Plus / Premium subscriptions; proprietary | continuous | ✗\* | ? |
+| miniPaint | ✗ | ✗ | ✗ | ✓ self-hostable | browser | browser | Free, MIT | 4.14.3, 2026-04 (maintenance) | ~ | ✓ iframe, no formal API |
+| Krita | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ (5.x) | Free, GPL-3.0 (paid store builds) | 5.3.4.1 / 6.0.4, 2026-09/10 | ✓ Python\* | ✗ |
+| Affinity (Canva) | ✓ | ✓ | ✗ | ✗ | ~ announced | ✗ | Free for individuals since 2025-10-30 (Canva account; AI needs Canva Premium); proprietary | 3.3, 2026-09 | ✓ JavaScript (3.3) | ✗ |
+
+### 18.4 Image editors — features
+
+| Tool | Layers / groups / blend | Adjustments / filters | Magic wand | Text | Pen pressure | PSD | Animation | Pixel-art features |
+|------|---|---|---|---|---|---|---|---|
+| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ✗ | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
+| Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓\* | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ | ~ third-party plugin\* | ✗ | ✗ |
+| Pinta | ✓ / ✗\* / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ? | ? | ✗ | ✗ |
+| Photopea | ✓ / ✓\* / ✓\* | ✓ | ✓\* | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
+| Pixlr E | ✓ / ✓ / ✓ | ✓ levels, curves, hue/sat | ✓ | ✓ | ✓ | ~ simple PSDs only | ✗ | ✗ |
+| miniPaint | ✓ / ✗\* / ✓ | ~ basic adjustments + effects | ✓ | ✓ | ? | ? | ~ animated GIF export | ✗ |
+| Krita | ✓ / ✓ / ✓ | ✓ | ✓\* | ✓ | ✓ | ✓\* | ✓ timeline, onion skin | ~ no indexed mode |
+| Affinity | ✓ / ✓ / ✓ | ✓ | ✓\* | ✓ | ✓\* | ✓ layers kept | ✗\* | ✗ |
+
+### 18.5 Positioning
+
+**What nobody else combines.** No tool in §18.1–18.4 pairs an Aseprite-class sprite editor with a paint.net-class image editor in one app. And none runs the same build as a native desktop app (Windows, macOS, Linux) and as an offline-capable PWA. The two core arguments:
+
+- **paint.net has no Mac, Linux or web build.** Its 5.2 Wine support is experimental.
+- **Aseprite has no browser or tablet build.** Pincel's PWA covers the browser and the iPad.
+
+Embedding through npm is a third differentiator (§17.5). Photopea's iframe API is the only comparable offer, and it is closed source with paid white-labelling.
+
+**Closest competitors and the risks they carry.**
+
+| Competitor | Why it matters | What Pincel answers with |
+|------------|----------------|--------------------------|
+| Pixelorama | Free, MIT, web + desktop + Android. Since 1.2.2 it writes `.aseprite` too, and it already has indexed painting, autotiling, layer effects and PSD import. The closest overall match. | Native `.aseprite` as the source of truth (not an import / export path), slices with 9-patch + pivot, a full image editor beside it, an embeddable core |
+| Resprite | The fastest-moving commercial tool: every platform, `.aseprite` + PSD read / write, Tiled tilemaps, layer styles | Free and open source, a browser build, an image mode |
+| Aseprite | The reference for pixel features and Lua scripting | Same file format, browser + tablet reach, an image mode |
+| Photopea | The strongest image editor in the browser, PSD-centred | No ads, native desktop builds, pixel-art mode, open source |
+| Paint.NET 5.2 / Pinta 3 | The paint.net feature set on Windows (Paint.NET) and on Mac / Linux (Pinta, MIT) | Pixel-art mode, a browser build, tablet input |
+
+**Gaps the comparison exposes** (candidates for later phases, not commitments):
+
+- **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
+- **Pen pressure in Pixel mode.** Aseprite, LibreSprite, Pixelorama and Resprite support it; Pincel has it in Image mode only.
+- **Indexed painting, autotiling, scripting.** Already listed in §13.
+- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
+- **Layer groups in Image mode.** Pixel mode already has them.
+
+### 18.6 Sources
+
+- aseprite.org (release notes, docs, buy, FAQ) and github.com/aseprite/aseprite/releases
+- github.com/Orama-Interactive/Pixelorama (README, releases) and pixelorama.org
+- github.com/LibreSprite/LibreSprite/releases and libresprite.github.io
+- github.com/piskelapp/piskel
+- github.com/lospec/pixel-editor
+- cosmigo.com and the Pro Motion NG Steam page
+- pyxeledit.com
+- pixaki.com and its App Store listing
+- resprite.fengeon.com (docs, release notes) and the Resprite Steam page
+- paint.net (features, roadmap, blog)
+- github.com/PintaProject/Pinta and pinta-project.com
+- photopea.com/learn and photopea.com/api
+- pixlr.com (pricing, editor, desktop)
+- github.com/viliusle/miniPaint
+- krita.org (download, release notes)
+- affinity.studio, AppleInsider (2025-10-30, Affinity goes free) and CG Channel (2026-09, Affinity 3.3)
+
+---
+
 *End of specification v0.1. This is a living document — amend in place via PR; significant decisions go in Section 15.*
