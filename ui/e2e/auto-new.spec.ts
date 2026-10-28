@@ -50,3 +50,13 @@ test('ticking one card clears the other', async ({ page }) => {
     page.getByRole('form', { name: 'New pixel sprite' }).getByLabel('Open like this on startup'),
   ).not.toBeChecked();
 });
+
+test('a cleared size field stores the default size, never an invalid one', async ({ page }) => {
+  await gotoStart(page);
+  await page.getByRole('button', { name: 'New image' }).click();
+  const card = page.getByRole('form', { name: 'New image' });
+  await card.getByLabel('Width').fill('');
+  await card.getByLabel('Open like this on startup').check();
+  await page.reload();
+  await expect(page.getByText('800 × 600 · sRGB')).toBeVisible();
+});

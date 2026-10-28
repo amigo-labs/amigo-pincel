@@ -23,7 +23,13 @@ export async function loadAutoNew(): Promise<NewDocParams | null> {
     const v = await getPref(AUTO_NEW_PREF);
     if (typeof v !== 'object' || v === null) return null;
     const { mode, width, height } = v as Record<string, unknown>;
-    if ((mode !== 'pixel' && mode !== 'image') || typeof width !== 'number' || typeof height !== 'number') {
+    if (
+      (mode !== 'pixel' && mode !== 'image') ||
+      typeof width !== 'number' ||
+      typeof height !== 'number' ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height)
+    ) {
       return null;
     }
     autoNew.params = newDocParams(mode, width, height);

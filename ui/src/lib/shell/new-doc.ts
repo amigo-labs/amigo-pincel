@@ -17,12 +17,19 @@ function clamp(v: number, max: number): number {
   return Math.max(1, Math.min(max, Math.floor(Number.isFinite(v) ? v : 1)));
 }
 
-/** The document to create from the size the user typed, clamped to the mode's limits. */
+/**
+ * The document to create from the size the user typed, clamped to the
+ * mode's limits. A cleared field (`null` / `undefined` from the number
+ * input) or any non-finite value falls back to the mode's default size.
+ */
 export function newDocParams(mode: EditorMode, width: number, height: number): NewDocParams {
+  const d = NEW_DOC_LIMITS[mode];
+  const fw = Number.isFinite(width) ? width : d.width;
+  const fh = Number.isFinite(height) ? height : d.height;
   const [w, h] =
     mode === 'image'
-      ? clampCanvasSize(width, height)
-      : [clamp(width, NEW_DOC_LIMITS.pixel.max), clamp(height, NEW_DOC_LIMITS.pixel.max)];
+      ? clampCanvasSize(fw, fh)
+      : [clamp(fw, NEW_DOC_LIMITS.pixel.max), clamp(fh, NEW_DOC_LIMITS.pixel.max)];
   return { mode, width: w, height: h };
 }
 
