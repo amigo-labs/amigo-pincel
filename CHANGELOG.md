@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.4.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.3.1...v1.4.0) (2026-10-28)
+
+
+### Features
+
+* **pincel-image-core:** add PasteLayer command ([acd8c72](https://github.com/amigo-labs/amigo-pincel/commit/acd8c72f4c885371ef69dd582de92934236e119c))
+* **pincel-image-wasm:** export paste_layer ([87add73](https://github.com/amigo-labs/amigo-pincel/commit/87add7311745239e297e69d66ed0b4bc5dfbd763))
+* **ui:** open a new document on startup from a ticked New card ([d603c0a](https://github.com/amigo-labs/amigo-pincel/commit/d603c0ad97ed2ed2a1f62154e4be01e323b9e1b1))
+* **ui:** paste a clipboard image as a new layer in Image mode ([3cc61cc](https://github.com/amigo-labs/amigo-pincel/commit/3cc61cc462a37bfcf8c751e906e5927ec5da38d8))
+* **ui:** redraw the Smudge, Gradient and Stamp icons ([3952751](https://github.com/amigo-labs/amigo-pincel/commit/39527513f163054e12217bca8e5b2b0042d09f57))
+* **ui:** separate the tool rail into sections ([52562c9](https://github.com/amigo-labs/amigo-pincel/commit/52562c964cedfdbaa2349ba0f7274af508b17c2f))
+* **ui:** size a new image from the image on the clipboard ([5843050](https://github.com/amigo-labs/amigo-pincel/commit/5843050e081290055e8cd47ee5011cc66adac18a))
+* **ui:** startup document, clipboard image size and paste with canvas expand ([bbbf685](https://github.com/amigo-labs/amigo-pincel/commit/bbbf6853b5c02f8af870630ddacfdb7a5b1aadca))
+
+
+### Bug Fixes
+
+* **pincel-image-core:** keep the paste's layer index across redo ([bce05bc](https://github.com/amigo-labs/amigo-pincel/commit/bce05bce02f57c7c08b9ad1f4dcbd7090a288828))
+* **ui:** never store a non-finite startup document size ([4fefcf1](https://github.com/amigo-labs/amigo-pincel/commit/4fefcf11af8580ee858f64f4bb0d1ff5f4bfdaa6))
+* **ui:** paste only into the document it was asked for ([167d521](https://github.com/amigo-labs/amigo-pincel/commit/167d521568912dcc73a844173b041b7792f52559))
+
 ## [1.3.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.3.0...v1.3.1) (2026-10-27)
 
 
