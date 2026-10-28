@@ -3,7 +3,7 @@
   // horizontal strip along the bottom on phones. One button per group; it
   // shows the group's active (or last used) variant and selects it.
   import Icon from '../icons/Icon.svelte';
-  import type { ToolGroup } from './tools';
+  import { startsSection, type ToolGroup } from './tools';
   import { t } from '../../i18n/index.svelte';
 
   interface Props {
@@ -37,8 +37,17 @@
   aria-label={t('frame.tools')}
   aria-orientation={orientation}
 >
-  {#each groups as g (g.id)}
+  {#each groups as g, i (g.id)}
     {@const tool = current(g)}
+    {#if startsSection(groups[i - 1]?.id, g.id)}
+      <div
+        class={orientation === 'vertical'
+          ? 'my-1 h-px w-6 shrink-0 bg-pc-border'
+          : 'mx-0.5 h-7 w-px shrink-0 bg-pc-border'}
+        role="separator"
+        aria-orientation={orientation === 'vertical' ? 'horizontal' : 'vertical'}
+      ></div>
+    {/if}
     {#if tool}
       {@const on = g.tools.some((x) => x.id === active)}
       <button

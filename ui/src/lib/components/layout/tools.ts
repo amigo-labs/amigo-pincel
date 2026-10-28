@@ -24,6 +24,40 @@ export interface ToolGroup<T extends string = string> {
   tools: ToolDef<T>[];
 }
 
+/**
+ * Rail sections (spec §9.2): the rail draws a separator wherever the
+ * section changes, so related tools read as one block. Keyed by group id,
+ * which both modes share; a group missing here starts no new section.
+ */
+const RAIL_SECTIONS: Record<string, string> = {
+  move: 'navigate',
+  hand: 'navigate',
+  zoom: 'navigate',
+  select: 'select',
+  lasso: 'select',
+  wand: 'select',
+  pencil: 'paint',
+  eraser: 'paint',
+  recolor: 'paint',
+  smudge: 'paint',
+  fill: 'color',
+  gradient: 'color',
+  eyedropper: 'color',
+  line: 'draw',
+  shapes: 'draw',
+  text: 'draw',
+  stamp: 'sprite',
+  slice: 'sprite',
+};
+
+/** Whether the rail separates group `id` from the group before it, `prev`. */
+export function startsSection(prev: string | undefined, id: string): boolean {
+  if (prev === undefined) return false;
+  const a = RAIL_SECTIONS[prev];
+  const b = RAIL_SECTIONS[id];
+  return a !== undefined && b !== undefined && a !== b;
+}
+
 /** The group `tool` belongs to. */
 export function groupOf<T extends string>(groups: ToolGroup<T>[], tool: T): ToolGroup<T> | undefined {
   return groups.find((g) => g.tools.some((t) => t.id === tool));

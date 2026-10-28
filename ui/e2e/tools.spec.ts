@@ -180,3 +180,13 @@ test('image mode: Smudge drags along a stroke', async ({ page }) => {
   await drag(page, imageCanvas(page), [0.4, 0.4], [0.9, 0.4]);
   await expect(undo).toBeEnabled();
 });
+
+// Rail sections (spec §9.2): separators split navigate / select / paint /
+// fill & color / draw (/ sprite in Pixel mode).
+test('the rail separates its tool sections in both modes', async ({ page }) => {
+  await createDocument(page, 'image');
+  const rail = page.getByRole('toolbar', { name: 'Tools' });
+  await expect(rail.getByRole('separator')).toHaveCount(4);
+  await createDocument(page, 'pixel');
+  await expect(rail.getByRole('separator')).toHaveCount(5);
+});

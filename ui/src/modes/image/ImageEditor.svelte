@@ -223,11 +223,6 @@
         tools: [{ id: 'eraser', label: t('tool.eraser'), icon: 'eraser' }],
       },
       {
-        id: 'fill',
-        label: t('tool.fill'),
-        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
-      },
-      {
         id: 'recolor',
         label: t('tool.recolor'),
         tools: [{ id: 'recolor', label: t('tool.recolor'), icon: 'recolor' }],
@@ -236,6 +231,11 @@
         id: 'smudge',
         label: t('tool.smudge'),
         tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
+      },
+      {
+        id: 'fill',
+        label: t('tool.fill'),
+        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
       },
       {
         id: 'gradient',
