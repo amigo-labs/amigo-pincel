@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import {
+    clampCanvasSize,
     editor,
     tool,
     ui,
@@ -30,6 +31,7 @@
     transformLayer,
     newDocument,
     openBytes,
+    pasteImage,
     exportImage,
     saveProject,
     projectBytes,
@@ -52,6 +54,8 @@
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
+  import Modal from './components/dialogs/Modal.svelte';
+  import { clipboardImage, imageSize, pasteEventImage } from '../../lib/clipboard';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -106,6 +110,74 @@
   let effectOpen = $state<EffectDef | null>(null);
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
+  // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
+  let pasteDialog = $state<{
+    handle: number;
+    bytes: Uint8Array;
+    width: number;
+    height: number;
+    canExpand: boolean;
+  } | null>(null);
+
+  // Edit ▸ Paste / Ctrl+V (spec §5.4): a new layer at the top-left; an image
+  // larger than the canvas asks first whether to grow the canvas, like paint.net.
+  // `handle` is the document the paste was asked for: reading the clipboard
+  // and decoding are async, and a document opened meanwhile (or another
+  // editor mounted) must not receive it. Handles are never reused.
+  async function beginPaste(blob: Blob, handle: number): Promise<void> {
+    const size = await imageSize(blob);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (editor.handle !== handle) return;
+    // A format the browser can't measure still goes to the core's decoder.
+    if (!size || (size.width <= editor.width && size.height <= editor.height)) {
+      runPaste(handle, bytes, false);
+      return;
+    }
+    const w = Math.max(editor.width, size.width);
+    const h = Math.max(editor.height, size.height);
+    const [cw, ch] = clampCanvasSize(w, h);
+    pasteDialog = {
+      handle,
+      bytes,
+      width: size.width,
+      height: size.height,
+      canExpand: cw === w && ch === h,
+    };
+  }
+
+  function runPaste(handle: number, bytes: Uint8Array, expand: boolean): void {
+    pasteDialog = null;
+    if (editor.handle !== handle) return;
+    try {
+      pasteImage(bytes, expand);
+      editor.notice = null;
+    } catch (e) {
+      editor.notice = t('paste.failed', { error: String(e) });
+    }
+  }
+
+  async function pasteFromClipboard(): Promise<void> {
+    const handle = editor.handle;
+    if (handle === null) return;
+    const blob = await clipboardImage();
+    if (editor.handle !== handle) return;
+    if (blob) await beginPaste(blob, handle);
+    else editor.notice = t('paste.noImage');
+  }
+
+  function onPaste(e: ClipboardEvent): void {
+    const handle = editor.handle;
+    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    // The shell's dialogs (New document, unsaved changes, …) don't set
+    // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
+    if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
+      return;
+    }
+    const image = pasteEventImage(e);
+    e.preventDefault();
+    if (image) void beginPaste(image, handle);
+    else editor.notice = t('paste.noImage');
+  }
 
   function runExport(format: ExportFormat, quality?: number): void {
     // JPEG is lossy: ask for the quality first (spec §13.2).
@@ -171,11 +243,6 @@
         tools: [{ id: 'eraser', label: t('tool.eraser'), icon: 'eraser' }],
       },
       {
-        id: 'fill',
-        label: t('tool.fill'),
-        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
-      },
-      {
         id: 'recolor',
         label: t('tool.recolor'),
         tools: [{ id: 'recolor', label: t('tool.recolor'), icon: 'recolor' }],
@@ -184,6 +251,11 @@
         id: 'smudge',
         label: t('tool.smudge'),
         tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
+      },
+      {
+        id: 'fill',
+        label: t('tool.fill'),
+        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
       },
       {
         id: 'gradient',
@@ -444,7 +516,11 @@
   // The dialogs own Enter / Escape; keep the editor's shortcuts out.
   $effect(() => {
     ui.modalOpen =
-      effectOpen !== null || transformDialog !== null || jpegDialogOpen || radiusOp !== null;
+      effectOpen !== null ||
+      transformDialog !== null ||
+      jpegDialogOpen ||
+      radiusOp !== null ||
+      pasteDialog !== null;
   });
 
   const hasDoc = $derived(editor.handle !== null);
@@ -493,6 +569,12 @@
         { label: t('menu.undo'), shortcut: hint('undo'), disabled: !editor.canUndo, run: undo },
         { label: t('menu.redo'), shortcut: hint('redo'), disabled: !editor.canRedo, run: redo },
         { kind: 'separator' },
+        {
+          label: t('menu.paste'),
+          shortcut: hint('paste'),
+          disabled: !hasDoc,
+          run: () => void pasteFromClipboard(),
+        },
         {
           label: t('menu.deleteSelection'),
           shortcut: hint('deleteSelection'),
@@ -648,7 +730,7 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} onbeforeunload={onBeforeUnload} />
+<svelte:window onkeydown={onKeydown} onpaste={onPaste} onbeforeunload={onBeforeUnload} />
 
 {#snippet colorsBody()}<ColorsPanel />{/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
@@ -781,6 +863,23 @@
       }}
     />
   {/key}
+{/if}
+
+{#if pasteDialog}
+  {@const paste = pasteDialog}
+  <Modal
+    title={t('paste.largerTitle')}
+    applyLabel={paste.canExpand ? t('paste.expand') : t('paste.keep')}
+    onApply={() => runPaste(paste.handle, paste.bytes, paste.canExpand)}
+    secondary={paste.canExpand
+      ? { label: t('paste.keep'), onClick: () => runPaste(paste.handle, paste.bytes, false) }
+      : undefined}
+    onClose={() => (pasteDialog = null)}
+  >
+    <p class="mb-4 text-pc-muted">
+      {t(paste.canExpand ? 'paste.larger' : 'paste.tooLarge', { w: paste.width, h: paste.height })}
+    </p>
+  </Modal>
 {/if}
 
 {#if jpegDialogOpen}

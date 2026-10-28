@@ -4,7 +4,8 @@
   // inline (StartScreen.svelte); limits and defaults are in `new-doc.ts`.
   import type { EditorMode, NewDocParams } from './types';
   import { t } from '../i18n/index.svelte';
-  import { NEW_DOC_LIMITS as LIMITS, newDocParams } from './new-doc';
+  import { NEW_DOC_LIMITS as LIMITS, clipboardDocSize, newDocParams } from './new-doc';
+  import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
     initialMode,
@@ -30,10 +31,25 @@
     mode = next;
     width = LIMITS[next].width;
     height = LIMITS[next].height;
+    prefillFromClipboard();
   }
 
+  // A clipboard image sets the size, unless the user typed one meanwhile.
+  function prefillFromClipboard() {
+    const [m, w, h] = [mode, width, height];
+    void clipboardDocSize(m).then((p) => {
+      if (p && mode === m && width === w && height === h) {
+        width = p.width;
+        height = p.height;
+      }
+    });
+  }
+  prefillFromClipboard();
+
   function submit() {
-    onCreate(newDocParams(mode, width, height));
+    const params = newDocParams(mode, width, height);
+    if (autoNew.params?.mode === mode) setAutoNew(params);
+    onCreate(params);
   }
 
   // Keys typed in the dialog must not reach the mounted editor's
@@ -121,6 +137,16 @@
       </label>
       <span class="text-xs text-pc-faint">px</span>
     </div>
+
+    <label class="mt-3 flex items-center gap-2 text-xs text-pc-muted">
+      <input
+        type="checkbox"
+        checked={autoNew.params?.mode === mode}
+        onchange={(e) =>
+          setAutoNew(e.currentTarget.checked ? newDocParams(mode, width, height) : null)}
+      />
+      {t('newDoc.autoOpen')}
+    </label>
 
     <div class="mt-4 flex justify-end gap-2">
       <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>

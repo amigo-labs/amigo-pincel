@@ -437,6 +437,8 @@ Image mode is the paint.net-style editor (§1.1). Its tools live in `crates/pinc
 
 All selection modes combine with Shift (add), Alt (subtract) and both (intersect), and every pixel tool is bounded by the active selection, feathered edges included.
 
+**Paste.** Edit ▸ Paste (Ctrl+V / ⌘V) puts the image on the clipboard on a new layer above the active one, at the top-left corner, in one undo step. When the image is larger than the canvas, a dialog asks first, like paint.net: *Expand canvas* grows the canvas to fit it (anchored top-left, within the image-size limits), *Keep canvas size* crops it to the canvas, *Cancel* drops it. Pixel mode has no paste yet.
+
 Not implemented: a clone stamp, bézier curves, and custom or textured brushes. Selection arithmetic beyond the four modes (saving a selection, transforming one) is Phase 2 (§13).
 
 ---
@@ -574,7 +576,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 └──────┴────────────────────────────────────────────────┴────────────────┘
 ```
 
-Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens. A Help menu (About Pincel, and in the desktop app the updater's manual check and its auto-install toggle) closes the bar wherever the OS draws no native menu bar — the web build and the Windows / Linux desktop app; on macOS the native Help menu serves those entries instead (§11.3).
+Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press. Thin separators split the rail into sections — navigate, select, paint, fill & color, draw, and in Pixel mode sprite (Stamp, Slice) — from one group-id → section map shared by both modes (`ui/src/lib/components/layout/tools.ts`); each mode lists its groups so that a section's groups sit together. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens. A Help menu (About Pincel, and in the desktop app the updater's manual check and its auto-install toggle) closes the bar wherever the OS draws no native menu bar — the web build and the Windows / Linux desktop app; on macOS the native Help menu serves those entries instead (§11.3).
 
 **Responsive layout.** The frame restructures at Tailwind's `sm` / `lg` widths:
 
@@ -588,7 +590,7 @@ Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists 
 
 **Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background.
 
-The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents — the two New cards open in place as an accordion with the canvas size and Create, no dialog on top), the New-document dialog with a mode choice (File ▸ New… from an editor), file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
+The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents — the two New cards open in place as an accordion with the canvas size and Create, no dialog on top), the New-document dialog with a mode choice (File ▸ New… from an editor), an "Open like this on startup" checkbox on each New card and in the New dialog (at most one mode at a time: the next launch skips the start screen and opens an empty document of that mode and size), a New image size taken from the image on the clipboard when there is one (like paint.net), file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
 
 ### 9.3 WASM Boundary Contract
 
@@ -846,6 +848,10 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-27 | The native menu bar is macOS-only: a `NATIVE_MENU` const (`cfg!(target_os = "macos")`) gates `app.set_menu` in `setup()` and turns the `set_recent_menu` / `set_menu_language` commands into no-ops elsewhere, so the renderer keeps one code path. Windows and Linux show only the in-app menu bar, which gains a Help menu (About Pincel, and under Tauri "Check for Updates…" / "Install Updates Automatically") and File ▸ Open Recent in Image mode. `hasNativeMenu()` (`ui/src/lib/platform/`) replaces `isTauri()` as the gate that leaves `NATIVE_MENU_ACTIONS` to the menu. | Windows and Linux showed two menu bars stacked, the in-app one a superset of the native one: M11.3 installed the native menu on every platform and the one-frame rebuild (2026-10-11) rendered the in-app bar without asking the host. macOS cannot drop its menu — the menu bar belongs to the screen rather than the window, the App menu is a platform requirement, and WKWebView routes Cmd+C / V through Edit ▸ Copy / Paste; WebView2 and WebKitGTK handle those chords in the renderer, as they already do in the web build, so the predefined items are not missed there. Everything the native menu was the only access to moves into the in-app bar, so no platform loses a feature. `cfg!` rather than `#[cfg]` because CI builds the desktop shell on Linux only: an attribute would stop type-checking the macOS path entirely, and would need ~10 annotations plus a `dead_code` allow on `RecentMenuItem`. |
 | 2026-10-27 | Image mode gains Gradient, Recolor and Smudge, and the tool rail lists Line, the four shapes, Pan, Zoom and the two selection moves as their own buttons. The set is written down in §5.4 — the first tool spec Image mode has in this repository. | The rail showed ten buttons against paint.net's nineteen, and some of the gap was not even missing code: `Shape::Line` existed with `L` bound in the shared keymap and no group to select, the shapes were a dropdown where §9.2 asks for rail variants, and pan and zoom were gestures a tablet had no way to reach. Gradient, Recolor and Smudge were genuinely absent — `STATUS.md` listed them as deliberately not ported when Fineliner's own M13 never shipped. A clone stamp stays out: it needs a source anchor that survives the stroke and a second cursor, which is a UI problem of its own. Image mode's tools had no spec in this repository at all — the code's `spec §16.2` comments point at the archived sibling's `fineliner.md` — so §5.4 states the set, and §5.2 is retitled as Pixel mode's. |
 | 2026-10-27 | The wasm layer is published as `@amigo-labs/pincel-wasm` (crate and directory keep the name `pincel-wasm`; the npm name comes from `wasm-pack --scope amigo-labs`), and `publish-npm` authenticates through npm's OIDC trusted publishing instead of `NPM_TOKEN`, gated by the repository variable `PUBLISH_NPM`. The trusted publisher names `release-please.yml`, the entry workflow of an automatic release, rather than the `release.yml` that holds the `npm publish`; a manual `workflow_dispatch` rebuild therefore skips the npm step. The first version is published by hand once, because a trusted publisher is configured in the package's own settings. | `publish-npm` failed for 1.1.0 and 1.3.0 with `404 Not Found - PUT …/pincel-wasm`, npm's answer when the identity may not publish the package. npm revoked every classic token in December 2025 and now steers automation to granular "Read and write (stage only)" tokens, which may not publish a version at all; direct publishing through bypass-2FA tokens ends in January 2027. Trusted publishing needs no secret, so nothing can leak from the workflow, and npm attaches a provenance attestation on its own. npm validates the entry workflow of the run and allows one trusted publisher per package (npm/documentation#1755), so the reusable `release.yml` cannot be the registered identity and the two publish paths cannot both be covered — the automatic one wins, the manual one falls back to the by-hand sequence. The scope matches every other package of the organization and the name was still free to choose, nothing having been published yet; `@amigo-labs/pincel` stays reserved for the embed package of §17.5. |
+| 2026-10-28 | Each New card on the start screen, and the New dialog, carries an "Open like this on startup" checkbox. Ticking it stores `{ mode, width, height }` under the IndexedDB pref `autoNew` (one mode at a time, ticking one card clears the other); on the next launch the shell reads it before drawing anything and opens an empty document of that mode and size instead of the start screen. A file the OS hands over at launch (`open-file`) still replaces that empty document. | Users who always start the same way skip a click. The checkbox has to sit in the New dialog too: with autostart on the start screen never shows, so File ▸ New… is where it gets switched off again. |
+| 2026-10-28 | A New image (start-screen card and New dialog) defaults to the size of the image on the clipboard, like paint.net. The size is read when the card or dialog opens, through the async Clipboard API and `createImageBitmap` (no canvas readback); a size the user already typed is kept. The unprompted read only runs where the Permissions API knows `clipboard-read` (Chromium, the Windows WebView2 build) and hasn't denied it; elsewhere the defaults stay. Pixel sprites keep 64×64. | Firefox, Safari and WebKitGTK show a paste prompt for every unprompted clipboard read, which would pop up each time a New card opens. Chromium asks once and remembers the answer. |
+| 2026-10-28 | Image mode pastes a clipboard image as a new layer (§5.4), as one `PasteLayer` command that also grows the canvas when the user chose *Expand canvas*. The wasm layer takes the encoded bytes through `paste_layer(handle, bytes, expand)`, not through the JSON `CommandSpec`. Ctrl+V is served by the browser's `paste` event (no permission), Edit ▸ Paste by the async Clipboard API. | paint.net pastes into the current layer as a floating, movable selection; that needs selection transforms, which are Phase 2 (§13). A new layer keeps the paste separate and movable with the Move tool, and matches paint.net's Paste into New Layer. Expand + paste in one command keeps it one undo step. Encoded bytes in JSON would bloat the spec channel and its generated TypeScript mirror. |
+| 2026-10-28 | Tool icons stay monochrome (`pc-muted`, the active tool on the accent); the rail tells tools apart by section separators and by distinct silhouettes instead of per-tool colors. Smudge loses its hand (it sat next to Pan's), Gradient becomes a ramp instead of bars, the tilemap Stamp a rubber stamp instead of a grid (next to Slice's grid). Image mode's Fill moves behind Smudge so the paint and fill & color sections are contiguous; the order relative to Pixel mode is unchanged. | Colored chrome next to the canvas biases color judgement (simultaneous contrast), which is why Aseprite, Krita, Photoshop, Affinity and Photopea keep a neutral UI; the accent would also stop being the one signal for the active tool, and color alone fails color-blind users. Grouping and shape carry the distinction without those costs. |
 
 ---
 
@@ -948,6 +954,116 @@ pincel.on('save', (bytes) => {/* … */});
 ```
 
 The Pincel app itself is then a thin shell on top of this same package. This is a deliberate constraint: if the public API is sufficient to build the app, it's sufficient for embedders.
+
+---
+
+## 18. Competitive landscape
+
+Snapshot as of 2026-10-28, checked against vendor sites, docs, release pages and app stores (§18.6). GIMP and Photoshop are left out on purpose: Pincel doesn't compete with full-scale photo suites. §17 covers Piskel's architecture in depth; this section compares features and positioning.
+
+Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry marked \* comes from prior knowledge and was not re-checked in this pass. Re-check before quoting any of it externally; several of these tools ship monthly.
+
+### 18.1 Pixel-art editors — platforms and business
+
+| Tool | Win | Mac | Linux | Web | iPad | Android | Price / license | Latest release | Scripting | Embeddable |
+|------|-----|-----|-------|-----|------|---------|-----------------|----------------|-----------|------------|
+| **Pincel** | ✓ | ✓ | ✓ | ✓ PWA, offline | ~ PWA | ~ PWA | Free, MIT OR Apache-2.0 | active | ✗ (§13.5) | ✓ npm `@amigo-labs/pincel-wasm` |
+| Aseprite | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | $19.99 one-time; source-available EULA | 1.3.18.6, 2026-09 | ✓ Lua + extensions | ~ CLI batch |
+| LibreSprite | ✓ | ✓ | ✓ | ~ old online build | ✗ | ~ old APK | Free, GPL-2.0 (pre-EULA Aseprite fork) | 1.3, 2026-10 | ✓ JavaScript | ✗\* |
+| Pixelorama | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ APK | Free, MIT | 1.2.3, 2026-09 | ✓ extensions, shaders | ~ CLI export |
+| Piskel | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | Free, Apache-2.0 | 0.15.0, 2018 (master still gets fixes) | ✗\* | ✗\* |
+| Lospec Pixel Editor | ✗ | ✗ | ✗ | ✓ desktop browsers | ✗ | ✗ | Free, GPL-3.0 | discontinued (last commit 2024-06) | ✗ | ✗ |
+| Pro Motion NG | ✓ | ? | ? | ✗ | ✗ | ✗ | Free edition + $19; proprietary | V8.0.11, 2025-02 | ~ plugin interface | ? |
+| Pyxel Edit | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | Paid beta; proprietary | no dated release found | ? | ✗ |
+| Pixaki 4 | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | $20 one-time (Pro); proprietary | 4.6, 2025-02 | ✗? | ✗ |
+| Resprite | ✓ | ✓ | ✓ (since 2026-10) | ✗ | ✓ | ✓ | Trial, then subscription or $19.99; proprietary | 1.32.6, 2026-10 | ? | ✗? |
+
+### 18.2 Pixel-art editors — features
+
+| Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
+|------|---|---|---|---|---|---|---|---|---|---|---|---|
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ~ Image mode only | ✗ |
+| Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
+| LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
+| Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
+| Piskel | ✓ / ✗\* / ✗\* | ✓ / ✓ / ✗\* | ✗ | ✗ | ✗\* | ✗\* | ? | ✗ | ✓\* | ✗ | ? | ✗\* |
+| Pro Motion NG | ✓ / ✓ / ? | ✓ / ✓ / ? | ✓ | ? | ✓ | ? | ✓ | ? | ? | ✓ bitmap fonts | ✓ | ? |
+| Pixaki 4 | ✓ / ✓ / ✓ | ✓ / ✓ / ? | ? | ? | ? | ✓ (Pro) | ✓ | ? | ~ colour select | ? | ? | ✓ layered (Pro) |
+| Resprite | ✓ / ? / ✓ + clipping masks, layer styles | ✓ / ✓ / ? | ✓ (Tiled `.tmx` / `.tsx`) | ? | ? | ✓ / ✓ | ✓ | ~ HSV, brightness / contrast, sharpen | ? | ✓ TTF / OTF + pixel fonts | ✓ | ✓ / ✓ |
+
+Lospec and Pyxel Edit are left out of the feature table: neither publishes a feature list that could be checked, and Lospec is discontinued.
+
+### 18.3 Image editors — platforms and business
+
+| Tool | Win | Mac | Linux | Web | iPad | Android | Price / license | Latest release | Scripting / plugins | Embeddable |
+|------|-----|-----|-------|-----|------|---------|-----------------|----------------|---------------------|------------|
+| **Pincel** | ✓ | ✓ | ✓ | ✓ PWA, offline | ~ PWA | ~ PWA | Free, MIT OR Apache-2.0 | active | ✗ | ✓ npm (Pixel core) |
+| Paint.NET | ✓ | ~ Wine (5.2 beta) | ~ Wine (5.2 beta) | ✗ | ✗ | ✗ | Free (paid Store version); proprietary | 5.1.12, 2026-03; 5.2 beta 2026-10 | ✓ .NET effect / FileType plugins | ✗ |
+| Pinta | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | Free, MIT | 3.1.2, 2026-04 | ✓ add-ins | ✗ |
+| Photopea | browser | browser | browser | ✓ works offline once loaded | browser | browser | Free with ads; Premium subscription; proprietary | continuous | ✓ scripts / actions | ✓ iframe + JSON API |
+| Pixlr E | ~ desktop app | ? | ✗ | ✓ | ~ Express app | ~ Express app | Free tier; Plus / Premium subscriptions; proprietary | continuous | ✗\* | ? |
+| miniPaint | ✗ | ✗ | ✗ | ✓ self-hostable | browser | browser | Free, MIT | 4.14.3, 2026-04 (maintenance) | ~ | ✓ iframe, no formal API |
+| Krita | ✓ | ✓ | ✓ | ✗ | ✗ | ✓ (5.x) | Free, GPL-3.0 (paid store builds) | 5.3.4.1 / 6.0.4, 2026-09/10 | ✓ Python\* | ✗ |
+| Affinity (Canva) | ✓ | ✓ | ✗ | ✗ | ~ announced | ✗ | Free for individuals since 2025-10-30 (Canva account; AI needs Canva Premium); proprietary | 3.3, 2026-09 | ✓ JavaScript (3.3) | ✗ |
+
+### 18.4 Image editors — features
+
+| Tool | Layers / groups / blend | Adjustments / filters | Magic wand | Text | Pen pressure | PSD | Animation | Pixel-art features |
+|------|---|---|---|---|---|---|---|---|
+| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ✗ | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
+| Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓\* | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ | ~ third-party plugin\* | ✗ | ✗ |
+| Pinta | ✓ / ✗\* / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ? | ? | ✗ | ✗ |
+| Photopea | ✓ / ✓\* / ✓\* | ✓ | ✓\* | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
+| Pixlr E | ✓ / ✓ / ✓ | ✓ levels, curves, hue/sat | ✓ | ✓ | ✓ | ~ simple PSDs only | ✗ | ✗ |
+| miniPaint | ✓ / ✗\* / ✓ | ~ basic adjustments + effects | ✓ | ✓ | ? | ? | ~ animated GIF export | ✗ |
+| Krita | ✓ / ✓ / ✓ | ✓ | ✓\* | ✓ | ✓ | ✓\* | ✓ timeline, onion skin | ~ no indexed mode |
+| Affinity | ✓ / ✓ / ✓ | ✓ | ✓\* | ✓ | ✓\* | ✓ layers kept | ✗\* | ✗ |
+
+### 18.5 Positioning
+
+**What nobody else combines.** No tool in §18.1–18.4 pairs an Aseprite-class sprite editor with a paint.net-class image editor in one app. And none runs the same build as a native desktop app (Windows, macOS, Linux) and as an offline-capable PWA. The two core arguments:
+
+- **paint.net has no Mac, Linux or web build.** Its 5.2 Wine support is experimental.
+- **Aseprite has no browser or tablet build.** Pincel's PWA covers the browser and the iPad.
+
+Embedding through npm is a third differentiator (§17.5). Photopea's iframe API is the only comparable offer, and it is closed source with paid white-labelling.
+
+**Closest competitors and the risks they carry.**
+
+| Competitor | Why it matters | What Pincel answers with |
+|------------|----------------|--------------------------|
+| Pixelorama | Free, MIT, web + desktop + Android. Since 1.2.2 it writes `.aseprite` too, and it already has indexed painting, autotiling, layer effects and PSD import. The closest overall match. | Native `.aseprite` as the source of truth (not an import / export path), slices with 9-patch + pivot, a full image editor beside it, an embeddable core |
+| Resprite | The fastest-moving commercial tool: every platform, `.aseprite` + PSD read / write, Tiled tilemaps, layer styles | Free and open source, a browser build, an image mode |
+| Aseprite | The reference for pixel features and Lua scripting | Same file format, browser + tablet reach, an image mode |
+| Photopea | The strongest image editor in the browser, PSD-centred | No ads, native desktop builds, pixel-art mode, open source |
+| Paint.NET 5.2 / Pinta 3 | The paint.net feature set on Windows (Paint.NET) and on Mac / Linux (Pinta, MIT) | Pixel-art mode, a browser build, tablet input |
+
+**Gaps the comparison exposes** (candidates for later phases, not commitments; each has a task spec under `docs/specs/todo/`, indexed in its README together with a backlog of smaller gaps):
+
+- **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
+- **Pen pressure in Pixel mode.** Aseprite, LibreSprite, Pixelorama and Resprite support it; Pincel has it in Image mode only.
+- **Indexed painting, autotiling, scripting.** Already listed in §13.
+- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
+- **Layer groups in Image mode.** Pixel mode already has them.
+
+### 18.6 Sources
+
+- aseprite.org (release notes, docs, buy, FAQ) and github.com/aseprite/aseprite/releases
+- github.com/Orama-Interactive/Pixelorama (README, releases) and pixelorama.org
+- github.com/LibreSprite/LibreSprite/releases and libresprite.github.io
+- github.com/piskelapp/piskel
+- github.com/lospec/pixel-editor
+- cosmigo.com and the Pro Motion NG Steam page
+- pyxeledit.com
+- pixaki.com and its App Store listing
+- resprite.fengeon.com (docs, release notes) and the Resprite Steam page
+- paint.net (features, roadmap, blog)
+- github.com/PintaProject/Pinta and pinta-project.com
+- photopea.com/learn and photopea.com/api
+- pixlr.com (pricing, editor, desktop)
+- github.com/viliusle/miniPaint
+- krita.org (download, release notes)
+- affinity.studio, AppleInsider (2025-10-30, Affinity goes free) and CG Channel (2026-09, Affinity 3.3)
 
 ---
 

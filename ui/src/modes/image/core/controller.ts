@@ -329,6 +329,19 @@ export function resizeCanvas(width: number, height: number, anchor: ResizeAnchor
   applyTransform({ type: 'resize_canvas', width, height, anchor });
 }
 
+/**
+ * Pastes an encoded image as a new layer above the active one, at the
+ * top-left; `expand` first grows a smaller canvas to fit it (spec §5.4).
+ * Throws when the core can't decode the image.
+ */
+export function pasteImage(bytes: Uint8Array, expand: boolean): void {
+  if (editor.handle === null) {
+    return;
+  }
+  core.pasteLayer(editor.handle, bytes, expand);
+  syncInfo();
+}
+
 /** Crops the canvas to the current selection's bounding box (spec §10.6). */
 export function cropToSelection(): void {
   applyTransform({ type: 'crop_to_selection' });

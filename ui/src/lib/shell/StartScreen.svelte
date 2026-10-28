@@ -13,7 +13,8 @@
   import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
   import { setLocale } from '../i18n/locale';
   import { hasNativeMenu } from '../platform';
-  import { NEW_DOC_LIMITS, newDocParams } from './new-doc';
+  import { NEW_DOC_LIMITS, clipboardDocSize, newDocParams } from './new-doc';
+  import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
     recents,
@@ -49,8 +50,16 @@
       return;
     }
     expanded = mode;
-    width = NEW_DOC_LIMITS[mode].width;
-    height = NEW_DOC_LIMITS[mode].height;
+    const { width: w, height: h } = NEW_DOC_LIMITS[mode];
+    width = w;
+    height = h;
+    // A clipboard image sets the size, unless the user typed one meanwhile.
+    void clipboardDocSize(mode).then((p) => {
+      if (p && expanded === mode && width === w && height === h) {
+        width = p.width;
+        height = p.height;
+      }
+    });
   }
 
   // Escape closes the open card and puts focus back on its header.
@@ -152,7 +161,9 @@
               aria-label={t(card.title)}
               onsubmit={(e) => {
                 e.preventDefault();
-                onCreate(newDocParams(card.mode, width, height));
+                const params = newDocParams(card.mode, width, height);
+                if (autoNew.params?.mode === card.mode) setAutoNew(params);
+                onCreate(params);
               }}
             >
               <label class="flex items-center gap-1 text-xs text-pc-muted">
@@ -187,6 +198,17 @@
               <button type="submit" class="panel-btn panel-btn-primary ml-auto" disabled={busy}>
                 {t('common.create')}
               </button>
+              <label class="flex basis-full items-center gap-2 text-xs text-pc-muted">
+                <input
+                  type="checkbox"
+                  checked={autoNew.params?.mode === card.mode}
+                  onchange={(e) =>
+                    setAutoNew(
+                      e.currentTarget.checked ? newDocParams(card.mode, width, height) : null,
+                    )}
+                />
+                {t('newDoc.autoOpen')}
+              </label>
             </form>
           {/if}
         </div>

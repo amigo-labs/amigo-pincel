@@ -49,6 +49,7 @@ export const en = {
   'newDoc.image': 'Image',
   'newDoc.w': 'W',
   'newDoc.h': 'H',
+  'newDoc.autoOpen': 'Open like this on startup',
 
   // Recovery dialog
   'recovery.title': 'Recover unsaved work?',
@@ -209,6 +210,14 @@ export const en = {
   'menu.exportWebp': 'WebP (lossless)',
   'menu.undo': 'Undo',
   'menu.redo': 'Redo',
+  'menu.paste': 'Paste',
+  'paste.largerTitle': 'Paste larger image',
+  'paste.larger': 'The image being pasted ({w} × {h}) is larger than the canvas. Expand the canvas to fit it?',
+  'paste.tooLarge': 'The image being pasted ({w} × {h}) is larger than the canvas and too large to expand it to. It will be cropped.',
+  'paste.expand': 'Expand canvas',
+  'paste.keep': 'Keep canvas size',
+  'paste.noImage': 'The clipboard holds no image',
+  'paste.failed': 'Could not paste: {error}',
   'menu.deleteSelection': 'Delete Selection',
   'menu.swapColors': 'Swap Colors',
   'menu.defaultColors': 'Default Colors',

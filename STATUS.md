@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-10-28_
 
 **Branch:** `ccr-ccba59fa-eq8omt` — restarted from `main` after PR #55
 merged: closes the last Aseprite round-trip gaps (section
@@ -62,8 +62,19 @@ collaboration) are out of scope.
 
 ### 🔨 Codeable next (in-sandbox, not yet done)
 
-- Nothing open in-sandbox beyond Phase 2 (resolving external palettes /
-  tilesets, indexed painting, …).
+- **Task specs (2026-10-28), all todo, none started:** under
+  `docs/specs/todo/`, ordered with sizes and dependencies in its
+  README (plus a backlog of smaller gaps). Owner priorities first:
+  - `23-performance.md`: measured Image compose 101 ms at 1K², 1.26 s
+    at 4K²; step 0 benchmarks, step 1 compositing kernel (LUT ≈ 7×).
+  - `18-mcp.md`: LLMs work with Pincel; headless `pincel-mcp` first,
+    then live control of the desktop app. Phase 0 is a refactor.
+  - Then 01 pixel pencil (sizes / Shift constrain promised by §5.2 but
+    never built, pixel-perfect), 05 copy / cut / paste, 06 animated
+    export, and the rest: 02–04, 07–17, 19–22. `03` also fixes ORA
+    group opacity / visibility being dropped on open.
+- Beyond that, Phase 2 (resolving external palettes / tilesets, indexed
+  painting, …).
 
 Detail on each item lives in the sections further down.
 

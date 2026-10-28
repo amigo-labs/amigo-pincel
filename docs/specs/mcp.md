@@ -14,6 +14,14 @@ related:
 
 # MCP Server (AI-Driven Asset Creation)
 
+> **Status note (2026-10-28):** this draft predates the two-mode app and the
+> current crate layout. Its architecture, code location and tool list are
+> superseded by the task spec `docs/specs/todo/18-mcp.md` (one `pincel-agent`
+> tool crate, a headless `pincel-mcp` host first, then live control of the
+> desktop app). The agent loop, preview, sandbox and validation ideas below
+> still hold; the curriculum (`lessons.pincel.app`) and `.ait` export are
+> future vision, not prerequisites.
+
 ## Overview
 
 The Pincel MCP server exposes Pincel's pixel-editing core and lesson
