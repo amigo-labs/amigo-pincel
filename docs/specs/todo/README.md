@@ -31,6 +31,7 @@ Every spec gives:
 | 03 | [Layer groups in Image mode](03-image-layer-groups.md) | Image | XL (4 × M) | — | Also fixes ORA group attributes being dropped on open (silent data loss) |
 | 04 | [PSD import](04-psd-import.md) | Image | L (2 × M) | 03 for groups (flat import works without it) | Needs a dependency decision |
 | 08 | [Dithered gradient, shading ink, RotSprite](08-pixel-tools.md) | Pixel | XL (3 independent parts) | 01 (shading ink only) | Polish for pixel artists |
+| 24 | [Website comparison in line with §18](24-website-comparison.md) | website | S–M | — | Adds Pixelorama and an Image-mode table, fixes the Aseprite license cell, shows honest gaps |
 | 22 | [Respect "reduce motion"](22-reduced-motion.md) | both | S | — | Accessibility baseline; small, can go any time |
 | 14 | [Own color picker (HSV, alpha, recent)](14-color-picker.md) | both | L (2 × M) | — | Native picker has no alpha and differs per OS |
 | 15 | [Palette formats (.hex, .pal, PNG)](15-palette-formats.md) | Pixel | M | — | Lospec palettes |
