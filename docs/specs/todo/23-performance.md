@@ -2,7 +2,7 @@
 id: todo-performance
 title: Performance — make it fly (budgets, compositing, caching, SIMD, workers, build)
 status: todo
-size: XL (seven M sessions; measure first, every step proves its gain)
+size: XL (eight M sessions; measure first, every step proves its gain)
 mode: both (Image mode first: that's where the time goes)
 depends_on: []
 created: 2026-10-28
@@ -160,6 +160,26 @@ The owner's words: "maximum performance, the thing has to fly". Concretely, thes
 - Image mode undo for structural commands clones the whole document (`DocSnapshot`, `crates/pincel-image-core/src/command/snapshot.rs`, used by paste, merge, flatten, scale and crop). On 4K × 10 layers that is about 330 MB per step.
 - Move to **tile-based copy-on-write undo** (e.g. 128×128 tiles: store only the tiles a command changed) for pixel commands. Keep the snapshot only where the canvas size changes.
 - Add a memory budget to the step 0 table (≤ 1 GB for 4K × 10 layers with 50 undo steps).
+
+### 8. Desktop: a native job backend, keeping the web build first-class
+
+The web build stays a full product. The desktop app gets **extra** speed where native code clearly wins, behind the same interface.
+
+**Interactive editing stays in wasm in both builds:** strokes, layers, viewport. Moving it into the Tauri process would push every presented frame through IPC (≈ 8 MB per 1080p frame, ≈ 500 MB/s at 60 fps). That is slower than in-webview wasm, and would mean a second rendering path.
+
+**Heavy one-shot jobs get two backends behind the step 4 interface:**
+- Full-resolution effects, export and encoding, autosave, and later batch export and MCP.
+- A `JobRunner` with `run(job) -> Promise<result>`:
+  - **web:** Web Worker + wasm (SIMD, and threads if step 6 is accepted);
+  - **desktop:** a Tauri command into native Rust with **rayon (all cores)** and **AVX2 runtime dispatch**, with no COOP/COEP needed.
+- Transfer cost (document or layer bytes in, result out) is small next to jobs of hundreds of milliseconds. **Measure where the crossover lies** and keep small jobs local.
+- Same results byte for byte: both backends call the same `pincel-effects` / codec functions, and an equivalence test runs one job on both.
+
+**Wasm's hard limit is memory.** wasm32 caps at 4 GB, hence `MAX_CANVAS_AREA` (64 Mpx).
+- Larger images on desktop would need the document itself native, a large architecture change, or **Memory64**, which ships in Chromium and Firefox. Check Safari's status before relying on it.
+- **Out of scope until someone needs images beyond 64 Mpx.** Record it as an open question in spec §14.
+
+Decision Log entry when this step starts: one interactive engine (wasm) in both builds; a native job backend on desktop; and why the document doesn't move native.
 
 ## Regression guard
 
