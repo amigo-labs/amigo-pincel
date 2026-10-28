@@ -4,7 +4,7 @@
   // inline (StartScreen.svelte); limits and defaults are in `new-doc.ts`.
   import type { EditorMode, NewDocParams } from './types';
   import { t } from '../i18n/index.svelte';
-  import { NEW_DOC_LIMITS as LIMITS, newDocParams } from './new-doc';
+  import { NEW_DOC_LIMITS as LIMITS, clipboardDocSize, newDocParams } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
@@ -31,7 +31,20 @@
     mode = next;
     width = LIMITS[next].width;
     height = LIMITS[next].height;
+    prefillFromClipboard();
   }
+
+  // A clipboard image sets the size, unless the user typed one meanwhile.
+  function prefillFromClipboard() {
+    const [m, w, h] = [mode, width, height];
+    void clipboardDocSize(m).then((p) => {
+      if (p && mode === m && width === w && height === h) {
+        width = p.width;
+        height = p.height;
+      }
+    });
+  }
+  prefillFromClipboard();
 
   function submit() {
     const params = newDocParams(mode, width, height);

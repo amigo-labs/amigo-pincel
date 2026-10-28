@@ -13,7 +13,7 @@
   import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
   import { setLocale } from '../i18n/locale';
   import { hasNativeMenu } from '../platform';
-  import { NEW_DOC_LIMITS, newDocParams } from './new-doc';
+  import { NEW_DOC_LIMITS, clipboardDocSize, newDocParams } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
@@ -50,8 +50,16 @@
       return;
     }
     expanded = mode;
-    width = NEW_DOC_LIMITS[mode].width;
-    height = NEW_DOC_LIMITS[mode].height;
+    const { width: w, height: h } = NEW_DOC_LIMITS[mode];
+    width = w;
+    height = h;
+    // A clipboard image sets the size, unless the user typed one meanwhile.
+    void clipboardDocSize(mode).then((p) => {
+      if (p && expanded === mode && width === w && height === h) {
+        width = p.width;
+        height = p.height;
+      }
+    });
   }
 
   // Escape closes the open card and puts focus back on its header.

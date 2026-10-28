@@ -4,6 +4,7 @@
 // the edge / area limits of the image core's memory (see MAX_CANVAS_DIM /
 // clampCanvasSize).
 import type { EditorMode, NewDocParams } from './types';
+import { clipboardImage, imageSize } from '../clipboard';
 import { MAX_CANVAS_DIM, clampCanvasSize } from '../../modes/image/stores/editor.svelte';
 
 /** Largest edge and default size per mode. */
@@ -23,4 +24,16 @@ export function newDocParams(mode: EditorMode, width: number, height: number): N
       ? clampCanvasSize(width, height)
       : [clamp(width, NEW_DOC_LIMITS.pixel.max), clamp(height, NEW_DOC_LIMITS.pixel.max)];
   return { mode, width: w, height: h };
+}
+
+/**
+ * The size of the image on the clipboard as a new image's default, like
+ * paint.net (spec §9.2); `null` for Pixel mode, an empty clipboard, or a
+ * browser that can't read it without prompting.
+ */
+export async function clipboardDocSize(mode: EditorMode): Promise<NewDocParams | null> {
+  if (mode !== 'image') return null;
+  const blob = await clipboardImage({ onlyIfAllowed: true });
+  const size = blob ? await imageSize(blob) : null;
+  return size ? newDocParams(mode, size.width, size.height) : null;
 }
