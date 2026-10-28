@@ -21,6 +21,7 @@ Every spec gives:
 
 | # | Spec | Mode | Size | Depends on | Why this position |
 |---|------|------|------|------------|-------------------|
+| 18 | [MCP server: LLMs work with Pincel](18-mcp.md) | both | XL (6 × M) | — | The owner's top priority. Headless `pincel-mcp` first, then live control of the desktop app; phase 0 is a refactor that also tidies the wasm crates |
 | 01 | [Pixel pencil: sizes 1–8, Shift constrain, pixel-perfect](01-pixel-pencil.md) | Pixel | L (3 × M) | — | Fixes §5.2 promises that were never built. 02, 07 and 08-B build on its `PencilStroke` command |
 | 05 | [Copy, Cut, Paste in both modes](05-copy-cut-paste.md) | both | L (3 × M) | — | Basic editor equipment; users expect it first |
 | 06 | [Animated export (APNG, GIF)](06-animated-export.md) | Pixel | L (3 × M) | — | How pixel art gets shared; APNG needs no new dependency |
@@ -29,8 +30,19 @@ Every spec gives:
 | 03 | [Layer groups in Image mode](03-image-layer-groups.md) | Image | XL (4 × M) | — | Also fixes ORA group attributes being dropped on open (silent data loss) |
 | 04 | [PSD import](04-psd-import.md) | Image | L (2 × M) | 03 for groups (flat import works without it) | Needs a dependency decision |
 | 08 | [Dithered gradient, shading ink, RotSprite](08-pixel-tools.md) | Pixel | XL (3 independent parts) | 01 (shading ink only) | Polish for pixel artists |
+| 22 | [Respect "reduce motion"](22-reduced-motion.md) | both | S | — | Accessibility baseline; small, can go any time |
+| 14 | [Own color picker (HSV, alpha, recent)](14-color-picker.md) | both | L (2 × M) | — | Native picker has no alpha and differs per OS |
+| 15 | [Palette formats (.hex, .pal, PNG)](15-palette-formats.md) | Pixel | M | — | Lospec palettes |
+| 16 | [Animation preview panel](16-animation-preview.md) | Pixel | M | — | Watch and draw at once |
+| 17 | [Tablet gestures](17-tablet-gestures.md) | both | M | — | iPad: two/three-finger tap, pen eraser end |
+| 19 | [More languages: es, ja, fr, pt-BR](19-more-languages.md) | both | L (M + 4 × S) | — | Infrastructure (plurals, detection) first |
+| 20 | [First-run tutorial and samples](20-first-run-tutorial.md) | shell + both | M | — | Better after 19 if the tour should ship translated |
+| 21 | [Power-user keyboard](21-power-user-shortcuts.md) | both | L (3 × M) | 13 | Coverage, custom keymap, command palette |
 
-Two notes on the order:
+Specs 09–13 (pixel grid, scaled export, save to original format, outline effect, shortcut overview) are being written; they slot in after 06.
+
+Notes on the order:
+- 18 (MCP) leads because the owner named it the most important feature. Its phase 0 and phases 1–4 (headless) don't touch the UI, so they can run in parallel with UI specs.
 - 03 can move ahead of 05 or 06 if Image-mode users report the ORA group problem. Opening a layered `.ora` from Krita or MyPaint already loses group opacity and visibility.
 - 01, 05 and 06 don't depend on each other and can run in parallel sessions on separate branches.
 
@@ -56,3 +68,10 @@ These come from the same comparison. They aren't commitments; write a spec here 
 | PSD export | Resprite, Pixaki, Photopea | After 04 |
 | Native iPad app | Pixaki, Resprite | Pincel is a PWA on iPad; Tauri mobile has no iOS path today (§14 question 5) |
 | Paste into New Image (Ctrl+Alt+V) | Paint.NET | Cheap follow-up to 05 |
+| Brush stabilizer / stroke smoothing | Krita, Resprite | Image brush first |
+| New-dialog size presets | Aseprite, paint.net | 16/32/64 px, 1080p, screen size, last used |
+| Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Aseprite | Tied to indexed painting (§13) |
+| CJK font for the Text tool | — | Needed for Japanese text on canvas (see 19) |
+| ICO export, rulers / guides (Image), settings dialog, light theme | paint.net, Photopea | Small, as needed |
+| Adobe .ase / .aco swatches | Photoshop ecosystem | After 15 |
+| WebMCP (agents in the PWA) | — | Watch browser proposals; see 18 |
