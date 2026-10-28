@@ -139,6 +139,10 @@ The owner's words: "maximum performance, the thing has to fly". Concretely, thes
 - **wasm SIMD.**
   - Build the two wasm crates with `-C target-feature=+simd128`. All target browsers support it: Chrome/Edge 91+, Firefox 89+, Safari 16.4+. Record the minimum in the Decision Log.
   - Write the kernel from step 1 so that it auto-vectorizes, or use `core::arch::wasm32` intrinsics behind `cfg(target_feature = "simd128")` with a scalar fallback for native and tests.
+- **AVX / AVX2 don't apply to the editor.** Both the PWA and the Tauri app run the cores as wasm in the browser or webview, and wasm SIMD is 128-bit only. Engines lower it to SSE/AVX encodings, but at 128-bit width, and no 256-bit wasm SIMD has shipped.
+  - AVX2 matters only for **native** binaries: `pincel-mcp` (spec 18) and a future CLI. There, use **runtime dispatch** (`is_x86_feature_detected!("avx2")` with a scalar or SSE2 fallback), never a blanket `target-cpu=x86-64-v3`, which would exclude pre-2013 x86 CPUs.
+  - Apple Silicon and ARM use 128-bit NEON either way.
+  - Expected gain over SSE2 is ≈ 1.3–2× in the kernel, less once the work is memory-bound. **Lowest priority of all the levers here.**
 - Verify that **deployed builds are release plus wasm-opt** (Cloudflare build, Tauri bundle, npm package).
   - Add a CI check that fails if the website bundle's wasm is a dev build. A size threshold or a custom section marker would do.
 
