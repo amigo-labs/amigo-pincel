@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, gotoStart, imageCanvas, menu } from './helpers';
+import { createDocument, drag, gotoStart, imageCanvas, menu, waitForEditor } from './helpers';
 
 // Force the download / <input type=file> fallbacks: the File System Access
 // pickers would open native dialogs the test cannot drive.
@@ -37,6 +37,7 @@ test('image mode: Save writes an OpenRaster file that reopens with its layers', 
     page.getByRole('button', { name: 'Open…' }).click(),
   ]);
   await chooser.setFiles({ name: 'image.ora', mimeType: 'image/openraster', buffer: bytes });
+  await waitForEditor(page, 'image');
   await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(2);
 });
