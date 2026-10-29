@@ -20,7 +20,7 @@ Already decided (Decision Log 2026-10-28): Image mode pastes a clipboard image a
 
 - Copy, Cut, Copy Merged and Paste in Pixel and Image mode: Edit menu items, shortcuts, en + de strings
 - Writing PNG to the system clipboard, plus an in-app record of the last copy (image and origin) as a fallback and for paste-in-place
-- Paste position: at the copy origin for the app's own copy, otherwise at the top-left of the visible viewport
+- Paste position: at the copy origin for the app's own copy pasted into the document it came from, otherwise at the top-left of the visible viewport
 - Pixel mode: paste as a new layer, the expand-canvas dialog, and one undo step for paste and for Import PNG as layer
 - Indexed Pixel sprites copy as RGBA
 
@@ -29,6 +29,7 @@ Already decided (Decision Log 2026-10-28): Image mode pastes a clipboard image a
 - A floating, movable paste with transform handles — because it needs selection transforms, which are Phase 2 (§13, §17.3)
 - Paste into New Image (Ctrl+Alt+V) — because it is a separate, cheap follow-up (hand the shell an opened file built from the PNG)
 - Copying text or SVG — because both editors hold raster content and PNG is the one format both modes and other apps share
+- Nearest-palette mapping on paste into an indexed Pixel sprite — Phase 2 with indexed painting (§3.7, AGENTS.md §9)
 
 ## Acceptance criteria
 
@@ -38,17 +39,21 @@ Already decided (Decision Log 2026-10-28): Image mode pastes a clipboard image a
 - [ ] AC-04 (event): When the user copies with no selection, then the clipboard holds the whole active layer at canvas size.
 - [ ] AC-05 (event): When the user chooses Copy Merged, then the clipboard holds the same region as Copy would, taken from the composite of all visible layers instead of the active layer.
 - [ ] AC-06 (event): When the user cuts while a selection exists, then the clipboard holds what Copy would, the selected pixels of the active layer are cleared, and one Undo restores them.
-- [ ] AC-07 (event): When the user copies from an indexed Pixel sprite, then the PNG holds the RGBA colors the palette gives those pixels.
-- [ ] AC-08 (event): When the user pastes the image that Pincel itself last copied, then it lands on a new layer above the active layer at the position it was copied from, as one undo step.
-- [ ] AC-09 (event): When the user pastes any other image, then it lands on a new layer above the active layer with its top-left corner at the canvas position shown at the top-left of the visible viewport, never at a negative canvas coordinate, as one undo step.
+- [ ] AC-07 (event): When the user copies from an indexed Pixel sprite, then the PNG holds the RGBA colors the palette gives those pixels. (Depends on `indexed-grayscale-compose`.)
+- [ ] AC-08 (event): When the user pastes, into the document it was copied from, the image Pincel last copied, then it lands on a new layer above the active layer at the position it was copied from, as one undo step.
+- [ ] AC-09 (event): When the user pastes any other image, then it lands on a new layer above the active layer with its top-left corner at the canvas position shown at the top-left of the visible viewport, never at a negative canvas coordinate and, when the image fits the canvas, shifted so it lies fully inside, as one undo step.
 - [ ] AC-10 (event): When the pasted image is larger than the canvas, then, in both modes, a dialog offers *Expand canvas*, *Keep canvas size* and *Cancel* with Image mode's existing wording: Expand grows the canvas (anchored top-left) to cover the pasted image at its position, Keep crops the image to the canvas, Cancel leaves the document unchanged; Expand plus paste is one undo step.
 - [ ] AC-11 (event): When the user pastes in Pixel mode, then a new image layer appears above the active layer holding the pasted pixels on the current frame, and one Undo removes the layer, its pixels and any canvas expansion.
 - [ ] AC-12 (event): When the user imports a PNG as a layer in Pixel mode, then one Undo removes the imported layer and its pixels.
 - [ ] AC-13 (state): While keyboard focus is in a text field, Ctrl/⌘+C, X and V act on the text field only and leave the document and the image clipboard unchanged.
-- [ ] AC-14 (event): When the user copies in one mode and pastes in a document of the other mode, then the image arrives as a new layer there.
+- [ ] AC-14 (event): When the user copies in one mode and pastes in a document of the other mode, then the image arrives as a new layer there, at the viewport top-left (AC-09).
 - [ ] AC-15 (error): If the system clipboard refuses the image write, then the copy is still kept inside Pincel and a following Paste in Pincel pastes it at its copy origin.
 - [ ] AC-16 (event, manual: needs a third-party application): When the user pastes into another application (a chat window, paint.net) after copying in Pincel, then that application receives the copied image.
 - [ ] AC-17 (event, manual: needs the Linux desktop build with WebKitGTK): When the user copies and then pastes in the Linux desktop app, then the paste delivers the copied image, through the system clipboard or the in-app fallback.
+- [ ] AC-18 (error): If the user pastes into an indexed Pixel sprite, then the paste is refused with a notice and the document is unchanged.
+- [ ] AC-19 (event): When the user copies in Pixel mode while the active layer is a group or a tilemap layer, then the clipboard holds that layer's rendered pixels (a group's composite, a tilemap's rendered tiles).
+- [ ] AC-20 (error): If the user cuts in Pixel mode while the active layer is a group or a tilemap layer, then the cut is refused with a notice and the document and the clipboard are unchanged.
+- [ ] AC-21 (event): When the user cuts with no selection, then the clipboard holds the whole active layer and the layer is cleared; one Undo restores it.
 
 ## Technical notes
 
@@ -78,7 +83,8 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 **Shared**
 
 - `ui/src/lib/clipboard.ts` (`clipboardImage`, `pasteEventImage`, `imageSize`) only reads; add `writeClipboardImage(png: Uint8Array): Promise<boolean>` using `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])` from the menu click or keydown (both are user activation).
-- In-app last copy: module-level PNG bytes + origin `{ x, y }` + source tag. Paste reads the system clipboard first; if its bytes equal the internal copy, it uses the internal origin.
+- In-app last copy: module-level PNG bytes + origin `{ x, y }` + source tag (the document id). Paste uses the in-app copy when (a) the last Pincel copy's system write failed or (b) the system clipboard holds no image; otherwise the system image wins, and it counts as Pincel's own copy if its decoded size and RGBA hash equal the internal copy (never compare bytes: Chromium re-encodes clipboard PNGs). The copy origin applies only when pasting into the source document.
+- Pixel Copy on a group or tilemap layer: `compose()` with `LayerFilter::Only` (the layer plus its subtree), the path thumbnails use.
 - `ui/src/lib/shell/shortcuts.ts`: `paste` is hint-only (≈L57); add `copy` and `cut` actions handled in keydown (no `copy` event hijack); Paste stays on the `paste` event. `isTypingTarget` (≈L172) guards text fields.
 - i18n: reuse `paste.*` keys (`paste.largerTitle`, `paste.larger`, `paste.tooLarge`, `paste.expand`, `paste.keep`); new `menu.copy`, `menu.cut`, `menu.copyMerged`.
 - e2e: Image-mode patterns in `ui/e2e/paste.spec.ts` (×-size text, layer count); clipboard permissions as in `ui/e2e/clipboard-new.spec.ts`; Pixel spec `ui/e2e/pixel-clipboard.spec.ts` (select, copy, paste → 2 layers; undo → 1 layer; cut clears the source). Tests read the clipboard; app code never reads canvas pixels.
@@ -97,13 +103,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 ## Open questions
 
-- The Decision Log entry for paste position, the in-app fallback and Copy Merged (`pincel.md` §15) is not written yet.
-- Pasting into an indexed Pixel sprite: map each pixel to the nearest palette entry, or refuse with a notice? The plan recommends nearest-entry mapping but asks for the user's choice.
-- What does Cut do without a selection — copy and clear the whole active layer, only copy, or nothing?
-- When exactly does Paste use the in-app copy instead of the system clipboard? If the system clipboard write failed, the system clipboard may still hold an older, unrelated image that "system clipboard first" would paste.
-- The in-app copy carries a source tag, but the plan does not say what it changes: does a paste into another document or into the other mode still use the copy origin, or the viewport top-left?
-- "Clamped into the canvas" for the viewport position: only to non-negative coordinates, or also so that an image that fits the canvas lies fully inside it? And does the expand dialog trigger when the image is larger than the canvas, or when it does not fit at its paste position?
-- Pixel mode: what do Copy and Cut take when the active layer is a group or a tilemap layer (the group's composite, the rendered tiles, or refuse)?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -126,6 +126,10 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-15 |      | open   |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
+| AC-18 |      | open   |        |
+| AC-19 |      | open   |        |
+| AC-20 |      | open   |        |
+| AC-21 |      | open   |        |
 
 ## Decisions
 
@@ -135,3 +139,10 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - Indexed Pixel sprites copy as RGBA through the palette — because the clipboard PNG must look the same in any target.
 - Pixel mode pastes as a new layer in one undo step, and Import PNG as layer moves onto the same command — because it matches Image mode (Decision Log 2026-10-28) and fixes the two-step undo of the import.
 - The Image-mode wasm `paste_layer` gains `x, y` — because the API from PR #87 is not published yet, so changing it breaks nobody.
+- 2026-10-29: A Decision Log entry records Copy / Cut / Copy Merged / Paste in both modes through the async Clipboard API as PNG, the in-app record (pixels + origin + source document) for failed writes and paste-in-place, the paste position rules, and the single Pixel `PasteLayer` command that Import PNG as layer moves onto; the `pincel.md` §5.4 Paste paragraph is updated in the same commit — AGENTS.md §2.1, and §5.4 still says Pixel mode has no paste (owner accepted the recommendation).
+- 2026-10-29: Pasting into an indexed Pixel sprite is refused with a notice (AC-18); nearest-palette mapping comes with indexed painting, and AC-07 depends on `indexed-grayscale-compose` — writing indexed cels is Phase 2 (§3.7, AGENTS.md §9), as every Pixel paint command already rejects indexed cels (owner accepted the recommendation).
+- 2026-10-29: Cut without a selection copies the whole active layer and clears it in one undo step (AC-21) — consistent with Copy's no-selection-means-everything rule, and paint.net treats no selection as select-all (owner accepted the recommendation).
+- 2026-10-29: Paste uses the in-app copy only when the last system write failed or the system clipboard holds no image; a system image counts as Pincel's own copy when its decoded size and RGBA hash match the in-app record, never by byte comparison — Chromium re-encodes clipboard PNGs, and accepting a small stale-paste risk keeps copy / paste working on WebKitGTK (owner accepted the recommendation).
+- 2026-10-29: The copy origin is used only when pasting into the same document (the source tag holds the document id); other documents and the other mode paste at the viewport top-left (AC-08, AC-14) — an origin from another canvas has no meaning in the target and can fall outside it (owner accepted the recommendation).
+- 2026-10-29: The viewport paste position is clamped to non-negative coordinates and, when the image fits the canvas, shifted left / up so it lies fully inside; the expand dialog triggers only when the image is wider or taller than the canvas (AC-09, AC-10) — one size test drives the dialog and nothing is silently cropped at the right or bottom edge (owner accepted the recommendation).
+- 2026-10-29: Pixel Copy on a group or tilemap layer copies its rendered pixels through `compose()` with `LayerFilter::Only` (AC-19); Cut on them is refused with a notice (AC-20) — one code path for every layer kind, and clearing a group or a tilemap's tiles is not a pixel clear (owner accepted the recommendation).
