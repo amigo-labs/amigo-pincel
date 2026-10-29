@@ -542,4 +542,41 @@ mod tests {
             Err(CommandError::Font(_))
         ));
     }
+
+    #[test]
+    fn selection_keeps_the_glyph_pixels_inside_it() {
+        let opaque_columns = |c: &CelMap| -> Vec<u32> {
+            let CelData::Image(b) = &c.get(L, F).unwrap().data else {
+                unreachable!()
+            };
+            (0..b.width * b.height)
+                .filter(|i| b.data[(*i * 4 + 3) as usize] > 0)
+                .map(|i| i % b.width)
+                .collect()
+        };
+        let (mut s, mut c) = doc(64, 32);
+        DrawText::new(L, F, (4, 4), "MM", FONT.to_vec(), style(20.0))
+            .apply(&mut s, &mut c)
+            .unwrap();
+        let free = opaque_columns(&c);
+        assert!(free.iter().any(|&x| x < 16) && free.iter().any(|&x| x >= 16));
+
+        // The left part selected: what lies inside still lands, nothing
+        // lands outside.
+        let (mut s, mut c) = doc(64, 32);
+        s.set_selection(Rect::new(0, 0, 16, 32));
+        DrawText::new(L, F, (4, 4), "MM", FONT.to_vec(), style(20.0))
+            .apply(&mut s, &mut c)
+            .unwrap();
+        let clipped = opaque_columns(&c);
+        assert!(
+            clipped.iter().all(|&x| x < 16),
+            "nothing outside the selection"
+        );
+        assert_eq!(
+            clipped.len(),
+            free.iter().filter(|&&x| x < 16).count(),
+            "every glyph pixel inside the selection lands"
+        );
+    }
 }

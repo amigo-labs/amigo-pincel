@@ -4051,4 +4051,216 @@ mod tests {
         assert!(doc.set_palette_preset("vga").is_err());
         assert!(doc.import_gpl("nope").is_err());
     }
+
+    // ---- Drawing tools (docs/specs/pixel-drawing-tools.md) ----
+
+    /// RGBA of `(x, y)` in the cel of `layer` on frame 0.
+    fn cel_px(doc: &Document, layer: u32, x: u32, y: u32) -> [u8; 4] {
+        let cel = doc
+            .cels
+            .get(LayerId::new(layer), FrameIndex::new(0))
+            .expect("cel exists");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("expected image cel");
+        };
+        let off = ((y * buf.width + x) * 4) as usize;
+        [
+            buf.data[off],
+            buf.data[off + 1],
+            buf.data[off + 2],
+            buf.data[off + 3],
+        ]
+    }
+
+    /// One press-drag-release gesture of the UI's Pencil / Eraser path
+    /// (size 1, square): `beginStroke`, `strokeTo` per point, `endStroke`.
+    fn drag(doc: &mut Document, tool: &str, color: u32, pts: &[(i32, i32)]) -> Result<(), String> {
+        doc.begin_stroke(tool, color, 1, "square", false)?;
+        for &(x, y) in pts {
+            doc.stroke_to(x, y)?;
+        }
+        doc.end_stroke();
+        Ok(())
+    }
+
+    #[test]
+    fn eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        drag(&mut doc, "pencil", 0xff0000ff, &[(0, 1), (3, 1)]).expect("pencil");
+        // The eraser gets the foreground colour like every paint call and
+        // still clears to fully transparent.
+        drag(&mut doc, "eraser", 0xff0000ff, &[(0, 1), (1, 1), (2, 1)]).expect("eraser");
+        assert_eq!(doc.undo_depth(), 2, "pencil stroke + eraser stroke");
+        for x in 0..3 {
+            assert_eq!(cel_px(&doc, 0, x as u32, 1), [0, 0, 0, 0], "erased");
+        }
+        assert_eq!(
+            cel_px(&doc, 0, 3, 1),
+            [255, 0, 0, 255],
+            "not under the eraser"
+        );
+        assert!(doc.undo());
+        for x in 0..4 {
+            assert_eq!(
+                cel_px(&doc, 0, x, 1),
+                [255, 0, 0, 255],
+                "whole eraser stroke undone, pencil stroke intact"
+            );
+        }
+    }
+
+    #[test]
+    fn pick_color_composites_the_visible_layers_only() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xff0000ff).expect("bottom");
+        doc.end_stroke();
+        let top = doc.add_layer("top").expect("add");
+        doc.set_active_layer(top);
+        doc.apply_tool("pencil", 1, 1, 0x0000ff80)
+            .expect("half-transparent top");
+        doc.end_stroke();
+        let [r, g, b, a] = doc.pick_color(0, 1, 1).expect("pick").to_be_bytes();
+        assert!(
+            (120..=135).contains(&r) && (120..=135).contains(&b),
+            "blend {r} {b}"
+        );
+        assert_eq!((g, a), (0, 255));
+        doc.set_layer_visible(top, false).expect("hide top");
+        assert_eq!(doc.pick_color(0, 1, 1).expect("pick"), 0xff0000ff);
+        doc.set_layer_visible(top, true).expect("show top");
+        doc.set_layer_visible(0, false).expect("hide bottom");
+        assert_eq!(doc.pick_color(0, 1, 1).expect("pick"), 0x0000ff80);
+    }
+
+    #[test]
+    fn every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame() {
+        type Paint = fn(&mut Document) -> Result<(), String>;
+        let tools: [(&str, Paint); 9] = [
+            ("pencil", |d| drag(d, "pencil", 0x00ff00ff, &[(4, 2)])),
+            ("pencil pixel", |d| d.apply_tool("pencil", 4, 2, 0x00ff00ff)),
+            ("line", |d| d.apply_line(4, 2, 4, 2, 0x00ff00ff)),
+            ("rectangle", |d| {
+                d.apply_rectangle(4, 2, 4, 2, 0x00ff00ff, true)
+            }),
+            ("ellipse", |d| d.apply_ellipse(4, 2, 4, 2, 0x00ff00ff, true)),
+            ("shape", |d| {
+                d.apply_shape("rectangle", 4, 2, 4, 2, "fill", 1, 0, 0x00ff00ff, 0.0)
+            }),
+            ("bucket", |d| d.apply_bucket(4, 2, 0x00ff00ff)),
+            ("eraser", |d| drag(d, "eraser", 0x00ff00ff, &[(4, 2)])),
+            ("eraser pixel", |d| d.apply_tool("eraser", 4, 2, 0x00ff00ff)),
+        ];
+        for (name, paint) in tools {
+            for fresh_frame in [false, true] {
+                let mut doc = Document::new(5, 3).expect("dims");
+                let (layer, frame) = if fresh_frame {
+                    let f = doc.add_frame(100).expect("frame");
+                    doc.set_current_frame(f).expect("switch");
+                    (0, f)
+                } else {
+                    let l = doc.add_layer("top").expect("layer");
+                    doc.set_active_layer(l);
+                    (l, 0)
+                };
+                let key = (LayerId::new(layer), FrameIndex::new(frame));
+                assert!(doc.cels.get(key.0, key.1).is_none(), "{name}: no cel yet");
+                paint(&mut doc).expect(name);
+                let cel = doc.cels.get(key.0, key.1).expect("cel created");
+                assert_eq!(cel.position, (0, 0), "{name}");
+                let CelData::Image(buf) = &cel.data else {
+                    panic!("{name}: expected image cel");
+                };
+                assert_eq!((buf.width, buf.height), (5, 3), "{name}: canvas-sized");
+                let off = ((2 * 5 + 4) * 4) as usize;
+                let want: [u8; 4] = if name.starts_with("eraser") {
+                    [0, 0, 0, 0]
+                } else {
+                    [0, 255, 0, 255]
+                };
+                assert_eq!(&buf.data[off..off + 4], &want, "{name}: paint landed");
+            }
+        }
+    }
+
+    #[test]
+    fn group_or_tilemap_active_paints_into_the_lowest_image_layer() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        // Bottom-up: image 7 (lowest), image 0, group 5, tilemap.
+        doc.sprite
+            .layers
+            .insert(0, Layer::image(LayerId::new(7), "low"));
+        doc.sprite.layers.push(Layer::group(LayerId::new(5), "grp"));
+        let ts = doc.add_tileset("ts", 2, 2).expect("tileset");
+        let tilemap = doc.add_tilemap_layer("tiles", ts).expect("tilemap");
+        for (active, x) in [(5, 1), (tilemap, 2)] {
+            doc.set_active_layer(active);
+            assert_eq!(doc.paint_target_layer_id(), 7);
+            drag(&mut doc, "pencil", 0xff0000ff, &[(x, 1)]).expect("paint");
+            assert_eq!(
+                cel_px(&doc, 7, x as u32, 1),
+                [255, 0, 0, 255],
+                "lowest image layer"
+            );
+            assert_eq!(
+                cel_px(&doc, 0, x as u32, 1),
+                [0, 0, 0, 0],
+                "layer 0 untouched"
+            );
+        }
+        // An active image layer takes the paint itself.
+        doc.set_active_layer(0);
+        drag(&mut doc, "pencil", 0x00ff00ff, &[(3, 3)]).expect("paint");
+        assert_eq!(cel_px(&doc, 0, 3, 3), [0, 255, 0, 255]);
+        assert_eq!(cel_px(&doc, 7, 3, 3), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn lines_and_shapes_off_canvas_paint_the_on_canvas_part_without_error() {
+        let c = 0x336699ffu32;
+        let painted = |doc: &Document, x: i32, y: i32| doc.pick_color(0, x, y).expect("pick") == c;
+
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_line(-5, 3, 12, 3, c).expect("line");
+        assert!(
+            (0..8).all(|x| painted(&doc, x, 3)),
+            "line across the canvas"
+        );
+
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(-4, 2, 5, 12, c, true)
+            .expect("filled rectangle");
+        for y in 0..8 {
+            for x in 0..8 {
+                let inside = x <= 5 && y >= 2;
+                assert_eq!(
+                    painted(&doc, x, y),
+                    inside,
+                    "filled rectangle at ({x}, {y})"
+                );
+            }
+        }
+
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_rectangle(-4, 2, 5, 12, c, false)
+            .expect("rectangle");
+        assert!(painted(&doc, 0, 2) && painted(&doc, 5, 2) && painted(&doc, 5, 7));
+        assert!(!painted(&doc, 1, 3), "interior");
+
+        for fill in [false, true] {
+            let mut doc = Document::new(8, 8).expect("dims");
+            doc.apply_ellipse(-4, 1, 5, 6, c, fill).expect("ellipse");
+            assert_eq!(painted(&doc, 1, 3), fill, "ellipse interior");
+            assert!(
+                painted(&doc, 5, 3) || painted(&doc, 5, 4),
+                "right rim lands"
+            );
+        }
+
+        for kind in ["rectangle", "rounded_rectangle", "ellipse", "polygon"] {
+            let mut doc = Document::new(8, 8).expect("dims");
+            doc.apply_shape(kind, -4, -4, 11, 11, "fill_outline", 2, c, c, 5.0)
+                .expect(kind);
+            assert!(painted(&doc, 3, 3), "{kind} centre");
+        }
+    }
 }
