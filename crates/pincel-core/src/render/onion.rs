@@ -180,6 +180,75 @@ mod tests {
         assert_eq!(r.pixels[3], 100);
     }
 
+    /// A 1×1, three-frame sprite with a single opaque cel of `color` on
+    /// frame `at`; the other frames are empty.
+    fn single_cel(at: u32, color: [u8; 4]) -> (crate::document::Sprite, CelMap) {
+        let sprite = one_layer_sprite(1, 1, 3);
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(at),
+            solid(1, 1, color),
+        ));
+        (sprite, cels)
+    }
+
+    #[test]
+    fn previous_frame_tint_moves_each_channel_halfway_to_red() {
+        let (sprite, cels) = single_cel(0, [100, 150, 200, 255]);
+        let onion = OnionSkin {
+            previous_alpha: 255,
+            frames_back: 1,
+            frames_forward: 0,
+            ..OnionSkin::default()
+        };
+        let r = compose_owned(&sprite, &cels, &req(1, onion)).unwrap();
+        // ((100 + 255) / 2, 150 / 2, 200 / 2)
+        assert_eq!(r.pixels, vec![177, 75, 100, 255]);
+    }
+
+    #[test]
+    fn next_frame_tint_moves_each_channel_halfway_to_blue() {
+        let (sprite, cels) = single_cel(2, [100, 150, 200, 255]);
+        let onion = OnionSkin {
+            next_alpha: 255,
+            frames_back: 0,
+            frames_forward: 1,
+            ..OnionSkin::default()
+        };
+        let r = compose_owned(&sprite, &cels, &req(1, onion)).unwrap();
+        // (100 / 2, 150 / 2, (200 + 255) / 2)
+        assert_eq!(r.pixels, vec![50, 75, 227, 255]);
+    }
+
+    #[test]
+    fn first_frame_does_not_wrap_to_the_last_frame() {
+        // Only the last frame has pixels; wrapping back from frame 0 would
+        // show it.
+        let (sprite, cels) = single_cel(2, [0, 255, 0, 255]);
+        let onion = OnionSkin {
+            previous_alpha: 255,
+            frames_back: 2,
+            frames_forward: 0,
+            ..OnionSkin::default()
+        };
+        let r = compose_owned(&sprite, &cels, &req(0, onion)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn last_frame_does_not_wrap_to_the_first_frame() {
+        let (sprite, cels) = single_cel(0, [0, 255, 0, 255]);
+        let onion = OnionSkin {
+            next_alpha: 255,
+            frames_back: 0,
+            frames_forward: 2,
+            ..OnionSkin::default()
+        };
+        let r = compose_owned(&sprite, &cels, &req(2, onion)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0]);
+    }
+
     #[test]
     fn first_frame_without_neighbours_renders_plainly() {
         let (sprite, cels) = rgb_frames(false);
