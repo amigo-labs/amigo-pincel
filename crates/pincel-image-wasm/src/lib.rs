@@ -1724,10 +1724,25 @@ mod command_spec_tests {
     #[test]
     fn edited_layer_covers_pixel_edits_only() {
         let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
-        assert_eq!(
-            parse(r#"{"type":"delete_selection","layer":2}"#).edited_layer(),
-            Some(2)
-        );
+        // Every command that writes a layer's pixels names that layer, so the
+        // lock gate in `apply_command` refuses it on a locked layer.
+        for json in [
+            r#"{"type":"pencil_stroke","layer":2,"size":4,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+            r#"{"type":"eraser_stroke","layer":2,"size":4,"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+            r#"{"type":"recolor_stroke","layer":2,"size":4,"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+            r#"{"type":"smudge_stroke","layer":2,"size":4,"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+            r#"{"type":"fill_bucket","layer":2,"color":[0,0,0,255],"opacity":1,"tolerance":0,"contiguous":true,"x":1,"y":1}"#,
+            r#"{"type":"translate_layer","layer":2,"dx":1,"dy":0}"#,
+            r#"{"type":"translate_selection","layer":2,"dx":1,"dy":0}"#,
+            r#"{"type":"delete_selection","layer":2}"#,
+            r#"{"type":"transform_layer","layer":2,"op":"flip_h"}"#,
+            r#"{"type":"rotate_layer_90","layer":2,"ccw":false}"#,
+            r#"{"type":"draw_shape","layer":2,"shape":"line","points":[[0,0],[3,3]]}"#,
+            r#"{"type":"draw_gradient","layer":2,"x0":0,"y0":0,"x1":3,"y1":0}"#,
+            r#"{"type":"draw_text","layer":2,"font_id":0,"text":"A","x":0,"y":0}"#,
+        ] {
+            assert_eq!(parse(json).edited_layer(), Some(2), "{json}");
+        }
         assert_eq!(
             parse(r#"{"type":"set_layer_locked","index":2,"locked":false}"#).edited_layer(),
             None
@@ -1796,6 +1811,61 @@ mod command_spec_tests {
 
         assert!(bus.undo().expect("undo"));
         assert_eq!(bus.document.selection, before);
+    }
+
+    #[test]
+    fn invert_selection_is_one_undo_step() {
+        let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
+        let mut bus = super::CommandBus::new(super::Document::new(6, 4).expect("doc"));
+        let rect = r#"{"type":"select_rectangle","x":1,"y":1,"w":2,"h":2,"mode":"replace"}"#;
+        assert!(super::run_command(0, &mut bus, parse(rect)).is_ok());
+        let before = bus.document.selection.clone();
+        let depth = bus.history.undo_depth();
+
+        let invert = parse(r#"{"type":"invert_selection"}"#);
+        assert!(super::run_command(0, &mut bus, invert).is_ok());
+        let inverted = bus.document.selection.as_ref().expect("a selection");
+        assert_eq!(inverted.selected_count(), 6 * 4 - 2 * 2);
+        assert_eq!(inverted.coverage(1, 1), 0);
+        assert_eq!(inverted.coverage(0, 0), 255);
+        assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+
+        assert!(bus.undo().expect("undo"));
+        assert_eq!(bus.document.selection, before);
+    }
+
+    #[test]
+    fn move_selection_moves_only_the_outline_in_one_undo_step() {
+        let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
+        let mut bus = super::CommandBus::new(super::Document::new(8, 8).expect("doc"));
+        // A dab inside the soon-selected square, so moved pixels would show.
+        let dab = r#"{"type":"pencil_stroke","layer":0,"size":2,"color":[255,0,0,255],"opacity":1,"points":[[2.5,2.5]],"stroke_id":1}"#;
+        assert!(super::run_command(0, &mut bus, parse(dab)).is_ok());
+        assert!(
+            bus.document.layers()[0]
+                .pixels
+                .get_pixel(2, 2)
+                .is_some_and(|c| c.a > 0)
+        );
+        let rect = r#"{"type":"select_rectangle","x":1,"y":1,"w":3,"h":3,"mode":"replace"}"#;
+        assert!(super::run_command(0, &mut bus, parse(rect)).is_ok());
+        let pixels = bus.document.layers()[0].pixels.clone();
+        let mask = bus.document.selection.clone().expect("a selection");
+        let depth = bus.history.undo_depth();
+
+        let shift = parse(r#"{"type":"translate_selection_mask","dx":3,"dy":2}"#);
+        assert_eq!(shift.edited_layer(), None, "writes no pixels");
+        assert!(super::run_command(0, &mut bus, shift).is_ok());
+        assert_eq!(
+            bus.document.selection.as_ref(),
+            Some(&mask.translated(3, 2)),
+            "the outline moved by (3, 2)"
+        );
+        assert_eq!(bus.document.layers()[0].pixels, pixels, "pixels unchanged");
+        assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+
+        assert!(bus.undo().expect("undo"));
+        assert_eq!(bus.document.selection, Some(mask));
     }
 
     #[test]
