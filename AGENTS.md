@@ -520,6 +520,7 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 
 - **Stale wasm package breaks `pnpm check`.** `ui/` links `crates/*/pkg` (gitignored build output). After Rust changes to a wasm crate — or pulling someone else's — svelte-check reports missing exports (e.g. "has no exported member 'paste_layer'") although the Rust source has them. Fix: `pnpm wasm:build` in `ui/`, not a code change.
 - **E2e input waits for `data-ready`, not for a visible canvas.** Both editors mount their canvas, menus, panels and key handlers before the core hands back a document; under CPU load a spec that clicks, types or takes `boundingBox()` then hits a 64×64 placeholder canvas or a document-less editor (passes idle, fails with many workers). The canvas carries `data-ready="true"` once the document is loaded, fitted and drawn — `createDocument` / `waitForEditor` in `ui/e2e/helpers.ts` wait for it. Any other way into an editor (Open… from the start screen, a startup document after reload) calls `waitForEditor` before the first input.
+- **E2e Chromium has no WebGPU adapter.** The Playwright browser exposes `navigator.gpu`, but `requestAdapter()` resolves `null` even with `--enable-unsafe-webgpu` / SwiftShader flags, so every e2e run renders through Canvas2D. A spec about the WebGPU path installs a stand-in device with `addInitScript` (see `ui/e2e/renderer.spec.ts`); it cannot check GPU output.
 
 ---
 
