@@ -16,8 +16,8 @@ use aseprite_loader::binary::raw_file::parse_raw_file;
 use aseprite_loader::loader::decompress;
 use aseprite_writer::{
     AnimationDirection, AseFile, BlendMode, CelChunk, CelContent, Color, ColorDepth, ExternalFile,
-    Frame, Header, LayerChunk, LayerFlags, LayerType, PaletteChunk, PaletteEntry, Tag,
-    TilesetChunk, UserData, write,
+    Frame, Header, LayerChunk, LayerFlags, LayerType, NinePatch, PaletteChunk, PaletteEntry,
+    SliceChunk, SliceKey, Tag, TilesetChunk, UserData, write,
 };
 
 fn write_to_vec(file: &AseFile) -> Vec<u8> {
@@ -710,6 +710,7 @@ fn chunk_kinds(bytes: &[u8]) -> Vec<&'static str> {
             Chunk::UserData(_) => "ud",
             Chunk::Tileset(_) => "tileset",
             Chunk::ExternalFiles(_) => "external",
+            Chunk::Slice(_) => "slice",
             _ => "other",
         })
         .collect()
@@ -786,7 +787,7 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
     assert_eq!(
         chunk_kinds(&bytes),
         vec![
-            "layer", "ud", "layer", "palette", "ud", "tags", "ud", "ud", "cel", "ud"
+            "palette", "ud", "tags", "ud", "ud", "layer", "ud", "layer", "cel", "ud"
         ]
     );
     let raw = parse_raw_file(&bytes).expect("raw parse");
@@ -801,10 +802,10 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
     assert_eq!(
         texts,
         vec![
-            Some("layer note"),
             Some("sprite note"),
             None,
             Some("tag b"),
+            Some("layer note"),
             Some("cel note")
         ]
     );
@@ -989,4 +990,447 @@ fn external_files_and_tileset_user_data_are_written_in_place() {
         })
         .collect();
     assert_eq!(texts, vec![Some("tileset"), None, Some("tile 1")]);
+}
+
+/// A one-frame 4×4 RGBA file with nothing in it.
+fn empty_file() -> AseFile {
+    AseFile {
+        header: Header::new(4, 4, ColorDepth::Rgba),
+        layers: Vec::new(),
+        palette: None,
+        tags: Vec::new(),
+        tilesets: Vec::new(),
+        slices: Vec::new(),
+        frames: vec![Frame::new(100)],
+        user_data: None,
+        external_files: Vec::new(),
+    }
+}
+
+fn tag(name: &str, from: u16, to: u16, direction: AnimationDirection) -> Tag {
+    Tag {
+        from_frame: from,
+        to_frame: to,
+        direction,
+        repeat: 0,
+        color: [0, 0, 0],
+        name: name.into(),
+        user_data: None,
+    }
+}
+
+#[test]
+fn header_fields_roundtrip_through_loader() {
+    let mut file = empty_file();
+    file.header = Header {
+        width: 300,
+        height: 7,
+        color_depth: ColorDepth::Rgba,
+        flags: 0x1,
+        speed: 42,
+        transparent_index: 3,
+        color_count: 9,
+        pixel_width: 2,
+        pixel_height: 3,
+        grid_x: -4,
+        grid_y: 5,
+        grid_width: 7,
+        grid_height: 11,
+    };
+    let bytes = write_to_vec(&file);
+    let h = parse_file(&bytes).expect("parse").header;
+    assert_eq!((h.width, h.height), (300, 7));
+    assert_eq!(h.color_depth, LoaderColorDepth::Rgba);
+    assert_eq!(h.frames, 1);
+    assert_eq!(h.flags, 0x1);
+    assert_eq!((h.transparent_index, h.color_count), (3, 9));
+    assert_eq!((h.pixel_width, h.pixel_height), (2, 3));
+    assert_eq!(
+        (h.grid_x, h.grid_y, h.grid_width, h.grid_height),
+        (-4, 5, 7, 11)
+    );
+}
+
+#[test]
+fn every_blend_mode_roundtrips_through_loader() {
+    let modes = [
+        (BlendMode::Normal, LoaderBlendMode::Normal),
+        (BlendMode::Multiply, LoaderBlendMode::Multiply),
+        (BlendMode::Screen, LoaderBlendMode::Screen),
+        (BlendMode::Overlay, LoaderBlendMode::Overlay),
+        (BlendMode::Darken, LoaderBlendMode::Darken),
+        (BlendMode::Lighten, LoaderBlendMode::Lighten),
+        (BlendMode::ColorDodge, LoaderBlendMode::ColorDodge),
+        (BlendMode::ColorBurn, LoaderBlendMode::ColorBurn),
+        (BlendMode::HardLight, LoaderBlendMode::HardLight),
+        (BlendMode::SoftLight, LoaderBlendMode::SoftLight),
+        (BlendMode::Difference, LoaderBlendMode::Difference),
+        (BlendMode::Exclusion, LoaderBlendMode::Exclusion),
+        (BlendMode::Hue, LoaderBlendMode::Hue),
+        (BlendMode::Saturation, LoaderBlendMode::Saturation),
+        (BlendMode::Color, LoaderBlendMode::Color),
+        (BlendMode::Luminosity, LoaderBlendMode::Luminosity),
+        (BlendMode::Addition, LoaderBlendMode::Addition),
+        (BlendMode::Subtract, LoaderBlendMode::Subtract),
+        (BlendMode::Divide, LoaderBlendMode::Divide),
+    ];
+    let mut file = empty_file();
+    file.layers = modes
+        .iter()
+        .enumerate()
+        .map(|(i, (mode, _))| {
+            let mut layer = rgba_layer(&format!("L{i}"));
+            layer.blend_mode = *mode;
+            layer
+        })
+        .collect();
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("parse");
+    let got: Vec<LoaderBlendMode> = parsed.layers.iter().map(|l| l.blend_mode).collect();
+    let want: Vec<LoaderBlendMode> = modes.iter().map(|(_, l)| *l).collect();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn every_tag_direction_and_color_roundtrips_through_loader() {
+    let mut file = empty_file();
+    file.frames = (0..4).map(|_| Frame::new(100)).collect();
+    file.tags = vec![
+        tag("f", 0, 1, AnimationDirection::Forward),
+        tag("r", 1, 2, AnimationDirection::Reverse),
+        tag("p", 2, 3, AnimationDirection::PingPong),
+        tag("pr", 0, 3, AnimationDirection::PingPongReverse),
+    ];
+    for (i, t) in file.tags.iter_mut().enumerate() {
+        t.repeat = 5 + i as u16;
+        t.color = [10 * i as u8 + 1, 20 * i as u8 + 2, 30 * i as u8 + 3];
+    }
+    let bytes = write_to_vec(&file);
+    let parsed = parse_file(&bytes).expect("parse");
+    // The loader's direction enum has no `PartialEq`; name it instead.
+    let direction = |d: &LoaderDirection| match d {
+        LoaderDirection::Forward => "forward",
+        LoaderDirection::Reverse => "reverse",
+        LoaderDirection::PingPong => "ping-pong",
+        LoaderDirection::PingPongReverse => "ping-pong reverse",
+        LoaderDirection::Unknown(_) => "unknown",
+    };
+    let got: Vec<(&str, u16, u16, &str, u16)> = parsed
+        .tags
+        .iter()
+        .map(|t| {
+            (
+                t.name,
+                *t.frames.start(),
+                *t.frames.end(),
+                direction(&t.animation_direction),
+                t.animation_repeat,
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("f", 0, 1, "forward", 5),
+            ("r", 1, 2, "reverse", 6),
+            ("p", 2, 3, "ping-pong", 7),
+            ("pr", 0, 3, "ping-pong reverse", 8),
+        ]
+    );
+    // The loader deprecates the in-chunk tag color, so check each tag
+    // entry's color bytes on disk: 6 reserved bytes, then RGB, then one
+    // extra byte and the name.
+    for t in &file.tags {
+        let mut entry = vec![0u8; 6];
+        entry.extend_from_slice(&t.color);
+        entry.push(0);
+        entry.extend_from_slice(&(t.name.len() as u16).to_le_bytes());
+        entry.extend_from_slice(t.name.as_bytes());
+        assert!(
+            bytes.windows(entry.len()).any(|w| w == entry.as_slice()),
+            "tag {:?} color {:?} written in its entry",
+            t.name,
+            t.color
+        );
+    }
+}
+
+#[test]
+fn tags_get_no_user_data_chunks_when_no_tag_has_any() {
+    let mut file = empty_file();
+    file.layers = vec![rgba_layer("bg")];
+    file.tags = vec![
+        tag("a", 0, 0, AnimationDirection::Forward),
+        tag("b", 0, 0, AnimationDirection::Forward),
+    ];
+    file.frames[0].cels = vec![CelChunk {
+        layer_index: 0,
+        x: 0,
+        y: 0,
+        opacity: 255,
+        z_index: 0,
+        content: CelContent::Image {
+            width: 1,
+            height: 1,
+            data: vec![1, 2, 3, 4],
+        },
+        user_data: None,
+    }];
+    let bytes = write_to_vec(&file);
+    assert_eq!(chunk_kinds(&bytes), vec!["tags", "layer", "cel"]);
+
+    // Control: one tag with user data emits one chunk per tag up to it.
+    file.tags[1].user_data = Some(UserData {
+        text: Some("b".into()),
+        color: None,
+        properties: None,
+    });
+    let bytes = write_to_vec(&file);
+    assert_eq!(
+        chunk_kinds(&bytes),
+        vec!["tags", "ud", "ud", "layer", "cel"]
+    );
+}
+
+#[test]
+fn slice_user_data_follows_its_slice_chunk() {
+    let slice = |name: &str, user_data: Option<UserData>| SliceChunk {
+        name: name.into(),
+        keys: vec![SliceKey {
+            frame: 0,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 2,
+            nine_patch: None,
+            pivot: None,
+        }],
+        user_data,
+    };
+    let mut file = empty_file();
+    file.slices = vec![
+        slice(
+            "first",
+            Some(UserData {
+                text: Some("first note".into()),
+                color: Some([9, 8, 7, 6]),
+                properties: None,
+            }),
+        ),
+        slice("plain", None),
+        slice(
+            "last",
+            Some(UserData {
+                text: Some("last note".into()),
+                color: None,
+                properties: None,
+            }),
+        ),
+    ];
+    let bytes = write_to_vec(&file);
+    assert_eq!(
+        chunk_kinds(&bytes),
+        vec!["slice", "ud", "slice", "slice", "ud"]
+    );
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let chunks = &raw.frames[0].chunks;
+    let Chunk::UserData(first) = &chunks[1] else {
+        panic!("user data after the first slice");
+    };
+    assert_eq!(first.text, Some("first note"));
+    let color = first.color.expect("first slice color");
+    assert_eq!(
+        (color.red, color.green, color.blue, color.alpha),
+        (9, 8, 7, 6)
+    );
+    let Chunk::UserData(last) = &chunks[4] else {
+        panic!("user data after the last slice");
+    };
+    assert_eq!(last.text, Some("last note"));
+}
+
+/// One of everything that goes into the first frame: external files, a
+/// palette with sprite user data, a 3-tile tileset whose only user data
+/// sits on tile 0, two tags (one with user data), an image layer with
+/// user data, the tilemap layer, a slice and a cel.
+fn first_frame_file() -> AseFile {
+    let note = |text: &str| {
+        Some(UserData {
+            text: Some(text.into()),
+            color: None,
+            properties: None,
+        })
+    };
+    let mut file = build_tilemap_file();
+    file.external_files = vec![ExternalFile {
+        id: 1,
+        kind: 2,
+        name: "ext".into(),
+    }];
+    file.palette = Some(PaletteChunk {
+        first_color: 0,
+        entries: vec![PaletteEntry {
+            color: Color::rgba(1, 2, 3, 255),
+            name: None,
+        }],
+    });
+    file.user_data = note("sprite");
+    file.tilesets[0].number_of_tiles = 3;
+    file.tilesets[0].tile_pixels.extend(vec![0u8; 2 * 2 * 4]);
+    file.tilesets[0].tile_user_data = vec![note("tile 0")];
+    file.tags = vec![
+        tag("a", 0, 0, AnimationDirection::Forward),
+        tag("b", 0, 0, AnimationDirection::Forward),
+    ];
+    file.tags[1].user_data = note("tag b");
+    file.layers[0].user_data = note("img");
+    file.slices = vec![SliceChunk {
+        name: "s".into(),
+        keys: vec![SliceKey {
+            frame: 0,
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            nine_patch: None,
+            pivot: None,
+        }],
+        user_data: note("slice"),
+    }];
+    file
+}
+
+#[test]
+fn tilesets_precede_the_layers_that_reference_them() {
+    // Aseprite resolves a tilemap layer's tileset while reading the
+    // Layer chunk; a tileset written later is "not found" and the layer
+    // (and its cels) are dropped. `aseprite-loader` collects all chunks
+    // first, so only the chunk order shows this.
+    let kinds = chunk_kinds(&write_to_vec(&first_frame_file()));
+    let last_tileset = kinds.iter().rposition(|k| *k == "tileset");
+    let first_layer = kinds.iter().position(|k| *k == "layer");
+    assert!(
+        last_tileset.expect("tileset") < first_layer.expect("layer"),
+        "{kinds:?}"
+    );
+}
+
+#[test]
+fn sprite_user_data_precedes_every_object_chunk() {
+    // Aseprite gives a User Data chunk to the sprite only while no layer,
+    // cel, tag, slice or tileset chunk has been read yet; later it lands
+    // on whatever object came last.
+    let bytes = write_to_vec(&first_frame_file());
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let sprite_ud = raw.frames[0]
+        .chunks
+        .iter()
+        .position(|c| matches!(c, Chunk::UserData(u) if u.text == Some("sprite")))
+        .expect("sprite user data written");
+    let first_object = chunk_kinds(&bytes)
+        .iter()
+        .position(|k| matches!(*k, "layer" | "cel" | "tags" | "slice" | "tileset"))
+        .expect("object chunks written");
+    assert!(sprite_ud < first_object, "{:?}", chunk_kinds(&bytes));
+}
+
+#[test]
+fn tileset_user_data_has_one_chunk_per_tile() {
+    // Once a tileset has user data, Aseprite reads exactly one User Data
+    // chunk per tile and warns about any other chunk in that run.
+    let kinds = chunk_kinds(&write_to_vec(&first_frame_file()));
+    let ts = kinds.iter().position(|k| *k == "tileset").expect("tileset");
+    assert_eq!(&kinds[ts..ts + 5], &["tileset", "ud", "ud", "ud", "ud"]);
+    assert_ne!(kinds.get(ts + 5), Some(&"ud"), "{kinds:?}");
+}
+
+#[test]
+fn first_frame_chunk_order_matches_aseprite() {
+    // Aseprite's encoder: external files, palette, sprite user data,
+    // tilesets, tags, layers, slices, then the cels.
+    assert_eq!(
+        chunk_kinds(&write_to_vec(&first_frame_file())),
+        vec![
+            "external", "palette", "ud", "tileset", "ud", "ud", "ud", "ud", "tags", "ud", "ud",
+            "layer", "ud", "layer", "slice", "ud", "cel",
+        ]
+    );
+}
+
+/// Write `file`, expect an error and check no byte reached the output.
+fn rejected(file: &AseFile) -> aseprite_writer::WriteError {
+    let mut buf = Vec::new();
+    let err = write(file, &mut buf).expect_err("input the format cannot hold");
+    assert!(buf.is_empty(), "nothing written on rejection: {err}");
+    err
+}
+
+#[test]
+fn write_rejects_unrepresentable_input_without_writing_bytes() {
+    use aseprite_writer::WriteError;
+
+    let mut file = empty_file();
+    file.palette = Some(PaletteChunk {
+        first_color: 0,
+        entries: Vec::new(),
+    });
+    assert!(matches!(rejected(&file), WriteError::EmptyPalette));
+
+    let mut file = empty_file();
+    let mut tiles = rgba_layer("tiles");
+    tiles.layer_type = LayerType::Tilemap;
+    file.layers = vec![tiles];
+    assert!(matches!(
+        rejected(&file),
+        WriteError::MissingTilesetIndex { name } if name == "tiles"
+    ));
+
+    let mut file = empty_file();
+    file.frames = (0..6).map(|_| Frame::new(100)).collect();
+    file.tags = vec![tag("bad", 5, 2, AnimationDirection::Forward)];
+    assert!(matches!(
+        rejected(&file),
+        WriteError::InvalidTagRange { from: 5, to: 2, .. }
+    ));
+
+    let key = |frame: u32, nine_patch: Option<NinePatch>| SliceKey {
+        frame,
+        x: 0,
+        y: 0,
+        width: 4,
+        height: 4,
+        nine_patch,
+        pivot: None,
+    };
+    let mut file = empty_file();
+    file.frames = (0..4).map(|_| Frame::new(100)).collect();
+    file.slices = vec![SliceChunk {
+        name: "backwards".into(),
+        keys: vec![key(3, None), key(1, None)],
+        user_data: None,
+    }];
+    assert!(matches!(
+        rejected(&file),
+        WriteError::SliceKeysNotMonotonic {
+            prev: 3,
+            next: 1,
+            ..
+        }
+    ));
+
+    let center = NinePatch {
+        x: 1,
+        y: 1,
+        width: 2,
+        height: 2,
+    };
+    file.slices = vec![SliceChunk {
+        name: "mixed".into(),
+        keys: vec![key(0, None), key(1, Some(center))],
+        user_data: None,
+    }];
+    assert!(matches!(
+        rejected(&file),
+        WriteError::SliceFlagsInconsistent { .. }
+    ));
 }

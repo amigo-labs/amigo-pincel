@@ -25,6 +25,7 @@ mod import;
 mod layer_ops;
 mod selection_ops;
 mod shapes;
+mod stroke;
 mod text;
 mod timeline;
 mod transforms;
@@ -76,6 +77,8 @@ pub struct Document {
     /// off. View state, not part of the document. See
     /// [`Document::set_onion_skin`].
     onion_skin: Option<OnionSkin>,
+    /// The Pencil / Eraser gesture between `beginStroke` and `endStroke`.
+    stroke: Option<stroke::LiveStroke>,
 }
 
 #[wasm_bindgen]
@@ -116,6 +119,7 @@ impl Document {
             active_layer: None,
             current_frame: FrameIndex::new(0),
             onion_skin: None,
+            stroke: None,
         })
     }
 
@@ -135,6 +139,7 @@ impl Document {
             active_layer: None,
             current_frame: FrameIndex::new(0),
             onion_skin: None,
+            stroke: None,
         })
     }
 
@@ -800,6 +805,7 @@ impl Document {
     /// it with no stroke in flight is harmless.
     #[wasm_bindgen(js_name = endStroke)]
     pub fn end_stroke(&mut self) {
+        self.stroke = None;
         self.bus.seal();
     }
 
@@ -1153,19 +1159,8 @@ impl Document {
     /// layer (legacy behavior). Errors only when the document has no
     /// image layer at all.
     fn paint_target_layer(&self) -> Result<LayerId, String> {
-        if let Some(id) = self.active_layer
-            && matches!(
-                self.sprite.layer(id).map(|l| &l.kind),
-                Some(LayerKind::Image)
-            )
-        {
-            return Ok(id);
-        }
         self.sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .map(|l| l.id)
+            .paint_target_layer(self.active_layer)
             .ok_or_else(|| "document has no paintable image layer".to_string())
     }
 
@@ -2128,7 +2123,10 @@ mod tests {
             Err(e) => e,
             Ok(_) => panic!("garbage bytes should not parse as a valid Aseprite file"),
         };
-        assert!(!err.is_empty());
+        assert!(
+            err.starts_with("failed to open Aseprite: aseprite parse failed"),
+            "expected a parse error, got {err:?}"
+        );
     }
 
     #[test]

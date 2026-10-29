@@ -195,7 +195,7 @@ impl Iterator for BresenhamIter {
     }
 }
 
-fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> BresenhamIter {
+pub(super) fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> BresenhamIter {
     let x0 = i64::from(x0);
     let y0 = i64::from(y0);
     let x1 = i64::from(x1);

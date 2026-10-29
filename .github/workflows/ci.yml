@@ -39,9 +39,9 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
       - name: clippy
-        run: cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings
+        run: cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
       - name: test
-        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
+        run: cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp
       - name: generated TS bindings are current (image mode, ts-rs)
         run: git diff --exit-code -- ui/src/modes/image/core/generated/
 

@@ -218,6 +218,32 @@ jobs:
               ;;
           esac
           ls -l dist
+      # The headless MCP server ships beside the app, one binary per
+      # desktop platform (docs/specs/mcp-headless-pixel.md AC-41).
+      - name: build pincel-mcp
+        shell: bash
+        env:
+          OS: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          case "$OS" in
+            Windows)
+              cargo build --release --locked -p pincel-mcp
+              cp target/release/pincel-mcp.exe dist/pincel-mcp-windows-x64.exe
+              ;;
+            macOS)
+              cargo build --release --locked -p pincel-mcp --target aarch64-apple-darwin
+              cargo build --release --locked -p pincel-mcp --target x86_64-apple-darwin
+              lipo -create -output dist/pincel-mcp-macos-universal \
+                target/aarch64-apple-darwin/release/pincel-mcp \
+                target/x86_64-apple-darwin/release/pincel-mcp
+              ;;
+            Linux)
+              cargo build --release --locked -p pincel-mcp
+              cp target/release/pincel-mcp dist/pincel-mcp-linux-x64
+              ;;
+          esac
+          ls -l dist
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.artifact }}
