@@ -97,7 +97,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `stroke/brush_100_dabs_4k_10layers`, `effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
+| AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `image_compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `image_region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `image_stroke/brush_100_dabs_4k_10layers`, `image_effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
 | AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |

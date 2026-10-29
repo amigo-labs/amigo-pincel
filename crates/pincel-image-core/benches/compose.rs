@@ -4,17 +4,17 @@
 //! Every `performance-*` change states before → after against these
 //! medians. The scenarios mirror the live editor's hot paths:
 //!
-//! * `compose/full_<size>_<n>layers` — [`compose`] of the whole canvas,
+//! * `image_compose/full_<size>_<n>layers` — [`compose`] of the whole canvas,
 //!   1024², 2048² and 4096² with 2, 5 and 10 layers.
-//! * `region/zoom1_4k_10layers` — the viewport renderer at 1:1: a
+//! * `image_region/zoom1_4k_10layers` — the viewport renderer at 1:1: a
 //!   1920×1080 viewport out of a 3840×2160, 10-layer document.
-//! * `region/fit_4k_10layers` — the viewport renderer at fit zoom: the
+//! * `image_region/fit_4k_10layers` — the viewport renderer at fit zoom: the
 //!   whole 3840×2160 canvas composed and scaled bilinearly to 1920×1080,
 //!   as `pincel-image-wasm`'s `composite_region` does.
-//! * `stroke/brush_100_dabs_4k_10layers` — 100 single-dab Pencil strokes
+//! * `image_stroke/brush_100_dabs_4k_10layers` — 100 single-dab Pencil strokes
 //!   (one per pointer event), each rasterized and applied to the top
 //!   layer of a 3840×2160, 10-layer document.
-//! * `effect/gaussian_r10_4k` — a radius-10 Gaussian blur of one
+//! * `image_effect/gaussian_r10_4k` — a radius-10 Gaussian blur of one
 //!   3840×2160 layer, including the RGBA8 hand-off to `pincel-effects`.
 //!
 //! The 4K scenarios take hundreds of milliseconds to seconds per
@@ -79,7 +79,7 @@ fn heavy(group: &mut BenchmarkGroup<'_, WallTime>) {
 }
 
 fn bench_full_compose(c: &mut Criterion) {
-    let mut group = c.benchmark_group("compose");
+    let mut group = c.benchmark_group("image_compose");
     heavy(&mut group);
     for size in [1024, 2048, 4096] {
         for n in [2, 5, 10] {
@@ -93,7 +93,7 @@ fn bench_full_compose(c: &mut Criterion) {
 }
 
 fn bench_region_compose(c: &mut Criterion) {
-    let mut group = c.benchmark_group("region");
+    let mut group = c.benchmark_group("image_region");
     heavy(&mut group);
     let layers = layer_stack(UHD.0, UHD.1, 10);
     let (vw, vh) = VIEWPORT;
@@ -116,7 +116,7 @@ fn bench_region_compose(c: &mut Criterion) {
 }
 
 fn bench_brush_stroke(c: &mut Criterion) {
-    let mut group = c.benchmark_group("stroke");
+    let mut group = c.benchmark_group("image_stroke");
     heavy(&mut group);
     let mut doc = document(UHD.0, UHD.1, 10);
     let top = doc.layer_count() - 1;
@@ -139,7 +139,7 @@ fn bench_brush_stroke(c: &mut Criterion) {
 }
 
 fn bench_gaussian_blur(c: &mut Criterion) {
-    let mut group = c.benchmark_group("effect");
+    let mut group = c.benchmark_group("image_effect");
     heavy(&mut group);
     let layer = &layer_stack(UHD.0, UHD.1, 1)[0];
     let blur = GaussianBlur::new(10.0);
