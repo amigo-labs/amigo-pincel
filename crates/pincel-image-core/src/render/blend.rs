@@ -2,8 +2,8 @@
 //!
 //! Each function takes the backdrop channel `cb` and source channel `cs`, both
 //! in linear `[0.0, 1.0]`, and returns the blended channel. Formulas follow the
-//! W3C Compositing and Blending spec: <https://www.w3.org/TR/compositing-1/>.
-//! Soft Light uses the Pegtop formula as required by the spec.
+//! W3C Compositing and Blending spec: <https://www.w3.org/TR/compositing-1/>,
+//! Soft Light included (see docs/specs/pincel.md §15, 2026-10-29).
 
 use crate::color::BlendMode;
 
@@ -35,7 +35,7 @@ pub fn blend_channel(mode: BlendMode, cb: f32, cs: f32) -> f32 {
             }
         }
         BlendMode::HardLight => hard_light(cb, cs),
-        BlendMode::SoftLight => (1.0 - 2.0 * cs) * cb * cb + 2.0 * cs * cb,
+        BlendMode::SoftLight => soft_light(cb, cs),
         BlendMode::Difference => (cs - cb).abs(),
         BlendMode::Exclusion => cs + cb - 2.0 * cs * cb,
     }
@@ -47,6 +47,20 @@ fn hard_light(cb: f32, cs: f32) -> f32 {
         2.0 * cs * cb
     } else {
         1.0 - 2.0 * (1.0 - cs) * (1.0 - cb)
+    }
+}
+
+/// W3C Compositing-1 Soft Light with backdrop `cb` and source `cs`.
+fn soft_light(cb: f32, cs: f32) -> f32 {
+    if cs <= 0.5 {
+        cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb)
+    } else {
+        let d = if cb <= 0.25 {
+            ((16.0 * cb - 12.0) * cb + 4.0) * cb
+        } else {
+            cb.sqrt()
+        };
+        cb + (2.0 * cs - 1.0) * (d - cb)
     }
 }
 
@@ -111,7 +125,7 @@ mod tests {
 
     #[test]
     fn soft_light_neutral_gray_source_is_near_identity() {
-        // Pegtop at cs = 0.5 returns cb exactly.
+        // At cs = 0.5 soft light returns cb exactly.
         assert!((blend_channel(BlendMode::SoftLight, 0.42, 0.5) - 0.42).abs() < EPS);
     }
 }

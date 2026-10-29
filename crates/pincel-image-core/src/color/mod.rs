@@ -108,7 +108,7 @@ pub enum BlendMode {
     ColorBurn,
     /// Overlay with src/dst swapped.
     HardLight,
-    /// Pegtop soft-light formula.
+    /// W3C Compositing-1 soft-light formula.
     SoftLight,
     /// `abs(src - dst)`.
     Difference,
