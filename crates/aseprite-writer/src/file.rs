@@ -235,8 +235,8 @@ pub struct Tag {
 /// `aseprite-loader::binary::chunks::tileset::TilesetChunk` minus the
 /// borrowing.
 ///
-/// The writer emits the chunk in the **first frame**, alongside layer
-/// chunks. Phase 1 supports inline `TILES` data only: pass an RGBA8
+/// The writer emits the chunk in the **first frame**, before the layer
+/// chunks that reference it. Phase 1 supports inline `TILES` data only: pass an RGBA8
 /// buffer of `tile_w * tile_h * number_of_tiles * 4` bytes via
 /// [`TilesetChunk::tile_pixels`]; the writer zlib-compresses it before
 /// emission. The on-disk `TILES` flag is set automatically.
@@ -258,8 +258,10 @@ pub struct TilesetChunk {
     /// User data of the tileset itself, written right after the chunk.
     pub user_data: Option<UserData>,
     /// User data per tile (index = tile), written after the tileset's own
-    /// in tile order. Trailing `None`s write nothing; gaps write empty
-    /// chunks so later tiles keep their position.
+    /// in tile order. Once the tileset or any tile has user data, every
+    /// tile gets a chunk (`None` and missing entries write an empty one),
+    /// as Aseprite reads exactly one per tile; entries past
+    /// `number_of_tiles` are dropped.
     pub tile_user_data: Vec<Option<UserData>>,
 }
 

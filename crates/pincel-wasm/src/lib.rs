@@ -2117,7 +2117,10 @@ mod tests {
             Err(e) => e,
             Ok(_) => panic!("garbage bytes should not parse as a valid Aseprite file"),
         };
-        assert!(!err.is_empty());
+        assert!(
+            err.starts_with("failed to open Aseprite: aseprite parse failed"),
+            "expected a parse error, got {err:?}"
+        );
     }
 
     #[test]

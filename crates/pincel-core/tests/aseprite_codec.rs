@@ -100,9 +100,87 @@ fn single_layer_single_frame_round_trips_pixels() {
 }
 
 #[test]
+fn multi_frame_document_round_trips_canvas_layers_durations_and_cels() {
+    // Non-square canvas and cels, every layer kind, distinct durations,
+    // and image cels with non-default positions and opacities on several
+    // frames, so a swapped or dropped field cannot pass by coincidence.
+    let mut child = Layer::image(LayerId::new(2), "child");
+    child.parent = Some(LayerId::new(1));
+    let sprite = Sprite::builder(5, 3)
+        .add_layer(Layer::image(LayerId::new(0), "bg"))
+        .add_layer(Layer::group(LayerId::new(1), "grp"))
+        .add_layer(child)
+        .add_layer(Layer::tilemap(LayerId::new(3), "tiles", TilesetId::new(0)))
+        .add_tileset(Tileset::new(TilesetId::new(0), "ts", (2, 2)))
+        .add_frame(Frame::new(40))
+        .add_frame(Frame::new(90))
+        .add_frame(Frame::new(250))
+        .build()
+        .expect("sprite builds");
+    let image_cel = |layer: u32, frame: u32, position: (i32, i32), opacity: u8, w: u32, h: u32| {
+        let pixels = (0..w * h * 4)
+            .map(|i| (i * 13 + layer * 7 + frame * 31) as u8)
+            .collect();
+        Cel {
+            layer: LayerId::new(layer),
+            frame: FrameIndex::new(frame),
+            position,
+            opacity,
+            data: CelData::Image(rgba_buffer(w, h, pixels)),
+            user_data: None,
+            z_index: 0,
+        }
+    };
+    let originals = [
+        image_cel(0, 0, (1, 0), 77, 3, 2),
+        image_cel(2, 1, (-2, 1), 128, 2, 3),
+        image_cel(0, 2, (0, 2), 255, 4, 1),
+        image_cel(2, 2, (3, -1), 9, 1, 2),
+    ];
+    let mut cels = CelMap::new();
+    for cel in &originals {
+        cels.insert(cel.clone());
+    }
+
+    let AsepriteReadOutput { sprite: read, cels } = round_trip(&sprite, &cels);
+
+    assert_eq!((read.width, read.height), (5, 3));
+    assert_eq!(read.color_mode, ColorMode::Rgba);
+    let shape: Vec<(&str, LayerKind)> = read
+        .layers
+        .iter()
+        .map(|l| (l.name.as_str(), l.kind.clone()))
+        .collect();
+    assert_eq!(
+        shape,
+        vec![
+            ("bg", LayerKind::Image),
+            ("grp", LayerKind::Group),
+            ("child", LayerKind::Image),
+            (
+                "tiles",
+                LayerKind::Tilemap {
+                    tileset_id: TilesetId::new(0)
+                }
+            ),
+        ]
+    );
+    assert_eq!(read.frames.len(), 3);
+    let durations: Vec<u16> = read.frames.iter().map(|f| f.duration_ms).collect();
+    assert_eq!(durations, vec![40, 90, 250]);
+    assert_eq!(cels.len(), originals.len());
+    for original in &originals {
+        let back = cels
+            .get(original.layer, original.frame)
+            .expect("image cel survives");
+        assert_eq!(back, original, "cel position, opacity and pixels");
+    }
+}
+
+#[test]
 fn multi_layer_blend_modes_and_offsets_are_preserved() {
     let bg_pixels = flat_pixels(&[rgba(10, 20, 30, 255); 4]);
-    let fx_pixels = flat_pixels(&[rgba(200, 100, 50, 128)]);
+    let fx_pixels = flat_pixels(&[rgba(200, 100, 50, 128), rgba(1, 2, 3, 4)]);
 
     let bg = Layer::image(LayerId::new(0), "bg");
     let mut fx = Layer::image(LayerId::new(1), "fx");
@@ -132,7 +210,7 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
         frame: FrameIndex::new(0),
         position: (1, 2),
         opacity: 200,
-        data: CelData::Image(rgba_buffer(1, 1, fx_pixels)),
+        data: CelData::Image(rgba_buffer(2, 1, fx_pixels)),
         user_data: None,
         z_index: 0,
     });
@@ -140,6 +218,9 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
     let AsepriteReadOutput { sprite, cels } = round_trip(&sprite, &cels);
 
     assert_eq!(sprite.layers.len(), 2);
+    assert!(sprite.layers[0].visible);
+    assert_eq!(sprite.layers[0].opacity, 255);
+    assert_eq!(sprite.layers[0].blend_mode, BlendMode::Normal);
     assert_eq!(sprite.layers[1].blend_mode, BlendMode::Multiply);
     assert_eq!(sprite.layers[1].opacity, 180);
     assert!(!sprite.layers[1].visible);
@@ -152,7 +233,35 @@ fn multi_layer_blend_modes_and_offsets_are_preserved() {
     let CelData::Image(buf) = &fx_cel.data else {
         panic!("fx cel should be an image");
     };
-    assert_eq!((buf.width, buf.height), (1, 1));
+    assert_eq!((buf.width, buf.height), (2, 1));
+}
+
+#[test]
+fn every_blend_mode_visibility_and_opacity_round_trip_per_layer() {
+    let mut builder = Sprite::builder(2, 2).add_frame(Frame::new(100));
+    let mut originals = Vec::new();
+    for (i, mode) in BlendMode::ALL.iter().enumerate() {
+        let mut layer = Layer::image(LayerId::new(i as u32), format!("L{i}"));
+        layer.blend_mode = *mode;
+        layer.visible = i % 2 == 0;
+        layer.opacity = 255 - (i as u8) * 11;
+        originals.push(layer.clone());
+        builder = builder.add_layer(layer);
+    }
+    let sprite = builder.build().expect("sprite builds");
+
+    let AsepriteReadOutput { sprite: read, .. } = round_trip(&sprite, &CelMap::new());
+
+    let got: Vec<(BlendMode, bool, u8)> = read
+        .layers
+        .iter()
+        .map(|l| (l.blend_mode, l.visible, l.opacity))
+        .collect();
+    let want: Vec<(BlendMode, bool, u8)> = originals
+        .iter()
+        .map(|l| (l.blend_mode, l.visible, l.opacity))
+        .collect();
+    assert_eq!(got, want);
 }
 
 #[test]
@@ -231,41 +340,51 @@ fn group_hierarchy_round_trips_via_child_level() {
 
 #[test]
 fn linked_cel_within_range_round_trips() {
+    // Two source frames and two links that point at different ones, so
+    // neither "always frame 0" nor "the previous frame" passes.
     let sprite = Sprite::builder(2, 2)
         .add_layer(Layer::image(LayerId::new(0), "only"))
+        .add_frame(Frame::new(100))
+        .add_frame(Frame::new(100))
         .add_frame(Frame::new(100))
         .add_frame(Frame::new(100))
         .build()
         .unwrap();
     let mut cels = CelMap::new();
-    cels.insert(Cel {
-        layer: LayerId::new(0),
-        frame: FrameIndex::new(0),
-        position: (0, 0),
-        opacity: 255,
-        data: CelData::Image(rgba_buffer(2, 2, flat_pixels(&[rgba(0, 0, 0, 255); 4]))),
-        user_data: None,
-        z_index: 0,
-    });
-    cels.insert(Cel {
-        layer: LayerId::new(0),
-        frame: FrameIndex::new(1),
-        position: (0, 0),
-        opacity: 255,
-        data: CelData::Linked(FrameIndex::new(0)),
-        user_data: None,
-        z_index: 0,
-    });
+    for (frame, shade) in [(0, 0), (1, 90)] {
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(frame),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Image(rgba_buffer(2, 2, flat_pixels(&[rgba(shade, 0, 0, 255); 4]))),
+            user_data: None,
+            z_index: 0,
+        });
+    }
+    for (frame, target) in [(2, 0), (3, 1)] {
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(frame),
+            position: (0, 0),
+            opacity: 255,
+            data: CelData::Linked(FrameIndex::new(target)),
+            user_data: None,
+            z_index: 0,
+        });
+    }
 
     let AsepriteReadOutput { cels, .. } = round_trip(&sprite, &cels);
-    let linked = cels
-        .get(LayerId::new(0), FrameIndex::new(1))
-        .expect("frame 1 should hold a linked cel");
-    assert!(
-        matches!(linked.data, CelData::Linked(idx) if idx == FrameIndex::new(0)),
-        "expected CelData::Linked(0), got {:?}",
-        linked.data,
-    );
+    for (frame, target) in [(2, 0), (3, 1)] {
+        let linked = cels
+            .get(LayerId::new(0), FrameIndex::new(frame))
+            .expect("linked cel present");
+        assert_eq!(
+            linked.data,
+            CelData::Linked(FrameIndex::new(target)),
+            "frame {frame} links to frame {target}"
+        );
+    }
 }
 
 #[test]
@@ -336,6 +455,66 @@ fn tags_round_trip_with_directions() {
             a: 255
         }
     );
+}
+
+#[test]
+fn tags_round_trip_every_direction_range_color_and_repeat_count() {
+    let tag = |name: &str, from: u32, to: u32, direction, color, repeats| Tag {
+        name: name.into(),
+        from: FrameIndex::new(from),
+        to: FrameIndex::new(to),
+        direction,
+        color,
+        repeats,
+        user_data: None,
+        raw_direction: None,
+    };
+    let tags = vec![
+        tag(
+            "fwd",
+            0,
+            1,
+            TagDirection::Forward,
+            Rgba::new(1, 2, 3, 255),
+            4,
+        ),
+        tag(
+            "rev",
+            1,
+            3,
+            TagDirection::Reverse,
+            Rgba::new(40, 50, 60, 255),
+            0,
+        ),
+        tag(
+            "pp",
+            2,
+            2,
+            TagDirection::Pingpong,
+            Rgba::new(70, 80, 90, 255),
+            2,
+        ),
+        tag(
+            "pp-rev",
+            0,
+            3,
+            TagDirection::PingpongReverse,
+            Rgba::new(250, 128, 7, 255),
+            9,
+        ),
+    ];
+    let mut builder = Sprite::builder(2, 2).add_layer(Layer::image(LayerId::new(0), "L0"));
+    for _ in 0..4 {
+        builder = builder.add_frame(Frame::new(100));
+    }
+    for t in &tags {
+        builder = builder.add_tag(t.clone());
+    }
+    let sprite = builder.build().expect("sprite builds");
+
+    let AsepriteReadOutput { sprite: read, .. } = round_trip(&sprite, &CelMap::new());
+
+    assert_eq!(read.tags, tags);
 }
 
 #[test]
@@ -509,9 +688,97 @@ fn tilemap_round_trips_rotate_90_flag() {
 }
 
 #[test]
+fn tilemap_round_trips_non_square_tiles_and_grid_on_its_own_tileset() {
+    // Two tilesets with distinct ids, names and non-square tile sizes;
+    // each tilemap layer points at the *other* one in file order, and the
+    // cel grid is non-square with every flag combination present.
+    let tileset = |id: u32, name: &str, (w, h): (u32, u32), count: u8| {
+        let mut ts = Tileset::new(TilesetId::new(id), name, (w, h));
+        ts.tiles = (0..count)
+            .map(|t| TileImage {
+                pixels: rgba_buffer(
+                    w,
+                    h,
+                    (0..w * h * 4).map(|i| (i as u8) ^ (t * 40 + 1)).collect(),
+                ),
+            })
+            .collect();
+        ts
+    };
+    let tile = |id: u32, flip_x: bool, flip_y: bool, rotate_90: bool| TileRef {
+        tile_id: id,
+        flip_x,
+        flip_y,
+        rotate_90,
+    };
+    let tiles = vec![
+        tile(0, false, false, false),
+        tile(2, true, false, false),
+        tile(1, false, true, false),
+        tile(2, false, false, true),
+        tile(1, true, true, true),
+        tile(0, true, false, true),
+    ];
+    let sprite = Sprite::builder(12, 8)
+        .add_layer(Layer::tilemap(LayerId::new(0), "a", TilesetId::new(9)))
+        .add_layer(Layer::tilemap(LayerId::new(1), "b", TilesetId::new(4)))
+        .add_tileset(tileset(4, "four", (3, 2), 2))
+        .add_tileset(tileset(9, "nine", (2, 4), 3))
+        .add_frame(Frame::new(100))
+        .build()
+        .expect("sprite builds");
+    let mut cels = CelMap::new();
+    cels.insert(Cel {
+        layer: LayerId::new(0),
+        frame: FrameIndex::new(0),
+        position: (0, 0),
+        opacity: 255,
+        data: CelData::Tilemap {
+            grid_w: 3,
+            grid_h: 2,
+            tiles: tiles.clone(),
+        },
+        user_data: None,
+        z_index: 0,
+    });
+
+    let AsepriteReadOutput {
+        sprite: read,
+        cels: read_cels,
+    } = round_trip(&sprite, &cels);
+
+    assert_eq!(
+        read.layers[0].kind,
+        LayerKind::Tilemap {
+            tileset_id: TilesetId::new(9)
+        }
+    );
+    assert_eq!(
+        read.layers[1].kind,
+        LayerKind::Tilemap {
+            tileset_id: TilesetId::new(4)
+        }
+    );
+    assert_eq!(read.tilesets, sprite.tilesets, "names, tile sizes, pixels");
+    let cel = read_cels
+        .get(LayerId::new(0), FrameIndex::new(0))
+        .expect("tilemap cel present");
+    assert_eq!(
+        cel.data,
+        CelData::Tilemap {
+            grid_w: 3,
+            grid_h: 2,
+            tiles,
+        }
+    );
+}
+
+#[test]
 fn slices_round_trip_plain_and_nine_patch_with_pivot() {
+    // Editor ids that are neither 0-based nor in file order: the reader
+    // must hand out fresh ids 0, 1 by position.
     let plain = Slice {
-        id: SliceId::new(0),
+        id: SliceId::new(7),
         name: "hitbox".into(),
         color: Rgba::new(200, 30, 40, 255),
         keys: vec![SliceKey {
@@ -523,7 +790,7 @@ fn slices_round_trip_plain_and_nine_patch_with_pivot() {
         user_data: None,
     };
     let panel = Slice {
-        id: SliceId::new(1),
+        id: SliceId::new(3),
         name: "panel".into(),
         color: Rgba::new(10, 20, 30, 128),
         keys: vec![
@@ -643,6 +910,9 @@ fn reordered_layers_round_trip_with_cels_intact() {
     // Z-order survived: bottom is now "fg", top is "bg".
     assert_eq!(sprite.layers[0].name, "fg");
     assert_eq!(sprite.layers[1].name, "bg");
+    // Ids are renumbered by position: fg (was id 1) is now 0, bg 1.
+    assert_eq!(sprite.layers[0].id, LayerId::new(0));
+    assert_eq!(sprite.layers[1].id, LayerId::new(1));
 
     // Each cel still belongs to its own (reordered) layer.
     let fg_id = sprite.layers[0].id;
@@ -850,10 +1120,10 @@ fn layer_moved_into_a_group_keeps_its_parent_through_a_round_trip() {
 #[test]
 fn external_files_tileset_tile_and_slice_user_data_round_trip() {
     let props = nested_properties();
-    let ud = |text: &str, with_props: bool| UserData {
+    let ud = |text: &str, color: Option<Rgba>| UserData {
         text: Some(text.into()),
-        color: None,
-        properties: with_props.then(|| props.clone()),
+        color,
+        properties: Some(props.clone()),
     };
     let tile = |v: u8| TileImage {
         pixels: PixelBuffer {
@@ -865,9 +1135,11 @@ fn external_files_tileset_tile_and_slice_user_data_round_trip() {
     };
     let mut tileset = Tileset::new(TilesetId::new(0), "ts", (2, 2));
     tileset.tiles = vec![tile(0), tile(1), tile(2), tile(3)];
-    tileset.user_data = Some(ud("tileset", true));
+    tileset.user_data = Some(ud("tileset", Some(Rgba::new(9, 8, 7, 6))));
     // Sparse: tile 2 only; tiles 0, 1 and 3 have none.
-    tileset.tile_user_data.insert(2, ud("tile 2", true));
+    tileset
+        .tile_user_data
+        .insert(2, ud("tile 2", Some(Rgba::new(1, 2, 3, 4))));
     let slice = Slice {
         id: SliceId::new(0),
         name: "hitbox".into(),
@@ -878,7 +1150,7 @@ fn external_files_tileset_tile_and_slice_user_data_round_trip() {
             center: None,
             pivot: None,
         }],
-        user_data: Some(ud("slice note", true)),
+        user_data: Some(ud("slice note", None)),
     };
     let mut sprite = Sprite::builder(8, 8)
         .add_layer(Layer::image(LayerId::new(0), "img"))
@@ -908,9 +1180,15 @@ fn external_files_tileset_tile_and_slice_user_data_round_trip() {
     let s = &out.sprite;
     assert_eq!(s.metadata.external_files, sprite.metadata.external_files);
     let ts = &s.tilesets[0];
-    assert_eq!(ts.user_data, Some(ud("tileset", true)));
+    assert_eq!(
+        ts.user_data,
+        Some(ud("tileset", Some(Rgba::new(9, 8, 7, 6))))
+    );
     assert_eq!(ts.tile_user_data.len(), 1);
-    assert_eq!(ts.tile_user_data.get(&2), Some(&ud("tile 2", true)));
+    assert_eq!(
+        ts.tile_user_data.get(&2),
+        Some(&ud("tile 2", Some(Rgba::new(1, 2, 3, 4))))
+    );
     assert_eq!(s.slices[0].color, Rgba::new(200, 30, 40, 255));
-    assert_eq!(s.slices[0].user_data, Some(ud("slice note", true)));
+    assert_eq!(s.slices[0].user_data, Some(ud("slice note", None)));
 }
