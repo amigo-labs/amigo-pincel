@@ -93,6 +93,7 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 | Undo after a size-5 drag that crossed the same pixels several times | Every pixel returns to its value from before the stroke, not an intermediate one (AC-04) |
 | Shift pressed in the middle of a drag | The constrained segment starts at the last painted point before Shift went down (AC-07) |
 | Shift released in the middle of a drag | The stroke continues freehand from where it is |
+| Pointer swings towards another direction while Shift stays down | The stroke keeps the 45° direction its first movement after the anchor chose; the pointer is projected onto that ray (AC-07). Releasing and pressing Shift again starts a new anchor and a new direction |
 | Right-button drag with the Pencil at size 3 | Paints the background color with the same 3×3 stamp, as the right button does today |
 | A second finger lands during a stroke (pinch starts) | The stroke is cancelled: the cel returns to its pre-stroke state and no undo entry remains |
 | Stroke on a newly added layer that has no cel yet | A cel is created and the stroke paints into it |
@@ -120,7 +121,7 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 | AC-04 | `pencil_stroke_revert_restores_first_touch_values`, `pencil_stroke_two_strokes_add_two_undo_entries`, `pencil_stroke_random_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
 | AC-05 | `pencil_stroke_out_of_bounds_points_are_skipped` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_beyond_canvas_paints_in_bounds_part_without_error` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
 | AC-06 | `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `eraser_stroke_clears_the_pencil_footprint` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-07 | "a Shift pencil drag snaps to the nearest 45 degree direction", "touch device › the latched Shift toggle constrains a pencil drag" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-07 | "a Shift pencil drag snaps to the nearest 45 degree direction", "a Shift drag keeps the direction its first movement chose", "touch device › the latched Shift toggle constrains a pencil drag" (`ui/e2e/pencil.spec.ts`) | built |  |
 | AC-08 | `pixel_perfect_removes_l_corner`, `pencil_stroke_random_strokes_hold_invariants`, `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_pixel_perfect_drops_staircase_corners` (`crates/pincel-wasm/src/stroke.rs`); "a pixel-perfect staircase leaves its corners empty" (`ui/e2e/pencil.spec.ts`) | built |  |
 | AC-09 | `pixel_perfect_keeps_corner_painted_earlier_in_stroke` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |  |
 | AC-10 | `pixel_perfect_has_no_effect_above_size_1` (`crates/pincel-core/src/command/pencil_stroke.rs`); "pixel-perfect is disabled above size 1" (`ui/e2e/pencil.spec.ts`) | built |  |
@@ -152,3 +153,4 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 - 2026-10-29 (spec-build): `beginStroke` takes `size` as `u32` and clamps it to 1–8, so an out-of-range JS number cannot wrap; the Shape control is a select (Square / Round) like the shape tools' mode select.
 - 2026-10-29 (spec-build): E2e tests read pixels back with the Eyedropper (`#000000` = transparent); a pick of a transparent pixel also sets the foreground alpha to 0, so each spec paints before it picks.
 - 2026-10-29 (spec-build): New public API — `pincel-core`: `PencilStroke`, `PixelBrush`, `BrushShape`, `MIN_BRUSH_SIZE`, `MAX_BRUSH_SIZE`, `AnyCommand::PencilStroke`, `Bus::continue_stroke`; `pincel-wasm`: `Document.beginStroke`, `Document.strokeTo`.
+- 2026-10-29 (spec-check rework): While Shift is down, the first movement away from the anchor locks the nearest 45° direction, and every later sample is projected onto that ray from the anchor until Shift is released; releasing and re-pressing Shift starts a new anchor. Snapping each sample afresh let a direction change mid-drag draw a segment between two rays that ran in none of the eight directions (orchestrator decision).
