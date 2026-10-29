@@ -64,9 +64,9 @@ Reading wraps `aseprite-loader` (§7.1). Writing goes through the standalone `as
 - [ ] AC-20 (always): Every file `aseprite-writer` produces parses with `aseprite-loader`, and its header, layers and blend modes, palette, tags, image, linked and tilemap cels, tilesets, slices, user data and External Files entries read back as they were written.
 - [ ] AC-21 (always): `aseprite-writer` writes each User Data chunk directly after the chunk it belongs to:
   - a layer or a cel: right after that chunk
-  - the sprite: right after the first frame's palette
+  - the sprite: right after the first frame's palette, before any layer, tileset, tag, slice or cel chunk
   - tags: one per tag, in order, after the Tags chunk, written only when at least one tag has user data
-  - a tileset: right after the Tileset chunk, then one per tile up to the last tile that has any
+  - a tileset: right after the Tileset chunk, then one for every tile of the tileset, written only when the tileset or at least one tile has user data
   - a slice: right after the Slice chunk
 - [ ] AC-22 (error): If `aseprite-writer` is given input the format cannot hold, it returns an error instead of a file. The cases are:
   - zero frames (nothing is written) or more than 65,535 frames
@@ -80,6 +80,7 @@ Reading wraps `aseprite-loader` (§7.1). Writing goes through the standalone `as
   - a user data property block whose size field does not match its length
 - [ ] AC-23 (event): When a document is painted through the wasm `Document`, saved with `saveAseprite` and opened with `openAseprite`, the composed frame shows the painted pixels, and unpainted pixels stay transparent.
 - [ ] AC-24 (always, manual: needs the Aseprite application): A file saved by Pincel opens in Aseprite with its layers, frames, tags, slices and tilemaps intact.
+- [ ] AC-25 (always): `aseprite-writer` writes the first frame's chunks in the order of Aseprite's own encoder: External Files, Palette, Tilesets, Tags, Layers, Slices, then the cels. In particular every Tileset chunk comes before the Layer chunks that reference it.
 
 ## Technical notes
 
@@ -94,14 +95,17 @@ Hints that drift; check the code before relying on them.
 - **Write:** `pincel_core::write_aseprite<W: Write>(sprite: &Sprite, cels: &CelMap, out: &mut W) -> Result<(), CodecError>` (`codec/aseprite_write.rs`). It pre-validates the document, builds an `aseprite_writer::AseFile` and calls `aseprite_writer::write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError>`. The writer stages the whole file in memory before writing it to `out`.
 - **Chunk order in frame 0:**
   1. External Files `0x2008`, only when non-empty
-  2. per layer: Layer `0x2004`, then its User Data
-  3. Palette `0x2019`, then the sprite's User Data
+  2. Palette `0x2019`, then the sprite's User Data
+  3. per tileset: Tileset `0x2023`, then its own User Data and one per tile
   4. Tags `0x2018`, then one positional User Data per tag
-  5. per tileset: Tileset `0x2023`, then its own User Data and one per tile
+  5. per layer: Layer `0x2004`, then its User Data
   6. per slice: Slice `0x2022`, then its User Data (always carries the overlay color)
   7. Cels `0x2005`, each followed by its User Data
 
+  This matches Aseprite's encoder (`src/dio/aseprite_encoder.cpp`), and Aseprite's decoder depends on it. A tilemap layer looks up its tileset while its Layer chunk is read. A User Data chunk belongs to the sprite only before the first layer, cel, tag, slice or tileset chunk. After a tileset's own User Data, exactly one User Data chunk per tile is read. `aseprite-loader` collects all chunks before resolving them, so a loader round trip does not catch an order problem.
+
   Later frames hold only cels. Cel pixels and tile pixels are zlib-compressed. Old Palette `0x0004` and Color Profile `0x2007` are never written.
+- **Manual check files:** `crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite` and `aseprite-compat-tilemap-min.aseprite` are Pincel's writer output for AC-24. `tests/aseprite_compat_fixture.rs` fails when the writer drifts from them; regenerate with `PINCEL_REGENERATE_FIXTURES=1`. The checklist for opening them in Aseprite is `crates/pincel-core/tests/fixtures/aseprite-compat-check.md`.
 - **Tilemap cel encoding** (Cel Type 3): always `bits_per_tile = 32`, with masks `TILE_ID_MASK = 0x1fff_ffff`, `Y_FLIP_MASK = 0x2000_0000`, `X_FLIP_MASK = 0x4000_0000`, `DIAG_FLIP_MASK = 0x8000_0000`. `TileRef::rotate_90` maps to the diagonal flag.
 - **Document fields that exist only for round-tripping:**
   - `Metadata::pixel_ratio`, `Metadata::grid`, `Metadata::user_data`, `Metadata::external_files`
@@ -161,10 +165,11 @@ Hints that drift; check the code before relying on them.
 | AC-18 | `pincel_core::codec::aseprite_write::tests::write_rejects_indexed_color_mode`, `…::write_rejects_grayscale_color_mode`, `…::write_rejects_canvas_wider_than_u16`, `…::write_rejects_canvas_taller_than_u16`, `…::write_rejects_cel_position_out_of_i16`, `…::write_rejects_cel_y_below_i16` (crates/pincel-core/src/codec/aseprite_write.rs), `aseprite_codec::zero_frame_sprite_fails_to_write_instead_of_emitting_invalid_file` (crates/pincel-core/tests/aseprite_codec.rs) | built |        |
 | AC-19 | `pincel_core::codec::aseprite_write::tests::write_detects_unknown_parent`, `…::write_rejects_layer_parent_that_is_not_a_group`, `…::write_rejects_layer_whose_parent_appears_after_it`, `…::write_rejects_layer_whose_parent_is_shadowed_by_sibling_group`, `…::write_detects_layer_parent_cycle`, `…::write_rejects_cel_for_unknown_layer`, `…::write_rejects_image_cel_with_indexed_buffer`, `…::write_rejects_image_cel_with_malformed_buffer`, `…::write_rejects_linked_cel_with_missing_target`, `…::write_rejects_linked_cel_past_frames`, `…::write_rejects_chained_linked_cel`, `…::write_rejects_external_file_tileset`, `…::write_rejects_tileset_tile_with_wrong_dimensions` (crates/pincel-core/src/codec/aseprite_write.rs) | built |        |
 | AC-20 | `roundtrip::empty_rgba_sprite_roundtrips_through_loader`, `roundtrip::three_layers_with_blend_modes_roundtrip`, `roundtrip::palette_roundtrips_via_raw_file`, `roundtrip::tags_roundtrip_with_directions`, `roundtrip::single_image_cel_roundtrips_with_pixels`, `roundtrip::linked_cel_roundtrips_pointing_at_source_frame`, `roundtrip::multi_cel_across_layers_and_frames_roundtrips`, `roundtrip::full_file_with_layers_palette_tags_roundtrips`, `roundtrip::tileset_chunk_roundtrips_through_loader`, `roundtrip::tilemap_cel_roundtrips_through_loader`, `roundtrip::user_data_properties_are_written_verbatim_and_parse`, `roundtrip::unknown_tag_direction_roundtrips_as_its_raw_byte`, `roundtrip::header_fields_roundtrip_through_loader`, `roundtrip::every_blend_mode_roundtrips_through_loader`, `roundtrip::every_tag_direction_and_color_roundtrips_through_loader`, `roundtrip::external_files_and_tileset_user_data_are_written_in_place`, `roundtrip::slice_user_data_follows_its_slice_chunk` (crates/aseprite-writer/tests/roundtrip.rs), `aseprite_writer::write::tests::slice_chunk_round_trips_through_loader` (crates/aseprite-writer/src/write.rs) | built |        |
-| AC-21 | `roundtrip::user_data_follows_its_layer_cel_palette_and_tags`, `roundtrip::tags_get_no_user_data_chunks_when_no_tag_has_any`, `roundtrip::external_files_and_tileset_user_data_are_written_in_place`, `roundtrip::slice_user_data_follows_its_slice_chunk` (crates/aseprite-writer/tests/roundtrip.rs) | built |        |
+| AC-21 | `roundtrip::user_data_follows_its_layer_cel_palette_and_tags`, `roundtrip::sprite_user_data_precedes_every_object_chunk`, `roundtrip::tags_get_no_user_data_chunks_when_no_tag_has_any`, `roundtrip::external_files_and_tileset_user_data_are_written_in_place`, `roundtrip::tileset_user_data_has_one_chunk_per_tile`, `roundtrip::slice_user_data_follows_its_slice_chunk` (crates/aseprite-writer/tests/roundtrip.rs) | built |        |
 | AC-22 | `aseprite_writer::write::tests::write_rejects_zero_frames`, `…::write_rejects_more_frames_than_u16_can_hold`, `…::empty_palette_is_rejected`, `…::tilemap_layer_without_index_is_rejected`, `…::invalid_tag_range_is_rejected`, `…::cel_image_size_mismatch_is_rejected`, `…::cel_layer_index_out_of_range_is_rejected`, `…::linked_cel_frame_out_of_range_is_rejected`, `…::slice_without_keys_is_rejected`, `…::slice_keys_must_be_strictly_ascending`, `…::slice_keys_must_agree_on_nine_patch_presence` (crates/aseprite-writer/src/write.rs), `roundtrip::write_rejects_unrepresentable_input_without_writing_bytes`, `roundtrip::user_data_properties_with_a_wrong_size_are_rejected` (crates/aseprite-writer/tests/roundtrip.rs) | built |        |
 | AC-23 | `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_pixels` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
-| AC-24 |      | open   |        |
+| AC-24 | manual check pending: `crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite` and `aseprite-compat-tilemap-min.aseprite`, checklist `crates/pincel-core/tests/fixtures/aseprite-compat-check.md`; drift check `aseprite_compat_fixture::aseprite_compat_check_fixture_matches_writer_output`, `…::aseprite_compat_tilemap_min_fixture_matches_writer_output` (crates/pincel-core/tests/aseprite_compat_fixture.rs) | open   |        |
+| AC-25 | `roundtrip::tilesets_precede_the_layers_that_reference_them`, `roundtrip::first_frame_chunk_order_matches_aseprite` (crates/aseprite-writer/tests/roundtrip.rs) | built |        |
 
 ## Decisions
 
@@ -176,4 +181,10 @@ Hints that drift; check the code before relying on them.
   - wasm: one pixel the old spot checks did not cover made opaque on read.
   - The old `tags_round_trip_with_directions`, `tilemap_round_trips_layer_tileset_and_cel`, `multi_layer_blend_modes_and_offsets_are_preserved` and `write::tests::empty_palette_is_rejected` stayed green under the same breaks. That is why the stronger tests were added next to them.
 - 2026-10-29: AC-17's "cel on a layer index that does not exist" fails inside `aseprite-loader`'s `parse_file`, which checks the index first. The error is `CodecError::Parse("… LayerIndexOutOfBounds")`, so Pincel's own `CodecError::LayerIndexOutOfRange` is not reached from a file. The error still names the problem, so the AC holds as written, and the test pins the loader's message.
+- 2026-10-29: Aseprite 1.3 failed to open a Pincel file with a tilemap. Its Console showed "Error: tileset 0 not found" and "Frame 0 didn't found layer with index 4". `aseprite-writer` wrote the Tileset chunks after the Layer chunks, so Aseprite dropped the tilemap layer and its cel. Checking Aseprite's decoder (`src/dio/aseprite_decoder.cpp`) turned up two more order dependencies:
+  - The sprite's User Data went to the last layer, because it followed the layers.
+  - A tileset's User Data run stopped at the last tile with data, and Aseprite warns unless it gets one chunk per tile.
+
+  The fix in `aseprite-writer` writes Aseprite's encoder order. This revises AC-21 (sprite user data placement, one chunk for every tile) and adds AC-25 for the order itself. The AC-21 revision changes behavior: Aseprite would not otherwise open these files correctly, and AC-24 requires that it does.
+- 2026-10-29: The AC-24 check files are committed fixtures with a byte-for-byte drift test, so the file checked in Aseprite is the file the writer produces. The fixture test reads both files back to assert their structure. Regenerating them is an explicit step (`PINCEL_REGENERATE_FIXTURES=1`), the same idea as the generated TS bindings.
 - 2026-10-29: The AC-16 fixtures carry a palette chunk. `aseprite-loader` rejects an indexed file without one as a parse error (`PaletteError(Missing)`) before the color mode is checked. Aseprite always writes a palette, so a palette-less indexed file is malformed and falls under AC-15, not AC-16.
