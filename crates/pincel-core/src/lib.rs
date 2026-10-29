@@ -4,6 +4,7 @@
 //! pixel-art editor. No platform dependencies, no file I/O. See
 //! `docs/specs/pincel.md` for the design specification.
 
+pub mod clipboard;
 pub mod codec;
 pub mod command;
 pub mod document;
@@ -12,22 +13,24 @@ pub mod geometry;
 pub mod render;
 pub mod selection;
 
+pub use clipboard::{CopiedPixels, CopyError, CopySource, copy_pixels};
 pub use codec::{
     AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
-    ExportError, GplError, ImportError, ImportedImage, aseprite_sheet_json, export_atlas_png,
-    export_frame_png, import_png, read_aseprite, read_gpl, write_aseprite, write_gpl,
+    ExportError, GplError, ImportError, ImportedImage, aseprite_sheet_json, encode_png,
+    export_atlas_png, export_frame_png, import_png, read_aseprite, read_gpl, write_aseprite,
+    write_gpl,
 };
 pub use command::{
     AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset,
     Anchor, AnyCommand, Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse,
     DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
     Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer, MoveLayerTo,
-    MovePaletteEntry, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas, RemoveFrame,
-    RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
-    ReplacePalette, ScaleImage, SetFrameDuration, SetLayerBlendMode, SetLayerEditable,
-    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
-    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
-    TextAlign, TextStyle, TransformCanvas, TransformCel,
+    MovePaletteEntry, MoveSelectionContent, Orientation, PasteLayer, PastedImage, PlaceTile,
+    ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag,
+    ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration,
+    SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
+    SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel,
+    ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{
