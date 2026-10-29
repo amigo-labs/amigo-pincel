@@ -25,7 +25,7 @@ Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git h
 - Four new UI locales: `es`, `ja`, `fr`, `pt-BR`, selectable on the start screen and under View ▸ Language, and picked automatically from the browser / OS language
 - Locale detection by full tag first, then base language, with every Portuguese tag falling back to `pt-BR`
 - Plural-aware count messages for all six locales; the existing count messages are converted
-- Locale-aware number formatting for percentages and decimals shown as text in the options bar
+- Locale-aware formatting for percentages, decimals and dates shown as text anywhere in the UI (options bar, Layers panel opacity, zoom label, Recovery dialog)
 - Layout that holds the longer Spanish, French and Portuguese strings without clipping text silently
 - Native menu and updater-dialog labels (Rust table) for the four new locales
 - Updating spec §9.5 to the six locales
@@ -48,7 +48,7 @@ Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git h
 - [ ] AC-06 (always): Every translated message contains exactly the same set of `{placeholder}` names as its English source.
 - [ ] AC-07 (event): When a message that depends on a count is shown, then its wording follows the active locale's plural rule for that count (e.g. English "1 snapshot" vs "2 snapshots"; French uses its "one" form for 0 and 1), and no shown message uses a "(s)"-style fallback.
 - [ ] AC-08 (always): Japanese count messages use one form for every count.
-- [ ] AC-09 (state): While French, German, Spanish or Portuguese (Brazil) is active, percentages and decimals shown as text in the options bar use that locale's decimal separator and percent format (e.g. French shows the Image-mode brush opacity 100 as "100 %" with a narrow no-break space).
+- [ ] AC-09 (state): While French, German, Spanish or Portuguese (Brazil) is active, percentages, decimals and dates shown as text anywhere in the UI (options bar, Layers panel opacity, zoom label, Recovery dialog) use that locale's format — decimal separator, percent format and date format (e.g. French shows the Image-mode brush opacity 100 as "100 %" with a narrow no-break space).
 - [ ] AC-10 (state): While any of the six locales is active, at viewport widths 1280 px and 390 px, every text element of the menu bar, options bar, New dialog, paste dialog and start screen either shows its full text or, where it is truncated, carries its full text as a `title` tooltip; no element overflows its container visibly.
 - [ ] AC-11 (event): When the desktop app receives a language change to any of the six locales, then the native menu (macOS) and the updater dialogs (all desktop platforms) use that language's labels; an unknown language tag gives English labels.
 - [ ] AC-12 (always): Layer, tag and slice names are shown exactly as stored in the document, whatever the active locale.
@@ -62,7 +62,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 - **Shell side** `ui/src/lib/i18n/locale.ts`: `initLocale` (restores pref `language`), `setLocale`, `syncNativeMenu` (Tauri `set_menu_language`), `languageMenu()`.
 - **Count messages today**: `grep -n "{count}" ui/src/lib/i18n/en.ts` — e.g. `recovery.count` (`'{count} snapshot(s)'`), `palette.imported`, `palette.exported`. Also check `{n}` messages (`sheet.allFrames`).
 - **Plural design from the plan**: `tn(key, count, params?)` with keys such as `palette.imported_one` / `palette.imported_other`, `Intl.PluralRules(locale)` selecting the form; the type lets `ja` omit `_one`. Derive the `Locale` union from `LOCALES` instead of writing the list twice.
-- **Percent text in the options bar**: `ui/src/modes/image/components/toolbar/ToolOptions.svelte` (`{tool.opacity}%`, `{tool.hardness}%`, `{tool.smudgeStrength}%`). Other percent / decimal text outside the options bar: `LayersPanel.svelte` opacity, Image-mode zoom label in `MainCanvas.svelte`, `RecoveryDialog.svelte` sizes and dates.
+- **Percent text in the options bar**: `ui/src/modes/image/components/toolbar/ToolOptions.svelte` (`{tool.opacity}%`, `{tool.hardness}%`, `{tool.smudgeStrength}%`). Other percent / decimal / date text: `LayersPanel.svelte` opacity, Image-mode zoom label in `MainCanvas.svelte`, `RecoveryDialog.svelte` sizes and dates. Route every user-visible percentage, decimal and date through one `formatNumber` / `formatPercent` / `formatDate` helper in `ui/src/lib/i18n/`; technical sizes ("800 × 600") stay as they are.
 - **Layout check** from the plan: a dev-only pseudo-locale (`en-XA`, strings padded ~40 % and bracketed) helps find truncation; never shipped. Fix overflow with wrapping or `min-width: 0` truncation plus `title`, never by shortening translations. Places to check: menu bar (already scrolls on tablets), options bar, New dialog, paste dialog (`Modal.svelte` with three buttons), start screen.
 - **Native labels** `src-tauri/src/main.rs`: `struct Labels`, `LABELS_EN` / `LABELS_DE`, `labels_for(lang)` (anything but `de` is English), a `static GERMAN: AtomicBool` read by `current_labels()` — used by the menu builder and by `src-tauri/src/updater.rs` (update dialogs). The bool has to become a locale. Test `labels_for_german_and_fallback`.
 - **UI font**: `ui/src/app.css` uses the `system-ui` stack, which renders Japanese on every target OS — nothing to ship.
@@ -87,13 +87,10 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 | Assumption | Reason | Risk |
 | ---------- | ------ | ---- |
 | `Intl.PluralRules` and `Intl.NumberFormat` are available in every target runtime | Both are baseline in all evergreen browsers, WebView2, WKWebView and WebKitGTK | Low |
-| Machine-assisted translations are acceptable for the first release when marked as review pending | The plan says to ask a native speaker if one is available, not to block on one | Medium: terminology errors reach users until reviewed (AC-13 is a manual check) |
 
 ## Open questions
 
-- The Decision Log entry is not written yet: the six-locale list, the in-house `tn` plural helper on `Intl.PluralRules` (revisiting the 2026-10-12 "own DE/EN dictionary" entry), and the `pt-PT` → `pt-BR` fallback (CLAUDE.md §2.1 — must land with or before the code, together with the §9.5 update).
-- Should percentages and decimals outside the options bar (Layers panel opacity, Image-mode zoom label, Recovery dialog sizes and dates) also follow the locale's number format, or only the options bar as the plan says?
-- Is a native-speaker reviewer available for any of the four languages, or do all four ship marked "machine-assisted, review pending"?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -122,3 +119,6 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 - Each new dictionary carries a short glossary of the core terms at its top and a header note `machine-assisted, review pending` until a native speaker has reviewed it — keeps terminology consistent and the review status visible (plan).
 - The `en-XA` pseudo-locale is a dev-only aid and never ships (plan).
 - Keyboard key names and `{placeholders}` stay untranslated in every locale (plan; AC-06 checks placeholders).
+- 2026-10-29: A Decision Log entry records the six locales (en, de, es, ja, fr, pt-BR), plural messages through an in-house `tn(key, count)` on `Intl.PluralRules` with `_one` / `_other` keys (ja: `_other` only), numbers through `Intl.NumberFormat`, and every `pt*` tag → `pt-BR`, revisiting 2026-10-12 with still no i18n dependency; `pincel.md` §9.5 is updated in the same commit — the 2026-10-12 entry explicitly asked to revisit at a third locale (owner accepted the recommendation).
+- 2026-10-29: Every user-visible percentage, decimal and date anywhere in the UI goes through one `formatNumber` / `formatPercent` / `formatDate` helper; technical sizes stay unformatted (AC-09) — mixed separators on one screen look broken, and one helper costs less than deciding per call site (owner accepted the recommendation).
+- 2026-10-29: Ships machine-assisted; one review issue per locale. All four new locales ship marked "machine-assisted, review pending" (header note plus glossary), with one tracking issue per locale for a native review, and the owner names any reviewer they have — the plan says not to block on reviewers, and AC-13 is a manual check anyway (owner accepted the recommendation).
