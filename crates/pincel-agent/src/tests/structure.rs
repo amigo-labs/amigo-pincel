@@ -171,9 +171,18 @@ fn locked_layer_or_locked_group_refuses_edits() {
         json!({ "name": "G", "kind": "group", "locked": true }),
     );
     s.ok("layer.add", json!({ "name": "Child", "parent": 1 }));
-    let e = s.err(
-        "draw.pixels",
-        json!({ "layer": 2, "pixels": [{ "x": 0, "y": 0, "color": "#ffffff" }] }),
-    );
-    assert!(e.contains("Child") && e.contains("locked"), "{e}");
+    let before = s.state(&id);
+    for (name, args) in [
+        (
+            "draw.pixels",
+            json!({ "layer": 2, "pixels": [{ "x": 0, "y": 0, "color": "#ffffff" }] }),
+        ),
+        ("draw.fill", json!({ "x": 0, "y": 0, "color": "#ffffff" })),
+        ("effect.apply", json!({ "id": "invert", "layer": 2 })),
+        ("layer.remove", json!({ "layer": 2 })),
+    ] {
+        let e = s.err(name, args);
+        assert!(e.contains("Child") && e.contains("locked"), "{name}: {e}");
+        assert_eq!(s.state(&id), before, "{name}");
+    }
 }
