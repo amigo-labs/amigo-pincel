@@ -101,8 +101,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
 | AC-03 |      | open   |        |
 | AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
+| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); manual: a dispatched run is still to be checked | built |        |
 | AC-07 |      | open   |        |
 | AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes) | built |        |
 
@@ -122,3 +122,5 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29 (spec-build): The budget check is `ui/e2e-perf/check-budgets.ts`, run directly by Node's type stripping (`pnpm perf:check`, Node ≥ 22.18) — no new dependency, and it stays under the UI's strict TypeScript and lint. Its unit tests are `ui/e2e/perf-budget-check.spec.ts`: pure Node, no browser, so they join the PR e2e run; AC-05 only keeps the benchmarks and the browser script out.
 - 2026-10-29 (spec-build): Frame-rate budgets ("60 fps") check the p95 frame time against 16.7 ms and latency budgets the p95 latency — p95 is what a user feels as stutter, and the p50 is reported alongside.
 - 2026-10-29 (spec-build): Budget mode keeps "first met" dates in `ui/e2e-perf/budgets-met.json`; `--write` updates it and the reference-machine run commits it. Baseline mode keeps the runner's last values in a file the workflow caches per runner; a run with a regression never overwrites it, so the regression keeps failing until fixed.
+- 2026-10-29 (spec-build): AC-05's test was green on its first run — the PR gate never ran benches, and `pnpm test:e2e` only collects `ui/e2e`. The test pins that state so a later CI change cannot pull the benchmarks or `ui/e2e-perf` into the gate.
+- 2026-10-29 (spec-build): The nightly skip compares `github.sha` with the head SHA of the last completed scheduled run (`gh run list`); the runner baseline lives in the actions cache keyed by OS and architecture (restored by prefix, saved only after a passing check), so a dispatched run on a PR branch reads `main`'s baseline but cannot overwrite it.
