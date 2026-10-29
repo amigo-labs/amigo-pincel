@@ -48,3 +48,4 @@ Thumbs.db
 !.env.example
 /ui/test-results
 /ui/playwright-report
+/ui/e2e-perf/results

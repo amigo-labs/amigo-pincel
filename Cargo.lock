@@ -3095,8 +3095,10 @@ name = "pincel-image-core"
 version = "1.4.0"
 dependencies = [
  "ab_glyph",
+ "criterion",
  "image",
  "insta",
+ "pincel-effects",
  "proptest",
  "serde",
  "serde_json",
