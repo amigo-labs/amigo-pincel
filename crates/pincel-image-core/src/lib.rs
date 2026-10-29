@@ -40,7 +40,8 @@ pub use tools::{
     Brush, BrushShape, DEFAULT_BRUSH_ANGLE, DashPattern, Eraser, EraserMode, Eyedropper, Fill,
     FillOptions, Gradient, GradientChannel, GradientKind, Move, PenSamples, Pencil,
     PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape, ShapeMode,
-    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, delete_selection,
+    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, copy_selection,
+    delete_selection,
 };
 pub use transform::{
     Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,
