@@ -86,6 +86,7 @@ struct Labels {
     save_as: &'static str,
     export_png: &'static str,
     export_sheet: &'static str,
+    export_animation: &'static str,
     quit: &'static str,
     edit: &'static str,
     undo: &'static str,
@@ -119,6 +120,7 @@ const LABELS_EN: Labels = Labels {
     save_as: "Save As\u{2026}",
     export_png: "Export as PNG\u{2026}",
     export_sheet: "Export Sprite Sheet\u{2026}",
+    export_animation: "Export Animation\u{2026}",
     quit: "Quit",
     edit: "Edit",
     undo: "Undo",
@@ -149,6 +151,7 @@ const LABELS_DE: Labels = Labels {
     save_as: "Speichern unter\u{2026}",
     export_png: "Als PNG exportieren\u{2026}",
     export_sheet: "Sprite-Sheet exportieren\u{2026}",
+    export_animation: "Animation exportieren\u{2026}",
     quit: "Beenden",
     edit: "Bearbeiten",
     undo: "R\u{fc}ckg\u{e4}ngig",
@@ -301,6 +304,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let export_sheet_item = MenuItemBuilder::with_id("menu:exportSheet", l.export_sheet)
         .accelerator("CmdOrCtrl+Shift+E")
         .build(app)?;
+    let export_animation_item =
+        MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
 
     let file = SubmenuBuilder::new(app, l.file)
         .item(&new_item)
@@ -312,6 +317,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .separator()
         .item(&export_png_item)
         .item(&export_sheet_item)
+        .item(&export_animation_item)
         .separator()
         .item(&PredefinedMenuItem::quit(app, Some(l.quit))?)
         .build()?;
