@@ -211,7 +211,7 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `initialize_announces_name_version_and_capabilities` (`crates/pincel-mcp/src/server.rs`); `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
 | AC-02 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-03 | `doc_new_creates_active_document_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-04 | `doc_new_palette_is_preset_or_db32` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
@@ -244,15 +244,15 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC-31 | `doc_save_without_path_on_new_document_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-32 | `export_png_equals_preview_without_grid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-33 | `export_sheet_lays_out_frames_and_writes_sheet_json` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-34 |      | open   |        |
-| AC-35 |      | open   |        |
-| AC-36 |      | open   |        |
-| AC-37 |      | open   |        |
-| AC-38 |      | open   |        |
-| AC-39 |      | open   |        |
-| AC-40 |      | open   |        |
-| AC-41 |      | open   |        |
-| AC-42 |      | open   |        |
+| AC-34 | `resolve_rejects_parent_escape_and_absolute_paths`, `write_outside_writes_nothing`, `symlink_leading_out_is_refused` (unix) (`crates/pincel-mcp/src/sandbox.rs`); `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-35 | `parse_args_reads_workspace_and_read_only` (`crates/pincel-mcp/src/lib.rs`); `workspace_option_and_read_only_mode`, `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-36 | `read_only_refuses_writes_but_reads` (`crates/pincel-mcp/src/sandbox.rs`); `workspace_option_and_read_only_mode` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-37 | `unknown_tool_and_bad_arguments_are_named_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-38 | `invalid_json_gets_parse_error_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-39 | `resources_list_and_read_palette_presets` (`crates/pincel-mcp/src/server.rs`); `list_resources_has_one_uri_per_preset`, `read_resource_returns_the_preset_colors` (`crates/pincel-agent/src/resources.rs`) | built |        |
+| AC-40 | `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-41 | manual pending — `build pincel-mcp` step in `.github/workflows/release.yml` (desktop job: Windows x64, macOS universal, Linux x64) | built |        |
+| AC-42 | manual pending — README section "Use Pincel from an AI agent (MCP)" | built |        |
 | AC-43 | `paint_target_defaults_to_active_layer_and_frame` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
 | AC-44 | `read_pixels_index_format_uses_first_exact_palette_match` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
 | AC-45 | `preview_above_2048_cap_fails_suggesting_region` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
@@ -286,3 +286,9 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 - 2026-10-29 (build): arguments are validated against the tool schema before every call by one schema-subset validator; a range error reads "`{arg}` must be {min}–{max}" (AC-46's "width must be 1–4096"), and an enum error names the rejected value (AC-27).
 - 2026-10-29 (build): `pincel-agent` encodes PNGs with the workspace `png` crate (already in the lockfile through `pincel-core`) — no new dependency.
 - 2026-10-29 (build): the `pincel-agent` block was written code-first in the orchestrated run and its tests right after, so no red run is recorded for it.
+- 2026-10-29 (build): `pincel-mcp` pins MCP protocol revision `2025-06-18`; 2025-11-25 is the newest revision known at build time, but the surface used here (tools, image content, `structuredContent`, `isError`, resources) is the same in both, and the older pin keeps more clients connecting — bump it in `server.rs` (`PROTOCOL_VERSION`) when clients drop it.
+- 2026-10-29 (build): an unknown tool is a JSON-RPC error (`-32602`) naming the tool; arguments that fail the schema, and every tool refusal, are a tool result with `isError: true` whose text names the tool and the argument, so the model can correct the call; an unknown resource is `-32002`; JSON-RPC batches are answered with `-32600` (MCP 2025-06-18 dropped batching).
+- 2026-10-29 (build): `pincel-mcp` is a library (`Server`, `Sandbox`, `parse_args`) plus a thin `main.rs`; `Server::handle` takes one parsed message so `mcp-live-desktop` can reuse it over HTTP. Base64 for image content is in-house (no dependency).
+- 2026-10-29 (build): the sandbox canonicalizes the workspace once, resolves `..` lexically (refusing any climb above the root), refuses absolute and drive-prefixed paths, and canonicalizes the deepest existing ancestor of every path so a symlink leading out is refused; writes create missing directories inside the workspace. Exit codes follow `cli.md` (2 usage, 3 I/O).
+- 2026-10-29 (build): release binaries are named `pincel-mcp-windows-x64.exe`, `pincel-mcp-macos-universal` (lipo of aarch64 + x86_64) and `pincel-mcp-linux-x64`, built in the existing desktop job, so `SHA256SUMS` covers them.
+- 2026-10-29 (build): the gate lists (`.claude/gates.json`, CI clippy / test, AGENTS.md §10) still name only the six library crates; `pincel-agent` and `pincel-mcp` need adding there by the owner (gate configuration).

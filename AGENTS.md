@@ -485,6 +485,8 @@ crates/pincel-effects/        Stateless effects + adjustments, shared by both co
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
+crates/pincel-agent/          Agent (MCP) tools over pincel-core, platform-free, no I/O
+crates/pincel-mcp/            `pincel-mcp` binary: MCP over stdio + workspace sandbox
 
 ui/                           Svelte 5 + Vite frontend (PWA + Tauri)
 ui/src/App.svelte             Two-mode shell: start screen, New dialog, mode routing
