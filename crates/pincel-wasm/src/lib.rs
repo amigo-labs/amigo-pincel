@@ -25,6 +25,7 @@ mod import;
 mod layer_ops;
 mod selection_ops;
 mod shapes;
+mod stroke;
 mod text;
 mod timeline;
 mod transforms;
@@ -76,6 +77,8 @@ pub struct Document {
     /// off. View state, not part of the document. See
     /// [`Document::set_onion_skin`].
     onion_skin: Option<OnionSkin>,
+    /// The Pencil / Eraser gesture between `beginStroke` and `endStroke`.
+    stroke: Option<stroke::LiveStroke>,
 }
 
 #[wasm_bindgen]
@@ -116,6 +119,7 @@ impl Document {
             active_layer: None,
             current_frame: FrameIndex::new(0),
             onion_skin: None,
+            stroke: None,
         })
     }
 
@@ -135,6 +139,7 @@ impl Document {
             active_layer: None,
             current_frame: FrameIndex::new(0),
             onion_skin: None,
+            stroke: None,
         })
     }
 
@@ -800,6 +805,7 @@ impl Document {
     /// it with no stroke in flight is harmless.
     #[wasm_bindgen(js_name = endStroke)]
     pub fn end_stroke(&mut self) {
+        self.stroke = None;
         self.bus.seal();
     }
 
