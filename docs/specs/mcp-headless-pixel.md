@@ -55,12 +55,12 @@ From the design spec `docs/specs/mcp.md` (draft, 2026-05-13) this keeps the agen
 - [ ] AC-04 (option): Where `doc.new` gets a `palette` preset id, the new document's palette equals that built-in preset; without it, the palette equals the default of a New Pixel document in the editor (DB32).
 - [ ] AC-05 (always): A tool called without `doc` acts on the active document; a tool called with `doc` acts on that document and leaves every other open document unchanged.
 - [ ] AC-06 (error): If `doc` names no open document, or a document tool is called while no document is open, then the call fails with `isError: true` and a message naming the missing id (or saying that no document is open), and no document changes.
-- [ ] AC-07 (event): When the client calls `doc.list` or `doc.info`, then each document's width, height, layers, frames, tags, palette size and dirty state are reported; the dirty state is true after a successful mutating call and false after `doc.save`.
+- [ ] AC-07 (event): When the client calls `doc.list` or `doc.info`, then each document's width, height, layers, frames, tags, palette size, active layer, active frame and dirty state are reported; the dirty state is true after a successful mutating call and false after `doc.save`.
 - [ ] AC-08 (event): When the client calls `doc.close`, then the document is no longer listed by `doc.list`, and a later call naming its id fails as in AC-06.
 - [ ] AC-09 (always): Every successful mutating tool call that changes the document is exactly one undo step: one `doc.undo` returns the document to its exact state before the call, and one `doc.redo` re-applies the whole call.
 - [ ] AC-10 (event): When the client calls `doc.undo` or `doc.redo`, then the result reports the new undo and redo depths.
-- [ ] AC-11 (event): When the client calls `doc.preview`, then the result contains MCP image content holding a PNG of the composed frame in which every document pixel is an s×s block of one color — s being `scale`, or, without `scale`, the smallest integer that makes the longest side at least 256 px (s = 1 when the longest side already is) — and the result states the PNG's width and height.
-- [ ] AC-12 (option): Where `doc.preview` gets `frame` or `region`, the preview shows that frame, or only that rectangle of the frame; where it gets `grid: true`, it differs from the same preview without grid only on pixels at the boundaries between document-pixel blocks.
+- [ ] AC-11 (event): When the client calls `doc.preview`, then the result contains MCP image content holding a PNG of the composed frame in which every document pixel is an s×s block of one color — s being `scale`, or, without `scale`, the smallest integer that makes the longest side at least 256 px (s = 1 when the longest side already is), never below 1 — and the result states the PNG's width and height. The PNG is at most 2048 px on each edge (AC-45).
+- [ ] AC-12 (option): Where `doc.preview` gets `frame` or `region`, the preview shows that frame, or only that rectangle of the frame; where it gets `grid: true` and the scale is at least 4, it differs from the same preview without grid only in a 1-px line of `#808080` at 50 % alpha on the first row and the first column of every document-pixel block; where the scale is below 4, no grid is drawn and the result says "grid omitted below scale 4".
 - [ ] AC-13 (event): When the client calls `doc.read_pixels` with a region of at most 64×64 and `format: "hex"`, then the result has one text row per pixel row of the region with one color per pixel, equal to the pixels of the given layer's cel in the given frame, or of the composed frame when no layer is given.
 - [ ] AC-14 (error): If `doc.read_pixels` gets a region larger than 64×64 in either dimension, or a region outside the canvas, then the call fails with `isError: true` and a message stating the limit or the canvas size.
 - [ ] AC-15 (event): When `layer.add`, `layer.set` (name, visible, opacity, blend, locked) or `layer.remove` succeed, then `layer.list` reports the changed layer stack in order with these properties; a layer added or set with `parent` is a child of that group.
@@ -91,6 +91,10 @@ From the design spec `docs/specs/mcp.md` (draft, 2026-05-13) this keeps the agen
 - [ ] AC-40 (event): When a client spawns `pincel-mcp` in an empty temporary workspace and runs `initialize` → `tools/list` → `doc.new` → `draw.pixels` → `doc.preview` → `export.png`, then the preview result contains image content, and the exported PNG exists inside the workspace and contains the drawn pixels.
 - [ ] AC-41 (event, manual: only a published release runs the release workflow): When a release is published, its assets include a `pincel-mcp` binary for each desktop platform the release workflow builds.
 - [ ] AC-42 (always, manual: documentation): The README documents installing `pincel-mcp` and registering it with Claude Code via `claude mcp add pincel -- pincel-mcp --workspace .`.
+- [ ] AC-43 (always): `draw.*`, `selection.*` and `effect.apply` take optional `layer` (an id from `layer.list`) and `frame` (an index) arguments; without them they act on the document's active layer and frame — the active layer being the active image layer or, if none is active, the lowest image layer, as in the editor. `layer.add` and `frame.add` make the new layer or frame active; explicit `layer` / `frame` arguments do not change which layer or frame is active.
+- [ ] AC-44 (event): When the client calls `doc.read_pixels` with `format: "index"`, then each pixel is written as the decimal index of the first palette entry with exactly that RGBA value, or as `-` when no entry matches (fully transparent pixels included when no palette entry is transparent).
+- [ ] AC-45 (error): If `doc.preview` at the given `scale` (or at scale 1) would produce a PNG wider or taller than 2048 px, then the call fails with `isError: true`, the message names the 2048 px cap and suggests `region`, and no image is returned.
+- [ ] AC-46 (error): If `doc.new` gets a `width` or `height` outside 1–4096, then the call fails with `isError: true` and the message "width must be 1–4096" (or "height must be 1–4096"), and no document is added.
 
 ## Technical notes
 
@@ -102,7 +106,11 @@ Hints from the legacy plan (2026-10-28). Paths and line numbers drift — grep f
 - Move the Pixel `Document` operations into plain Rust (a plain module, a `pincel-core::session` façade, or the `pincel-agent` crate itself); `pincel-wasm` keeps thin `#[wasm_bindgen]` wrappers (CLAUDE.md §5.5).
 - Done when all existing wasm tests stay green with no behavior change, as pure `refactor(...)` commits. The Image counterpart (`CommandSpec` dispatch in `pincel-image-wasm`) is the prerequisite of `mcp-headless-image`.
 
-**Docs prerequisite.** The plan's first commit adds a status note at the top of `docs/specs/mcp.md` pointing to the MCP feature specs, plus the Decision Log entries (see Open questions).
+**Docs prerequisite.** A status note at the top of `docs/specs/mcp.md` points to the MCP feature specs; the Decision Log entries for the protocol loop and the agent architecture are recorded (see Decisions).
+
+**Protocol.** JSON-RPC 2.0 through an in-house loop, newline-delimited over stdio, `serde_json` only (no `rmcp`, no tokio in `pincel-mcp`). The server pins one MCP protocol revision (`2025-06-18` at the time of writing; confirm the current one when implementing) and answers `initialize` with it. The dispatch stays transport-agnostic so `mcp-live-desktop` reuses it over HTTP.
+
+**Schemas.** Each tool's input schema is hand-written as a `serde_json::json!` next to the tool (no `schemars`). The test `tool_schemas_are_valid` checks that every schema parses, that every `required` entry is in `properties` (AC-02), and that one example call per tool validates against its schema.
 
 **Architecture (plan).** One tool layer, two hosts:
 
@@ -127,7 +135,7 @@ The host owns file I/O and passes bytes in and out. Session: `Workspace { docs: 
 | ---- | ---- | ------- |
 | `doc.new` | `mode: pixel`, `width`, `height`, `palette?` (preset id) | `doc` id, info |
 | `doc.open` | `path` (workspace-relative `.aseprite`) | `doc`, info |
-| `doc.list` / `doc.info` / `doc.close` | — | sizes, layers, frames, tags, palette size, dirty |
+| `doc.list` / `doc.info` / `doc.close` | — | sizes, layers, frames, tags, palette size, active layer and frame, dirty |
 | `doc.preview` | `frame?`, `scale?`, `grid?: bool`, `region?` | image content (PNG) + size |
 | `doc.read_pixels` | `region` (≤ 64×64), `layer?`, `frame?`, `format: hex\|index` | rows of colors as text |
 | `doc.undo` / `doc.redo` | — | new undo / redo depth |
@@ -137,15 +145,15 @@ The host owns file I/O and passes bytes in and out. Session: `Workspace { docs: 
 | `frame.add` (`clone_from?`, `duration_ms?`) / `frame.remove` / `frame.set_duration` / `frame.list` | | |
 | `tag.add` / `tag.remove` / `tag.list` | name, from, to, direction | |
 | `palette.get` / `palette.set` (entries) / `palette.load_preset` | | |
-| `draw.pixels` | batch `[{x, y, color}]` | |
-| `draw.line` / `draw.rect` / `draw.ellipse` | `filled?` | |
-| `draw.fill` | `contiguous?` | |
-| `draw.clear` | `region?` | |
-| `selection.set_rect` / `selection.clear` | | |
-| `effect.apply` | `id` + `params` (`pincel-effects` catalog) | |
+| `draw.pixels` | batch `[{x, y, color}]`, `layer?`, `frame?` | |
+| `draw.line` / `draw.rect` / `draw.ellipse` | `filled?`, `layer?`, `frame?` | |
+| `draw.fill` | `contiguous?`, `layer?`, `frame?` | |
+| `draw.clear` | `region?`, `layer?`, `frame?` | |
+| `selection.set_rect` / `selection.clear` | `layer?`, `frame?` | |
+| `effect.apply` | `id` + `params` (`pincel-effects` catalog), `layer?`, `frame?` | |
 | `export.sheet` | `columns`, `tag?`, `scale?`, `path`, `json?` | |
 
-Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `frame_id?` as well; the plan does not (see Open questions).
+Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` also take `layer?` (id from `layer.list`) and `frame?` (index); the defaults reuse the editor's paint target (`paint_target_layer_id` in `crates/pincel-wasm`, AC-43). `doc.new` bounds follow `NEW_DOC_LIMITS.pixel.max` (4096) in `ui/src/lib/shell/new-doc.ts` (AC-46).
 
 **Existing code to reuse.** Sheet export: `export_atlas_png` (`crates/pincel-core/src/codec/png.rs`), `aseprite_sheet_json` (`codec/sheet_data.rs`). PNG: `export_frame_png`. Palette presets: `PalettePreset { Db32, Db16, Pico8, GameBoy, Nes }` (Decision Log 2026-10-12). Effects: `pincel_effects::EffectSpec` (`crates/pincel-effects/src/spec.rs`). Selection: `pincel_core::SelectionMask`. Locked layers: `Sprite::layer_locked` (Decision Log 2026-10-12).
 
@@ -161,7 +169,7 @@ Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `
 | `validate.*` with banding / hue-shift | No validation code yet; later phase |
 | `.ait` export | Not in this repo; out of scope |
 
-**Testing hints.** Unit tests per tool in `pincel-agent` (args validation, one undo step per call, error messages), e.g. `draw_pixels_batch_is_one_undo_step`, `preview_scales_nearest_and_returns_png`, `read_pixels_hex_grid_matches_cel`. An integration test spawns the binary and speaks JSON-RPC over stdin/stdout (AC-40); a sandbox test rejects `../x.png`.
+**Testing hints.** Unit tests per tool in `pincel-agent` (args validation, one undo step per call, error messages), e.g. `draw_pixels_batch_is_one_undo_step`, `preview_scales_nearest_and_returns_png`, `read_pixels_hex_grid_matches_cel`, `tool_schemas_are_valid`. An integration test spawns the binary and speaks JSON-RPC over stdin/stdout (AC-40); a sandbox test rejects `../x.png`.
 
 ## Edge cases
 
@@ -174,6 +182,10 @@ Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `
 | Path `../x.png`, `/etc/passwd`, or a workspace symlink pointing outside | `E007: path outside workspace`, nothing read or written |
 | `doc.open` of a corrupt or non-`.aseprite` file | `isError: true` naming the file; no document added |
 | `doc.preview` of a 1×1 sprite without `scale` | Scale 256, a 256×256 PNG |
+| `doc.preview` with `grid: true` at scale 1–3 | No grid drawn; the result says "grid omitted below scale 4" (AC-12) |
+| `doc.preview` of a 4096×4096 sprite without `region` | Fails: scale 1 already exceeds the 2048 px cap; the message suggests `region` (AC-45) |
+| `doc.read_pixels` `format: "index"` on a color not in the palette | `-` for that pixel (AC-44) |
+| `doc.new` with `width: 5000` | Fails with "width must be 1–4096"; no document added (AC-46) |
 | `doc.read_pixels` region exactly 64×64 | Allowed; 65 in either dimension fails (AC-14) |
 | `doc.close` on a dirty document | Closed without saving (Assumption) |
 | Two `doc.new` calls | Two documents with distinct ids; the second becomes active |
@@ -193,14 +205,7 @@ Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `
 
 ## Open questions
 
-- MCP protocol: the official Rust SDK `rmcp` (new dependency, pulls tokio into the binary only; check version, license, protocol revision and binary size first) or a minimal in-house JSON-RPC 2.0 stdio loop (≈300 lines, no dependency; the plan recommends in-house)? Needs the user's decision and a Decision Log entry.
-- Tool input schemas: derived with `schemars` (new dependency) or hand-written next to each tool (the plan recommends hand-written, with a test that every schema parses and every example call validates)? Needs the user's decision.
-- The Decision Log entry for the agent architecture (one platform-free `pincel-agent` crate, two hosts; new crates `pincel-agent` and `pincel-mcp`) and the status note in `mcp.md` are not written yet — confirm and write them with this spec.
-- Which layer and frame do `draw.*`, `selection.*` and `effect.apply` act on? `mcp.md` gives drawing tools `layer_id?` / `frame_id?`, the plan lists none — are they arguments, and which layer and frame are used when omitted?
-- What does `doc.read_pixels` with `format: "index"` return for a pixel whose color is not in the palette, or for an RGBA (non-indexed) sprite?
-- What does `grid: true` draw in `doc.preview` (line color, width), and what happens at scales 1–2 where a grid line would cover a whole pixel block?
-- Should `doc.preview` cap its output size for large sprites (up to 4096²), e.g. by downscaling, or always return scale ≥ 1?
-- What size limits does `doc.new` enforce for Pixel documents (the editor's New-dialog limits?), and what error does an oversized request get?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -248,6 +253,10 @@ Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `
 | AC-40 |      | open   |        |
 | AC-41 |      | open   |        |
 | AC-42 |      | open   |        |
+| AC-43 |      | open   |        |
+| AC-44 |      | open   |        |
+| AC-45 |      | open   |        |
+| AC-46 |      | open   |        |
 
 ## Decisions
 
@@ -257,3 +266,11 @@ Every tool takes an optional `doc`. `mcp.md` gives drawing tools `layer_id?` / `
 - Every mutating tool call is one undo step — agents and users can revert a call as a unit; the same rule holds in live mode (plan).
 - The headless server opens no network connection and touches files only inside the workspace; documents stay in memory until `doc.save` / `export.*` — the sandbox from `mcp.md` (plan).
 - The Pixel / Image split of the v1 tools across `mcp-headless-pixel` and `mcp-headless-image`, and `pincel://palettes/{id}` here, follow the plan's task order (Pixel tools and host first, Image tools with the guide and effect resources second) — migration, 2026-10-29.
+- 2026-10-29: MCP speaks JSON-RPC 2.0 through an in-house newline-delimited stdio loop (no `rmcp`); `pincel-mcp` keeps tokio out, pins one MCP protocol revision, and the dispatch stays transport-agnostic for `mcp-live-desktop` — the surface is small (initialize, tools/*, resources/*, ping) and `rmcp` would add tokio and an SDK that follows a fast-moving protocol; §15 row recorded with the 2026-10-29 Decision Log batch (owner accepted the recommendation).
+- 2026-10-29: Tool input schemas are hand-written as `serde_json::json!` next to each tool and checked by `tool_schemas_are_valid` — no new direct dependency (`schemars` is only transitive), and descriptions written for models read better by hand (owner accepted the recommendation).
+- 2026-10-29: Agent tools live in one platform-free crate `pincel-agent` (over `pincel-core` / `pincel-image-core`, no I/O), hosted by the new binary `pincel-mcp` (stdio) and later the desktop app (live mode); `mcp.md` carries a status note that the `mcp-*` feature specs supersede it — two new crates and a public tool surface must go on record (CLAUDE.md §3.3); §15 row recorded with the 2026-10-29 Decision Log batch (owner accepted the recommendation).
+- 2026-10-29: `draw.*`, `selection.*` and `effect.apply` take optional `layer` / `frame`; omitted, they use the active layer and frame by the editor's paint-target rule, `layer.add` / `frame.add` make the new item active, and `doc.info` reports both (AC-43, AC-07) — live mode then behaves the same (the agent draws where the user is looking) and the defaults reuse the editor rule (owner accepted the recommendation).
+- 2026-10-29: `doc.read_pixels` `format: "index"` returns the first palette entry with exactly that RGBA, or `-` when none matches, on any Pixel sprite (AC-44) — exact, lossless to read and the same "first occurrence" rule as shading-ink; Pixel mode has no indexed sprites (owner accepted the recommendation).
+- 2026-10-29: `grid: true` draws a 1-px `#808080` line at 50 % alpha on the first row and column of every block and is omitted below scale 4 with a note (AC-12) — mid-grey at half alpha shows on light and dark art, and below scale 4 a grid line would hide most of a block (owner accepted the recommendation).
+- 2026-10-29: `doc.preview` never downscales; the PNG is capped at 2048 px per edge and an oversized request fails suggesting `region` (AC-11, AC-45) — the preview must stay pixel-exact, and MCP clients downscale large images anyway (owner accepted the recommendation).
+- 2026-10-29: Pixel `doc.new` enforces the editor's 1–4096 per side and fails with "width must be 1–4096" (AC-46) — a document the agent creates must also open and edit in the editor (owner accepted the recommendation).
