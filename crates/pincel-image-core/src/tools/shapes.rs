@@ -716,8 +716,10 @@ mod tests {
         doc.layers[0]
             .pixels
             .data()
-            .chunks_exact(4)
-            .map(|px| px[3])
+            .iter()
+            .skip(3)
+            .step_by(4)
+            .copied()
             .collect()
     }
 
@@ -740,7 +742,7 @@ mod tests {
         let hard = drawn_alpha(30, ellipse, fill_style(Color::BLACK));
         assert!(partial(&smooth) > 0, "anti-aliased edge has partial pixels");
         assert_eq!(partial(&hard), 0, "aliased edge is all-or-nothing");
-        assert!(hard.iter().any(|&a| a == 255));
+        assert!(hard.contains(&255));
     }
 
     #[test]

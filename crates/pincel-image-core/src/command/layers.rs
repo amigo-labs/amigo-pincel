@@ -241,8 +241,10 @@ mod tests {
             doc.layers[2]
                 .pixels
                 .data()
-                .chunks_exact(4)
-                .all(|px| px[3] == 0),
+                .iter()
+                .skip(3)
+                .step_by(4)
+                .all(|&a| a == 0),
             "the new layer is fully transparent"
         );
 
