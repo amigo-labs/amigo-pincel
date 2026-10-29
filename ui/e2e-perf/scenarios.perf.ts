@@ -195,8 +195,7 @@ test('image 4K, 10 layers: brush, pan / zoom, recompose, effect, save and export
   });
 });
 
-test('image 4K, 10 layers: memory after 50 undo steps', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('image 4K, 10 layers: memory after 50 undo steps', async ({ page }) => {
   const surface = await imageDoc4k(page);
   await page.keyboard.press('b');
   const c = await box(surface);
@@ -214,10 +213,17 @@ test('image 4K, 10 layers: memory after 50 undo steps', async ({ page, context }
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(dialog).toBeHidden({ timeout: 60_000 });
   }
-  // 3 merge-downs.
-  for (let i = 0; i < 3; i++) await menu(page, 'Layer', 'Merge Down');
-  // 2 pastes of 1024².
-  for (let i = 0; i < 2; i++) {
+  // 3 merge-downs, then 2 pastes of 1024². Each step is confirmed by the
+  // layer count before the next starts. The paste is a `paste` event
+  // carrying the PNG (the Ctrl+V path into the same paste command), not
+  // the async Clipboard API: that reads the shared system clipboard and
+  // returns nothing while the page lacks focus, so a paste could be lost.
+  const layers = page.getByRole('button', { name: /^Hide / });
+  for (let n = 9; n >= 7; n--) {
+    await menu(page, 'Layer', 'Merge Down');
+    await expect(layers).toHaveCount(n, { timeout: 60_000 });
+  }
+  for (let n = 8; n <= 9; n++) {
     await page.evaluate(async () => {
       const canvas = new OffscreenCanvas(1024, 1024);
       const ctx = canvas.getContext('2d');
@@ -225,11 +231,14 @@ test('image 4K, 10 layers: memory after 50 undo steps', async ({ page, context }
       ctx.fillStyle = '#29adff';
       ctx.fillRect(0, 0, 1024, 1024);
       const blob = await canvas.convertToBlob({ type: 'image/png' });
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      const data = new DataTransfer();
+      data.items.add(new File([blob], 'paste.png', { type: 'image/png' }));
+      document.body.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+      );
     });
-    await menu(page, 'Edit', 'Paste');
+    await expect(layers).toHaveCount(n, { timeout: 60_000 });
   }
-  await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(9, { timeout: 60_000 });
   const rec = await stopRecording(page);
   record('image-memory-4k', 'Memory, 4K x 10 layers with 50 undo steps', {
     ...frameMetrics(rec),
