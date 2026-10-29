@@ -120,7 +120,7 @@ pub struct OnionSkin { pub previous_alpha: u8, pub next_alpha: u8, pub frames_ba
 | AC-09 | `pincel-core: render::compose::tests::group_layer_is_skipped_and_children_render` | built | |
 | AC-10 | `pincel-core: render::blend::tests::blend_over_transparent_backdrop_equals_source` | built | |
 | AC-11 | `pincel-core: render::blend::tests::multiply_blends_channels`, `screen_blends_channels`, `overlay_matches_hardlight_swapped`, `darken_takes_min_and_lighten_takes_max`, `addition_saturates_at_255` | built | |
-| AC-12 |      | open   | |
+| AC-12 | `pincel-core: render::blend::tests::separable_modes_match_w3c_reference_for_every_channel_pair`, `separable_modes_hit_their_exact_terms_at_known_points`, `separable_modes_compose_opaque_source_as_blend_term` | built | |
 | AC-13 | `pincel-core: render::blend::tests::hsl_modes_match_w3c_reference_values`, `hsl_modes_compose_opaque_source_as_blend_term`, `hsl_modes_keep_the_luminance_they_promise` | built | |
 | AC-14 | `pincel-core: render::blend::tests::blend_with_translucent_source_matches_w3c_formula`, `hsl_modes_with_translucent_source_mix_like_separable_modes` | built | |
 | AC-15 | `pincel-core: render::tilemap_layer::tests::tilemap_renders_tile_at_grid_position`, `tilemap_cel_position_offsets_tile_placement`, `tilemap_empty_tile_id_zero_is_skipped_without_consulting_tileset`, `tilemap_flip_x_mirrors_tile_horizontally`, `tilemap_flip_y_mirrors_tile_vertically`, `tilemap_rotate_90_rotates_clockwise` | built | |
@@ -132,7 +132,7 @@ pub struct OnionSkin { pub previous_alpha: u8, pub next_alpha: u8, pub frames_ba
 | AC-21 | `pincel-core: render::compose::tests::rejects_linked_cel` | built | |
 | AC-22 | `pincel-core: render::compose::tests::rejects_overlays_request` | built | |
 | AC-23 | `pincel-core: render::compose::tests::rejects_cel_with_wrong_color_mode`, `rejects_malformed_cel_buffer`, `rejects_tilemap_data_on_image_layer`, `tilemap_image_cel_on_tilemap_layer_errors`; `render::tilemap_layer::tests::tilemap_missing_tileset_errors`, `tilemap_dangling_tile_id_errors`, `tilemap_malformed_cel_buffer_errors`, `tilemap_grid_whose_tile_count_overflows_usize_errors`, `tilemap_rotate_90_on_non_square_errors` | built | |
-| AC-24 |      | open   | |
+| AC-24 | `pincel-core: render::tilemap_layer::tests::tilemap_tile_with_wrong_image_size_errors` | built | |
 | AC-25 |      | open   | |
 | AC-26 |      | open   | |
 | AC-27 |      | open   | |
@@ -140,3 +140,6 @@ pub struct OnionSkin { pub previous_alpha: u8, pub next_alpha: u8, pub frames_ba
 
 ## Decisions
 
+- AC-12: the blend term is checked against an independent float reference of the W3C / Aseprite formulas with a tolerance of ±1 per channel (exhaustively over all 256×256 channel pairs), plus exact hand-derived values at each mode's clamps — because the Decision Log (2026-10-27) fixes Pincel's own integer rounding, not bit-exact parity.
+- AC-12: the three new tests were green at once (the behavior exists). A temporary break of the Exclusion term (`2·Cb·Cs` → `Cb·Cs`) turned all three red (`Exclusion(255, 255)`, `Exclusion channel 0: 209 vs reference 177`, `Exclusion(Cb=2, Cs=160) = 161, reference 159`); restored afterwards.
+- AC-24: `tilemap_tile_with_wrong_image_size_errors` was green at once (the behavior exists). A temporary `if false &&` on the tile-size check in `composite_tilemap_cel` turned it red; restored afterwards.

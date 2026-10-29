@@ -465,6 +465,40 @@ mod tests {
     }
 
     #[test]
+    fn tilemap_tile_with_wrong_image_size_errors() {
+        // Tileset declares 2x2 tiles, but tile 1's image is 3x2.
+        let mut ts = Tileset::new(TilesetId::new(0), "tiles", (2, 2));
+        ts.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(2, 2, ColorMode::Rgba),
+        });
+        ts.tiles.push(TileImage {
+            pixels: solid(3, 2, [10, 20, 30, 255]),
+        });
+        let sprite = Sprite::builder(4, 4)
+            .add_layer(Layer::tilemap(LayerId::new(0), "tm", TilesetId::new(0)))
+            .add_frame(Frame::default())
+            .add_tileset(ts)
+            .build()
+            .unwrap();
+        let mut cels = CelMap::new();
+        cels.insert(tilemap_cel(
+            LayerId::new(0),
+            1,
+            1,
+            vec![TileRef::new(1)],
+            (0, 0),
+        ));
+        assert_eq!(
+            compose_owned(&sprite, &cels, &full_req(4, 4)).unwrap_err(),
+            RenderError::TileSizeMismatch {
+                layer: LayerId::new(0),
+                tileset: TilesetId::new(0),
+                tile_id: 1,
+            }
+        );
+    }
+
+    #[test]
     fn tilemap_empty_tile_id_zero_is_skipped_without_consulting_tileset() {
         // An empty tileset (only tile 0 is implied) + cel referencing only
         // tile id 0 should compose to a fully transparent canvas without
