@@ -30,6 +30,7 @@ A **Preview** panel in Pixel mode shows the animation at 1×, 2×, 4× or Fit an
 - Previewing tile-wrapped output — because it belongs to `symmetry-tiled-mode`.
 - Exporting from the preview — because export already has its own menu and dialogs.
 - A preview in Image mode — because Image documents have no frames.
+- A keyboard shortcut for the Preview panel — because F7 (Aseprite) is caret browsing in browsers; it can be bound later via the keymap spec.
 
 ## Acceptance criteria
 
@@ -41,7 +42,7 @@ A **Preview** panel in Pixel mode shows the animation at 1×, 2×, 4× or Fit an
 - [ ] AC-06 (state): While a loop tag is set in the timeline, preview playback stays within that tag's frames and follows its direction (forward, reverse, ping-pong); without a loop tag it plays all frames forward.
 - [ ] AC-07 (always): During preview playback each frame stays shown for its frame duration: with frame durations of 100 ms and 1000 ms, the 1000 ms frame is shown for clearly longer than the 100 ms frame.
 - [ ] AC-08 (always): The preview never shows onion-skin ghosts: with onion skin on in the timeline, an element screenshot of the paused preview equals the one with onion skin off.
-- [ ] AC-09 (always): The public wasm `compose(frame, zoom)` keeps its signature and output (onion skin applied as configured); compositing a frame without onion skin returns the same bytes as `compose` with onion skin disabled.
+- [ ] AC-09 (always): The public wasm `compose(frame, zoom)` keeps its signature and output (onion skin applied as configured); `composeFrame(frame, zoom, false)` returns the same bytes as `compose` with onion skin disabled.
 - [ ] AC-10 (option): Where the preview zoom is 1×, 2× or 4×, the preview's displayed size is the sprite size times that factor in CSS px; where it is Fit, the preview is the largest whole-sprite size that fits the panel, keeping the aspect ratio.
 - [ ] AC-11 (always, manual: visual rendering quality): The preview shows crisp, unsmoothed sprite pixels at every zoom, without blur at pixel edges.
 - [ ] AC-12 (always): Main-canvas playback keeps working as before: Enter or the timeline's play button still advances the timeline's current frame.
@@ -60,7 +61,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 **State.** `ui/src/modes/pixel/stores/editor.svelte.ts`: `play` (`playInit()` ≈L111), `ed.currentFrame` / `ed.frameCount`, `live.playHandle` (≈L155). Plan design: a `preview` state `{ playing, cursor, zoom: 1 | 2 | 4 | 'fit' }`.
 
-**Compose.** `ui/src/modes/pixel/render.ts` `recompose()` calls `ed.doc.compose(ed.currentFrame, 1)`, `renderer.draw(frame)`, `frame.free()`. wasm `compose(frame, zoom)` in `crates/pincel-wasm/src/lib.rs` (≈L470) always applies the document's onion skin (`request.onion_skin = self.onion_skin`, ≈L515); the onion settings come from `set_onion_skin` in `crates/pincel-wasm/src/timeline.rs` (≈L203). Onion math tests live in `crates/pincel-core/src/render/onion.rs`. Plan recommendation: a new `composeFrame(frame: u32, zoom: u32, onion: bool)` with `compose` delegating to it, so the existing npm API (§17.5) stays unchanged; test name suggestion `compose_frame_without_onion_ignores_onion_settings`.
+**Compose.** `ui/src/modes/pixel/render.ts` `recompose()` calls `ed.doc.compose(ed.currentFrame, 1)`, `renderer.draw(frame)`, `frame.free()`. wasm `compose(frame, zoom)` in `crates/pincel-wasm/src/lib.rs` (≈L470) always applies the document's onion skin (`request.onion_skin = self.onion_skin`, ≈L515); the onion settings come from `set_onion_skin` in `crates/pincel-wasm/src/timeline.rs` (≈L203). Onion math tests live in `crates/pincel-core/src/render/onion.rs`. Decided (2026-10-29): a new `composeFrame(frame: u32, zoom: u32, onion: bool)` with `compose` delegating to it with `onion = true`, so the existing npm API (§17.5) stays unchanged; test name suggestion `compose_frame_without_onion_ignores_onion_settings`.
 
 **Cost.** Compose only when the shown frame or the document changes; cache the last image per frame and invalidate on any edit (find the dirty / revision signal `render.ts` uses — `recomposeDirty`, `canRecomposeDirty` ≈L130–141, and the `dirty-canvas` / `dirty-rect` events ≈L182). Stop the loop when the panel is collapsed or `document.visibilityState` is hidden.
 
@@ -93,8 +94,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 ## Open questions
 
-- Decision Log entry not yet written: the docked side panel (instead of a floating window) and the new public wasm API for compositing without onion skin (§17.5). Confirm the API shape — a new `composeFrame(frame, zoom, onion)` (plan recommendation) or an `onion` parameter on `compose`.
-- Default shortcut for the Preview panel: none, or F7 (Aseprite's key, which browsers and OSes may grab)? The plan leaves it to the session.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -122,3 +122,5 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The preview is a docked side panel using the existing panel system — responsive, persisted and collapsible without new layout infrastructure.
 - 2026-10-28 (legacy plan): The preview has its own cursor and loop and never changes the timeline's current frame — that is the point of watching while drawing.
 - 2026-10-28 (legacy plan): The shown frame index is exposed as a `data-frame` attribute for tests — tests must not read canvas pixels.
+- 2026-10-29: The preview composites through a new public wasm `composeFrame(frame, zoom, onion)`; `compose(frame, zoom)` keeps its signature and delegates with `onion = true`, and a Decision Log entry records the docked panel and the API addition — adding a parameter to `compose` would change a published signature, a new method keeps the §17.5 npm surface backward compatible (owner accepted the recommendation).
+- 2026-10-29: The Preview panel has no default shortcut; it opens through its panel header / sheet tab (and the View menu if one lists panels) — browsers use F7 for caret browsing and would prompt or steal the key in the web build, and `shortcuts.ts` should not ship a desktop-only key (owner accepted the recommendation).
