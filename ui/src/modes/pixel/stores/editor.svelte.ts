@@ -146,6 +146,8 @@ function dialogsInit() {
     effect: null as EffectDef | null,
     resize: null as ResizeMode | null,
     sheet: false,
+    /** File ▸ Export ▸ Animation… is open. */
+    animation: false,
     renaming: null as { id: number; name: string } | null,
     /** Select ▸ Expand… / Contract… awaiting a radius. */
     selectionRadius: null as 'expand' | 'contract' | null,

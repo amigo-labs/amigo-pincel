@@ -102,7 +102,7 @@ Hints that drift; check the code before relying on them.
   - `openAseprite` and `new` both start with `current_frame = 0` and an empty `Bus`.
 - **Compose:** `compose(frame: u32, zoom: u32) -> Result<ComposeFrame, String>` and `composeDirty(frame, zoom, dx: i32, dy: i32, dw: u32, dh: u32)` call `pincel_core::compose` with `ComposeRequest::full`. That means the full canvas, the `Visible` layer filter, no overlays, and the onion skin set with `setOnionSkin`.
   - `ComposeFrame` exposes `width`, `height`, `dirtyX`, `dirtyY` and `pixels` (row-major, non-premultiplied RGBA8, a fresh `Uint8Array` copy on each read).
-- **Export:** `exportPng(frame) -> Box<[u8]>`. `exportAtlas(columns, tag?, imageName?) -> AtlasExport` with the getters `png`, `manifest` (JSON) and `data` (Aseprite `--data` JSON).
+- **Export:** `exportPng(frame) -> Box<[u8]>`. `exportAtlas(columns, tag?, imageName?) -> AtlasExport` with the getters `png`, `manifest` (JSON) and `data` (Aseprite `--data` JSON). `exportAnimation(format, tag?, scale, loops) -> Box<[u8]>` (`"apng"` / `"gif"`, `loops` 0 = forever) and `animationInfo(tag?) -> AnimationInfo` with `frameCount`, `defaultLoops`, `gifApproximated` and `semiTransparent` (submodule `animation`, spec `animated-export`).
 - **Events** (`src/events.rs`): `Event` has the getters `kind`, `layer`, `frame`, `x`, `y`, `width` and `height`. Fields that do not apply to a kind are 0.
   - The kinds are `"dirty-rect"`, `"dirty-canvas"` and `"selection-changed"`. New kinds are only ever appended.
   - The queue holds `DEFAULT_EVENT_CAP = 1024` events and drops the oldest when full.

@@ -77,6 +77,27 @@ pub enum ExportError {
         /// Derived atlas height in pixels.
         height: u64,
     },
+
+    /// The requested export scale is outside `1..=10`.
+    #[error("export scale {scale} is outside the valid range 1–10")]
+    InvalidScale {
+        /// The requested scale factor.
+        scale: u32,
+    },
+
+    /// The scaled output is wider or higher than the per-edge export limit
+    /// of 16384 px.
+    #[error("scaled output {width}x{height} exceeds the 16384 px per-edge export limit")]
+    ScaledTooLarge {
+        /// Scaled output width in pixels.
+        width: u64,
+        /// Scaled output height in pixels.
+        height: u64,
+    },
+
+    /// The `gif` encoder failed while writing.
+    #[error("gif encode failed: {0}")]
+    GifEncode(String),
 }
 
 /// Knobs for [`export_atlas_png`].
@@ -341,7 +362,10 @@ pub fn export_atlas_png(
 }
 
 /// The frames to export, in playback order.
-fn select_frames(sprite: &Sprite, tag: Option<&str>) -> Result<Vec<FrameIndex>, ExportError> {
+pub(super) fn select_frames(
+    sprite: &Sprite,
+    tag: Option<&str>,
+) -> Result<Vec<FrameIndex>, ExportError> {
     let frame_count = u32::try_from(sprite.frames.len()).unwrap_or(u32::MAX);
     let Some(name) = tag else {
         return Ok((0..frame_count).map(FrameIndex::new).collect());

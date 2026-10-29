@@ -15,10 +15,11 @@ pub mod selection;
 
 pub use clipboard::{CopiedPixels, CopyError, CopySource, copy_pixels};
 pub use codec::{
-    AsepriteReadOutput, AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, CodecError,
-    ExportError, GplError, ImportError, ImportedImage, aseprite_sheet_json, encode_png,
-    export_atlas_png, export_frame_png, import_png, read_aseprite, read_gpl, write_aseprite,
-    write_gpl,
+    AnimationFormat, AnimationInfo, AnimationOptions, AsepriteReadOutput, AtlasFrame,
+    AtlasManifest, AtlasOptions, AtlasOutput, CodecError, ExportError, GplError, ImportError,
+    ImportedImage, animation_frames, animation_info, aseprite_sheet_json, encode_png,
+    export_animation, export_atlas_png, export_frame_png, import_png, read_aseprite, read_gpl,
+    write_aseprite, write_gpl,
 };
 pub use command::{
     AddEmptyCel, AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer,

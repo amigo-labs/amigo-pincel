@@ -19,6 +19,7 @@
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod animation;
 mod clipboard;
 mod effects;
 mod events;
@@ -31,6 +32,7 @@ mod text;
 mod timeline;
 mod transforms;
 
+pub use animation::AnimationInfo;
 pub use clipboard::CopiedImage;
 pub use effects::effect_names;
 pub use events::Event;
