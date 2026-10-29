@@ -2015,6 +2015,15 @@ mod tests {
         assert!(doc.palette_name(1).is_err());
     }
 
+    #[test]
+    fn layer_id_at_out_of_range_index_returns_err() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.add_layer("Layer 2").expect("add");
+        assert!(doc.layer_id_at(doc.layer_count() - 1).is_ok());
+        assert!(doc.layer_id_at(doc.layer_count()).is_err());
+        assert!(doc.layer_id_at(u32::MAX).is_err());
+    }
+
     // ---- Layer / frame creation ----
 
     #[test]
@@ -3669,6 +3678,27 @@ mod tests {
     }
 
     #[test]
+    fn slice_key_getters_reject_out_of_range_key_index() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let id = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
+        assert_eq!(doc.slice_key_count(id), 1);
+        assert!(doc.slice_key_frame(id, 0).is_ok());
+        assert!(doc.slice_key_frame(id, 1).is_err());
+        assert!(doc.slice_key_x(id, 1).is_err());
+        assert!(doc.slice_key_y(id, 1).is_err());
+        assert!(doc.slice_key_width(id, 1).is_err());
+        assert!(doc.slice_key_height(id, 1).is_err());
+        assert!(doc.slice_key_has_center(id, 1).is_err());
+        assert!(doc.slice_key_center_x(id, 1).is_err());
+        assert!(doc.slice_key_center_y(id, 1).is_err());
+        assert!(doc.slice_key_center_width(id, 1).is_err());
+        assert!(doc.slice_key_center_height(id, 1).is_err());
+        assert!(doc.slice_key_has_pivot(id, 1).is_err());
+        assert!(doc.slice_key_pivot_x(id, 1).is_err());
+        assert!(doc.slice_key_pivot_y(id, u32::MAX).is_err());
+    }
+
+    #[test]
     fn add_slice_emits_dirty_canvas_event() {
         let mut doc = Document::new(8, 8).expect("dims");
         let _ = doc.add_slice("s", 0, 0, 4, 4, 0xff).expect("add");
@@ -3988,6 +4018,29 @@ mod tests {
         // Unknown ids report the documented defaults.
         assert!(!doc.layer_visible(99));
         assert_eq!(doc.layer_opacity(99), 0);
+    }
+
+    #[test]
+    fn layer_id_getters_return_defaults_for_unknown_id() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert_eq!(doc.layer_name(99), "");
+        assert_eq!(doc.layer_kind(99), "");
+        assert_eq!(doc.layer_tileset_id(99), 0);
+        assert!(!doc.layer_visible(99));
+        assert_eq!(doc.layer_opacity(99), 0);
+        assert_eq!(doc.layer_depth(99), 0);
+        assert!(!doc.layer_locked(99));
+        assert!(doc.layer_editable(99));
+        assert_eq!(doc.layer_blend_mode(99), "normal");
+        assert_eq!(doc.layer_parent(99), None);
+    }
+
+    #[test]
+    fn layer_thumbnail_rejects_unknown_layer_or_frame() {
+        let doc = Document::new(8, 8).expect("dims");
+        assert!(doc.layer_thumbnail(0, 0, 16).is_ok());
+        assert!(doc.layer_thumbnail(99, 0, 16).is_err());
+        assert!(doc.layer_thumbnail(0, 1, 16).is_err());
     }
 
     #[test]

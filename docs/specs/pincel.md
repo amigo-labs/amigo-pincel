@@ -599,20 +599,23 @@ The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/sr
 ```typescript
 import init, { Document } from '@amigo-labs/pincel-wasm';
 
-const doc = Document.new(64, 64, ColorMode.Rgba);
-doc.applyTool(toolId, x, y, color);           // single pixel
+await init();
+const doc = new Document(64, 64);
+doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
 doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
-doc.strokeTo(x, y);                            // per pointer sample; one undo entry
-doc.endStroke();
-const frame = doc.compose(viewport, zoom, options);
-//  ^ frame.pixels is a Uint8ClampedArray view into WASM memory (zero-copy)
+doc.strokeTo(x, y);                       // per pointer sample; one undo entry
+doc.endStroke();                           // on pointer-up
+const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
+//  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
 ```
+
+Every byte getter (`ComposeFrame.pixels`, `saveAseprite()`, `exportPng()`, `AtlasExport.png`) returns a fresh copy. JS can change it without affecting the document or later reads.
 
 The UI pulls events via:
 
 ```typescript
 const events = doc.drainEvents();
-// events: layer-changed, palette-changed, undo-pushed, dirty-rect, …
+// event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
 A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
@@ -894,6 +897,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-10-29 | Pencil / Eraser strokes take optional `mirror { axis_x2, axis_y2 }` (half-pixel axes) and `wrap { x, y }`, applied in the core so a stroke stays one undo entry; Line, shapes and Bucket neither mirror nor wrap; tiled mode is session-only view state. | These are new fields on the npm-facing stroke API. |
 | 2026-10-29 | Two-finger tap = Undo, three-finger tap = Redo (touches within 150 ms, ≤ 10 CSS px, lifted within 300 ms, pinch ±2 %); View ▸ Touch Gestures (on by default, IndexedDB pref); pen eraser end erases per stroke; Apple Pencil squeeze / double-tap are not exposed to Safari web apps. | The values were already fixed in the `tablet-gestures` ACs; only the record was missing. |
 | 2026-10-29 | Playwright also tests `website/`: `@playwright/test` (exact pin, same version as `ui/`) becomes a `website/` devDependency, with specs under `website/e2e/` run against `vite preview` of the static build in the CI `website` job. | The tool is already approved and used in this repo (2026-10-11), and one browser harness covers the HTML, SEO and JS-driven ACs of `website` and `website-comparison`. |
+| 2026-10-29 | §9.3 describes the built WASM boundary: every byte getter (`ComposeFrame.pixels`, `saveAseprite`, `exportPng`, `AtlasExport.png`) returns a fresh `Uint8Array` copy, not a zero-copy view into wasm memory, and the event kinds are `dirty-rect`, `dirty-canvas` and `selection-changed`, with new kinds only appended. | This matches the package as built and as specified in `wasm-npm-api` (AC-09, AC-13, AC-14, AC-17). A copy cannot be invalidated when wasm memory grows, and the earlier event list (`layer-changed`, `palette-changed`, `undo-pushed`) was never built. |
 
 ---
 
