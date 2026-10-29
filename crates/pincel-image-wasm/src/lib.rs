@@ -1736,6 +1736,66 @@ mod command_spec_tests {
             parse(r#"{"type":"rename_layer","index":2,"name":"x"}"#).edited_layer(),
             None
         );
+        assert_eq!(
+            parse(r#"{"type":"set_layer_visible","index":2,"visible":false}"#).edited_layer(),
+            None
+        );
+        assert_eq!(
+            parse(r#"{"type":"move_layer","from":2,"to":0}"#).edited_layer(),
+            None
+        );
+    }
+
+    #[test]
+    fn locked_layer_can_still_be_hidden_and_reordered() {
+        let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
+        let mut doc = super::Document::new(2, 2).expect("doc");
+        doc.add_layer("Top").expect("layer");
+        let locked_id = doc.layers()[1].id;
+        let mut bus = super::CommandBus::new(doc);
+        bus.apply(Box::new(super::SetLayerLocked::new(1, true)))
+            .expect("lock");
+
+        for json in [
+            r#"{"type":"set_layer_visible","index":1,"visible":false}"#,
+            r#"{"type":"move_layer","from":1,"to":0}"#,
+        ] {
+            let spec = parse(json);
+            // The gate in `apply_command` only refuses `edited_layer` targets.
+            assert!(
+                spec.edited_layer()
+                    .is_none_or(|i| !super::layer_locked(&bus.document, i))
+            );
+            assert!(super::run_command(0, &mut bus, spec).is_ok());
+        }
+        let moved = &bus.document.layers()[0];
+        assert_eq!(moved.id, locked_id, "the locked layer moved to the bottom");
+        assert!(!moved.visible, "the locked layer is hidden");
+        assert!(moved.locked, "and it is still locked");
+    }
+
+    #[test]
+    fn select_all_selects_everything_in_one_undo_step() {
+        let parse = |json: &str| -> CommandSpec { serde_json::from_str(json).expect("parses") };
+        let mut bus = super::CommandBus::new(super::Document::new(6, 4).expect("doc"));
+        let run = |bus: &mut super::CommandBus, json: &str| {
+            assert!(super::run_command(0, bus, parse(json)).is_ok());
+        };
+        run(
+            &mut bus,
+            r#"{"type":"select_rectangle","x":1,"y":1,"w":2,"h":2,"mode":"replace"}"#,
+        );
+        let before = bus.document.selection.clone();
+        let depth = bus.history.undo_depth();
+
+        run(&mut bus, r#"{"type":"select_all"}"#);
+        let all = bus.document.selection.as_ref().expect("a selection");
+        assert_eq!(all.selected_count(), 6 * 4);
+        assert!(all.data().iter().all(|&c| c == 255), "fully selected");
+        assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+
+        assert!(bus.undo().expect("undo"));
+        assert_eq!(bus.document.selection, before);
     }
 
     #[test]

@@ -24,7 +24,7 @@ await init();
 const doc = new Document(64, 64);          // or Document.openAseprite(bytes)
 doc.applyTool('pencil', x, y, 0xff0000ff); // tool id, position, RGBA
 const frame = doc.compose(0, 1);           // frame index, zoom
-// frame.pixels is a Uint8ClampedArray view into wasm memory (zero-copy)
+// frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
 
 const bytes = doc.saveAseprite();
 ```

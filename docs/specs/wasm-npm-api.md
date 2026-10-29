@@ -65,7 +65,10 @@ This spec records the cross-cutting contract of that package as built on 2026-10
 - [ ] AC-16 (event): When several `applyTool` calls are made between two `endStroke()` calls, they form one undo step.
 - [ ] AC-17 (event): When the selection is set or cleared, a `selection-changed` event carrying the new rect is queued, with all four values 0 for an empty selection. The event is queued even when the selection did not change.
 - [ ] AC-18 (error): If a call fails, it throws a JS exception with a message, queues no event, and leaves the document unchanged.
-- [ ] AC-19 (always): Getters that take a layer, tileset or slice id return a neutral value (empty string, 0 or false) for an unknown id instead of throwing. Getters that take a position in a list (layer, palette entry, slice key) throw when the position is out of range.
+- [ ] AC-19 (always): Lookups by id or position follow three rules:
+  - Getters that take only a layer, tileset or slice id do not throw for an unknown id. They return a default instead: an empty string, 0 or false, except `layerEditable` (`true`), `layerBlendMode` (`"normal"`) and `layerParent` (`undefined`).
+  - Getters that take only a position in a list (`layerIdAt`, `tilesetIdAt`, `sliceIdAt`, `paletteColor`, `paletteName`) throw when the position is out of range.
+  - Getters that take an id plus a tile, key or frame (`tilePixels`, the 13 `sliceKey*` getters, `layerThumbnail`) throw for an unknown id and for an out-of-range tile, key or frame.
 - [ ] AC-20 (always): The package is published as `@amigo-labs/pincel-wasm` as an ES module. Its default export initializes the wasm module. It exports the classes `Document`, `ComposeFrame`, `AtlasExport` and `Event`, and the functions `palettePresetNames`, `blendModeNames`, `effectNames` and `registerFont`.
 
 ## Technical notes
@@ -120,15 +123,15 @@ Hints that drift; check the code before relying on them.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel_wasm::tests::new_bootstraps_one_layer_one_frame`, `…::fresh_document_seeds_the_db32_palette`, `…::compose_fresh_document_yields_transparent_canvas`, `…::drain_events_is_empty_on_a_fresh_document` (crates/pincel-wasm/src/lib.rs) | built |        |
+| AC-01 | `pincel_wasm::tests::new_bootstraps_one_layer_one_frame`, `…::fresh_document_seeds_the_db32_palette`, `…::compose_fresh_document_yields_transparent_canvas`, `…::drain_events_is_empty_on_a_fresh_document`, `…::undo_on_empty_stack_returns_false_and_emits_nothing`, `…::redo_on_empty_stack_returns_false_and_emits_nothing` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-02 | `pincel_wasm::tests::new_rejects_zero_width`, `…::new_rejects_zero_height` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-03 | `pincel_wasm::tests::save_then_open_roundtrips_a_fresh_document` (crates/pincel-wasm/src/lib.rs), `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
+| AC-03 | `pincel_wasm::tests::save_then_open_roundtrips_a_fresh_document` (crates/pincel-wasm/src/lib.rs), `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs), `pincel_wasm::tests::set_current_frame_routes_painting_to_that_frame` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-04 | `pincel_wasm::tests::open_aseprite_rejects_garbage_bytes` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-05 | `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_pixels` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
 | AC-06 | `pincel_wasm::tests::compose_honors_integer_zoom`, `…::compose_fresh_document_yields_transparent_canvas` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-07 | `pincel_wasm::tests::compose_rejects_unknown_frame`, `…::compose_rejects_zoom_zero`, `…::compose_rejects_zoom_above_max` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-08 | `pincel_wasm::tests::compose_dirty_returns_sub_rect_at_sprite_coords`, `…::compose_dirty_disjoint_from_viewport_returns_empty_frame`, `…::compose_dirty_full_viewport_matches_compose` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-09 |      | open   |        |
+| AC-08 | `pincel_wasm::tests::compose_dirty_returns_sub_rect_at_sprite_coords`, `…::compose_dirty_disjoint_from_viewport_returns_empty_frame`, `…::compose_dirty_full_viewport_matches_compose` (crates/pincel-wasm/src/lib.rs), `pincel_core::render::compose::tests::dirty_hint_partially_outside_viewport_clamps_to_overlap` (crates/pincel-core/src/render/compose.rs) | built |        |
+| AC-09 | `buffer_copies::compose_frame_pixels_mutating_a_read_leaves_later_reads_unchanged`, `…::save_aseprite_mutating_the_bytes_leaves_the_document_unchanged`, `…::export_png_mutating_the_bytes_leaves_the_document_unchanged`, `…::atlas_export_png_mutating_a_read_leaves_later_reads_unchanged` (crates/pincel-wasm/tests/buffer_copies.rs), `@amigo-labs/pincel-wasm package › byte reads are fresh copies that JS can change without effect` (ui/e2e/wasm-npm-api.spec.ts) | built |        |
 | AC-10 | `pincel_wasm::tests::export_png_returns_bytes_with_png_signature`, `…::export_png_matches_core_export`, `…::export_png_rejects_unknown_frame` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-11 | `pincel_wasm::events::tests::queue_drains_in_fifo_order` (crates/pincel-wasm/src/events.rs) | built |        |
 | AC-12 | `pincel_wasm::events::tests::queue_drops_oldest_when_capped` (crates/pincel-wasm/src/events.rs) | built |        |
@@ -137,10 +140,15 @@ Hints that drift; check the code before relying on them.
 | AC-15 | `pincel_wasm::tests::undo_redo_emit_dirty_rect_for_paint_command_and_track_depth`, `…::undo_on_empty_stack_returns_false_and_emits_nothing`, `…::redo_on_empty_stack_returns_false_and_emits_nothing` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-16 | `pincel_wasm::tests::apply_tool_drag_then_end_stroke_is_single_undo_entry`, `…::two_strokes_are_two_undo_entries` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-17 | `pincel_wasm::tests::set_selection_emits_selection_changed_with_new_bounds`, `…::set_selection_with_empty_rect_clears_and_emits_zeros`, `…::clear_selection_emits_event_even_when_no_prior_selection` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-18 | `pincel_wasm::tests::apply_tool_failure_does_not_emit_an_event`, `…::move_layer_at_edge_errors` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-19 | `pincel_wasm::tests::layer_kind_distinguishes_image_tilemap_unknown`, `…::tileset_getters_return_defaults_for_unknown_id`, `…::slice_getters_return_defaults_for_unknown_ids`, `…::palette_getters_error_out_of_range` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-20 |      | open   |        |
+| AC-18 | `pincel_wasm::tests::apply_tool_failure_does_not_emit_an_event`, `…::move_layer_at_edge_errors`, `…::set_current_frame_rejects_out_of_range` (crates/pincel-wasm/src/lib.rs) | built |        |
+| AC-19 | `pincel_wasm::tests::layer_id_getters_return_defaults_for_unknown_id`, `…::layer_kind_distinguishes_image_tilemap_unknown`, `…::layer_visibility_and_opacity_getters`, `…::tileset_getters_return_defaults_for_unknown_id`, `…::slice_getters_return_defaults_for_unknown_ids`, `…::layer_id_at_out_of_range_index_returns_err`, `…::palette_getters_error_out_of_range`, `…::tile_pixels_rejects_unknown_tileset`, `…::tile_pixels_rejects_tile_id_past_end`, `…::slice_key_getters_reject_out_of_range_key_index`, `…::layer_thumbnail_rejects_unknown_layer_or_frame` (crates/pincel-wasm/src/lib.rs) | built |        |
+| AC-20 | `@amigo-labs/pincel-wasm package › is published under the scoped name as an ES module`, `…› default export initializes the wasm module`, `…› exports the documented classes and functions` (ui/e2e/wasm-npm-api.spec.ts) | built |        |
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering). The spec records the copy semantics actually built (AC-09), not the zero-copy view that §9.3 and the package README describe.
+- 2026-10-29: The AC-09 and AC-20 tests were green on their first run because the behavior already exists. To show they can fail, the AC-09 JS test was run against a generated `pixels` getter patched to return one shared buffer, and it failed (`expect(received).not.toBe(expected)`).
+- 2026-10-29: AC-09 and AC-20 are tested from Node in a Playwright spec (`ui/e2e/wasm-npm-api.spec.ts`), with no browser page. The spec imports the package by its name through the `ui/` link and passes the wasm bytes to the default export. Playwright is the only JS test runner in the gates, and adding Vitest would mean a new dependency.
+- 2026-10-29: The package README now says `ComposeFrame.pixels` is a fresh copy, instead of the zero-copy view it described before. The README ships in the npm package, and AC-09 records the copy semantics.
+- 2026-10-29: AC-19 was revised to match the code. The first wording said that every getter taking an id returns a neutral value. In fact `tilePixels`, the `sliceKey*` getters and `layerThumbnail` throw for an unknown id, and the id-only defaults also include `true` (`layerEditable`), `"normal"` (`layerBlendMode`) and `undefined` (`layerParent`).
+- 2026-10-29: The revised AC-19 had existing evidence for an unknown tileset in `tilePixels` (`tile_pixels_rejects_unknown_tileset`). That test failed against a `tile_pixels` patched to return empty bytes for an unknown tileset. The new `slice_key_getters_reject_out_of_range_key_index` failed against a `slice_key` patched to fall back to the first key, and `layer_id_at_out_of_range_index_returns_err` failed against a `layer_id_at` patched to return `Ok(0)`. The code was restored after each check.
