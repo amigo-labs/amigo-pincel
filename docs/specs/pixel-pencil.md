@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Pixel
@@ -40,23 +40,23 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 ## Acceptance criteria
 
-- [ ] AC-01 (option): Where the Pencil size is N (1–8) with the square shape, a single click paints a filled N×N block of the foreground color that contains the clicked pixel; for odd N the block is centred on the clicked pixel, and for even N the block spans `x − N/2 … x + N/2 − 1` and `y − N/2 … y + N/2 − 1` (integer division).
-- [ ] AC-02 (option): Where the Pencil shape is round, a single click at size 3 paints exactly the 5-pixel plus (the clicked pixel and its four orthogonal neighbours), and for every size N ≥ 3 the four corner pixels of the N×N bounding square stay unpainted.
-- [ ] AC-03 (event): When the pointer jumps between two samples of one Pencil drag with no samples in between, the painted result is the stamp applied at every pixel of the straight line between the two samples, with no gaps, at every size.
-- [ ] AC-04 (always): One press-drag-release Pencil or Eraser stroke adds exactly one undo entry; undo restores every touched pixel to its value from before the stroke, redo reproduces the identical result, and two strokes add two entries.
-- [ ] AC-05 (event): When a stroke or a stamp reaches beyond the canvas, the in-bounds pixels are painted, the out-of-bounds part is skipped, and no error or notice is shown.
-- [ ] AC-06 (option): Where the Eraser has size N and shape S, an Eraser click or drag clears to transparent exactly the pixels a Pencil click or drag with the same size, shape and path would paint.
-- [ ] AC-07 (state): While Shift is held (keyboard) or the on-screen Shift toggle is latched during a Pencil or Eraser drag, the segment painted from the anchor runs along whichever of the eight directions 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315° is nearest to the pointer, where the anchor is the press position, or the last painted point before Shift went down.
-- [ ] AC-08 (option): Where pixel-perfect is on and the size is 1, a freehand stroke of the Pencil or the Eraser (which clears the path pixels) contains no L-corner — no painted path pixel b whose path neighbours a and c are diagonal to each other while b is orthogonally adjacent to both — and a removed corner pixel shows its value from before the stroke.
-- [ ] AC-09 (event): When pixel-perfect would remove a corner pixel that an earlier part of the same stroke had already painted, that pixel stays painted.
-- [ ] AC-10 (state): While the size is greater than 1, the pixel-perfect option has no effect on the stroke and its checkbox is disabled.
-- [ ] AC-11 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a Size control (number field plus slider, range 1–8), a Shape control (square / round) and a Pixel-perfect checkbox.
-- [ ] AC-12 (error): If a size outside 1–8 is typed into the Size field, then the size becomes the nearest bound (1 or 8).
-- [ ] AC-13 (event): When `[` or `]` is pressed while the Pencil or the Eraser is active, the size goes down or up by 1 and stays within 1–8.
-- [ ] AC-14 (error): If the stroke targets a locked layer or the document has no paintable image layer, then no pixel changes and no undo entry is added.
-- [ ] AC-15 (always): In a fresh session the Pixel-perfect checkbox is unchecked.
-- [ ] AC-16 (event): When the user changes size, shape or pixel-perfect with the Pencil active, then the Eraser shows the same values when it becomes active, and vice versa.
-- [ ] AC-17 (event): When the user changes size, shape or pixel-perfect and reloads the app, then the values survive the reload.
+- [x] AC-01 (option): Where the Pencil size is N (1–8) with the square shape, a single click paints a filled N×N block of the foreground color that contains the clicked pixel; for odd N the block is centred on the clicked pixel, and for even N the block spans `x − N/2 … x + N/2 − 1` and `y − N/2 … y + N/2 − 1` (integer division).
+- [x] AC-02 (option): Where the Pencil shape is round, a single click at size 3 paints exactly the 5-pixel plus (the clicked pixel and its four orthogonal neighbours), and for every size N ≥ 3 the four corner pixels of the N×N bounding square stay unpainted.
+- [x] AC-03 (event): When the pointer jumps between two samples of one Pencil drag with no samples in between, the painted result is the stamp applied at every pixel of the straight line between the two samples, with no gaps, at every size.
+- [x] AC-04 (always): One press-drag-release Pencil or Eraser stroke adds exactly one undo entry; undo restores every touched pixel to its value from before the stroke, redo reproduces the identical result, and two strokes add two entries.
+- [x] AC-05 (event): When a stroke or a stamp reaches beyond the canvas, the in-bounds pixels are painted, the out-of-bounds part is skipped, and no error or notice is shown.
+- [x] AC-06 (option): Where the Eraser has size N and shape S, an Eraser click or drag clears to transparent exactly the pixels a Pencil click or drag with the same size, shape and path would paint.
+- [x] AC-07 (state): While Shift is held (keyboard) or the on-screen Shift toggle is latched during a Pencil or Eraser drag, the segment painted from the anchor runs along whichever of the eight directions 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315° is nearest to the pointer, where the anchor is the press position, or the last painted point before Shift went down.
+- [x] AC-08 (option): Where pixel-perfect is on and the size is 1, a freehand stroke of the Pencil or the Eraser (which clears the path pixels) contains no L-corner — no painted path pixel b whose path neighbours a and c are diagonal to each other while b is orthogonally adjacent to both — and a removed corner pixel shows its value from before the stroke.
+- [x] AC-09 (event): When pixel-perfect would remove a corner pixel that an earlier part of the same stroke had already painted, that pixel stays painted.
+- [x] AC-10 (state): While the size is greater than 1, the pixel-perfect option has no effect on the stroke and its checkbox is disabled.
+- [x] AC-11 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a Size control (number field plus slider, range 1–8), a Shape control (square / round) and a Pixel-perfect checkbox.
+- [x] AC-12 (error): If a size outside 1–8 is typed into the Size field, then the size becomes the nearest bound (1 or 8).
+- [x] AC-13 (event): When `[` or `]` is pressed while the Pencil or the Eraser is active, the size goes down or up by 1 and stays within 1–8.
+- [x] AC-14 (error): If the stroke targets a locked layer or the document has no paintable image layer, then no pixel changes and no undo entry is added.
+- [x] AC-15 (always): In a fresh session the Pixel-perfect checkbox is unchecked.
+- [x] AC-16 (event): When the user changes size, shape or pixel-perfect with the Pencil active, then the Eraser shows the same values when it becomes active, and vice versa.
+- [x] AC-17 (event): When the user changes size, shape or pixel-perfect and reloads the app, then the values survive the reload.
 
 ## Technical notes
 
@@ -107,6 +107,15 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 | Typed sizes outside 1–8 are clamped to the nearest bound | The control is a 1–8 slider plus number; the plan gives no error behavior | Low |
 | A stroke whose pointer direction lies exactly between two Shift directions snaps to the horizontal or vertical one | The plan does not define ties | Low |
 
+## Summary
+
+> Completed: 2026-10-29
+
+- `PencilStroke` command in `pincel-core`: square / round brush of size 1–8, Bresenham stamping between samples, out-of-canvas pixels skipped, pixel-perfect L-corner pruning at size 1, one undo entry per stroke with first-touch revert
+- wasm gesture API `beginStroke` / `strokeTo` / `endStroke` drives one `PencilStroke` per Pencil / Eraser drag; `applyTool` stays for single pixels
+- Pixel-mode options bar for Pencil and Eraser: Size (field + slider, clamped 1–8, `[` / `]`), Shape, Pixel-perfect (off by default, disabled above size 1), shared by both tools and persisted as the IndexedDB pref `pixelBrush`
+- Shift constrain (key or latched touch toggle) to the eight 45° directions, anchored at the press or at the last point before Shift went down, direction locked until Shift is released
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -115,23 +124,23 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pencil_stroke_square_click_paints_n_by_n_block`, `pencil_stroke_size_3_square_stamps_3x3`, `pencil_stroke_even_size_extends_top_left` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_size_3_click_paints_centred_block` (`crates/pincel-wasm/src/stroke.rs`); "a size-3 pencil click paints a 3x3 block" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-02 | `pencil_stroke_round_shape_skips_corners` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_round_size_3_click_paints_plus` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-03 | `pencil_stroke_jump_stamps_every_line_pixel_at_every_size`, `pencil_stroke_size_1_matches_bresenham` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_jump_paints_connected_line` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a fast pencil stroke stays connected" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-04 | `pencil_stroke_revert_restores_first_touch_values`, `pencil_stroke_two_strokes_add_two_undo_entries`, `pencil_stroke_random_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-05 | `pencil_stroke_out_of_bounds_points_are_skipped` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_beyond_canvas_paints_in_bounds_part_without_error` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-06 | `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `eraser_stroke_clears_the_pencil_footprint` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-07 | "a Shift pencil drag snaps to the nearest 45 degree direction", "a Shift drag keeps the direction its first movement chose", "Shift pressed mid-drag anchors at the last painted point", "touch device › the latched Shift toggle constrains a pencil drag" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-08 | `pixel_perfect_removes_l_corner`, `pencil_stroke_random_strokes_hold_invariants`, `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_pixel_perfect_drops_staircase_corners` (`crates/pincel-wasm/src/stroke.rs`); "a pixel-perfect staircase leaves its corners empty" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-09 | `pixel_perfect_keeps_corner_painted_earlier_in_stroke` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |  |
-| AC-10 | `pixel_perfect_has_no_effect_above_size_1` (`crates/pincel-core/src/command/pencil_stroke.rs`); "pixel-perfect is disabled above size 1" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-11 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-12 | "a typed size outside 1-8 clamps to the nearest bound" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-13 | "[ and ] step the brush size within 1-8" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-14 | `begin_stroke_on_locked_layer_errs_and_adds_no_undo_entry`, `begin_stroke_without_image_layer_errs` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
-| AC-15 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-16 | "pencil and eraser share one size / shape / pixel-perfect setting" (`ui/e2e/pencil.spec.ts`) | built |  |
-| AC-17 | "brush settings survive a reload" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-01 | `pencil_stroke_square_click_paints_n_by_n_block`, `pencil_stroke_size_3_square_stamps_3x3`, `pencil_stroke_even_size_extends_top_left` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_size_3_click_paints_centred_block` (`crates/pincel-wasm/src/stroke.rs`); "a size-3 pencil click paints a 3x3 block" (`ui/e2e/pencil.spec.ts`) | verified | 6a7e87e |
+| AC-02 | `pencil_stroke_round_shape_skips_corners` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_round_size_3_click_paints_plus` (`crates/pincel-wasm/src/stroke.rs`) | verified | 6a7e87e |
+| AC-03 | `pencil_stroke_jump_stamps_every_line_pixel_at_every_size`, `pencil_stroke_size_1_matches_bresenham` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_jump_paints_connected_line` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a fast pencil stroke stays connected" (`ui/e2e/pencil.spec.ts`) | verified | 6a7e87e |
+| AC-04 | `pencil_stroke_revert_restores_first_touch_values`, `pencil_stroke_two_strokes_add_two_undo_entries`, `pencil_stroke_random_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`) | verified | 6a7e87e |
+| AC-05 | `pencil_stroke_out_of_bounds_points_are_skipped` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_beyond_canvas_paints_in_bounds_part_without_error` (`crates/pincel-wasm/src/stroke.rs`) | verified | 6a7e87e |
+| AC-06 | `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `eraser_stroke_clears_the_pencil_footprint` (`crates/pincel-wasm/src/stroke.rs`) | verified | 6a7e87e |
+| AC-07 | "a Shift pencil drag snaps to the nearest 45 degree direction", "a Shift drag keeps the direction its first movement chose", "Shift pressed mid-drag anchors at the last painted point", "touch device › the latched Shift toggle constrains a pencil drag" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-08 | `pixel_perfect_removes_l_corner`, `pencil_stroke_random_strokes_hold_invariants`, `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_pixel_perfect_drops_staircase_corners` (`crates/pincel-wasm/src/stroke.rs`); "a pixel-perfect staircase leaves its corners empty" (`ui/e2e/pencil.spec.ts`) | verified | 6a7e87e |
+| AC-09 | `pixel_perfect_keeps_corner_painted_earlier_in_stroke` (`crates/pincel-core/src/command/pencil_stroke.rs`) | verified | 6a7e87e |
+| AC-10 | `pixel_perfect_has_no_effect_above_size_1` (`crates/pincel-core/src/command/pencil_stroke.rs`); "pixel-perfect is disabled above size 1" (`ui/e2e/pencil.spec.ts`) | verified | 6a7e87e |
+| AC-11 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-12 | "a typed size outside 1-8 clamps to the nearest bound" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-13 | "[ and ] step the brush size within 1-8" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-14 | `begin_stroke_on_locked_layer_errs_and_adds_no_undo_entry`, `begin_stroke_without_image_layer_errs` (`crates/pincel-wasm/src/stroke.rs`) | verified | ec6b135 |
+| AC-15 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-16 | "pencil and eraser share one size / shape / pixel-perfect setting" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
+| AC-17 | "brush settings survive a reload" (`ui/e2e/pencil.spec.ts`) | verified | f730687 |
 
 ## Decisions
 
