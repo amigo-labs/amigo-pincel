@@ -19,12 +19,12 @@ two ways: as an installable PWA (WebAssembly) and as a native desktop app
 The mode follows the document: `.aseprite` opens in Pixel mode, images open
 in Image mode, and the New dialog offers both.
 
-> **Status:** Phase 1, pre-1.0. See [`STATUS.md`](STATUS.md) for current
-> milestone state.
+> **Status:** Phase 1, pre-1.0. Open work is tracked as feature specs, indexed
+> in [`docs/specs/README.md`](docs/specs/README.md).
 
 - **What to build** lives in the spec: [`docs/specs/pincel.md`](docs/specs/pincel.md)
-- **How to build it** lives in the working agreement: [`CLAUDE.md`](CLAUDE.md)
-- **Current state / next task**: [`STATUS.md`](STATUS.md)
+- **How to build it** lives in the working agreement: [`AGENTS.md`](AGENTS.md)
+- **What is next**: feature specs in [`docs/specs/README.md`](docs/specs/README.md)
 
 [![Release Please](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml/badge.svg)](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml)
 

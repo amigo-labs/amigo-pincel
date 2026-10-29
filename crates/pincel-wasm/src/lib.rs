@@ -837,7 +837,7 @@ impl Document {
     /// rect matches the previous one — the UI's RAF coalescer collapses
     /// the duplicate, and the symmetric "every write emits" contract
     /// matches the other paint methods. Selection state is not part of
-    /// the undo stack in the M7.8 slice (see spec §5.2 / STATUS.md).
+    /// the undo stack in the M7.8 slice (see spec §5.2).
     #[wasm_bindgen(js_name = setSelection)]
     pub fn set_selection(&mut self, x: i32, y: i32, width: u32, height: u32) {
         let rect = Rect::new(x, y, width, height);
@@ -3001,7 +3001,7 @@ mod tests {
     #[test]
     fn selection_is_not_undoable_in_the_m7_8_slice() {
         // Selection state is intentionally outside the undo stack — see
-        // STATUS.md and Sprite::selection docs. A paint between two
+        // Sprite::selection docs. A paint between two
         // selection changes confirms undo only rewinds the paint.
         let mut doc = Document::new(8, 8).expect("dims");
         doc.set_selection(1, 1, 4, 4);
