@@ -190,3 +190,126 @@ test('the rail separates its tool sections in both modes', async ({ page }) => {
   await createDocument(page, 'pixel');
   await expect(rail.getByRole('separator')).toHaveCount(5);
 });
+
+// Probing the document through the Eyedropper keeps these tests on the DOM
+// (spec §7.4): a 1 px sample of the composite lands in the foreground swatch.
+
+/** Screen point at a fractional position of the Image canvas. */
+async function canvasPoint(page: Page, [fx, fy]: [number, number]): Promise<[number, number]> {
+  const box = await imageCanvas(page).boundingBox();
+  if (!box) throw new Error('canvas not visible');
+  return [box.x + box.width * fx, box.y + box.height * fy];
+}
+
+/** Samples the composite at a fractional canvas position; returns `#rrggbb`. */
+async function probe(page: Page, at: [number, number]): Promise<string> {
+  await page.keyboard.press('i');
+  const [x, y] = await canvasPoint(page, at);
+  await page.mouse.click(x, y);
+  return page.getByLabel('Foreground color', { exact: true }).inputValue();
+}
+
+/** Sets the foreground and background swatches. */
+async function setColors(page: Page, fg: string, bg: string): Promise<void> {
+  await page.getByLabel('Foreground color', { exact: true }).fill(fg);
+  await page.getByLabel('Background color', { exact: true }).fill(bg);
+}
+
+test('image mode: the right button paints and samples the background color', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const fg = page.getByLabel('Foreground color', { exact: true });
+  const bg = page.getByLabel('Background color', { exact: true });
+
+  // Paint Bucket, right click: the uniform layer takes the background color.
+  await setColors(page, '#ff0000', '#00ff00');
+  await page.keyboard.press('g');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Fill');
+  const [cx, cy] = await canvasPoint(page, [0.5, 0.5]);
+  await page.mouse.click(cx, cy, { button: 'right' });
+  expect(await probe(page, [0.5, 0.2])).toBe('#00ff00');
+
+  // Brush, right drag: the stroke is in the background color.
+  await setColors(page, '#ff0000', '#0000ff');
+  await page.keyboard.press('b');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Brush');
+  const [x0, y0] = await canvasPoint(page, [0.2, 0.5]);
+  const [x1, y1] = await canvasPoint(page, [0.8, 0.5]);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(x1, y1, { steps: 8 });
+  await page.mouse.up({ button: 'right' });
+  expect(await probe(page, [0.5, 0.5])).toBe('#0000ff');
+
+  // Eyedropper, right click: the sample becomes the background color and
+  // the foreground stays.
+  await setColors(page, '#ff0000', '#ffffff');
+  await page.keyboard.press('i');
+  const [gx, gy] = await canvasPoint(page, [0.5, 0.2]);
+  await page.mouse.click(gx, gy, { button: 'right' });
+  await expect(bg).toHaveValue('#00ff00');
+  await expect(fg).toHaveValue('#ff0000');
+});
+
+test('image mode: Shift squares a shape and snaps a line to 45°', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const shiftDrag = async (from: [number, number], to: [number, number]): Promise<void> => {
+    await page.keyboard.down('Shift');
+    await drag(page, imageCanvas(page), from, to);
+    await page.keyboard.up('Shift');
+  };
+  const rectangleTool = async (): Promise<void> => {
+    await page.keyboard.press('u');
+    await page
+      .getByRole('radiogroup', { name: 'Shapes variant' })
+      .getByRole('radio', { name: 'Rectangle', exact: true })
+      .click();
+    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Rectangle');
+  };
+
+  // A filled rectangle dragged 0.6 wide and 0.15 tall ...
+  await rectangleTool();
+  await page.getByRole('combobox', { name: 'Mode', exact: true }).selectOption('fill');
+  await setColors(page, '#000000', '#ff0000');
+  await drag(page, imageCanvas(page), [0.2, 0.2], [0.8, 0.35]);
+  expect(await probe(page, [0.5, 0.3])).toBe('#ff0000');
+  expect(await probe(page, [0.5, 0.7])).not.toBe('#ff0000');
+  await undo.click();
+
+  // ... becomes the 0.6 × 0.6 square of its longer side with Shift.
+  await rectangleTool();
+  await shiftDrag([0.2, 0.2], [0.8, 0.35]);
+  expect(await probe(page, [0.75, 0.75])).toBe('#ff0000');
+  expect(await probe(page, [0.75, 0.85])).not.toBe('#ff0000');
+  expect(await probe(page, [0.85, 0.75])).not.toBe('#ff0000');
+  await undo.click();
+
+  // A line dragged 14° off the horizontal snaps to 0° ...
+  await page.keyboard.press('l');
+  await setColors(page, '#ff0000', '#ffffff');
+  await shiftDrag([0.2, 0.2], [0.8, 0.35]);
+  expect(await probe(page, [0.6, 0.2])).toBe('#ff0000');
+  expect(await probe(page, [0.6, 0.3])).not.toBe('#ff0000');
+  await undo.click();
+
+  // ... and one dragged 39° off it snaps to the 45° diagonal.
+  await page.keyboard.press('l');
+  await setColors(page, '#ff0000', '#ffffff');
+  await shiftDrag([0.2, 0.2], [0.7, 0.6]);
+  expect(await probe(page, [0.5, 0.5])).toBe('#ff0000');
+});
+
+test('image mode: W, B, E, G and T select their tools', async ({ page }) => {
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  const keys: ReadonlyArray<readonly [string, string]> = [
+    ['w', 'Magic Wand'],
+    ['b', 'Brush'],
+    ['e', 'Eraser'],
+    ['g', 'Fill'],
+    ['t', 'Text'],
+  ];
+  for (const [key, label] of keys) {
+    await page.keyboard.press(key);
+    await expect(activeTool(page)).toHaveAttribute('aria-label', label);
+  }
+});
