@@ -9,8 +9,8 @@ intermediate types.
 ## Status
 
 Phase 1 — partial. The chunks listed in
-`docs/specs/pincel.md` §8.3 are being implemented incrementally. See
-`STATUS.md` at the workspace root for the current milestone.
+`docs/specs/pincel.md` §8.3 are being implemented incrementally; open work is tracked as feature
+specs indexed in `docs/specs/README.md`.
 
 ## Format reference
 
