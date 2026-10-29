@@ -25,7 +25,7 @@ aseprite-writer = { version = "1.4.0", path = "crates/aseprite-writer" } # x-rel
 criterion = { version = "0.8", default-features = false, features = ["cargo_bench_support"] }
 flate2 = "1"
 pincel-agent = { version = "1.4.0", path = "crates/pincel-agent" } # x-release-please-version
-pincel-core ={ version = "1.4.0", path = "crates/pincel-core" } # x-release-please-version
+pincel-core = { version = "1.4.0", path = "crates/pincel-core" } # x-release-please-version
 pincel-effects = { version = "1.4.0", path = "crates/pincel-effects" } # x-release-please-version
 pincel-image-core = { version = "1.4.0", path = "crates/pincel-image-core" } # x-release-please-version
 png = "0.18"
