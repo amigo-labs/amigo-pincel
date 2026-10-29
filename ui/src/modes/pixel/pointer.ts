@@ -127,6 +127,9 @@ export function commitStamp(point: { x: number; y: number }) {
   }
 }
 
+/** Message of pincel-core's `PixelOutOfBounds` paint error. */
+const PIXEL_OUT_OF_BOUNDS = /^failed to apply \w+: pixel \(-?\d+, -?\d+\) is out of bounds for cel/;
+
 export function paintAt(e: PointerEvent) {
   if (!ed.doc) return;
   // Drag-shape tools (Line, Rectangle, …) have their own press /
@@ -169,18 +172,17 @@ export function paintAt(e: PointerEvent) {
         // the packed foreground so the JS surface stays uniform.
         ed.doc.applyTool(toolState.tool, p.x, p.y, packed);
       } catch (err) {
-        // A segment may cross the canvas edge: skip off-canvas pixels.
+        // A segment may cross the canvas edge: skip off-canvas pixels
+        // (pincel-core `CommandError::PixelOutOfBounds`).
         const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('pixel out of bounds')) throw err;
+        if (!PIXEL_OUT_OF_BOUNDS.test(msg)) throw err;
       }
     }
   } catch (err) {
-    // Drags that leave the canvas raise PixelOutOfBounds; that is
-    // expected and silenced. Anything else (missing layer, unknown
-    // tool, …) is a real failure: surface it in the status bar
-    // and log so it doesn't disappear.
+    // Anything but an off-canvas pixel (missing layer, unknown tool, …)
+    // is a real failure: surface it in the status bar and log so it
+    // doesn't disappear.
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('pixel out of bounds')) return;
     console.error('applyTool failed', err);
     ed.status = t('status.failed', { action: t('act.paint'), error: msg });
   }
