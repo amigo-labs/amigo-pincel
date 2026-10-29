@@ -787,7 +787,7 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
     assert_eq!(
         chunk_kinds(&bytes),
         vec![
-            "layer", "ud", "layer", "palette", "ud", "tags", "ud", "ud", "cel", "ud"
+            "palette", "ud", "tags", "ud", "ud", "layer", "ud", "layer", "cel", "ud"
         ]
     );
     let raw = parse_raw_file(&bytes).expect("raw parse");
@@ -802,10 +802,10 @@ fn user_data_follows_its_layer_cel_palette_and_tags() {
     assert_eq!(
         texts,
         vec![
-            Some("layer note"),
             Some("sprite note"),
             None,
             Some("tag b"),
+            Some("layer note"),
             Some("cel note")
         ]
     );
@@ -1177,7 +1177,7 @@ fn tags_get_no_user_data_chunks_when_no_tag_has_any() {
         user_data: None,
     }];
     let bytes = write_to_vec(&file);
-    assert_eq!(chunk_kinds(&bytes), vec!["layer", "tags", "cel"]);
+    assert_eq!(chunk_kinds(&bytes), vec!["tags", "layer", "cel"]);
 
     // Control: one tag with user data emits one chunk per tag up to it.
     file.tags[1].user_data = Some(UserData {
@@ -1188,7 +1188,7 @@ fn tags_get_no_user_data_chunks_when_no_tag_has_any() {
     let bytes = write_to_vec(&file);
     assert_eq!(
         chunk_kinds(&bytes),
-        vec!["layer", "tags", "ud", "ud", "cel"]
+        vec!["tags", "ud", "ud", "layer", "cel"]
     );
 }
 
@@ -1247,6 +1247,114 @@ fn slice_user_data_follows_its_slice_chunk() {
         panic!("user data after the last slice");
     };
     assert_eq!(last.text, Some("last note"));
+}
+
+/// One of everything that goes into the first frame: external files, a
+/// palette with sprite user data, a 3-tile tileset whose only user data
+/// sits on tile 0, two tags (one with user data), an image layer with
+/// user data, the tilemap layer, a slice and a cel.
+fn first_frame_file() -> AseFile {
+    let note = |text: &str| {
+        Some(UserData {
+            text: Some(text.into()),
+            color: None,
+            properties: None,
+        })
+    };
+    let mut file = build_tilemap_file();
+    file.external_files = vec![ExternalFile {
+        id: 1,
+        kind: 2,
+        name: "ext".into(),
+    }];
+    file.palette = Some(PaletteChunk {
+        first_color: 0,
+        entries: vec![PaletteEntry {
+            color: Color::rgba(1, 2, 3, 255),
+            name: None,
+        }],
+    });
+    file.user_data = note("sprite");
+    file.tilesets[0].number_of_tiles = 3;
+    file.tilesets[0].tile_pixels.extend(vec![0u8; 2 * 2 * 4]);
+    file.tilesets[0].tile_user_data = vec![note("tile 0")];
+    file.tags = vec![
+        tag("a", 0, 0, AnimationDirection::Forward),
+        tag("b", 0, 0, AnimationDirection::Forward),
+    ];
+    file.tags[1].user_data = note("tag b");
+    file.layers[0].user_data = note("img");
+    file.slices = vec![SliceChunk {
+        name: "s".into(),
+        keys: vec![SliceKey {
+            frame: 0,
+            x: 0,
+            y: 0,
+            width: 1,
+            height: 1,
+            nine_patch: None,
+            pivot: None,
+        }],
+        user_data: note("slice"),
+    }];
+    file
+}
+
+#[test]
+fn tilesets_precede_the_layers_that_reference_them() {
+    // Aseprite resolves a tilemap layer's tileset while reading the
+    // Layer chunk; a tileset written later is "not found" and the layer
+    // (and its cels) are dropped. `aseprite-loader` collects all chunks
+    // first, so only the chunk order shows this.
+    let kinds = chunk_kinds(&write_to_vec(&first_frame_file()));
+    let last_tileset = kinds.iter().rposition(|k| *k == "tileset");
+    let first_layer = kinds.iter().position(|k| *k == "layer");
+    assert!(
+        last_tileset.expect("tileset") < first_layer.expect("layer"),
+        "{kinds:?}"
+    );
+}
+
+#[test]
+fn sprite_user_data_precedes_every_object_chunk() {
+    // Aseprite gives a User Data chunk to the sprite only while no layer,
+    // cel, tag, slice or tileset chunk has been read yet; later it lands
+    // on whatever object came last.
+    let bytes = write_to_vec(&first_frame_file());
+    let raw = parse_raw_file(&bytes).expect("raw parse");
+    let sprite_ud = raw.frames[0]
+        .chunks
+        .iter()
+        .position(|c| matches!(c, Chunk::UserData(u) if u.text == Some("sprite")))
+        .expect("sprite user data written");
+    let first_object = chunk_kinds(&bytes)
+        .iter()
+        .position(|k| matches!(*k, "layer" | "cel" | "tags" | "slice" | "tileset"))
+        .expect("object chunks written");
+    assert!(sprite_ud < first_object, "{:?}", chunk_kinds(&bytes));
+}
+
+#[test]
+fn tileset_user_data_has_one_chunk_per_tile() {
+    // Once a tileset has user data, Aseprite reads exactly one User Data
+    // chunk per tile and warns about any other chunk in that run.
+    let kinds = chunk_kinds(&write_to_vec(&first_frame_file()));
+    let ts = kinds.iter().position(|k| *k == "tileset").expect("tileset");
+    assert_eq!(&kinds[ts..ts + 5], &["tileset", "ud", "ud", "ud", "ud"]);
+    assert_ne!(kinds.get(ts + 5), Some(&"ud"), "{kinds:?}");
+}
+
+#[test]
+fn first_frame_chunk_order_matches_aseprite() {
+    // Aseprite's encoder: external files, palette, sprite user data,
+    // tilesets, tags, layers, slices, then the cels.
+    assert_eq!(
+        chunk_kinds(&write_to_vec(&first_frame_file())),
+        vec![
+            "external", "palette", "ud", "tileset", "ud", "ud", "ud", "ud", "tags", "ud", "ud",
+            "layer", "ud", "layer", "slice", "ud", "cel",
+        ]
+    );
 }
 
 /// Write `file`, expect an error and check no byte reached the output.
