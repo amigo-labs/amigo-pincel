@@ -32,6 +32,10 @@ impl FileHost for MemHost {
         self.files.insert(path.to_owned(), bytes.to_vec());
         Ok(())
     }
+
+    fn check_write(&mut self, _path: &str) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// One test session: a workspace and its file host.

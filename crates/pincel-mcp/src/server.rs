@@ -187,6 +187,10 @@ mod tests {
             self.0.insert(path.to_owned(), bytes.to_vec());
             Ok(())
         }
+
+        fn check_write(&mut self, _path: &str) -> Result<(), String> {
+            Ok(())
+        }
     }
 
     fn rpc(s: &mut Server<Mem>, id: i64, method: &str, params: Value) -> Value {
@@ -318,6 +322,47 @@ mod tests {
             json!({ "uri": "pincel://palettes/vga" }),
         );
         assert_eq!(r["error"]["code"], RESOURCE_NOT_FOUND);
+    }
+
+    #[test]
+    fn export_sheet_with_escaping_json_path_writes_nothing() {
+        let dir = crate::test_dir("sheet-escape");
+        let ws = dir.join("ws");
+        std::fs::create_dir_all(&ws).expect("mkdir");
+        let sandbox = crate::sandbox::Sandbox::new(&ws, false).expect("sandbox");
+        let mut s = Server::new(sandbox);
+        let call = |s: &mut Server<crate::sandbox::Sandbox>, id: i64, name: &str, args: Value| {
+            let msg = json!({ "jsonrpc": "2.0", "id": id, "method": "tools/call", "params": { "name": name, "arguments": args } });
+            let text = s.handle_text(&msg.to_string()).expect("response");
+            serde_json::from_str::<Value>(&text).expect("json")
+        };
+        call(
+            &mut s,
+            1,
+            "doc.new",
+            json!({ "mode": "pixel", "width": 2, "height": 2 }),
+        );
+        let r = call(
+            &mut s,
+            2,
+            "export.sheet",
+            json!({ "columns": 1, "path": "s.png", "json": "../s.json" }),
+        );
+        assert_eq!(r["result"]["isError"], true);
+        let text = r["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(text.contains("E007"), "{text}");
+        assert!(!ws.join("s.png").exists(), "the PNG must not be written");
+        assert!(!dir.join("s.json").exists());
+        let r = call(
+            &mut s,
+            3,
+            "export.sheet",
+            json!({ "columns": 1, "path": "../s.png", "json": "s.json" }),
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert!(!ws.join("s.json").exists(), "the JSON must not be written");
     }
 
     #[test]

@@ -88,6 +88,10 @@ pub trait FileHost {
     fn read(&mut self, path: &str) -> Result<Vec<u8>, String>;
     /// Create or replace the file at `path` with `bytes`.
     fn write(&mut self, path: &str, bytes: &[u8]) -> Result<(), String>;
+    /// Report whether [`FileHost::write`] to `path` would be refused (path
+    /// outside the workspace, read-only workspace) without writing. Tools
+    /// that write several files check every path before the first write.
+    fn check_write(&mut self, path: &str) -> Result<(), String>;
 }
 
 /// Everything a tool handler may touch during one call.

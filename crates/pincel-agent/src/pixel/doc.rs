@@ -525,6 +525,13 @@ fn export_sheet(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError
     let json_path = args.str("json");
     let data =
         json_path.map(|jp| aseprite_sheet_json(&doc.sprite, &manifest, &image_ref(path, jp)));
+    // Every output path is checked before the first write, so a refused
+    // second path leaves no half-written export behind (AC-34).
+    for p in std::iter::once(path).chain(json_path) {
+        ctx.host
+            .check_write(p)
+            .map_err(|e| AgentError::tool(format!("cannot write `{p}`: {e}")))?;
+    }
     ctx.host
         .write(path, &png)
         .map_err(|e| AgentError::tool(format!("cannot write `{path}`: {e}")))?;

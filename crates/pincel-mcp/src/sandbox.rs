@@ -75,6 +75,17 @@ impl Sandbox {
     }
 }
 
+impl Sandbox {
+    /// Resolve `path` for a write, refusing it in a read-only workspace.
+    fn writable(&self, path: &str) -> Result<PathBuf, String> {
+        let full = self.resolve(path)?;
+        if self.read_only {
+            return Err("the workspace is read-only (--read-only); nothing was written".to_owned());
+        }
+        Ok(full)
+    }
+}
+
 impl FileHost for Sandbox {
     fn read(&mut self, path: &str) -> Result<Vec<u8>, String> {
         let full = self.resolve(path)?;
@@ -82,14 +93,15 @@ impl FileHost for Sandbox {
     }
 
     fn write(&mut self, path: &str, bytes: &[u8]) -> Result<(), String> {
-        let full = self.resolve(path)?;
-        if self.read_only {
-            return Err("the workspace is read-only (--read-only); nothing was written".to_owned());
-        }
+        let full = self.writable(path)?;
         if let Some(dir) = full.parent() {
             fs::create_dir_all(dir).map_err(|e| format!("{path}: {e}"))?;
         }
         fs::write(&full, bytes).map_err(|e| format!("{path}: {e}"))
+    }
+
+    fn check_write(&mut self, path: &str) -> Result<(), String> {
+        self.writable(path).map(|_| ())
     }
 }
 
