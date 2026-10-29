@@ -4,6 +4,7 @@ members = [
   "crates/pincel-agent",
   "crates/pincel-image-core",
   "crates/pincel-image-wasm",
+  "crates/pincel-mcp",
   "crates/pincel-core",
   "crates/pincel-effects",
   "crates/pincel-wasm",
