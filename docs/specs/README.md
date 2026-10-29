@@ -16,7 +16,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-undo-history](pixel-undo-history.md), [pixel-compose](pixel-compose.md), [pixel-drawing-tools](pixel-drawing-tools.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
 | Image mode | [image-editing](image-editing.md), [image-files](image-files.md) |
 | Both modes | [effects-adjustments](effects-adjustments.md), [pen-input](pen-input.md), [i18n](i18n.md) |
-| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md), [wasm-npm-api](wasm-npm-api.md) |
+| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -68,7 +68,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 ## Done
 
-_None yet._ `/spec-check` moves a spec here once it is `implemented`.
+- [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs
 
