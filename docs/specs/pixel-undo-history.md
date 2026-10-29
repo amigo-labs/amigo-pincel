@@ -135,9 +135,11 @@ Hints that drift; check the code before relying on them.
 | AC-19 | `pincel_wasm::tests::undo_on_empty_stack_returns_false_and_emits_nothing`, `…::redo_on_empty_stack_returns_false_and_emits_nothing` (crates/pincel-wasm/src/lib.rs), `ui/e2e/smoke.spec.ts › pixel mode: a pencil stroke is undoable` | built |        |
 | AC-20 | `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
 | AC-21 | `undo_history::save_keeps_history_and_edits_before_it_stay_undoable` (crates/pincel-wasm/tests/undo_history.rs) | built |        |
-| AC-22 |      | open   |        |
+| AC-22 | `ui/e2e/smoke.spec.ts › pixel mode: Ctrl+Z undoes the last edit, Ctrl+Shift+Z and Ctrl+Y redo it` | built |        |
 | AC-23 | `ui/e2e/help.spec.ts › pixel mode: the About dialog holds the keyboard` | built |        |
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering).
+- 2026-10-29: The new tests for AC-05, AC-11, AC-16, AC-18, AC-21 and AC-22 were green at once because the behavior already existed. Each was instead shown red against a temporary mutation: history cap 101, `SetTagName::merge` overwriting the first prior name, `Bus::execute` clearing the redo stack before `apply`, and the Ctrl+Shift+Z binding removed from `shortcuts.ts`.
+- 2026-10-29: AC-16 and AC-21 are tested at the wasm surface (`crates/pincel-wasm/tests/undo_history.rs`), not in e2e, because the UI's frame, layer, onion-skin and save paths call those wasm methods directly and never touch the history themselves.
