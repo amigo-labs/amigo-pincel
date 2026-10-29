@@ -124,8 +124,29 @@ mod tests {
     }
 
     #[test]
+    fn overlay_and_hard_light_match_absolute_w3c_values() {
+        // Overlay keys on the backdrop: multiply below 0.5, screen above.
+        assert!((blend_channel(BlendMode::Overlay, 0.25, 0.8) - 0.4).abs() < EPS);
+        assert!((blend_channel(BlendMode::Overlay, 0.75, 0.2) - 0.6).abs() < EPS);
+        // Hard Light keys on the source.
+        assert!((blend_channel(BlendMode::HardLight, 0.8, 0.25) - 0.4).abs() < EPS);
+        assert!((blend_channel(BlendMode::HardLight, 0.2, 0.75) - 0.6).abs() < EPS);
+    }
+
+    #[test]
     fn soft_light_neutral_gray_source_is_near_identity() {
         // At cs = 0.5 soft light returns cb exactly.
         assert!((blend_channel(BlendMode::SoftLight, 0.42, 0.5) - 0.42).abs() < EPS);
+    }
+
+    #[test]
+    fn soft_light_matches_absolute_w3c_values() {
+        // cs ≤ 0.5: cb − (1 − 2·cs)·cb·(1 − cb).
+        assert!((blend_channel(BlendMode::SoftLight, 0.5, 0.0) - 0.25).abs() < EPS);
+        // cs > 0.5, cb ≤ 0.25: D(cb) = ((16·cb − 12)·cb + 4)·cb.
+        assert!((blend_channel(BlendMode::SoftLight, 0.25, 1.0) - 0.5).abs() < EPS);
+        // cs > 0.5, cb > 0.25: D(cb) = √cb.
+        assert!((blend_channel(BlendMode::SoftLight, 0.64, 1.0) - 0.8).abs() < EPS);
+        assert!((blend_channel(BlendMode::SoftLight, 0.64, 0.75) - 0.72).abs() < EPS);
     }
 }
