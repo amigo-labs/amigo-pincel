@@ -10,9 +10,9 @@ design: [pincel.md §13.4, pincel.md §9.2, pincel.md §15 (2026-10-11 one effec
 
 ## Context
 
-Game sprites almost always need an outline. Aseprite has Edit ▸ FX ▸ Outline with these options, and it is a standard pixel-art workflow. Pincel's effects cover adjustments, blur, distort, noise and sharpen, but no outline. `pincel.md` §13.4 lists "Outline (configurable thickness, inside/outside/both)" among the filters.
+Game sprites almost always need an outline. Aseprite has Edit ▸ FX ▸ Outline with these options, and it is a standard pixel-art workflow. Pincel's effects cover adjustments, blur, distort, noise and sharpen, but no outline. `pincel.md` §13.4 lists "Outline (configurable thickness, inside/outside/both)" among the Phase 2 filters; a 2026-10-29 Decision Log entry moves it into Phase 1.
 
-Effects ▸ **Outline…** draws a hard outline in a chosen colour around the non-transparent pixels of the active layer, within the selection if there is one. Options: place (outside or inside), shape (circle = 4-neighbour, square = 8-neighbour), thickness 1–8 px, colour (foreground by default). It has a live preview like every effect and is one undo step.
+Effects ▸ **Outline…** draws a hard outline in a chosen colour around the non-transparent pixels of the active layer, within the selection if there is one. Options: place (outside, inside or both), shape (circle = 4-neighbour, square = 8-neighbour), thickness 1–8 px, colour (foreground by default). It has a live preview like every effect and is one undo step.
 
 Effects are stateless and shared by both cores through `pincel-effects`; both modes build their Effects menus and dialogs from one catalog and one positional wire format (Decision Log 2026-10-11). Pixel mode ships first; Image mode gets the same entry from the shared catalog.
 
@@ -20,7 +20,7 @@ Effects are stateless and shared by both cores through `pincel-effects`; both mo
 
 ### In scope
 
-- The Outline effect in `pincel-effects`, with the options place, shape, thickness and colour
+- The Outline effect in `pincel-effects`, with the options place (outside, inside, both), shape, thickness and colour
 - A colour parameter kind for the effect catalog and the effect dialog (native colour input plus hex text)
 - Effects ▸ Outline… in Pixel mode and in Image mode, with live preview and one undo step
 - en + de strings
@@ -30,11 +30,12 @@ Effects are stateless and shared by both cores through `pincel-effects`; both mo
 - Anti-aliased or soft outlines — because the effect is a hard pixel-art outline; a soft "stroke" layer effect for Image mode belongs to the non-destructive layer-effects backlog item.
 - A hue-shifted outline colour (the `mcp.md` vision) — because it is a possible later option on top of a plain colour.
 - A dedicated colour picker in the dialog — because `color-picker.md` builds it; until then the native colour input plus hex text is used.
+- An alpha threshold — because pixel art has hard alpha; opaque means alpha > 0 (Decisions).
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses Effects ▸ Outline… in Pixel mode or in Image mode, then the effect dialog opens with Place (Outside, Inside; default Outside), Shape (Circle, Square; default Square), Thickness (1–8 px; default 1) and Color (default: the current foreground colour).
-- [ ] AC-02 (always): A pixel counts as part of the sprite ("opaque") when its alpha is above 0; pixels beyond the layer's edge count as transparent.
+- [ ] AC-01 (event): When the user chooses Effects ▸ Outline… in Pixel mode or in Image mode, then the effect dialog opens with Place (Outside, Inside, Both; default Outside), Shape (Circle, Square; default Square), Thickness (1–8 px; default 1) and Color (default: the current foreground colour).
+- [ ] AC-02 (always): A pixel counts as part of the sprite ("opaque") when its alpha is above 0; pixels beyond the cel's edge (Pixel mode) or the layer's edge (Image mode) count as transparent, and no pixel outside the cel is written.
 - [ ] AC-03 (option): Where Place is Outside and Shape is Square with thickness t, every transparent pixel whose Chebyshev distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 8 neighbours coloured).
 - [ ] AC-04 (option): Where Place is Outside and Shape is Circle with thickness t, every transparent pixel whose Manhattan distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 4 edge neighbours coloured).
 - [ ] AC-05 (option): Where Place is Inside with thickness t, every opaque pixel that has a transparent pixel within distance t (by the chosen shape's metric) becomes the outline colour, and opaque pixels farther inside and all transparent pixels stay unchanged.
@@ -44,7 +45,8 @@ Effects are stateless and shared by both cores through `pincel-effects`; both mo
 - [ ] AC-09 (event): When the user applies the Outline, then one undo restores the layer exactly as before, and redo applies the same outline again.
 - [ ] AC-10 (error): If the Pixel-mode document is indexed, then the Outline is refused with the same message as every other effect and the document is unchanged.
 - [ ] AC-11 (error): If the Color field's hex text is not `#RRGGBB` or `#RRGGBBAA`, then the dialog marks the field invalid and does not use that value.
-- [ ] AC-12 (always): A thickness outside 1–8 arriving through the wire format is clamped to 1–8, like every other effect parameter, and a wrong number of parameters is an error that changes nothing.
+- [ ] AC-12 (always): A thickness outside 1–8 arriving through the wire format is clamped to 1–8, like every other effect parameter, and a wrong number of parameters is an error that changes nothing; a colour slot that is not an integer in 0…2^32−1 is an error that changes nothing.
+- [ ] AC-13 (option): Where Place is Both, the changed pixels are exactly the union of AC-03 / AC-04 and AC-05 for the same shape and thickness.
 
 ## Technical notes
 
@@ -52,11 +54,11 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 **Effects crate.** `crates/pincel-effects/src/`: `lib.rs`, `spec.rs` (`EffectSpec`, `from_params`; constructors clamp params), `effect.rs`, `image.rs` (`EffectImage`), `kernel.rs`, `error.rs` (`EffectError`: unknown effect, wrong parameter count, buffer length). Groups `adjust/`, `blur/`, `distort/`, `noise/`, `sharpen/`. The outline can live in `distort/` or a new `outline/`. For t ≤ 8, t passes of 3×3 dilation (cross for circle, full for square) are enough; a distance transform also works.
 
-**Colour on the wire.** The wire format is a positional `f64` vector (Decision Log 2026-10-11). Proposed: the colour travels as packed RGBA (u32) in one slot; extend `EffectSpec` accordingly.
+**Colour on the wire.** The wire format is a positional `f64` vector (Decision Log 2026-10-11). Decided (2026-10-29): the 2026-10-11 format is extended without a version bump — a `color` parameter kind travels as one `f64` slot holding `0xRRGGBBAA` as an integer (exact below 2^53); `EffectSpec::from_params` rejects non-integer or out-of-range values.
 
 **UI catalog.** `ui/src/lib/effects/catalog.ts`: `ParamDef` is `number | bool | choice` (≈L14–25) — no `color` kind yet; `menu.ts` and `labels.ts` beside it. `ui/src/lib/components/EffectDialog.svelte` renders params and the live preview; `ui/src/lib/components/ColorPair.svelte` has swatch styling to reuse. The catalog is guarded by `every_effect_name_is_accepted` (Rust) and `assertCatalogCoversAllEffects` (TS).
 
-**Pixel mode.** `applyEffectParams` / `cancelEffect` in `ui/src/modes/pixel/image-ops.ts` (≈L46), wired in `PixelEditor.svelte`; wasm `run_effect` in `crates/pincel-wasm/src/effects.rs` (≈L45) works on the active cel's buffer, refuses non-RGBA documents ("effects require an RGBA document", ≈L56) and applies `sprite.selection` / `selection_mask`. Note: the effect only rewrites the cel's own rectangle (see Open questions).
+**Pixel mode.** `applyEffectParams` / `cancelEffect` in `ui/src/modes/pixel/image-ops.ts` (≈L46), wired in `PixelEditor.svelte`; wasm `run_effect` in `crates/pincel-wasm/src/effects.rs` (≈L45) works on the active cel's buffer, refuses non-RGBA documents ("effects require an RGBA document", ≈L56) and applies `sprite.selection` / `selection_mask`. Note: the effect only rewrites the cel's own rectangle; an Outside outline stays clipped at the cel's edge and never grows the cel (AC-02).
 
 **Image mode.** `applyEffect` / `previewEffect` in `ui/src/modes/image/core/controller.ts` (≈L353–369); wasm `apply_effect` / `preview_effect` and `layer_effect_image` in `crates/pincel-image-wasm/src/lib.rs` (≈L1439–1495); selection through `masked_region` (Decision Log 2026-10-12).
 
@@ -84,10 +86,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 ## Open questions
 
-- The Decision Log line is not written yet: a `color` parameter kind in the effect catalog, carried as packed RGBA in the positional wire format (bump or extend the 2026-10-11 format).
-- §13.4 lists Outline under Phase 2 filters with "inside/outside/both"; the legacy plan has only Outside and Inside. Is a "Both" placement in scope, and is Outline cleared to ship despite its Phase 2 listing (AGENTS.md §9 forbids mixing phases)?
-- In Pixel mode an effect only rewrites the active cel's rectangle. When a cel is smaller than the canvas (trimmed cels from `.aseprite` files), should an Outside outline grow the cel to the canvas, or stay clipped at the cel's edge?
-- Should the effect get an alpha threshold parameter for what counts as opaque? The legacy plan mentions it as optional.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -105,9 +104,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
+| AC-13 |      | open   |        |
 
 ## Decisions
 
 - 2026-10-28 (legacy plan): Opaque means alpha > 0 — Aseprite treats any non-zero alpha as part of the sprite.
 - 2026-10-28 (legacy plan): Indexed Pixel documents are handled like every other effect (refused today) — the plan says to follow the existing effects' treatment of indexed sprites, and `pincel-wasm` refuses non-RGBA documents for all effects.
 - 2026-10-28 (legacy plan): Until the own colour picker exists, the Color parameter uses the native colour input plus hex text — no new dependency and no wait on `14-color-picker.md`.
+- 2026-10-29: A Decision Log entry extends the 2026-10-11 effect wire format, without a version bump, with a `color` parameter kind carried as one `f64` slot holding `0xRRGGBBAA` as an integer; `EffectSpec::from_params` rejects non-integer or out-of-range values (AC-12) — a u32 fits exactly in an f64, and existing effects keep their slot layout (owner accepted the recommendation).
+- 2026-10-29: Place Both (= Inside ∪ Outside, same thickness and metric) is in scope (AC-13), and a Decision Log entry moves Outline from §13.4 Phase 2 into Phase 1, removing it from §13.4 — §13.4 names "both", a feature spec shouldn't contradict the design spec, and Both is a union of two paths that already exist (owner accepted the recommendation).
+- 2026-10-29: In Pixel mode the outline clips at the cel's edge and never grows a trimmed cel (AC-02) — Phase 1 never auto-grows cels (`MoveSelectionContent`), and trimmed cels only come from imported files (owner accepted the recommendation).
+- 2026-10-29: No alpha threshold parameter; opaque stays alpha > 0 — pixel art has hard alpha and the parameter would only add UI; it can be added later as an extra slot (owner accepted the recommendation).
