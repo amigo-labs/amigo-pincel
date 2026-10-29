@@ -23,21 +23,23 @@ export async function createDocument(
   }
   await card.getByRole('button', { name: 'Create' }).click();
   await expect(card).toBeHidden();
-  // The editor's core is loaded once the top bar names the document.
-  // (Huge canvases take a while to allocate on the unoptimized CI wasm.)
-  await expect(page.getByRole('banner').getByText('No document')).toHaveCount(0, {
-    timeout: 60_000,
-  });
-  await expect(page.getByRole('menubar').or(page.getByRole('button', { name: 'Menu' }))).toBeVisible();
-  // The top bar names the document a moment before the editor mounts its
-  // drawing surface — Image mode keeps the stage at `display: none` until
-  // the core hands back a document. Wait for the surface, or the first
-  // `drag()` of a spec races it and reads a null bounding box.
-  // Same generous budget as the banner above: a huge canvas takes a while
-  // to allocate on the unoptimized CI wasm.
-  await expect(mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page)).toBeVisible({
-    timeout: 60_000,
-  });
+  await waitForEditor(page, mode);
+}
+
+/**
+ * Waits until the editor of `mode` takes input: its document is loaded
+ * into the core, the view is fitted and the canvas has drawn it. Both
+ * editors mount their canvas (and menus, panels, key handlers) before the
+ * core hands back a document — input or a `boundingBox()` taken before
+ * `data-ready` hits a placeholder canvas or a document-less editor.
+ */
+export async function waitForEditor(page: Page, mode: 'pixel' | 'image'): Promise<void> {
+  // Huge canvases take a while to allocate on the unoptimized CI wasm.
+  await expect(mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page)).toHaveAttribute(
+    'data-ready',
+    'true',
+    { timeout: 60_000 },
+  );
 }
 
 /** The Pixel-mode drawing surface. */
