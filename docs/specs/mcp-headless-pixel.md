@@ -221,7 +221,7 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC-08 | `doc_close_removes_document_and_later_calls_fail` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-09 | `every_mutating_call_is_exactly_one_undo_step`, `draw_pixels_empty_batch_records_no_undo_step` (`crates/pincel-agent/src/tests/doc.rs`); `edit_on_large_cel_stores_only_the_diff_rect` (`crates/pincel-agent/src/tests/draw.rs`); `batch_is_one_bus_entry` (`crates/pincel-core/src/command/batch.rs`), `apply_swaps_rect_and_revert_restores` (`crates/pincel-core/src/command/patch_cel.rs`) | built |        |
 | AC-10 | `undo_and_redo_report_depths` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-11 | `preview_scales_nearest_and_returns_png`, `preview_of_one_pixel_sprite_is_256_square` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-11 | `preview_scales_nearest_and_returns_png`, `preview_of_one_pixel_sprite_is_256_square` (`crates/pincel-agent/src/tests/preview.rs`); `preview_result_carries_png_image_content` (`crates/pincel-mcp/src/server.rs`) | built |        |
 | AC-12 | `preview_frame_and_region_select_what_is_shown`, `preview_grid_only_changes_block_borders_and_is_omitted_below_scale_4` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
 | AC-13 | `read_pixels_hex_grid_matches_cel` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
 | AC-14 | `read_pixels_limits_region_size_and_canvas` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
@@ -244,7 +244,7 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC-31 | `doc_save_without_path_on_new_document_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-32 | `export_png_equals_preview_without_grid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-33 | `export_sheet_lays_out_frames_and_writes_sheet_json` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-34 | `resolve_rejects_parent_escape_and_absolute_paths`, `write_outside_writes_nothing`, `symlink_leading_out_is_refused` (unix) (`crates/pincel-mcp/src/sandbox.rs`); `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-34 | `resolve_rejects_parent_escape_and_absolute_paths`, `write_outside_writes_nothing`, `symlink_leading_out_is_refused` (unix symlink; Windows directory symlink or junction) (`crates/pincel-mcp/src/sandbox.rs`); `export_sheet_with_escaping_json_path_writes_nothing` (`crates/pincel-mcp/src/server.rs`); `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
 | AC-35 | `parse_args_reads_workspace_and_read_only` (`crates/pincel-mcp/src/lib.rs`); `workspace_option_and_read_only_mode`, `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
 | AC-36 | `read_only_refuses_writes_but_reads` (`crates/pincel-mcp/src/sandbox.rs`); `workspace_option_and_read_only_mode` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
 | AC-37 | `unknown_tool_and_bad_arguments_are_named_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
