@@ -5,7 +5,9 @@
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
 use pincel_effects::{EffectImage, EffectSpec};
-use pincel_image_core::codec::{to_jpeg_bytes, to_png_bytes, to_webp_bytes};
+use pincel_image_core::codec::{
+    to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
+};
 use pincel_image_core::command::{
     AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
     FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, PasteLayer,
@@ -1584,6 +1586,22 @@ pub fn export_webp(handle: u32) -> Result<Vec<u8>, JsError> {
     })
 }
 
+/// Exports the flattened composite as 32-bit RGBA BMP bytes.
+#[wasm_bindgen]
+pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_bmp_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
+/// Exports the flattened composite as lossless RGBA TIFF bytes.
+#[wasm_bindgen]
+pub fn export_tiff(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_tiff_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
 /// Per-layer state for the layers panel (spec §16.5).
 #[derive(Debug, Serialize)]
 struct LayerInfo {
@@ -1987,5 +2005,24 @@ mod region_tests {
         assert_eq!(small.0.len(), 4 * 3 * 4);
         let outside = composite_region(handle, 20, 20, 4, 4, 4, 4).expect("empty");
         assert!(outside.0.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+    use pincel_image_core::codec::decode;
+
+    #[test]
+    fn export_bmp_and_export_tiff_write_the_composite() {
+        let handle = insert(CommandBus::new(Document::new(5, 3).expect("doc")));
+        let bmp = export_bmp(handle).expect("bmp");
+        assert!(bmp.starts_with(b"BM"));
+        let tiff = export_tiff(handle).expect("tiff");
+        assert!(tiff.starts_with(b"II*\0") || tiff.starts_with(b"MM\0*"));
+        for bytes in [&bmp, &tiff] {
+            let back = decode(bytes).expect("decode");
+            assert_eq!((back.width(), back.height()), (5, 3));
+        }
     }
 }
