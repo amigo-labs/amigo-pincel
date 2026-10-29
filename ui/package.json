@@ -17,6 +17,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "test:e2e": "playwright test",
+    "perf": "playwright test -c playwright.perf.config.ts",
     "perf:check": "node e2e-perf/check-budgets.ts"
   },
   "dependencies": {
