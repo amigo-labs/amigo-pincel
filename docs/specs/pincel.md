@@ -623,7 +623,7 @@ await init();
 const doc = new Document(64, 64);
 doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
 doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
-doc.strokeTo(x, y);                       // per pointer sample; one undo entry
+doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
 //  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
@@ -638,7 +638,7 @@ const events = doc.drainEvents();
 // event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
-A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
 
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
@@ -992,7 +992,7 @@ These have been requested for years in Piskel's tracker. Pincel should accommoda
 
 Piskel README states: *"There is no support for mobile."* This is a self-imposed limitation rooted in event-handling assumptions made in 2012. The pixel-art community on iPad with Apple Pencil is large and underserved.
 
-Pincel's input layer uses the modern `PointerEvent` API end-to-end, capturing pen pressure, tilt, and pointer-type from day one (Section 9.4). Two-finger pan/zoom is part of the standard input handling, not a tablet special case. On-screen Shift / Alt toggles stand in for the keyboard (§9.4). In Image mode the brush and eraser read stylus pressure per sample (coalesced events included) and scale the dab size and / or opacity, each switchable in the tool options; mouse and touch paint at full pressure. The flat tip has an angle (default 45°) and, with "Tilt turns the nib" on, follows the stylus azimuth per sample (Pointer Events `azimuthAngle`, else `tiltX` / `tiltY`); an upright pen or one without tilt uses the angle. Pixel-mode tools stay pressure-free — a 1-px pencil has nothing to scale. Pincel's PWA build is the reference target for iPad — Tauri-on-iPad is not a supported path (Tauri mobile is Android-first, iOS support is alpha).
+Pincel's input layer uses the modern `PointerEvent` API end-to-end, capturing pen pressure, tilt, and pointer-type from day one (Section 9.4). Two-finger pan/zoom is part of the standard input handling, not a tablet special case. On-screen Shift / Alt toggles stand in for the keyboard (§9.4). In Image mode the brush and eraser read stylus pressure per sample (coalesced events included) and scale the dab size and / or opacity, each switchable in the tool options; mouse and touch paint at full pressure. The flat tip has an angle (default 45°) and, with "Tilt turns the nib" on, follows the stylus azimuth per sample (Pointer Events `azimuthAngle`, else `tiltX` / `tiltY`); an upright pen or one without tilt uses the angle. In Pixel mode the Pencil and Eraser scale their stamp size to max(1, round(N × p)) behind the same on-by-default "Size" option, interpolated per Bresenham step; Pixel-mode tools scale stamp size only, never opacity (Decision Log 2026-10-29). Pincel's PWA build is the reference target for iPad — Tauri-on-iPad is not a supported path (Tauri mobile is Android-first, iOS support is alpha).
 
 This means Pincel should design its tool palette and shortcut layout to be **usable without keyboard modifiers**. Long-press for context menus, on-screen modifier keys (the Aseprite mobile pattern), pinch-to-zoom. Validate this in M5 (full tool set milestone).
 
@@ -1050,7 +1050,7 @@ Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry mark
 
 | Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
 |------|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ~ Image mode only | ✗ |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ✗ |
 | Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
 | LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
 | Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
@@ -1109,7 +1109,6 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 **Gaps the comparison exposes** (candidates for later phases, not commitments; each has a feature spec under `docs/specs/`, indexed in `docs/specs/README.md` together with a backlog of smaller gaps):
 
 - **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
-- **Pen pressure in Pixel mode.** Aseprite, LibreSprite, Pixelorama and Resprite support it; Pincel has it in Image mode only.
 - **Indexed painting, autotiling, scripting.** Already listed in §13.
 - **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
 - **Layer groups in Image mode.** Pixel mode already has them.
