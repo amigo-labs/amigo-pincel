@@ -191,9 +191,60 @@ test('a Shift pencil drag snaps to the nearest 45 degree direction', async ({ pa
   expect(await pick(page, at, 8, 13)).toBe('#000000');
 });
 
+/** Drag from `from` with Shift held through `pts`, then release both. */
+async function shiftDrag(
+  page: Page,
+  at: At,
+  from: [number, number],
+  pts: [number, number][],
+): Promise<void> {
+  await page.mouse.move(...at(...from));
+  await page.mouse.down();
+  await page.keyboard.down('Shift');
+  for (const p of pts) await page.mouse.move(...at(...p), { steps: 1 });
+  await page.keyboard.up('Shift');
+  await page.mouse.up();
+}
+
+test('a Shift drag keeps the direction its first movement chose', async ({ page }) => {
+  const at = await setup(page);
+  await pencil(page);
+  await fg(page).fill('#00ff00');
+  // Starts horizontal, then swings towards the diagonal: stays on row 3.
+  await shiftDrag(page, at, [2, 3], [
+    [8, 4],
+    [12, 10],
+  ]);
+  // Starts vertical (90°) and drifts sideways: stays on column 5.
+  await shiftDrag(page, at, [5, 6], [
+    [6, 9],
+    [8, 12],
+  ]);
+  // The Eraser constrains the same way.
+  await stroke(page, at, [
+    [1, 14],
+    [14, 14],
+  ]);
+  await eraser(page);
+  await shiftDrag(page, at, [3, 14], [
+    [7, 15],
+    [11, 11],
+  ]);
+
+  expect(await pick(page, at, 12, 3)).toBe('#00ff00');
+  expect(await pick(page, at, 10, 8)).toBe('#000000');
+  expect(await pick(page, at, 5, 12)).toBe('#00ff00');
+  expect(await pick(page, at, 7, 11)).toBe('#000000');
+  expect(await pick(page, at, 11, 14)).toBe('#000000');
+  expect(await pick(page, at, 10, 12)).toBe('#000000');
+  expect(await pick(page, at, 12, 14)).toBe('#00ff00');
+  expect(await pick(page, at, 2, 14)).toBe('#00ff00');
+});
+
 test('brush settings survive a reload', async ({ page }) => {
   await setup(page);
   await pencil(page);
+  await pixelPerfect(page).check();
   await setSize(page, '5');
   await shapeSelect(page).selectOption('round');
   // Wait until the pref reached IndexedDB before navigating away.
@@ -212,12 +263,13 @@ test('brush settings survive a reload', async ({ page }) => {
           }),
       ),
     )
-    .toEqual({ size: 5, shape: 'round', pixelPerfect: false });
+    .toEqual({ size: 5, shape: 'round', pixelPerfect: true });
   await page.reload();
   await setup(page);
   await pencil(page);
   await expect(sizeField(page)).toHaveValue('5');
   await expect(shapeSelect(page)).toHaveValue('round');
+  await expect(pixelPerfect(page)).toBeChecked();
 });
 
 test.describe('touch device', () => {

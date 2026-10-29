@@ -16,7 +16,7 @@ import { PinchTracker } from '../../../lib/view/pinch';
 import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
 import type { BrushShape } from '../brush';
-import type { Tool } from '../tools';
+import type { Direction, Tool } from '../tools';
 
 /** Shape paint mode: stroke only, fill only, or both. */
 export type ShapeMode = 'outline' | 'fill' | 'fill_outline';
@@ -174,6 +174,8 @@ function liveInit() {
     lastPaint: null as Pt | null,
     /** Shift-constraint anchor of the drag; `null` while Shift is up. */
     shiftAnchor: null as Pt | null,
+    /** 45° step the Shift-constrained drag locked onto; `null` until it moves. */
+    shiftDir: null as Direction | null,
     dragStart: null as Pt | null,
     dragPreview: null as Pt | null,
     dragTool: null as Tool | null,

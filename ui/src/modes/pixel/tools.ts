@@ -175,18 +175,31 @@ export function constrainEndpoint(tool: Tool, start: Point, preview: Point, shif
 /** tan 22.5°: past this slope a drag leaves the axis for the diagonal. */
 const TAN_22_5 = Math.SQRT2 - 1;
 
+/** One of the eight 45° unit steps (each component -1, 0 or 1). */
+export type Direction = { x: number; y: number };
+
 /**
- * `p` snapped to whichever of the eight 45° directions from `anchor` lies
- * nearest to it (Shift-constrained Pencil / Eraser drags). A diagonal runs
- * as far as the longer of the two deltas; a tie goes to the axis.
+ * Whichever of the eight 45° directions from `anchor` lies nearest to `p`
+ * (a tie goes to the axis); `null` when `p` is the anchor.
  */
-export function snapToDirection(anchor: Point, p: Point): Point {
+export function directionTo(anchor: Point, p: Point): Direction | null {
   const dx = p.x - anchor.x;
   const dy = p.y - anchor.y;
+  if (dx === 0 && dy === 0) return null;
   const ax = Math.abs(dx);
   const ay = Math.abs(dy);
-  if (ay <= ax * TAN_22_5) return { x: p.x, y: anchor.y };
-  if (ax <= ay * TAN_22_5) return { x: anchor.x, y: p.y };
-  const d = Math.max(ax, ay);
-  return { x: anchor.x + d * Math.sign(dx), y: anchor.y + d * Math.sign(dy) };
+  if (ay <= ax * TAN_22_5) return { x: Math.sign(dx), y: 0 };
+  if (ax <= ay * TAN_22_5) return { x: 0, y: Math.sign(dy) };
+  return { x: Math.sign(dx), y: Math.sign(dy) };
+}
+
+/**
+ * `p` moved onto the ray from `anchor` along `dir` (Shift-constrained
+ * Pencil / Eraser drags). The distance is the longer of the two deltas
+ * measured along `dir`, as in the Line tool's Shift snap; a point behind
+ * the anchor maps to the anchor.
+ */
+export function alongDirection(anchor: Point, dir: Direction, p: Point): Point {
+  const t = Math.max(0, (p.x - anchor.x) * dir.x, (p.y - anchor.y) * dir.y);
+  return { x: anchor.x + t * dir.x, y: anchor.y + t * dir.y };
 }

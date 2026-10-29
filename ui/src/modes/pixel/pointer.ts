@@ -7,7 +7,7 @@ import { constrainedEndpoint, syncMeta } from './render';
 import { type SelectionMode, colors, ed, live, toolState, view } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool } from './brush';
-import { type Tool, isDragShapeTool, isShapeTool, snapToDirection } from './tools';
+import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
@@ -157,19 +157,26 @@ export function paintAt(e: PointerEvent) {
     return;
   }
   if (!isBrushTool(toolState.tool)) return;
-  // Shift (key or latched toggle) snaps the point to the nearest 45°
-  // direction from the anchor: the press position, or the last point sent
-  // before Shift went down (pixel-pencil AC-07). Releasing it continues
-  // freehand from where the stroke is.
+  // Shift (key or latched toggle) constrains the stroke to a 45° ray from
+  // the anchor: the press position, or the last point sent before Shift
+  // went down (pixel-pencil AC-07). The first movement away from the
+  // anchor picks the nearest direction and it holds until Shift is
+  // released; releasing continues freehand from where the stroke is.
   const fresh = live.lastPaint === null;
   let target = point;
   if (!shiftHeld(e)) {
     live.shiftAnchor = null;
+    live.shiftDir = null;
   } else if (fresh) {
     live.shiftAnchor = point;
+    live.shiftDir = null;
   } else {
     live.shiftAnchor ??= live.lastPaint;
-    if (live.shiftAnchor) target = snapToDirection(live.shiftAnchor, point);
+    const anchor = live.shiftAnchor;
+    if (anchor) {
+      live.shiftDir ??= directionTo(anchor, point);
+      target = live.shiftDir ? alongDirection(anchor, live.shiftDir, point) : anchor;
+    }
   }
   if (live.lastPaint && live.lastPaint.x === target.x && live.lastPaint.y === target.y) return;
   try {
@@ -323,6 +330,7 @@ export function onPointerDown(e: PointerEvent) {
   live.painting = true;
   live.lastPaint = null;
   live.shiftAnchor = null;
+  live.shiftDir = null;
   paintAt(e);
 }
 
