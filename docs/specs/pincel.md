@@ -368,6 +368,26 @@ interface CanvasRenderer {
 
 The adapter chooses the backend at startup; users can force Canvas2D via a setting (debug toggle).
 
+### 4.5 Performance budgets
+
+The budgets are contracts (Decision Log 2026-10-29): every performance change states before → after on the benchmark it targets, a budget once met may not regress by more than 10 %, and benchmarks run outside the 60 s PR gate. The benchmarks, the browser performance script (`ui/e2e-perf/`) and the budget check are specified in `docs/specs/performance-benchmarks.md`; the owning spec is the one whose change is expected to meet the budget.
+
+**Reference machine ("mid laptop"):** a 4-core / 8-thread x86 laptop of the 2021 class (i5-1135G7 / Ryzen 5 5500U class), 16 GB RAM, "balanced" power plan, current stable Chrome. **"4G":** Lighthouse's Slow 4G throttling — 150 ms RTT, 1.6 Mbps down, 750 kbps up. CPU is not throttled.
+
+| Scenario | Budget | Owning spec |
+| -------- | ------ | ----------- |
+| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom | ≤ 16 ms (60 fps) | `performance-image-cache` |
+| Pan / zoom, Image 4K 10 layers | 60 fps, no recompose while panning | `performance-image-cache` |
+| Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | `performance-image-kernel`, `performance-build-simd` |
+| Pixel: pencil drag on 256×256 at zoom 32 | 60 fps, dab latency ≤ 8 ms | `performance-input-path` |
+| Open a 4K PNG | ≤ 1 s to first paint | measured first; `performance-image-open` if missed |
+| Effect preview (Gaussian r = 10) on 4K | proxy ≤ 100 ms, full result ≤ 500 ms, UI never blocks | `performance-background-jobs` |
+| Autosave and export of a 4K multi-layer doc | zero UI jank (no frame > 50 ms) | `performance-background-jobs` |
+| Cold start (no cache) → start screen interactive | ≤ 1.5 s mid laptop / 4G; warm ≤ 0.5 s | `performance-build-simd` |
+| Memory, 4K × 10 layers with 50 undo steps, as `WebAssembly.Memory` `buffer.byteLength` | ≤ 1 GB | `performance-image-undo-memory` |
+
+**Regression guard.** On the reference machine the budget check runs in *budget mode*: a budget that has never been met is `pending` and does not fail; from the first run that meets it, a value more than 10 % over it fails. On CI runners it runs in *baseline mode*: each runner is compared with its own last recorded numbers, and more than 10 % worse fails; the budgets are not checked there.
+
 ---
 
 ## 5. Tool System
@@ -394,8 +414,8 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 
 | Tool | Behavior |
 |------|----------|
-| Pencil | Single-pixel line, brush-size variants 1–8, hold Shift = constrain to 0/45/90° |
-| Eraser | Clears to transparent (RGBA) or transparent-index (Indexed) |
+| Pencil | Freehand stroke with a square or round brush of size 1–8 (`[` / `]`), hold Shift = constrain to 0/45/90°, optional pixel-perfect (drops L-corner pixels at size 1, off by default); one stroke is one `PencilStroke` undo entry |
+| Eraser | Clears to transparent (RGBA) or transparent-index (Indexed); shares the Pencil's size, shape and pixel-perfect setting |
 | Bucket | Paint-fill, contiguous (default) or all-matching, tolerance 0 in MVP |
 | Line | Bresenham line between press and release |
 | Rectangle | Outline + filled variants, hold Shift = square |
@@ -601,7 +621,9 @@ import init, { Document } from '@amigo-labs/pincel-wasm';
 
 await init();
 const doc = new Document(64, 64);
-doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA
+doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
+doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
+doc.strokeTo(x, y);                       // per pointer sample; one undo entry
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
 //  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
@@ -616,13 +638,15 @@ const events = doc.drainEvents();
 // event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
 ### 9.4 Input Handling
 
 Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
 
-Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes and snaps lines to 45°, adds to a selection; Alt subtracts; both intersect.
+Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes, snaps lines and Pixel-mode Pencil / Eraser strokes to 45°, adds to a selection; Alt subtracts; both intersect.
 
 ### 9.5 Language
 

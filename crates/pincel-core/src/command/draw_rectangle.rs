@@ -607,4 +607,29 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn filled_rectangle_is_exactly_the_bbox_whichever_corner_comes_first() {
+        // (1, 2)–(4, 5) dragged in all four directions paints the full
+        // inclusive bbox and nothing else.
+        let color = Rgba::new(0x12, 0x34, 0x56, 0xff);
+        for (start, end) in [
+            ((1, 2), (4, 5)),
+            ((4, 5), (1, 2)),
+            ((4, 2), (1, 5)),
+            ((1, 5), (4, 2)),
+        ] {
+            let (mut sprite, mut cels) = fixture();
+            DrawRectangle::new(LayerId::new(1), FrameIndex::new(0), start, end, true, color)
+                .apply(&mut sprite, &mut cels)
+                .expect("apply ok");
+            for y in 0..8u32 {
+                for x in 0..8u32 {
+                    let inside = (1..=4).contains(&x) && (2..=5).contains(&y);
+                    let want = if inside { color } else { Rgba::TRANSPARENT };
+                    assert_eq!(pixel(&cels, x, y), want, "{start:?}->{end:?} at ({x}, {y})");
+                }
+            }
+        }
+    }
 }
