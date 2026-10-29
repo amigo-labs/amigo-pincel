@@ -105,25 +105,25 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts) | built |        |
+| AC-02 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_counts_the_sequence_frames` (crates/pincel-core/src/codec/animation/mod.rs) | built |        |
 | AC-03 | `animation_frames_all_frames_are_forward_once` (crates/pincel-core/src/codec/animation/sequence.rs) | built |        |
 | AC-04 | `animation_frames_forward_tag_runs_from_to`, `animation_frames_reverse_tag_runs_to_from`, `animation_frames_pingpong_returns_without_repeating_ends`, `animation_frames_pingpong_reverse_starts_at_to`, `animation_frames_single_frame_tag_is_one_frame_in_every_direction`, `animation_frames_unknown_direction_byte_plays_forward` (crates/pincel-core/src/codec/animation/sequence.rs); `export_animation_apng_frames_equal_composed_frames_in_sequence_order` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-05 | `upscale_nearest_makes_exact_blocks`, `scaled_size_multiplies_both_edges` (crates/pincel-core/src/codec/scale.rs); `export_animation_apng_scale_makes_exact_blocks` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-06 |      | open   |        |
+| AC-06 | `APNG export downloads <stem>.png with an acTL frame count` (ui/e2e/export-animation.spec.ts); `export_animation_apng_has_png_signature_and_actl_frame_count` (crates/pincel-core/src/codec/animation/apng.rs); `export_animation_apng_carries_actl_with_frame_count` (crates/pincel-wasm/src/animation.rs) | built |        |
 | AC-07 | `export_animation_apng_frames_equal_composed_frames_in_sequence_order`, `export_animation_apng_single_frame_is_valid_animation` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-08 | `export_animation_apng_delay_is_duration_in_ms` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-09 | `export_animation_apng_play_count_follows_loops` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-10 | `the loop choice defaults to the tag repeat count`, `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_default_loops_follow_the_tag_repeats` (crates/pincel-core/src/codec/animation/mod.rs); `animation_info_reports_count_loops_and_notices` (crates/pincel-wasm/src/animation.rs) | built |        |
+| AC-11 | `GIF export downloads <stem>.gif with the NETSCAPE loop count` (ui/e2e/export-animation.spec.ts); `export_animation_gif_starts_with_gif89a`, `export_animation_gif_loop_extension_counts_extra_plays` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-12 | `export_animation_gif_alpha_threshold_is_128` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-13 | `export_animation_gif_fitting_frames_keep_exact_rgb`, `fits_table_counts_the_transparent_entry` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-14 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_frames_over_the_gif_table` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_gif_overflowing_frame_is_quantized_and_written` (crates/pincel-core/src/codec/animation/gif.rs); `median_cut_overflowing_set_returns_at_most_max_colors` (crates/pincel-core/src/codec/animation/quantize.rs) | built |        |
+| AC-15 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_semi_transparent_pixels` (crates/pincel-core/src/codec/animation/mod.rs); `has_partial_alpha_detects_alpha_between_1_and_254` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-16 | `delay_cs_rounds_to_hundredths_with_minimum_two`, `export_animation_gif_frame_delays_follow_durations` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-17 | `export_animation_gif_pixel_turning_transparent_shows_transparent`, `export_animation_gif_frames_follow_sequence_and_scale` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-18 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_indexed_sprite_returns_render_error`, `export_animation_frameless_sprite_returns_no_frames`, `export_animation_scale_out_of_range_returns_err`, `export_animation_unknown_tag_returns_err` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_bad_arguments_return_err` (crates/pincel-wasm/src/animation.rs) | built |        |
+| AC-19 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_over_edge_limit_returns_err_naming_limit` (crates/pincel-core/src/codec/animation/mod.rs); `scaled_size_above_limit_returns_err_naming_limit`, `scaled_size_exactly_at_limit_is_accepted` (crates/pincel-core/src/codec/scale.rs); `export_animation_over_edge_limit_names_the_limit` (crates/pincel-wasm/src/animation.rs) | built |        |
 
 ## Decisions
 
@@ -139,4 +139,6 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: Per-layer export stays out of scope — it writes one file per layer, which the single-download export flow and dialog don't handle; it belongs with a future split-layers option shared with sprite-sheet export (owner accepted the recommendation).
 - 2026-10-29 (spec-build): GIF frames that overflow the 256-entry table are reduced by a small in-house median cut (`codec/animation/quantize.rs`) instead of `gif`'s NeuQuant `Frame::from_rgba_speed` — that function needs `gif`'s `color_quant` feature, beyond the approved `default-features = false` plus `std`, and it treats every non-zero alpha as opaque, contradicting the 128 threshold.
 - 2026-10-29 (spec-build): New public `pincel-core` API: `AnimationFormat`, `AnimationOptions`, `AnimationInfo`, `animation_frames`, `animation_info`, `export_animation` and the `ExportError` variants `InvalidScale`, `ScaledTooLarge`, `GifEncode`. `animation_info` gives the dialog its frame count, default loop count and the two GIF notices without encoding — the dialog cannot know the colour count otherwise.
+- 2026-10-29 (spec-build): The dialog's loop choice is a "Forever" / "N times" radio pair with a play-count field (1–65535); choosing another frames entry resets it to that entry's default (AC-10). The estimate reads "Frames: n · size: w×h px", which avoids a plural form the i18n layer doesn't have. The UI is test-after (AGENTS.md §2.3); its e2e builds a minimal `.aseprite` in the test to get a tag with a repeat count, which the editor cannot set yet.
+- 2026-10-29 (spec-build): The macOS native menu gets File ▸ Export Animation… (`menu:exportAnimation`) next to the sheet export, without an accelerator — the spec names no shortcut.
 - 2026-10-29 (spec-build): The shared upscale lives in `codec/scale.rs` (`scaled_size`, `upscale_nearest`, crate-private) for `scaled-export` to reuse; a plain block copy rather than `Raster::resample`, which lives in the command layer.

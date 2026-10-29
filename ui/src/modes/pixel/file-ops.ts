@@ -1,4 +1,5 @@
-// File operations: open, save, recents, autosave, PNG / sheet export.
+// File operations: open, save, recents, autosave, PNG / sheet / animation
+// export.
 
 import { invoke } from '@tauri-apps/api/core';
 import { Document } from '../../lib/core';
@@ -19,6 +20,10 @@ import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
 import { type RecentFile, listRecents, upsertRecent } from '../../lib/idb/recent-files';
 import { hasNativeMenu, isTauri } from '../../lib/platform';
+import type {
+  AnimationExportOptions,
+  AnimationSummary,
+} from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { disposeDoc, resetDocViewState } from './doc-ops';
 import { afterImageCommand } from './image-ops';
@@ -307,6 +312,56 @@ export async function exportPng() {
   } catch (err) {
     ed.status = t('status.failed', {
       action: t('act.export'),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    file.busy = false;
+  }
+}
+
+export function openAnimationDialog() {
+  if (ed.doc && !file.busy) dialogs.animation = true;
+}
+
+/** The core's view of the frames `tag` selects; `null` when the core
+ *  refuses the sprite (the export then reports the error). */
+export function describeAnimation(tag: string | null): AnimationSummary | null {
+  if (!ed.doc) return null;
+  try {
+    const info = ed.doc.animationInfo(tag ?? undefined);
+    try {
+      return {
+        frameCount: info.frameCount,
+        defaultLoops: info.defaultLoops,
+        gifApproximated: info.gifApproximated,
+        semiTransparent: info.semiTransparent,
+      };
+    } finally {
+      info.free();
+    }
+  } catch {
+    return null;
+  }
+}
+
+// Export the animation as APNG (`.png`) or GIF (spec §7.5).
+export async function exportAnimation(options: AnimationExportOptions) {
+  dialogs.animation = false;
+  if (!ed.doc || file.busy) return;
+  file.busy = true;
+  try {
+    const bytes = new Uint8Array(
+      ed.doc.exportAnimation(options.format, options.tag ?? undefined, options.scale, options.loops),
+    );
+    const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
+    const saved =
+      options.format === 'gif'
+        ? await saveExport(bytes, `${base}.gif`, 'gif')
+        : await saveExport(bytes, `${base}.png`);
+    if (saved) ed.status = t('px.exportedAnimation', { bytes: bytes.length });
+  } catch (err) {
+    ed.status = t('status.failed', {
+      action: t('act.animationExport'),
       error: err instanceof Error ? err.message : String(err),
     });
   } finally {

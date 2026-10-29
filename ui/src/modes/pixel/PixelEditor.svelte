@@ -9,6 +9,7 @@
   import TimelinePanel from './components/TimelinePanel.svelte';
   import { isShapeTool, toolGroups } from './tools';
   import SpriteSheetDialog from './components/SpriteSheetDialog.svelte';
+  import AnimationExportDialog from './components/AnimationExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
@@ -68,6 +69,8 @@
     autosave,
     bindShell,
     confirmDiscard,
+    describeAnimation,
+    exportAnimation,
     exportPng,
     exportSheet,
     fsAccessAvailable,
@@ -81,6 +84,7 @@
     openOpened,
     openRecent,
     nativeMenuHost,
+    openAnimationDialog,
     openSheetDialog,
     recentsAvailable,
     save,
@@ -227,6 +231,7 @@
       importPng: () => void importPngLayer(),
       exportPng: () => void exportPng(),
       exportSheet: openSheetDialog,
+      exportAnimation: openAnimationDialog,
       undo,
       redo,
       deleteSelection: deleteSelectionPixels,
@@ -285,7 +290,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || autosave.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || autosave.snapshots.length > 0) return;
     if (dialogs.selectionRadius || help.about) return;
     if (e.key === 'Escape') {
       if (dialogs.confirm) {
@@ -509,6 +514,7 @@
       'menu:saveAs': () => save({ forceAs: true }),
       'menu:exportPng': () => void exportPng(),
       'menu:exportSheet': openSheetDialog,
+      'menu:exportAnimation': openAnimationDialog,
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': zoomIn,
@@ -1024,6 +1030,18 @@
     frameHeight={ed.canvasH}
     onSubmit={(o) => void exportSheet(o)}
     onCancel={() => (dialogs.sheet = false)}
+  />
+{/if}
+
+{#if dialogs.animation && ed.doc}
+  <AnimationExportDialog
+    frameCount={ed.frameCount}
+    tags={sheetTags}
+    frameWidth={ed.canvasW}
+    frameHeight={ed.canvasH}
+    describe={describeAnimation}
+    onSubmit={(o) => void exportAnimation(o)}
+    onCancel={() => (dialogs.animation = false)}
   />
 {/if}
 
