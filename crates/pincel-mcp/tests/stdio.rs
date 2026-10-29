@@ -104,7 +104,7 @@ fn end_to_end_draw_preview_export_in_temp_workspace() {
     assert!(
         res["result"]["resources"]
             .as_array()
-            .is_some_and(|r| r.len() == 5)
+            .is_some_and(|r| r.len() == 7)
     );
     let res = c.request("resources/read", json!({ "uri": "pincel://palettes/db16" }));
     assert!(res["result"]["contents"][0]["text"].as_str().is_some());
@@ -135,6 +135,57 @@ fn end_to_end_draw_preview_export_in_temp_workspace() {
     assert_eq!(at(2, 3), [255, 0, 0, 255]);
     assert_eq!(at(7, 7), [0, 255, 0, 255]);
     assert_eq!(at(0, 0), [0, 0, 0, 0]);
+}
+
+#[test]
+fn image_document_open_edit_save_and_export_over_stdio() {
+    let ws = temp_workspace("image");
+    let mut c = Client::spawn(&[], &ws);
+    c.initialize();
+    let guide = c.request("resources/read", json!({ "uri": "pincel://guide" }));
+    assert_eq!(guide["result"]["contents"][0]["mimeType"], "text/markdown");
+
+    let r = c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 40, "height": 30 }),
+    );
+    assert_eq!(r["isError"], false, "{r}");
+    let r = c.tool(
+        "draw.shape",
+        json!({ "shape": "rect", "x0": 4, "y0": 4, "x1": 30, "y1": 20, "fill": "#3366ff" }),
+    );
+    assert_eq!(r["isError"], false, "{r}");
+    let r = c.tool(
+        "draw.text",
+        json!({ "text": "Hi", "x": 6, "y": 6, "size": 12, "color": "#ffffff" }),
+    );
+    assert_eq!(r["isError"], false, "{r}");
+    let r = c.tool("doc.save", json!({ "path": "mock.ora" }));
+    assert_eq!(r["isError"], false, "{r}");
+    let r = c.tool("export.webp", json!({ "path": "out/mock.webp" }));
+    assert_eq!(r["isError"], false, "{r}");
+    let r = c.tool("export.png", json!({ "path": "out/mock.png" }));
+    assert_eq!(r["isError"], false, "{r}");
+    assert!(ws.join("mock.ora").is_file());
+    assert!(ws.join("out").join("mock.webp").is_file());
+    let png =
+        import_png(&std::fs::read(ws.join("out").join("mock.png")).expect("png")).expect("decodes");
+    assert_eq!((png.width, png.height), (40, 30));
+    let at = |x: usize, y: usize| &png.rgba[(y * 40 + x) * 4..(y * 40 + x) * 4 + 4];
+    assert_eq!(at(25, 18), [0x33, 0x66, 0xff, 255]);
+    assert_eq!(at(0, 0), [0, 0, 0, 0]);
+
+    // The PNG reopens as an Image document; saving it without a path asks
+    // for a .ora path and leaves the PNG alone.
+    let before = std::fs::read(ws.join("out").join("mock.png")).expect("png");
+    let r = c.tool("doc.open", json!({ "path": "out/mock.png" }));
+    assert_eq!(r["structuredContent"]["mode"], "image", "{r}");
+    let r = c.tool("doc.save", json!({}));
+    assert_eq!(r["isError"], true);
+    assert_eq!(
+        std::fs::read(ws.join("out").join("mock.png")).expect("png"),
+        before
+    );
 }
 
 #[test]

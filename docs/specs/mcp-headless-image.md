@@ -132,8 +132,8 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 | AC-14 | `crop_to_selection_without_selection_fails` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
 | AC-15 | `image_exports_decode_to_the_composed_image` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
 | AC-16 | `image_doc_save_writes_ora_that_reopens_identically` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-17 | `read_resource_guide_covers_workflow_and_both_modes`, `list_resources_has_guide_and_effects` (`crates/pincel-agent/src/resources.rs`); `resources_read_guide_and_effects_with_their_mime_types` (`crates/pincel-mcp/src/server.rs`); `image_document_open_edit_save_and_export_over_stdio` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
+| AC-18 | `effects_resource_lists_exactly_the_catalog_with_ranges` (`crates/pincel-agent/src/resources.rs`); `catalog_covers_every_effect_in_menu_order` (`crates/pincel-agent/src/pixel/effects.rs`) | built |        |
 | AC-19 | `image_doc_open_corrupt_or_unsupported_file_fails_naming_it` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
 | AC-20 | `image_doc_save_without_path_after_flat_open_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
 | AC-21 | `image_size_limits_refuse_new_and_open` (`crates/pincel-agent/src/tests/image.rs`); `resize_and_scale_refuse_sizes_above_the_limits` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
@@ -158,4 +158,5 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 - 2026-10-29 (build): `doc.open` routes by extension (`.aseprite` / `.ase` → Pixel) and otherwise opens an Image document — `.ora` (or a ZIP signature) as a project, anything else through the core decoder; the flat format named in the AC-20 message comes from the file signature. Image `doc.preview` keeps the Pixel rules (no downscale, 2048 px cap, `region` for larger images).
 - 2026-10-29 (build): the Text tool's font is embedded in `pincel-agent` with `include_bytes!` from `ui/public/fonts/LiberationSans-Regular.ttf` — one copy of the font in the repository; `cargo install --path` builds in place, so the path resolves.
 - 2026-10-29 (build): `pincel-agent` gains `pincel-image-core` as a dependency and the workspace `image` crate as a dev-dependency (GIF / TIFF / WebP fixtures for AC-02); both are already in the lockfile, so no new external dependency.
+- 2026-10-29 (build): `pincel://guide` is Markdown (`text/markdown`) kept in `crates/pincel-agent/src/guide.md`; its test checks the required sections and that every tool it names exists. `pincel://effects` is JSON generated from the same catalog table `effect.apply` validates against (ids in menu order, `kind` effect / adjustment, each parameter with type, range or options and default); that table is pinned to `pincel_effects::EFFECT_NAMES` by `catalog_covers_every_effect_in_menu_order`. `resources/read` now answers with the MIME type `resources/list` gives.
 - 2026-10-29 (build): the Image document and shared-tool code was written before its tests in this run; the only red run recorded for that block is `doc.info` refusing Image documents. The editing tools' tests ran red first (unknown tools).
