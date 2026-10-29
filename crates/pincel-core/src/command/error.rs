@@ -183,6 +183,18 @@ pub enum CommandError {
     #[error("the target region is empty")]
     EmptyRegion,
 
+    /// A patch rectangle does not lie inside the cel buffer. Emitted by
+    /// [`crate::PatchCel`].
+    #[error("patch {width}x{height} at ({x}, {y}) lies outside the {cel_width}x{cel_height} cel")]
+    PatchOutOfCel {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+        cel_width: u32,
+        cel_height: u32,
+    },
+
     /// The supplied font bytes could not be parsed. Emitted by
     /// [`crate::DrawText`].
     #[error("font parse failed: {0}")]

@@ -707,6 +707,71 @@ mod tests {
     }
 
     #[test]
+    fn write_rejects_grayscale_color_mode() {
+        let sprite = Sprite::builder(2, 2)
+            .color_mode(ColorMode::Grayscale)
+            .add_frame(Frame::new(100))
+            .build()
+            .unwrap();
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &CelMap::new(), &mut buf).unwrap_err();
+        assert!(matches!(err, CodecError::UnsupportedColorMode), "{err:?}");
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn write_rejects_canvas_taller_than_u16() {
+        let sprite = Sprite::builder(1, 65_536)
+            .add_frame(Frame::new(100))
+            .build()
+            .unwrap();
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &CelMap::new(), &mut buf).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CodecError::OutOfRange {
+                    what: "canvas height",
+                    value: 65_536,
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn write_rejects_cel_y_below_i16() {
+        let sprite = rgba_sprite(
+            vec![Layer::image(LayerId::new(0), "L0")],
+            vec![Frame::new(100)],
+        );
+        let mut cels = CelMap::new();
+        cels.insert(Cel {
+            layer: LayerId::new(0),
+            frame: FrameIndex::new(0),
+            position: (0, -40_000),
+            opacity: 255,
+            data: CelData::Image(PixelBuffer::empty(1, 1, ColorMode::Rgba)),
+            user_data: None,
+            z_index: 0,
+        });
+        let mut buf = Vec::new();
+        let err = write_aseprite(&sprite, &cels, &mut buf).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CodecError::OutOfRange {
+                    what: "cel y",
+                    value: -40_000,
+                }
+            ),
+            "{err:?}"
+        );
+        assert!(buf.is_empty());
+    }
+
+    #[test]
     fn write_emits_tilemap_layer_chunk_with_tileset_index() {
         // Smoke-test that a tilemap layer no longer trips the writer's
         // "unsupported" rail. End-to-end round-trip is exercised in

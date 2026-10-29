@@ -413,4 +413,133 @@ mod tests {
         }
         assert_eq!(ShapeKind::Ellipse.name(), "ellipse");
     }
+
+    /// Solid coverage of `kind` over (2, 2)–(17, 17) on a 20×20 cel: the
+    /// shape drawn in Fill mode.
+    fn solid(kind: ShapeKind) -> Vec<bool> {
+        let (mut s, mut c) = doc(20, 20);
+        DrawShape::new(L, F, (2, 2), (17, 17), kind, style(ShapeMode::Fill, 1))
+            .apply(&mut s, &mut c)
+            .unwrap();
+        (0..20u32)
+            .flat_map(|y| (0..20u32).map(move |x| (x, y)))
+            .map(|(x, y)| px(&c, x, y) == FL)
+            .collect()
+    }
+
+    /// True when a pixel outside the solid shape lies within `n` pixels
+    /// (horizontally, vertically or diagonally) of `(x, y)`: the pixel is
+    /// in the `n`-wide band inside the shape's edge.
+    fn near_edge(solid: &[bool], x: i32, y: i32, n: i32) -> bool {
+        (-n..=n).any(|dy| {
+            (-n..=n).any(|dx| {
+                let (qx, qy) = (x + dx, y + dy);
+                !(0..20).contains(&qx) || !(0..20).contains(&qy) || !solid[(qy * 20 + qx) as usize]
+            })
+        })
+    }
+
+    const SHAPE_KINDS: [ShapeKind; 4] = [
+        ShapeKind::Rectangle,
+        ShapeKind::RoundedRectangle { radius: 4.0 },
+        ShapeKind::Ellipse,
+        ShapeKind::Polygon {
+            sides: 5,
+            rotation_deg: 0.0,
+        },
+    ];
+
+    #[test]
+    fn outline_and_fill_outline_paint_an_n_wide_edge_band_for_every_kind() {
+        // Background colour on every pixel, so "untouched" is visible.
+        const BG: Rgba = Rgba::new(9, 9, 9, 255);
+        for kind in SHAPE_KINDS {
+            let solid = solid(kind);
+            for n in [1u32, 3] {
+                for mode in [ShapeMode::Outline, ShapeMode::FillOutline] {
+                    let (mut s, mut c) = doc(20, 20);
+                    if let CelData::Image(b) = &mut c.get_mut(L, F).unwrap().data {
+                        for p in b.data.as_chunks_mut::<4>().0 {
+                            *p = [BG.r, BG.g, BG.b, BG.a];
+                        }
+                    }
+                    DrawShape::new(L, F, (2, 2), (17, 17), kind, style(mode, n))
+                        .apply(&mut s, &mut c)
+                        .unwrap();
+                    let (mut band, mut interior) = (0, 0);
+                    for y in 0..20i32 {
+                        for x in 0..20i32 {
+                            let got = px(&c, x as u32, y as u32);
+                            let want = if !solid[(y * 20 + x) as usize] {
+                                BG
+                            } else if near_edge(&solid, x, y, n as i32) {
+                                band += 1;
+                                S
+                            } else {
+                                interior += 1;
+                                if mode == ShapeMode::Outline { BG } else { FL }
+                            };
+                            assert_eq!(got, want, "{kind:?} {mode:?} width {n} at ({x}, {y})");
+                        }
+                    }
+                    assert!(
+                        band > 0 && interior > 0,
+                        "{kind:?} width {n} has both parts"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fill_mode_paints_the_whole_shape_in_the_fill_colour() {
+        for kind in SHAPE_KINDS {
+            let solid = solid(kind);
+            let (mut s, mut c) = doc(20, 20);
+            DrawShape::new(L, F, (2, 2), (17, 17), kind, style(ShapeMode::Fill, 3))
+                .apply(&mut s, &mut c)
+                .unwrap();
+            for y in 0..20u32 {
+                for x in 0..20u32 {
+                    let want = if solid[(y * 20 + x) as usize] {
+                        FL
+                    } else {
+                        Rgba::TRANSPARENT
+                    };
+                    assert_eq!(px(&c, x, y), want, "{kind:?} at ({x}, {y})");
+                }
+            }
+            assert!(
+                solid.iter().filter(|&&v| v).count() > 100,
+                "{kind:?} is solid"
+            );
+        }
+    }
+
+    #[test]
+    fn rounded_ellipse_and_polygon_leave_all_four_bbox_corners_unpainted() {
+        let mut kinds = vec![ShapeKind::Ellipse];
+        // Radius 1 keeps the corner pixel: its centre lies within 1 px of
+        // the inner box (spec AC-14 starts at radius 2).
+        kinds.extend([2.0, 5.0].map(|radius| ShapeKind::RoundedRectangle { radius }));
+        kinds.extend([3, 4, 7, 64].map(|sides| ShapeKind::Polygon {
+            sides,
+            rotation_deg: 0.0,
+        }));
+        for kind in kinds {
+            let (mut s, mut c) = doc(12, 12);
+            DrawShape::new(L, F, (1, 1), (10, 10), kind, style(ShapeMode::Fill, 1))
+                .apply(&mut s, &mut c)
+                .unwrap();
+            for (x, y) in [(1, 1), (10, 1), (1, 10), (10, 10)] {
+                assert_eq!(
+                    px(&c, x, y),
+                    Rgba::TRANSPARENT,
+                    "{kind:?} corner ({x}, {y})"
+                );
+            }
+            assert_eq!(px(&c, 5, 5), FL, "{kind:?} centre");
+            assert_eq!(px(&c, 6, 6), FL, "{kind:?} centre");
+        }
+    }
 }

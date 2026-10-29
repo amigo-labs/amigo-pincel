@@ -578,4 +578,41 @@ mod tests {
         // match what `apply` reported so undo emits a matching event.
         assert_eq!(cmd.dirty_region(), region);
     }
+
+    #[test]
+    fn fill_matches_the_seed_rgba_exactly() {
+        // Pixels one step off the seed colour in any single channel
+        // (alpha included) are not part of the region, even though they
+        // sit inside it.
+        let (mut sprite, mut cels) = fixture();
+        let seed = Rgba::new(10, 20, 30, 200);
+        for y in 0..8u32 {
+            for x in 0..8u32 {
+                write_pixel(&mut cels, x, y, seed);
+            }
+        }
+        let near = [
+            (1, 1, Rgba::new(11, 20, 30, 200)),
+            (3, 1, Rgba::new(10, 21, 30, 200)),
+            (5, 1, Rgba::new(10, 20, 31, 200)),
+            (1, 4, Rgba::new(10, 20, 30, 201)),
+            (3, 4, Rgba::new(9, 20, 30, 200)),
+        ];
+        for &(x, y, c) in &near {
+            write_pixel(&mut cels, x, y, c);
+        }
+        let mut cmd = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 7, 7, RED);
+        cmd.apply(&mut sprite, &mut cels).expect("apply ok");
+        for &(x, y, c) in &near {
+            assert_eq!(pixel(&cels, x, y), c, "near colour at ({x}, {y}) untouched");
+        }
+        for y in 0..8u32 {
+            for x in 0..8u32 {
+                if !near.iter().any(|&(nx, ny, _)| (nx, ny) == (x, y)) {
+                    assert_eq!(pixel(&cels, x, y), RED, "seed colour at ({x}, {y}) filled");
+                }
+            }
+        }
+        assert_eq!(cmd.filled_count(), 64 - near.len());
+    }
 }

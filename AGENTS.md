@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -485,6 +485,8 @@ crates/pincel-effects/        Stateless effects + adjustments, shared by both co
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
+crates/pincel-agent/          Agent (MCP) tools over pincel-core, platform-free, no I/O
+crates/pincel-mcp/            `pincel-mcp` binary: MCP over stdio + workspace sandbox
 
 ui/                           Svelte 5 + Vite frontend (PWA + Tauri)
 ui/src/App.svelte             Two-mode shell: start screen, New dialog, mode routing
@@ -520,6 +522,7 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 
 - **Stale wasm package breaks `pnpm check`.** `ui/` links `crates/*/pkg` (gitignored build output). After Rust changes to a wasm crate — or pulling someone else's — svelte-check reports missing exports (e.g. "has no exported member 'paste_layer'") although the Rust source has them. Fix: `pnpm wasm:build` in `ui/`, not a code change.
 - **Parallel worktrees share the e2e port.** Locally Playwright reuses any server already on port 4173 (`reuseExistingServer`), so a second checkout silently tests the other checkout's build. Give each worktree its own port: `PINCEL_E2E_PORT=4291 pnpm test:e2e`.
+- **`aseprite-loader` accepts any chunk order; Aseprite does not.** The loader collects every chunk of a frame before resolving it. Aseprite's decoder resolves while it reads: a tilemap layer needs its Tileset chunk earlier, and a User Data chunk attaches to the chunk read just before it. A write → `aseprite-loader` round trip therefore does not prove Aseprite can open the file. Pin the chunk order with tests (`crates/aseprite-writer/tests/roundtrip.rs`). After a writer change, repeat the manual check in `crates/pincel-core/tests/fixtures/aseprite-compat-check.md`.
 - **E2e input waits for `data-ready`, not for a visible canvas.** Both editors mount their canvas, menus, panels and key handlers before the core hands back a document; under CPU load a spec that clicks, types or takes `boundingBox()` then hits a 64×64 placeholder canvas or a document-less editor (passes idle, fails with many workers). The canvas carries `data-ready="true"` once the document is loaded, fitted and drawn — `createDocument` / `waitForEditor` in `ui/e2e/helpers.ts` wait for it. Any other way into an editor (Open… from the start screen, a startup document after reload) calls `waitForEditor` before the first input or status-bar check. It also keeps editor start-up (fetching and compiling the dev wasm takes 10–15 s with 16 workers) off the 30 s test timeout — don't wait for an editor with a bare `expect` instead.
 - **E2e Chromium has no WebGPU adapter.** The Playwright browser exposes `navigator.gpu`, but `requestAdapter()` resolves `null` even with `--enable-unsafe-webgpu` / SwiftShader flags, so every e2e run renders through Canvas2D. A spec about the WebGPU path installs a stand-in device with `addInitScript` (see `ui/e2e/renderer.spec.ts`); it cannot check GPU output.
 

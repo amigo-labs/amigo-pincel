@@ -4,8 +4,17 @@
 //!
 //! Layout convention used by this writer:
 //!
-//! - Layer chunks, palette chunk, and the tags chunk are emitted into
-//!   the **first frame**, matching how Aseprite itself writes them.
+//! - The **first frame** carries, in this order: External Files, Palette
+//!   (then the sprite's User Data), Tilesets (each with its User Data:
+//!   the tileset's own, then one per tile), Tags (then one User Data per
+//!   tag), Layers (each with its User Data), Slices (each with its User
+//!   Data), then the frame's cels. This is the order of Aseprite's own
+//!   encoder, and Aseprite's reader depends on it: a tilemap layer looks
+//!   its tileset up while the Layer chunk is read, a User Data chunk goes
+//!   to the sprite only before any layer / tileset / tag / slice / cel
+//!   chunk, and a tileset's User Data run is read as exactly one chunk
+//!   per tile. `aseprite-loader` collects all chunks before resolving
+//!   them, so a loader round-trip alone does not prove this order.
 //! - Per-frame chunks (cels) live in their respective frame.
 //! - The header `frames` field is overwritten from `frames.len()`; the
 //!   header `file_size` is computed at write time.
@@ -108,24 +117,48 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
     for (idx, frame) in file.frames.iter().enumerate() {
         let mut chunks: Vec<Vec<u8>> = Vec::new();
         if idx == 0 {
+            // Same order as Aseprite's own encoder; its reader depends on
+            // it (see the module docs).
             if !file.external_files.is_empty() {
                 chunks.push(encode_chunk(CHUNK_TYPE_EXTERNAL_FILES, |buf| {
                     write_external_files_body(buf, &file.external_files)
                 })?);
-            }
-            for layer in &file.layers {
-                chunks.push(encode_chunk(CHUNK_TYPE_LAYER, |buf| {
-                    write_layer_body(buf, layer)
-                })?);
-                push_user_data(&mut chunks, layer.user_data.as_ref())?;
             }
             if let Some(palette) = &file.palette {
                 chunks.push(encode_chunk(CHUNK_TYPE_PALETTE, |buf| {
                     write_palette_body(buf, palette)
                 })?);
                 // Aseprite v1.3: a User Data chunk right after the first
-                // frame's palette belongs to the sprite.
+                // frame's palette, before any object chunk, belongs to
+                // the sprite.
                 push_user_data(&mut chunks, file.user_data.as_ref())?;
+            }
+            for tileset in &file.tilesets {
+                validate_tileset(tileset)?;
+                chunks.push(encode_chunk(CHUNK_TYPE_TILESET, |buf| {
+                    write_tileset_body(buf, tileset)
+                })?);
+                // Positional, like tags: the tileset's own chunk, then
+                // one per tile for every tile — Aseprite reads exactly
+                // that many once the tileset has any.
+                if tileset.user_data.is_some() || tileset.tile_user_data.iter().any(Option::is_some)
+                {
+                    let own = tileset.user_data.clone().unwrap_or_default();
+                    chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                        write_user_data_body(buf, &own)
+                    })?);
+                    for tile in 0..tileset.number_of_tiles as usize {
+                        let ud = tileset
+                            .tile_user_data
+                            .get(tile)
+                            .cloned()
+                            .flatten()
+                            .unwrap_or_default();
+                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
+                            write_user_data_body(buf, &ud)
+                        })?);
+                    }
+                }
             }
             if !file.tags.is_empty() {
                 chunks.push(encode_chunk(CHUNK_TYPE_TAGS, |buf| {
@@ -141,27 +174,11 @@ fn encode_frames(file: &AseFile) -> Result<Vec<Vec<u8>>, WriteError> {
                     }
                 }
             }
-            for tileset in &file.tilesets {
-                validate_tileset(tileset)?;
-                chunks.push(encode_chunk(CHUNK_TYPE_TILESET, |buf| {
-                    write_tileset_body(buf, tileset)
+            for layer in &file.layers {
+                chunks.push(encode_chunk(CHUNK_TYPE_LAYER, |buf| {
+                    write_layer_body(buf, layer)
                 })?);
-                // Positional, like tags: the tileset's own chunk, then
-                // one per tile up to the last tile that has any.
-                let last_tile = tileset.tile_user_data.iter().rposition(Option::is_some);
-                if tileset.user_data.is_some() || last_tile.is_some() {
-                    let own = tileset.user_data.clone().unwrap_or_default();
-                    chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
-                        write_user_data_body(buf, &own)
-                    })?);
-                    let tiles = last_tile.map_or(0, |i| i + 1);
-                    for ud in &tileset.tile_user_data[..tiles] {
-                        let ud = ud.clone().unwrap_or_default();
-                        chunks.push(encode_chunk(CHUNK_TYPE_USER_DATA, |buf| {
-                            write_user_data_body(buf, &ud)
-                        })?);
-                    }
-                }
+                push_user_data(&mut chunks, layer.user_data.as_ref())?;
             }
             for slice in &file.slices {
                 let flags = validate_slice(slice)?;

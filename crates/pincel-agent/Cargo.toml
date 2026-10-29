@@ -1,0 +1,18 @@
+[package]
+name = "pincel-agent"
+version.workspace = true
+description = "Platform-free agent tool layer for Pincel: the MCP tools over pincel-core, without I/O"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pincel-core = { workspace = true }
+pincel-effects = { workspace = true }
+png = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

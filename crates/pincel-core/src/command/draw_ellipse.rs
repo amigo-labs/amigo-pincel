@@ -814,4 +814,51 @@ mod tests {
         );
         assert!(!a.merge(&b));
     }
+
+    /// Paint the ellipse spanning `start`–`end` on an 11×11 cel.
+    fn ellipse(start: (i32, i32), end: (i32, i32), fill: bool) -> CelMap {
+        let (mut sprite, mut cels) = fixture(11);
+        DrawEllipse::new(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            start,
+            end,
+            fill,
+            Rgba::WHITE,
+        )
+        .apply(&mut sprite, &mut cels)
+        .expect("apply ok");
+        cels
+    }
+
+    #[test]
+    fn filled_ellipse_is_the_full_disk_whichever_corner_comes_first() {
+        let disk = ellipse((1, 2), (9, 8), true);
+        let rim = ellipse((1, 2), (9, 8), false);
+        // Full disk: the rim plus every pixel between it on each row.
+        for y in 0..11u32 {
+            let rim_xs: Vec<u32> = (0..11u32).filter(|&x| is_set(&rim, x, y)).collect();
+            for x in 0..11u32 {
+                let inside = match (rim_xs.first(), rim_xs.last()) {
+                    (Some(&lo), Some(&hi)) => (lo..=hi).contains(&x),
+                    _ => false,
+                };
+                assert_eq!(is_set(&disk, x, y), inside, "disk at ({x}, {y})");
+            }
+        }
+        assert!(is_set(&disk, 5, 5), "centre filled");
+        // Swapped corners, both diagonals: the identical disk.
+        for (start, end) in [((9, 8), (1, 2)), ((9, 2), (1, 8)), ((1, 8), (9, 2))] {
+            let other = ellipse(start, end, true);
+            for y in 0..11u32 {
+                for x in 0..11u32 {
+                    assert_eq!(
+                        pixel(&other, x, y),
+                        pixel(&disk, x, y),
+                        "{start:?}->{end:?} at ({x}, {y})"
+                    );
+                }
+            }
+        }
+    }
 }

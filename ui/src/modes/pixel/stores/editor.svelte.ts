@@ -15,7 +15,8 @@ import type { CanvasRenderer, RenderBackend } from '../../../lib/render/types';
 import { PinchTracker } from '../../../lib/view/pinch';
 import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
-import type { Tool } from '../tools';
+import type { BrushShape } from '../brush';
+import type { Direction, Tool } from '../tools';
 
 /** Shape paint mode: stroke only, fill only, or both. */
 export type ShapeMode = 'outline' | 'fill' | 'fill_outline';
@@ -86,6 +87,11 @@ function viewInit() {
 function toolInit() {
   return {
     tool: 'pencil' as Tool,
+    /** Pencil / Eraser brush, shared by both tools and persisted. */
+    brushSize: 1,
+    brushShape: 'square' as BrushShape,
+    /** Off by default (pixel-pencil AC-15); only acts at size 1. */
+    pixelPerfect: false,
     strokeWidth: 1,
     shapeMode: 'outline' as ShapeMode,
     cornerRadius: 4,
@@ -162,11 +168,16 @@ function liveInit() {
     lastTickTs: 0,
     marchTicks: 0,
     colorPrefLoaded: false,
+    brushPrefLoaded: false,
     /** The gesture in flight started on the right button. */
     useBg: false,
     painting: false,
-    /** Last pixel a pencil / eraser drag painted. */
+    /** Last point a pencil / eraser drag sent to the core. */
     lastPaint: null as Pt | null,
+    /** Shift-constraint anchor of the drag; `null` while Shift is up. */
+    shiftAnchor: null as Pt | null,
+    /** 45° step the Shift-constrained drag locked onto; `null` until it moves. */
+    shiftDir: null as Direction | null,
     dragStart: null as Pt | null,
     dragPreview: null as Pt | null,
     dragTool: null as Tool | null,

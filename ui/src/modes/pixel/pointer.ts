@@ -6,7 +6,8 @@ import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
 import { constrainedEndpoint, syncMeta } from './render';
 import { type SelectionMode, colors, ed, live, toolState, view } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
-import { type Tool, isDragShapeTool, isShapeTool, linePoints } from './tools';
+import { clampBrushSize, isBrushTool } from './brush';
+import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
@@ -130,8 +131,7 @@ export function commitStamp(point: { x: number; y: number }) {
 export function paintAt(e: PointerEvent) {
   if (!ed.doc) return;
   // Drag-shape tools (Line, Rectangle, …) have their own press /
-  // drag / release pipeline below and commit on `pointerup`. The
-  // wasm `applyTool` surface only accepts per-pixel tools, so a
+  // drag / release pipeline below and commit on `pointerup`; a
   // mid-drag tool switch must not route a stroke through here.
   if (isDragShapeTool(toolState.tool) || toolState.tool === 'move') return;
   const point = spriteCoord(e);
@@ -156,32 +156,51 @@ export function paintAt(e: PointerEvent) {
     }
     return;
   }
-  const from = live.lastPaint;
-  live.lastPaint = point;
-  // Pixels after the first of the segment from the previous sample (the
-  // first was painted then); a fresh press paints just the point.
-  const pixels = from ? linePoints(from, point).slice(1) : [point];
-  const packed = strokeColor();
-  try {
-    for (const p of pixels) {
-      try {
-        // The wasm eraser ignores the `color` arg, but we still pass
-        // the packed foreground so the JS surface stays uniform.
-        ed.doc.applyTool(toolState.tool, p.x, p.y, packed);
-      } catch (err) {
-        // A segment may cross the canvas edge: skip off-canvas pixels.
-        const msg = err instanceof Error ? err.message : String(err);
-        if (!msg.includes('pixel out of bounds')) throw err;
-      }
+  if (!isBrushTool(toolState.tool)) return;
+  // Shift (key or latched toggle) constrains the stroke to a 45° ray from
+  // the anchor: the press position, or the last point sent before Shift
+  // went down (pixel-pencil AC-07). The first movement away from the
+  // anchor picks the nearest direction and it holds until Shift is
+  // released; releasing continues freehand from where the stroke is.
+  const fresh = live.lastPaint === null;
+  let target = point;
+  if (!shiftHeld(e)) {
+    live.shiftAnchor = null;
+    live.shiftDir = null;
+  } else if (fresh) {
+    live.shiftAnchor = point;
+    live.shiftDir = null;
+  } else {
+    live.shiftAnchor ??= live.lastPaint;
+    const anchor = live.shiftAnchor;
+    if (anchor) {
+      live.shiftDir ??= directionTo(anchor, point);
+      target = live.shiftDir ? alongDirection(anchor, live.shiftDir, point) : anchor;
     }
+  }
+  if (live.lastPaint && live.lastPaint.x === target.x && live.lastPaint.y === target.y) return;
+  try {
+    if (fresh) {
+      // The core stamps the brush along the line between consecutive
+      // points and skips off-canvas pixels; the whole drag is one undo
+      // entry, closed by `endStroke` on pointerup.
+      ed.doc.beginStroke(
+        toolState.tool,
+        strokeColor(),
+        clampBrushSize(toolState.brushSize),
+        toolState.brushShape,
+        toolState.pixelPerfect,
+      );
+    }
+    ed.doc.strokeTo(target.x, target.y);
+    live.lastPaint = target;
   } catch (err) {
-    // Drags that leave the canvas raise PixelOutOfBounds; that is
-    // expected and silenced. Anything else (missing layer, unknown
-    // tool, …) is a real failure: surface it in the status bar
-    // and log so it doesn't disappear.
+    // Missing layer, unknown tool, …: a real failure. Stop the gesture so
+    // the rest of the drag doesn't repeat it, and surface it.
+    live.painting = false;
+    ed.doc.endStroke();
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('pixel out of bounds')) return;
-    console.error('applyTool failed', err);
+    console.error('paint stroke failed', err);
     ed.status = t('status.failed', { action: t('act.paint'), error: msg });
   }
 }
@@ -310,6 +329,8 @@ export function onPointerDown(e: PointerEvent) {
   }
   live.painting = true;
   live.lastPaint = null;
+  live.shiftAnchor = null;
+  live.shiftDir = null;
   paintAt(e);
 }
 

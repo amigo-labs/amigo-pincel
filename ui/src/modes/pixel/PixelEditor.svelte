@@ -30,6 +30,8 @@
   } from '../../lib/shell/shortcuts';
   import { pixelMenus } from './menus';
   import TextDialog from './components/TextDialog.svelte';
+  import BrushOptions from './components/BrushOptions.svelte';
+  import { isBrushTool, loadBrushPref, saveBrushPref, stepBrushSize } from './brush';
   import ResizeDialog from './components/ResizeDialog.svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
@@ -401,6 +403,11 @@
       case 'togglePlay':
         togglePlay();
         return true;
+      case 'brushSmaller':
+      case 'brushLarger':
+        if (!isBrushTool(toolState.tool)) return false;
+        stepBrushSize(action === 'brushLarger' ? 1 : -1);
+        return true;
       default:
         return false;
     }
@@ -493,6 +500,9 @@
           live.colorPrefLoaded = true;
         });
     }
+    // Restore the shared Pencil / Eraser brush (defaults stand when the
+    // pref is missing or IDB is unavailable).
+    if (idbAvailable) void loadBrushPref().catch(() => undefined);
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -548,6 +558,16 @@
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
     });
+  });
+
+  // Persist the brush once its initial load settled.
+  $effect(() => {
+    const pref = {
+      size: toolState.brushSize,
+      shape: toolState.brushShape,
+      pixelPerfect: toolState.pixelPerfect,
+    };
+    if (idbAvailable) saveBrushPref(pref);
   });
 
   // Reflect the document identity + dirty state in the tab title.
@@ -867,6 +887,11 @@
       {/if}
       {#if toolState.shapeMode !== 'outline'}
         <span class="opt text-pc-faint">{t('px.fillsBg')}</span>
+      {/if}
+    {:else if isBrushTool(toolState.tool)}
+      <BrushOptions />
+      {#if BG_TOOLS.has(toolState.tool)}
+        <span class="opt text-pc-faint">{t('px.rightBg')}</span>
       {/if}
     {:else}
       <span class="opt text-pc-faint">{toolLabel}</span>
