@@ -1153,19 +1153,8 @@ impl Document {
     /// layer (legacy behavior). Errors only when the document has no
     /// image layer at all.
     fn paint_target_layer(&self) -> Result<LayerId, String> {
-        if let Some(id) = self.active_layer
-            && matches!(
-                self.sprite.layer(id).map(|l| &l.kind),
-                Some(LayerKind::Image)
-            )
-        {
-            return Ok(id);
-        }
         self.sprite
-            .layers
-            .iter()
-            .find(|l| matches!(l.kind, LayerKind::Image))
-            .map(|l| l.id)
+            .paint_target_layer(self.active_layer)
             .ok_or_else(|| "document has no paintable image layer".to_string())
     }
 
