@@ -133,13 +133,17 @@ pub struct OnionSkin { pub previous_alpha: u8, pub next_alpha: u8, pub frames_ba
 | AC-22 | `pincel-core: render::compose::tests::rejects_overlays_request` | built | |
 | AC-23 | `pincel-core: render::compose::tests::rejects_cel_with_wrong_color_mode`, `rejects_malformed_cel_buffer`, `rejects_tilemap_data_on_image_layer`, `tilemap_image_cel_on_tilemap_layer_errors`; `render::tilemap_layer::tests::tilemap_missing_tileset_errors`, `tilemap_dangling_tile_id_errors`, `tilemap_malformed_cel_buffer_errors`, `tilemap_grid_whose_tile_count_overflows_usize_errors`, `tilemap_rotate_90_on_non_square_errors` | built | |
 | AC-24 | `pincel-core: render::tilemap_layer::tests::tilemap_tile_with_wrong_image_size_errors` | built | |
-| AC-25 |      | open   | |
-| AC-26 |      | open   | |
-| AC-27 |      | open   | |
-| AC-28 |      | open   | |
+| AC-25 | `ui/e2e/renderer.spec.ts`: `pixel mode: a working WebGPU device draws the canvas through WebGPU`, `pixel mode: without a WebGPU adapter the canvas falls back to Canvas2D` | built | |
+| AC-26 | `ui/e2e/renderer.spec.ts`: `pixel mode: ?renderer=canvas2d forces Canvas2D although WebGPU works` | built | |
+| AC-27 | `ui/e2e/compose.spec.ts`: `pixel mode: the canvas follows paint, undo / redo, frames and layer visibility` | built | |
+| AC-28 | `ui/e2e/compose.spec.ts`: `pixel mode: a drag preview and the selection marquee stay off the sprite`, `pixel mode: the tile-stamp hover and the active slice stay off the sprite` | built | |
 
 ## Decisions
 
 - AC-12: the blend term is checked against an independent float reference of the W3C / Aseprite formulas with a tolerance of ±1 per channel (exhaustively over all 256×256 channel pairs), plus exact hand-derived values at each mode's clamps — because the Decision Log (2026-10-27) fixes Pincel's own integer rounding, not bit-exact parity.
 - AC-12: the three new tests were green at once (the behavior exists). A temporary break of the Exclusion term (`2·Cb·Cs` → `Cb·Cs`) turned all three red (`Exclusion(255, 255)`, `Exclusion channel 0: 209 vs reference 177`, `Exclusion(Cb=2, Cs=160) = 161, reference 159`); restored afterwards.
 - AC-24: `tilemap_tile_with_wrong_image_size_errors` was green at once (the behavior exists). A temporary `if false &&` on the tile-size check in `composite_tilemap_cel` turned it red; restored afterwards.
+- AC-25 / AC-26: headless Chromium (local and CI) exposes `navigator.gpu` but hands out no adapter, so the WebGPU branch runs against a recording stand-in installed with `addInitScript` (fake adapter, device and `webgpu` context counting `requestAdapter`, `writeTexture` and `submit`). It proves which backend the editor picks, that frames reach it and what the status bar names — not GPU output, which no browser in the test environment can produce.
+- AC-28: "drawn on a layer above the sprite" is checked by hiding the overlay canvas for one screenshot (the base canvas must then equal the empty sprite) while the full stack differs from it; "never part of the document or an exported frame" by File ▸ Export ▸ PNG (current frame) bytes equal to the export taken before the overlay went live.
+- AC-25 – AC-28: the five e2e tests were green at once (the behavior exists). Temporary breaks in `ui/src/modes/pixel/render.ts`, each followed by `pnpm build` and a run, turned them red, then were restored: dropping `if (gpu) return gpu` (AC-25 WebGPU test: no `webgpu` label) together with ignoring `forceCanvas2d` (AC-26: `adapterRequests` 1, expected 0) and painting overlays onto the base canvas (both AC-28 tests: base screenshot differs from the empty sprite); separately, not setting `needsRecompose` on dirty events (AC-27: the canvas stayed blank after the stroke).
+- `gotoStart` / `createDocument` in `ui/e2e/helpers.ts` take an optional start `url`, so a spec can open the app with a query (`./?renderer=canvas2d`).

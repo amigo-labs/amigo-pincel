@@ -1,8 +1,8 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
-/** Opens the app on the start screen. */
-export async function gotoStart(page: Page): Promise<void> {
-  await page.goto('./');
+/** Opens the app on the start screen; `url` carries an optional query (`./?renderer=canvas2d`). */
+export async function gotoStart(page: Page, url = './'): Promise<void> {
+  await page.goto(url);
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
 }
 
@@ -11,8 +11,9 @@ export async function createDocument(
   page: Page,
   mode: 'pixel' | 'image',
   size?: { width: number; height: number },
+  url = './',
 ): Promise<void> {
-  await gotoStart(page);
+  await gotoStart(page, url);
   const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
   await page.getByRole('button', { name }).click();
   const card = page.getByRole('form', { name });
