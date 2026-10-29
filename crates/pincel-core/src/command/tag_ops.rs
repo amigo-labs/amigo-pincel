@@ -361,6 +361,13 @@ mod tests {
     }
 
     #[test]
+    fn set_tag_range_different_tag_does_not_merge() {
+        let mut first = SetTagRange::new(0, f(0), f(1));
+        let second = SetTagRange::new(1, f(0), f(1));
+        assert!(!first.merge(&second));
+    }
+
+    #[test]
     fn set_tag_name_applies_and_reverts() {
         let (mut s, mut c) = doc();
         let mut cmd = SetTagName::new(0, "walk");

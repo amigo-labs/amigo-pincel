@@ -263,3 +263,68 @@ fn failed_execute_adds_no_entry_and_keeps_redo_stack() {
     assert!(bus.redo(&mut sprite, &mut cels).expect("redo ok"));
     assert_eq!(bus.undo_depth(), 2);
 }
+
+/// Paints stroke 1 at (0, 0), seals, then stroke 2 at (1, 0). Stroke 2 is
+/// left unsealed so only `undo` / `redo` can keep the next edit apart.
+fn two_sealed_strokes(bus: &mut Bus, sprite: &mut Sprite, cels: &mut CelMap) {
+    for x in 0..2 {
+        if x > 0 {
+            bus.seal();
+        }
+        bus.execute(
+            SetPixel::new(LayerId::new(1), FrameIndex::new(0), x, 0, Rgba::WHITE).into(),
+            sprite,
+            cels,
+        )
+        .expect("stroke");
+    }
+}
+
+fn alpha_at(cels: &CelMap, x: usize) -> u8 {
+    let cel = cels.get(LayerId::new(1), FrameIndex::new(0)).unwrap();
+    let pincel_core::CelData::Image(buf) = &cel.data else {
+        unreachable!()
+    };
+    buf.data[x * 4 + 3]
+}
+
+#[test]
+fn edit_after_undo_does_not_merge_into_the_restored_top() {
+    let (mut sprite, mut cels) = doc_with_layer_and_frame();
+    let mut bus = Bus::new();
+    two_sealed_strokes(&mut bus, &mut sprite, &mut cels);
+    assert!(bus.undo(&mut sprite, &mut cels));
+
+    // Stroke 1 is the top again; the next paint must not join it.
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 2, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("edit");
+    assert_eq!(bus.undo_depth(), 2, "edit is its own entry");
+    assert!(bus.undo(&mut sprite, &mut cels));
+    assert_eq!(alpha_at(&cels, 2), 0, "edit undone");
+    assert_eq!(alpha_at(&cels, 0), 255, "stroke 1 untouched");
+}
+
+#[test]
+fn edit_after_redo_does_not_merge_into_the_restored_entry() {
+    let (mut sprite, mut cels) = doc_with_layer_and_frame();
+    let mut bus = Bus::new();
+    two_sealed_strokes(&mut bus, &mut sprite, &mut cels);
+    assert!(bus.undo(&mut sprite, &mut cels));
+    assert!(bus.redo(&mut sprite, &mut cels).expect("redo ok"));
+
+    // Stroke 2 was just restored; the next paint must not join it.
+    bus.execute(
+        SetPixel::new(LayerId::new(1), FrameIndex::new(0), 2, 0, Rgba::WHITE).into(),
+        &mut sprite,
+        &mut cels,
+    )
+    .expect("edit");
+    assert_eq!(bus.undo_depth(), 3, "edit is its own entry");
+    assert!(bus.undo(&mut sprite, &mut cels));
+    assert_eq!(alpha_at(&cels, 2), 0, "edit undone");
+    assert_eq!(alpha_at(&cels, 1), 255, "restored stroke 2 untouched");
+}
