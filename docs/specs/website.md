@@ -12,7 +12,7 @@ design: [website-spec.md §3.1, website-spec.md §3.3, website-spec.md §4, webs
 
 Pincel's marketing site lives under `website/` (SvelteKit, fully prerendered with the static adapter) and is served by the same Cloudflare Worker as the editor: the site owns `/`, the editor `/app/` (`pincel.md` §15, 2026-10-12 / 2026-10-13). Its design spec is `docs/specs/website-spec.md`; this spec records what the deployed site does today. It is reverse-engineered from the code.
 
-The site has no automated tests yet: CI runs lint, `svelte-check` and the build for `website/` and nothing else.
+The site has no automated tests yet: CI runs lint, `svelte-check` and the build for `website/` and nothing else. Evidence for AC-01 – AC-12 comes from Playwright specs under `website/e2e/` (see Technical notes); AC-13 stays manual.
 
 ## Scope
 
@@ -82,6 +82,8 @@ Hints that drift — the code is the truth.
 
 **CRT toggle:** `src/lib/stores/crt.svelte.ts`, key `pincel:crt-enabled` (`'1'` / `'0'`) in `localStorage`; storage errors fall back to "on".
 
+**Tests:** `@playwright/test` as a `website/` devDependency, pinned to the exact version `ui/` uses (1.64.1, Apache-2.0; owner-approved). Specs live under `website/e2e/` and run against `vite preview` of the static build; the CI `website` job installs Chromium (`pnpm exec playwright install --with-deps chromium`) and runs them after the build. One browser harness covers the HTML, SEO and JS-driven ACs; AC-10 sets the user agent / `userAgentData` per case.
+
 **Hosting:** root `wrangler.toml` serves `website/build` with `not_found_handling = "404-page"` (`static/404.html`); `scripts/cf-build.sh` copies the editor build to `build/app/`. `static/_headers` sets immutable caching on `/_app/immutable/*` and `/app/assets/*`, revalidation on HTML, `/app/sw.js` and the manifest, and `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: interest-cohort=()` on every path.
 
 ## Edge cases
@@ -106,8 +108,6 @@ Hints that drift — the code is the truth.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- Which harness provides the evidence for AC-01 – AC-12? `website/` has no test runner; Playwright (as in `ui/`) or a test framework for the prerendered `build/` output would be a new `website/package.json` devDependency, which AGENTS.md §9 reserves for the user.
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -129,3 +129,4 @@ Hints that drift — the code is the truth.
 ## Decisions
 
 - 2026-10-29: Extracted from the code (reverse engineering). AC-09 pins today's comparison table; the planned `website-comparison` spec will revise it (and this AC) when it is built.
+- 2026-10-29: Evidence for AC-01 – AC-12 comes from Playwright: `@playwright/test` becomes a `website/` devDependency pinned to `ui/`'s version (1.64.1), specs under `website/e2e/` run against `vite preview` of the static build in the CI `website` job; AC-13 stays manual (§15 row recorded with this batch) — the tool is already approved and used in this repo, and one browser harness covers the HTML, SEO and JS-driven ACs (owner accepted the recommendation).
