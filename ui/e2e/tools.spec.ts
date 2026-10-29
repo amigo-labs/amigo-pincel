@@ -85,6 +85,31 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+test('image mode: Select All, Contract and Feather are one undo step each', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  await expect(undo).toBeDisabled();
+
+  await menu(page, 'Select', 'Select All');
+  await expect(undo).toBeEnabled();
+  // Contract and Feather ask for a radius like Expand.
+  for (const op of ['Contract…', 'Feather…']) {
+    await menu(page, 'Select', op);
+    const dialog = page.getByRole('dialog', { name: op });
+    await expect(dialog).toBeVisible();
+    await dialog.getByLabel('Radius (px)').fill('3');
+    await dialog.getByRole('button', { name: 'Apply' }).click();
+    await expect(dialog).toBeHidden();
+  }
+
+  // Three changes, three undo steps.
+  await undo.click();
+  await undo.click();
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect(undo).toBeDisabled();
+});
+
 test('image mode: the move tools drag pixels, the outline, or the layer', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
