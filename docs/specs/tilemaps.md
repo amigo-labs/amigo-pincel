@@ -35,13 +35,13 @@ Phase 1 is manual placement plus explicit tile editing; Aseprite's auto-tile mod
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user submits the Add tileset form with a name and a tile width and height, then an empty tileset (no tiles) with that name and tile size is added and listed with its id, tile size and tile count, and one undo removes it.
+- [ ] AC-01 (event): When the user submits the Add tileset form with a name and a tile width and height, then a tileset with that name and tile size holding one empty tile (id 0, fully transparent) is added and listed with its id, tile size and tile count, and one undo removes it.
 - [ ] AC-02 (always): The Add tileset form opens with the name `Tileset` and a 16 × 16 tile size.
 - [ ] AC-03 (error): If the Add tileset form has an empty name, or a tile width or height that is not a positive integer, then the form shows an error and no tileset is added.
-- [ ] AC-04 (event): When the user presses "+ Tile" on a tileset, then a fully transparent tile of the tileset's tile size is appended with the next tile id (ids count up from 0), and one undo removes it.
+- [ ] AC-04 (event): When the user presses "+ Tile" on a tileset, then a fully transparent tile of the tileset's tile size is appended with the next tile id (ids count up from 1; tile 0 is the empty tile), and one undo removes it.
 - [ ] AC-05 (event): When the user presses "+ Tile", then the new tile becomes the picked stamp tile and the Tile Stamp tool becomes the active tool.
 - [ ] AC-06 (event): When the user presses "+ Layer" on a tileset, then a tilemap layer named `{tileset name} Layer`, bound to that tileset, is added on top of the stack with an empty grid of ⌈sprite width ∕ tile width⌉ × ⌈sprite height ∕ tile height⌉ cells on every existing frame, and one undo removes the layer together with its grids.
-- [ ] AC-07 (always): Each tileset in the Tilesets panel lists its tiles in id order as thumbnails showing each tile's current pixels.
+- [ ] AC-07 (always): Each tileset in the Tilesets panel lists its tiles from id 1 in id order as thumbnails showing each tile's current pixels; the empty tile 0 is not shown and cannot be picked.
 - [ ] AC-08 (event): When the user clicks a tile thumbnail, then that tile becomes the picked stamp tile (shown pressed), and the Tile Stamp tool becomes the active tool.
 - [ ] AC-09 (state): While no stamp tile is picked, the Tile Stamp tool is disabled and its hint reads "Tile Stamp — pick a tile in the Tilesets panel first".
 - [ ] AC-10 (event): When the user clicks the canvas with the Tile Stamp tool, then the picked tile is placed into the grid cell under the pointer (column ⌊x ∕ tile width⌋, row ⌊y ∕ tile height⌋) of the topmost tilemap layer bound to that tile's tileset, at the current frame; each click is one undo step and dragging places no further tiles.
@@ -55,14 +55,15 @@ Phase 1 is manual placement plus explicit tile editing; Aseprite's auto-tile mod
 - [ ] AC-18 (always): A tile is stored once: after its pixels are edited, every cell that references it, on every tilemap layer and frame, shows the edited pixels.
 - [ ] AC-19 (error): If a tile pixel edit targets an unknown tileset, a tile id past the tileset's tiles, or a coordinate outside the tile, then it is refused and the tileset is unchanged.
 - [ ] AC-20 (event): When undo removes the picked stamp tile, then the stamp pick is cleared and the Tile Stamp tool is disabled until another tile is picked.
+- [ ] AC-21 (event): When the user stamps a tile on a frame where the target tilemap layer has no grid yet (a frame added after the layer), then an empty grid of the layer's size (as in AC-06) is created for that layer and frame and the tile is placed into it, as one undo step; one undo removes both the tile and the grid.
 
 ## Technical notes
 
 Hints, not contracts — paths drift; grep for the names.
 
-**Document model** (`crates/pincel-core/src/document/`): `Tileset { id: TilesetId, name, tile_size: (u32, u32), tiles: Vec<TileImage>, base_index: i32, external_file, … }`; `Tileset::new(id, name, tile_size)` starts with no tiles and `base_index = 1`. `TileRef { tile_id: u32, flip_x, flip_y, rotate_90 }`, `TileRef::EMPTY` has `tile_id: 0`. `LayerKind::Tilemap { tileset_id }`; `CelData::Tilemap { grid_w, grid_h, tiles: Vec<TileRef> }`.
+**Document model** (`crates/pincel-core/src/document/`): `Tileset { id: TilesetId, name, tile_size: (u32, u32), tiles: Vec<TileImage>, base_index: i32, external_file, … }`; `Tileset::new(id, name, tile_size)` starts with no tiles and `base_index = 1` and stays that way for the reader, which takes tile 0 from the file; a tileset created in the UI (`AddTileset`, wasm `addTileset`) starts with a stored transparent tile 0, as Aseprite does, so the first user tile gets id 1 and no user tile is written as Aseprite's empty tile. `TileRef { tile_id: u32, flip_x, flip_y, rotate_90 }`, `TileRef::EMPTY` has `tile_id: 0`. `LayerKind::Tilemap { tileset_id }`; `CelData::Tilemap { grid_w, grid_h, tiles: Vec<TileRef> }`.
 
-**Commands** (`crates/pincel-core/src/command/`): `AddTileset` (append), `AddTile` (append a transparent tile; positional id = `tiles.len()`), `AddTilemapLayer` (layer + seeded per-frame cels as one undo unit), `PlaceTile` (one `TileRef` in one cel; no merge, so each placement is its own undo entry), `SetTilePixel` (one RGBA pixel of one tile; no merge, so each painted pixel is its own undo entry).
+**Commands** (`crates/pincel-core/src/command/`): `AddTileset` (append), `AddTile` (append a transparent tile; positional id = `tiles.len()`), `AddTilemapLayer` (layer + seeded per-frame cels as one undo unit), `PlaceTile` (one `TileRef` in one cel; no merge, so each placement is its own undo entry; creates a missing empty grid for that layer and frame in the same undo step, like image cels are auto-created on paint — `AddFrame` stays unchanged, so no empty cels are written to files), `SetTilePixel` (one RGBA pixel of one tile; no merge, so each painted pixel is its own undo entry).
 
 **wasm** (`crates/pincel-wasm/src/lib.rs`, "M8.6" / "M8.7" sections): `tilesetCount`, `tilesetIdAt(i)`, `tilesetName`, `tilesetTileWidth` / `tilesetTileHeight` / `tilesetTileCount` (0 / `""` for unknown ids), `tilePixels(tilesetId, tileId)` (RGBA bytes; errors for unknown tileset, tile past end, non-RGBA), `addTileset(name, tileW, tileH)` (id = max + 1; zero size rejected), `addTile(tilesetId)`, `addTilemapLayer(name, tilesetId)`, `layerKind` (`"tilemap"`), `layerTilesetId`, `placeTile(layer, frame, gridX, gridY, tileId)` (checks the lock, emits a `dirty-rect` for the one cell), `setTilePixel(tilesetId, tileId, x, y, 0xRRGGBBAA)` (emits `dirty-canvas`).
 
@@ -81,22 +82,22 @@ Hints, not contracts — paths drift; grep for the names.
 | Undo of "+ Layer" | The layer and every seeded grid leave together; no orphan cels remain |
 | Tile editor drag leaving the tile area | Pointer positions outside the tile paint nothing |
 | "+ Tile" while redo steps are pending | The pending redo steps are discarded, as for any edit |
+| Stamping on a frame added after the tilemap layer | The missing grid is created and the tile placed, one undo step (AC-21); no "missing cel" error |
+| Adding frames to a sprite with a tilemap layer, then saving without stamping | No empty tilemap cels are written for the new frames |
+| Tileset opened from an `.aseprite` file | Its tile 0 comes from the file; the panel hides it like a UI-created tileset's tile 0 |
 
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- Tile id 0 is both the first tile "+ Tile" creates and the "empty" id the renderer skips (`TileRef::EMPTY`, Aseprite convention): stamping the first tile of a fresh tileset leaves the cell blank on the canvas although its thumbnail shows pixels. Is this intended, or should a new tileset start with a stored empty tile 0 so user tiles count from 1 (as in Aseprite)? AC-04 / AC-10 / AC-18 depend on the answer.
-- Frames added after a tilemap layer exists get no tilemap grid for that layer (`AddFrame` seeds no cels, and only image cels are auto-created on paint), so stamping on such a frame fails with a "missing cel" error in the status bar. Is that the accepted behavior, or should every frame of a tilemap layer have a grid? AC-10 depends on the answer.
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel-wasm: tests::add_tileset_returns_zero_for_first_tileset_and_increments`, `tests::tileset_getters_round_trip_dimensions_and_name`, `tests::add_tileset_joins_undo_bus`; `pincel-core: command::add_tileset::tests::apply_appends_tileset`, `command::add_tileset::tests::revert_removes_inserted_tileset` | built | |
+| AC-01 | `pincel-wasm: tests::add_tileset_returns_zero_for_first_tileset_and_increments`, `tests::tileset_getters_round_trip_dimensions_and_name`, `tests::add_tileset_joins_undo_bus`; `pincel-core: command::add_tileset::tests::apply_appends_tileset`, `command::add_tileset::tests::revert_removes_inserted_tileset` | open   |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
-| AC-04 | `pincel-wasm: tests::add_tile_appends_transparent_tile`, `tests::add_tile_joins_undo_bus`; `pincel-core: command::add_tile::tests::apply_appends_transparent_tile_sized_to_tileset`, `command::add_tile::tests::revert_pops_appended_tile` | built | |
+| AC-04 | `pincel-wasm: tests::add_tile_appends_transparent_tile`, `tests::add_tile_joins_undo_bus`; `pincel-core: command::add_tile::tests::apply_appends_transparent_tile_sized_to_tileset`, `command::add_tile::tests::revert_pops_appended_tile` | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 | `pincel-wasm: tests::add_tilemap_layer_creates_layer_and_seeds_cel_sized_to_canvas`, `tests::add_tilemap_layer_joins_undo_bus`; `pincel-core: command::add_tilemap_layer::tests::apply_inserts_layer_and_cels_together`, `command::add_tilemap_layer::tests::revert_removes_layer_and_seeded_cels` | built | |
 | AC-07 |      | open   |        |
@@ -113,6 +114,9 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-18 |      | open   |        |
 | AC-19 | `pincel-core: command::set_tile_pixel::tests::out_of_bounds_pixel_yields_error`, `command::set_tile_pixel::tests::unknown_tile_yields_error`, `command::set_tile_pixel::tests::unknown_tileset_yields_error` | built | |
 | AC-20 |      | open   |        |
+| AC-21 |      | open   |        |
 
 ## Decisions
 
+- 2026-10-29: A tileset created in the UI starts with a stored transparent tile 0, "+ Tile" ids start at 1, and tile 0 is not shown as a pickable thumbnail; `Tileset::new` stays as is for the reader (AC-01, AC-04, AC-07 changed) — today the first user tile renders blank and is written to `.aseprite` as Aseprite's empty tile, which loses data (owner accepted the recommendation).
+- 2026-10-29: Stamping on a frame without a grid creates the empty grid for that layer and frame in the same undo step, while `AddFrame` stays unchanged (AC-21) — it matches Aseprite, where empty cels exist implicitly, and fixes the "missing cel" error at the point of use without writing empty cels to files (owner accepted the recommendation).

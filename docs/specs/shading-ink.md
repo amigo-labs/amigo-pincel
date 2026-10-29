@@ -15,7 +15,7 @@ Aseprite's **shading ink** lets a pixel artist darken or lighten existing pixels
 
 This spec adds an **ink** option to the Pencil: with the shading ink, each pixel the stroke touches steps **one entry along a palette ramp** — the left button toward the ramp's end (lighter, if the ramp is ordered dark → light), the right button toward its start. Colors not in the ramp stay untouched. The ramp is a contiguous range of palette entries selected in the Palette panel, or the whole palette when no range is selected.
 
-It extends the Pencil stroke from the `pixel-pencil` spec (one command per stroke with the pixels' values from before the stroke). Neither the ink option nor the palette range selection is in §5.2 or §3.7 yet.
+It extends the Pencil stroke from the `pixel-pencil` spec (one command per stroke with the pixels' values from before the stroke). The Decision Log (2026-10-29) records the Ink option and the ramp selection; §5.2 gets the Ink row and §3.7 the range selection.
 
 This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `rotsprite` are the other parts.
 
@@ -34,6 +34,7 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 - An ink option for the Eraser — because the Eraser only clears pixels and has no color to step
 - Other Aseprite inks (lock alpha, colorize, blur, …) — because the legacy plan only adds Simple and Shading
 - Storing the ramp range in the document — because it is transient UI state, not document content
+- Indexed-sprite shading (stepping palette indices) — because it comes with indexed painting in Phase 2 (§3.7), CLAUDE.md §9 forbids mixing Phase 2 work in, and paint commands reject indexed cels today; v1 matches exact RGBA on RGBA sprites only
 
 ## Acceptance criteria
 
@@ -50,6 +51,7 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 - [ ] AC-11 (always): A shading stroke is one undo entry; undo restores every touched pixel to its value from before the stroke.
 - [ ] AC-12 (always): The selected palette range is never written into the saved document.
 - [ ] AC-13 (error): If the target layer is locked or the document has no paintable image layer, then a shading stroke changes nothing and adds no undo entry.
+- [ ] AC-14 (event): When palette entries are added, removed or reordered, or a preset or import replaces the palette, then the selected palette range is cleared (the whole palette becomes the ramp); when an entry is only recolored, the range is kept.
 
 ## Technical notes
 
@@ -80,6 +82,8 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 | Range of one single entry | Every matching pixel stays unchanged in both directions (AC-04) |
 | Pixel-perfect on with the Shading ink | A removed corner pixel shows its value from before the stroke |
 | Shift+click on the entry that is already selected | The range is that single entry (AC-07) |
+| Range selected, then an entry is deleted, added or dragged to a new position | The range is cleared (AC-14) |
+| Range selected, then one of its entries is recolored | The range is kept; the ramp uses the new color (AC-14) |
 
 ## Assumptions
 
@@ -91,9 +95,7 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 
 ## Open questions
 
-- The Decision Log entry for the ramp selection in the Palette panel and the §5.2 / §3.7 updates (Ink option, range selection) are not written yet.
-- Indexed sprites: the plan wants shading to step palette indices there, but indexed painting is Phase 2 (§3.7) and the Pixel paint commands reject indexed cels today — include it (Phase 2 work, CLAUDE.md §9) or leave indexed shading for later?
-- What happens to a selected range when the palette changes underneath it (entries added, removed, reordered or replaced by a preset) — keep, clamp, or clear?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -112,6 +114,7 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
+| AC-14 |      | open   |        |
 
 ## Decisions
 
@@ -119,3 +122,6 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 - The ramp is a contiguous palette range chosen with Shift+click in the Palette panel, the whole palette without one — because it needs no new panel and keeps the ramp in palette order (legacy plan).
 - The range is transient UI state in the Pixel colors state, not document content (legacy plan).
 - The ink is an option of the Pencil stroke, not a separate tool — because it reuses the stroke's stamping, sizes and undo (legacy plan).
+- 2026-10-29: The Decision Log records that the Pixel Pencil gets an Ink option (Simple / Shading), that the shading ramp is a Shift+click contiguous palette range (transient UI state, the whole palette without one) and that each pixel steps once per stroke; §5.2 gets the Ink row and §3.7 the range selection — `Ink` is a new public stroke field on the npm-facing API (owner accepted the recommendation).
+- 2026-10-29: Indexed-sprite shading is left for later; v1 matches exact RGBA on RGBA sprites only — CLAUDE.md §9 forbids mixing Phase 2 work in, and paint commands reject indexed cels today (owner accepted the recommendation).
+- 2026-10-29: Adding, removing or reordering entries, or replacing the palette by a preset or import, clears the selected range; recoloring an entry keeps it (AC-14) — it is predictable, and after a structural change the old index span has no meaning left (owner accepted the recommendation).

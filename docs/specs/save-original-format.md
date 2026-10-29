@@ -18,7 +18,7 @@ This spec makes Save behave like paint.net: open `screenshot.png`, edit it, pres
 
 ### In scope
 
-- Save writes back to the opened file in its own format: PNG, JPEG, WebP, BMP, and GIF / TIFF where an encoder is available
+- Save writes back to the opened file in its own format: PNG, JPEG, WebP, BMP, TIFF; GIF goes to Save As with a notice
 - The "Flatten image?" prompt with Flatten / Save as .ora… / Cancel and a per-document "Don't ask again" option
 - JPEG quality asked once per document; WebP lossless without a dialog
 - Save As… offering every format
@@ -33,9 +33,9 @@ This spec makes Save behave like paint.net: open `screenshot.png`, edit it, pres
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user opens a PNG, JPEG, WebP or BMP file, edits it and saves (File ▸ Save or Ctrl/⌘+S) with a single layer at full opacity and Normal blend, then the opened file is written in its own format under its own name — no `.ora` dialog — and the document is marked saved.
+- [ ] AC-01 (event): When the user opens a PNG, JPEG, WebP, BMP or TIFF file, edits it and saves (File ▸ Save or Ctrl/⌘+S) with a single layer at full opacity and Normal blend, then the opened file is written in its own format under its own name — no `.ora` dialog — and the document is marked saved.
 - [ ] AC-02 (event): When the user saves such a document while it has more than one layer, or a layer whose opacity or blend mode would be lost by flattening, then a "Flatten image?" prompt appears with *Flatten* (default), *Save as .ora…* and *Cancel*.
-- [ ] AC-03 (event): When the user chooses *Flatten*, then the file is written as the flattened composite in its original format, and the open document keeps all its layers.
+- [ ] AC-03 (event): When the user chooses *Flatten*, then the file is written as the flattened composite in its original format, the open document keeps all its layers, and the document is marked saved.
 - [ ] AC-04 (event): When the user chooses *Save as .ora…*, then the `.ora` Save As flow runs and the layers are saved in an OpenRaster file.
 - [ ] AC-05 (event): When the user chooses *Cancel* in the flatten prompt, then nothing is written and the document stays marked unsaved.
 - [ ] AC-06 (option): Where "Don't ask again for this document" was checked in the flatten prompt, later Saves of that document in the same session flatten without asking.
@@ -45,7 +45,8 @@ This spec makes Save behave like paint.net: open `screenshot.png`, edit it, pres
 - [ ] AC-10 (event): When the user chooses Save As…, then every format Pincel can write is offered, with `.ora` preselected when the document has more than one layer.
 - [ ] AC-11 (always): The editor's title and dirty marker show the opened file's real name and extension (e.g. `screenshot.png`), not an `.ora` name.
 - [ ] AC-12 (always): Documents created with New, and documents opened from `.ora`, save exactly as before (to `.ora`).
-- [ ] AC-13 (always): Autosave and crash recovery keep storing OpenRaster snapshots, so recovery restores every layer even after a flattening Save.
+- [ ] AC-13 (always): Autosave and crash recovery keep storing OpenRaster snapshots, so recovery restores every layer even after a flattening Save; a flattening Save does not drop the document's autosave snapshot (unlike §10.3's rule for full saves).
+- [ ] AC-14 (event): When the user saves a document opened from a GIF, then Save As opens with a notice that GIF is not written back.
 
 ## Technical notes
 
@@ -65,7 +66,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 **wasm.** `crates/pincel-image-wasm/src/lib.rs`: `export_png` / `export_jpeg` / `export_webp` (≈L1563–1581) encode the flattened composite.
 
-**Encoders.** `crates/pincel-image-core/src/codec/mod.rs`: `encode_png`, `encode_jpeg`, `encode_bmp`, `encode_webp` (lossless). No GIF or TIFF encoder is wired up, although the `image` crate's `gif` / `tiff` features are enabled (root `Cargo.toml` ≈L34); check whether encoding needs extra features.
+**Encoders.** `crates/pincel-image-core/src/codec/mod.rs`: `encode_png`, `encode_jpeg`, `encode_bmp`, `encode_webp` (lossless). No GIF or TIFF encoder is wired up, although the `image` crate's `gif` / `tiff` features are enabled (root `Cargo.toml` ≈L34). Decided (2026-10-29): add `encode_tiff` through the already-enabled `tiff` feature, which includes the encoder (no new feature); GIF gets no encoder here.
 
 **Dialogs.** `ui/src/modes/image/components/dialogs/ExportDialog.svelte` asks for JPEG quality (1–100, default 90); `ui/src/modes/image/components/dialogs/Modal.svelte` supports three buttons (`secondary`).
 
@@ -94,9 +95,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 ## Open questions
 
-- The Decision Log entry (save back to the original format; flatten in the file only while the document keeps its layers — unlike paint.net; autosave stays ORA; GIF / TIFF fallback) and the §7 File I/O text for Image-mode save semantics are not written yet.
-- GIF and TIFF: wire up encoders in this spec (the `image` features are enabled; possibly extra features needed) or route their Save to Save As with a notice for now?
-- After a flattening Save the file no longer holds the layers: is the document then marked saved (no dirty marker, no "unsaved changes" warning on close) or does it stay dirty?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -115,6 +114,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
+| AC-14 |      | open   |        |
 
 ## Decisions
 
@@ -123,3 +123,6 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - WebP is written lossless only, without a quality dialog — because the existing WebP encoder is lossless (Fineliner ADR-007).
 - JPEG asks its quality once per document and remembers it — because asking on every Save interrupts the Ctrl+S habit.
 - The flatten prompt's default button is *Flatten*, and "Don't ask again" lasts for the document's session — because that matches paint.net's flow while keeping the choice per document.
+- 2026-10-29: A Decision Log entry records that Image-mode Save writes back to the opened file in its own format (PNG / JPEG / WebP lossless / BMP / TIFF), layered documents flatten in the file only, JPEG quality is asked once per document, GIF and formats without an encoder go to Save As with a notice, and autosave stays ORA — deliberately unlike paint.net, which flattens the document; `pincel.md` §7 gains an "Image-mode save" paragraph — AGENTS.md §2.1 (owner accepted the recommendation).
+- 2026-10-29: TIFF is written back now through `encode_tiff` on the already-enabled `tiff` feature (AC-01); GIF goes to Save As with a notice (AC-14) — TIFF is lossless and costs a few lines, while overwriting a GIF would quantize colours and could silently drop animation frames, because open decodes only the first frame (owner accepted the recommendation).
+- 2026-10-29: After a flattening Save the document is marked saved (no dirty marker, no close warning) (AC-03), but the save does not drop the autosave snapshot and the session keeps snapshotting the layered document (AC-13); `pincel.md` §10.3 gets the same note — the user explicitly chose Flatten and the file matches the request, while keeping the snapshot means recovery still has every layer (owner accepted the recommendation).

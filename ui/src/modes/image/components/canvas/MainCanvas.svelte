@@ -356,6 +356,9 @@
   // Recompose whenever the document mutates or the view moves (only the
   // visible rect is composited); fit a freshly opened document.
   let lastHandle: number | null = null;
+  // A document is open, fitted and drawn — the canvas takes input.
+  // Published as `data-ready` on the surface.
+  let ready = $state(false);
   $effect(() => {
     void editor.revision;
     void editor.previewComposite;
@@ -369,6 +372,7 @@
       }
     }
     redraw();
+    ready = editor.handle !== null;
   });
 </script>
 
@@ -413,6 +417,7 @@
       class="block shadow-2xl shadow-black/60"
       role="img"
       aria-label="Image canvas"
+      data-ready={ready}
       style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
     ></div>
     {#if textEntry}
