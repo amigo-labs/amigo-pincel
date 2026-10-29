@@ -93,18 +93,24 @@ impl Bus {
 
     /// Extend the live stroke gesture to `to`: when the unsealed undo top is
     /// a [`PencilStroke`](super::PencilStroke), it paints the segment from
-    /// its last sample to `to` and stays one undo entry. Returns `Ok(false)`
+    /// its last sample to `to` (pen pressure `pressure` at `to`, `1.0` for
+    /// mouse and touch) and stays one undo entry. Returns `Ok(false)`
     /// — and changes nothing — when there is no live stroke to extend (the
     /// bus is sealed, e.g. by [`Bus::seal`] or an undo, or the top is
     /// another command); the caller then starts a fresh stroke.
-    pub fn continue_stroke(&mut self, to: Point, cels: &mut CelMap) -> Result<bool, CommandError> {
+    pub fn continue_stroke(
+        &mut self,
+        to: Point,
+        pressure: f32,
+        cels: &mut CelMap,
+    ) -> Result<bool, CommandError> {
         if self.sealed {
             return Ok(false);
         }
         let Some(AnyCommand::PencilStroke(stroke)) = self.undo.back_mut() else {
             return Ok(false);
         };
-        self.last_dirty = stroke.extend_to(to, cels)?;
+        self.last_dirty = stroke.extend_to(to, pressure, cels)?;
         self.redo.clear();
         Ok(true)
     }

@@ -1,7 +1,8 @@
 //! `PencilStroke` command — one press-drag-release Pixel-mode Pencil or
 //! Eraser stroke with a square / round brush of size 1–8 and optional
 //! pixel-perfect corner pruning. See `docs/specs/pincel.md` §5.2 and the
-//! Decision Log entry of 2026-10-29.
+//! Decision Log entries of 2026-10-29. Pen pressure scales each stamp to
+//! `max(1, round(N × p))` (`docs/specs/pixel-pressure.md`).
 //!
 //! The command records its input samples and replays them on every
 //! [`Command::apply`], so redo reproduces the stroke exactly. While the
@@ -102,7 +103,7 @@ impl Default for PixelBrush {
 }
 
 /// One Pixel-mode Pencil / Eraser stroke (one undo entry).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PencilStroke {
     layer: LayerId,
     frame: FrameIndex,
@@ -112,11 +113,16 @@ pub struct PencilStroke {
     pixel_perfect: bool,
     /// Input samples in order. Never empty; `apply` replays them.
     samples: Vec<Point>,
-    /// Replay state: the stroke path after pixel-perfect pruning
-    /// (pixel-perfect strokes only).
+    /// Pen pressure per sample in `[0, 1]`, parallel to `samples`; a
+    /// missing entry means full pressure.
+    pressure: Vec<f32>,
+    /// Replay state: the current run of size-1 path points after
+    /// pixel-perfect pruning (pixel-perfect strokes only); a larger stamp
+    /// ends the run.
     path: Vec<Point>,
-    /// Replay state: how often each pixel occurs in `path`.
-    on_path: HashMap<(i32, i32), u32>,
+    /// Replay state: how many kept stamps cover each pixel (pixel-perfect
+    /// strokes only). A pruned corner is restored only at zero.
+    coverage: HashMap<(i32, i32), u32>,
     /// Replay state: first-touch value of every pixel the stroke wrote,
     /// in sprite coordinates. `revert` writes these back.
     prior: HashMap<(i32, i32), Rgba>,
@@ -201,11 +207,27 @@ fn is_l_corner(a: Point, b: Point, c: Point) -> bool {
         && ((b.x == a.x && b.y == c.y) || (b.x == c.x && b.y == a.y))
 }
 
+/// Pen pressure clamped to `[0, 1]`; NaN is no reading (full pressure).
+fn clamp_pressure(p: f32) -> f32 {
+    if p.is_nan() { 1.0 } else { p.clamp(0.0, 1.0) }
+}
+
+/// Stamp size at pressure `p` in `[0, 1]`: `max(1, round(size × p))`,
+/// halves rounding up.
+fn pressure_size(size: u8, p: f32) -> u8 {
+    let scaled = (f32::from(size) * p + 0.5).floor();
+    // `scaled` lies in `0.0..=size`, so the cast is exact.
+    (scaled as u8).max(MIN_BRUSH_SIZE)
+}
+
 impl PencilStroke {
     /// Start a stroke at `start` on the cel at `(layer, frame)`. Applying
     /// it stamps `brush` at `start`; [`Self::extend_to`] (via
     /// [`super::Bus::continue_stroke`]) adds the following samples.
-    /// `pixel_perfect` only takes effect at brush size 1.
+    /// `pixel_perfect` only takes effect where the stamp size is 1.
+    /// `pressure` is the pen pressure at `start` (`1.0` for mouse and
+    /// touch); it is clamped to `[0, 1]`, NaN counts as `1.0`, and the
+    /// stamp there has size `max(1, round(N × pressure))`.
     pub fn new(
         layer: LayerId,
         frame: FrameIndex,
@@ -213,6 +235,7 @@ impl PencilStroke {
         brush: PixelBrush,
         pixel_perfect: bool,
         start: Point,
+        pressure: f32,
     ) -> Self {
         Self {
             layer,
@@ -221,23 +244,39 @@ impl PencilStroke {
             brush,
             pixel_perfect,
             samples: vec![start],
+            pressure: vec![clamp_pressure(pressure)],
             path: Vec::new(),
-            on_path: HashMap::new(),
+            coverage: HashMap::new(),
             prior: HashMap::new(),
             bounds: Bounds::default(),
         }
     }
 
-    /// Extend an applied stroke to `to`: stamp the brush at every pixel of
-    /// the Bresenham line from the last sample to `to`. Returns the region
-    /// this segment changed.
-    pub fn extend_to(&mut self, to: Point, cels: &mut CelMap) -> Result<DirtyRegion, CommandError> {
-        let from = *self.samples.last().expect("samples is never empty");
+    /// Extend an applied stroke to `to` with pen pressure `pressure`
+    /// (clamped as in [`Self::new`]): stamp the brush at every pixel of
+    /// the Bresenham line from the last sample to `to`, each at the
+    /// pressure interpolated linearly between the two samples. Returns
+    /// the region this segment changed.
+    pub fn extend_to(
+        &mut self,
+        to: Point,
+        pressure: f32,
+        cels: &mut CelMap,
+    ) -> Result<DirtyRegion, CommandError> {
+        let last = self.samples.len() - 1;
+        let from = (self.samples[last], self.pressure_at(last));
+        let to = (to, clamp_pressure(pressure));
         let mut t = target(cels, self.layer, self.frame)?;
-        self.samples.push(to);
+        self.samples.push(to.0);
+        self.pressure.push(to.1);
         let mut seg = Bounds::default();
         self.trace(&mut t, from, to, &mut seg);
         Ok(seg.region(self.layer, self.frame))
+    }
+
+    /// Pressure of sample `i`; a missing entry is full pressure.
+    fn pressure_at(&self, i: usize) -> f32 {
+        self.pressure.get(i).copied().unwrap_or(1.0)
     }
 
     /// The stroke path after pixel-perfect pruning (empty unless the
@@ -247,51 +286,62 @@ impl PencilStroke {
         &self.path
     }
 
-    fn pixel_perfect_active(&self) -> bool {
-        self.pixel_perfect && self.brush.size() == 1
-    }
-
     /// Visit every pixel of the line `from → to` except `from` (already
-    /// visited as the previous segment's end).
-    fn trace(&mut self, t: &mut Target, from: Point, to: Point, seg: &mut Bounds) {
-        for (x, y) in bresenham(from.x, from.y, to.x, to.y).skip(1) {
-            self.step(t, Point::new(x, y), seg);
+    /// visited as the previous segment's end), each at the pressure
+    /// interpolated linearly between the two samples.
+    fn trace(&mut self, t: &mut Target, from: (Point, f32), to: (Point, f32), seg: &mut Bounds) {
+        let ((a, pa), (b, pb)) = (from, to);
+        let steps = (i64::from(b.x) - i64::from(a.x))
+            .abs()
+            .max((i64::from(b.y) - i64::from(a.y)).abs());
+        for (k, (x, y)) in bresenham(a.x, a.y, b.x, b.y).enumerate().skip(1) {
+            let f = k as f32 / steps as f32;
+            self.step(t, Point::new(x, y), pa * (1.0 - f) + pb * f, seg);
         }
     }
 
-    /// Advance the stroke by one path pixel.
-    fn step(&mut self, t: &mut Target, p: Point, seg: &mut Bounds) {
-        self.stamp(t, p, seg);
-        if !self.pixel_perfect_active() {
+    /// Advance the stroke by one path pixel at pressure `pressure`.
+    fn step(&mut self, t: &mut Target, p: Point, pressure: f32, seg: &mut Bounds) {
+        let size = pressure_size(self.brush.size(), pressure);
+        self.stamp(t, p, size, seg);
+        if !self.pixel_perfect {
+            return;
+        }
+        if size != 1 {
+            // Pixel-perfect acts only within runs of size-1 points.
+            self.path.clear();
             return;
         }
         // Pixel-perfect (Aseprite): when the last three path pixels form
-        // an L, drop the middle one and restore it — unless the stroke
-        // also passes through it elsewhere on the kept path.
+        // an L, drop the middle one and restore it — unless another kept
+        // stamp of the stroke also covers it.
         self.path.push(p);
-        *self.on_path.entry((p.x, p.y)).or_insert(0) += 1;
         let n = self.path.len();
         if n < 3 || !is_l_corner(self.path[n - 3], self.path[n - 2], p) {
             return;
         }
         let b = self.path.remove(n - 2);
-        let count = self.on_path.entry((b.x, b.y)).or_insert(1);
+        let count = self.coverage.entry((b.x, b.y)).or_insert(1);
         *count -= 1;
         if *count > 0 {
             return;
         }
-        self.on_path.remove(&(b.x, b.y));
+        self.coverage.remove(&(b.x, b.y));
         if let (Some(off), Some(&before)) = (t.offset(b.x, b.y), self.prior.get(&(b.x, b.y))) {
             t.write(off, before);
             seg.add(b.x, b.y);
         }
     }
 
-    /// Stamp the brush centred on `p`. The one stamping routine every
-    /// stroke variant goes through.
-    fn stamp(&mut self, t: &mut Target, p: Point, seg: &mut Bounds) {
-        for (dx, dy) in self.brush.offsets() {
-            self.paint(t, p.x + dx, p.y + dy, seg);
+    /// Stamp the brush shape at size `size` centred on `p`. The one
+    /// stamping routine every stroke variant goes through.
+    fn stamp(&mut self, t: &mut Target, p: Point, size: u8, seg: &mut Bounds) {
+        for (dx, dy) in PixelBrush::new(size, self.brush.shape()).offsets() {
+            let (x, y) = (p.x + dx, p.y + dy);
+            if self.pixel_perfect {
+                *self.coverage.entry((x, y)).or_insert(0) += 1;
+            }
+            self.paint(t, x, y, seg);
         }
     }
 
@@ -311,15 +361,17 @@ impl PencilStroke {
 impl Command for PencilStroke {
     fn apply(&mut self, _doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
         self.path.clear();
-        self.on_path.clear();
+        self.coverage.clear();
         self.prior.clear();
         self.bounds = Bounds::default();
         let mut t = target(cels, self.layer, self.frame)?;
         let samples = std::mem::take(&mut self.samples);
         let mut seg = Bounds::default();
-        self.step(&mut t, samples[0], &mut seg);
-        for w in samples.windows(2) {
-            self.trace(&mut t, w[0], w[1], &mut seg);
+        self.step(&mut t, samples[0], self.pressure_at(0), &mut seg);
+        for i in 1..samples.len() {
+            let from = (samples[i - 1], self.pressure_at(i - 1));
+            let to = (samples[i], self.pressure_at(i));
+            self.trace(&mut t, from, to, &mut seg);
         }
         self.samples = samples;
         Ok(())
@@ -411,14 +463,31 @@ mod tests {
         pp: bool,
         pts: &[(i32, i32)],
     ) -> PencilStroke {
+        stroke_p(color, size, shape, pp, &with_full_pressure(pts))
+    }
+
+    /// [`stroke`] with a pen pressure per sample.
+    fn stroke_p(
+        color: Rgba,
+        size: u8,
+        shape: BrushShape,
+        pp: bool,
+        pts: &[(i32, i32, f32)],
+    ) -> PencilStroke {
+        let (x, y, p) = pts[0];
         PencilStroke::new(
             LayerId::new(1),
             FrameIndex::new(0),
             color,
             PixelBrush::new(size, shape),
             pp,
-            Point::new(pts[0].0, pts[0].1),
+            Point::new(x, y),
+            p,
         )
+    }
+
+    fn with_full_pressure(pts: &[(i32, i32)]) -> Vec<(i32, i32, f32)> {
+        pts.iter().map(|&(x, y)| (x, y, 1.0)).collect()
     }
 
     /// Run a whole stroke through a bus, the way the wasm gesture API does.
@@ -426,15 +495,27 @@ mod tests {
         bus: &mut Bus,
         sprite: &mut Sprite,
         cels: &mut CelMap,
-        mut s: PencilStroke,
+        s: PencilStroke,
         rest: &[(i32, i32)],
+    ) {
+        run_p(bus, sprite, cels, s, &with_full_pressure(rest));
+    }
+
+    /// [`run`] with a pen pressure per sample.
+    fn run_p(
+        bus: &mut Bus,
+        sprite: &mut Sprite,
+        cels: &mut CelMap,
+        mut s: PencilStroke,
+        rest: &[(i32, i32, f32)],
     ) {
         bus.seal();
         s.samples.truncate(1);
+        s.pressure.truncate(1);
         bus.execute(s.into(), sprite, cels).expect("stroke applies");
-        for &(x, y) in rest {
+        for &(x, y, p) in rest {
             assert!(
-                bus.continue_stroke(Point::new(x, y), cels)
+                bus.continue_stroke(Point::new(x, y), p, cels)
                     .expect("segment applies"),
                 "stroke stays live on the bus"
             );
@@ -449,10 +530,21 @@ mod tests {
         pp: bool,
         pts: &[(i32, i32)],
     ) -> (Sprite, CelMap, Bus) {
+        paint_stroke_p(color, size, shape, pp, &with_full_pressure(pts))
+    }
+
+    /// [`paint_stroke`] with a pen pressure per sample.
+    fn paint_stroke_p(
+        color: Rgba,
+        size: u8,
+        shape: BrushShape,
+        pp: bool,
+        pts: &[(i32, i32, f32)],
+    ) -> (Sprite, CelMap, Bus) {
         let (mut sprite, mut cels) = fixture();
         let mut bus = Bus::new();
-        let s = stroke(color, size, shape, pp, pts);
-        run(&mut bus, &mut sprite, &mut cels, s, &pts[1..]);
+        let s = stroke_p(color, size, shape, pp, pts);
+        run_p(&mut bus, &mut sprite, &mut cels, s, &pts[1..]);
         (sprite, cels, bus)
     }
 
@@ -698,6 +790,213 @@ mod tests {
             assert_eq!(snapshot(&mut cels), before, "case {case}: revert");
             assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
             assert_eq!(snapshot(&mut cels), after, "case {case}: redo");
+        }
+    }
+
+    // --- Pen pressure (docs/specs/pixel-pressure.md) ---
+
+    #[test]
+    fn pencil_stroke_pressure_scales_stamp_size() {
+        // max(1, round(N × p)), halves rounding up.
+        let cases: [(u8, f32, u8); 9] = [
+            (8, 1.0, 8),
+            (8, 0.5, 4),
+            (8, 0.25, 2),
+            (8, 0.1, 1),
+            (5, 0.5, 3),
+            (3, 0.5, 2),
+            (4, 0.3, 1),
+            (1, 0.3, 1),
+            (1, 1.0, 1),
+        ];
+        for (n, p, want) in cases {
+            for shape in [BrushShape::Square, BrushShape::Round] {
+                let (_, mut cels, _) = paint_stroke_p(RED, n, shape, false, &[(4, 4, p)]);
+                assert_eq!(
+                    painted(&mut cels, RED),
+                    expected_stamp(want, shape, 4, 4),
+                    "size {n} pressure {p} {shape:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pencil_stroke_pressure_interpolates_along_segment() {
+        // Size 4 from pressure 0 at (0, 3) to 1 at (6, 3): step k has
+        // p = k / 6 and size max(1, round(4k / 6)) = 1 1 1 2 3 3 4.
+        let (_, mut cels, _) = paint_stroke_p(
+            RED,
+            4,
+            BrushShape::Square,
+            false,
+            &[(0, 3, 0.0), (6, 3, 1.0)],
+        );
+        let sizes = [1u8, 1, 1, 2, 3, 3, 4];
+        let want: HashSet<_> = sizes
+            .iter()
+            .enumerate()
+            .flat_map(|(k, &n)| expected_stamp(n, BrushShape::Square, k as i32, 3))
+            .collect();
+        assert_eq!(painted(&mut cels, RED), want);
+    }
+
+    #[test]
+    fn pencil_stroke_full_pressure_matches_size_n_stamps() {
+        for size in 1..=8u8 {
+            let pts = [(1, 6, 1.0), (6, 1, 1.0), (2, 2, 1.0)];
+            let (_, mut cels, _) = paint_stroke_p(RED, size, BrushShape::Round, false, &pts);
+            let want: HashSet<_> = bresenham(1, 6, 6, 1)
+                .chain(bresenham(6, 1, 2, 2))
+                .flat_map(|(x, y)| expected_stamp(size, BrushShape::Round, x, y))
+                .collect();
+            assert_eq!(painted(&mut cels, RED), want, "size {size}");
+        }
+    }
+
+    #[test]
+    fn pencil_stroke_light_pressure_paints_fewer_pixels() {
+        let at = |p: f32| [(1, 4, p), (6, 4, p)];
+        let (_, mut light, _) = paint_stroke_p(RED, 8, BrushShape::Square, false, &at(0.2));
+        let (_, mut firm, _) = paint_stroke_p(RED, 8, BrushShape::Square, false, &at(1.0));
+        let (light, firm) = (painted(&mut light, RED), painted(&mut firm, RED));
+        assert!(
+            light.len() < firm.len(),
+            "{} vs {}",
+            light.len(),
+            firm.len()
+        );
+        assert!(light.is_subset(&firm));
+    }
+
+    #[test]
+    fn pencil_stroke_pressure_is_clamped_to_unit_range() {
+        // Below 0 counts as 0 (still a size-1 stamp), above 1 as 1, and
+        // NaN as no reading (full pressure).
+        let cases: [(f32, u8); 5] = [
+            (-0.5, 1),
+            (0.0, 1),
+            (1.7, 6),
+            (f32::INFINITY, 6),
+            (f32::NAN, 6),
+        ];
+        for (p, want) in cases {
+            let (_, mut cels, _) = paint_stroke_p(RED, 6, BrushShape::Square, false, &[(4, 4, p)]);
+            assert_eq!(
+                painted(&mut cels, RED),
+                expected_stamp(want, BrushShape::Square, 4, 4),
+                "pressure {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn pixel_perfect_applies_only_to_size_1_runs() {
+        let (mut sprite, mut cels) = fixture();
+        fill(&mut cels, BLUE);
+        let mut bus = Bus::new();
+        // Firm start (size 3), one size-2 sample, then a light staircase.
+        let pts = [
+            (1, 1, 1.0),
+            (2, 1, 0.5),
+            (3, 1, 0.0),
+            (3, 2, 0.0),
+            (4, 2, 0.0),
+            (4, 3, 0.0),
+            (5, 3, 0.0),
+        ];
+        let s = stroke_p(RED, 3, BrushShape::Square, true, &pts);
+        run_p(&mut bus, &mut sprite, &mut cels, s, &pts[1..]);
+        // (3, 1) would be the corner of (2, 1) → (3, 1) → (3, 2), but
+        // (2, 1) has size 2, so it is outside the size-1 run and stays.
+        assert_eq!(pixel(&mut cels, 3, 1), RED);
+        // Inside the run the corners go and show the pixel from before.
+        assert_eq!(pixel(&mut cels, 3, 2), BLUE);
+        assert_eq!(pixel(&mut cels, 4, 3), BLUE);
+        assert_eq!(pixel(&mut cels, 4, 2), RED);
+        assert_eq!(pixel(&mut cels, 5, 3), RED);
+        // The size-3 stamp is untouched.
+        for (x, y) in expected_stamp(3, BrushShape::Square, 1, 1) {
+            assert_eq!(pixel(&mut cels, x, y), RED, "({x}, {y})");
+        }
+    }
+
+    #[test]
+    fn pixel_perfect_keeps_corner_covered_by_a_larger_stamp() {
+        // The size-3 stamp at (1, 1) covers (2, 2); the light run
+        // (2, 1) → (2, 2) → (3, 2) makes it a corner, but it stays.
+        let pts = [(1, 1, 1.0), (2, 1, 0.0), (2, 2, 0.0), (3, 2, 0.0)];
+        let (_, mut cels, _) = paint_stroke_p(RED, 3, BrushShape::Square, true, &pts);
+        assert_eq!(pixel(&mut cels, 2, 2), RED);
+    }
+
+    /// Deterministic pseudo-random pressure strokes: every changed pixel
+    /// has exactly the stroke color, the Eraser clears exactly what the
+    /// Pencil paints, revert restores the original cel, redo reproduces
+    /// the stroke, and a pixel-perfect run keeps no L-corner.
+    #[test]
+    fn pencil_stroke_random_pressure_strokes_hold_invariants() {
+        let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = move |m: i32| -> i32 {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((seed >> 33) % m as u64) as i32
+        };
+        for case in 0..400 {
+            let size = 1 + next(8) as u8;
+            let shape = if next(2) == 0 {
+                BrushShape::Square
+            } else {
+                BrushShape::Round
+            };
+            let pp = case % 2 == 0;
+            let len = 1 + next(8) as usize;
+            // Pressures from -0.1 to 1.1, so clamping is exercised too.
+            let pts: Vec<(i32, i32, f32)> = (0..len)
+                .map(|_| (next(12) - 2, next(12) - 2, next(13) as f32 / 10.0 - 0.1))
+                .collect();
+            let (mut sprite, mut cels) = fixture();
+            fill(&mut cels, BLUE);
+            let before = snapshot(&mut cels);
+            let mut bus = Bus::new();
+            let s = stroke_p(RED, size, shape, pp, &pts);
+            run_p(&mut bus, &mut sprite, &mut cels, s, &pts[1..]);
+            let after = snapshot(&mut cels);
+            let footprint = painted(&mut cels, RED);
+            assert_eq!(
+                footprint.len() + painted(&mut cels, BLUE).len(),
+                (W * W) as usize,
+                "case {case}: only the stroke color is painted"
+            );
+            if pp {
+                let Some(AnyCommand::PencilStroke(cmd)) = bus.top() else {
+                    panic!("stroke on bus");
+                };
+                let path = cmd.kept_path().to_vec();
+                for w in path.windows(3) {
+                    assert!(
+                        !is_l_corner(w[0], w[1], w[2]),
+                        "case {case}: corner in {path:?}"
+                    );
+                }
+            }
+            assert!(bus.undo(&mut sprite, &mut cels));
+            assert_eq!(snapshot(&mut cels), before, "case {case}: revert");
+            assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+            assert_eq!(snapshot(&mut cels), after, "case {case}: redo");
+
+            // The Eraser clears exactly the Pencil's footprint.
+            let (mut sprite, mut cels) = fixture();
+            fill(&mut cels, BLUE);
+            let mut bus = Bus::new();
+            let s = stroke_p(Rgba::TRANSPARENT, size, shape, pp, &pts);
+            run_p(&mut bus, &mut sprite, &mut cels, s, &pts[1..]);
+            assert_eq!(
+                painted(&mut cels, Rgba::TRANSPARENT),
+                footprint,
+                "case {case}: eraser"
+            );
         }
     }
 }

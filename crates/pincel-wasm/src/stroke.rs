@@ -81,7 +81,7 @@ impl Document {
         let extended = live.started
             && self
                 .bus
-                .continue_stroke(to, &mut self.cels)
+                .continue_stroke(to, 1.0, &mut self.cels)
                 .map_err(|e| format!("failed to paint: {e}"))?;
         if !extended {
             // First point, or the history moved under the gesture (an
@@ -95,6 +95,7 @@ impl Document {
                 live.brush,
                 live.pixel_perfect,
                 to,
+                1.0,
             );
             self.bus
                 .execute(cmd.into(), &mut self.sprite, &mut self.cels)
