@@ -38,7 +38,9 @@ test('pixel mode: a pencil stroke is undoable', async ({ page }) => {
   const canvas = pixelCanvas(page);
   await expect(canvas).toBeVisible();
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
   await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
 
   await page.getByTitle('Pencil (B)').click();
   await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
@@ -46,7 +48,37 @@ test('pixel mode: a pencil stroke is undoable', async ({ page }) => {
 
   await undo.click();
   await expect(undo).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled();
+  await expect(redo).toBeEnabled();
+
+  // Redoing to the end leaves nothing to redo.
+  await redo.click();
+  await expect(redo).toBeDisabled();
+  await expect(undo).toBeEnabled();
+});
+
+test('pixel mode: Ctrl+Z undoes the last edit, Ctrl+Shift+Z and Ctrl+Y redo it', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  const canvas = pixelCanvas(page);
+  // The status bar shows the exact undo / redo depths.
+  const depths = (u: number, r: number) => page.getByText(`undo ${u} / redo ${r}`);
+
+  await page.getByTitle('Pencil (B)').click();
+  await drag(page, canvas, [0.1, 0.2], [0.9, 0.2]);
+  await drag(page, canvas, [0.1, 0.7], [0.9, 0.7]);
+  await expect(depths(2, 0)).toBeVisible();
+
+  // Each press undoes only the last edit.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(depths(1, 1)).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(depths(0, 2)).toBeVisible();
+
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect(depths(1, 1)).toBeVisible();
+  await page.keyboard.press('ControlOrMeta+y');
+  await expect(depths(2, 0)).toBeVisible();
 });
 
 test('image mode: a brush stroke is undoable and the pixel wasm is not loaded', async ({

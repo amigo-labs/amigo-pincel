@@ -361,6 +361,13 @@ mod tests {
     }
 
     #[test]
+    fn set_tag_range_different_tag_does_not_merge() {
+        let mut first = SetTagRange::new(0, f(0), f(1));
+        let second = SetTagRange::new(1, f(0), f(1));
+        assert!(!first.merge(&second));
+    }
+
+    #[test]
     fn set_tag_name_applies_and_reverts() {
         let (mut s, mut c) = doc();
         let mut cmd = SetTagName::new(0, "walk");
@@ -368,6 +375,24 @@ mod tests {
         assert_eq!(s.tags[0].name, "walk");
         cmd.revert(&mut s, &mut c);
         assert_eq!(s.tags[0].name, "idle");
+    }
+
+    #[test]
+    fn set_tag_name_consecutive_renames_merge_into_one_undo_entry_restoring_the_first_name() {
+        let (mut s, mut c) = doc();
+        let mut bus = crate::command::Bus::new();
+        for name in ["w", "wa", "walk"] {
+            bus.execute(SetTagName::new(0, name).into(), &mut s, &mut c)
+                .expect("rename");
+        }
+        assert_eq!(s.tags[0].name, "walk");
+        assert_eq!(bus.undo_depth(), 1, "one gesture, one entry");
+        assert!(bus.undo(&mut s, &mut c));
+        assert_eq!(
+            s.tags[0].name, "idle",
+            "restores the name before the first rename"
+        );
+        assert_eq!(bus.undo_depth(), 0);
     }
 
     #[test]

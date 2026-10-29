@@ -313,6 +313,42 @@ mod tests {
     }
 
     #[test]
+    fn renders_in_its_color_next_to_the_placement_point() {
+        let red = Color::rgba(220, 20, 30, 255);
+        let mut doc = Document::new(200, 100).unwrap();
+        let text_style = TextStyle {
+            color: red,
+            anti_alias: false,
+            ..style(24.0)
+        };
+        let mut cmd = Text::new("Hi", Point::new(60.0, 30.0), text_style)
+            .render(0, &doc, FONT)
+            .unwrap();
+        cmd.apply(&mut doc).unwrap();
+
+        let (mut min_x, mut min_y, mut max_x, mut max_y) = (u32::MAX, u32::MAX, 0, 0);
+        for y in 0..100 {
+            for x in 0..200 {
+                let px = doc.layers[0].pixels.get_pixel(x, y).unwrap();
+                if px.a == 0 {
+                    continue;
+                }
+                assert_eq!(px, red, "glyph pixel ({x}, {y}) is in the text color");
+                (min_x, min_y) = (min_x.min(x), min_y.min(y));
+                (max_x, max_y) = (max_x.max(x), max_y.max(y));
+            }
+        }
+        // The glyphs start just right of / below the point and stay within
+        // about one em of it.
+        assert!((60..66).contains(&min_x), "left edge at {min_x}");
+        assert!((30..42).contains(&min_y), "top edge at {min_y}");
+        assert!(
+            max_x < 60 + 48 && max_y < 30 + 30,
+            "ends at ({max_x}, {max_y})"
+        );
+    }
+
+    #[test]
     fn renders_non_empty_text() {
         let mut doc = Document::new(200, 80).unwrap();
         let text = Text::new("Hello", Point::new(10.0, 10.0), style(32.0));
