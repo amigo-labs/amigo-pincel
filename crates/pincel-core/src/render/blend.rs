@@ -353,6 +353,139 @@ mod tests {
         assert_eq!(blend_channel(BlendMode::Subtract, 100, 200), 0);
     }
 
+    /// Independent float reference for the separable W3C / Aseprite blend
+    /// functions of AC-12, on 0..1 channels, rounded back to 8 bits.
+    fn separable_reference(mode: BlendMode, cb: u8, cs: u8) -> u8 {
+        let b = f64::from(cb) / 255.0;
+        let s = f64::from(cs) / 255.0;
+        let r = match mode {
+            BlendMode::ColorDodge => {
+                if b == 0.0 {
+                    0.0
+                } else if s == 1.0 {
+                    1.0
+                } else {
+                    (b / (1.0 - s)).min(1.0)
+                }
+            }
+            BlendMode::ColorBurn => {
+                if b == 1.0 {
+                    1.0
+                } else if s == 0.0 {
+                    0.0
+                } else {
+                    1.0 - ((1.0 - b) / s).min(1.0)
+                }
+            }
+            BlendMode::HardLight => {
+                if s <= 0.5 {
+                    b * 2.0 * s
+                } else {
+                    let s2 = 2.0 * s - 1.0;
+                    b + s2 - b * s2
+                }
+            }
+            BlendMode::SoftLight => {
+                if s <= 0.5 {
+                    b - (1.0 - 2.0 * s) * b * (1.0 - b)
+                } else {
+                    let d = if b <= 0.25 {
+                        ((16.0 * b - 12.0) * b + 4.0) * b
+                    } else {
+                        b.sqrt()
+                    };
+                    b + (2.0 * s - 1.0) * (d - b)
+                }
+            }
+            BlendMode::Difference => (b - s).abs(),
+            BlendMode::Exclusion => b + s - 2.0 * b * s,
+            // Aseprite: B = Cb / Cs, 1 where Cb ≥ Cs, 0 where Cb = 0.
+            BlendMode::Divide => {
+                if b == 0.0 {
+                    0.0
+                } else if b >= s {
+                    1.0
+                } else {
+                    b / s
+                }
+            }
+            other => panic!("no reference for {other:?}"),
+        };
+        (r.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
+
+    const AC12_MODES: [BlendMode; 7] = [
+        BlendMode::ColorDodge,
+        BlendMode::ColorBurn,
+        BlendMode::HardLight,
+        BlendMode::SoftLight,
+        BlendMode::Difference,
+        BlendMode::Exclusion,
+        BlendMode::Divide,
+    ];
+
+    #[test]
+    fn separable_modes_match_w3c_reference_for_every_channel_pair() {
+        // Pincel's integer rounding may differ from the float reference by
+        // at most 1 (spec §15 Decision Log, 2026-10-27).
+        for mode in AC12_MODES {
+            for cb in 0..=255u8 {
+                for cs in 0..=255u8 {
+                    let got = blend_channel(mode, cb, cs);
+                    let want = separable_reference(mode, cb, cs);
+                    assert!(
+                        got.abs_diff(want) <= 1,
+                        "{mode:?}(Cb={cb}, Cs={cs}) = {got}, reference {want}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn separable_modes_hit_their_exact_terms_at_known_points() {
+        // Hand-derived values at the clamps and exact cases of each mode.
+        let cases: [(BlendMode, u8, u8, u8); 14] = [
+            (BlendMode::ColorDodge, 0, 200, 0),
+            (BlendMode::ColorDodge, 100, 255, 255),
+            (BlendMode::ColorDodge, 51, 204, 255), // 0.2 / (1 − 0.8) → 1
+            (BlendMode::ColorBurn, 255, 0, 255),
+            (BlendMode::ColorBurn, 100, 0, 0),
+            (BlendMode::HardLight, 200, 0, 0),
+            (BlendMode::HardLight, 200, 255, 255),
+            (BlendMode::SoftLight, 0, 255, 0),
+            (BlendMode::SoftLight, 255, 0, 255),
+            (BlendMode::Difference, 30, 200, 170),
+            (BlendMode::Exclusion, 255, 255, 0),
+            (BlendMode::Exclusion, 0, 77, 77),
+            (BlendMode::Divide, 50, 40, 255),
+            (BlendMode::Divide, 0, 40, 0),
+        ];
+        for (mode, cb, cs, want) in cases {
+            assert_eq!(blend_channel(mode, cb, cs), want, "{mode:?}({cb}, {cs})");
+        }
+    }
+
+    #[test]
+    fn separable_modes_compose_opaque_source_as_blend_term() {
+        // Through compose(): an opaque source over an opaque backdrop is the
+        // blend term itself, per channel.
+        let backdrop = [40u8, 128, 230, 255];
+        let source = [200u8, 90, 10, 255];
+        for mode in AC12_MODES {
+            let px = blend_compose(mode, backdrop, source);
+            assert_eq!(px[3], 255, "{mode:?} alpha");
+            for i in 0..3 {
+                let want = separable_reference(mode, backdrop[i], source[i]);
+                assert!(
+                    px[i].abs_diff(want) <= 1,
+                    "{mode:?} channel {i}: {} vs reference {want}",
+                    px[i]
+                );
+            }
+        }
+    }
+
     #[test]
     fn blend_with_translucent_source_matches_w3c_formula() {
         // 50%-alpha multiply red over opaque gray. Hand-derived from the
@@ -391,6 +524,27 @@ mod tests {
                 let mut dst = [0u8, 0, 0, 0];
                 blend_pixel_into(mode, &mut dst, 200, 100, 50, sa);
                 assert_eq!(dst, [200, 100, 50, sa], "mode {mode:?} sa {sa}");
+            }
+        }
+    }
+
+    #[test]
+    fn transparent_source_leaves_backdrop_unchanged() {
+        // αs = 0 ⇒ result = backdrop, for every non-Normal mode over an
+        // opaque and a translucent backdrop, directly and through compose().
+        for mode in BlendMode::ALL
+            .into_iter()
+            .filter(|&m| m != BlendMode::Normal)
+        {
+            for backdrop in [[40u8, 160, 220, 255], [90, 30, 200, 120]] {
+                let mut dst = backdrop;
+                blend_pixel_into(mode, &mut dst, 200, 100, 50, 0);
+                assert_eq!(dst, backdrop, "mode {mode:?} backdrop {backdrop:?}");
+                assert_eq!(
+                    blend_compose(mode, backdrop, [200, 100, 50, 0]),
+                    backdrop.to_vec(),
+                    "compose, mode {mode:?} backdrop {backdrop:?}"
+                );
             }
         }
     }
