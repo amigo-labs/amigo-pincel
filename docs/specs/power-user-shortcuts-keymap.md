@@ -48,8 +48,10 @@ Any shortcut action or tool-group key can be rebound in the Keyboard Shortcuts d
 - [ ] AC-11 (always): A stored chord records "the platform's command modifier", not Ctrl or ⌘: a keymap exported on Windows with Ctrl+U shows and works as `⌘U` on macOS.
 - [ ] AC-12 (state): While the dialog waits for a new chord, the pressed keys don't trigger editor actions; pressing only a modifier key (Shift, Ctrl, Alt, ⌘) does not complete the capture.
 - [ ] AC-13 (event): When the user presses Escape while the dialog waits for a new chord, then the capture is cancelled and the binding is unchanged.
-- [ ] AC-14 (event, manual: the native macOS menu of the desktop app can't be driven by Playwright): When the user rebinds an action that the native macOS menu owns (open, save, export, undo, redo, …), then the new chord runs it exactly once, the old chord no longer runs it, and the native menu shows the new chord or none.
+- [ ] AC-14 (event, manual: the native macOS menu of the desktop app can't be driven by Playwright): When the user rebinds an action that the native macOS menu owns (open, save, export, undo, redo, …), then the new chord runs it exactly once, the old chord no longer runs it, and the native menu shows the new chord.
 - [ ] AC-15 (option): Where the UI language is German, Change, Reset, Reset all, Export, Import, the conflict warning and the import messages are German.
+- [ ] AC-16 (error): If an imported file binds the same chord to two of its entries, then the import is rejected with a message naming that chord, and the current keymap stays unchanged.
+- [ ] AC-17 (event): When an imported file binds a chord that a remaining default still uses, then the import wins as with Replace — the default loses that chord — and a notice says how many defaults were replaced.
 
 ## Technical notes
 
@@ -61,7 +63,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 **Editor.** Lives in the Keyboard Shortcuts dialog of `shortcut-overview` (`ui/src/lib/components/ShortcutsDialog.svelte`). File download / open goes through `ui/src/lib/fs` (FSA / download / Tauri).
 
-**Native macOS menu.** Built in Rust (`src-tauri/src/main.rs`) with fixed accelerators for `NATIVE_MENU_ACTIONS`; the editors leave those chords to it where `hasNativeMenu()` holds (Decision Log 2026-10-27). Options from the plan: a new Tauri command `set_menu_accelerators` that updates them, or dropping a rebound item's native accelerator and letting the webview handle the key.
+**Native macOS menu.** Built in Rust (`src-tauri/src/main.rs`) with fixed accelerators for `NATIVE_MENU_ACTIONS`; the editors leave those chords to it where `hasNativeMenu()` holds (Decision Log 2026-10-27). A new Tauri command `set_menu_accelerators(map)` pushes the effective chords of rebound native-menu actions and rebuilds the macOS menu, as `set_menu_language` already does; `NATIVE_MENU_ACTIONS` ownership is unchanged, and the command is a no-op off macOS.
 
 **Tests.** e2e: rebind Undo to Ctrl+U, check it works and the menu hint shows `Ctrl+U`, reload and it persists, Reset all (patterns `ui/e2e/shortcuts.spec.ts`, `ui/e2e/recents.spec.ts` for reload persistence, `ui/e2e/export.spec.ts` for downloads).
 
@@ -71,7 +73,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | -------- | ----------------- |
 | Chord assigned that a browser tab can't capture (e.g. Ctrl+W) | The capture never receives it in a tab; the binding is unchanged |
 | Action left without any chord after Replace | It shows no hint and works from its menu only; Reset restores it |
-| Import of a keymap with a conflict inside the file | See Open questions |
+| Import of a keymap with a conflict inside the file | Rejected with a message naming the chord; keymap unchanged (AC-16) |
+| Import of a keymap whose chord a remaining default uses | Import wins; the default loses the chord; the notice counts replaced defaults (AC-17) |
 | Rebinding a Pixel-only action (e.g. next frame) to a key Image mode uses for a tool | Reported as a conflict (one keymap for both modes) |
 | Empty overrides exported | A valid JSON file with no overrides; importing it equals Reset all |
 | Same chord pressed as the current one | No change, no warning |
@@ -87,8 +90,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 ## Open questions
 
-- Decision Log entry not yet written: how rebound actions stay consistent with the native macOS menu — a new Tauri command `set_menu_accelerators` (new native API) or dropping the native accelerator of a rebound item. The plan asks to record the choice.
-- Importing a file whose overrides conflict with each other or with remaining defaults: reject the import, apply with the later entry winning, or apply and list the conflicts?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -109,6 +111,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
+| AC-16 |      | open   |        |
+| AC-17 |      | open   |        |
 
 ## Decisions
 
@@ -116,3 +120,5 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The keymap stores user overrides on top of the defaults, not a full copy — new default shortcuts reach users who never rebound them.
 - 2026-10-28 (legacy plan): Stored chords use the platform-neutral `mod` modifier — one keymap works on all OSes.
 - 2026-10-28 (legacy plan): Unknown actions in an import are ignored with a notice — keymaps from newer or older versions still import.
+- 2026-10-29: Rebound native-menu actions are pushed to the macOS menu by a new Tauri command `set_menu_accelerators(map)` that rebuilds the menu as `set_menu_language` does, so the native menu shows the new chord (AC-14) — the rebuild path exists already, and the menu keeps showing correct hints (owner accepted the recommendation).
+- 2026-10-29: An import whose file binds one chord twice is rejected naming the chord (AC-16); a chord a remaining default uses is taken by the import as with Replace, with a notice counting replaced defaults (AC-17) — Pincel's own exports can't contain internal conflicts, and an imported keymap should win over defaults (owner accepted the recommendation).

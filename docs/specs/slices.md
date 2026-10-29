@@ -37,16 +37,16 @@ The UI edits only the key at the first frame; keys at other frames arrive from o
 - [ ] AC-01 (event): When the user drags on the canvas with the Slice tool while no slice is active, then a slice named `Slice {n}` (n = number of slices after adding), in the current foreground colour, covering the dragged rectangle including both corner pixels, is created and becomes the active slice; one undo removes it.
 - [ ] AC-02 (event): When the user clicks the canvas with the Slice tool without dragging while no slice is active, then a 1 × 1 slice is created at that pixel.
 - [ ] AC-03 (always): A newly created slice has exactly one key, at the first frame, with the given bounds and neither a 9-patch center nor a pivot.
-- [ ] AC-04 (event): When the user drags with the Slice tool while a slice is active, then that slice's first-frame bounds become the dragged rectangle, its 9-patch center and pivot stay as they were, and one undo restores the previous bounds.
+- [ ] AC-04 (event): When the user drags with the Slice tool while a slice is active, then that slice's first-frame bounds become the dragged rectangle, its 9-patch center and pivot keep their coordinates relative to the bounds origin (so they move with the slice), and one undo restores the previous bounds.
 - [ ] AC-05 (event): When the user submits the Slices panel's Add slice form, then a slice with the entered name and colour covering the whole canvas is created and becomes the active slice; one undo removes it.
 - [ ] AC-06 (always): The Add slice form opens with the name `Slice` and the colour `#3b82f6`.
 - [ ] AC-07 (error): If the Add slice form's name is empty or only spaces, then the form shows "name is required" and no slice is created.
 - [ ] AC-08 (event): When the user clicks a slice's row, then that slice becomes the active slice (highlighted) and the Slice tool becomes the active tool; clicking the active slice's row again deactivates it.
-- [ ] AC-09 (state): While a slice is active, the canvas shows marching ants around its first-frame bounds, an outline of its 9-patch center in the slice's colour when it has one, and a crosshair at its pivot when it has one; none of this becomes part of the sprite's pixels.
+- [ ] AC-09 (state): While a slice is active, the canvas shows marching ants around its first-frame bounds, an outline of its 9-patch center in the slice's colour when it has one, and a crosshair at its pivot when it has one — center and pivot drawn relative to the slice bounds' origin; none of this becomes part of the sprite's pixels.
 - [ ] AC-10 (event): When the user commits a new X, Y, W or H value in a slice's row, then the slice's first-frame bounds take that value, as one undo step.
 - [ ] AC-11 (error): If the user enters a width or height (of the bounds or the 9-patch center) below 1, then the row shows "{field} must be a positive integer" and the slice is unchanged.
-- [ ] AC-12 (event): When the user ticks 9-patch on a slice without a center, then a center inset by 1 px on every side of the bounds (at least 1 × 1) is set, as one undo step; its X, Y, W and H are then editable, and unticking removes the center.
-- [ ] AC-13 (event): When the user ticks Pivot, then a pivot at the slice's top-left corner is set, as one undo step; its X and Y are then editable, negative values included, and unticking removes the pivot.
+- [ ] AC-12 (event): When the user ticks 9-patch on a slice without a center, then a center inset by 1 px on every side of the bounds is set — `(1, 1, w − 2, h − 2)` relative to the slice bounds, at least 1 × 1 — as one undo step; its X, Y, W and H are then shown and edited relative to the slice bounds, and unticking removes the center.
+- [ ] AC-13 (event): When the user ticks Pivot, then a pivot at the slice's top-left corner — `(0, 0)` relative to the slice bounds — is set, as one undo step; its X and Y are then shown and edited relative to the slice bounds, negative values included, and unticking removes the pivot.
 - [ ] AC-14 (error): If a key would get empty bounds, only part of a 9-patch center (fewer than all of x, y, width, height), or only one pivot coordinate, then the edit is refused and the slice is unchanged.
 - [ ] AC-15 (event): When the user removes a slice from its row, then it disappears from the panel and the canvas, an active slice is deactivated, and one undo restores it at its previous position in the list.
 - [ ] AC-16 (event): When undo removes the active slice, then the active-slice overlay and highlight disappear.
@@ -57,7 +57,7 @@ The UI edits only the key at the first frame; keys at other frames arrive from o
 
 Hints, not contracts — paths drift; grep for the names.
 
-**Document model** (`crates/pincel-core/src/document/slice.rs`): `Slice { id: SliceId, name, color: Rgba, keys: Vec<SliceKey> /* sorted by frame */, user_data }`, `SliceKey { frame: FrameIndex, bounds: Rect, center: Option<Rect>, pivot: Option<(i32, i32)> }`. The doc comment says the pivot is "in sprite coordinates"; the UI treats center and pivot as sprite coordinates too (see Open questions).
+**Document model** (`crates/pincel-core/src/document/slice.rs`): `Slice { id: SliceId, name, color: Rgba, keys: Vec<SliceKey> /* sorted by frame */, user_data }`, `SliceKey { frame: FrameIndex, bounds: Rect, center: Option<Rect>, pivot: Option<(i32, i32)> }`. `center` and `pivot` are relative to the key's bounds origin, as the Aseprite format stores them (`crates/aseprite-writer/src/file.rs`); the codec copies them unchanged. The core doc comment still says the pivot is "in sprite coordinates" and the panel and overlay still treat both as absolute — both are fixed to the relative space (the panel seeds center `(1, 1, w − 2, h − 2)` and pivot `(0, 0)`, the overlay adds the bounds origin).
 
 **Commands** (`crates/pincel-core/src/command/`): `AddSlice` (appends; rejects duplicate ids, empty key lists, empty bounds), `RemoveSlice` (re-inserts at the prior index on undo), `SetSliceKey` (upsert by frame), `RemoveFrame` (shifts slice keys). None of the slice commands merge, so every edit is its own undo entry.
 
@@ -75,15 +75,14 @@ Hints, not contracts — paths drift; grep for the names.
 | Slice whose only key is at a later frame (from a file) | The panel and overlay fall back to its first stored key |
 | Clearing a row's X or Y field | Treated as 0 and applied |
 | Clearing a row's W or H field | Treated as 0, refused with "must be a positive integer" |
-| Redrawing the active slice so its 9-patch center lies outside the new bounds | Accepted; the center keeps its previous coordinates |
+| Redrawing the active slice so its 9-patch center lies outside the new bounds | Accepted; the center keeps its relative coordinates |
+| Slice with a 9-patch center and pivot opened from an Aseprite file | Overlay and panel show them at the same place as Aseprite does; saving writes the values back unchanged |
 | Removing the active slice | The overlay stops and no slice is active |
 | Undo of a slice creation after other edits to it | Each edit undoes on its own first, then the creation |
 
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
-
-- Which coordinate space do a key's 9-patch center and pivot use? The Aseprite format stores both relative to the slice's bounds origin (see `crates/aseprite-writer/src/file.rs`), and the codec copies the values unchanged, but the core doc comment, the panel (center seeded at `x + 1, y + 1`, pivot seeded at `x, y`) and the overlay treat them as absolute sprite coordinates. A center or pivot set in Pincel therefore lands elsewhere in Aseprite, and one from Aseprite is drawn offset in Pincel. AC-09, AC-12 and AC-13 depend on the answer.
 
 ## Evidence
 
@@ -110,3 +109,4 @@ Hints, not contracts — paths drift; grep for the names.
 
 ## Decisions
 
+- 2026-10-29: A key's 9-patch center and pivot are relative to the key's bounds origin in the core, the panel and the overlay (AC-04, AC-09, AC-12, AC-13 changed; the core doc comment gets fixed) — this matches the Aseprite format, so files round-trip correctly and a redrawn slice keeps its 9-patch and pivot attached (owner accepted the recommendation).

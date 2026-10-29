@@ -22,6 +22,11 @@ related:
 > desktop app). The agent loop, preview, sandbox and validation ideas below
 > still hold; the curriculum (`lessons.pincel.app`) and `.ait` export are
 > future vision, not prerequisites.
+>
+> **Superseded (2026-10-29):** this document is superseded by the `mcp-*`
+> feature specs; where they differ, the feature specs win. The agent
+> architecture (`pincel-agent` + `pincel-mcp`) and the in-house JSON-RPC 2.0
+> loop are recorded in the Decision Log (pincel.md §15, 2026-10-29).
 
 ## Overview
 
