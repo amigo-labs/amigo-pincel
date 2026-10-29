@@ -41,6 +41,8 @@
   import { help } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
+  import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
+  import { onPaste, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
   import {
     addFrame,
     addGroup,
@@ -119,6 +121,7 @@
     zoomOut,
   } from './view-ops';
   import {
+    MAX_DOC_SIZE,
     colors,
     dialogs,
     ed,
@@ -151,10 +154,6 @@
 
   // Release version stamped in by the release workflow; `dev` locally.
   const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
-
-  // Canvas size cap for new / resized documents (the shell's New
-  // dialog shares it).
-  const MAX_DOC_SIZE = 4096;
 
   // "Modified since last save" — drives the footer dot, the tab title,
   // the beforeunload warning, and the New / Open confirm guard.
@@ -232,6 +231,8 @@
       undo,
       redo,
       deleteSelection: deleteSelectionPixels,
+      copy: runCopy,
+      paste: () => void pasteFromClipboard(),
       swapColors,
       resetColors,
       selectAll: () => selectAction('all'),
@@ -288,7 +289,7 @@
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
     if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || autosave.snapshots.length > 0) return;
-    if (dialogs.selectionRadius || help.about) return;
+    if (dialogs.selectionRadius || dialogs.paste || help.about) return;
     if (e.key === 'Escape') {
       if (dialogs.confirm) {
         dialogs.confirm = null;
@@ -365,6 +366,10 @@
     }
     if (!ed.doc) return false;
     switch (action) {
+      case 'copy':
+      case 'cut':
+        runCopy(action);
+        return true;
       case 'selectAll':
         selectAll();
         return true;
@@ -406,6 +411,15 @@
       default:
         return false;
     }
+  }
+
+  // Ctrl+V / ⌘V arrives as the browser's `paste` event (spec §5.4); not
+  // while an editor dialog or the About dialog is open.
+  function onWindowPaste(e: ClipboardEvent) {
+    const blocked = Boolean(
+      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.selectionRadius || dialogs.paste,
+    );
+    onPaste(e, blocked || help.about || toolState.textAnchor !== null);
   }
 
   function onKeyUp(e: KeyboardEvent) {
@@ -468,6 +482,7 @@
       });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('paste', onWindowPaste);
     window.addEventListener('blur', onWindowBlur);
     window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -532,6 +547,7 @@
       autosave.close();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('paste', onWindowPaste);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('beforeunload', onBeforeUnload);
@@ -1038,6 +1054,18 @@
         ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
       }
     }}
+  />
+{/if}
+
+{#if dialogs.paste}
+  {@const paste = dialogs.paste}
+  <PasteLargerDialog
+    width={paste.width}
+    height={paste.height}
+    canExpand={paste.canExpand}
+    onExpand={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, true)}
+    onKeep={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, false)}
+    onCancel={() => (dialogs.paste = null)}
   />
 {/if}
 

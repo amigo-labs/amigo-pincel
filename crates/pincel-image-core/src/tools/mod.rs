@@ -7,6 +7,7 @@
 //! (spec §9.1) is deferred; tools keep this simpler "gesture → command" shape
 //! until a tool needs richer modifier/cursor state.
 
+mod copy;
 mod delete;
 mod eraser;
 mod eyedropper;
@@ -18,6 +19,7 @@ mod shapes;
 mod smudge;
 mod text;
 
+pub use copy::copy_selection;
 pub use delete::delete_selection;
 pub use eraser::{Eraser, EraserMode};
 pub use eyedropper::{Eyedropper, SampleSize};

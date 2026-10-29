@@ -8,6 +8,7 @@
     ui,
     resetColors,
     swapColors,
+    view,
     viewCommands,
     type ToolKind,
   } from './stores/editor.svelte';
@@ -32,6 +33,7 @@
     newDocument,
     openBytes,
     pasteImage,
+    copyImage,
     exportImage,
     saveProject,
     projectBytes,
@@ -55,7 +57,15 @@
   import LayersPanel from './components/panels/LayersPanel.svelte';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import Modal from './components/dialogs/Modal.svelte';
-  import { clipboardImage, imageSize, pasteEventImage } from '../../lib/clipboard';
+  import {
+    clipboardImage,
+    imageSize,
+    pasteEventImage,
+    pastePosition,
+    resolvePaste,
+    storeCopy,
+  } from '../../lib/clipboard';
+  import { core } from './core/wasm';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -114,42 +124,81 @@
   let pasteDialog = $state<{
     handle: number;
     bytes: Uint8Array;
+    x: number;
+    y: number;
     width: number;
     height: number;
     canExpand: boolean;
   } | null>(null);
 
-  // Edit ▸ Paste / Ctrl+V (spec §5.4): a new layer at the top-left; an image
-  // larger than the canvas asks first whether to grow the canvas, like paint.net.
-  // `handle` is the document the paste was asked for: reading the clipboard
-  // and decoding are async, and a document opened meanwhile (or another
-  // editor mounted) must not receive it. Handles are never reused.
-  async function beginPaste(blob: Blob, handle: number): Promise<void> {
-    const size = await imageSize(blob);
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    if (editor.handle !== handle) return;
-    // A format the browser can't measure still goes to the core's decoder.
-    if (!size || (size.width <= editor.width && size.height <= editor.height)) {
-      runPaste(handle, bytes, false);
+  /** Source tag of the in-app copy record; handles are never reused. */
+  const docSource = (handle: number): string => `image:${handle}`;
+
+  // Edit ▸ Copy / Copy Merged / Cut (spec §5.4): the PNG goes to the system
+  // clipboard from this click / keydown (user activation) and into the
+  // in-app record, which also keeps the canvas position for paste-in-place.
+  function runCopy(kind: 'copy' | 'merged' | 'cut'): void {
+    const handle = editor.handle;
+    if (handle === null) return;
+    let copied: { png: Uint8Array; x: number; y: number } | null;
+    try {
+      copied = copyImage(kind);
+    } catch (e) {
+      editor.notice = t('copy.failed', { error: String(e) });
       return;
     }
-    const w = Math.max(editor.width, size.width);
-    const h = Math.max(editor.height, size.height);
+    if (!copied) return;
+    editor.notice = null;
+    void storeCopy({ ...copied, source: docSource(handle), key: core.imageKey(copied.png) });
+  }
+
+  // Edit ▸ Paste / Ctrl+V (spec §5.4): a new layer at the copy origin when
+  // Pincel's own copy goes back into its document, else at the top-left of
+  // the visible viewport; an image larger than the canvas asks first whether
+  // to grow the canvas, like paint.net. `handle` is the document the paste
+  // was asked for: reading the clipboard and decoding are async, and a
+  // document opened meanwhile (or another editor mounted) must not receive
+  // it. Handles are never reused.
+  async function beginPaste(system: Blob | null, handle: number): Promise<void> {
+    const src = await resolvePaste(system, docSource(handle), core.imageKey);
+    if (editor.handle !== handle) return;
+    if (!src) {
+      editor.notice = t('paste.noImage');
+      return;
+    }
+    const { bytes } = src;
+    const size = await imageSize(new Blob([bytes.slice()], { type: system?.type || 'image/png' }));
+    if (editor.handle !== handle) return;
+    const canvas = { width: editor.width, height: editor.height };
+    const at =
+      src.origin ??
+      (size
+        ? pastePosition({ x: -view.panX / view.zoom, y: -view.panY / view.zoom }, size, canvas)
+        : { x: 0, y: 0 });
+    // A format the browser can't measure still goes to the core's decoder.
+    if (!size || (size.width <= editor.width && size.height <= editor.height)) {
+      runPaste(handle, bytes, at.x, at.y, false);
+      return;
+    }
+    const w = Math.max(editor.width, at.x + size.width);
+    const h = Math.max(editor.height, at.y + size.height);
     const [cw, ch] = clampCanvasSize(w, h);
     pasteDialog = {
       handle,
       bytes,
+      x: at.x,
+      y: at.y,
       width: size.width,
       height: size.height,
       canExpand: cw === w && ch === h,
     };
   }
 
-  function runPaste(handle: number, bytes: Uint8Array, expand: boolean): void {
+  function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
     pasteDialog = null;
     if (editor.handle !== handle) return;
     try {
-      pasteImage(bytes, expand);
+      pasteImage(bytes, x, y, expand);
       editor.notice = null;
     } catch (e) {
       editor.notice = t('paste.failed', { error: String(e) });
@@ -161,8 +210,7 @@
     if (handle === null) return;
     const blob = await clipboardImage();
     if (editor.handle !== handle) return;
-    if (blob) await beginPaste(blob, handle);
-    else editor.notice = t('paste.noImage');
+    await beginPaste(blob, handle);
   }
 
   function onPaste(e: ClipboardEvent): void {
@@ -173,10 +221,8 @@
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
       return;
     }
-    const image = pasteEventImage(e);
     e.preventDefault();
-    if (image) void beginPaste(image, handle);
-    else editor.notice = t('paste.noImage');
+    void beginPaste(pasteEventImage(e), handle);
   }
 
   function runExport(format: ExportFormat, quality?: number): void {
@@ -472,6 +518,11 @@
       case 'redo':
         redo();
         return true;
+      case 'copy':
+      case 'cut':
+        if (editor.handle === null) return false;
+        runCopy(action);
+        return true;
       case 'selectAll':
         selectAll();
         return true;
@@ -569,6 +620,19 @@
         { label: t('menu.undo'), shortcut: hint('undo'), disabled: !editor.canUndo, run: undo },
         { label: t('menu.redo'), shortcut: hint('redo'), disabled: !editor.canRedo, run: redo },
         { kind: 'separator' },
+        {
+          label: t('menu.cut'),
+          shortcut: hint('cut'),
+          disabled: !hasDoc,
+          run: () => runCopy('cut'),
+        },
+        {
+          label: t('menu.copy'),
+          shortcut: hint('copy'),
+          disabled: !hasDoc,
+          run: () => runCopy('copy'),
+        },
+        { label: t('menu.copyMerged'), disabled: !hasDoc, run: () => runCopy('merged') },
         {
           label: t('menu.paste'),
           shortcut: hint('paste'),
@@ -870,9 +934,12 @@
   <Modal
     title={t('paste.largerTitle')}
     applyLabel={paste.canExpand ? t('paste.expand') : t('paste.keep')}
-    onApply={() => runPaste(paste.handle, paste.bytes, paste.canExpand)}
+    onApply={() => runPaste(paste.handle, paste.bytes, paste.x, paste.y, paste.canExpand)}
     secondary={paste.canExpand
-      ? { label: t('paste.keep'), onClick: () => runPaste(paste.handle, paste.bytes, false) }
+      ? {
+          label: t('paste.keep'),
+          onClick: () => runPaste(paste.handle, paste.bytes, paste.x, paste.y, false),
+        }
       : undefined}
     onClose={() => (pasteDialog = null)}
   >
