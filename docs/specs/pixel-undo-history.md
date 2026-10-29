@@ -118,7 +118,7 @@ Hints that drift; check the code before relying on them.
 | AC-02 | `command_bus::redo_replays_undone_command` (crates/pincel-core/tests/command_bus.rs) | built |        |
 | AC-03 | `command_bus::execute_clears_redo_stack` (crates/pincel-core/tests/command_bus.rs) | built |        |
 | AC-04 | `command_bus::history_cap_drops_oldest_entries` (crates/pincel-core/tests/command_bus.rs) | built |        |
-| AC-05 |      | open   |        |
+| AC-05 | `undo_history::document_history_holds_100_entries_and_the_101st_drops_the_oldest` (crates/pincel-wasm/tests/undo_history.rs) | built |        |
 | AC-06 | `command_bus::execute_merges_consecutive_set_pixels_into_one_undo_entry` (crates/pincel-core/tests/command_bus.rs), `pincel_wasm::tests::apply_tool_drag_then_end_stroke_is_single_undo_entry` (crates/pincel-wasm/src/lib.rs), `ui/e2e/smoke.spec.ts › pixel mode: a pencil stroke is undoable` | built |        |
 | AC-07 | `command_bus::seal_prevents_merge_across_strokes` (crates/pincel-core/tests/command_bus.rs), `pincel_wasm::tests::two_strokes_are_two_undo_entries` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-08 | `command_bus::undo_seals_history_against_merging` (crates/pincel-core/tests/command_bus.rs) | built |        |
@@ -129,12 +129,12 @@ Hints that drift; check the code before relying on them.
 | AC-13 | `pincel_wasm::tests::add_layer_is_undoable`, `…::remove_layer_drops_it_clears_active_and_undoes`, `…::move_layer_round_trips_through_undo`, `…::rename_layer_updates_name_and_undoes`, `…::set_layer_visible_toggles_and_undoes`, `…::add_frame_appends_and_is_undoable`, `…::palette_edits_route_through_undo`, `…::palette_presets_and_gpl_round_trip_through_undo`, `…::delete_selection_clears_pixels_and_undoes`, `…::add_slice_joins_undo_bus`, `…::remove_slice_drops_and_undo_restores`, `…::add_tileset_joins_undo_bus`, `…::add_tile_joins_undo_bus`, `…::add_tilemap_layer_joins_undo_bus`, `…::place_tile_joins_undo_bus`, `…::set_tile_pixel_joins_undo_bus` (crates/pincel-wasm/src/lib.rs), `ui/e2e/palette.spec.ts › palette: DB32 by default, add / recolor / move / delete with undo` | built |        |
 | AC-14 | `pincel_wasm::tests::selection_is_not_undoable_in_the_m7_8_slice` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-15 | `pincel_wasm::tests::pick_color_does_not_disturb_command_bus` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-16 |      | open   |        |
+| AC-16 | `undo_history::frame_layer_and_onion_skin_changes_add_no_history_entry` (crates/pincel-wasm/tests/undo_history.rs) | built |        |
 | AC-17 | `pincel_wasm::timeline::tests::undo_of_add_frame_clamps_the_current_frame` (crates/pincel-wasm/src/timeline.rs) | built |        |
-| AC-18 | `command_bus::failed_execute_adds_no_entry_and_keeps_redo_stack` (crates/pincel-core/tests/command_bus.rs) | built |        |
+| AC-18 | `command_bus::failed_execute_adds_no_entry_and_keeps_redo_stack` (crates/pincel-core/tests/command_bus.rs), `undo_history::failed_edits_add_no_entry_and_keep_redo_history` (crates/pincel-wasm/tests/undo_history.rs) | built |        |
 | AC-19 | `pincel_wasm::tests::undo_on_empty_stack_returns_false_and_emits_nothing`, `…::redo_on_empty_stack_returns_false_and_emits_nothing` (crates/pincel-wasm/src/lib.rs), `ui/e2e/smoke.spec.ts › pixel mode: a pencil stroke is undoable` | built |        |
 | AC-20 | `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
-| AC-21 |      | open   |        |
+| AC-21 | `undo_history::save_keeps_history_and_edits_before_it_stay_undoable` (crates/pincel-wasm/tests/undo_history.rs) | built |        |
 | AC-22 |      | open   |        |
 | AC-23 | `ui/e2e/help.spec.ts › pixel mode: the About dialog holds the keyboard` | built |        |
 
