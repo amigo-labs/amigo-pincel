@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -37,31 +37,31 @@ Already decided: a press-drag-release Pencil / Eraser stroke is one undo entry �
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the Pencil is dragged at size 1, every pixel on the straight line between consecutive pointer samples is painted in the foreground color, so a stroke whose pointer jumps between two samples still has no gaps.
-- [ ] AC-02 (always): One press-drag-release Pencil or Eraser stroke is exactly one undo entry: undo removes the whole stroke, and a stroke made before it stays intact.
-- [ ] AC-03 (event): When the Eraser passes over a pixel of the paint target layer, that pixel becomes fully transparent (RGBA 0, 0, 0, 0), whatever the foreground and background colors are.
-- [ ] AC-04 (event): When a Pencil or Eraser stroke crosses the canvas edge, the on-canvas pixels are painted, the off-canvas part is skipped, and no error message appears in the status bar.
-- [ ] AC-05 (event): When the right mouse button is pressed with the Pencil, Bucket, Line or a Shapes tool, the tool paints with the background color instead of the foreground color; with the Eyedropper it sets the background color; every other tool ignores the right button.
-- [ ] AC-06 (event): When the Bucket is clicked on a pixel, every pixel 4-connected to it whose RGBA equals the clicked pixel's RGBA exactly is set to the color, pixels of any other value (and pixels connected only diagonally) stay unchanged, and the fill is one undo entry.
-- [ ] AC-07 (event): When the Line tool is dragged from A to B and released, a 1-pixel line from A to B with both end pixels included is drawn in the color as one undo entry.
-- [ ] AC-08 (state): While Shift is held when a Line drag is released, the committed line snaps from the start point by the offset (dx, dy) to the pointer: horizontal when |dx| > 2·|dy|, vertical when |dy| > 2·|dx|, otherwise at 45° with length max(|dx|, |dy|); Shift let go before the release leaves the line on the pointer. (The Pencil / Eraser Shift lock is a different rule: `pixel-pencil` AC-07.)
-- [ ] AC-09 (state): While Shift is held when a Rectangle, Rectangle filled, Ellipse, Ellipse filled, Rounded Rectangle or Polygon drag is released, the shape's bounding box is a square whose side is the larger of the drag's width and height.
-- [ ] AC-10 (always): A latched on-screen Shift toggle changes a Pixel-mode Line exactly as the held Shift key does.
-- [ ] AC-11 (option): Where a Rectangle, Ellipse, Rounded Rectangle or Polygon is drawn in Outline mode with stroke width N, only a band N pixels wide inside the shape's edge is painted, in the stroke color, and the interior stays untouched.
-- [ ] AC-12 (option): Where the shape mode is Fill + Outline, the edge band is painted in the stroke color and the interior in the fill color; where it is Fill, the whole shape is painted in the fill color.
-- [ ] AC-13 (event): When a Shapes tool is drawn with the left button, the stroke color is the foreground color and the fill color is the background color; with the right button the two are swapped.
-- [ ] AC-14 (option): Where the shape is a Rounded Rectangle (radius ≥ 2), an Ellipse or a Polygon (3–64 sides), the four corner pixels of the bounding box stay unpainted while the centre is painted.
-- [ ] AC-15 (event): When Rectangle filled or Ellipse filled is dragged between two corners, the full rectangle or the full disk inscribed in it is painted in the drag color as one undo entry, and swapping the two corners gives the identical shape.
-- [ ] AC-16 (event): When a Line or a shape extends beyond the canvas, the on-canvas pixels are painted, the rest is skipped, and no error is raised.
-- [ ] AC-17 (event): When the Eyedropper is clicked on the canvas, the foreground color becomes the composited color of the visible layers at that pixel; a fully transparent pixel yields alpha 0.
-- [ ] AC-18 (event): When the Text tool is clicked on the canvas, a text dialog opens anchored at the clicked pixel.
-- [ ] AC-19 (event): When text is typed in the dialog, a live preview shows it on the canvas without changing the document or the undo history; when it is applied, the text is drawn in the foreground color with the chosen size, bold, italic, anti-alias and alignment as one undo entry.
-- [ ] AC-20 (error): If applied text lands entirely outside the canvas, then no pixel changes and no undo entry is added.
-- [ ] AC-21 (state): While a selection is active, the Text tool paints only pixels inside the selection.
-- [ ] AC-22 (event): When a tool paints into a layer / frame that has no cel yet, a canvas-sized cel is created and the paint lands in it.
-- [ ] AC-23 (always): Drawing tools paint into the active layer when it is an image layer; when the active layer is a group or tilemap layer, they paint into the lowest image layer instead.
-- [ ] AC-24 (error): If the paint target layer or a group it is nested in is locked, then a drawing-tool press changes no pixel and the status bar shows "“{layer name}” is locked"; the notice stays until the next canvas press that is not refused (after unlocking, or with a tool that does not edit, such as the Eyedropper).
-- [ ] AC-25 (event): When a tool-group key is pressed without Ctrl / Cmd / Alt and focus is not in a text field, that group's tool becomes active, and pressing the same key again cycles through the group's variants.
+- [x] AC-01 (event): When the Pencil is dragged at size 1, every pixel on the straight line between consecutive pointer samples is painted in the foreground color, so a stroke whose pointer jumps between two samples still has no gaps.
+- [x] AC-02 (always): One press-drag-release Pencil or Eraser stroke is exactly one undo entry: undo removes the whole stroke, and a stroke made before it stays intact.
+- [x] AC-03 (event): When the Eraser passes over a pixel of the paint target layer, that pixel becomes fully transparent (RGBA 0, 0, 0, 0), whatever the foreground and background colors are.
+- [x] AC-04 (event): When a Pencil or Eraser stroke crosses the canvas edge, the on-canvas pixels are painted, the off-canvas part is skipped, and no error message appears in the status bar.
+- [x] AC-05 (event): When the right mouse button is pressed with the Pencil, Bucket, Line or a Shapes tool, the tool paints with the background color instead of the foreground color; with the Eyedropper it sets the background color; every other tool ignores the right button.
+- [x] AC-06 (event): When the Bucket is clicked on a pixel, every pixel 4-connected to it whose RGBA equals the clicked pixel's RGBA exactly is set to the color, pixels of any other value (and pixels connected only diagonally) stay unchanged, and the fill is one undo entry.
+- [x] AC-07 (event): When the Line tool is dragged from A to B and released, a 1-pixel line from A to B with both end pixels included is drawn in the color as one undo entry.
+- [x] AC-08 (state): While Shift is held when a Line drag is released, the committed line snaps from the start point by the offset (dx, dy) to the pointer: horizontal when |dx| > 2·|dy|, vertical when |dy| > 2·|dx|, otherwise at 45° with length max(|dx|, |dy|); Shift let go before the release leaves the line on the pointer. (The Pencil / Eraser Shift lock is a different rule: `pixel-pencil` AC-07.)
+- [x] AC-09 (state): While Shift is held when a Rectangle, Rectangle filled, Ellipse, Ellipse filled, Rounded Rectangle or Polygon drag is released, the shape's bounding box is a square whose side is the larger of the drag's width and height.
+- [x] AC-10 (always): A latched on-screen Shift toggle changes a Pixel-mode Line exactly as the held Shift key does.
+- [x] AC-11 (option): Where a Rectangle, Ellipse, Rounded Rectangle or Polygon is drawn in Outline mode with stroke width N, only a band N pixels wide inside the shape's edge is painted, in the stroke color, and the interior stays untouched.
+- [x] AC-12 (option): Where the shape mode is Fill + Outline, the edge band is painted in the stroke color and the interior in the fill color; where it is Fill, the whole shape is painted in the fill color.
+- [x] AC-13 (event): When a Shapes tool is drawn with the left button, the stroke color is the foreground color and the fill color is the background color; with the right button the two are swapped.
+- [x] AC-14 (option): Where the shape is a Rounded Rectangle (radius ≥ 2), an Ellipse or a Polygon (3–64 sides), the four corner pixels of the bounding box stay unpainted while the centre is painted.
+- [x] AC-15 (event): When Rectangle filled or Ellipse filled is dragged between two corners, the full rectangle or the full disk inscribed in it is painted in the drag color as one undo entry, and swapping the two corners gives the identical shape.
+- [x] AC-16 (event): When a Line or a shape extends beyond the canvas, the on-canvas pixels are painted, the rest is skipped, and no error is raised.
+- [x] AC-17 (event): When the Eyedropper is clicked on the canvas, the foreground color becomes the composited color of the visible layers at that pixel; a fully transparent pixel yields alpha 0.
+- [x] AC-18 (event): When the Text tool is clicked on the canvas, a text dialog opens anchored at the clicked pixel.
+- [x] AC-19 (event): When text is typed in the dialog, a live preview shows it on the canvas without changing the document or the undo history; when it is applied, the text is drawn in the foreground color with the chosen size, bold, italic, anti-alias and alignment as one undo entry.
+- [x] AC-20 (error): If applied text lands entirely outside the canvas, then no pixel changes and no undo entry is added.
+- [x] AC-21 (state): While a selection is active, the Text tool paints only pixels inside the selection.
+- [x] AC-22 (event): When a tool paints into a layer / frame that has no cel yet, a canvas-sized cel is created and the paint lands in it.
+- [x] AC-23 (always): Drawing tools paint into the active layer when it is an image layer; when the active layer is a group or tilemap layer, they paint into the lowest image layer instead.
+- [x] AC-24 (error): If the paint target layer or a group it is nested in is locked, then a drawing-tool press changes no pixel and the status bar shows "“{layer name}” is locked"; the notice stays until the next canvas press that is not refused (after unlocking, or with a tool that does not edit, such as the Eyedropper).
+- [x] AC-25 (event): When a tool-group key is pressed without Ctrl / Cmd / Alt and focus is not in a text field, that group's tool becomes active, and pressing the same key again cycles through the group's variants.
 
 ## Technical notes
 
@@ -105,37 +105,47 @@ Already decided: a press-drag-release Pencil / Eraser stroke is one undo entry �
 | Document whose only layers are tilemaps / groups | Paint tools fail with "document has no paintable image layer" in the status bar |
 | Mid-drag tool switch to a shape tool | `paintAt` ignores drag-shape tools, so no stray pixels |
 
+## Summary
+
+> Completed: 2026-10-29
+
+- Pencil and Eraser run on the `pixel-pencil` stroke API (`beginStroke` / `strokeTo` / `endStroke`): connected size-1 strokes, one undo entry per drag, Eraser to transparent, off-canvas parts skipped silently
+- Bucket (exact RGBA, 4-connected), Line, the six Shapes (outline / fill / fill + outline, stroke width, corner radius, polygon sides) and filled Rectangle / Ellipse, each one undo entry and clipped to the canvas
+- Right button paints with the background color (Eyedropper: sets it); Shift at release snaps a line by the 2:1 rule and squares shapes, from the key or the latched touch toggle
+- Eyedropper reads the composite of the visible layers; Text opens at the clicked pixel with a live preview, its options and selection clipping
+- Paint target resolution (lowest image layer under a group / tilemap), on-the-fly cels, the locked-layer refusal with its status notice, and single-key tool selection with variant cycling
+
 ## Open questions
 
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/pencil.spec.ts › pixel mode: a fast pencil stroke stays connected`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_to_jump_paints_connected_line`; `crates/pincel-core/src/command/pencil_stroke.rs › tests::pencil_stroke_size_1_matches_bresenham` | built | |
-| AC-02 | `ui/e2e/pixel-tools.spec.ts › pixel mode: each pencil or eraser stroke is one undo step`; `crates/pincel-wasm/src/lib.rs › tests::eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` | built | |
-| AC-03 | `crates/pincel-wasm/src/lib.rs › tests::eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it`, `tests::every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame`; `crates/pincel-wasm/src/stroke.rs › tests::eraser_stroke_clears_the_pencil_footprint`; `ui/e2e/pixel-tools.spec.ts › pixel mode: each pencil or eraser stroke is one undo step` | built | |
-| AC-04 | `ui/e2e/pixel-tools.spec.ts › pixel mode: a stroke across the canvas edge paints only the on-canvas part`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_beyond_canvas_paints_in_bounds_part_without_error`; `crates/pincel-core/src/command/pencil_stroke.rs › tests::pencil_stroke_out_of_bounds_points_are_skipped` | built | |
-| AC-05 | `ui/e2e/pixel-tools.spec.ts › pixel mode: the right button paints the background color` | built | |
-| AC-06 | `crates/pincel-core/src/command/fill_region.rs › tests::fill_matches_the_seed_rgba_exactly`, `tests::fill_stops_at_a_color_boundary`, `tests::fill_is_four_connected_not_eight`; `crates/pincel-wasm/src/lib.rs › tests::apply_bucket_joins_the_undo_bus` | built | |
-| AC-07 | `crates/pincel-core/src/command/draw_line.rs › tests::apply_paints_a_one_pixel_line_with_both_end_pixels`, `tests::apply_writes_horizontal_pixels`; `crates/pincel-wasm/src/lib.rs › tests::apply_line_joins_the_undo_bus` | built | |
-| AC-08 | `ui/e2e/pixel-tools.spec.ts › pixel mode: Shift at release snaps a line by the 2:1 rule` | built | |
-| AC-09 | `ui/e2e/pixel-tools.spec.ts › pixel mode: Shift at release squares every shape to the larger side` | built | |
-| AC-10 | `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key` | built | |
-| AC-11 | `crates/pincel-core/src/command/draw_shape.rs › tests::outline_and_fill_outline_paint_an_n_wide_edge_band_for_every_kind`, `tests::outline_rectangle_with_width_two_leaves_the_centre` | built | |
-| AC-12 | `crates/pincel-core/src/command/draw_shape.rs › tests::outline_and_fill_outline_paint_an_n_wide_edge_band_for_every_kind`, `tests::fill_mode_paints_the_whole_shape_in_the_fill_colour`; `crates/pincel-wasm/src/shapes.rs › tests::apply_shape_fill_outline_rectangle` | built | |
-| AC-13 | `ui/e2e/pixel-tools.spec.ts › pixel mode: shapes stroke with one color and fill with the other` | built | |
-| AC-14 | `crates/pincel-core/src/command/draw_shape.rs › tests::rounded_ellipse_and_polygon_leave_all_four_bbox_corners_unpainted`; `crates/pincel-wasm/src/shapes.rs › tests::apply_shape_polygon_and_rounded_rectangle_and_errors` | built | |
-| AC-15 | `crates/pincel-core/src/command/draw_rectangle.rs › tests::filled_rectangle_is_exactly_the_bbox_whichever_corner_comes_first`; `crates/pincel-core/src/command/draw_ellipse.rs › tests::filled_ellipse_is_the_full_disk_whichever_corner_comes_first`; `crates/pincel-wasm/src/lib.rs › tests::apply_rectangle_joins_the_undo_bus`, `tests::apply_ellipse_joins_the_undo_bus`; `ui/e2e/pixel-tools.spec.ts › pixel mode: the right button paints the background color` | built | |
-| AC-16 | `crates/pincel-wasm/src/lib.rs › tests::lines_and_shapes_off_canvas_paint_the_on_canvas_part_without_error`; `crates/pincel-core/src/command/draw_line.rs › tests::apply_skips_pixels_outside_cel_silently`; `crates/pincel-core/src/command/draw_shape.rs › tests::shape_partially_off_cel_is_clipped_not_an_error` | built | |
-| AC-17 | `crates/pincel-wasm/src/lib.rs › tests::pick_color_composites_the_visible_layers_only`, `tests::pick_color_returns_zero_on_transparent_pixel`; `ui/e2e/pencil.spec.ts › pixel mode: a fast pencil stroke stays connected`; `ui/e2e/pixel-tools.spec.ts › pixel mode: a stroke across the canvas edge paints only the on-canvas part` | built | |
-| AC-18 | `ui/e2e/pixel-tools.spec.ts › pixel mode: the Text tool opens its dialog at the clicked pixel` | built | |
-| AC-19 | `ui/e2e/pixel-tools.spec.ts › pixel mode: text previews live and places with its options as one undo step`; `crates/pincel-wasm/src/text.rs › tests::draw_text_applies_colour_size_bold_italic_anti_alias_and_alignment`, `tests::draw_text_paints_and_undoes_and_preview_leaves_state` | built | |
-| AC-20 | `crates/pincel-wasm/src/text.rs › tests::draw_text_off_canvas_returns_false_and_leaves_no_undo_entry` | built | |
-| AC-21 | `crates/pincel-core/src/command/draw_text.rs › tests::selection_keeps_the_glyph_pixels_inside_it`, `tests::selection_clips_and_off_canvas_is_a_noop` | built | |
-| AC-22 | `crates/pincel-wasm/src/lib.rs › tests::every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame`, `tests::paint_auto_creates_cel_on_a_fresh_layer`, `tests::paint_auto_creates_cel_on_a_fresh_frame` | built | |
-| AC-23 | `crates/pincel-wasm/src/lib.rs › tests::group_or_tilemap_active_paints_into_the_lowest_image_layer`, `tests::pencil_paints_into_active_layer_cel`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_skips_group_layer_to_paint_the_image_layer` | built | |
-| AC-24 | `ui/e2e/pixel-tools.spec.ts › pixel mode: a locked layer refuses paint and says so until a press is accepted`; `crates/pincel-wasm/src/layer_ops.rs › tests::layer_in_a_locked_group_refuses_every_paint_tool_and_keeps_its_pixels`, `tests::locked_layer_refuses_paint_until_unlocked`; `crates/pincel-wasm/src/stroke.rs › tests::begin_stroke_on_locked_layer_errs_and_adds_no_undo_entry`; `ui/e2e/layers.spec.ts › pixel: a locked layer refuses paint` | built | |
-| AC-25 | `ui/e2e/pixel-tools.spec.ts › pixel mode: single keys select the drawing tools and cycle the shapes`; `ui/e2e/shortcuts.spec.ts › pixel mode: the shared keymap selects tools and cycles variants` | built | |
+| AC-01 | `ui/e2e/pencil.spec.ts › pixel mode: a fast pencil stroke stays connected`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_to_jump_paints_connected_line`; `crates/pincel-core/src/command/pencil_stroke.rs › tests::pencil_stroke_size_1_matches_bresenham` | verified | 74dcf8b |
+| AC-02 | `ui/e2e/pixel-tools.spec.ts › pixel mode: each pencil or eraser stroke is one undo step`; `crates/pincel-wasm/src/lib.rs › tests::eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` | verified | 62d1c81 |
+| AC-03 | `crates/pincel-wasm/src/lib.rs › tests::eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it`, `tests::every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame`; `crates/pincel-wasm/src/stroke.rs › tests::eraser_stroke_clears_the_pencil_footprint`; `ui/e2e/pixel-tools.spec.ts › pixel mode: each pencil or eraser stroke is one undo step` | verified | 62d1c81 |
+| AC-04 | `ui/e2e/pixel-tools.spec.ts › pixel mode: a stroke across the canvas edge paints only the on-canvas part`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_beyond_canvas_paints_in_bounds_part_without_error`; `crates/pincel-core/src/command/pencil_stroke.rs › tests::pencil_stroke_out_of_bounds_points_are_skipped` | verified | 9e8930d |
+| AC-05 | `ui/e2e/pixel-tools.spec.ts › pixel mode: the right button paints the background color` | verified | 74dcf8b |
+| AC-06 | `crates/pincel-core/src/command/fill_region.rs › tests::fill_matches_the_seed_rgba_exactly`, `tests::fill_stops_at_a_color_boundary`, `tests::fill_is_four_connected_not_eight`; `crates/pincel-wasm/src/lib.rs › tests::apply_bucket_joins_the_undo_bus` | verified | f6ffc01 |
+| AC-07 | `crates/pincel-core/src/command/draw_line.rs › tests::apply_paints_a_one_pixel_line_with_both_end_pixels`, `tests::apply_writes_horizontal_pixels`; `crates/pincel-wasm/src/lib.rs › tests::apply_line_joins_the_undo_bus` | verified | f6ffc01 |
+| AC-08 | `ui/e2e/pixel-tools.spec.ts › pixel mode: Shift at release snaps a line by the 2:1 rule` | verified | 74dcf8b |
+| AC-09 | `ui/e2e/pixel-tools.spec.ts › pixel mode: Shift at release squares every shape to the larger side` | verified | 74dcf8b |
+| AC-10 | `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key` | verified | 7dedaef |
+| AC-11 | `crates/pincel-core/src/command/draw_shape.rs › tests::outline_and_fill_outline_paint_an_n_wide_edge_band_for_every_kind`, `tests::outline_rectangle_with_width_two_leaves_the_centre` | verified | f6ffc01 |
+| AC-12 | `crates/pincel-core/src/command/draw_shape.rs › tests::outline_and_fill_outline_paint_an_n_wide_edge_band_for_every_kind`, `tests::fill_mode_paints_the_whole_shape_in_the_fill_colour`; `crates/pincel-wasm/src/shapes.rs › tests::apply_shape_fill_outline_rectangle` | verified | f6ffc01 |
+| AC-13 | `ui/e2e/pixel-tools.spec.ts › pixel mode: shapes stroke with one color and fill with the other` | verified | 74dcf8b |
+| AC-14 | `crates/pincel-core/src/command/draw_shape.rs › tests::rounded_ellipse_and_polygon_leave_all_four_bbox_corners_unpainted`; `crates/pincel-wasm/src/shapes.rs › tests::apply_shape_polygon_and_rounded_rectangle_and_errors` | verified | f6ffc01 |
+| AC-15 | `crates/pincel-core/src/command/draw_rectangle.rs › tests::filled_rectangle_is_exactly_the_bbox_whichever_corner_comes_first`; `crates/pincel-core/src/command/draw_ellipse.rs › tests::filled_ellipse_is_the_full_disk_whichever_corner_comes_first`; `crates/pincel-wasm/src/lib.rs › tests::apply_rectangle_joins_the_undo_bus`, `tests::apply_ellipse_joins_the_undo_bus`; `ui/e2e/pixel-tools.spec.ts › pixel mode: the right button paints the background color` | verified | f6ffc01 |
+| AC-16 | `crates/pincel-wasm/src/lib.rs › tests::lines_and_shapes_off_canvas_paint_the_on_canvas_part_without_error`; `crates/pincel-core/src/command/draw_line.rs › tests::apply_skips_pixels_outside_cel_silently`; `crates/pincel-core/src/command/draw_shape.rs › tests::shape_partially_off_cel_is_clipped_not_an_error` | verified | 62d1c81 |
+| AC-17 | `crates/pincel-wasm/src/lib.rs › tests::pick_color_composites_the_visible_layers_only`, `tests::pick_color_returns_zero_on_transparent_pixel`; `ui/e2e/pencil.spec.ts › pixel mode: a fast pencil stroke stays connected`; `ui/e2e/pixel-tools.spec.ts › pixel mode: a stroke across the canvas edge paints only the on-canvas part` | verified | 62d1c81 |
+| AC-18 | `ui/e2e/pixel-tools.spec.ts › pixel mode: the Text tool opens its dialog at the clicked pixel` | verified | 74dcf8b |
+| AC-19 | `ui/e2e/pixel-tools.spec.ts › pixel mode: text previews live and places with its options as one undo step`; `crates/pincel-wasm/src/text.rs › tests::draw_text_applies_colour_size_bold_italic_anti_alias_and_alignment`, `tests::draw_text_paints_and_undoes_and_preview_leaves_state` | verified | 62d1c81 |
+| AC-20 | `crates/pincel-wasm/src/text.rs › tests::draw_text_off_canvas_returns_false_and_leaves_no_undo_entry` | verified | 62d1c81 |
+| AC-21 | `crates/pincel-core/src/command/draw_text.rs › tests::selection_keeps_the_glyph_pixels_inside_it`, `tests::selection_clips_and_off_canvas_is_a_noop` | verified | f6ffc01 |
+| AC-22 | `crates/pincel-wasm/src/lib.rs › tests::every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame`, `tests::paint_auto_creates_cel_on_a_fresh_layer`, `tests::paint_auto_creates_cel_on_a_fresh_frame` | verified | 62d1c81 |
+| AC-23 | `crates/pincel-wasm/src/lib.rs › tests::group_or_tilemap_active_paints_into_the_lowest_image_layer`, `tests::pencil_paints_into_active_layer_cel`; `crates/pincel-wasm/src/stroke.rs › tests::stroke_skips_group_layer_to_paint_the_image_layer` | verified | 62d1c81 |
+| AC-24 | `ui/e2e/pixel-tools.spec.ts › pixel mode: a locked layer refuses paint and says so until a press is accepted`; `crates/pincel-wasm/src/layer_ops.rs › tests::layer_in_a_locked_group_refuses_every_paint_tool_and_keeps_its_pixels`, `tests::locked_layer_refuses_paint_until_unlocked`; `crates/pincel-wasm/src/stroke.rs › tests::begin_stroke_on_locked_layer_errs_and_adds_no_undo_entry`; `ui/e2e/layers.spec.ts › pixel: a locked layer refuses paint` | verified | 62d1c81 |
+| AC-25 | `ui/e2e/pixel-tools.spec.ts › pixel mode: single keys select the drawing tools and cycle the shapes`; `ui/e2e/shortcuts.spec.ts › pixel mode: the shared keymap selects tools and cycles variants` | verified | 74dcf8b |
 
 ## Decisions
 
