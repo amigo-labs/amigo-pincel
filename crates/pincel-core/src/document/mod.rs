@@ -175,6 +175,21 @@ impl Sprite {
         self.layers.iter_mut().find(|l| l.id == id)
     }
 
+    /// The layer pixel tools paint into (the editor's paint-target rule):
+    /// `active` when it names an image layer, else the lowest-z image
+    /// layer. `None` when the sprite has no image layer at all.
+    pub fn paint_target_layer(&self, active: Option<LayerId>) -> Option<LayerId> {
+        if let Some(id) = active
+            && matches!(self.layer(id).map(|l| &l.kind), Some(LayerKind::Image))
+        {
+            return Some(id);
+        }
+        self.layers
+            .iter()
+            .find(|l| matches!(l.kind, LayerKind::Image))
+            .map(|l| l.id)
+    }
+
     /// `true` when `id` must not be edited: the layer or any group it is
     /// nested in has `editable == false` (Aseprite's lock). Unknown ids
     /// report `false`.
@@ -318,6 +333,32 @@ fn ensure_unique<I: Iterator<Item = u32>>(ids: I, kind: &'static str) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paint_target_layer_prefers_active_image_layer_else_lowest_image() {
+        let s = Sprite::builder(4, 4)
+            .add_layer(Layer::group(LayerId::new(0), "G"))
+            .add_layer(Layer::image(LayerId::new(1), "A"))
+            .add_layer(Layer::image(LayerId::new(2), "B"))
+            .build()
+            .expect("sprite builds");
+        assert_eq!(s.paint_target_layer(None), Some(LayerId::new(1)));
+        assert_eq!(
+            s.paint_target_layer(Some(LayerId::new(2))),
+            Some(LayerId::new(2))
+        );
+        // A group or an unknown id falls back to the lowest image layer.
+        assert_eq!(
+            s.paint_target_layer(Some(LayerId::new(0))),
+            Some(LayerId::new(1))
+        );
+        assert_eq!(
+            s.paint_target_layer(Some(LayerId::new(9))),
+            Some(LayerId::new(1))
+        );
+        let empty = Sprite::builder(4, 4).build().expect("sprite builds");
+        assert_eq!(empty.paint_target_layer(None), None);
+    }
 
     #[test]
     fn builder_constructs_minimal_sprite() {
