@@ -3,7 +3,7 @@ status: todo
 created: 2026-10-28
 size: M
 mode: both
-design: [pincel.md §9.2, pincel.md §9.4]
+design: [pincel.md §9.2, pincel.md §9.4, pincel.md §15]
 ---
 
 # Respect "reduce motion"
@@ -12,7 +12,7 @@ design: [pincel.md §9.2, pincel.md §9.4]
 
 The marching-ants selection outline runs continuously while a selection exists (two editors, two animation loops) — exactly the kind of perpetual motion vestibular-sensitive users switch off at the OS level. Respecting `prefers-reduced-motion` is an accessibility baseline (WCAG 2.3.3 "Animation from Interactions"), and the user asked for it. Nothing in the UI reads `prefers-reduced-motion` today.
 
-When the OS or browser asks for reduced motion, Pincel draws the selection outline as **static** dashes and **turns off UI transitions and animations**. Animation *content* — frame playback and the animation preview — is what the user asked to see and stays unaffected. An in-app View ▸ Reduce Motion option forces the same behavior regardless of the system setting.
+When the OS or browser asks for reduced motion, Pincel draws the selection outline as **static** dashes and **turns off UI transitions and animations**. Animation *content* — frame playback and the animation preview — is what the user asked to see and stays unaffected. An in-app View ▸ Reduce Motion option forces the same behavior regardless of the system setting. It has two states: checked = always reduce, unchecked = follow the system; motion can never be forced on while the system requests reduce.
 
 ## Scope
 
@@ -22,7 +22,7 @@ When the OS or browser asks for reduced motion, Pincel draws the selection outli
 - UI transitions and CSS animations finish instantly under reduced motion
 - Live reaction to a change of the system setting
 - View ▸ Reduce Motion, persisted in IndexedDB prefs
-- en + de strings; §9.4 (or §9.2) accessibility sentence updated
+- en + de strings; §9.4 accessibility sentence updated
 
 ### Out of scope
 
@@ -43,6 +43,7 @@ When the OS or browser asks for reduced motion, Pincel draws the selection outli
 - [ ] AC-10 (event): When the user changes View ▸ Reduce Motion and reloads the app, then the setting is kept.
 - [ ] AC-11 (always): A new profile follows the system setting (View ▸ Reduce Motion is not forced on).
 - [ ] AC-12 (option): Where the UI language is German, the View ▸ Reduce Motion entry is German.
+- [ ] AC-13 (state): While the system requests reduced motion and View ▸ Reduce Motion is unchecked, motion is reduced and the menu entry's label notes that the system setting is on (suffix "(on in system settings)").
 
 ## Technical notes
 
@@ -83,11 +84,11 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 | Pixel playback with reduced motion | Playback runs normally (AC-07) |
 | In-app option on, system setting no-preference | Reduced motion in effect (AC-09) |
 | Effect dialog live preview under reduced motion | Unaffected — it is content, not UI motion |
+| System requests reduce, in-app option unchecked | Reduced motion in effect; the checkbox stays unchecked and the label carries the system suffix (AC-13) |
 
 ## Open questions
 
-- Decision Log entry not yet written: content animation stays, UI animation stops, static ants, and the in-app override — confirm and add to `pincel.md` §15 with the §9.4 (or §9.2) sentence.
-- The plan describes View ▸ Reduce Motion as a checkbox "defaulting to follow system". A checkbox has two states: should unchecked mean "follow system" (so a user can never force motion on while the system requests reduce), or does the option need three states (system / on / off)? And what does the checkbox show when the system requests reduce but the option is unchecked?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -105,9 +106,12 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
+| AC-13 |      | open   |        |
 
 ## Decisions
 
 - 2026-10-28 (legacy plan): Animation content (frame playback, animation preview) is not reduced — it is what the user asked to see.
 - 2026-10-28 (legacy plan): Include the in-app View ▸ Reduce Motion option (plan recommendation: "yes, it's cheap") — some users can't or won't change the OS setting.
 - 2026-10-29 (migration): Size raised from the plan's S to M — the change spans a shared flag, both overlays, global CSS, the View menu of both modes, prefs, i18n and e2e.
+- 2026-10-29: A Decision Log entry records honouring `prefers-reduced-motion` and the in-app View ▸ Reduce Motion (IndexedDB pref): static selection / marching outlines, UI transitions and animations finish instantly, frame playback and the animation preview keep running, all through one shared `motion` flag (`ui/src/lib/motion.svelte.ts`) for both editors and the tour; `pincel.md` §9.4 gains one sentence — AGENTS.md §2.1 (owner accepted the recommendation).
+- 2026-10-29: View ▸ Reduce Motion has two states: checked = always reduce, unchecked = follow the system, with no way to force motion on; while the system requests reduce, the label gets the suffix "(on in system settings)" and the checkbox shows only the user's own option (AC-13) — a system reduce request should always win (accessibility first), and the suffix explains the effective state without a three-way control (owner accepted the recommendation).
