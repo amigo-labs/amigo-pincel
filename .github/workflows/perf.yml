@@ -1,0 +1,131 @@
+# Performance benchmarks (docs/specs/performance-benchmarks.md, budgets in
+# docs/specs/pincel.md §4.5). Kept out of the PR gate (CLAUDE.md §7.5):
+# runs on manual dispatch (to prove a single PR, pick its branch) and
+# nightly on `main`, skipping nights without a new commit.
+#
+# CI runners are not the reference machine, so the budget check runs in
+# baseline mode: every value is compared with this runner type's last
+# recorded run (actions cache), and more than 10 % worse fails. A run that
+# passes becomes the new baseline; the first run on a new runner type only
+# records it. Budget mode is for the reference machine (`pnpm perf:check
+# --mode budget`, docs/specs/performance-benchmarks.md "Running").
+
+name: Performance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * *'
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  changed:
+    name: new commit since the last nightly run?
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow perf.yml \
+            --branch main --event schedule --status completed --limit 1 \
+            --json headSha --jq '.[0].headSha // ""')
+          if [ "$last" = "$SHA" ]; then
+            echo "main is still at $SHA, as in the last nightly run: skipping"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  perf:
+    name: benches, browser script, budget check
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BASELINE_DIR: ${{ github.workspace }}/perf-baseline
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@0.13.1
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      # Node 24: the budget check runs as TypeScript through Node's type
+      # stripping.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+
+      - name: bench pincel-image-core
+        run: cargo bench -p pincel-image-core --bench compose
+      - name: bench pincel-core
+        run: cargo bench -p pincel-core --bench compose
+
+      # The browser script measures the release-shaped bundle: release wasm,
+      # production build, `vite preview`.
+      - name: build release wasm packages
+        working-directory: ui
+        run: pnpm wasm:build:release
+      - name: install dependencies
+        working-directory: ui
+        run: pnpm install --frozen-lockfile
+      - name: build
+        working-directory: ui
+        run: pnpm build
+      - name: install playwright chromium
+        working-directory: ui
+        run: pnpm exec playwright install --with-deps chromium
+      - name: browser performance script
+        working-directory: ui
+        run: pnpm perf
+
+      - name: restore runner baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: perf-baseline
+          key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
+          restore-keys: perf-baseline-${{ runner.os }}-${{ runner.arch }}-
+      - name: budget check (baseline mode)
+        working-directory: ui
+        run: |
+          mkdir -p "$BASELINE_DIR"
+          pnpm perf:check --mode baseline --runner "$ImageOS-$RUNNER_ARCH" --baseline "$BASELINE_DIR/baseline.json" --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md --write
+      - name: save runner baseline
+        uses: actions/cache/save@v4
+        with:
+          path: perf-baseline
+          key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
+
+      - name: upload results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: perf-results
+          path: |
+            ui/e2e-perf/results
+            target/criterion
+          retention-days: 30

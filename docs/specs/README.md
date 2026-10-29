@@ -13,7 +13,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-drawing-tools](pixel-drawing-tools.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
 | Image mode | [image-files](image-files.md) |
 | Both modes | [effects-adjustments](effects-adjustments.md), [pen-input](pen-input.md), [i18n](i18n.md) |
 | Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md) |
@@ -35,7 +35,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 | 10 | [mcp-headless-image](mcp-headless-image.md) | Image | L | mcp-headless-pixel | |
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
-| 12 | [pixel-pencil](pixel-pencil.md) | Pixel | L | — | §5.2 promises never built; base for pressure, symmetry, shading |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 14 | [animated-export](animated-export.md) | Pixel | L | — | APNG needs no new dependency |
 | 15 | [save-original-format](save-original-format.md) | Image | M | — | Screenshot workflow |
@@ -70,6 +69,8 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [image-editing](image-editing.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [pixel-compose](pixel-compose.md)
+- [pixel-drawing-tools](pixel-drawing-tools.md)
+- [pixel-pencil](pixel-pencil.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [wasm-npm-api](wasm-npm-api.md)
 

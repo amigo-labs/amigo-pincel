@@ -25,8 +25,14 @@ ts-rs = { version = "12", features = ["serde-compat", "no-serde-warnings"], opti
 ts = ["dep:ts-rs"]
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = "1"
+pincel-effects = { workspace = true }
 proptest = "1"
+
+[[bench]]
+name = "compose"
+harness = false
 
 [lints]
 workspace = true

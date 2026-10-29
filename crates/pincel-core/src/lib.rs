@@ -19,10 +19,11 @@ pub use codec::{
 };
 pub use command::{
     AddEmptyCel, AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer,
-    AddTileset, Anchor, AnyCommand, Bus, ClearRegion, Command, CommandBatch, CommandError,
-    DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer,
-    FillRegion, FlattenImage, Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer,
-    MoveLayerTo, MovePaletteEntry, MoveSelectionContent, Orientation, PatchCel, PlaceTile, PutCel,
+    AddTileset, Anchor, AnyCommand, BrushShape, Bus, ClearRegion, Command, CommandBatch,
+    CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, DrawShape, DrawText,
+    DuplicateLayer, FillRegion, FlattenImage, Interpolation, LayerPlacement, MAX_BRUSH_SIZE,
+    MIN_BRUSH_SIZE, MergeDown, MoveDirection, MoveLayer, MoveLayerTo, MovePaletteEntry,
+    MoveSelectionContent, Orientation, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel,
     ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag,
     ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration,
     SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,

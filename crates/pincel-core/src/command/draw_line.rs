@@ -195,7 +195,7 @@ impl Iterator for BresenhamIter {
     }
 }
 
-fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> BresenhamIter {
+pub(super) fn bresenham(x0: i32, y0: i32, x1: i32, y1: i32) -> BresenhamIter {
     let x0 = i64::from(x0);
     let y0 = i64::from(y0);
     let x1 = i64::from(x1);
@@ -404,5 +404,50 @@ mod tests {
         let mut a = DrawLine::new(LayerId::new(1), FrameIndex::new(0), 0, 0, 1, 1, Rgba::WHITE);
         let b = DrawLine::new(LayerId::new(1), FrameIndex::new(0), 1, 1, 2, 2, Rgba::WHITE);
         assert!(!a.merge(&b));
+    }
+
+    #[test]
+    fn apply_paints_a_one_pixel_line_with_both_end_pixels() {
+        // A shallow and a steep line: exactly one pixel per step along the
+        // major axis (1 px thin), both endpoints included, nothing else.
+        for (a, b, major_x) in [((1, 1), (6, 3), true), ((4, 7), (2, 0), false)] {
+            let (mut sprite, mut cels) = fixture();
+            let mut cmd = DrawLine::new(
+                LayerId::new(1),
+                FrameIndex::new(0),
+                a.0,
+                a.1,
+                b.0,
+                b.1,
+                Rgba::WHITE,
+            );
+            cmd.apply(&mut sprite, &mut cels).expect("apply ok");
+            assert_eq!(pixel(&cels, a.0 as u32, a.1 as u32), Rgba::WHITE, "start");
+            assert_eq!(pixel(&cels, b.0 as u32, b.1 as u32), Rgba::WHITE, "end");
+            let painted: Vec<(u32, u32)> = (0..8u32)
+                .flat_map(|y| (0..8u32).map(move |x| (x, y)))
+                .filter(|&(x, y)| pixel(&cels, x, y) != Rgba::TRANSPARENT)
+                .collect();
+            for &(x, y) in &painted {
+                assert_eq!(pixel(&cels, x, y), Rgba::WHITE, "line colour at ({x}, {y})");
+            }
+            let span = if major_x {
+                a.0.abs_diff(b.0)
+            } else {
+                a.1.abs_diff(b.1)
+            };
+            assert_eq!(painted.len() as u32, span + 1, "one pixel per major step");
+            let mut majors: Vec<u32> = painted
+                .iter()
+                .map(|&(x, y)| if major_x { x } else { y })
+                .collect();
+            majors.sort_unstable();
+            majors.dedup();
+            assert_eq!(
+                majors.len(),
+                painted.len(),
+                "no two pixels share a major step"
+            );
+        }
     }
 }
