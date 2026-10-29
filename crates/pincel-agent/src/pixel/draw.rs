@@ -1,12 +1,13 @@
 //! `draw.*`, `selection.*` and `effect.apply`: pixel edits on one cel.
 //!
 //! Every edit runs the editor's own `pincel-core` command on a scratch copy
-//! of the target cel and commits the result as one [`PutCel`], so a call is
-//! one exact undo step and a failure changes nothing.
+//! of the target cel and commits only the changed rectangle as one
+//! [`PatchCel`] (dirty-rect deltas, pincel.md §6.3), so a call is one exact
+//! undo step, memory stays bounded and a failure changes nothing.
 
 use pincel_core::{
-    Cel, CelData, CelMap, ClearRegion, Command, DrawEllipse, DrawLine, DrawRectangle, FillRegion,
-    PutCel, Rect, Rgba, SetPixel, Sprite,
+    AddEmptyCel, AnyCommand, Cel, CelData, CelMap, ClearRegion, Command, DrawEllipse, DrawLine,
+    DrawRectangle, FillRegion, PatchCel, Rect, Rgba, SetPixel, Sprite,
 };
 use pincel_effects::{EffectImage, EffectSpec};
 use serde_json::{Map, Value, json};
@@ -26,18 +27,19 @@ fn paint(
 ) -> Result<ToolOutput, AgentError> {
     let (id, doc) = ctx.ws.doc_mut(args)?;
     let (layer, frame) = doc.paint_target(args)?;
-    let before = doc.cels.get(layer, frame).cloned();
-    let mut cel = doc.cel_or_empty(layer, frame);
+    let exists = doc.cels.get(layer, frame).is_some();
+    let original = doc.cel_or_empty(layer, frame);
+    let mut cel = original.clone();
     edit(doc, &mut cel)?;
-    let changed = match &before {
-        Some(b) => *b != cel,
-        None => match &cel.data {
-            CelData::Image(buf) => buf.data.iter().any(|&b| b != 0),
-            _ => true,
-        },
-    };
-    if changed {
-        doc.commit(vec![PutCel::new(cel).into()])?;
+    let patch = diff_patch(&original, &cel)?;
+    let changed = patch.is_some();
+    if let Some(patch) = patch {
+        let mut cmds: Vec<AnyCommand> = Vec::with_capacity(2);
+        if !exists {
+            cmds.push(AddEmptyCel::new(layer, frame, patch.cel_size, original.position).into());
+        }
+        cmds.push(PatchCel::new(layer, frame, patch.origin, patch.size, patch.pixels).into());
+        doc.commit(cmds)?;
     }
     Ok(ToolOutput::json(json!({
         "doc": id,
@@ -45,6 +47,62 @@ fn paint(
         "frame": frame.0,
         "changed": changed,
     })))
+}
+
+/// The changed rectangle between two same-sized image cels.
+struct Patch {
+    /// Cel-local top-left of the rectangle.
+    origin: (u32, u32),
+    /// Width and height of the rectangle.
+    size: (u32, u32),
+    /// The edited pixels inside it (RGBA8, row-major).
+    pixels: Vec<u8>,
+    /// Size of the whole cel buffer.
+    cel_size: (u32, u32),
+}
+
+/// The bounding box of every pixel that differs between `before` and
+/// `after`, with `after`'s pixels inside it; `None` when nothing changed.
+fn diff_patch(before: &Cel, after: &Cel) -> Result<Option<Patch>, AgentError> {
+    let (CelData::Image(a), CelData::Image(b)) = (&before.data, &after.data) else {
+        return Err(AgentError::tool("pixel tools need an image cel"));
+    };
+    if (a.width, a.height) != (b.width, b.height) || a.data.len() != b.data.len() {
+        return Err(AgentError::tool("the edit changed the cel size"));
+    }
+    let w = a.width as usize;
+    let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+    for (i, (pa, pb)) in a
+        .data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(b.data.as_chunks::<4>().0)
+        .enumerate()
+    {
+        if pa != pb {
+            let (x, y) = (i % w, i / w);
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x);
+            y1 = y1.max(y);
+        }
+    }
+    if x0 == usize::MAX {
+        return Ok(None);
+    }
+    let (pw, ph) = (x1 - x0 + 1, y1 - y0 + 1);
+    let mut pixels = Vec::with_capacity(pw * ph * 4);
+    for y in y0..=y1 {
+        let start = (y * w + x0) * 4;
+        pixels.extend_from_slice(&b.data[start..start + pw * 4]);
+    }
+    Ok(Some(Patch {
+        origin: (x0 as u32, y0 as u32),
+        size: (pw as u32, ph as u32),
+        pixels,
+        cel_size: (a.width, a.height),
+    }))
 }
 
 /// Apply an editor command to `cel` alone.

@@ -14,6 +14,39 @@ use super::{S, px};
 const L0: LayerId = LayerId::new(0);
 const F0: FrameIndex = FrameIndex::new(0);
 
+/// The undo entry of the last call stores only the changed rectangle
+/// (dirty-rect deltas, pincel.md §6.3).
+#[test]
+fn edit_on_large_cel_stores_only_the_diff_rect() {
+    let mut s = S::new();
+    let id = s.new_doc(512, 512);
+    s.ok(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 10, "y": 10, "color": "#ff0000" }, { "x": 12, "y": 11, "color": "#00ff00" }] }),
+    );
+    let stored = |s: &S| match s.doc(&id).bus.last() {
+        Some(AnyCommand::PatchCel(p)) => p.stored_bytes(),
+        _ => panic!("expected a PatchCel undo entry"),
+    };
+    assert_eq!(stored(&s), 3 * 2 * 4);
+    s.ok(
+        "selection.set_rect",
+        json!({ "x": 100, "y": 200, "width": 4, "height": 5 }),
+    );
+    s.ok(
+        "draw.fill",
+        json!({ "x": 101, "y": 201, "color": "#0000ff" }),
+    );
+    assert_eq!(stored(&s), 4 * 5 * 4);
+    // No change, no step.
+    let depth = s.doc(&id).bus.undo_depth();
+    s.ok(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 10, "y": 10, "color": "#ff0000" }] }),
+    );
+    assert_eq!(s.doc(&id).bus.undo_depth(), depth);
+}
+
 /// The cel map after the editor runs `cmd` on `state`.
 fn editor(state: &(Sprite, CelMap), cmd: AnyCommand) -> CelMap {
     let (mut sprite, mut cels) = state.clone();
