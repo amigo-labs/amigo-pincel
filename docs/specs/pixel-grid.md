@@ -27,7 +27,8 @@ The grid geometry belongs to the sprite and already round-trips through the `.as
 - Custom grid drawn on the canvas overlay, on top of the pixel grid
 - Grid Settings dialog: cell size, offset, line colour, opacity
 - Editing the sprite's grid size and offset as an undoable document change, saved in the `.aseprite` file
-- Show / hide states persisted per user, not in the file
+- Show / hide states, line colour and opacity persisted per user (all documents), not in the file
+- A "Use tile size" button in Grid Settings when the active layer is a tilemap
 - Keyboard shortcuts Ctrl+' (grid) and Ctrl+Shift+' (pixel grid)
 - en + de strings
 
@@ -53,12 +54,15 @@ The grid geometry belongs to the sprite and already round-trips through the `.as
 - [ ] AC-12 (event): When the user presses Ctrl+', then Show Grid toggles; when the user presses Ctrl+Shift+', then Show Pixel Grid toggles.
 - [ ] AC-13 (error): If the user enters a cell width or height outside 1–65535, or an offset outside −32768–32767, in Grid Settings, then the values are not applied and the document grid stays unchanged.
 - [ ] AC-14 (always, manual: visual rendering quality): Grid lines are 1 device pixel wide and crisp at every zoom level and device pixel ratio, the pixel grid uses a low-contrast theme colour, and the custom grid draws over the pixel grid.
+- [ ] AC-15 (event): When the user changes the custom grid's line colour or opacity and reloads the app, then the new values are still applied, to every document; saving a document does not write them into the file.
+- [ ] AC-16 (always): On a profile with no stored grid preference, Show Grid is off.
+- [ ] AC-17 (option): Where the active layer is a tilemap, Grid Settings offers a button that sets the cell size to the tileset's tile size and the offset to 0, 0.
 
 ## Technical notes
 
 Hints, not contracts — paths and line numbers drift; grep for the names.
 
-**Already there (drift since the legacy plan).** The grid round-trips today: `Metadata::grid: Option<Rect>` (`crates/pincel-core/src/document/mod.rs` ≈L43) is read from the header in `codec/aseprite_read.rs` (≈L145, always `Some`) and written in `codec/aseprite_write.rs` (≈L170; `None` writes Aseprite's default 16×16 at the origin). `aseprite-writer`'s `Header` has `grid_x/grid_y: i16`, `grid_width/grid_height: u16` (`crates/aseprite-writer/src/file.rs` ≈L62). So no `aseprite-writer` change is needed; missing are an undoable command to set the grid, wasm accessors, and the UI.
+**Already there (drift since the legacy plan).** The grid round-trips today: `Metadata::grid: Option<Rect>` (`crates/pincel-core/src/document/mod.rs` ≈L43) is read from the header in `codec/aseprite_read.rs` (≈L145, always `Some`) and written in `codec/aseprite_write.rs` (≈L170; `None` writes Aseprite's default 16×16 at the origin). `aseprite-writer`'s `Header` has `grid_x/grid_y: i16`, `grid_width/grid_height: u16` (`crates/aseprite-writer/src/file.rs` ≈L62). So no `aseprite-writer` change is needed; missing are an undoable `SetGrid` command, wasm accessors, and the UI.
 
 **Do not use** `render::request::Overlays.grid` in `pincel-core` — `compose()` returns `OverlaysUnsupported` when it is set; grids are drawn on the UI overlay canvas instead (app code never reads canvas pixels, AGENTS.md §9).
 
@@ -72,7 +76,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 **Keys.** `ui/src/lib/shell/shortcuts.ts` has no `'` binding yet; `power-user-shortcuts-coverage.md` lists the same keys for this feature.
 
-**Persistence.** IndexedDB prefs (`ui/src/lib/idb/prefs.ts`: `getPref` / `setPref`); the per-mode layout pref lives in `ui/src/lib/components/layout/panels.svelte.ts`.
+**Persistence.** IndexedDB prefs (`ui/src/lib/idb/prefs.ts`: `getPref` / `setPref`); one `pixelGrid` pref holds line colour and opacity next to the show flags; the per-mode layout pref lives in `ui/src/lib/components/layout/panels.svelte.ts`.
 
 **e2e.** Proposed `ui/e2e/grid.spec.ts`: menu checkbox state; at zoom ≥ 8 the canvas element screenshot differs with the pixel grid on vs off; grid settings survive save and reopen (download then reopen, pattern in `ui/e2e/ora.spec.ts`).
 
@@ -96,10 +100,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 ## Open questions
 
-- The Decision Log entry is not written yet: grid size and offset stored in the sprite through the `.aseprite` header (undoable), show / hide flags kept in user prefs.
-- Where are the custom grid's line colour and opacity stored? The `.aseprite` header has no field for them — user prefs (per user, all documents) or per document?
-- What is the default of Show Grid (the custom grid) on a profile with no stored preference — on or off? (§17.3 only fixes the pixel grid default.)
-- Should Grid Settings offer the active tileset's tile size as a preset? The legacy plan says it "can be offered".
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -119,6 +120,9 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
+| AC-15 |      | open   |        |
+| AC-16 |      | open   |        |
+| AC-17 |      | open   |        |
 
 ## Decisions
 
@@ -126,3 +130,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-28 (legacy plan): Shortcuts Ctrl+' / Ctrl+Shift+' — Aseprite uses them, and `21-power-user-shortcuts.md` plans the same keys.
 - 2026-10-29 (migration): The pixel grid is on by default — `pincel.md` §17.3 (#636) says "on by default at zoom ≥ 8", and a feature spec never contradicts the design spec.
 - 2026-10-29 (migration): No `aseprite-writer` change — the header grid already round-trips through `Metadata::grid` (§7.1).
+- 2026-10-29: A Decision Log entry records the pixel grid (zoom ≥ 8) and custom grid drawn on the UI overlay canvas, grid size / offset as sprite state (`Metadata::grid`, `.aseprite` header) edited by an undoable `SetGrid` command, and show flags, line colour and opacity as IndexedDB prefs — AGENTS.md §2.1; the header already round-trips the geometry and has no colour field, and view toggles are not document state (owner accepted the recommendation).
+- 2026-10-29: The custom grid's line colour and opacity live in one IndexedDB `pixelGrid` user pref that applies to every document and is never written into the file (AC-15) — the header has no field for them, and a per-document store outside the file would need a new keyed registry for a cosmetic setting (owner accepted the recommendation).
+- 2026-10-29: Show Grid (the custom grid) is off on a fresh profile (AC-16) — it draws at every zoom and would clutter small sprites, Aseprite also defaults it to off, and §17.3 only mandates the pixel grid (owner accepted the recommendation).
+- 2026-10-29: Grid Settings offers a "Use tile size (W×H)" button when the active layer is a tilemap, setting the cell size to the tile size and the offset to 0, 0 (AC-17) — it takes a few lines, and aligning the grid to tiles is the main tilemap use (owner accepted the recommendation).
