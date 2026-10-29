@@ -212,38 +212,38 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
-| AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
-| AC-29 |      | open   |        |
-| AC-30 |      | open   |        |
-| AC-31 |      | open   |        |
-| AC-32 |      | open   |        |
-| AC-33 |      | open   |        |
+| AC-02 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-03 | `doc_new_creates_active_document_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-04 | `doc_new_palette_is_preset_or_db32` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-05 | `tools_act_on_active_doc_or_named_doc_only` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-06 | `unknown_doc_or_no_open_doc_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-07 | `doc_info_and_list_report_fields_and_dirty_state` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-08 | `doc_close_removes_document_and_later_calls_fail` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-09 | `every_mutating_call_is_exactly_one_undo_step`, `draw_pixels_empty_batch_records_no_undo_step` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-10 | `undo_and_redo_report_depths` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-11 | `preview_scales_nearest_and_returns_png`, `preview_of_one_pixel_sprite_is_256_square` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-12 | `preview_frame_and_region_select_what_is_shown`, `preview_grid_only_changes_block_borders_and_is_omitted_below_scale_4` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-13 | `read_pixels_hex_grid_matches_cel` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-14 | `read_pixels_limits_region_size_and_canvas` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-15 | `layer_tools_change_and_list_the_stack` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
+| AC-16 | `frame_tools_change_frames_and_clone_cels` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
+| AC-17 | `tag_tools_change_and_list_tags` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
+| AC-18 | `palette_tools_set_and_load_presets` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
+| AC-19 | `draw_pixels_sets_listed_pixels_only_in_all_color_forms` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-20 | `draw_pixels_outside_canvas_rejects_whole_batch` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-21 | `malformed_color_or_missing_palette_index_fails_naming_argument` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-22 | `draw_shapes_match_the_editor_tools` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-23 | `draw_fill_matches_bucket_and_non_contiguous_recolors_all` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-24 | `draw_clear_clears_region_or_whole_cel` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-25 | `selection_limits_fill_and_effect_until_cleared` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-26 | `effect_apply_matches_the_editor_effect` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-27 | `effect_apply_unknown_id_or_out_of_range_param_fails` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-28 | `locked_layer_or_locked_group_refuses_edits` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
+| AC-29 | `doc_open_matches_what_the_editor_reads_from_the_file`, `doc_open_corrupt_file_fails_naming_it` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-30 | `doc_save_round_trips_and_defaults_to_the_document_file` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-31 | `doc_save_without_path_on_new_document_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-32 | `export_png_equals_preview_without_grid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-33 | `export_sheet_lays_out_frames_and_writes_sheet_json` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 | AC-34 |      | open   |        |
 | AC-35 |      | open   |        |
 | AC-36 |      | open   |        |
@@ -253,10 +253,10 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC-40 |      | open   |        |
 | AC-41 |      | open   |        |
 | AC-42 |      | open   |        |
-| AC-43 |      | open   |        |
-| AC-44 |      | open   |        |
-| AC-45 |      | open   |        |
-| AC-46 |      | open   |        |
+| AC-43 | `paint_target_defaults_to_active_layer_and_frame` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
+| AC-44 | `read_pixels_index_format_uses_first_exact_palette_match` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-45 | `preview_above_2048_cap_fails_suggesting_region` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
+| AC-46 | `doc_new_out_of_range_size_fails_without_adding_a_document` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
 
 ## Decisions
 
@@ -274,3 +274,15 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 - 2026-10-29: `grid: true` draws a 1-px `#808080` line at 50 % alpha on the first row and column of every block and is omitted below scale 4 with a note (AC-12) — mid-grey at half alpha shows on light and dark art, and below scale 4 a grid line would hide most of a block (owner accepted the recommendation).
 - 2026-10-29: `doc.preview` never downscales; the PNG is capped at 2048 px per edge and an oversized request fails suggesting `region` (AC-11, AC-45) — the preview must stay pixel-exact, and MCP clients downscale large images anyway (owner accepted the recommendation).
 - 2026-10-29: Pixel `doc.new` enforces the editor's 1–4096 per side and fails with "width must be 1–4096" (AC-46) — a document the agent creates must also open and edit in the editor (owner accepted the recommendation).
+- 2026-10-29 (build): `pincel-core` gains `CommandBatch` (several commands as one atomic undo entry) and `PutCel` (insert a whole cel undoably), both new public API — one call must be exactly one undo step that restores the document byte for byte (AC-09), and a failing call must change nothing.
+- 2026-10-29 (build): the editor's paint-target rule moves into `Sprite::paint_target_layer` and `pincel-wasm` keeps a thin wrapper — the plan's "phase 0" refactor reduced to what the agent shares, with no behavior change.
+- 2026-10-29 (build): pixel tools run the editor's own `pincel-core` command (SetPixel, DrawLine, DrawRectangle, DrawEllipse, FillRegion, ClearRegion, the `pincel-effects` spec) on a scratch copy of the target cel and commit one `PutCel` — identical pixels to the editor, atomic, exact undo; a call that changes nothing records no step.
+- 2026-10-29 (build): `pincel-agent` does no I/O; file tools call the host's `FileHost` (`read` / `write` of workspace-relative paths), which owns the sandbox and the read-only flag.
+- 2026-10-29 (build): `effect.apply` takes named parameters from a Rust mirror of `ui/src/lib/effects/catalog.ts` (names, ranges, defaults; Curves / Levels converted like the editor's `toParams`), and choices accept the option name or index — the Rust effect spec has no ranges, and the editor's ranges are what "allowed range" means.
+- 2026-10-29 (build): `draw.*`, `effect.apply` and `layer.remove` refuse locked layers; `layer.set` does not, so an agent can unlock a layer.
+- 2026-10-29 (build): `doc.read_pixels` without `frame` reads the active frame; `doc.preview` and `export.png` without `frame` show frame 0 (Assumptions). `export.png` defaults to scale 1; exports are capped at 16384 px per edge.
+- 2026-10-29 (build): the selection is document state shared by all layers and frames (as in the editor) and not an undo step; `selection.*` validate `layer` / `frame`, which do not scope it.
+- 2026-10-29 (build): `doc.info` reports `layers`, `frames` and `tags` as counts (the `*.list` tools give the details), `active_layer` as the resolved paint target, plus `path` and the undo / redo depths.
+- 2026-10-29 (build): arguments are validated against the tool schema before every call by one schema-subset validator; a range error reads "`{arg}` must be {min}–{max}" (AC-46's "width must be 1–4096"), and an enum error names the rejected value (AC-27).
+- 2026-10-29 (build): `pincel-agent` encodes PNGs with the workspace `png` crate (already in the lockfile through `pincel-core`) — no new dependency.
+- 2026-10-29 (build): the `pincel-agent` block was written code-first in the orchestrated run and its tests right after, so no red run is recorded for it.
