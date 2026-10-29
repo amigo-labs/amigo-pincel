@@ -128,7 +128,7 @@ Hints that drift; check the code before relying on them.
 | AC-06 | `pincel_wasm::tests::compose_honors_integer_zoom`, `…::compose_fresh_document_yields_transparent_canvas` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-07 | `pincel_wasm::tests::compose_rejects_unknown_frame`, `…::compose_rejects_zoom_zero`, `…::compose_rejects_zoom_above_max` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-08 | `pincel_wasm::tests::compose_dirty_returns_sub_rect_at_sprite_coords`, `…::compose_dirty_disjoint_from_viewport_returns_empty_frame`, `…::compose_dirty_full_viewport_matches_compose` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-09 |      | open   |        |
+| AC-09 | `buffer_copies::compose_frame_pixels_mutating_a_read_leaves_later_reads_unchanged`, `…::save_aseprite_mutating_the_bytes_leaves_the_document_unchanged`, `…::export_png_mutating_the_bytes_leaves_the_document_unchanged`, `…::atlas_export_png_mutating_a_read_leaves_later_reads_unchanged` (crates/pincel-wasm/tests/buffer_copies.rs), `@amigo-labs/pincel-wasm package › byte reads are fresh copies that JS can change without effect` (ui/e2e/wasm-npm-api.spec.ts) | built |        |
 | AC-10 | `pincel_wasm::tests::export_png_returns_bytes_with_png_signature`, `…::export_png_matches_core_export`, `…::export_png_rejects_unknown_frame` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-11 | `pincel_wasm::events::tests::queue_drains_in_fifo_order` (crates/pincel-wasm/src/events.rs) | built |        |
 | AC-12 | `pincel_wasm::events::tests::queue_drops_oldest_when_capped` (crates/pincel-wasm/src/events.rs) | built |        |
@@ -139,8 +139,11 @@ Hints that drift; check the code before relying on them.
 | AC-17 | `pincel_wasm::tests::set_selection_emits_selection_changed_with_new_bounds`, `…::set_selection_with_empty_rect_clears_and_emits_zeros`, `…::clear_selection_emits_event_even_when_no_prior_selection` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-18 | `pincel_wasm::tests::apply_tool_failure_does_not_emit_an_event`, `…::move_layer_at_edge_errors` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-19 | `pincel_wasm::tests::layer_kind_distinguishes_image_tilemap_unknown`, `…::tileset_getters_return_defaults_for_unknown_id`, `…::slice_getters_return_defaults_for_unknown_ids`, `…::palette_getters_error_out_of_range` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-20 |      | open   |        |
+| AC-20 | `@amigo-labs/pincel-wasm package › is published under the scoped name as an ES module`, `…› default export initializes the wasm module`, `…› exports the documented classes and functions` (ui/e2e/wasm-npm-api.spec.ts) | built |        |
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering). The spec records the copy semantics actually built (AC-09), not the zero-copy view that §9.3 and the package README describe.
+- 2026-10-29: The AC-09 and AC-20 tests were green on their first run because the behavior already exists. To show they can fail, the AC-09 JS test was run against a generated `pixels` getter patched to return one shared buffer, and it failed (`expect(received).not.toBe(expected)`).
+- 2026-10-29: AC-09 and AC-20 are tested from Node in a Playwright spec (`ui/e2e/wasm-npm-api.spec.ts`), with no browser page. The spec imports the package by its name through the `ui/` link and passes the wasm bytes to the default export. Playwright is the only JS test runner in the gates, and adding Vitest would mean a new dependency.
+- 2026-10-29: The package README now says `ComposeFrame.pixels` is a fresh copy, instead of the zero-copy view it described before. The README ships in the npm package, and AC-09 records the copy semantics.
