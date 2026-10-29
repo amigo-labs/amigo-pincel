@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use crate::document::{CelMap, Sprite};
+use crate::geometry::Point;
 
 use super::AnyCommand;
 use super::dirty::DirtyRegion;
@@ -90,6 +91,30 @@ impl Bus {
         Ok(())
     }
 
+    /// Extend the live stroke gesture to `to`: when the unsealed undo top is
+    /// a [`PencilStroke`](super::PencilStroke), it paints the segment from
+    /// its last sample to `to` and stays one undo entry. Returns `Ok(false)`
+    /// — and changes nothing — when there is no live stroke to extend (the
+    /// bus is sealed, e.g. by [`Bus::seal`] or an undo, or the top is
+    /// another command); the caller then starts a fresh stroke.
+    pub fn continue_stroke(&mut self, to: Point, cels: &mut CelMap) -> Result<bool, CommandError> {
+        if self.sealed {
+            return Ok(false);
+        }
+        let Some(AnyCommand::PencilStroke(stroke)) = self.undo.back_mut() else {
+            return Ok(false);
+        };
+        self.last_dirty = stroke.extend_to(to, cels)?;
+        self.redo.clear();
+        Ok(true)
+    }
+
+    /// The command on top of the undo stack.
+    #[cfg(test)]
+    pub(crate) fn top(&self) -> Option<&AnyCommand> {
+        self.undo.back()
+    }
+
     /// Revert the most recent command. Returns `true` if a command was undone.
     pub fn undo(&mut self, doc: &mut Sprite, cels: &mut CelMap) -> bool {
         let Some(mut cmd) = self.undo.pop_back() else {
@@ -113,6 +138,12 @@ impl Bus {
         self.undo.push_back(cmd);
         self.sealed = true;
         Ok(true)
+    }
+
+    /// The newest undo entry, if any — for inspection (memory accounting,
+    /// tests); the bus keeps ownership.
+    pub fn last(&self) -> Option<&AnyCommand> {
+        self.undo.back()
     }
 
     /// Number of commands available to undo.

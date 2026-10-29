@@ -17,8 +17,14 @@ ab_glyph = { workspace = true }
 zip = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = "1"
+pincel-effects = { workspace = true }
 proptest = "1"
+
+[[bench]]
+name = "compose"
+harness = false
 
 [lints]
 workspace = true

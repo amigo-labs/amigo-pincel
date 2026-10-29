@@ -93,18 +93,71 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Measurements
+
+### Running
+
+```bash
+cargo bench -p pincel-image-core --bench compose
+cargo bench -p pincel-core --bench compose
+cd ui
+pnpm wasm:build:release && pnpm install && pnpm build
+pnpm perf                                  # writes e2e-perf/results/browser.json
+pnpm perf:check --mode budget --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md
+```
+
+On the reference machine add `--write` so budgets met for the first time are recorded in `ui/e2e-perf/budgets-met.json` (commit it). CI runs the same in baseline mode (`.github/workflows/perf.yml`). Update the tables below from `measurements.md` with the date and machine.
+
+### Latest results
+
+Measured 2026-10-29 on the reference machine (the owner accepted this developer laptop as such, see Decisions): AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 156.0.8078.4. Native numbers here are about 2.5× the dev-container figures under Technical notes, so compare only runs from the same machine. Benches: `cargo bench` (native release, criterion median). Browser: `pnpm perf` against the production build with release wasm (`pnpm wasm:build:release`), headless Chromium, no network throttling except the cold-start scenario. Budget mode on these numbers: `cold-start/cold`, `cold-start/warm` and `pixel-pencil-256-z32/frame-p95` met (recorded in `ui/e2e-perf/budgets-met.json`, so they block from now on), everything else `pending`.
+
+| Benchmark | Median |
+| --------- | ------ |
+| `bench/compose/compose_256_dirty_hint_4x4` | 0.0003 ms |
+| `bench/compose/compose_256_four_layers_full` | 4.81 ms |
+| `bench/compose/compose_256_single_layer_full` | 0.7988 ms |
+| `bench/compose/compose_4096_single_layer_zoom_1` | 159 ms |
+| `bench/compose/compose_64_tilemap_full` | 0.0232 ms |
+| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0098 ms |
+| `bench/image_compose/full_1024_10layers` | 1509 ms |
+| `bench/image_compose/full_1024_2layers` | 262 ms |
+| `bench/image_compose/full_1024_5layers` | 851 ms |
+| `bench/image_compose/full_2048_10layers` | 5833 ms |
+| `bench/image_compose/full_2048_2layers` | 980 ms |
+| `bench/image_compose/full_2048_5layers` | 2822 ms |
+| `bench/image_compose/full_4096_10layers` | 24416 ms |
+| `bench/image_compose/full_4096_2layers` | 3745 ms |
+| `bench/image_compose/full_4096_5layers` | 11365 ms |
+| `bench/image_effect/gaussian_r10_4k` | 2805 ms |
+| `bench/image_region/fit_4k_10layers` | 16176 ms |
+| `bench/image_region/zoom1_4k_10layers` | 3860 ms |
+| `bench/image_stroke/brush_100_dabs_4k_10layers` | 2.08 ms |
+
+| Browser scenario | Frame p50 / p95 | Longest frame | Dab latency p50 / p95 | Scenario metrics |
+| ---------------- | --------------- | ------------- | --------------------- | ---------------- |
+| `image-brush-4k` | 16.7 ms / 700 ms | 1216 ms | 78.4 ms / 732 ms | — |
+| `image-pan-zoom-4k` | 16.7 ms / 317 ms | 1483 ms | — | — |
+| `image-recompose-4k` | 16.7 ms / 16.8 ms | 317 ms | — | recompose-p50 261 ms, recompose-p95 318 ms |
+| `image-gaussian-4k` | 16.7 ms / 16.8 ms | 1817 ms | — | proxy 1836 ms, full 1444 ms |
+| `image-autosave-export-4k` | 16.7 ms / 33.3 ms | 2066 ms | — | — |
+| `image-memory-4k` | 16.7 ms / 700 ms | 2050 ms | — | wasm-memory-mb 2318 MiB |
+| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 22.9 ms / 31.2 ms | — |
+| `image-open-4k-png` | 16.7 ms / 33.3 ms | 9050 ms | — | first-paint 9240 ms |
+| `cold-start` | 16.7 ms / 16.8 ms | 33.4 ms | — | cold 706 ms, warm 426 ms |
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `image_compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `image_region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `image_stroke/brush_100_dabs_4k_10layers`, `image_effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
+| AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
+| AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`): 5 tests covering the 9 budget scenarios — every scenario records `frame-p50` / `frame-p95` / `frame-max`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95`; output `ui/e2e-perf/results/browser.json` | built |        |
+| AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
+| AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
+| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); manual: a dispatched run is still to be checked | built |        |
+| AC-07 | manual: owner accepted the measurements table (dev laptop Ryzen 7 PRO 6850H as reference machine), 2026-10-29 | built |        |
+| AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes) | built |        |
 
 ## Decisions
 
@@ -116,3 +169,17 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: The performance workflow runs on manual dispatch and nightly on `main`, skipping nights without a new commit — nightly catches regressions without anyone remembering, and dispatch proves a single PR (owner accepted the recommendation).
 - 2026-10-29: The budgets become pincel.md §4.5 "Performance budgets" and are contracts: every performance change states before → after, a budget once met may not regress by more than 10 %, benchmarks run outside the 60 s PR gate (Decision Log 2026-10-29) — the other `performance-*` specs all cite these budgets (owner accepted the recommendation).
 - 2026-10-29: "Open a 4K PNG ≤ 1 s to first paint" has no owner yet: this spec measures it, and a new spec `performance-image-open` takes it only if the measurement misses the budget — no speculative tuning without a number, and decode plus the cached composite may already meet it (owner accepted the recommendation).
+- 2026-10-29 (spec-build): `pincel-image-core` gains `criterion` and `pincel-effects` as dev-dependencies — both are workspace crates already in `Cargo.lock`, and AC-01 needs the Gaussian blur inside this crate's bench.
+- 2026-10-29 (spec-build): The 100-dab stroke bench applies 100 single-point Pencil strokes (one dab each, size 20, one per pointer event as the UI sends them) through `Command::apply` without an undo stack — exactly 100 dabs, and the measured cost is rasterize + apply, not history growth.
+- 2026-10-29 (spec-build): The region benches render into a 1920×1080 viewport: at zoom 1 a centered 1920×1080 rect, at fit zoom the whole 3840×2160 canvas scaled bilinearly to 1920×1080, as `composite_region` does — a full-HD window is the common desktop case.
+- 2026-10-29 (spec-build): The budget check is `ui/e2e-perf/check-budgets.ts`, run directly by Node's type stripping (`pnpm perf:check`, Node ≥ 22.18) — no new dependency, and it stays under the UI's strict TypeScript and lint. Its unit tests are `ui/e2e/perf-budget-check.spec.ts`: pure Node, no browser, so they join the PR e2e run; AC-05 only keeps the benchmarks and the browser script out.
+- 2026-10-29 (spec-build): Frame-rate budgets ("60 fps") check the p95 frame time against 17 ms and latency budgets the p95 latency — p95 is what a user feels as stutter, the p50 is reported alongside, and rAF timestamps at 60 Hz jitter between 16.6 and 16.8 ms, so 16.7 ms itself would never be met reliably.
+- 2026-10-29 (spec-build): Budget mode keeps "first met" dates in `ui/e2e-perf/budgets-met.json`; `--write` updates it and the reference-machine run commits it. Baseline mode keeps the runner's last values in a file the workflow caches per runner; a run with a regression never overwrites it, so the regression keeps failing until fixed.
+- 2026-10-29 (spec-build): AC-05's test was green on its first run — the PR gate never ran benches, and `pnpm test:e2e` only collects `ui/e2e`. The test pins that state so a later CI change cannot pull the benchmarks or `ui/e2e-perf` into the gate.
+- 2026-10-29 (spec-build): The nightly skip compares `github.sha` with the head SHA of the last completed scheduled run (`gh run list`); the runner baseline lives in the actions cache keyed by OS and architecture (restored by prefix, saved only after a passing check), so a dispatched run on a PR branch reads `main`'s baseline but cannot overwrite it.
+- 2026-10-29 (spec-build): The browser script instruments the page from the test (`ui/e2e-perf/probe.ts`, an init script): rAF timestamps give frame times; draws are `putImageData` / `drawImage` on the editor's render canvas and WebGPU `writeTexture`; dab latency is a pointer event's `timeStamp` to the first frame that starts after the first draw following it. The app code is unchanged and still never reads canvas pixels.
+- 2026-10-29 (spec-build): Scenario operationalisations — recompose: toggling a layer's visibility at fit zoom (pointer-down → first draw); pan / zoom: middle-button drag plus wheel; effect: proxy = radius input → first preview draw, full = OK → first draw; autosave / export: Save (the ORA encoder autosave uses) plus Export PNG, longest frame; open: file input `change` → first frame after the canvas's `data-ready`; cold start: Lighthouse Slow 4G values via CDP, HTTP cache disabled, warm = second load with a filled cache (service workers blocked, as in e2e); memory: 40 short strokes, 5 Invert Colors, 3 Merge Down, 2 pastes of 1024² after adding 9 layers, largest `WebAssembly.Memory`. A pixel drag moves one sprite pixel (32 CSS px) per event — an event inside the same pixel paints nothing and has no frame to wait for.
+- 2026-10-29 (spec-build): AC-03 had no meaningful red run: the script is new tooling whose absence is the red state (`playwright test -c playwright.perf.config.ts` found nothing). The first real run failed on a scenario bug (a paste slower than the 5 s assertion timeout), fixed before this commit.
+- 2026-10-29: The owner accepted the measurements table (AC-07), taken on the developer laptop (AMD Ryzen 7 PRO 6850H, 16 threads, 32 GB, Windows 11, headless Chromium), with that laptop as the reference machine, on 2026-10-29. pincel.md §4.5 still describes the 2021-class "mid laptop", which this laptop outperforms, so a budget met here may still miss there. The budgets met on that run (`cold-start/cold`, `cold-start/warm`, `pixel-pencil-256-z32/frame-p95`) are recorded in `ui/e2e-perf/budgets-met.json` and block from now on.
+- 2026-10-29 (spec-check rework): The memory scenario confirms the layer count after every merge-down and paste, and pastes through a `paste` event carrying the PNG (the Ctrl+V path into the same paste command) instead of the async Clipboard API, which reads the shared system clipboard and returns nothing while the page lacks focus — one release run had lost a paste.
+- 2026-10-29 (spec-check rework): `pnpm perf` refuses to start on a dev wasm bundle (any `dist/app/assets/*.wasm` over 5 MiB; dev ≈ 9 MiB, release ≈ 2.2 MiB for Image mode, and wasm-pack leaves no profile marker), because the 4K scenarios would only run into the 600 s timeout.
