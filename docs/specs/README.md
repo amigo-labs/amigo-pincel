@@ -33,7 +33,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
 | 7 | [performance-image-undo-memory](performance-image-undo-memory.md) | Image | L | performance-benchmarks | Can move earlier if memory hurts |
 | 8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
-| 10 | [mcp-headless-image](mcp-headless-image.md) | Image | L | mcp-headless-pixel | |
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 14 | [animated-export](animated-export.md) | Pixel | L | — | APNG needs no new dependency |
@@ -67,6 +66,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 ## Done
 
 - [image-editing](image-editing.md)
+- [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)

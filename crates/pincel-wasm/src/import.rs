@@ -1,11 +1,10 @@
 //! Raster import surface (Fineliner parity): open a PNG as a new document
 //! or drop one onto the current document as a new layer.
 
-use pincel_core::{Cel, ColorMode, FrameIndex, LayerId, PixelBuffer, ReplaceCelPixels, import_png};
+use pincel_core::{Cel, ColorMode, FrameIndex, PixelBuffer, import_png};
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
-use crate::events::Event;
 
 #[wasm_bindgen]
 impl Document {
@@ -26,31 +25,12 @@ impl Document {
     /// Decode PNG bytes and add them as a new image layer named `name` on
     /// top of the stack, at the current frame, anchored at the canvas
     /// origin and clipped to the canvas. Returns the new layer id (which
-    /// also becomes the active paint target). One undo step restores the
-    /// layer's blank cel, a second removes the layer.
+    /// also becomes the active paint target). One undo step removes the
+    /// layer and its pixels (the Paste command, spec §5.4).
     #[wasm_bindgen(js_name = importPngAsLayer)]
     pub fn import_png_as_layer(&mut self, bytes: &[u8], name: &str) -> Result<u32, String> {
-        let img = import_png(bytes).map_err(|e| format!("failed to import PNG: {e}"))?;
-        let new_id = self.add_layer(name)?;
-        let layer = LayerId::new(new_id);
-        let frame = self.current_frame;
-        self.ensure_paint_cel(layer, frame);
-        let (w, h) = (self.sprite.width, self.sprite.height);
-        let mut pixels = vec![0u8; w as usize * h as usize * 4];
-        let copy_w = img.width.min(w) as usize;
-        for y in 0..img.height.min(h) as usize {
-            let src = y * img.width as usize * 4;
-            let dst = y * w as usize * 4;
-            pixels[dst..dst + copy_w * 4].copy_from_slice(&img.rgba[src..src + copy_w * 4]);
-        }
-        let cmd = ReplaceCelPixels::new(layer, frame, pixels);
-        self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
-            .map_err(|e| format!("failed to import PNG: {e}"))?;
-        self.bus.seal();
-        self.active_layer = Some(layer);
-        self.events.push(Event::dirty_canvas());
-        Ok(new_id)
+        self.paste_image(bytes, name, 0, 0, false, None)
+            .map_err(|e| format!("failed to import PNG: {e}"))
     }
 }
 
@@ -82,7 +62,7 @@ mod tests {
     }
 
     #[test]
-    fn import_png_as_layer_adds_a_clipped_layer_on_top() {
+    fn import_png_as_layer_adds_a_clipped_layer_on_top_in_one_undo_step() {
         let mut doc = Document::new(1, 1).expect("dims");
         let bytes = png_2x1(0x090909FF, 0x010101FF);
         let id = doc.import_png_as_layer(&bytes, "imported").expect("import");
@@ -90,9 +70,11 @@ mod tests {
         assert_eq!(doc.layer_name(id), "imported");
         assert_eq!(doc.paint_target_layer_id(), id);
         assert_eq!(doc.pick_color(0, 0, 0).expect("pick"), 0x090909FF);
-        assert!(doc.undo(), "undo the pixels");
-        assert_eq!(doc.pick_color(0, 0, 0).expect("pick") & 0xFF, 0);
-        assert!(doc.undo(), "undo the layer");
+        assert_eq!(doc.layer_id_at(1).expect("id"), id, "on top of the stack");
+        assert_eq!(doc.undo_depth(), 1, "one undo step");
+        assert!(doc.undo(), "undo the import");
         assert_eq!(doc.layer_count(), 1);
+        assert_eq!(doc.pick_color(0, 0, 0).expect("pick") & 0xFF, 0);
+        assert!(!doc.undo(), "nothing left to undo");
     }
 }

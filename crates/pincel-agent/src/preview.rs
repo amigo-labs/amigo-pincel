@@ -122,16 +122,40 @@ pub(crate) fn render_png(
     grid: bool,
     max_edge: u32,
 ) -> Result<(Vec<u8>, u32, u32), AgentError> {
-    let out_w = u64::from(region.width) * u64::from(scale);
-    let out_h = u64::from(region.height) * u64::from(scale);
+    check_edges(region.width, region.height, scale, max_edge)?;
+    let pixels = compose_region(sprite, cels, frame, region)?;
+    scaled_png(&pixels, region.width, region.height, scale, grid)
+}
+
+/// The output size of a `width`×`height` image upscaled by `scale`,
+/// refused when an edge exceeds `max_edge`.
+pub(crate) fn check_edges(
+    width: u32,
+    height: u32,
+    scale: u32,
+    max_edge: u32,
+) -> Result<(u32, u32), AgentError> {
+    let out_w = u64::from(width) * u64::from(scale);
+    let out_h = u64::from(height) * u64::from(scale);
     if out_w > u64::from(max_edge) || out_h > u64::from(max_edge) {
         return Err(AgentError::tool(format!(
             "the image would be {out_w}×{out_h} px, above the {max_edge} px cap per edge; pass a `region` to show part of the canvas, or a smaller `scale`"
         )));
     }
-    let (out_w, out_h) = (out_w as u32, out_h as u32);
-    let pixels = compose_region(sprite, cels, frame, region)?;
-    let mut big = upscale(&pixels, region.width, region.height, scale);
+    Ok((out_w as u32, out_h as u32))
+}
+
+/// Upscale RGBA8 `pixels` by `scale`, draw the grid when asked and encode
+/// as PNG. Returns the PNG and its size.
+pub(crate) fn scaled_png(
+    pixels: &[u8],
+    width: u32,
+    height: u32,
+    scale: u32,
+    grid: bool,
+) -> Result<(Vec<u8>, u32, u32), AgentError> {
+    let (out_w, out_h) = (width * scale, height * scale);
+    let mut big = upscale(pixels, width, height, scale);
     if grid {
         draw_grid(&mut big, out_w, out_h, scale);
     }

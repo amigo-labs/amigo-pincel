@@ -102,3 +102,82 @@ export async function menu(page: Page, top: string, ...path: string[]): Promise<
     scope = label;
   }
 }
+
+/** A decoded clipboard image: size plus straight RGBA bytes. */
+export interface ClipImage {
+  width: number;
+  height: number;
+  data: number[];
+}
+
+/** RGBA of pixel `(x, y)` of a decoded clipboard image. */
+export function pixelOf(img: ClipImage, x: number, y: number): number[] {
+  const i = (y * img.width + x) * 4;
+  return img.data.slice(i, i + 4);
+}
+
+/**
+ * The `image/png` on the system clipboard, decoded test-side (the app never
+ * reads canvas pixels); `null` when the clipboard holds no PNG. Needs the
+ * `clipboard-read` permission.
+ */
+export async function readClipboardImage(page: Page): Promise<ClipImage | null> {
+  return page.evaluate(async () => {
+    for (const item of await navigator.clipboard.read()) {
+      if (!item.types.includes('image/png')) continue;
+      const bitmap = await createImageBitmap(await item.getType('image/png'), {
+        premultiplyAlpha: 'none',
+        colorSpaceConversion: 'none',
+      });
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      ctx.drawImage(bitmap, 0, 0);
+      const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+      return { width: bitmap.width, height: bitmap.height, data: Array.from(data) };
+    }
+    return null;
+  });
+}
+
+/** Replaces the system clipboard with plain text, so no image is on it. */
+export async function clearClipboard(page: Page): Promise<void> {
+  await page.evaluate(() => navigator.clipboard.writeText('-'));
+}
+
+/**
+ * Waits for the image an app Copy / Cut writes (the write is async) and
+ * returns it decoded. Call `clearClipboard` before the copy.
+ */
+export async function copiedImage(page: Page): Promise<ClipImage> {
+  let img: ClipImage | null = null;
+  await expect
+    .poll(async () => {
+      img = await readClipboardImage(page);
+      return img !== null;
+    })
+    .toBe(true);
+  if (!img) throw new Error('no image on the clipboard');
+  return img;
+}
+
+/** Puts a `width` × `height` PNG filled with `color` on the system clipboard. */
+export async function putClipboardImage(
+  page: Page,
+  width: number,
+  height: number,
+  color: string,
+): Promise<void> {
+  await page.evaluate(
+    async ([w, h, c]) => {
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      ctx.fillStyle = c;
+      ctx.fillRect(0, 0, w, h);
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    },
+    [width, height, color] as const,
+  );
+}

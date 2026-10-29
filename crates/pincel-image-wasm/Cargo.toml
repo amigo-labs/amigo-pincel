@@ -27,6 +27,9 @@ version = "0.3"
 features = ["console"]
 
 [dev-dependencies]
+# The `ts` feature derives `ts_rs::TS` on `CommandSpec` for the binding
+# export test (docs/specs/mcp-headless-image.md, Technical notes).
+pincel-image-core = { workspace = true, features = ["ts"] }
 ts-rs = { version = "12", features = ["serde-compat", "no-serde-warnings"] }
 
 [lints]

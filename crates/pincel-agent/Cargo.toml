@@ -10,9 +10,15 @@ rust-version.workspace = true
 [dependencies]
 pincel-core = { workspace = true }
 pincel-effects = { workspace = true }
+pincel-image-core = { workspace = true }
 png = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+
+[dev-dependencies]
+# Encodes the GIF / TIFF / WebP fixtures the Image open tests read; already
+# in the workspace through pincel-image-core.
+image = { workspace = true }
 
 [lints]
 workspace = true

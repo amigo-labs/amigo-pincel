@@ -6,14 +6,17 @@ use crate::document::{Document, ImageBuffer, Layer};
 use crate::error::DocumentError;
 use std::any::Any;
 
-/// Inserts an image as a new layer above the active one, at the top-left.
+/// Inserts an image as a new layer above the active one, with its top-left
+/// corner at a canvas position.
 ///
-/// With `expand`, a canvas smaller than the image first grows to fit it
+/// With `expand`, a canvas that doesn't cover the image there first grows to
 /// (anchored top-left); otherwise the image is cropped to the canvas. Both
 /// steps are one undo step: the prior document is snapshotted on apply.
 pub struct PasteLayer {
     /// The pasted image, until the layer is built on first apply.
     pixels: Option<ImageBuffer>,
+    x: i32,
+    y: i32,
     expand: bool,
     /// The inserted layer, captured on first apply so redo restores it exactly.
     layer: Option<Layer>,
@@ -24,10 +27,19 @@ pub struct PasteLayer {
 }
 
 impl PasteLayer {
-    /// Pastes `pixels`, growing the canvas to fit it when `expand` is set.
+    /// Pastes `pixels` at the top-left, growing the canvas to fit it when
+    /// `expand` is set.
     pub fn new(pixels: ImageBuffer, expand: bool) -> Self {
+        Self::at(pixels, 0, 0, expand)
+    }
+
+    /// Pastes `pixels` with their top-left at canvas `(x, y)`; with `expand`
+    /// the canvas grows (anchored top-left) to cover them there.
+    pub fn at(pixels: ImageBuffer, x: i32, y: i32, expand: bool) -> Self {
         Self {
             pixels: Some(pixels),
+            x,
+            y,
             expand,
             layer: None,
             index: None,
@@ -36,12 +48,21 @@ impl PasteLayer {
     }
 }
 
+/// Canvas extent along one axis that covers `len` pixels starting at `pos`.
+fn cover(canvas: u32, pos: i32, len: u32) -> Result<u32, DocumentError> {
+    let end = i64::from(pos) + i64::from(len);
+    u32::try_from(end.max(i64::from(canvas))).map_err(|_| DocumentError::RegionOutOfBounds)
+}
+
 impl Command for PasteLayer {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
         let (cw, ch) = (doc.canvas.width(), doc.canvas.height());
         let (w, h) = match (&self.layer, &self.pixels) {
             (Some(layer), _) => (layer.pixels.width(), layer.pixels.height()),
-            (None, Some(px)) if self.expand => (cw.max(px.width()), ch.max(px.height())),
+            (None, Some(px)) if self.expand => (
+                cover(cw, self.x, px.width())?,
+                cover(ch, self.y, px.height())?,
+            ),
             (None, Some(_)) => (cw, ch),
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
@@ -53,7 +74,7 @@ impl Command for PasteLayer {
             (Some(layer), _) => layer.clone(),
             (None, Some(px)) => Layer::from_pixels(
                 format!("Layer {}", doc.layers.len() + 1),
-                px.offset_copy(w, h, 0, 0),
+                px.offset_copy(w, h, self.x, self.y),
             ),
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
@@ -182,5 +203,40 @@ mod tests {
         cmd.apply(&mut doc).unwrap();
         assert_eq!(doc.active_layer_index(), 1);
         assert_eq!(doc.layers[2].name, "Top");
+    }
+
+    #[test]
+    fn paste_at_places_the_image_at_its_position() {
+        let mut doc = Document::new(8, 8).unwrap();
+        let mut cmd = PasteLayer::at(image(2, 2), 3, 4, false);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].pixels.get_pixel(3, 4), Some(Color::WHITE));
+        assert_eq!(doc.layers[1].pixels.get_pixel(4, 5), Some(Color::WHITE));
+        assert_eq!(
+            doc.layers[1].pixels.get_pixel(0, 0),
+            Some(Color::TRANSPARENT)
+        );
+    }
+
+    #[test]
+    fn paste_at_with_expand_covers_the_image_at_its_position() {
+        let mut doc = Document::new(4, 4).unwrap();
+        let mut cmd = PasteLayer::at(image(6, 5), 1, 2, true);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!((doc.canvas.width(), doc.canvas.height()), (7, 7));
+        assert_eq!(doc.layers[1].pixels.get_pixel(6, 6), Some(Color::WHITE));
+        assert_eq!(doc.layers[1].pixels.get_pixel(1, 2), Some(Color::WHITE));
+        cmd.revert(&mut doc).unwrap();
+        assert_eq!((doc.canvas.width(), doc.canvas.height()), (4, 4));
+        assert_eq!(doc.layers.len(), 1);
+    }
+
+    #[test]
+    fn paste_at_without_expand_crops_at_the_position() {
+        let mut doc = Document::new(4, 4).unwrap();
+        let mut cmd = PasteLayer::at(image(6, 5), 1, 2, false);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!((doc.canvas.width(), doc.canvas.height()), (4, 4));
+        assert_eq!(doc.layers[1].pixels.get_pixel(1, 2), Some(Color::WHITE));
     }
 }

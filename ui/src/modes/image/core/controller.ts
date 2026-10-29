@@ -338,16 +338,34 @@ export function resizeCanvas(width: number, height: number, anchor: ResizeAnchor
 }
 
 /**
- * Pastes an encoded image as a new layer above the active one, at the
- * top-left; `expand` first grows a smaller canvas to fit it (spec §5.4).
- * Throws when the core can't decode the image.
+ * Pastes an encoded image as a new layer above the active one, its top-left
+ * at canvas `(x, y)`; `expand` first grows the canvas to cover it there
+ * (spec §5.4). Throws when the core can't decode the image.
  */
-export function pasteImage(bytes: Uint8Array, expand: boolean): void {
+export function pasteImage(bytes: Uint8Array, x: number, y: number, expand: boolean): void {
   if (editor.handle === null) {
     return;
   }
-  core.pasteLayer(editor.handle, bytes, expand);
+  core.pasteLayer(editor.handle, bytes, x, y, expand);
   syncInfo();
+}
+
+/**
+ * Copy / Copy Merged / Cut (spec §5.4): the PNG for the clipboard and the
+ * canvas position it came from; `null` without a document. Cut also clears
+ * the copied pixels as one undo step. Throws on an empty selection.
+ */
+export function copyImage(
+  kind: 'copy' | 'merged' | 'cut',
+): { png: Uint8Array; x: number; y: number } | null {
+  const handle = editor.handle;
+  if (handle === null) {
+    return null;
+  }
+  const [x, y] = core.selectionBounds(handle) ?? [0, 0];
+  const png = kind === 'cut' ? core.cutSelection(handle) : core.copySelection(handle, kind === 'merged');
+  if (kind === 'cut') syncInfo();
+  return { png, x, y };
 }
 
 /** Crops the canvas to the current selection's bounding box (spec §10.6). */

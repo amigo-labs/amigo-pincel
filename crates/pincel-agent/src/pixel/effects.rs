@@ -224,6 +224,25 @@ pub(crate) fn effect_ids() -> Vec<&'static str> {
     EFFECTS.iter().map(|e| e.id).collect()
 }
 
+/// The ids of the editor's Adjust menu (`group: 'adjust'` in
+/// `ui/src/lib/effects/catalog.ts`); every other id is an effect.
+pub(crate) const ADJUSTMENTS: &[&str] = &[
+    "brightness_contrast",
+    "hue_saturation",
+    "curves",
+    "levels",
+    "color_balance",
+    "invert",
+    "grayscale",
+    "posterize",
+    "threshold",
+];
+
+/// `true` for an adjustment id (Adjust menu), `false` for an effect.
+pub(crate) fn is_adjustment(id: &str) -> bool {
+    ADJUSTMENTS.contains(&id)
+}
+
 /// One-line parameter summary per effect, for the tool description.
 pub(crate) fn catalog_summary() -> String {
     EFFECTS

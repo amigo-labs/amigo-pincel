@@ -10,6 +10,7 @@
 //! `docs/specs/pincel.md` §15 (2026-10-29).
 
 mod args;
+mod image;
 mod pixel;
 mod preview;
 mod resources;
@@ -108,10 +109,14 @@ pub(crate) struct Tool {
     pub run: fn(&mut Ctx<'_>, &args::Args) -> Result<ToolOutput, AgentError>,
 }
 
+/// The shared and Pixel tools, then the Image-only tools.
+fn all_tools() -> impl Iterator<Item = &'static Tool> {
+    pixel::TOOLS.iter().chain(image::TOOLS)
+}
+
 /// Every tool, in a stable order.
 pub fn list_tools() -> Vec<ToolDef> {
-    pixel::TOOLS
-        .iter()
+    all_tools()
         .map(|t| ToolDef {
             name: t.name,
             description: t.description,
@@ -129,8 +134,7 @@ pub fn call(
     name: &str,
     args: Value,
 ) -> Result<ToolOutput, AgentError> {
-    let tool = pixel::TOOLS
-        .iter()
+    let tool = all_tools()
         .find(|t| t.name == name)
         .ok_or_else(|| AgentError::UnknownTool(name.to_owned()))?;
     let args = if args.is_null() {
