@@ -494,6 +494,15 @@ Sprite-sheet export emits an optional sidecar JSON describing frame durations, t
 
 Pincel does **not** export to `.ait` directly. The engine's existing `amigo_assets` pipeline reads `.aseprite` files and produces engine-internal formats. Pincel's only contract with the engine is: produce a valid `.aseprite` file at a known location.
 
+### 7.5 Animated export
+
+Pixel mode exports an animation (all frames, or one tag played in its direction) as **APNG** or **GIF** (feature spec `animated-export.md`, Decision Log 2026-10-29). Every frame is composed at zoom 1 over the full canvas, upscaled by an integer nearest-neighbour factor 1–10 (16384 px per-edge cap, shared with `scaled-export.md`) and encoded one at a time, so memory stays bounded by one scaled frame plus the output.
+
+- **APNG** (`png` 0.18): keeps the `.png` extension; full-canvas frames with `dispose_op = None` and `blend_op = Source`, delay `duration_ms / 1000`, play count 0 for forever.
+- **GIF** (`gif` 0.14): one 8-bit palette per frame, exact when the frame's opaque colours plus one transparent entry fit 256 entries, quantized otherwise; alpha below 128 is transparent; delay in hundredths of a second, at least 2; disposal to background. A loop count N means N plays in total (NETSCAPE2.0 loop count N − 1, no block for N = 1, 0 for forever).
+
+Animated WebP and video are deferred (no encoder in the workspace).
+
 ---
 
 ## 8. Crate: `aseprite-writer`
