@@ -128,6 +128,9 @@ pub(super) const LAYER_LIST: Tool = Tool {
     description: "List the layers bottom to top with id, name, kind (image / group / tilemap), parent group, visibility, opacity, blend mode and lock state.",
     schema: || tool_schema(json!({}), &[]),
     run: |ctx, args| {
+        if ctx.ws.is_image(args)? {
+            return crate::image::layer::list(ctx, args);
+        }
         let (id, doc) = ctx.ws.doc(args)?;
         Ok(ToolOutput::json(
             json!({ "doc": id, "layers": layers_json(&doc.sprite) }),
@@ -147,6 +150,9 @@ pub(super) const LAYER_ADD: Tool = Tool {
 };
 
 fn layer_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::layer::add(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc_mut(args)?;
     let new_id = match doc.sprite.layers.iter().map(|l| l.id.0).max() {
         None => 0,
@@ -203,6 +209,9 @@ pub(super) const LAYER_SET: Tool = Tool {
 };
 
 fn layer_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::layer::set(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc_mut(args)?;
     let lid = layer_arg(doc, args, "layer")?;
     let mut cmds: Vec<AnyCommand> = Vec::new();
@@ -243,6 +252,9 @@ pub(super) const LAYER_REMOVE: Tool = Tool {
         )
     },
     run: |ctx, args| {
+        if ctx.ws.is_image(args)? {
+            return crate::image::layer::remove(ctx, args);
+        }
         let (id, doc) = ctx.ws.doc_mut(args)?;
         let lid = layer_arg(doc, args, "layer")?;
         doc.check_unlocked(lid)?;

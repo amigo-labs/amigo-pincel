@@ -290,7 +290,7 @@ pub(super) const ELLIPSE: Tool = Tool {
 
 pub(super) const FILL: Tool = Tool {
     name: "draw.fill",
-    description: "Bucket fill from the seed (x, y) like the editor's Bucket tool: the 4-connected area of exactly the seed's color. `contiguous: false` recolors every pixel of the seed's color. Respects the selection.",
+    description: "Bucket fill from the seed (x, y) like the editor's Bucket tool. Pixel documents: the 4-connected area of exactly the seed's color. Image documents: the area within `tolerance` (default 32) of the seed's color, painted at `opacity` %. `contiguous: false` recolors every matching pixel. Respects the selection (feathered edges by coverage).",
     schema: || {
         target_schema(
             json!({
@@ -298,11 +298,23 @@ pub(super) const FILL: Tool = Tool {
                 "y": int("Seed y"),
                 "color": color_schema("Fill color"),
                 "contiguous": { "type": "boolean", "description": "Only the connected area; default true" },
+                "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Image documents: color distance still filled; default 32" },
+                "opacity": { "type": "number", "minimum": 0, "maximum": 100, "description": "Image documents: fill opacity in %; default 100" },
             }),
             &["x", "y", "color"],
         )
     },
     run: |ctx, args| {
+        if ctx.ws.is_image(args)? {
+            return crate::image::draw::fill(ctx, args);
+        }
+        for key in ["tolerance", "opacity"] {
+            if args.get(key).is_some() {
+                return Err(AgentError::tool(format!(
+                    "`{key}` of draw.fill applies to Image documents; Pixel fills match the seed color exactly"
+                )));
+            }
+        }
         paint(ctx, args, |doc, cel| {
             let (x, y) = (args.req_i32("x")?, args.req_i32("y")?);
             check_in_canvas(doc, x, y, "seed")?;
@@ -431,25 +443,33 @@ pub(super) const EFFECT_APPLY: Tool = Tool {
         )
     },
     run: |ctx, args| {
-        let effect = args.req_str("id")?;
-        let empty = Map::new();
-        let params = args
-            .get("params")
-            .and_then(Value::as_object)
-            .unwrap_or(&empty);
-        let wire = wire_params(effect, params)?;
-        let spec =
-            EffectSpec::from_params(effect, &wire).map_err(|e| AgentError::tool(e.to_string()))?;
-        paint(ctx, args, |doc, cel| {
-            let original = cel.clone();
-            let CelData::Image(buf) = &mut cel.data else {
-                return Err(AgentError::tool("effects need an image cel"));
-            };
-            let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone())
-                .map_err(|e| AgentError::tool(e.to_string()))?;
-            buf.data = spec.run(&src).into_raw();
-            mask_to_selection(&doc.sprite, &original, cel);
-            Ok(())
-        })
+        if ctx.ws.is_image(args)? {
+            return crate::image::draw::effect(ctx, args);
+        }
+        apply_effect(ctx, args)
     },
 };
+
+/// `effect.apply` / `adjust.apply` on a Pixel document.
+pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let effect = args.req_str("id")?;
+    let empty = Map::new();
+    let params = args
+        .get("params")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty);
+    let wire = wire_params(effect, params)?;
+    let spec =
+        EffectSpec::from_params(effect, &wire).map_err(|e| AgentError::tool(e.to_string()))?;
+    paint(ctx, args, |doc, cel| {
+        let original = cel.clone();
+        let CelData::Image(buf) = &mut cel.data else {
+            return Err(AgentError::tool("effects need an image cel"));
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone())
+            .map_err(|e| AgentError::tool(e.to_string()))?;
+        buf.data = spec.run(&src).into_raw();
+        mask_to_selection(&doc.sprite, &original, cel);
+        Ok(())
+    })
+}

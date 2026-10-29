@@ -3,8 +3,11 @@
 
 mod doc;
 mod draw;
-mod effects;
+pub(crate) mod effects;
 mod structure;
+
+pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
+pub(crate) use draw::apply_effect;
 
 use serde_json::{Map, Value, json};
 

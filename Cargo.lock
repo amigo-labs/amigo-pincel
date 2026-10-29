@@ -3063,8 +3063,10 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 name = "pincel-agent"
 version = "1.4.0"
 dependencies = [
+ "image",
  "pincel-core",
  "pincel-effects",
+ "pincel-image-core",
  "png 0.18.1",
  "serde_json",
  "thiserror 2.0.21",

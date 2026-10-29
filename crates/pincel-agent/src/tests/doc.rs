@@ -48,6 +48,23 @@ const EXPECTED_TOOLS: &[&str] = &[
     "selection.set_rect",
     "selection.clear",
     "effect.apply",
+    // Image tools (mcp-headless-image)
+    "draw.stroke",
+    "draw.shape",
+    "draw.text",
+    "draw.gradient",
+    "select.rect",
+    "select.ellipse",
+    "select.wand",
+    "select.clear",
+    "adjust.apply",
+    "canvas.resize",
+    "image.scale",
+    "image.crop_to_selection",
+    "image.flip",
+    "image.rotate",
+    "export.jpeg",
+    "export.webp",
 ];
 
 /// One valid example call per tool.
@@ -86,6 +103,31 @@ fn example(name: &str) -> Value {
         "draw.clear" => json!({ "region": region }),
         "selection.set_rect" => json!({ "x": 0, "y": 0, "width": 4, "height": 4 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
+        "draw.stroke" => {
+            json!({ "points": [[1, 2], [8.5, 3]], "tool": "brush", "color": "#ff000080", "size": 4, "hardness": 50, "opacity": 80, "shape": "soft_round", "layer": 0 })
+        }
+        "draw.shape" => {
+            json!({ "shape": "polygon", "cx": 8, "cy": 8, "radius": 5, "sides": 6, "rotation": 15, "stroke": "#000000", "fill": "#ffffff", "stroke_width": 2, "dash": "dotted", "anti_alias": false })
+        }
+        "draw.text" => {
+            json!({ "text": "Hello", "x": 4, "y": 4, "size": 24, "color": "#202020", "align": "center", "bold": true, "italic": false })
+        }
+        "draw.gradient" => {
+            json!({ "x0": 0, "y0": 0, "x1": 10, "y1": 0, "from": "#000000", "to": "#ffffff", "kind": "radial", "channel": "color", "opacity": 50 })
+        }
+        "select.rect" | "select.ellipse" => {
+            json!({ "x": 1, "y": 1, "width": 4, "height": 4, "mode": "add", "feather": 2 })
+        }
+        "select.wand" => {
+            json!({ "x": 1, "y": 1, "tolerance": 10, "contiguous": false, "sample": "all_layers", "mode": "subtract" })
+        }
+        "adjust.apply" => json!({ "id": "posterize", "params": { "levels": 4 } }),
+        "canvas.resize" => json!({ "width": 64, "height": 32, "anchor": "center" }),
+        "image.scale" => json!({ "width": 64, "height": 32, "interpolation": "bicubic" }),
+        "image.flip" => json!({ "direction": "vertical" }),
+        "image.rotate" => json!({ "angle": 270 }),
+        "export.jpeg" => json!({ "path": "a.jpg", "quality": 80 }),
+        "export.webp" => json!({ "path": "a.webp" }),
         _ => json!({}),
     }
 }

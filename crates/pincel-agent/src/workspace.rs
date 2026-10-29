@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use crate::AgentError;
 use crate::args::Args;
+use crate::image::ImageDoc;
 
 /// One open Pixel document.
 #[derive(Debug)]
@@ -182,11 +183,35 @@ impl Doc {
     }
 }
 
+/// One open document of either mode.
+#[derive(Debug)]
+pub(crate) enum Entry {
+    Pixel(Doc),
+    Image(ImageDoc),
+}
+
+impl Entry {
+    /// Summary reported by `doc.info` / `doc.list`.
+    pub fn info(&self, id: &str) -> Value {
+        match self {
+            Self::Pixel(d) => d.info(id),
+            Self::Image(d) => d.info(id),
+        }
+    }
+}
+
+/// The error for a tool called on a document of the other mode (AC-05).
+fn wrong_mode(id: &str, is: &str, needs: &str) -> AgentError {
+    AgentError::tool(format!(
+        "document `{id}` is {is} document; this tool works on {needs} documents only (pincel://guide lists the tools of each mode)"
+    ))
+}
+
 /// The documents of one agent session. In memory only until a tool saves
 /// or exports.
 #[derive(Debug, Default)]
 pub struct Workspace {
-    docs: Vec<(String, Doc)>,
+    docs: Vec<(String, Entry)>,
     active: Option<String>,
     next_id: u32,
 }
@@ -212,16 +237,25 @@ impl Workspace {
         self.active.as_deref()
     }
 
-    /// Add `doc`, make it active and return its id.
+    /// Add a Pixel document, make it active and return its id.
     pub(crate) fn insert(&mut self, doc: Doc) -> String {
+        self.insert_entry(Entry::Pixel(doc))
+    }
+
+    /// Add an Image document, make it active and return its id.
+    pub(crate) fn insert_image(&mut self, doc: ImageDoc) -> String {
+        self.insert_entry(Entry::Image(doc))
+    }
+
+    fn insert_entry(&mut self, entry: Entry) -> String {
         self.next_id += 1;
         let id = format!("doc-{}", self.next_id);
-        self.docs.push((id.clone(), doc));
+        self.docs.push((id.clone(), entry));
         self.active = Some(id.clone());
         id
     }
 
-    pub(crate) fn remove(&mut self, id: &str) -> Option<Doc> {
+    pub(crate) fn remove(&mut self, id: &str) -> Option<Entry> {
         let pos = self.docs.iter().position(|(d, _)| d == id)?;
         let (_, doc) = self.docs.remove(pos);
         if self.active.as_deref() == Some(id) {
@@ -232,10 +266,29 @@ impl Workspace {
 
     #[cfg(test)]
     pub(crate) fn get(&self, id: &str) -> Option<&Doc> {
-        self.docs.iter().find(|(d, _)| d == id).map(|(_, d)| d)
+        match self.entry(id)? {
+            Entry::Pixel(d) => Some(d),
+            Entry::Image(_) => None,
+        }
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &Doc)> {
+    #[cfg(test)]
+    pub(crate) fn get_image(&self, id: &str) -> Option<&ImageDoc> {
+        match self.entry(id)? {
+            Entry::Image(d) => Some(d),
+            Entry::Pixel(_) => None,
+        }
+    }
+
+    fn entry(&self, id: &str) -> Option<&Entry> {
+        self.docs.iter().find(|(d, _)| d == id).map(|(_, e)| e)
+    }
+
+    fn entry_mut(&mut self, id: &str) -> Option<&mut Entry> {
+        self.docs.iter_mut().find(|(d, _)| d == id).map(|(_, e)| e)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&str, &Entry)> {
         self.docs.iter().map(|(id, d)| (id.as_str(), d))
     }
 
@@ -257,25 +310,60 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn doc(&self, args: &Args) -> Result<(String, &Doc), AgentError> {
+    fn resolved(&self, args: &Args) -> Result<(String, &Entry), AgentError> {
         let id = self.resolve(args)?;
-        let doc = self
-            .docs
-            .iter()
-            .find(|(d, _)| *d == id)
-            .map(|(_, d)| d)
+        let entry = self
+            .entry(&id)
             .ok_or_else(|| AgentError::tool(format!("no open document with id `{id}`")))?;
-        Ok((id, doc))
+        Ok((id, entry))
+    }
+
+    fn resolved_mut(&mut self, args: &Args) -> Result<(String, &mut Entry), AgentError> {
+        let id = self.resolve(args)?;
+        let entry = self
+            .entry_mut(&id)
+            .ok_or_else(|| AgentError::tool(format!("no open document with id `{id}`")))?;
+        Ok((id, entry))
+    }
+
+    /// `doc.info` of the targeted document, either mode.
+    pub(crate) fn info(&self, args: &Args) -> Result<Value, AgentError> {
+        let (id, entry) = self.resolved(args)?;
+        Ok(entry.info(&id))
+    }
+
+    /// `true` when the document the call targets is an Image document.
+    pub(crate) fn is_image(&self, args: &Args) -> Result<bool, AgentError> {
+        Ok(matches!(self.resolved(args)?.1, Entry::Image(_)))
+    }
+
+    /// The targeted Pixel document; an Image document is refused (AC-05).
+    pub(crate) fn doc(&self, args: &Args) -> Result<(String, &Doc), AgentError> {
+        match self.resolved(args)? {
+            (id, Entry::Pixel(d)) => Ok((id, d)),
+            (id, Entry::Image(_)) => Err(wrong_mode(&id, "an Image", "Pixel")),
+        }
     }
 
     pub(crate) fn doc_mut(&mut self, args: &Args) -> Result<(String, &mut Doc), AgentError> {
-        let id = self.resolve(args)?;
-        let doc = self
-            .docs
-            .iter_mut()
-            .find(|(d, _)| *d == id)
-            .map(|(_, d)| d)
-            .ok_or_else(|| AgentError::tool(format!("no open document with id `{id}`")))?;
-        Ok((id, doc))
+        match self.resolved_mut(args)? {
+            (id, Entry::Pixel(d)) => Ok((id, d)),
+            (id, Entry::Image(_)) => Err(wrong_mode(&id, "an Image", "Pixel")),
+        }
+    }
+
+    /// The targeted Image document; a Pixel document is refused (AC-05).
+    pub(crate) fn image(&self, args: &Args) -> Result<(String, &ImageDoc), AgentError> {
+        match self.resolved(args)? {
+            (id, Entry::Image(d)) => Ok((id, d)),
+            (id, Entry::Pixel(_)) => Err(wrong_mode(&id, "a Pixel", "Image")),
+        }
+    }
+
+    pub(crate) fn image_mut(&mut self, args: &Args) -> Result<(String, &mut ImageDoc), AgentError> {
+        match self.resolved_mut(args)? {
+            (id, Entry::Image(d)) => Ok((id, d)),
+            (id, Entry::Pixel(_)) => Err(wrong_mode(&id, "a Pixel", "Image")),
+        }
     }
 }

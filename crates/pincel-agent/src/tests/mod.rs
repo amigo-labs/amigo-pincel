@@ -3,6 +3,8 @@
 
 mod doc;
 mod draw;
+mod image;
+mod image_draw;
 mod preview;
 mod structure;
 
@@ -11,6 +13,7 @@ use std::collections::HashMap;
 use pincel_core::{CelData, CelMap, FrameIndex, LayerId, Sprite};
 use serde_json::Value;
 
+use crate::image::ImageDoc;
 use crate::workspace::Doc;
 use crate::{AgentError, FileHost, ToolOutput, Workspace, call};
 
@@ -81,6 +84,19 @@ impl S {
 
     pub fn doc(&self, id: &str) -> &Doc {
         self.ws.get(id).expect("open document")
+    }
+
+    /// A new `w`×`h` Image document; returns its id.
+    pub fn new_image(&mut self, w: u32, h: u32) -> String {
+        let out = self.ok(
+            "doc.new",
+            serde_json::json!({ "mode": "image", "width": w, "height": h }),
+        );
+        out["doc"].as_str().expect("doc id").to_owned()
+    }
+
+    pub fn image(&self, id: &str) -> &ImageDoc {
+        self.ws.get_image(id).expect("open Image document")
     }
 
     /// Exact document state.

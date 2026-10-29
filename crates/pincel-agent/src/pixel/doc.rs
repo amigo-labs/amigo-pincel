@@ -16,9 +16,9 @@ use crate::workspace::Doc;
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
 /// Largest edge of an exported PNG.
-const EXPORT_MAX_EDGE: u32 = 16_384;
+pub(crate) const EXPORT_MAX_EDGE: u32 = 16_384;
 /// Largest `doc.read_pixels` region edge (AC-14).
-const READ_MAX: u32 = 64;
+pub(crate) const READ_MAX: u32 = 64;
 /// Editor bound for a new Pixel document's sides (`NEW_DOC_LIMITS`).
 const NEW_DOC_MAX: u32 = 4096;
 
@@ -26,7 +26,7 @@ fn preset_ids() -> Vec<&'static str> {
     PalettePreset::ALL.iter().map(|p| p.name()).collect()
 }
 
-fn path_prop(description: &str) -> Value {
+pub(crate) fn path_prop(description: &str) -> Value {
     json!({ "type": "string", "description": description })
 }
 
@@ -41,14 +41,14 @@ fn is_aseprite(path: &str) -> bool {
 
 pub(super) const NEW: Tool = Tool {
     name: "doc.new",
-    description: "Create a new in-memory document and make it the active document. Pixel documents start like the editor's New document: one image layer, one 100 ms frame, the DB32 palette (or `palette`). Nothing is written to disk until doc.save.",
+    description: "Create a new in-memory document and make it the active document. `mode: \"pixel\"` (pixel art, up to 4096 px per side) starts like the editor's New Pixel document: one image layer, one 100 ms frame, the DB32 palette (or `palette`). `mode: \"image\"` (photos, screenshots, mockups; up to 16384 px per side and 64 Mpx) starts with one transparent layer. Nothing is written to disk until doc.save.",
     schema: || {
         tool_schema(
             json!({
-                "mode": { "type": "string", "enum": ["pixel"], "description": "Document mode" },
-                "width": { "type": "integer", "minimum": 1, "maximum": NEW_DOC_MAX, "description": "Canvas width in pixels" },
-                "height": { "type": "integer", "minimum": 1, "maximum": NEW_DOC_MAX, "description": "Canvas height in pixels" },
-                "palette": { "type": "string", "enum": preset_ids(), "description": "Palette preset id; default db32" },
+                "mode": { "type": "string", "enum": ["pixel", "image"], "description": "Document mode" },
+                "width": { "type": "integer", "description": "Canvas width in pixels (pixel: 1–4096, image: 1–16384)" },
+                "height": { "type": "integer", "description": "Canvas height in pixels (pixel: 1–4096, image: 1–16384)" },
+                "palette": { "type": "string", "enum": preset_ids(), "description": "Pixel documents: palette preset id; default db32" },
             }),
             &["mode", "width", "height"],
         )
@@ -57,8 +57,18 @@ pub(super) const NEW: Tool = Tool {
 };
 
 fn doc_new(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if args.str("mode") == Some("image") {
+        return crate::image::doc::new_doc(ctx, args);
+    }
     let width = args.req_u32("width")?;
     let height = args.req_u32("height")?;
+    for (key, v) in [("width", width), ("height", height)] {
+        if v == 0 || v > NEW_DOC_MAX {
+            return Err(AgentError::tool(format!(
+                "{key} must be 1–{NEW_DOC_MAX} for Pixel documents (got {v})"
+            )));
+        }
+    }
     let palette = match args.str("palette") {
         Some(name) => Palette::preset(
             PalettePreset::from_name(name)
@@ -72,17 +82,17 @@ fn doc_new(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     Ok(ToolOutput::json(with_id(info, &id)))
 }
 
-fn with_id(mut info: Value, id: &str) -> Value {
+pub(crate) fn with_id(mut info: Value, id: &str) -> Value {
     info["doc"] = json!(id);
     info
 }
 
 pub(super) const OPEN: Tool = Tool {
     name: "doc.open",
-    description: "Open a workspace-relative .aseprite file as a new Pixel document and make it active.",
+    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer).",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative path of an .aseprite file") }),
+            json!({ "path": path_prop("Workspace-relative path of an .aseprite, .ora, PNG, JPEG, WebP, BMP, GIF or TIFF file") }),
             &["path"],
         )
     },
@@ -92,9 +102,7 @@ pub(super) const OPEN: Tool = Tool {
 fn doc_open(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let path = args.req_str("path")?;
     if !is_aseprite(path) {
-        return Err(AgentError::tool(format!(
-            "cannot open `{path}`: only .aseprite / .ase files open as Pixel documents"
-        )));
+        return crate::image::doc::open(ctx, path);
     }
     let bytes = ctx
         .host
@@ -130,8 +138,7 @@ pub(super) const INFO: Tool = Tool {
 };
 
 fn doc_info(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
-    let (id, doc) = ctx.ws.doc(args)?;
-    Ok(ToolOutput::json(doc.info(&id)))
+    ctx.ws.info(args).map(ToolOutput::json)
 }
 
 pub(super) const CLOSE: Tool = Tool {
@@ -167,9 +174,12 @@ pub(super) const PREVIEW: Tool = Tool {
 };
 
 fn doc_preview(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::preview(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc(args)?;
     let frame = doc.frame_arg(args)?.unwrap_or(FrameIndex::new(0));
-    let region = canvas_region(doc, args)?;
+    let region = region_arg(args, doc.sprite.width, doc.sprite.height)?;
     let scale = args
         .u32("scale")?
         .unwrap_or_else(|| auto_scale(region.width, region.height));
@@ -202,14 +212,13 @@ fn doc_preview(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError>
     })
 }
 
-fn rect_json(r: Rect) -> Value {
+pub(crate) fn rect_json(r: Rect) -> Value {
     json!({ "x": r.x, "y": r.y, "width": r.width, "height": r.height })
 }
 
-/// The `region` argument (default: the whole canvas), refused when it
-/// leaves the canvas.
-fn canvas_region(doc: &Doc, args: &Args) -> Result<Rect, AgentError> {
-    let (w, h) = (doc.sprite.width, doc.sprite.height);
+/// The `region` argument of a `w`×`h` canvas (default: the whole canvas),
+/// refused when it leaves the canvas.
+pub(crate) fn region_arg(args: &Args, w: u32, h: u32) -> Result<Rect, AgentError> {
     let Some(v) = args.get("region") else {
         return Ok(Rect::new(0, 0, w, h));
     };
@@ -225,7 +234,7 @@ fn canvas_region(doc: &Doc, args: &Args) -> Result<Rect, AgentError> {
 
 pub(super) const READ_PIXELS: Tool = Tool {
     name: "doc.read_pixels",
-    description: "Read the exact colors of a region (at most 64×64) as text: one row per pixel row. Without `layer` it reads the composed frame, with `layer` that layer's cel. format `hex` gives #RRGGBBAA per pixel; `index` gives the first palette index with exactly that color, or `-`.",
+    description: "Read the exact colors of a region (at most 64×64) as text: one row per pixel row. Without `layer` it reads the composed frame, with `layer` that layer's cel. format `hex` gives #RRGGBBAA per pixel; `index` (Pixel documents only) gives the first palette index with exactly that color, or `-`.",
     schema: || {
         tool_schema(
             json!({
@@ -241,6 +250,9 @@ pub(super) const READ_PIXELS: Tool = Tool {
 };
 
 fn doc_read_pixels(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::read_pixels(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc(args)?;
     let v = args
         .get("region")
@@ -344,6 +356,9 @@ pub(super) const UNDO: Tool = Tool {
 };
 
 fn doc_undo(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::undo(ctx, args, false);
+    }
     let (id, doc) = ctx.ws.doc_mut(args)?;
     let undone = doc.bus.undo(&mut doc.sprite, &mut doc.cels);
     if undone {
@@ -366,6 +381,9 @@ pub(super) const REDO: Tool = Tool {
 };
 
 fn doc_redo(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::undo(ctx, args, true);
+    }
     let (id, doc) = ctx.ws.doc_mut(args)?;
     let redone = doc
         .bus
@@ -385,10 +403,10 @@ fn doc_redo(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
 
 pub(super) const SAVE: Tool = Tool {
     name: "doc.save",
-    description: "Write the document as an .aseprite file to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to.",
+    description: "Save the document to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to: Pixel documents as .aseprite, Image documents as OpenRaster .ora projects (all layers). An Image document opened from a flat image (PNG, JPEG, …) has no .ora file yet: pass a `.ora` path, or use export.png.",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative .aseprite path; default: the document's file") }),
+            json!({ "path": path_prop("Workspace-relative .aseprite (Pixel) or .ora (Image) path; default: the document's file") }),
             &[],
         )
     },
@@ -396,6 +414,9 @@ pub(super) const SAVE: Tool = Tool {
 };
 
 fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::save(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc(args)?;
     let path = match args.str("path") {
         Some(p) => p.to_owned(),
@@ -424,7 +445,7 @@ fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
 
 pub(super) const EXPORT_PNG: Tool = Tool {
     name: "export.png",
-    description: "Export one composed frame as a PNG file (workspace-relative `path`), upscaled by `scale` (default 1) with nearest-neighbour.",
+    description: "Export one composed frame (Image documents: the composed image) as a PNG file (workspace-relative `path`), upscaled by `scale` (default 1) with nearest-neighbour.",
     schema: || {
         tool_schema(
             json!({
@@ -439,6 +460,9 @@ pub(super) const EXPORT_PNG: Tool = Tool {
 };
 
 fn export_png(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    if ctx.ws.is_image(args)? {
+        return crate::image::doc::export_png(ctx, args);
+    }
     let (id, doc) = ctx.ws.doc(args)?;
     let path = args.req_str("path")?;
     let frame = doc.frame_arg(args)?.unwrap_or(FrameIndex::new(0));

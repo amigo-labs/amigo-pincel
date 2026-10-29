@@ -116,27 +116,27 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-01 | `image_doc_new_creates_active_image_document_and_writes_nothing` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-02 | `image_doc_open_matches_what_the_editor_opens` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-03 | `image_shared_tools_report_preview_read_and_undo` (`crates/pincel-agent/src/tests/image.rs`); the `one_undo_step` checks in `crates/pincel-agent/src/tests/image_draw.rs` | built |        |
+| AC-04 | `image_layer_tools_change_and_list_the_stack`, `image_layer_remove_of_only_layer_fails_like_the_editor` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-05 | `tools_of_the_other_mode_fail_naming_the_mode_and_change_nothing` (`crates/pincel-agent/src/tests/image.rs`); `image_tools_refuse_locked_layers_and_pixel_documents` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-06 | `draw_stroke_matches_brush_and_eraser`, `draw_stroke_with_empty_points_fails_naming_points` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-07 | `draw_shape_matches_the_shape_tools` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-08 | `draw_text_matches_the_text_tool` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-09 | `draw_fill_and_gradient_match_bucket_and_gradient_tools` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-10 | `select_tools_match_the_selection_tools_and_clear_removes_it` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-11 | `selection_limits_fill_adjust_and_effect_with_feathered_edges` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-12 | `adjust_and_effect_apply_match_the_editor`, `adjust_and_effect_apply_refuse_unknown_ids_and_bad_params` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-13 | `canvas_and_image_transforms_match_the_editor_and_undo_in_one_step` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-14 | `crop_to_selection_without_selection_fails` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
+| AC-15 | `image_exports_decode_to_the_composed_image` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-16 | `image_doc_save_writes_ora_that_reopens_identically` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-19 | `image_doc_open_corrupt_or_unsupported_file_fails_naming_it` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-20 | `image_doc_save_without_path_after_flat_open_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/image.rs`) | built |        |
+| AC-21 | `image_size_limits_refuse_new_and_open` (`crates/pincel-agent/src/tests/image.rs`); `resize_and_scale_refuse_sizes_above_the_limits` (`crates/pincel-agent/src/tests/image_draw.rs`) | built |        |
 
 ## Decisions
 
@@ -147,3 +147,15 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 - 2026-10-29: `doc.save` without `path` on a document opened from a flat image fails and asks for a `.ora` path or `export.png`; the server never flattens or overwrites on its own (AC-20) — a silent flattening overwrite loses layers with no user present, and it matches the "ask for a path" pattern of `mcp-headless-pixel` AC-31 (owner accepted the recommendation).
 - 2026-10-29: The headless server enforces the editor's Image limits (side ≤ 16384, area ≤ 64 Mpx) on `doc.new`, `doc.open`, `canvas.resize` and `image.scale` (AC-21) — files written headlessly must open in the editor, whose wasm build has these limits (owner accepted the recommendation).
 - 2026-10-29: The MCP prompts `create-sprite` / `edit-screenshot` are not part of v1; they become the follow-up spec `mcp-prompts` — the plan marks them optional, `pincel://guide` covers both workflows, and prompts add a capability to test with no new tool power (owner accepted the recommendation).
+- 2026-10-29 (build): the phase-0 move puts `CommandSpec`, `run_command`, `StrokeScratch`, `layer_locked` and `parse_sample` into the public module `pincel_image_core::command::spec` (new public API); `run_command` takes the stroke scratch and the font faces as arguments instead of wasm thread-locals, and `pincel-image-wasm` keeps them per handle — the generated `CommandSpec.ts` is unchanged.
+- 2026-10-29 (build): Image tools build the editor's `CommandSpec` and run it through `run_command` (strokes with a fresh `stroke_id` per call, so two calls never merge); `effect.apply` / `adjust.apply` repeat the wasm `apply_effect` (effect on the layer, `masked_region` by coverage, one `SetPixels`) because `pincel-image-core` does not depend on `pincel-effects`. Several layer property changes in one call are one agent-local `Batch` command, so `layer.add` / `layer.set` stay one undo step.
+- 2026-10-29 (build): Image layers get stable integer ids (assigned per core layer UUID, never reused, kept across undo) so `layer` arguments use the same integer form as Pixel documents; `layer.list` reports opacity on the Pixel 0–255 scale and only the 12 blend modes Image mode has. `layer.add` adds on top of the stack and makes the layer active, as in Pixel mode.
+- 2026-10-29 (build): Image selections are undo steps (as in the editor's Image mode), unlike the Pixel `selection.*` tools; select tools live under `select.*`, Pixel ones keep `selection.*`.
+- 2026-10-29 (build): Image tool parameters follow the editor's option bar: brush / fill / gradient `opacity` and brush `hardness` in % (0–100), defaults from the editor's tool store (brush 8 px, tolerance 32, stroke width 3, corner radius 16, 5 polygon sides, text 48 px, anti-aliasing on, JPEG quality 90); polygon `rotation` is in degrees (the core takes radians); `canvas.resize` anchors top_left and `image.scale` resamples bilinear by default, as the core commands do.
+- 2026-10-29 (build): `adjust.apply` takes the ids of the editor's Adjust menu (`group: 'adjust'` in `catalog.ts`) on both modes; `effect.apply` keeps taking every catalog id, so Pixel behavior is unchanged.
+- 2026-10-29 (build): `draw.fill` gains `tolerance` and `opacity` for Image documents; on Pixel documents they are refused, because the Pixel Bucket matches the seed color exactly.
+- 2026-10-29 (build): `doc.new` checks sizes in code instead of the schema (Pixel 1–4096 with the old message, Image 1–16384 plus the 64 Mpx area), so the AC-21 message can name both the limit and the requested size.
+- 2026-10-29 (build): `doc.open` routes by extension (`.aseprite` / `.ase` → Pixel) and otherwise opens an Image document — `.ora` (or a ZIP signature) as a project, anything else through the core decoder; the flat format named in the AC-20 message comes from the file signature. Image `doc.preview` keeps the Pixel rules (no downscale, 2048 px cap, `region` for larger images).
+- 2026-10-29 (build): the Text tool's font is embedded in `pincel-agent` with `include_bytes!` from `ui/public/fonts/LiberationSans-Regular.ttf` — one copy of the font in the repository; `cargo install --path` builds in place, so the path resolves.
+- 2026-10-29 (build): `pincel-agent` gains `pincel-image-core` as a dependency and the workspace `image` crate as a dev-dependency (GIF / TIFF / WebP fixtures for AC-02); both are already in the lockfile, so no new external dependency.
+- 2026-10-29 (build): the Image document and shared-tool code was written before its tests in this run; the only red run recorded for that block is `doc.info` refusing Image documents. The editing tools' tests ran red first (unknown tools).
