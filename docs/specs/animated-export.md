@@ -107,13 +107,13 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
 | AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
+| AC-03 | `animation_frames_all_frames_are_forward_once` (crates/pincel-core/src/codec/animation/sequence.rs) | built |        |
+| AC-04 | `animation_frames_forward_tag_runs_from_to`, `animation_frames_reverse_tag_runs_to_from`, `animation_frames_pingpong_returns_without_repeating_ends`, `animation_frames_pingpong_reverse_starts_at_to`, `animation_frames_single_frame_tag_is_one_frame_in_every_direction`, `animation_frames_unknown_direction_byte_plays_forward` (crates/pincel-core/src/codec/animation/sequence.rs); `export_animation_apng_frames_equal_composed_frames_in_sequence_order` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
+| AC-05 | `upscale_nearest_makes_exact_blocks`, `scaled_size_multiplies_both_edges` (crates/pincel-core/src/codec/scale.rs); `export_animation_apng_scale_makes_exact_blocks` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-07 | `export_animation_apng_frames_equal_composed_frames_in_sequence_order`, `export_animation_apng_single_frame_is_valid_animation` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
+| AC-08 | `export_animation_apng_delay_is_duration_in_ms` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
+| AC-09 | `export_animation_apng_play_count_follows_loops` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
