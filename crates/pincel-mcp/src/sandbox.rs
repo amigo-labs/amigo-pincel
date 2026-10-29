@@ -154,19 +154,59 @@ mod tests {
         assert_eq!(sb.read("a.txt").expect("read"), b"a");
     }
 
-    #[cfg(unix)]
-    #[test]
-    fn symlink_leading_out_is_refused() {
-        let dir = test_dir("sandbox-link");
+    /// `ws/link` points at a sibling `outside/` directory holding
+    /// `secret.txt`; returns `(ws, outside)`.
+    fn linked_workspace(name: &str, link: impl FnOnce(&Path, &Path)) -> (PathBuf, PathBuf) {
+        let dir = test_dir(name);
         let ws = dir.join("ws");
         let outside = dir.join("outside");
         fs::create_dir_all(&ws).expect("mkdir");
         fs::create_dir_all(&outside).expect("mkdir");
         fs::write(outside.join("secret.txt"), b"s").expect("seed");
-        std::os::unix::fs::symlink(&outside, ws.join("link")).expect("symlink");
-        let mut sb = Sandbox::new(&ws, false).expect("sandbox");
+        link(&outside, &ws.join("link"));
+        assert!(
+            ws.join("link").join("secret.txt").exists(),
+            "link was created"
+        );
+        (ws, outside)
+    }
+
+    fn assert_link_refused(ws: &Path, outside: &Path) {
+        let mut sb = Sandbox::new(ws, false).expect("sandbox");
         assert_eq!(sb.read("link/secret.txt"), Err(OUTSIDE.to_owned()));
         assert_eq!(sb.write("link/new.png", b"n"), Err(OUTSIDE.to_owned()));
+        assert_eq!(sb.check_write("link/new.png"), Err(OUTSIDE.to_owned()));
         assert!(!outside.join("new.png").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_leading_out_is_refused() {
+        let (ws, outside) = linked_workspace("sandbox-link", |target, link| {
+            std::os::unix::fs::symlink(target, link).expect("symlink");
+        });
+        assert_link_refused(&ws, &outside);
+    }
+
+    /// Windows: a directory symlink, or — without the symlink privilege —
+    /// a directory junction, which needs none.
+    #[cfg(windows)]
+    #[test]
+    fn symlink_leading_out_is_refused() {
+        let (ws, outside) = linked_workspace("sandbox-link", |target, link| {
+            if std::os::windows::fs::symlink_dir(target, link).is_err() {
+                let status = std::process::Command::new("cmd")
+                    .arg("/C")
+                    .arg("mklink")
+                    .arg("/J")
+                    .arg(link)
+                    .arg(target)
+                    .stdout(std::process::Stdio::null())
+                    .status()
+                    .expect("run mklink");
+                assert!(status.success(), "mklink /J failed");
+            }
+        });
+        assert_link_refused(&ws, &outside);
     }
 }
