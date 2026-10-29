@@ -3060,6 +3060,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
+name = "pincel-agent"
+version = "1.4.0"
+dependencies = [
+ "pincel-core",
+ "pincel-effects",
+ "png 0.18.1",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "pincel-core"
 version = "1.4.0"
 dependencies = [
@@ -3111,6 +3122,15 @@ dependencies = [
  "uuid",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "pincel-mcp"
+version = "1.4.0"
+dependencies = [
+ "pincel-agent",
+ "pincel-core",
+ "serde_json",
 ]
 
 [[package]]

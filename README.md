@@ -64,6 +64,37 @@ in Image mode, and the New dialog offers both.
 
 [releases]: https://github.com/amigo-labs/amigo-pincel/releases/latest
 
+## Use Pincel from an AI agent (MCP)
+
+`pincel-mcp` is a headless [Model Context Protocol](https://modelcontextprotocol.io)
+server: Claude Code, Claude Desktop or any MCP client can create, draw,
+preview and export Pixel documents (`.aseprite`, PNG, sprite sheets)
+through it. Documents live in memory; files are read and written only
+inside the workspace directory.
+
+Install it with Cargo (from a checkout of this repository):
+
+```bash
+cargo install --path crates/pincel-mcp
+```
+
+or download `pincel-mcp-windows-x64.exe`, `pincel-mcp-macos-universal`
+or `pincel-mcp-linux-x64` from the latest [GitHub release][releases],
+rename it to `pincel-mcp` (`pincel-mcp.exe` on Windows), make it
+executable (`chmod +x`) and put it on your `PATH`.
+
+Register it with Claude Code, with the current project as the workspace:
+
+```bash
+claude mcp add pincel -- pincel-mcp --workspace .
+```
+
+Options: `--workspace <dir>` (default: the current directory) and
+`--read-only` (no `doc.save` / `export.*`). The tools are named
+`area.verb` (`doc.new`, `draw.pixels`, `doc.preview`, `export.png`, …);
+`tools/list` describes each one, and the built-in palettes are resources
+at `pincel://palettes/{id}`.
+
 ## Repository layout
 
 ```
@@ -76,6 +107,8 @@ crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
                          independent of Pincel types.
 crates/pincel-wasm/      wasm-bindgen bindings for pincel-core (cdylib).
 crates/pincel-image-wasm/   wasm-bindgen bindings for pincel-image-core (cdylib).
+crates/pincel-agent/     Agent tools (MCP tool layer) over pincel-core, no I/O.
+crates/pincel-mcp/       `pincel-mcp` binary: MCP over stdio, workspace sandbox.
 ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
                          src/App.svelte is the two-mode shell,
                          src/modes/pixel/ and src/modes/image/ the editors.
