@@ -122,7 +122,7 @@ Hints that drift; check the code before relying on them.
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pincel_wasm::tests::new_bootstraps_one_layer_one_frame`, `…::fresh_document_seeds_the_db32_palette`, `…::compose_fresh_document_yields_transparent_canvas`, `…::drain_events_is_empty_on_a_fresh_document` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-02 | `pincel_wasm::tests::new_rejects_zero_width`, `…::new_rejects_zero_height` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-03 | `pincel_wasm::tests::save_then_open_roundtrips_a_fresh_document` (crates/pincel-wasm/src/lib.rs), `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
+| AC-03 | `pincel_wasm::tests::save_then_open_roundtrips_a_fresh_document` (crates/pincel-wasm/src/lib.rs), `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_undo_target_state` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs), `pincel_wasm::tests::set_current_frame_routes_painting_to_that_frame` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-04 | `pincel_wasm::tests::open_aseprite_rejects_garbage_bytes` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-05 | `paint_save_open_roundtrip::paint_save_open_roundtrip_preserves_pixels` (crates/pincel-wasm/tests/paint_save_open_roundtrip.rs) | built |        |
 | AC-06 | `pincel_wasm::tests::compose_honors_integer_zoom`, `…::compose_fresh_document_yields_transparent_canvas` (crates/pincel-wasm/src/lib.rs) | built |        |
@@ -137,8 +137,8 @@ Hints that drift; check the code before relying on them.
 | AC-15 | `pincel_wasm::tests::undo_redo_emit_dirty_rect_for_paint_command_and_track_depth`, `…::undo_on_empty_stack_returns_false_and_emits_nothing`, `…::redo_on_empty_stack_returns_false_and_emits_nothing` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-16 | `pincel_wasm::tests::apply_tool_drag_then_end_stroke_is_single_undo_entry`, `…::two_strokes_are_two_undo_entries` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-17 | `pincel_wasm::tests::set_selection_emits_selection_changed_with_new_bounds`, `…::set_selection_with_empty_rect_clears_and_emits_zeros`, `…::clear_selection_emits_event_even_when_no_prior_selection` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-18 | `pincel_wasm::tests::apply_tool_failure_does_not_emit_an_event`, `…::move_layer_at_edge_errors` (crates/pincel-wasm/src/lib.rs) | built |        |
-| AC-19 | `pincel_wasm::tests::layer_kind_distinguishes_image_tilemap_unknown`, `…::tileset_getters_return_defaults_for_unknown_id`, `…::slice_getters_return_defaults_for_unknown_ids`, `…::palette_getters_error_out_of_range` (crates/pincel-wasm/src/lib.rs) | built |        |
+| AC-18 | `pincel_wasm::tests::apply_tool_failure_does_not_emit_an_event`, `…::move_layer_at_edge_errors`, `…::set_current_frame_rejects_out_of_range` (crates/pincel-wasm/src/lib.rs) | built |        |
+| AC-19 | `pincel_wasm::tests::layer_kind_distinguishes_image_tilemap_unknown`, `…::tileset_getters_return_defaults_for_unknown_id`, `…::slice_getters_return_defaults_for_unknown_ids`, `…::palette_getters_error_out_of_range`, `…::layer_id_at_out_of_range_index_returns_err` (crates/pincel-wasm/src/lib.rs) | built |        |
 | AC-20 | `@amigo-labs/pincel-wasm package › is published under the scoped name as an ES module`, `…› default export initializes the wasm module`, `…› exports the documented classes and functions` (ui/e2e/wasm-npm-api.spec.ts) | built |        |
 
 ## Decisions

@@ -2009,6 +2009,15 @@ mod tests {
         assert!(doc.palette_name(1).is_err());
     }
 
+    #[test]
+    fn layer_id_at_out_of_range_index_returns_err() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.add_layer("Layer 2").expect("add");
+        assert!(doc.layer_id_at(doc.layer_count() - 1).is_ok());
+        assert!(doc.layer_id_at(doc.layer_count()).is_err());
+        assert!(doc.layer_id_at(u32::MAX).is_err());
+    }
+
     // ---- Layer / frame creation ----
 
     #[test]
