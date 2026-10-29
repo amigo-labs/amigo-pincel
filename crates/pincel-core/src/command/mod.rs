@@ -24,6 +24,7 @@ mod move_layer;
 mod move_layer_to;
 mod move_selection_content;
 mod palette_ops;
+mod patch_cel;
 mod place_tile;
 mod put_cel;
 mod reframe_canvas;
@@ -73,6 +74,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
 };
+pub use patch_cel::{AddEmptyCel, PatchCel};
 pub use place_tile::PlaceTile;
 pub use put_cel::PutCel;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
@@ -189,6 +191,8 @@ pub enum AnyCommand {
     DrawShape(DrawShape),
     DrawText(DrawText),
     PutCel(PutCel),
+    PatchCel(PatchCel),
+    AddEmptyCel(AddEmptyCel),
     Batch(CommandBatch),
 }
 
@@ -248,6 +252,8 @@ impl AnyCommand {
             Self::FlattenImage(c) => c.apply(doc, cels),
             Self::DuplicateLayer(c) => c.apply(doc, cels),
             Self::PutCel(c) => c.apply(doc, cels),
+            Self::PatchCel(c) => c.apply(doc, cels),
+            Self::AddEmptyCel(c) => c.apply(doc, cels),
             Self::Batch(c) => c.apply(doc, cels),
         }
     }
@@ -303,6 +309,8 @@ impl AnyCommand {
             Self::FlattenImage(c) => c.revert(doc, cels),
             Self::DuplicateLayer(c) => c.revert(doc, cels),
             Self::PutCel(c) => c.revert(doc, cels),
+            Self::PatchCel(c) => c.revert(doc, cels),
+            Self::AddEmptyCel(c) => c.revert(doc, cels),
             Self::Batch(c) => c.revert(doc, cels),
         }
     }
@@ -387,8 +395,22 @@ impl AnyCommand {
             Self::FlattenImage(c) => c.dirty_region(),
             Self::DuplicateLayer(c) => c.dirty_region(),
             Self::PutCel(c) => c.dirty_region(),
+            Self::PatchCel(c) => c.dirty_region(),
+            Self::AddEmptyCel(c) => c.dirty_region(),
             Self::Batch(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<PatchCel> for AnyCommand {
+    fn from(c: PatchCel) -> Self {
+        Self::PatchCel(c)
+    }
+}
+
+impl From<AddEmptyCel> for AnyCommand {
+    fn from(c: AddEmptyCel) -> Self {
+        Self::AddEmptyCel(c)
     }
 }
 
