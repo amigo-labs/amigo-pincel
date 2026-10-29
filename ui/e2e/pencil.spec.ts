@@ -241,6 +241,41 @@ test('a Shift drag keeps the direction its first movement chose', async ({ page 
   expect(await pick(page, at, 2, 14)).toBe('#00ff00');
 });
 
+test('Shift pressed mid-drag anchors at the last painted point', async ({ page }) => {
+  const at = await setup(page);
+  await pencil(page);
+  await fg(page).fill('#00ff00');
+  await page.mouse.move(...at(2, 3));
+  await page.mouse.down();
+  await page.mouse.move(...at(6, 6), { steps: 1 });
+  // Shift goes down after a freehand segment: the constrained segment
+  // starts at (6, 6). From the press point (2, 3) it would end at (12, 3).
+  await page.keyboard.down('Shift');
+  await page.mouse.move(...at(12, 7), { steps: 1 });
+  // Shift released mid-drag: the stroke continues freehand from (12, 6).
+  await page.keyboard.up('Shift');
+  await page.mouse.move(...at(12, 12), { steps: 1 });
+  await page.mouse.up();
+
+  expect(await pick(page, at, 10, 6)).toBe('#00ff00');
+  expect(await pick(page, at, 12, 6)).toBe('#00ff00');
+  expect(await pick(page, at, 12, 3)).toBe('#000000');
+  // Freehand after release: straight down from (12, 6) to (12, 12).
+  expect(await pick(page, at, 12, 10)).toBe('#00ff00');
+  expect(await pick(page, at, 13, 10)).toBe('#000000');
+});
+
+test('a size-3 right click paints the background color', async ({ page }) => {
+  const at = await setup(page);
+  await pencil(page);
+  await page.getByLabel('Background color', { exact: true }).fill('#0000ff');
+  await setSize(page, '3');
+  await page.mouse.click(...at(5, 5), { button: 'right' });
+  expect(await pick(page, at, 4, 4)).toBe('#0000ff');
+  expect(await pick(page, at, 6, 6)).toBe('#0000ff');
+  expect(await pick(page, at, 7, 5)).toBe('#000000');
+});
+
 test('brush settings survive a reload', async ({ page }) => {
   await setup(page);
   await pencil(page);
