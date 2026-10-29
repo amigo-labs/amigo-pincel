@@ -608,6 +608,34 @@ mod tests {
     }
 
     #[test]
+    fn layer_filter_only_draws_in_sprite_z_order_not_list_order() {
+        // Layer 1 (green) sits above layer 0 (red); the list names it first.
+        let sprite = Sprite::builder(1, 1)
+            .add_layer(Layer::image(LayerId::new(0), "bg"))
+            .add_layer(Layer::image(LayerId::new(1), "fg"))
+            .add_frame(Frame::default())
+            .build()
+            .unwrap();
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(0),
+            solid(1, 1, [255, 0, 0, 255]),
+        ));
+        cels.insert(Cel::image(
+            LayerId::new(1),
+            FrameIndex::new(0),
+            solid(1, 1, [0, 255, 0, 255]),
+        ));
+        let req = ComposeRequest {
+            include_layers: LayerFilter::Only(vec![LayerId::new(1), LayerId::new(0)]),
+            ..full_req(1, 1)
+        };
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
+        assert_eq!(r.pixels, vec![0, 255, 0, 255]);
+    }
+
+    #[test]
     fn zoom_duplicates_pixels_horizontally_and_vertically() {
         let sprite = one_layer_sprite(2, 1, 1);
         let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
@@ -783,6 +811,32 @@ mod tests {
             compose_owned(&sprite, &cels, &req).unwrap_err(),
             RenderError::OverlaysUnsupported
         );
+    }
+
+    #[test]
+    fn rejects_slices_or_selection_marquee_overlay_alone() {
+        let sprite = one_layer_sprite(1, 1, 1);
+        let cels = CelMap::new();
+        for overlays in [
+            Overlays {
+                slices: true,
+                ..Overlays::default()
+            },
+            Overlays {
+                selection_marquee: true,
+                ..Overlays::default()
+            },
+        ] {
+            let req = ComposeRequest {
+                overlays,
+                ..full_req(1, 1)
+            };
+            assert_eq!(
+                compose_owned(&sprite, &cels, &req).unwrap_err(),
+                RenderError::OverlaysUnsupported,
+                "{overlays:?}"
+            );
+        }
     }
 
     /// 4×4 sprite filled with a recognizable per-pixel pattern so the

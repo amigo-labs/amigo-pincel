@@ -376,6 +376,54 @@ mod tests {
     }
 
     #[test]
+    fn tilemap_combined_flags_rotate_then_flip_x_then_flip_y() {
+        // 2x2 tile  A B / C D. rotate_90 (CW) gives C A / D B; flip_x then
+        // mirrors columns, flip_y rows. Applying the flips before the
+        // rotation would give different results for every case below.
+        let a = [255, 0, 0, 255];
+        let b = [0, 255, 0, 255];
+        let c = [0, 0, 255, 255];
+        let d = [255, 255, 0, 255];
+        let mut tile = PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        tile.data = [a, b, c, d].concat();
+        let mut ts = Tileset::new(TilesetId::new(0), "tiles", (2, 2));
+        ts.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(2, 2, ColorMode::Rgba),
+        });
+        ts.tiles.push(TileImage { pixels: tile });
+        let sprite = Sprite::builder(2, 2)
+            .add_layer(Layer::tilemap(LayerId::new(0), "tm", TilesetId::new(0)))
+            .add_frame(Frame::default())
+            .add_tileset(ts)
+            .build()
+            .unwrap();
+
+        // (flip_x, flip_y, expected row-major result)
+        let cases = [
+            (true, false, [a, c, b, d]), // C A / D B → A C / B D
+            (false, true, [d, b, c, a]), // C A / D B → D B / C A
+            (true, true, [b, d, a, c]),  // A C / B D → B D / A C
+        ];
+        for (flip_x, flip_y, want) in cases {
+            let mut cels = CelMap::new();
+            cels.insert(tilemap_cel(
+                LayerId::new(0),
+                1,
+                1,
+                vec![TileRef {
+                    tile_id: 1,
+                    flip_x,
+                    flip_y,
+                    rotate_90: true,
+                }],
+                (0, 0),
+            ));
+            let r = compose_owned(&sprite, &cels, &full_req(2, 2)).unwrap();
+            assert_eq!(r.pixels, want.concat(), "flip_x {flip_x} flip_y {flip_y}");
+        }
+    }
+
+    #[test]
     fn tilemap_missing_tileset_errors() {
         let sprite = Sprite::builder(2, 2)
             .add_layer(Layer::tilemap(LayerId::new(0), "tm", TilesetId::new(7)))

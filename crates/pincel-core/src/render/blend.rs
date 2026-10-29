@@ -528,6 +528,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn transparent_source_leaves_backdrop_unchanged() {
+        // αs = 0 ⇒ result = backdrop, for every non-Normal mode over an
+        // opaque and a translucent backdrop, directly and through compose().
+        for mode in BlendMode::ALL
+            .into_iter()
+            .filter(|&m| m != BlendMode::Normal)
+        {
+            for backdrop in [[40u8, 160, 220, 255], [90, 30, 200, 120]] {
+                let mut dst = backdrop;
+                blend_pixel_into(mode, &mut dst, 200, 100, 50, 0);
+                assert_eq!(dst, backdrop, "mode {mode:?} backdrop {backdrop:?}");
+                assert_eq!(
+                    blend_compose(mode, backdrop, [200, 100, 50, 0]),
+                    backdrop.to_vec(),
+                    "compose, mode {mode:?} backdrop {backdrop:?}"
+                );
+            }
+        }
+    }
+
     /// Expected values from an independent float64 implementation of the
     /// W3C formulas (rounded half away from zero to 8 bits), not from this
     /// code.
