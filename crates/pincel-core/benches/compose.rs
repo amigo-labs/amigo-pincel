@@ -20,6 +20,8 @@
 //!   The UI today applies the spec-cited "zoom 32" via CSS and always
 //!   calls `compose()` with `zoom = 1`, so this is a probe on the
 //!   upscale cost in case we ever route zoom through the wasm boundary.
+//! * `compose_4096_single_layer_zoom_1` — a large sprite at the lowest
+//!   zoom, where the whole canvas is on screen.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
@@ -37,21 +39,26 @@ fn solid_rgba(w: u32, h: u32, rgba: [u8; 4]) -> PixelBuffer {
     buf
 }
 
-/// Build a 256×256 single-layer sprite. Cel buffer is filled with an opaque
-/// solid color so the blend loop touches every output pixel.
-fn sprite_256_single_layer() -> (Sprite, CelMap) {
-    let sprite = Sprite::builder(256, 256)
+/// Build a `side`×`side` single-layer sprite. Cel buffer is filled with an
+/// opaque solid color so the blend loop touches every output pixel.
+fn sprite_single_layer(side: u32) -> (Sprite, CelMap) {
+    let sprite = Sprite::builder(side, side)
         .add_layer(Layer::image(LayerId::new(0), "bg"))
         .add_frame(Frame::default())
         .build()
-        .expect("256 single-layer builder");
+        .expect("single-layer builder");
     let mut cels = CelMap::new();
     cels.insert(Cel::image(
         LayerId::new(0),
         FrameIndex::new(0),
-        solid_rgba(256, 256, [80, 120, 200, 255]),
+        solid_rgba(side, side, [80, 120, 200, 255]),
     ));
     (sprite, cels)
+}
+
+/// Build a 256×256 single-layer sprite.
+fn sprite_256_single_layer() -> (Sprite, CelMap) {
+    sprite_single_layer(256)
 }
 
 /// Build a 256×256 sprite with four overlapping image layers. Mixed
@@ -187,6 +194,19 @@ fn bench_compose(c: &mut Criterion) {
         let mut req = ComposeRequest::full(FrameIndex::new(0), 256, 256);
         req.viewport = Rect::new(0, 0, 8, 8);
         req.zoom = 32;
+        let mut out = Vec::new();
+        b.iter(|| {
+            compose(&sprite, &cels, &req, &mut out).expect("compose");
+            black_box(&out);
+        });
+    });
+
+    // A large sprite at the lowest zoom (1, `ui/src/modes/pixel/view-ops.ts`):
+    // the whole 4096×4096 canvas composes into a 64 MiB buffer per frame
+    // (docs/specs/performance-benchmarks.md AC-02).
+    let (sprite, cels) = sprite_single_layer(4096);
+    group.bench_function("compose_4096_single_layer_zoom_1", |b| {
+        let req = ComposeRequest::full(FrameIndex::new(0), 4096, 4096);
         let mut out = Vec::new();
         b.iter(|| {
             compose(&sprite, &cels, &req, &mut out).expect("compose");

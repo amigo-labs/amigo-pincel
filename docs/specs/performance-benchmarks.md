@@ -97,8 +97,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `stroke/brush_100_dabs_4k_10layers`, `effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
+| AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
@@ -116,3 +116,6 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: The performance workflow runs on manual dispatch and nightly on `main`, skipping nights without a new commit — nightly catches regressions without anyone remembering, and dispatch proves a single PR (owner accepted the recommendation).
 - 2026-10-29: The budgets become pincel.md §4.5 "Performance budgets" and are contracts: every performance change states before → after, a budget once met may not regress by more than 10 %, benchmarks run outside the 60 s PR gate (Decision Log 2026-10-29) — the other `performance-*` specs all cite these budgets (owner accepted the recommendation).
 - 2026-10-29: "Open a 4K PNG ≤ 1 s to first paint" has no owner yet: this spec measures it, and a new spec `performance-image-open` takes it only if the measurement misses the budget — no speculative tuning without a number, and decode plus the cached composite may already meet it (owner accepted the recommendation).
+- 2026-10-29 (spec-build): `pincel-image-core` gains `criterion` and `pincel-effects` as dev-dependencies — both are workspace crates already in `Cargo.lock`, and AC-01 needs the Gaussian blur inside this crate's bench.
+- 2026-10-29 (spec-build): The 100-dab stroke bench applies 100 single-point Pencil strokes (one dab each, size 20, one per pointer event as the UI sends them) through `Command::apply` without an undo stack — exactly 100 dabs, and the measured cost is rasterize + apply, not history growth.
+- 2026-10-29 (spec-build): The region benches render into a 1920×1080 viewport: at zoom 1 a centered 1920×1080 rect, at fit zoom the whole 3840×2160 canvas scaled bilinearly to 1920×1080, as `composite_region` does — a full-HD window is the common desktop case.
