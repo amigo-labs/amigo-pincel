@@ -23,6 +23,8 @@ export type ShortcutAction =
   | 'exportSheet'
   | 'undo'
   | 'redo'
+  | 'cut'
+  | 'copy'
   | 'paste'
   | 'selectAll'
   | 'deselect'
@@ -52,6 +54,10 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
     { key: 'z', mod: true, shift: true },
     { key: 'y', mod: true },
   ],
+  // Handled in keydown, not by hijacking the `copy` / `cut` events: the
+  // keydown is user activation for `navigator.clipboard.write` (spec §5.4).
+  cut: [{ key: 'x', mod: true }],
+  copy: [{ key: 'c', mod: true }],
   // Menu hint only: editors leave the key to the browser, whose `paste`
   // event carries the clipboard without a permission prompt.
   paste: [{ key: 'v', mod: true }],
