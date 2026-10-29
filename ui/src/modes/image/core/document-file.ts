@@ -23,6 +23,8 @@ interface DocumentFile extends SaveTarget {
   format: DocFormat | null;
   /** JPEG quality asked on the first JPEG Save; reused afterwards. */
   jpegQuality: number | null;
+  /** "Don't ask again" was checked in the flatten prompt. */
+  flattenWithoutAsking: boolean;
 }
 
 const DEFAULT_STEM = 'image';
@@ -30,7 +32,14 @@ const DEFAULT_STEM = 'image';
 let file: DocumentFile = blankFile();
 
 function blankFile(): DocumentFile {
-  return { name: `${DEFAULT_STEM}.ora`, handle: null, path: null, format: 'ora', jpegQuality: null };
+  return {
+    name: `${DEFAULT_STEM}.ora`,
+    handle: null,
+    path: null,
+    format: 'ora',
+    jpegQuality: null,
+    flattenWithoutAsking: false,
+  };
 }
 
 /** Replaces the file and mirrors its name to the reactive editor state. */
@@ -61,7 +70,14 @@ export function setOpenedFile(
   format: DocFormat | null,
   target: Pick<SaveTarget, 'handle' | 'path'>,
 ): void {
-  setFile({ name, handle: target.handle, path: target.path, format, jpegQuality: null });
+  setFile({
+    name,
+    handle: target.handle,
+    path: target.path,
+    format,
+    jpegQuality: null,
+    flattenWithoutAsking: false,
+  });
 }
 
 /** The file name the editor title shows and Save writes to. */
@@ -82,6 +98,25 @@ export function saveFormat(): DocSaveFormat | null {
 /** The JPEG quality remembered for this document, if any. */
 export function rememberedJpegQuality(): number | null {
   return file.jpegQuality;
+}
+
+/** Whether later Saves flatten without the prompt ("Don't ask again"). */
+export function flattensWithoutAsking(): boolean {
+  return file.flattenWithoutAsking;
+}
+
+/** Remembers "Don't ask again" for this document. */
+export function flattenWithoutAsking(): void {
+  file.flattenWithoutAsking = true;
+}
+
+/** `true` when a flat image would lose something the document has: more
+ *  than one layer, or a layer's opacity or blend mode. */
+export function flatteningLoses(): boolean {
+  return (
+    editor.layers.length > 1 ||
+    editor.layers.some((l) => l.opacity < 1 || l.blend_mode !== 'normal')
+  );
 }
 
 /** Marks the current state as saved: the document reads clean until the
@@ -144,6 +179,7 @@ export async function writeDocument(
     path: written.path,
     format,
     jpegQuality: format === 'jpeg' ? quality : file.jpegQuality,
+    flattenWithoutAsking: file.flattenWithoutAsking,
   });
   markSaved();
   return written;

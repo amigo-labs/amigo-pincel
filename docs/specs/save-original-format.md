@@ -102,18 +102,18 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `ui/e2e/save-original.spec.ts` "Save writes an opened {png,jpeg,webp,bmp,tiff} back under its own name and format", "Save writes through the opened file handle in place"; `codec::tests::to_tiff_bytes_round_trip_is_pixel_exact` (pincel-image-core); `export_tests::export_bmp_and_export_tiff_write_the_composite` (pincel-image-wasm) | built  |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-02 | `ui/e2e/save-original.spec.ts` "a layered document asks to flatten; Flatten writes the composite and keeps the layers", "a single layer whose opacity would be lost asks to flatten" | built  |        |
+| AC-03 | `ui/e2e/save-original.spec.ts` "a layered document asks to flatten; Flatten writes the composite and keeps the layers" | built  |        |
+| AC-04 | `ui/e2e/save-original.spec.ts` "Save as .ora… in the flatten prompt saves the layers as OpenRaster" | built  |        |
+| AC-05 | `ui/e2e/save-original.spec.ts` "Cancel in the flatten prompt writes nothing and keeps the document unsaved" | built  |        |
+| AC-06 | `ui/e2e/save-original.spec.ts` "\"Don't ask again\" flattens later Saves of the document without asking" | built  |        |
 | AC-07 | `ui/e2e/save-original.spec.ts` "JPEG asks its quality once per document" | built  |        |
 | AC-08 | `ui/e2e/save-original.spec.ts` "Save writes an opened webp back under its own name and format" | built  |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 | `ui/e2e/save-original.spec.ts` "Save writes an opened … back under its own name and format" (title before / after Save) | built  |        |
 | AC-12 | `ui/e2e/save-original.spec.ts` "a document opened from .ora still saves as OpenRaster"; `ui/e2e/ora.spec.ts` "image mode: Save writes an OpenRaster file that reopens with its layers" | built  |        |
-| AC-13 |      | open   |        |
+| AC-13 | `ui/e2e/save-original.spec.ts` "a flattening Save keeps an autosave snapshot that recovers every layer"; `ui/e2e/recovery.spec.ts` "image: an autosaved edit is offered and recovered after a reload" | built  |        |
 | AC-14 |      | open   |        |
 
 ## Decisions
@@ -130,3 +130,5 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-29 (spec-build): Save marks the document saved only when bytes were written; cancelling the save picker now keeps it unsaved (before, an `.ora` Save marked it saved on cancel) — needed for the Cancel edge cases, and `lib/fs` gains `writeTarget`, which resolves `null` on cancel.
 - 2026-10-29 (spec-build): A recovered autosave snapshot keeps the format its stored file name says (`screenshot.png` saves back as PNG, with no handle or path) — the snapshot is OpenRaster bytes, and sniffing them would otherwise turn a PNG document into an `.ora` one.
 - 2026-10-29 (spec-build): The file identity (name, handle / path, format, remembered JPEG quality) lives in `ui/src/modes/image/core/document-file.ts`, the Save flow in `core/save-flow.ts`, its prompts in `components/dialogs/SaveDialogs.svelte` — `controller.ts` and `ImageEditor.svelte` were already near the 800-line limit (AGENTS.md).
+- 2026-10-29 (spec-build): A flattening Save writes a fresh autosave snapshot of the layered document (`AutosaveSession.keep()`) instead of only leaving the old one — without it, a flattening Save before the first 30-second tick would leave nothing to recover.
+- 2026-10-29 (spec-build): "Don't ask again" is remembered when the user picks *Flatten* with it checked, even if the save picker is then cancelled — the answer is about the prompt, not about the write.

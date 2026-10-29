@@ -49,7 +49,17 @@ export const ui = $state({
 
 /** A question the Save flow is waiting on (save-original-format); the
  *  dialog that answers it calls `resolve`. */
-export type SavePrompt = { kind: 'jpeg'; resolve: (quality: number | null) => void };
+export type SavePrompt =
+  | { kind: 'jpeg'; resolve: (quality: number | null) => void }
+  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void };
+
+/** The answer to "Flatten image?": write the flattened composite, or save
+ *  the layers as `.ora` instead; `dontAsk` remembers Flatten for the
+ *  document. `null` (Cancel) writes nothing. */
+export interface FlattenChoice {
+  action: 'flatten' | 'ora';
+  dontAsk: boolean;
+}
 
 /** The Save flow's open prompt, `null` while none is shown. */
 export const savePrompt = $state({ value: null as SavePrompt | null });

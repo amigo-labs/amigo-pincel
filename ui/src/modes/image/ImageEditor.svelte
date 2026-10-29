@@ -362,7 +362,8 @@
     try {
       const result = await saveDocument(forceAs);
       if (result === null) return;
-      await autosave.saved();
+      // A flattened file lost the layers: the snapshot keeps them (AC-13).
+      await (result.flattened ? autosave.keep() : autosave.saved());
       await recordRecent(result.target);
     } catch (e) {
       loadError = t('img.saveFailed', { error: String(e) });

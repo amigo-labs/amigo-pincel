@@ -95,6 +95,20 @@ export class AutosaveSession {
     const depth = this.host.depth();
     if (!this.available || this.timer === null || depth === null || this.host.busy()) return;
     if (depth === this.lastWriteDepth || depth === this.host.savedDepth()) return;
+    await this.write(depth);
+  }
+
+  /** The document was saved to a file that lost part of it (a flattened
+   *  image): snapshot it now and keep the snapshot, so recovery still
+   *  restores every layer (save-original-format AC-13). */
+  async keep(): Promise<void> {
+    const depth = this.host.depth();
+    if (!this.available || depth === null) return;
+    await this.write(depth);
+  }
+
+  /** Encode the document and store it as the session's snapshot. */
+  private async write(depth: number): Promise<void> {
     const id = this.docId;
     try {
       const bytes = this.host.encode();

@@ -262,3 +262,101 @@ test('a document opened from .ora still saves as OpenRaster', async ({ page }) =
   expect(saved.name).toBe('project.ora');
   expect(formatOf(saved.bytes)).toBe('ora');
 });
+
+const flattenPrompt = (page: Page) => page.getByRole('dialog', { name: 'Flatten image?' });
+const layerRows = (page: Page) => page.getByRole('button', { name: /^Hide / });
+
+/** Opens `screenshot.png` and adds a second layer. */
+async function openLayered(page: Page): Promise<void> {
+  await openFile(page, 'screenshot.png', 'png');
+  await paint(page);
+  await page.getByTitle('Add layer').click();
+  await expect(layerRows(page)).toHaveCount(2);
+}
+
+test('a layered document asks to flatten; Flatten writes the composite and keeps the layers', async ({
+  page,
+}) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save');
+  const prompt = flattenPrompt(page);
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Flatten' })).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Save as .ora…' })).toBeVisible();
+  await expect(prompt.getByRole('button', { name: 'Cancel' })).toBeVisible();
+
+  const written = await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
+  expect(written.name).toBe('screenshot.png');
+  expect(formatOf(written.bytes)).toBe('png');
+  await expect(prompt).toHaveCount(0);
+  await expect(layerRows(page)).toHaveCount(2);
+  await expect(page.getByTitle('screenshot.png', { exact: true })).toBeVisible();
+});
+
+test('a single layer whose opacity would be lost asks to flatten', async ({ page }) => {
+  await openFile(page, 'screenshot.png', 'png');
+  await page.getByLabel('Layer opacity').fill('40');
+  await menu(page, 'File', 'Save');
+  await expect(flattenPrompt(page)).toBeVisible();
+});
+
+test('Save as .ora… in the flatten prompt saves the layers as OpenRaster', async ({ page }) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save');
+  const written = await download(page, () =>
+    flattenPrompt(page).getByRole('button', { name: 'Save as .ora…' }).click(),
+  );
+  expect(written.name).toBe('screenshot.ora');
+  expect(formatOf(written.bytes)).toBe('ora');
+  await expect(page.getByTitle('screenshot.ora', { exact: true })).toBeVisible();
+});
+
+test('Cancel in the flatten prompt writes nothing and keeps the document unsaved', async ({
+  page,
+}) => {
+  await openLayered(page);
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await menu(page, 'File', 'Save');
+  await flattenPrompt(page).getByRole('button', { name: 'Cancel' }).click();
+  await expect(flattenPrompt(page)).toHaveCount(0);
+  await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
+  expect(downloads).toBe(0);
+});
+
+test('"Don\'t ask again" flattens later Saves of the document without asking', async ({
+  page,
+}) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save');
+  const prompt = flattenPrompt(page);
+  await prompt.getByLabel("Don't ask again for this document").check();
+  await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
+
+  await paint(page);
+  const again = await download(page, save(page));
+  expect(again.name).toBe('screenshot.png');
+  expect(formatOf(again.bytes)).toBe('png');
+  await expect(prompt).toHaveCount(0);
+});
+
+test('a flattening Save keeps an autosave snapshot that recovers every layer', async ({ page }) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save');
+  await download(page, () => flattenPrompt(page).getByRole('button', { name: 'Flatten' }).click());
+  await expect(page.getByTitle('screenshot.png', { exact: true })).toBeVisible();
+  // Let the IndexedDB write settle before leaving the page.
+  await page.waitForTimeout(500);
+
+  await page.reload();
+  await gotoStart(page);
+  await page.getByRole('button', { name: 'New image' }).click();
+  await page.getByRole('form', { name: 'New image' }).getByRole('button', { name: 'Create' }).click();
+  await waitForEditor(page, 'image');
+  const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
+  await expect(recovery).toBeVisible();
+  await recovery.getByRole('button', { name: 'Recover' }).first().click();
+  await expect(recovery).toHaveCount(0);
+  await expect(layerRows(page)).toHaveCount(2);
+  await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
+});

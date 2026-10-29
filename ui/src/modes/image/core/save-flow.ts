@@ -1,13 +1,29 @@
 // Image-mode Save / Save As (docs/specs/save-original-format.md): picks the
-// format, asks what the format needs (JPEG quality once per document), then
-// writes through `document-file`. Prompts are answered by `SaveDialogs`.
-import { editor, savePrompt, type SavePrompt } from '../stores/editor.svelte';
-import { rememberedJpegQuality, saveFormat, writeDocument } from './document-file';
+// format, asks what the format needs (flatten, JPEG quality once per
+// document), then writes through `document-file`. Prompts are answered by
+// `SaveDialogs`.
+import {
+  editor,
+  savePrompt,
+  type FlattenChoice,
+  type SavePrompt,
+} from '../stores/editor.svelte';
+import {
+  flattenWithoutAsking,
+  flatteningLoses,
+  flattensWithoutAsking,
+  rememberedJpegQuality,
+  saveFormat,
+  writeDocument,
+} from './document-file';
 import type { SaveTarget } from '../../../lib/fs';
 
 /** What a Save wrote. */
 export interface SaveResult {
   target: SaveTarget;
+  /** The file is a flattened copy of a document whose layers it lost;
+   *  autosave keeps its layered snapshot (AC-13). */
+  flattened: boolean;
 }
 
 /** Shows a prompt and resolves with its answer once the dialog calls back. */
@@ -27,6 +43,16 @@ export async function saveDocument(forceAs = false): Promise<SaveResult | null> 
   if (editor.handle === null) return null;
   const own = saveFormat();
   const format = own ?? 'ora';
+  const flattened = format !== 'ora' && flatteningLoses();
+  if (flattened && !flattensWithoutAsking()) {
+    const choice = await ask<FlattenChoice | null>((resolve) => ({ kind: 'flatten', resolve }));
+    if (choice === null) return null;
+    if (choice.action === 'ora') {
+      const target = await writeDocument('ora', { forceAs: true });
+      return target === null ? null : { target, flattened: false };
+    }
+    if (choice.dontAsk) flattenWithoutAsking();
+  }
   let quality: number | undefined;
   if (format === 'jpeg') {
     const q =
@@ -36,5 +62,5 @@ export async function saveDocument(forceAs = false): Promise<SaveResult | null> 
     quality = q;
   }
   const target = await writeDocument(format, { forceAs: forceAs || own === null, quality });
-  return target === null ? null : { target };
+  return target === null ? null : { target, flattened };
 }

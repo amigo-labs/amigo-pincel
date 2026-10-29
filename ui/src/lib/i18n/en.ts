@@ -662,6 +662,12 @@ export const en = {
   'resize.scaleImageTitle': 'Scale Image',
   'export.quality': 'Quality',
   'save.jpegTitle': 'JPEG quality',
+  'save.flattenTitle': 'Flatten image?',
+  'save.flattenBody':
+    'This format keeps no layers, opacity or blend modes. The file gets the flattened image; the open document keeps its layers.',
+  'save.flatten': 'Flatten',
+  'save.asOra': 'Save as .ora…',
+  'save.dontAskAgain': "Don't ask again for this document",
   'resize.constrain': 'Constrain proportions',
   'resize.resampling': 'Resampling',
   'resize.nearestShort': 'Nearest',
