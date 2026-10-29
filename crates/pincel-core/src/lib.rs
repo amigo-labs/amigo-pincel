@@ -19,15 +19,15 @@ pub use codec::{
 };
 pub use command::{
     AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer, AddTileset,
-    Anchor, AnyCommand, Bus, ClearRegion, Command, CommandError, DirtyRegion, DrawEllipse,
-    DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage,
-    Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer, MoveLayerTo,
-    MovePaletteEntry, MoveSelectionContent, Orientation, PlaceTile, ReframeCanvas, RemoveFrame,
-    RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
-    ReplacePalette, ScaleImage, SetFrameDuration, SetLayerBlendMode, SetLayerEditable,
-    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
-    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
-    TextAlign, TextStyle, TransformCanvas, TransformCel,
+    Anchor, AnyCommand, Bus, ClearRegion, Command, CommandBatch, CommandError, DirtyRegion,
+    DrawEllipse, DrawLine, DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion,
+    FlattenImage, Interpolation, LayerPlacement, MergeDown, MoveDirection, MoveLayer, MoveLayerTo,
+    MovePaletteEntry, MoveSelectionContent, Orientation, PlaceTile, PutCel, ReframeCanvas,
+    RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer,
+    ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration, SetLayerBlendMode,
+    SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel,
+    SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode,
+    ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{
