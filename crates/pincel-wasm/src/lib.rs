@@ -4081,7 +4081,7 @@ mod tests {
     fn drag(doc: &mut Document, tool: &str, color: u32, pts: &[(i32, i32)]) -> Result<(), String> {
         doc.begin_stroke(tool, color, 1, "square", false)?;
         for &(x, y) in pts {
-            doc.stroke_to(x, y)?;
+            doc.stroke_to(x, y, None)?;
         }
         doc.end_stroke();
         Ok(())

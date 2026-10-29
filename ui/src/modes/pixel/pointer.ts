@@ -6,7 +6,7 @@ import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
 import { constrainedEndpoint, syncMeta } from './render';
 import { type SelectionMode, colors, ed, live, toolState, view } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
-import { clampBrushSize, isBrushTool } from './brush';
+import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 
@@ -192,7 +192,7 @@ export function paintAt(e: PointerEvent) {
         toolState.pixelPerfect,
       );
     }
-    ed.doc.strokeTo(target.x, target.y);
+    ed.doc.strokeTo(target.x, target.y, strokePressure(e));
     live.lastPaint = target;
   } catch (err) {
     // Missing layer, unknown tool, …: a real failure. Stop the gesture so
@@ -554,7 +554,13 @@ export function onPointerMove(e: PointerEvent) {
     return;
   }
   if (!live.painting) return;
-  paintAt(e);
+  // Pens and fast mice report several samples per frame; paint each one
+  // so the stroke keeps its shape and its per-sample pressure.
+  const samples = e.getCoalescedEvents?.() ?? [];
+  for (const sample of samples.length > 0 ? samples : [e]) {
+    if (!live.painting) break;
+    paintAt(sample);
+  }
 }
 
 export function onPointerLeave() {

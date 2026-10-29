@@ -88,6 +88,40 @@ export async function drag(
 }
 
 /**
+ * Draws a real (CDP) stylus stroke across the middle row of `target`,
+ * from 10 % to 90 % of its width, at pen pressure `force` and with the
+ * given tilt. `pointerType: 'mouse'` sends the same path as a mouse,
+ * which carries no pressure.
+ */
+export async function penStroke(
+  page: Page,
+  target: Locator,
+  force: number,
+  tilt: { tiltX: number; tiltY: number } = { tiltX: 0, tiltY: 0 },
+  pointerType: 'pen' | 'mouse' = 'pen',
+): Promise<void> {
+  const box = await target.boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  const cdp = await page.context().newCDPSession(page);
+  const at = (fx: number) => ({ x: box.x + box.width * fx, y: box.y + box.height * 0.5 });
+  const send = (type: 'mousePressed' | 'mouseMoved' | 'mouseReleased', fx: number) =>
+    cdp.send('Input.dispatchMouseEvent', {
+      type,
+      ...at(fx),
+      button: 'left',
+      buttons: type === 'mouseReleased' ? 0 : 1,
+      clickCount: 1,
+      pointerType,
+      force,
+      ...tilt,
+    });
+  await send('mousePressed', 0.1);
+  for (const fx of [0.3, 0.5, 0.7, 0.9]) await send('mouseMoved', fx);
+  await send('mouseReleased', 0.9);
+  await cdp.detach();
+}
+
+/**
  * Runs a menu-bar command: `menu(page, 'File', 'Export', 'PNG')` opens
  * File, then the Export submenu, then clicks PNG.
  */
