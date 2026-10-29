@@ -4072,19 +4072,24 @@ mod tests {
         ]
     }
 
+    /// One press-drag-release gesture of the UI's Pencil / Eraser path
+    /// (size 1, square): `beginStroke`, `strokeTo` per point, `endStroke`.
+    fn drag(doc: &mut Document, tool: &str, color: u32, pts: &[(i32, i32)]) -> Result<(), String> {
+        doc.begin_stroke(tool, color, 1, "square", false)?;
+        for &(x, y) in pts {
+            doc.stroke_to(x, y)?;
+        }
+        doc.end_stroke();
+        Ok(())
+    }
+
     #[test]
     fn eraser_drag_is_one_undo_entry_and_keeps_the_stroke_before_it() {
         let mut doc = Document::new(4, 4).expect("dims");
-        for x in 0..4 {
-            doc.apply_tool("pencil", x, 1, 0xff0000ff).expect("pencil");
-        }
-        doc.end_stroke();
+        drag(&mut doc, "pencil", 0xff0000ff, &[(0, 1), (3, 1)]).expect("pencil");
         // The eraser gets the foreground colour like every paint call and
         // still clears to fully transparent.
-        for x in 0..3 {
-            doc.apply_tool("eraser", x, 1, 0xff0000ff).expect("eraser");
-        }
-        doc.end_stroke();
+        drag(&mut doc, "eraser", 0xff0000ff, &[(0, 1), (1, 1), (2, 1)]).expect("eraser");
         assert_eq!(doc.undo_depth(), 2, "pencil stroke + eraser stroke");
         for x in 0..3 {
             assert_eq!(cel_px(&doc, 0, x as u32, 1), [0, 0, 0, 0], "erased");
@@ -4130,8 +4135,9 @@ mod tests {
     #[test]
     fn every_paint_tool_creates_a_canvas_sized_cel_on_a_fresh_layer_or_frame() {
         type Paint = fn(&mut Document) -> Result<(), String>;
-        let tools: [(&str, Paint); 7] = [
-            ("pencil", |d| d.apply_tool("pencil", 4, 2, 0x00ff00ff)),
+        let tools: [(&str, Paint); 9] = [
+            ("pencil", |d| drag(d, "pencil", 0x00ff00ff, &[(4, 2)])),
+            ("pencil pixel", |d| d.apply_tool("pencil", 4, 2, 0x00ff00ff)),
             ("line", |d| d.apply_line(4, 2, 4, 2, 0x00ff00ff)),
             ("rectangle", |d| {
                 d.apply_rectangle(4, 2, 4, 2, 0x00ff00ff, true)
@@ -4141,7 +4147,8 @@ mod tests {
                 d.apply_shape("rectangle", 4, 2, 4, 2, "fill", 1, 0, 0x00ff00ff, 0.0)
             }),
             ("bucket", |d| d.apply_bucket(4, 2, 0x00ff00ff)),
-            ("eraser", |d| d.apply_tool("eraser", 4, 2, 0x00ff00ff)),
+            ("eraser", |d| drag(d, "eraser", 0x00ff00ff, &[(4, 2)])),
+            ("eraser pixel", |d| d.apply_tool("eraser", 4, 2, 0x00ff00ff)),
         ];
         for (name, paint) in tools {
             for fresh_frame in [false, true] {
@@ -4165,7 +4172,7 @@ mod tests {
                 };
                 assert_eq!((buf.width, buf.height), (5, 3), "{name}: canvas-sized");
                 let off = ((2 * 5 + 4) * 4) as usize;
-                let want: [u8; 4] = if name == "eraser" {
+                let want: [u8; 4] = if name.starts_with("eraser") {
                     [0, 0, 0, 0]
                 } else {
                     [0, 255, 0, 255]
@@ -4188,8 +4195,7 @@ mod tests {
         for (active, x) in [(5, 1), (tilemap, 2)] {
             doc.set_active_layer(active);
             assert_eq!(doc.paint_target_layer_id(), 7);
-            doc.apply_tool("pencil", x, 1, 0xff0000ff).expect("paint");
-            doc.end_stroke();
+            drag(&mut doc, "pencil", 0xff0000ff, &[(x, 1)]).expect("paint");
             assert_eq!(
                 cel_px(&doc, 7, x as u32, 1),
                 [255, 0, 0, 255],
@@ -4203,7 +4209,7 @@ mod tests {
         }
         // An active image layer takes the paint itself.
         doc.set_active_layer(0);
-        doc.apply_tool("pencil", 3, 3, 0x00ff00ff).expect("paint");
+        drag(&mut doc, "pencil", 0x00ff00ff, &[(3, 3)]).expect("paint");
         assert_eq!(cel_px(&doc, 0, 3, 3), [0, 255, 0, 255]);
         assert_eq!(cel_px(&doc, 7, 3, 3), [0, 0, 0, 0]);
     }

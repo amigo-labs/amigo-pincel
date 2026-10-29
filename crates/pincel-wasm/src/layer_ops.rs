@@ -378,6 +378,8 @@ mod tests {
         let cel = |doc: &Document| doc.cels.get(LayerId::new(0), FrameIndex::new(0)).cloned();
         let before = cel(&doc);
         let results = [
+            doc.begin_stroke("pencil", red, 3, "square", false),
+            doc.begin_stroke("eraser", red, 1, "round", false),
             doc.apply_tool("pencil", 2, 2, red),
             doc.apply_tool("eraser", 1, 1, red),
             doc.apply_line(0, 0, 7, 7, red),
@@ -394,9 +396,18 @@ mod tests {
         }
         assert_eq!(cel(&doc), before, "no pixel changed");
         assert_eq!(doc.undo_depth(), depth, "no undo entry");
+        // A stroke refused at its start leaves nothing for strokeTo.
+        let _ = doc.stroke_to(4, 4);
+        assert_eq!(
+            cel(&doc),
+            before,
+            "strokeTo after a refused begin paints nothing"
+        );
         doc.set_layer_editable(group, true).expect("unlock");
-        doc.apply_tool("pencil", 2, 2, red)
-            .expect("paints once unlocked");
+        doc.begin_stroke("pencil", red, 1, "square", false)
+            .expect("strokes once unlocked");
+        doc.stroke_to(2, 2).expect("paints once unlocked");
+        doc.end_stroke();
     }
 
     #[test]
