@@ -38,7 +38,9 @@ test('pixel mode: a pencil stroke is undoable', async ({ page }) => {
   const canvas = pixelCanvas(page);
   await expect(canvas).toBeVisible();
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const redo = page.getByRole('button', { name: 'Redo', exact: true });
   await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
 
   await page.getByTitle('Pencil (B)').click();
   await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
@@ -46,7 +48,12 @@ test('pixel mode: a pencil stroke is undoable', async ({ page }) => {
 
   await undo.click();
   await expect(undo).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled();
+  await expect(redo).toBeEnabled();
+
+  // Redoing to the end leaves nothing to redo.
+  await redo.click();
+  await expect(redo).toBeDisabled();
+  await expect(undo).toBeEnabled();
 });
 
 test('pixel mode: Ctrl+Z undoes the last edit, Ctrl+Shift+Z and Ctrl+Y redo it', async ({
