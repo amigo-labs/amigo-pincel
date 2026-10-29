@@ -72,16 +72,22 @@ impl Document {
     /// straight line from the previous point. Pixels outside the canvas
     /// are skipped silently. The whole gesture is one undo entry; emits a
     /// `dirty-rect` for the painted segment.
+    ///
+    /// `pressure` is the optional pen pressure at `(x, y)`: absent means
+    /// full pressure (mouse, touch, or the Size option off). It is clamped
+    /// to 0–1, and each stamp has size `max(1, round(size × p))` with `p`
+    /// interpolated linearly between consecutive points.
     #[wasm_bindgen(js_name = strokeTo)]
-    pub fn stroke_to(&mut self, x: i32, y: i32) -> Result<(), String> {
+    pub fn stroke_to(&mut self, x: i32, y: i32, pressure: Option<f32>) -> Result<(), String> {
         let Some(live) = self.stroke else {
             return Err("no stroke in progress: call beginStroke first".to_string());
         };
         let to = Point::new(x, y);
+        let pressure = pressure.unwrap_or(1.0);
         let extended = live.started
             && self
                 .bus
-                .continue_stroke(to, 1.0, &mut self.cels)
+                .continue_stroke(to, pressure, &mut self.cels)
                 .map_err(|e| format!("failed to paint: {e}"))?;
         if !extended {
             // First point, or the history moved under the gesture (an
@@ -95,7 +101,7 @@ impl Document {
                 live.brush,
                 live.pixel_perfect,
                 to,
-                1.0,
+                pressure,
             );
             self.bus
                 .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -143,7 +149,7 @@ mod tests {
     ) {
         doc.begin_stroke(tool, RED, size, shape, pp).expect("begin");
         for &(x, y) in pts {
-            doc.stroke_to(x, y).expect("stroke");
+            doc.stroke_to(x, y, None).expect("stroke");
         }
         doc.end_stroke();
     }
@@ -229,15 +235,15 @@ mod tests {
         doc.begin_stroke("pencil", BLUE, 8, "square", false)
             .expect("begin");
         for y in (0..8).step_by(2) {
-            doc.stroke_to(0, y).expect("fill");
-            doc.stroke_to(8, y).expect("fill");
+            doc.stroke_to(0, y, None).expect("fill");
+            doc.stroke_to(8, y, None).expect("fill");
         }
         doc.end_stroke();
         assert!(painted(&doc, 8, 8, BLUE).len() == 64, "seeded opaque");
         doc.begin_stroke("eraser", RED, 2, "round", false)
             .expect("begin");
         for &(x, y) in &pts {
-            doc.stroke_to(x, y).expect("erase");
+            doc.stroke_to(x, y, None).expect("erase");
         }
         doc.end_stroke();
         assert_eq!(painted(&doc, 8, 8, 0), footprint);
@@ -266,7 +272,7 @@ mod tests {
             .begin_stroke("pencil", RED, 1, "square", false)
             .expect_err("locked");
         assert!(err.contains("locked"));
-        assert!(doc.stroke_to(1, 1).is_err(), "no stroke started");
+        assert!(doc.stroke_to(1, 1, None).is_err(), "no stroke started");
         assert_eq!(doc.undo_depth(), depth);
         assert!(painted(&doc, 4, 4, RED).is_empty());
     }
@@ -328,5 +334,85 @@ mod tests {
         let _ = doc.drain_events();
         gesture(&mut doc, "pencil", 3, "square", false, &[(4, 4)]);
         assert!(!doc.drain_events().is_empty());
+    }
+
+    // --- Pen pressure (docs/specs/pixel-pressure.md) ---
+
+    /// A pencil gesture with a pen pressure per point.
+    fn pen_gesture(doc: &mut Document, size: u32, pts: &[(i32, i32, Option<f32>)]) {
+        doc.begin_stroke("pencil", RED, size, "square", false)
+            .expect("begin");
+        for &(x, y, p) in pts {
+            doc.stroke_to(x, y, p).expect("stroke");
+        }
+        doc.end_stroke();
+    }
+
+    /// Every painted (non-transparent) pixel of a `w`×`h` document.
+    fn covered(doc: &Document, w: i32, h: i32) -> Vec<(i32, i32)> {
+        (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .filter(|&(x, y)| px(doc, x, y) != 0)
+            .collect()
+    }
+
+    #[test]
+    fn stroke_to_pressure_scales_the_stamp() {
+        // Size 5 at pressure 0.5: round(2.5) = 3, a 3×3 block.
+        let mut doc = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut doc, 5, &[(3, 3, Some(0.5))]);
+        let want: Vec<_> = (2..=4).flat_map(|y| (2..=4).map(move |x| (x, y))).collect();
+        assert_eq!(painted(&doc, 8, 8, RED), want);
+        assert_eq!(covered(&doc, 8, 8), want, "only the foreground color");
+    }
+
+    #[test]
+    fn stroke_to_without_pressure_paints_full_size() {
+        let pts = [(1, 1), (6, 2), (2, 6)];
+        let mut absent = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut absent, 3, &pts.map(|(x, y)| (x, y, None)));
+        let mut full = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut full, 3, &pts.map(|(x, y)| (x, y, Some(1.0))));
+        assert_eq!(covered(&absent, 8, 8), covered(&full, 8, 8));
+        assert!(covered(&absent, 8, 8).len() > 20, "size-3 stamps");
+    }
+
+    #[test]
+    fn stroke_to_light_pressure_covers_fewer_pixels() {
+        let mut light = Document::new(16, 16).expect("dims");
+        pen_gesture(&mut light, 8, &[(2, 8, Some(0.2)), (13, 8, Some(0.2))]);
+        let mut firm = Document::new(16, 16).expect("dims");
+        pen_gesture(&mut firm, 8, &[(2, 8, Some(1.0)), (13, 8, Some(1.0))]);
+        assert!(covered(&light, 16, 16).len() < covered(&firm, 16, 16).len());
+    }
+
+    #[test]
+    fn stroke_to_clamps_pressure_outside_unit_range() {
+        // Below 0 paints a size-1 stamp, above 1 the full size.
+        let mut low = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut low, 6, &[(3, 3, Some(-2.0))]);
+        assert_eq!(painted(&low, 8, 8, RED), vec![(3, 3)]);
+        let mut high = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut high, 6, &[(3, 3, Some(4.0))]);
+        let mut full = Document::new(8, 8).expect("dims");
+        pen_gesture(&mut full, 6, &[(3, 3, None)]);
+        assert_eq!(covered(&high, 8, 8), covered(&full, 8, 8));
+        assert_eq!(covered(&full, 8, 8).len(), 36);
+    }
+
+    #[test]
+    fn pressure_stroke_is_one_undo_entry_and_redo_reproduces_it() {
+        let mut doc = Document::new(12, 12).expect("dims");
+        pen_gesture(
+            &mut doc,
+            8,
+            &[(2, 2, Some(0.0)), (9, 3, Some(1.0)), (3, 9, Some(0.4))],
+        );
+        assert_eq!(doc.undo_depth(), 1, "one gesture, one entry");
+        let after = covered(&doc, 12, 12);
+        assert!(doc.undo());
+        assert!(covered(&doc, 12, 12).is_empty(), "whole stroke undone");
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(covered(&doc, 12, 12), after);
     }
 }

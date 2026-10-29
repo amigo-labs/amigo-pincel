@@ -93,19 +93,23 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `pencil_stroke_pressure_scales_stamp_size` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
+| AC-02 | `pencil_stroke_pressure_interpolates_along_segment` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |        |
 | AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-04 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
+| AC-05 | `pencil_stroke_light_pressure_paints_fewer_pixels` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_light_pressure_covers_fewer_pixels` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
+| AC-06 | `pixel_perfect_applies_only_to_size_1_runs`, `pixel_perfect_keeps_corner_covered_by_a_larger_stamp`, `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-09 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `pressure_stroke_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
+| AC-10 | `pencil_stroke_pressure_is_clamped_to_unit_range` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_clamps_pressure_outside_unit_range` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
 
 ## Decisions
 
 - Only size is driven by pressure, no opacity dynamics — because pixel art has no partial alpha (legacy plan).
 - Pressure follows the Image-mode model (per-sample values, linear interpolation along a segment, mouse and touch at full pressure, checkbox on by default) and reuses its i18n keys — because both modes should behave the same and the pattern is proven (legacy plan).
 - 2026-10-29: A Decision Log entry supersedes "Pixel mode is excluded on purpose" (2026-10-12): Pencil / Eraser stamp size = max(1, round(N · p)), interpolated per Bresenham step, opt-in "Size" checkbox on by default like Image mode, and wasm `strokeTo(x, y, pressure?)` with an optional `Option<f32>` (absent = 1); `pincel.md` §17.4 ("Pixel-mode tools scale stamp size only, never opacity"), §18.2 (Pen pressure ✓) and §18.5 are updated — an optional argument keeps the npm API non-breaking and matches the `pixel-pencil` stroke API shape (owner accepted the recommendation).
+- 2026-10-29 (spec-build): NaN pressure counts as no reading (full pressure), the way Image mode treats a missing entry — AC-10 only covers values outside 0–1, and NaN has no position on that range.
+- 2026-10-29 (spec-build): Pixel-perfect acts wherever the effective stamp size is 1, so a light tail of a size-8 pen stroke is pruned while the chosen size is 8 (AC-06, edge-case table); a stroke at full pressure keeps `pixel-pencil` AC-10 unchanged. The Pixel-perfect checkbox stays disabled above size 1 as `pixel-pencil` AC-10 requires — its stored value still applies.
+- 2026-10-29 (spec-build): A pruned corner is restored only when no other kept stamp of the stroke covers it (a per-pixel coverage count over all stamps, generalising `pixel-pencil`'s path count), so pixels a larger stamp painted earlier stay painted (`pixel-pencil` AC-09).
+- 2026-10-29 (spec-build): `PencilStroke::new`, `PencilStroke::extend_to` and `Bus::continue_stroke` take the pressure as a plain `f32` (the wasm layer maps an absent value to 1.0), and `PencilStroke` drops its `Eq` derive because it now holds `f32` pressures.

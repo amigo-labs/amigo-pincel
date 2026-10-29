@@ -397,7 +397,7 @@ mod tests {
         assert_eq!(cel(&doc), before, "no pixel changed");
         assert_eq!(doc.undo_depth(), depth, "no undo entry");
         // A stroke refused at its start leaves nothing for strokeTo.
-        let _ = doc.stroke_to(4, 4);
+        let _ = doc.stroke_to(4, 4, None);
         assert_eq!(
             cel(&doc),
             before,
@@ -406,7 +406,7 @@ mod tests {
         doc.set_layer_editable(group, true).expect("unlock");
         doc.begin_stroke("pencil", red, 1, "square", false)
             .expect("strokes once unlocked");
-        doc.stroke_to(2, 2).expect("paints once unlocked");
+        doc.stroke_to(2, 2, None).expect("paints once unlocked");
         doc.end_stroke();
     }
 
