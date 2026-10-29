@@ -251,8 +251,8 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 | AC-38 | `invalid_json_gets_parse_error_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
 | AC-39 | `resources_list_and_read_palette_presets` (`crates/pincel-mcp/src/server.rs`); `list_resources_has_one_uri_per_preset`, `read_resource_returns_the_preset_colors` (`crates/pincel-agent/src/resources.rs`) | built |        |
 | AC-40 | `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-41 | manual pending — `build pincel-mcp` step in `.github/workflows/release.yml` (desktop job: Windows x64, macOS universal, Linux x64) | built |        |
-| AC-42 | manual pending — README section "Use Pincel from an AI agent (MCP)" | built |        |
+| AC-41 | manual: owner accepted the review of the `build pincel-mcp` step in `.github/workflows/release.yml` (build for Windows x64, macOS universal, Linux x64; upload; SHA256SUMS) in place of a published release, 2026-10-29 — confirm on the next release | built |        |
+| AC-42 | manual: owner checked the README section "Use Pincel from an AI agent (MCP)" (install, release binaries, `claude mcp add`, options), 2026-10-29 | built |        |
 | AC-43 | `paint_target_defaults_to_active_layer_and_frame` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
 | AC-44 | `read_pixels_index_format_uses_first_exact_palette_match` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
 | AC-45 | `preview_above_2048_cap_fails_suggesting_region` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
