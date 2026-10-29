@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /** Opens the app on the start screen; `url` carries an optional query (`./?renderer=canvas2d`). */
 export async function gotoStart(page: Page, url = './'): Promise<void> {
@@ -27,6 +27,9 @@ export async function createDocument(
   await waitForEditor(page, mode);
 }
 
+/** Upper bound for one editor start-up (`waitForEditor`). */
+const EDITOR_START_BUDGET = 60_000;
+
 /**
  * Waits until the editor of `mode` takes input: its document is loaded
  * into the core, the view is fitted and the canvas has drawn it. Both
@@ -35,12 +38,22 @@ export async function createDocument(
  * `data-ready` hits a placeholder canvas or a document-less editor.
  */
 export async function waitForEditor(page: Page, mode: 'pixel' | 'image'): Promise<void> {
-  // Huge canvases take a while to allocate on the unoptimized CI wasm.
+  // Editor start-up has its own budget: fetching and compiling the
+  // unoptimized wasm (5–9 MiB) per browser context takes 10–15 s once a
+  // dozen workers share the CPU, and a huge canvas takes a while to
+  // allocate. Lend the test that budget while waiting, then charge it
+  // only the time start-up actually took, so the test timeout keeps
+  // bounding the spec's own steps.
+  const info = test.info();
+  const base = info.timeout;
+  info.setTimeout(base + EDITOR_START_BUDGET);
+  const started = Date.now();
   await expect(mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page)).toHaveAttribute(
     'data-ready',
     'true',
-    { timeout: 60_000 },
+    { timeout: EDITOR_START_BUDGET },
   );
+  info.setTimeout(base + (Date.now() - started));
 }
 
 /** The Pixel-mode drawing surface. */
