@@ -14,7 +14,7 @@
       "id": "rust-clippy",
       "name": "clippy",
       "cwd": ".",
-      "command": "cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings",
+      "command": "cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings",
       "paths": ["crates/", "Cargo.toml", "Cargo.lock"],
       "needs": []
     },
@@ -66,14 +66,14 @@
       "id": "rust-clippy",
       "name": "clippy",
       "cwd": ".",
-      "command": "cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings",
+      "command": "cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings",
       "needs": []
     },
     {
       "id": "rust-test",
       "name": "cargo test",
       "cwd": ".",
-      "command": "cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm",
+      "command": "cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp",
       "needs": ["rust-clippy"]
     },
     {
