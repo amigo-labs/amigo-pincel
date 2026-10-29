@@ -4,6 +4,7 @@ created: 2026-10-28
 size: M
 mode: website
 design: [website-spec.md §4.1.4, pincel.md §18]
+depends_on: [website]
 ---
 
 # Website: honest comparison in line with spec §18
@@ -32,26 +33,28 @@ Migrated from the legacy plan `24-website-comparison` (removed 2026-10-29, see g
 - A footnote per table with the snapshot date and a short Sources disclosure mirroring §18.6
 - Phone layout: horizontal scroll inside the table wrapper with the Pincel column kept in view
 - English and German copy
-- Updating website-spec §4.1.4 (both tables, sources, upkeep rule), and extending §18 where a row needs competitor facts §18 doesn't record yet
+- Updating website-spec §4.1.4 (both tables, sources, upkeep rule), extending §18 where a row needs competitor facts §18 doesn't record yet, and correcting §18.2's Pincel Indexed cell (Pincel reads and writes RGBA `.aseprite` only)
+- Playwright e2e checks under `website/e2e/` for AC-01 – AC-03 and AC-05 – AC-10, on the harness the `website` spec adds
 
 ### Out of scope
 
 - Separate "Pincel vs X" comparison pages — because they are an SEO project of their own; possible later with the same honest tone
 - Claims for features that are still todo — because the table must show them as ❌ / 🟡 until they ship
 - Website copy in languages other than English and German — because the website's own i18n has only `en` / `de`, and more website languages are excluded by `more-languages`
+- LibreSprite / Resprite columns — because a fifth column hurts the 390 px layout and §18 marks many of their cells `?` / `*`, which AC-04 would force to be re-checked or dropped; the Sources disclosure names both instead (AC-08)
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always, manual: website/ has no automated test harness): The home page shows two comparison tables: "Pixel art" with the columns Pincel, Aseprite, Pixelorama, Piskel, and "Image editing" with the columns Pincel, Paint.NET, Pinta, Photopea.
-- [ ] AC-02 (always, manual: website/ has no automated test harness): The "Pixel art" table keeps today's rows and adds the rows pixel-perfect pencil, animated export (GIF / APNG), pen pressure, indexed painting and PSD import.
-- [ ] AC-03 (always, manual: website/ has no automated test harness): The "Image editing" table has the rows Windows, Mac, Linux, web, layers + blend modes, adjustments and effects, selections + magic wand, text, pen pressure, PSD, price / license, and offline use.
+- [ ] AC-01 (always): The home page shows two comparison tables: "Pixel art" with the columns Pincel, Aseprite, Pixelorama, Piskel, and "Image editing" with the columns Pincel, Paint.NET, Pinta, Photopea.
+- [ ] AC-02 (always): The "Pixel art" table keeps today's rows and adds the rows pixel-perfect pencil, animated export (GIF / APNG), pen pressure, indexed painting and PSD import.
+- [ ] AC-03 (always): The "Image editing" table has the rows Windows, Mac, Linux, web, layers + blend modes, adjustments and effects, selections + magic wand, text, pen pressure, PSD, price / license, and offline use.
 - [ ] AC-04 (always, manual: checking facts against §18 needs a human): Every cell in both tables matches its entry in `pincel.md` §18; a cell whose §18 entry is marked `?` or `*` is either re-checked against its source (and §18 updated) before publishing, or its row is left out.
-- [ ] AC-05 (always, manual: website/ has no automated test harness): Pincel's cells for features it does not ship show ❌ or 🟡 with a note — pixel-perfect pencil ❌, animated export ❌, pen pressure 🟡 "Image mode only" in the Pixel-art table, PSD ❌ in both tables, indexed painting ❌.
-- [ ] AC-06 (always, manual: website/ has no automated test harness): Aseprite's license cell reads "source-available" and does not show ✅ or "open source".
-- [ ] AC-07 (always, manual: website/ has no automated test harness): Piskel's activity cell says that there has been no tagged release since 0.15.0 (2018) while master still gets fixes, and no longer says "modernization in progress".
-- [ ] AC-08 (always, manual: website/ has no automated test harness): Each table has a footnote naming its snapshot ("as of 2026-10") and a Sources disclosure that lists the §18.6 sources for that table's tools; the existing honesty footnote about Aseprite's head start stays.
-- [ ] AC-09 (state, manual: website/ has no automated test harness): While the viewport is 390 px wide, each table scrolls horizontally inside its own wrapper, the page itself does not scroll horizontally, and the Pincel column stays visible while the table is scrolled.
-- [ ] AC-10 (state, manual: website/ has no automated test harness): While the German site (`/de/`) is shown, every table heading, row label, note, footnote and Sources text is German; on the English site it is English.
+- [ ] AC-05 (always): Pincel's cells for features it does not ship show ❌ or 🟡 with a note — pixel-perfect pencil ❌, animated export ❌, pen pressure 🟡 "Image mode only" in the Pixel-art table, PSD ❌ in both tables, indexed painting ❌, and "Aseprite file format (read + write)" 🟡 "RGBA only" (indexed and grayscale `.aseprite` files are refused).
+- [ ] AC-06 (always): Aseprite's license cell reads "source-available" and does not show ✅ or "open source".
+- [ ] AC-07 (always): Piskel's activity cell says that there has been no tagged release since 0.15.0 (2018) while master still gets fixes, and no longer says "modernization in progress".
+- [ ] AC-08 (always): Each table has a footnote naming its snapshot ("as of 2026-10") and a Sources disclosure that lists the §18.6 sources for that table's tools; the "Pixel art" table's disclosure also names LibreSprite and Resprite as related tools not compared; the existing honesty footnote about Aseprite's head start stays.
+- [ ] AC-09 (state): While the viewport is 390 px wide, each table scrolls horizontally inside its own wrapper, the page itself does not scroll horizontally, and the Pincel column stays visible while the table is scrolled.
+- [ ] AC-10 (state): While the German site (`/de/`) is shown, every table heading, row label, note, footnote and Sources text is German; on the English site it is English.
 - [ ] AC-11 (always): `pnpm lint`, `pnpm check` and `pnpm build` in `website/` pass.
 - [ ] AC-12 (always, manual: tone is an editorial judgement): The copy leads with where Pincel is different (one app for both, web + desktop, embeddable, free / open) and claims no category it does not win.
 
@@ -64,8 +67,9 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - **Wrapper**: the table already sits in a `.table-wrap` region with `overflow-x: auto`; the Pincel column needs `position: sticky`.
 - **Design spec**: website-spec §4.1.4 holds today's single table; update it in the same change.
 - **Data source**: `pincel.md` §18.1–18.4, legend ✓ / ✗ / ~ / ? and `*` (prior knowledge, not re-checked). §18 does not cover animated export at all, so that row's competitor cells need a source and a §18 addition first.
-- **Upkeep (plan)**: re-check the tables when a feature spec that flips a Pincel cell lands (`pixel-pencil`, pixel pressure, PSD import, animated export) and at least quarterly — competitors ship monthly. The plan put this as a `STATUS.md` reminder; it goes into website-spec §4.1.4 instead (see Decisions).
+- **Upkeep (plan)**: re-check the tables when a feature spec that flips a Pincel cell lands (`pixel-pencil`, pixel pressure, PSD import, animated export, `indexed-grayscale-compose` — which flips the "RGBA only" cell back to ✅) and at least quarterly — competitors ship monthly. The plan put this as a `STATUS.md` reminder; it goes into website-spec §4.1.4 instead (see Decisions).
 - **Checks** from the plan: `pnpm lint` / `check` / `build` in `website/`, a visual check at 1280 px and 390 px, the Cloudflare preview deploy on the PR.
+- **e2e**: Playwright (`@playwright/test` 1.64.1, exact pin as in `ui/`, owner-approved; harness from the `website` spec) under `website/e2e/` against `vite preview` of the static build. AC-09 checks at a 390 px viewport that `document.scrollingElement.scrollWidth` equals the viewport width and that the Pincel column's bounding box stays inside the wrapper after scrolling it; AC-10 compares the `/de` and `/` copy. AC-04 and AC-12 stay manual.
 
 ## Edge cases
 
@@ -84,9 +88,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 
 ## Open questions
 
-- `website/` has no automated test harness (no Playwright or Vitest in `website/package.json`), so AC-01 … AC-10 are manual. Add Playwright as a `website/` dev dependency (needs approval, CLAUDE.md §9) so they become e2e tests, or accept manual evidence?
-- Should the "Pixel art" table also get a LibreSprite or Resprite column? The plan calls it optional.
-- Pincel cannot open or save indexed or grayscale `.aseprite` files today (`pincel-core` read and write adapters return `CodecError::UnsupportedColorMode`), yet §18.2 lists Pincel's Indexed cell as "~ read / write". Should the "Aseprite file format (read + write)" row show Pincel as 🟡 with an "RGBA only" note, and §18.2 be corrected in the same change?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -112,3 +114,6 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - Aseprite is "source-available", not open source — its EULA forbids redistribution, so it is not OSI open source (plan).
 - The upkeep rule (re-check on cell-flipping feature specs and quarterly) lives in website-spec §4.1.4, not in `STATUS.md` — feature progress now lives in feature specs (`.claude/rules/specs.md`), and the rule is about the page's design, which website-spec owns.
 - Size M (plan said S–M): two tables, a component rework, two locales and a §18 / website-spec update fit one session.
+- 2026-10-29: AC-01 – AC-03 and AC-05 – AC-10 become Playwright e2e checks on `@playwright/test` 1.64.1 (exact pin, Apache-2.0) as a `website/` devDependency, shared with the `website` spec (`depends_on: [website]`); AC-04 and AC-12 stay manual — one decision covers both website specs, and facts and tone need a human (owner accepted the recommendation).
+- 2026-10-29: No LibreSprite or Resprite column; the four columns stay and the Sources disclosure names both — a fifth column hurts the 390 px layout, and §18 marks many of their cells `?` / `*` (owner accepted the recommendation).
+- 2026-10-29: The "Aseprite file format (read + write)" row shows Pincel 🟡 "RGBA only", §18.2's Pincel Indexed cell is corrected in the same change, and the cell flips back when `indexed-grayscale-compose` ships — the reader refuses indexed and grayscale files (`UnsupportedColorMode`), and the honesty rule (AC-04, AC-05) forbids claiming what the code refuses (owner accepted the recommendation).

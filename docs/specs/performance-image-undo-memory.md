@@ -31,8 +31,9 @@ Image-mode undo for structural commands — paste, merge, flatten, scale, crop �
 
 - [ ] AC-01 (always): After any random sequence of Image commands (strokes, fills, effects, paste, merge, flatten, layer operations, scale, crop, resize), undoing every step restores the original document byte-identically, and redoing every step restores the final document byte-identically.
 - [ ] AC-02 (always): The undo memory added by a command that changes pixels only inside a rect of one layer is at most the RGBA size of that rect rounded up to the tile grid recorded under `## Decisions`.
-- [ ] AC-03 (state): While a 3840×2160, 10-layer document holds 50 undo steps of the command mix recorded under `## Decisions`, its layers plus undo history take at most 1 GB.
+- [ ] AC-03 (state): While a 3840×2160, 10-layer document holds 50 undo steps — 40 brush strokes (each within 512 px), 5 whole-layer adjustments or effects, 3 merge-downs and 2 pastes of 1024×1024 without canvas expansion — the browser's wasm memory (`WebAssembly.Memory` `buffer.byteLength`) is at most 1 GB, and a native test runs the same sequence and asserts that the undo stack's reported byte count equals the bytes it actually stores.
 - [ ] AC-04 (event): When a command that changes the canvas size is undone, then size, layers and pixels equal the state before it, as today.
+- [ ] AC-05 (event): When a new command pushes the stored undo data of a document above 512 MB, then the oldest undo steps are dropped (and, if that is not enough, redo steps) until it is at most 512 MB; the step just performed is never dropped, and undo of every remaining step still restores its state byte-identically.
 
 ## Technical notes
 
@@ -40,7 +41,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 - `DocSnapshot` in `crates/pincel-image-core/src/command/snapshot.rs` (≈L13, `snapshot()` ≈L21), used by paste (`paste.rs`), merge (`merge.rs`), flatten, scale and crop (`resize.rs`, `transform.rs`).
 - Plan's approach: tile-based copy-on-write undo (e.g. 128×128 tiles: store only the tiles a command changed) for pixel commands; keep the snapshot only where the canvas size changes.
-- Add the memory scenario to the `performance-benchmarks` table and its `## Measurements` section.
+- The memory scenario (mix and measurement of AC-03) is in the `performance-benchmarks` budget table; its numbers go into that spec's `## Measurements` section. wasm memory never shrinks, so `buffer.byteLength` is the number that hits the 4 GB wall.
+- History cap: entries and bytes. The byte cap (512 MB of stored undo data, AC-05) is checked after each push.
 
 ## Edge cases
 
@@ -51,11 +53,12 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | Paste with "Expand canvas" (size changes) | Whole-document snapshot as today; undo restores size and pixels |
 | A dab touching four tiles at a tile corner | Only those tiles are stored |
 | A command that changes no pixel | Adds no tile data |
+| One command alone stores more than 512 MB (e.g. flatten of a huge document) | It is kept as the only step; all older undo and redo steps are dropped (AC-05) |
+| History over 512 MB after a push, redo stack non-empty | Oldest undo steps go first, then redo steps, until under the cap |
 
 ## Open questions
 
-- Which command mix do the 50 undo steps of the memory budget consist of (e.g. brush strokes only, or including merges and pastes), and is the 1 GB measured as Rust-side buffer bytes or as the browser's wasm memory?
-- What happens when the budget would be exceeded — drop the oldest undo steps, cap the history, or nothing?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -65,7 +68,10 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
+| AC-05 |      | open   |        |
 
 ## Decisions
 
 - Commands that change the canvas size keep the whole-document snapshot; only pixel commands move to stored changed regions (plan, 2026-10-28).
+- 2026-10-29: The 50-step budget mix is 40 brush strokes (≤ 512 px each), 5 whole-layer adjustments or effects, 3 merge-downs and 2 pastes of 1024² (no expand) on 3840×2160 × 10 layers, measured as the browser's `WebAssembly.Memory` `buffer.byteLength` plus a native test of the undo stack's byte accounting — that is a realistic session, and wasm memory is the number that hits the 4 GB wall because it never shrinks (owner accepted the recommendation).
+- 2026-10-29: The history is capped by bytes as well as entries: above 512 MB of stored undo data the oldest steps (then redo steps) are dropped, never the current step — paint.net and Krita use a memory-limited history, and running out of memory is worse than losing old undo steps (owner accepted the recommendation).

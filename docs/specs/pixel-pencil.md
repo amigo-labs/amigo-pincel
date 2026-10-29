@@ -24,7 +24,8 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 - Brush size 1–8 and brush shape (square / round) for the Pixel-mode Pencil and Eraser
 - Shift constrain to 0°, 45° and 90° for Pencil and Eraser strokes, from the keyboard Shift key and from the latching on-screen Shift toggle
-- A pixel-perfect option that removes L-shaped corner pixels from size-1 freehand strokes
+- A pixel-perfect option (off by default) that removes L-shaped corner pixels from size-1 freehand Pencil and Eraser strokes
+- One size / shape / pixel-perfect setting shared by Pencil and Eraser, persisted across sessions
 - Options-bar controls for size, shape and pixel-perfect, and the `[` / `]` keys to change the size
 - Strokes that run partly outside the canvas paint their in-bounds part without an error
 - i18n keys for every new label, in `en.ts` and `de.ts`
@@ -39,20 +40,23 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 ## Acceptance criteria
 
-- [ ] AC-01 (option): Where the Pencil size is N (1–8) with the square shape, a single click paints a filled N×N block of the foreground color that contains the clicked pixel; for odd N the block is centred on the clicked pixel.
+- [ ] AC-01 (option): Where the Pencil size is N (1–8) with the square shape, a single click paints a filled N×N block of the foreground color that contains the clicked pixel; for odd N the block is centred on the clicked pixel, and for even N the block spans `x − N/2 … x + N/2 − 1` and `y − N/2 … y + N/2 − 1` (integer division).
 - [ ] AC-02 (option): Where the Pencil shape is round, a single click at size 3 paints exactly the 5-pixel plus (the clicked pixel and its four orthogonal neighbours), and for every size N ≥ 3 the four corner pixels of the N×N bounding square stay unpainted.
 - [ ] AC-03 (event): When the pointer jumps between two samples of one Pencil drag with no samples in between, the painted result is the stamp applied at every pixel of the straight line between the two samples, with no gaps, at every size.
 - [ ] AC-04 (always): One press-drag-release Pencil or Eraser stroke adds exactly one undo entry; undo restores every touched pixel to its value from before the stroke, redo reproduces the identical result, and two strokes add two entries.
 - [ ] AC-05 (event): When a stroke or a stamp reaches beyond the canvas, the in-bounds pixels are painted, the out-of-bounds part is skipped, and no error or notice is shown.
 - [ ] AC-06 (option): Where the Eraser has size N and shape S, an Eraser click or drag clears to transparent exactly the pixels a Pencil click or drag with the same size, shape and path would paint.
 - [ ] AC-07 (state): While Shift is held (keyboard) or the on-screen Shift toggle is latched during a Pencil or Eraser drag, the segment painted from the anchor runs along whichever of the eight directions 0°, 45°, 90°, 135°, 180°, 225°, 270°, 315° is nearest to the pointer, where the anchor is the press position, or the last painted point before Shift went down.
-- [ ] AC-08 (option): Where pixel-perfect is on and the size is 1, a freehand stroke contains no L-corner — no painted path pixel b whose path neighbours a and c are diagonal to each other while b is orthogonally adjacent to both — and a removed corner pixel shows its value from before the stroke.
+- [ ] AC-08 (option): Where pixel-perfect is on and the size is 1, a freehand stroke of the Pencil or the Eraser (which clears the path pixels) contains no L-corner — no painted path pixel b whose path neighbours a and c are diagonal to each other while b is orthogonally adjacent to both — and a removed corner pixel shows its value from before the stroke.
 - [ ] AC-09 (event): When pixel-perfect would remove a corner pixel that an earlier part of the same stroke had already painted, that pixel stays painted.
 - [ ] AC-10 (state): While the size is greater than 1, the pixel-perfect option has no effect on the stroke and its checkbox is disabled.
 - [ ] AC-11 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a Size control (number field plus slider, range 1–8), a Shape control (square / round) and a Pixel-perfect checkbox.
 - [ ] AC-12 (error): If a size outside 1–8 is typed into the Size field, then the size becomes the nearest bound (1 or 8).
 - [ ] AC-13 (event): When `[` or `]` is pressed while the Pencil or the Eraser is active, the size goes down or up by 1 and stays within 1–8.
 - [ ] AC-14 (error): If the stroke targets a locked layer or the document has no paintable image layer, then no pixel changes and no undo entry is added.
+- [ ] AC-15 (always): In a fresh session the Pixel-perfect checkbox is unchecked.
+- [ ] AC-16 (event): When the user changes size, shape or pixel-perfect with the Pencil active, then the Eraser shows the same values when it becomes active, and vice versa.
+- [ ] AC-17 (event): When the user changes size, shape or pixel-perfect and reloads the app, then the values survive the reload.
 
 ## Technical notes
 
@@ -75,9 +79,9 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 - `extend(to)` rasterizes from the last point with `BresenhamIter` and stamps the brush per step; out-of-cel pixels are skipped like `DrawLine`. Keep the stamping in one function so symmetry and wrapping can reuse it.
 - Pixel-perfect follows Aseprite: on each new path point c, look at a, b, c; if a→c is a diagonal step (|dx| = |dy| = 1) and b is orthogonally adjacent to both, restore b from `prior` (unless the stroke painted it earlier) and drop it from the path. This needs the whole stroke in one command, which `SetPixel` merging can't give.
 - `revert` writes `prior` back; redo replays the path, so `apply` must be deterministic. Merging: each wasm call is a segment that `merge` folds into the gesture's command until `seal()`, or one live command stays on the bus.
-- Recommended wasm gesture API on `Document`: `beginStroke(tool, color, size, shape, pixelPerfect)`, `strokeTo(x, y)`, `endStroke()` (exists). It removes the TS `linePoints` loop and the out-of-bounds swallowing. Keep `applyTool` for the single-pixel tests until callers have moved. See Open questions — it needs a Decision Log entry first.
+- Decided wasm gesture API on `Document` (2026-10-29): `beginStroke(tool, color, size, shape, pixelPerfect)`, `strokeTo(x, y)`, `endStroke()` (exists). `pixel-pressure` later adds an optional third argument `pressure?: number` (`Option<f32>`) to `strokeTo`, which is non-breaking. It removes the TS `linePoints` loop and the out-of-bounds swallowing. `applyTool` stays for single pixels.
 - Shift constrain lives in the UI (`pointer.ts`): snap the target to the nearest direction from the anchor, then send the snapped point.
-- Options live in `toolState`; i18n keys go into `en.ts` and `de.ts` together.
+- Options live in `toolState`, one setting shared by Pencil and Eraser, persisted as one IndexedDB pref `pixelBrush` `{ size, shape, pixelPerfect }` the way `lastColor` is stored, with defaults when the pref is missing; i18n keys go into `en.ts` and `de.ts` together.
 - Suggested Rust tests: `pencil_stroke_size_1_matches_bresenham`, `pencil_stroke_size_3_square_stamps_3x3`, `pencil_stroke_round_shape_skips_corners`, `pixel_perfect_removes_l_corner`, `pixel_perfect_keeps_corner_painted_earlier_in_stroke`, `pencil_stroke_revert_restores_first_touch_values`, `pencil_stroke_out_of_bounds_points_are_skipped`, plus a proptest (no L-corner in a pixel-perfect stroke; revert always restores the original cel). wasm tests mirror `apply_tool_*` (one undo entry per gesture, two gestures two entries, eraser, locked layer, group layer skipped). e2e in `ui/e2e/pencil.spec.ts`: size-3 click paints 3×3, pixel-perfect staircase leaves the corner empty, Shift-drag stays horizontal.
 
 ## Edge cases
@@ -104,12 +108,7 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 ## Open questions
 
-- The recommended wasm gesture API (`beginStroke` / `strokeTo` / `endStroke`) is a new public API of `pincel-wasm` (§17.5): it needs a Decision Log entry that also updates §9.3 and §5.2 — confirm the API shape before it is written.
-- Should pixel-perfect be on by default? Aseprite defaults to off; the plan leaves it open.
-- Should the Eraser get pixel-perfect too? The plan recommends yes (same command) but marks it as stop-and-ask.
-- Do Pencil and Eraser share one size / shape / pixel-perfect setting, or does each tool keep its own?
-- Where does an even-size square stamp (2, 4, 6, 8) sit relative to the clicked pixel (which side gets the extra row / column)?
-- Should the Pencil / Eraser options persist across sessions through the IndexedDB `prefs` store (the `lastColor` pattern in `PixelEditor.svelte`), or stay session-only? The plan marks persisting as optional.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -129,9 +128,18 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
+| AC-15 |      | open   |        |
+| AC-16 |      | open   |        |
+| AC-17 |      | open   |        |
 
 ## Decisions
 
 - Pencil and Eraser share one stroke command (the Eraser paints transparent) — because the behavior is identical apart from the color, and pixel-perfect needs the whole stroke in one command, which per-pixel `SetPixel` merging can't provide (legacy plan).
 - Shift constrain is resolved in the UI before points reach the core — because it depends on input state (Shift key, latching touch toggle) the core does not know about (legacy plan).
 - Out-of-bounds stamp pixels are skipped, not errors — because that matches `DrawLine` and the natural clipping of drawing tools (legacy plan).
+- 2026-10-29: The wasm gesture API is `beginStroke(tool, color, size, shape, pixelPerfect)`, `strokeTo(x, y)` and `endStroke()`, driving one `PencilStroke` command; `applyTool` stays for single pixels, `pixel-pressure` later adds an optional `pressure` (`Option<f32>`) to `strokeTo`, and a Decision Log entry plus `pincel.md` §9.3 / §5.2 updates (sizes 1–8 square / round, pixel-perfect) land in the same commit — pixel-perfect needs the whole stroke in one command, and an `Option` parameter lets pressure arrive later without a second breaking change to the npm API (owner accepted the recommendation).
+- 2026-10-29: Pixel-perfect is off by default (AC-15) — it matches Aseprite, avoids surprising missing pixels for new users, and keeps existing e2e tests valid (owner accepted the recommendation).
+- 2026-10-29: The Eraser gets pixel-perfect too, through the same command and checkbox (AC-08) — it costs nothing extra, and Aseprite applies pixel-perfect to the eraser as well (owner accepted the recommendation).
+- 2026-10-29: Pencil and Eraser share one size / shape / pixel-perfect setting (AC-16) — Image mode already shares `tool.size` and `tool.shape` between Pencil and Eraser, and Aseprite shares its brush across tools (owner accepted the recommendation).
+- 2026-10-29: An even-size square stamp gets its extra row / column on the top and left: it spans `x − N/2 … x + N/2 − 1` (AC-01) — this is Aseprite's brush origin (`−size/2`), so strokes line up with what Aseprite users expect (owner accepted the recommendation).
+- 2026-10-29: Size, shape and pixel-perfect persist across sessions in one IndexedDB `pixelBrush` pref, with defaults when it is missing (AC-17) — brush size is the option users set once, it is a few lines, and the colour-picker spec persists colours the same way (owner accepted the recommendation).

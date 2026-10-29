@@ -34,6 +34,7 @@ Both gestures are on by default; View ▸ Touch Gestures turns the taps off for 
 - Apple Pencil squeeze and double-tap — because Safari does not expose them to web apps.
 - Four-finger gestures — because no common editor convention exists for them.
 - Pressure for the eraser end in Pixel mode — because Pixel mode has no pen pressure until `pixel-pressure` lands.
+- An eraser badge on the cursor during an eraser-end stroke — because the erased pixels are the feedback and neither mode has a cursor-badge system to hook it into; revisit with a cursor-design spec.
 
 ## Acceptance criteria
 
@@ -92,8 +93,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 ## Open questions
 
-- Decision Log entry not yet written: the tap thresholds (150 ms / 10 CSS px / 300 ms / ±2 %), the View ▸ Touch Gestures toggle (on by default), and that Apple Pencil squeeze / double-tap are not reachable from Safari — confirm and add to `pincel.md` §15 with the §9.4 touch sentence.
-- The plan lists an optional eraser badge on the cursor during an eraser-end stroke — build it or not?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -120,3 +120,5 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The tap's undo runs after the existing gesture rollback, so it undoes the step before the cancelled stroke — that is what the user means by "undo".
 - 2026-10-28 (legacy plan): Include the View ▸ Touch Gestures toggle (plan recommendation: "include it; it's cheap") — users who rest fingers on the screen need a way out.
 - 2026-10-28 (legacy plan): The eraser end overrides the tool per stroke only; the rail keeps showing the selected tool — the eraser is a transient input state, like the Shift / Alt toggles (Decision Log 2026-10-12).
+- 2026-10-29: The Decision Log records two-finger tap = Undo and three-finger tap = Redo (touches within 150 ms, ≤ 10 CSS px, lifted within 300 ms, pinch ±2 %), View ▸ Touch Gestures (on by default, IndexedDB pref), the pen eraser end erasing per stroke, and that Apple Pencil squeeze / double-tap are not exposed to Safari web apps; the §9.4 touch sentence is updated with the Decision Log row — the values were already fixed in the ACs and only the record was missing (owner accepted the recommendation).
+- 2026-10-29: No eraser cursor badge in this spec — the erased pixels are the feedback, and neither mode has a cursor-badge system to hook it into (owner accepted the recommendation).

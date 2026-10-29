@@ -38,6 +38,7 @@ Step 5 of the legacy plan `23-performance` (removed 2026-10-29, see git history)
 - [ ] AC-04 (always): All Rust tests of the six library crates pass under the chosen release profile, including `panic = "abort"` for wasm if it is chosen.
 - [ ] AC-05 (state, manual: the budget is defined for the reference laptop): While the reference laptop runs the production build, a full recompose of a 3840×2160, 10-layer Image document takes at most 100 ms in the browser performance script.
 - [ ] AC-06 (event, manual: the budget is defined for the reference laptop and network profile): When the production build is loaded without cache, then the start screen is interactive within 1.5 s; with a warm cache, within 0.5 s.
+- [ ] AC-07 (error): If the browser does not support wasm SIMD, then the start screen shows a translated notice "This browser is too old for Pincel (needs Chrome/Edge 91+, Firefox 89+, Safari 16.4+)" and New and Open are disabled; no editor is loaded.
 
 ## Technical notes
 
@@ -45,6 +46,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 - Root `Cargo.toml`: candidates `lto = "fat"`, `codegen-units = 1`, `opt-level = 3`, and `panic = "abort"` for wasm if tests allow; `opt-level = "s"` may win on load time — decide by the `performance-benchmarks` numbers.
 - wasm SIMD: build both wasm crates with `-C target-feature=+simd128`. Write the kernel from `performance-image-kernel` so it auto-vectorizes, or use `core::arch::wasm32` intrinsics behind `cfg(target_feature = "simd128")` with a scalar fallback for native and tests. Minimum browsers per the plan: Chrome / Edge 91+, Firefox 89+, Safari 16.4+.
+- Release profile: the runtime budgets (recompose, interaction) take precedence over load time. The hot crates (`pincel-core`, `pincel-image-core`, `pincel-effects`) get `opt-level = 3` through `[profile.release.package.<crate>]` overrides; other crates may use `opt-level = "s"` if it measurably helps. The start screen loads no wasm (editors are `import()`ed), so cold start barely depends on wasm size.
+- SIMD detection: the start screen feature-detects with `WebAssembly.validate` on a tiny module that uses a SIMD instruction. No scalar fallback build ships. New i18n keys (in `en.ts` and `de.ts`): `start.unsupportedBrowser` (the notice text of AC-07).
 - `wasm-opt = false` in `crates/pincel-wasm/Cargo.toml` and `crates/pincel-image-wasm/Cargo.toml`; release CI runs `wasm-opt -O3` (`.github/workflows/release.yml` ≈L94, ≈L377); `scripts/cf-build.sh` runs it only `if command -v wasm-opt`. The CI check can use a size threshold or a custom-section marker.
 
 ## Edge cases
@@ -53,14 +56,12 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | -------- | ----------------- |
 | Cloudflare build image without `wasm-opt` | The CI check (AC-03) fails instead of a silent unoptimized deploy |
 | `panic = "abort"` breaks a test that expects unwinding | `panic = "abort"` is not used for that build (AC-04) |
-| `opt-level = "s"` loads faster but composes slower | Open question (see below) |
-| Browser without wasm SIMD (e.g. Safari < 16.4) | Open question (see below) |
+| `opt-level = "s"` loads faster but composes slower | The recompose budget wins: the hot crates keep `opt-level = 3`; `"s"` only for the other crates |
+| Browser without wasm SIMD (e.g. Safari < 16.4) | The start screen shows the unsupported-browser notice and disables New / Open (AC-07) |
 
 ## Open questions
 
-- If `opt-level = "s"` wins load time (cold-start budget) but loses compose speed (recompose budget), which budget takes precedence?
-- What does a browser without wasm SIMD get: a scalar fallback build, or an "unsupported browser" message — and what exactly does the user see?
-- The Decision Log entry recording the minimum browser versions for wasm SIMD is not written yet — confirm the versions (Chrome / Edge 91+, Firefox 89+, Safari 16.4+) and write it with this spec.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -72,8 +73,12 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
+| AC-07 |      | open   |        |
 
 ## Decisions
 
 - The release profile is chosen by measured size and speed, not by default — no tuning without a number (plan, 2026-10-28).
 - AVX / AVX2 do not apply to the editor: wasm SIMD is 128-bit only in every shipping engine (plan).
+- 2026-10-29: Runtime budgets take precedence over load time; the hot crates (`pincel-core`, `pincel-image-core`, `pincel-effects`) keep `opt-level = 3` through per-package release overrides, other crates may use `"s"` — compose speed is felt on every interaction, while load time is paid once and then served from the service-worker cache (owner accepted the recommendation).
+- 2026-10-29: No scalar fallback build; a browser without wasm SIMD gets a translated "browser too old" notice on the start screen with New / Open disabled — a second build doubles CI and bundle work for a share of browsers well under 1 % (owner accepted the recommendation).
+- 2026-10-29: Both wasm modules are built with `+simd128`; minimum browsers are Chrome / Edge 91, Firefox 89 and Safari 16.4 (Decision Log 2026-10-29) — these are the first releases with fixed-width wasm SIMD enabled by default (owner accepted the recommendation).
