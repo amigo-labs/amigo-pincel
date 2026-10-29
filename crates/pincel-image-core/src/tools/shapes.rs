@@ -707,6 +707,64 @@ mod tests {
         );
     }
 
+    /// Alpha values of every pixel after drawing `shape` with `style` on a
+    /// fresh `size`-square document.
+    fn drawn_alpha(size: u32, shape: Shape, style: ShapeStyle) -> Vec<u8> {
+        let mut doc = Document::new(size, size).unwrap();
+        let mut cmd = Shapes::new(shape, style).draw(0, &doc).unwrap();
+        cmd.apply(&mut doc).unwrap();
+        doc.layers[0]
+            .pixels
+            .data()
+            .iter()
+            .skip(3)
+            .step_by(4)
+            .copied()
+            .collect()
+    }
+
+    #[test]
+    fn anti_alias_gives_partial_edge_coverage_and_off_gives_none() {
+        let ellipse = Shape::Ellipse {
+            a: Point::new(3.3, 4.1),
+            b: Point::new(26.7, 21.9),
+        };
+        let partial = |alpha: &[u8]| alpha.iter().filter(|&&a| a > 0 && a < 255).count();
+
+        let smooth = drawn_alpha(
+            30,
+            ellipse,
+            ShapeStyle {
+                anti_alias: true,
+                ..fill_style(Color::BLACK)
+            },
+        );
+        let hard = drawn_alpha(30, ellipse, fill_style(Color::BLACK));
+        assert!(partial(&smooth) > 0, "anti-aliased edge has partial pixels");
+        assert_eq!(partial(&hard), 0, "aliased edge is all-or-nothing");
+        assert!(hard.contains(&255));
+    }
+
+    #[test]
+    fn wider_stroke_paints_a_wider_outline() {
+        let rect = Shape::Rectangle {
+            a: Point::new(10.0, 10.0),
+            b: Point::new(30.0, 30.0),
+        };
+        // Painted pixels along row 20, which crosses the left and right edges.
+        let row_coverage = |width: f32| {
+            let alpha = drawn_alpha(40, rect, outline_style(Color::BLACK, width));
+            alpha[20 * 40..21 * 40].iter().filter(|&&a| a > 0).count()
+        };
+        let thin = row_coverage(2.0);
+        let thick = row_coverage(6.0);
+        assert!(thin > 0);
+        assert!(
+            thick > thin,
+            "width 6 covers {thick} px, width 2 covers {thin} px"
+        );
+    }
+
     #[test]
     fn rectangle_outline_strokes_border_not_center() {
         let mut doc = Document::new(40, 40).unwrap();

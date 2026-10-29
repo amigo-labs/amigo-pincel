@@ -132,6 +132,38 @@ mod tests {
     }
 
     #[test]
+    fn pick_five_eleven_thirty_one_average_exactly_their_square() {
+        for (size, n) in [
+            (SampleSize::FiveByFive, 5u32),
+            (SampleSize::ElevenByEleven, 11),
+            (SampleSize::ThirtyOneByThirtyOne, 31),
+        ] {
+            // The n×n square around (20, 20) is 100 except its top row (0);
+            // everything outside it is 255. Only a sample of exactly that
+            // square averages to 100·(n−1)/n: a larger one takes in 255s, a
+            // smaller one misses the 0 row.
+            let lo = 20 - n / 2;
+            let doc = doc_with(41, 41, |b| {
+                for y in 0..41 {
+                    for x in 0..41 {
+                        let inside = (lo..lo + n).contains(&x) && (lo..lo + n).contains(&y);
+                        let v = match (inside, y == lo) {
+                            (false, _) => 255,
+                            (true, true) => 0,
+                            (true, false) => 100,
+                        };
+                        b.set_pixel(x, y, Color::rgba(v, v, v, v));
+                    }
+                }
+            });
+            let eye = Eyedropper::new(SampleSource::CurrentLayer, size);
+            let got = eye.pick(Point::new(20.5, 20.5), &doc).unwrap();
+            let want = ((100 * (n - 1) + n / 2) / n) as u8;
+            assert_eq!(got, Color::rgba(want, want, want, want), "{n}×{n} sample");
+        }
+    }
+
+    #[test]
     fn pick_at_corner_ignores_out_of_bounds() {
         // 3×3 at the top-left corner only covers the 4 in-bounds pixels.
         // One of them is 200, the others 0 → average over 4 = 50.

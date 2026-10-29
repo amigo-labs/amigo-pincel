@@ -74,6 +74,47 @@ test('pixel: drag a layer into a group and back out', async ({ page }) => {
   await expect(layerRow(page, layer)).toHaveAttribute('data-depth', '1');
 });
 
+test('image: duplicate, opacity, blend mode and visibility show in the panel and undo', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  await expect.poll(() => layerNames(page)).toHaveLength(1);
+  const [name] = (await layerNames(page)) as [string];
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  const props = page.getByRole('group', { name: 'Layer properties' });
+  const opacity = page.getByLabel('Layer opacity');
+  const blend = page.getByLabel('Layer blend mode');
+
+  // Duplicate: a second row appears; one Undo removes it.
+  await page.getByRole('button', { name: 'Duplicate layer' }).click();
+  await expect.poll(() => layerNames(page)).toHaveLength(2);
+  await undo.click();
+  await expect.poll(() => layerNames(page)).toEqual([name]);
+
+  // Opacity: the slider and its readout follow; one Undo restores 100 %.
+  await expect(opacity).toHaveValue('100');
+  await opacity.fill('40');
+  await expect(opacity).toHaveValue('40');
+  await expect(props).toContainText('40%');
+  await undo.click();
+  await expect(opacity).toHaveValue('100');
+  await expect(props).toContainText('100%');
+
+  // Blend mode: the select shows it; one Undo restores Normal.
+  await expect(blend).toHaveValue('normal');
+  await blend.selectOption('multiply');
+  await expect(blend).toHaveValue('multiply');
+  await undo.click();
+  await expect(blend).toHaveValue('normal');
+
+  // Visibility: the eye button flips to "Show"; one Undo brings it back.
+  await page.getByRole('button', { name: `Hide ${name}` }).click();
+  await expect(page.getByRole('button', { name: `Show ${name}` })).toBeVisible();
+  await undo.click();
+  await expect(page.getByRole('button', { name: `Hide ${name}` })).toBeVisible();
+  await expect(undo).toBeDisabled();
+});
+
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: Layer ▸ Rename… renames the active layer`, async ({ page }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
@@ -109,16 +150,33 @@ for (const mode of ['pixel', 'image'] as const) {
     await createDocument(page, mode, { width: 32, height: 32 });
     await expect.poll(() => layerNames(page)).toHaveLength(1);
     const [name] = (await layerNames(page)) as [string];
-    await page.getByRole('button', { name: `Lock ${name}` }).click();
+    // Exact: "Unlock …" contains "lock …", and role names match case-insensitively.
+    const lock = page.getByRole('button', { name: `Lock ${name}`, exact: true });
+    const unlock = page.getByRole('button', { name: `Unlock ${name}`, exact: true });
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
-    const depth = await undo.isEnabled();
+    const redo = page.getByRole('button', { name: 'Redo', exact: true });
+    await lock.click();
+    await expect(unlock).toBeVisible();
     const canvas = mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
     if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
     await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
     await expect(page.getByText(`“${name}” is locked`)).toBeVisible();
-    await page.getByRole('button', { name: `Unlock ${name}` }).click();
+
+    // The refused stroke left no undo step: Undo reverts the lock itself.
+    await undo.click();
+    await expect(lock).toBeVisible();
+    await redo.click();
+    await expect(unlock).toBeVisible();
+
+    // Unlocked, the layer accepts paint again: Undo now reverts the stroke
+    // and leaves the layer unlocked.
+    await unlock.click();
+    await expect(lock).toBeVisible();
     await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
     await expect(page.getByText(`“${name}” is locked`)).toHaveCount(0);
-    expect(depth || (await undo.isEnabled())).toBe(true);
+    await undo.click();
+    await expect(lock).toBeVisible();
+    await undo.click();
+    await expect(unlock).toBeVisible();
   });
 }
