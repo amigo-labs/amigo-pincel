@@ -69,14 +69,22 @@ const WEBP_TYPES: FilePickerAcceptType[] = [
   { description: 'WebP image', accept: { 'image/webp': ['.webp'] } },
 ];
 
+const BMP_TYPES: FilePickerAcceptType[] = [
+  { description: 'BMP image', accept: { 'image/bmp': ['.bmp'] } },
+];
+
+const TIFF_TYPES: FilePickerAcceptType[] = [
+  { description: 'TIFF image', accept: { 'image/tiff': ['.tif', '.tiff'] } },
+];
+
 // Every raster format the Image mode decodes (pincel-image-core codec).
 const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...PNG_TYPES,
   ...JPEG_TYPES,
   ...WEBP_TYPES,
-  { description: 'BMP image', accept: { 'image/bmp': ['.bmp'] } },
+  ...BMP_TYPES,
   { description: 'GIF image', accept: { 'image/gif': ['.gif'] } },
-  { description: 'TIFF image', accept: { 'image/tiff': ['.tif', '.tiff'] } },
+  ...TIFF_TYPES,
 ];
 
 // Open accepts sprites (Pixel mode) and raster images (Image mode; a
@@ -123,17 +131,34 @@ const PICK: Record<
  *  `ora` is OpenRaster, the Image mode's layered project format. */
 export type FileFormat = 'aseprite' | 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
 
-/** Project formats `saveBytes` writes: one per editor mode. */
+/** Project formats: one per editor mode. */
 export type ProjectFormat = 'aseprite' | 'ora';
 
-const PROJECT_TYPES: Record<ProjectFormat, FilePickerAcceptType[]> = {
+/** Raster formats an Image-mode document is saved back to (no GIF encoder). */
+export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff';
+
+/** Everything `saveBytes` writes: the project formats and, for Image-mode
+ *  Save back to the opened file, its raster formats. */
+export type SaveFormat = ProjectFormat | ImageSaveFormat;
+
+const SAVE_TYPES: Record<SaveFormat, FilePickerAcceptType[]> = {
   aseprite: ASEPRITE_TYPES,
   ora: ORA_TYPES,
+  png: PNG_TYPES,
+  jpeg: JPEG_TYPES,
+  webp: WEBP_TYPES,
+  bmp: BMP_TYPES,
+  tiff: TIFF_TYPES,
 };
 
-const PROJECT_FILTERS: Record<ProjectFormat, { name: string; extensions: string[] }> = {
+const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> = {
   aseprite: { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
   ora: { name: 'OpenRaster image', extensions: ['ora'] },
+  png: { name: 'PNG image', extensions: ['png'] },
+  jpeg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
+  webp: { name: 'WebP image', extensions: ['webp'] },
+  bmp: { name: 'BMP image', extensions: ['bmp'] },
+  tiff: { name: 'TIFF image', extensions: ['tif', 'tiff'] },
 };
 
 /** Encoded-export formats of the Image mode (WebP is lossless). */
@@ -472,8 +497,18 @@ export async function saveBytes(
   // before invoking, which narrows the buffer type.
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,
-  opts: { forceAs?: boolean; format?: ProjectFormat } = {},
+  opts: { forceAs?: boolean; format?: SaveFormat } = {},
 ): Promise<SaveTarget> {
+  return (await writeTarget(bytes, target, opts)) ?? target;
+}
+
+/** `saveBytes`, but resolves `null` when the user cancelled the save
+ *  picker / dialog, so the caller can keep the document unsaved. */
+export async function writeTarget(
+  bytes: Uint8Array<ArrayBuffer>,
+  target: SaveTarget,
+  opts: { forceAs?: boolean; format?: SaveFormat } = {},
+): Promise<SaveTarget | null> {
   if (isTauri()) return saveBytesTauri(bytes, target, opts);
   const format = opts.format ?? 'aseprite';
   const fs = fsAccess();
@@ -489,12 +524,12 @@ export async function saveBytes(
     try {
       const handle = await fs.showSaveFilePicker({
         suggestedName: target.name,
-        types: PROJECT_TYPES[format],
+        types: SAVE_TYPES[format],
       });
       await writeHandle(handle, bytes);
       return { name: handle.name, handle, path: null };
     } catch (err) {
-      if (isUserCancel(err)) return target;
+      if (isUserCancel(err)) return null;
       throw err;
     }
   }
@@ -506,16 +541,16 @@ export async function saveBytes(
 async function saveBytesTauri(
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,
-  opts: { forceAs?: boolean; format?: ProjectFormat },
-): Promise<SaveTarget> {
+  opts: { forceAs?: boolean; format?: SaveFormat },
+): Promise<SaveTarget | null> {
   const forceAs = opts.forceAs ?? false;
   let path = !forceAs && target.path ? target.path : null;
   if (!path) {
     const picked = await saveDialog({
       defaultPath: target.name,
-      filters: [PROJECT_FILTERS[opts.format ?? 'aseprite']],
+      filters: [SAVE_FILTERS[opts.format ?? 'aseprite']],
     });
-    if (typeof picked !== 'string') return target;
+    if (typeof picked !== 'string') return null;
     path = picked;
   }
   // Tauri 2 takes `Vec<u8>` as a numeric array over the IPC bridge.

@@ -34,6 +34,9 @@ export const editor = $state({
   /** A live effect preview composite that overrides the canvas while an effect
    * dialog is open; `null` shows the real composite (spec §11 live preview). */
   previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+  /** The document's file name, as Save writes it (mirrored from
+   *  `core/document-file.ts` for the editor title). */
+  fileName: 'image.ora',
   /** One-line notice for the status bar (e.g. painting on a locked layer). */
   notice: null as string | null,
 });
@@ -43,6 +46,13 @@ export const ui = $state({
   /** True while a modal dialog is open; global shortcuts are suppressed. */
   modalOpen: false,
 });
+
+/** A question the Save flow is waiting on (save-original-format); the
+ *  dialog that answers it calls `resolve`. */
+export type SavePrompt = { kind: 'jpeg'; resolve: (quality: number | null) => void };
+
+/** The Save flow's open prompt, `null` while none is shown. */
+export const savePrompt = $state({ value: null as SavePrompt | null });
 
 /** Canvas view transform (spec §6.4). `fit` re-centres/-scales to the viewport
  * until the user zooms or pans. Zoom is display px per document px. */

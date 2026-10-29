@@ -661,6 +661,7 @@ export const en = {
   'resize.resizeCanvasTitle': 'Resize Canvas',
   'resize.scaleImageTitle': 'Scale Image',
   'export.quality': 'Quality',
+  'save.jpegTitle': 'JPEG quality',
   'resize.constrain': 'Constrain proportions',
   'resize.resampling': 'Resampling',
   'resize.nearestShort': 'Nearest',

@@ -668,6 +668,7 @@ export const de: Record<MessageKey, string> = {
   'resize.resizeCanvasTitle': 'Arbeitsfläche ändern',
   'resize.scaleImageTitle': 'Bild skalieren',
   'export.quality': 'Qualität',
+  'save.jpegTitle': 'JPEG-Qualität',
   'resize.constrain': 'Proportionen beibehalten',
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',

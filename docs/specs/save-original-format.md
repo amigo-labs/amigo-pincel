@@ -101,18 +101,18 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `ui/e2e/save-original.spec.ts` "Save writes an opened {png,jpeg,webp,bmp,tiff} back under its own name and format", "Save writes through the opened file handle in place"; `codec::tests::to_tiff_bytes_round_trip_is_pixel_exact` (pincel-image-core); `export_tests::export_bmp_and_export_tiff_write_the_composite` (pincel-image-wasm) | built  |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-07 | `ui/e2e/save-original.spec.ts` "JPEG asks its quality once per document" | built  |        |
+| AC-08 | `ui/e2e/save-original.spec.ts` "Save writes an opened webp back under its own name and format" | built  |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-11 | `ui/e2e/save-original.spec.ts` "Save writes an opened … back under its own name and format" (title before / after Save) | built  |        |
+| AC-12 | `ui/e2e/save-original.spec.ts` "a document opened from .ora still saves as OpenRaster"; `ui/e2e/ora.spec.ts` "image mode: Save writes an OpenRaster file that reopens with its layers" | built  |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
 
@@ -126,3 +126,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-29: A Decision Log entry records that Image-mode Save writes back to the opened file in its own format (PNG / JPEG / WebP lossless / BMP / TIFF), layered documents flatten in the file only, JPEG quality is asked once per document, GIF and formats without an encoder go to Save As with a notice, and autosave stays ORA — deliberately unlike paint.net, which flattens the document; `pincel.md` §7 gains an "Image-mode save" paragraph — AGENTS.md §2.1 (owner accepted the recommendation).
 - 2026-10-29: TIFF is written back now through `encode_tiff` on the already-enabled `tiff` feature (AC-01); GIF goes to Save As with a notice (AC-14) — TIFF is lossless and costs a few lines, while overwriting a GIF would quantize colours and could silently drop animation frames, because open decodes only the first frame (owner accepted the recommendation).
 - 2026-10-29: After a flattening Save the document is marked saved (no dirty marker, no close warning) (AC-03), but the save does not drop the autosave snapshot and the session keeps snapshotting the layered document (AC-13); `pincel.md` §10.3 gets the same note — the user explicitly chose Flatten and the file matches the request, while keeping the snapshot means recovery still has every layer (owner accepted the recommendation).
+- 2026-10-29 (spec-build): AC-12's test for an opened `.ora` was green before the change — the behavior already existed; the test stays as a regression guard.
+- 2026-10-29 (spec-build): Save marks the document saved only when bytes were written; cancelling the save picker now keeps it unsaved (before, an `.ora` Save marked it saved on cancel) — needed for the Cancel edge cases, and `lib/fs` gains `writeTarget`, which resolves `null` on cancel.
+- 2026-10-29 (spec-build): A recovered autosave snapshot keeps the format its stored file name says (`screenshot.png` saves back as PNG, with no handle or path) — the snapshot is OpenRaster bytes, and sniffing them would otherwise turn a PNG document into an `.ora` one.
+- 2026-10-29 (spec-build): The file identity (name, handle / path, format, remembered JPEG quality) lives in `ui/src/modes/image/core/document-file.ts`, the Save flow in `core/save-flow.ts`, its prompts in `components/dialogs/SaveDialogs.svelte` — `controller.ts` and `ImageEditor.svelte` were already near the 800-line limit (AGENTS.md).

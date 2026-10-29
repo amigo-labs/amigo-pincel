@@ -26,12 +26,20 @@ import {
 } from './wasm';
 import { editor, tool } from '../stores/editor.svelte';
 import {
-  saveBytes,
+  formatFromName,
   saveExport,
   sniffFormat,
   type ImageExportFormat as ExportFormat,
   type SaveTarget,
 } from '../../../lib/fs';
+import {
+  docFormat,
+  fileStem,
+  markSaved,
+  resetFile,
+  setOpenedFile,
+  type DocFormat,
+} from './document-file';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -481,27 +489,6 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
   syncInfo();
 }
 
-// Stem reused for export filenames: the opened file's name, or this default
-// for a blank/new document.
-const DEFAULT_EXPORT_STEM = 'image';
-let exportStem = DEFAULT_EXPORT_STEM;
-
-// Where Save writes the OpenRaster project (spec §15, 2026-10-11): the
-// opened `.ora` itself (handle / path), or — for a new document or an
-// opened flat image — a sibling `<stem>.ora` that the first Save asks for.
-let projectTarget: SaveTarget = { name: `${DEFAULT_EXPORT_STEM}.ora`, handle: null, path: null };
-
-/** The project file name Save writes to (and autosave labels snapshots with). */
-export function projectName(): string {
-  return projectTarget.name;
-}
-
-/** Marks the current state as saved: the document reads clean until the
- *  undo depth moves again. */
-function markSaved(): void {
-  editor.savedUndoDepth = editor.undoDepth;
-}
-
 /** Marks the document as having unsaved changes (e.g. after recovering an
  *  autosave snapshot, which is newer than any file on disk). */
 export function markUnsaved(): void {
@@ -515,18 +502,6 @@ export function projectBytes(fast = false): Uint8Array | null {
   return core.saveProject(editor.handle, fast ? 1 : 6);
 }
 
-/** Saves the document as OpenRaster (Save / Save As). Returns the target
- *  written to, or `null` when there is no document. */
-export async function saveProject(forceAs = false): Promise<SaveTarget | null> {
-  const bytes = projectBytes();
-  if (bytes === null) return null;
-  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
-  projectTarget = await saveBytes(new Uint8Array(bytes), projectTarget, { forceAs, format: 'ora' });
-  exportStem = projectTarget.name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
-  markSaved();
-  return projectTarget;
-}
-
 /** Creates a blank document and makes it the active one. */
 export async function newDocument(width: number, height: number): Promise<void> {
   await initCore();
@@ -538,24 +513,29 @@ export async function newDocument(width: number, height: number): Promise<void> 
   }
   editor.handle = handle;
   // A blank document must not inherit a previously opened file's name.
-  exportStem = DEFAULT_EXPORT_STEM;
-  projectTarget = { name: `${DEFAULT_EXPORT_STEM}.ora`, handle: null, path: null };
+  resetFile();
   syncInfo();
   markSaved();
 }
 
 /** Opens already-read bytes: an OpenRaster project with all its layers, or
- * a flat image as a single-layer document. `name` seeds the export and
- * project file names; `mime` is a decoder hint. `target` carries the
- * file's FSA handle / Tauri path so Save on an `.ora` writes it in place. */
+ * a flat image as a single-layer document. `name` is the file name Save
+ * writes back to; `mime` is a decoder hint. `target` carries the file's FSA
+ * handle / Tauri path so Save writes it in place, and optionally the format
+ * Save writes (a recovered snapshot is OpenRaster bytes of, say, a PNG);
+ * by default the format detected from the bytes. */
 export async function openBytes(
   bytes: Uint8Array,
   name: string,
   mime: string,
-  target: Pick<SaveTarget, 'handle' | 'path'> = { handle: null, path: null },
+  target: Pick<SaveTarget, 'handle' | 'path'> & { format?: DocFormat | null } = {
+    handle: null,
+    path: null,
+  },
 ): Promise<void> {
   await initCore();
-  const ora = sniffFormat(bytes) === 'ora';
+  const sniffed = sniffFormat(bytes);
+  const ora = sniffed === 'ora';
   // Decode before closing the current document: a corrupt file must not
   // destroy the open document or leave `editor.handle` pointing at a closed slot.
   const handle = ora ? core.openProject(bytes) : core.openImage(bytes, mime || 'image/png');
@@ -563,10 +543,9 @@ export async function openBytes(
     core.closeDocument(editor.handle);
   }
   editor.handle = handle;
-  exportStem = name.replace(/\.[^.]+$/, '') || DEFAULT_EXPORT_STEM;
-  projectTarget = ora
-    ? { name, handle: target.handle, path: target.path }
-    : { name: `${exportStem}.ora`, handle: null, path: null };
+  const format =
+    target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
+  setOpenedFile(name, format, target);
   syncInfo();
   markSaved();
 }
@@ -874,6 +853,6 @@ export async function exportImage(format: ExportFormat = 'png', quality = 90): P
       break;
   }
   // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
-  const name = `${exportStem}.${format === 'jpeg' ? 'jpg' : format}`;
+  const name = `${fileStem()}.${format === 'jpeg' ? 'jpg' : format}`;
   return saveExport(new Uint8Array(bytes), name, format);
 }
