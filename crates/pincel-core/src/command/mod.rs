@@ -6,6 +6,7 @@ mod add_slice;
 mod add_tile;
 mod add_tilemap_layer;
 mod add_tileset;
+mod batch;
 mod bus;
 mod clear_region;
 mod dirty;
@@ -23,7 +24,9 @@ mod move_layer;
 mod move_layer_to;
 mod move_selection_content;
 mod palette_ops;
+mod patch_cel;
 mod place_tile;
+mod put_cel;
 mod reframe_canvas;
 mod remove_frame;
 mod remove_layer;
@@ -51,6 +54,7 @@ pub use add_slice::AddSlice;
 pub use add_tile::AddTile;
 pub use add_tilemap_layer::AddTilemapLayer;
 pub use add_tileset::AddTileset;
+pub use batch::CommandBatch;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
 pub use clear_region::ClearRegion;
 pub use dirty::DirtyRegion;
@@ -70,7 +74,9 @@ pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
 };
+pub use patch_cel::{AddEmptyCel, PatchCel};
 pub use place_tile::PlaceTile;
+pub use put_cel::PutCel;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_frame::RemoveFrame;
 pub use remove_layer::RemoveLayer;
@@ -184,6 +190,10 @@ pub enum AnyCommand {
     ScaleImage(ScaleImage),
     DrawShape(DrawShape),
     DrawText(DrawText),
+    PutCel(PutCel),
+    PatchCel(PatchCel),
+    AddEmptyCel(AddEmptyCel),
+    Batch(CommandBatch),
 }
 
 impl AnyCommand {
@@ -241,6 +251,10 @@ impl AnyCommand {
             Self::MergeDown(c) => c.apply(doc, cels),
             Self::FlattenImage(c) => c.apply(doc, cels),
             Self::DuplicateLayer(c) => c.apply(doc, cels),
+            Self::PutCel(c) => c.apply(doc, cels),
+            Self::PatchCel(c) => c.apply(doc, cels),
+            Self::AddEmptyCel(c) => c.apply(doc, cels),
+            Self::Batch(c) => c.apply(doc, cels),
         }
     }
 
@@ -294,6 +308,10 @@ impl AnyCommand {
             Self::MergeDown(c) => c.revert(doc, cels),
             Self::FlattenImage(c) => c.revert(doc, cels),
             Self::DuplicateLayer(c) => c.revert(doc, cels),
+            Self::PutCel(c) => c.revert(doc, cels),
+            Self::PatchCel(c) => c.revert(doc, cels),
+            Self::AddEmptyCel(c) => c.revert(doc, cels),
+            Self::Batch(c) => c.revert(doc, cels),
         }
     }
 
@@ -376,7 +394,35 @@ impl AnyCommand {
             Self::MergeDown(c) => c.dirty_region(),
             Self::FlattenImage(c) => c.dirty_region(),
             Self::DuplicateLayer(c) => c.dirty_region(),
+            Self::PutCel(c) => c.dirty_region(),
+            Self::PatchCel(c) => c.dirty_region(),
+            Self::AddEmptyCel(c) => c.dirty_region(),
+            Self::Batch(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<PatchCel> for AnyCommand {
+    fn from(c: PatchCel) -> Self {
+        Self::PatchCel(c)
+    }
+}
+
+impl From<AddEmptyCel> for AnyCommand {
+    fn from(c: AddEmptyCel) -> Self {
+        Self::AddEmptyCel(c)
+    }
+}
+
+impl From<PutCel> for AnyCommand {
+    fn from(c: PutCel) -> Self {
+        Self::PutCel(c)
+    }
+}
+
+impl From<CommandBatch> for AnyCommand {
+    fn from(c: CommandBatch) -> Self {
+        Self::Batch(c)
     }
 }
 

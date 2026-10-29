@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -485,6 +485,8 @@ crates/pincel-effects/        Stateless effects + adjustments, shared by both co
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
+crates/pincel-agent/          Agent (MCP) tools over pincel-core, platform-free, no I/O
+crates/pincel-mcp/            `pincel-mcp` binary: MCP over stdio + workspace sandbox
 
 ui/                           Svelte 5 + Vite frontend (PWA + Tauri)
 ui/src/App.svelte             Two-mode shell: start screen, New dialog, mode routing

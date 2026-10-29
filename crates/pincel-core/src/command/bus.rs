@@ -115,6 +115,12 @@ impl Bus {
         Ok(true)
     }
 
+    /// The newest undo entry, if any — for inspection (memory accounting,
+    /// tests); the bus keeps ownership.
+    pub fn last(&self) -> Option<&AnyCommand> {
+        self.undo.back()
+    }
+
     /// Number of commands available to undo.
     pub fn undo_depth(&self) -> usize {
         self.undo.len()
