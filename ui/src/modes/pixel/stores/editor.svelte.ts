@@ -17,6 +17,7 @@ import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
 import type { BrushShape } from '../brush';
 import type { Direction, Tool } from '../tools';
+import type { PasteDialogState } from '../clipboard-ops';
 
 /** Shape paint mode: stroke only, fill only, or both. */
 export type ShapeMode = 'outline' | 'fill' | 'fill_outline';
@@ -28,6 +29,9 @@ export type Pt = { x: number; y: number };
 export type Box = { x: number; y: number; w: number; h: number };
 /** A (tileset, tile) pair. */
 export type TileRef = { tilesetId: number; tileId: number };
+
+/** Largest sprite edge (New, Resize, Paste ▸ Expand canvas). */
+export const MAX_DOC_SIZE = 4096;
 
 /** Default suggested filename for a new document. */
 export const DEFAULT_FILE_NAME = 'pincel.aseprite';
@@ -149,6 +153,8 @@ function dialogsInit() {
     selectionRadius: null as 'expand' | 'contract' | null,
     /** Tileset Editor sub-mode target. */
     editingTile: null as TileRef | null,
+    /** Edit ▸ Paste of an image larger than the canvas (spec §5.4). */
+    paste: null as PasteDialogState | null,
   };
 }
 

@@ -20,6 +20,7 @@
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
 mod animation;
+mod clipboard;
 mod effects;
 mod events;
 mod import;
@@ -32,6 +33,7 @@ mod timeline;
 mod transforms;
 
 pub use animation::AnimationInfo;
+pub use clipboard::CopiedImage;
 pub use effects::effect_names;
 pub use events::Event;
 pub use layer_ops::blend_mode_names;

@@ -237,7 +237,7 @@ pub fn export_frame_png(
     let request = ComposeRequest::full(frame, sprite.width, sprite.height);
     let mut pixels = Vec::new();
     let composed = compose(sprite, cels, &request, &mut pixels)?;
-    encode_rgba8(&pixels, composed.width, composed.height)
+    encode_png(&pixels, composed.width, composed.height)
 }
 
 /// Pack frames into a fixed-cell grid atlas and encode it as an RGBA8 PNG,
@@ -348,7 +348,7 @@ pub fn export_atlas_png(
     }
 
     Ok(AtlasOutput {
-        png: encode_rgba8(&atlas, width, height)?,
+        png: encode_png(&atlas, width, height)?,
         manifest: AtlasManifest {
             width,
             height,
@@ -397,8 +397,9 @@ fn tag_for_frame(sprite: &Sprite, frame: FrameIndex) -> Option<&str> {
         .map(|t| t.name.as_str())
 }
 
-/// Encode a non-premultiplied RGBA8 buffer as PNG bytes.
-fn encode_rgba8(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, ExportError> {
+/// Encode row-major, non-premultiplied RGBA8 `pixels` (`width × height × 4`
+/// bytes) as a PNG — what Copy puts on the clipboard (spec §5.4).
+pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, ExportError> {
     let mut out = Vec::new();
     let mut encoder = ::png::Encoder::new(&mut out, width, height);
     encoder.set_color(::png::ColorType::Rgba);

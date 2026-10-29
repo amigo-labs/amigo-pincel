@@ -6,6 +6,10 @@ import initWasm, {
   open_image,
   open_project,
   paste_layer,
+  copy_selection,
+  cut_selection,
+  image_key,
+  get_selection_bounds,
   save_project,
   close_document,
   composite,
@@ -389,9 +393,29 @@ export async function initCore(): Promise<void> {
 export const core = {
   createDocument: (width: number, height: number): number => create_document(width, height),
   openImage: (data: Uint8Array, mime: string): number => open_image(data, mime),
-  /** Pastes an encoded image as a new layer; `expand` grows a smaller canvas to fit (spec §5.4). */
-  pasteLayer: (handle: number, data: Uint8Array, expand: boolean): void =>
-    paste_layer(handle, data, expand),
+  /** Pastes an encoded image as a new layer with its top-left at `(x, y)`;
+   *  `expand` grows the canvas to cover it there (spec §5.4). */
+  pasteLayer: (handle: number, data: Uint8Array, x: number, y: number, expand: boolean): void =>
+    paste_layer(handle, data, x, y, expand),
+  /** PNG of the active layer (`merged`: the visible composite) inside the selection (spec §5.4). */
+  copySelection: (handle: number, merged: boolean): Uint8Array => copy_selection(handle, merged),
+  /** `copySelection` of the active layer, then clears it, as one undo step. */
+  cutSelection: (handle: number): Uint8Array => cut_selection(handle),
+  /** Size + pixel hash of an encoded image; `null` when it can't be decoded. */
+  imageKey: (data: Uint8Array): string | null => {
+    try {
+      return image_key(data);
+    } catch {
+      return null;
+    }
+  },
+  /** The selection's bounding box `[x, y, w, h]`, or `null` without one. */
+  selectionBounds: (handle: number): [number, number, number, number] | null => {
+    const [x, y, w, h] = get_selection_bounds(handle);
+    return x === undefined || y === undefined || w === undefined || h === undefined
+      ? null
+      : [x, y, w, h];
+  },
   /** Opens an OpenRaster (`.ora`) project with all its layers. */
   openProject: (data: Uint8Array): number => open_project(data),
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
