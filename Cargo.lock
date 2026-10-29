@@ -3101,6 +3101,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "ts-rs",
  "uuid",
  "zip 9.1.2",
 ]

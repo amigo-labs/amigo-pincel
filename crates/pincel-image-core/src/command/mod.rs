@@ -12,6 +12,7 @@ mod properties;
 mod resize;
 mod selection;
 mod snapshot;
+pub mod spec;
 mod transform;
 
 pub use layers::{AddLayer, DuplicateLayer, MoveLayer, RemoveLayer};
