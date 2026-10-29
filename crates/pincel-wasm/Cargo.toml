@@ -22,8 +22,8 @@ workspace = true
 wasm-opt = false
 
 # wasm-pack ships its own pinned binaryen and downloads it from GitHub on
-# first use, which fails in sandboxed / firewalled build environments (the
-# release blocker noted in STATUS.md). Disable wasm-pack's bundled pass and
+# first use, which fails in sandboxed / firewalled build environments.
+# Disable wasm-pack's bundled pass and
 # let CI run a system `wasm-opt` (installed via apt) after the build — see
 # .github/workflows/release.yml. Release-profile rustc optimizations still
 # apply; only the post-build binaryen pass is deferred to the explicit step.

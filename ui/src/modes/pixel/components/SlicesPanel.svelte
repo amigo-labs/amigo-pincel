@@ -17,8 +17,8 @@
   // parent owns the state so the canvas-side marching-ants overlay
   // can read it without the panel re-broadcasting. `onActivate`
   // fires when a slice row is clicked. The panel itself only edits
-  // frame-0 keys (multi-frame slice editing is deferred — STATUS.md
-  // open question — and the codec round-trip already covers multi-
+  // frame-0 keys (multi-frame slice editing is deferred — backlog in
+  // docs/specs/README.md — and the codec round-trip already covers multi-
   // frame slices through `setSliceKey`).
   let {
     doc,

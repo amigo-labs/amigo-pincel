@@ -68,7 +68,7 @@ const SLICE_FLAG_PIVOT: u32 = 0x2;
 /// The file is staged in memory first so that the header `file_size`
 /// and per-frame size fields can be filled in. For typical sprite
 /// sizes this is well within budget; very large sprites should use a
-/// streaming writer (not yet implemented — see `STATUS.md`).
+/// streaming writer (not yet implemented).
 pub fn write<W: Write>(file: &AseFile, out: &mut W) -> Result<(), WriteError> {
     if file.frames.is_empty() {
         return Err(WriteError::NoFrames);

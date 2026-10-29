@@ -36,8 +36,8 @@ changes with `doc.drainEvents()`, and release the handle with
 ## Status
 
 Phase 1. The API surface is documented in `docs/specs/pincel.md` §17.5 of
-the [repository][Pincel] and kept small and stable; `STATUS.md` there
-tracks the current milestone.
+the [repository][Pincel] and kept small and stable; open work there is
+tracked as feature specs indexed in `docs/specs/README.md`.
 
 ## License
 

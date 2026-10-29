@@ -7,8 +7,8 @@
 //!
 //! ## Phase 1 status
 //!
-//! Crate is being implemented incrementally. See `STATUS.md` at the
-//! workspace root for the current milestone.
+//! Crate is being implemented incrementally; open work is tracked as
+//! feature specs indexed in `docs/specs/README.md` at the workspace root.
 
 mod bytes;
 mod error;
