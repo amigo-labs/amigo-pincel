@@ -18,9 +18,11 @@ test('pixel mode: a fast pencil stroke stays connected', async ({ page }) => {
   await page.mouse.move(...at(14, 14), { steps: 1 });
   await page.mouse.up();
 
-  // Sample a pixel in the middle of the diagonal with the eyedropper.
-  await color.fill('#000000');
+  // Sample every pixel of the diagonal with the eyedropper.
   await page.getByTitle(/Eyedropper/).click();
-  await page.mouse.click(...at(7, 7));
-  await expect(color).toHaveValue('#00ff00');
+  for (let i = 1; i <= 14; i += 1) {
+    await color.fill('#000000');
+    await page.mouse.click(...at(i, i));
+    await expect(color, `pixel (${i}, ${i})`).toHaveValue('#00ff00');
+  }
 });
