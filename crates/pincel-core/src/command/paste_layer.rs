@@ -15,7 +15,9 @@ use super::{AddLayer, Anchor, Command, ReframeCanvas};
 /// Decoded straight-alpha RGBA8 pixels to paste.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PastedImage {
+    /// Width in pixels.
     pub width: u32,
+    /// Height in pixels.
     pub height: u32,
     /// Row-major RGBA8, `width × height × 4` bytes.
     pub rgba: Vec<u8>,

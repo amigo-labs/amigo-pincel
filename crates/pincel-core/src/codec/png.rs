@@ -373,7 +373,6 @@ fn tag_for_frame(sprite: &Sprite, frame: FrameIndex) -> Option<&str> {
         .map(|t| t.name.as_str())
 }
 
-/// Encode a non-premultiplied RGBA8 buffer as PNG bytes.
 /// Encode row-major, non-premultiplied RGBA8 `pixels` (`width × height × 4`
 /// bytes) as a PNG — what Copy puts on the clipboard (spec §5.4).
 pub fn encode_png(pixels: &[u8], width: u32, height: u32) -> Result<Vec<u8>, ExportError> {
