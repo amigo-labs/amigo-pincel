@@ -36,7 +36,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 10 | [mcp-headless-image](mcp-headless-image.md) | Image | L | mcp-headless-pixel | |
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
-| 14 | [animated-export](animated-export.md) | Pixel | L | — | APNG needs no new dependency |
 | 15 | [save-original-format](save-original-format.md) | Image | M | — | Screenshot workflow |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
@@ -66,6 +65,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 ## Done
 
+- [animated-export](animated-export.md)
 - [image-editing](image-editing.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [pixel-compose](pixel-compose.md)

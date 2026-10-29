@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Pixel
@@ -40,25 +40,25 @@ APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decis
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses File ▸ Export ▸ Animation… on a Pixel document, then a dialog opens with a format choice (APNG, GIF), a frames choice (all frames or one of the sprite's tags), a scale choice from ×1 to ×10 and a loop choice (forever or a number N ≥ 1).
-- [ ] AC-02 (state): While the animation export dialog is open, it shows the number of frames the export will contain and the output size `(width × scale) × (height × scale)`, and both update when the frames choice or the scale changes.
-- [ ] AC-03 (state): While "all frames" is chosen, the export contains every frame of the sprite once, in forward order.
-- [ ] AC-04 (option): Where a tag is chosen, the export contains the tag's frames in the order of its direction: Forward `from…to`; Reverse `to…from`; Pingpong `from…to` then back down to `from + 1` (a tag over frames 0–2 gives 0, 1, 2, 1); PingpongReverse `to…from` then back up to `to − 1` (frames 0–2 give 2, 1, 0, 1). A tag whose direction byte Pincel doesn't know is exported as Forward.
-- [ ] AC-05 (option): Where the scale is N, the exported image is `N × width` by `N × height` pixels and every source pixel becomes an N×N block of exactly its colour.
-- [ ] AC-06 (event): When the user exports as APNG, then the editor downloads `<stem>.png` (`<stem>` is the document's file name without `.aseprite` / `.ase`, as for the existing exports), a PNG file with an `acTL` chunk whose frame count equals the number of exported frames.
-- [ ] AC-07 (always): Decoding an exported APNG yields, for every frame, exactly the composed sprite frame at that position of the sequence (upscaled by the scale), independent of the frames before it.
-- [ ] AC-08 (always): Each APNG frame's delay equals the source frame's duration in milliseconds.
-- [ ] AC-09 (option): Where the loop choice is "forever", the APNG's play count is 0 (infinite); where it is N, the APNG's play count is N.
-- [ ] AC-10 (always): The loop choice defaults to the chosen tag's repeat count when that tag has a non-zero repeat count, and to "forever" otherwise (all frames, or a tag with repeat count 0).
-- [ ] AC-11 (event): When the user exports as GIF, then the editor downloads `<stem>.gif`, a file starting with `GIF89a` that carries a NETSCAPE2.0 loop extension with loop count N − 1 (0 for forever), and no loop extension when N = 1.
-- [ ] AC-12 (always): In an exported GIF, a pixel whose composed alpha is below 128 is transparent and a pixel with alpha 128 or more is opaque.
-- [ ] AC-13 (state): While every exported frame fits a 256-entry colour table (its distinct opaque colours, plus one entry when the frame has transparent pixels), each decoded GIF frame keeps the exact RGB of every opaque pixel.
-- [ ] AC-14 (state): While GIF is chosen and at least one exported frame does not fit a 256-entry colour table, the dialog shows a warning that the GIF will be approximated, and the export still writes a GIF.
-- [ ] AC-15 (state): While GIF is chosen and an exported frame has semi-transparent pixels (alpha between 1 and 254), the dialog shows a hint that GIF transparency is on/off only.
-- [ ] AC-16 (always): Each GIF frame's delay is the source duration in hundredths of a second, rounded to the nearest integer, and never less than 2.
-- [ ] AC-17 (always): Decoding an exported GIF yields transparent pixels in frame k wherever composed frame k is transparent, even when an earlier frame was opaque there.
-- [ ] AC-18 (error): If the export fails (the renderer refuses the sprite, for example an indexed sprite; the sequence has no frames; or a caller of the wasm API passes a scale outside 1–10 or an unknown tag), then the export returns an error instead of bytes, no file is written, and in the editor the status bar reports the failure with the error message.
-- [ ] AC-19 (error): If the scaled output would be wider or higher than 16384 pixels, then the export fails with an error naming the limit and no file is written.
+- [x] AC-01 (event): When the user chooses File ▸ Export ▸ Animation… on a Pixel document, then a dialog opens with a format choice (APNG, GIF), a frames choice (all frames or one of the sprite's tags), a scale choice from ×1 to ×10 and a loop choice (forever or a number N ≥ 1).
+- [x] AC-02 (state): While the animation export dialog is open, it shows the number of frames the export will contain and the output size `(width × scale) × (height × scale)`, and both update when the frames choice or the scale changes.
+- [x] AC-03 (state): While "all frames" is chosen, the export contains every frame of the sprite once, in forward order.
+- [x] AC-04 (option): Where a tag is chosen, the export contains the tag's frames in the order of its direction: Forward `from…to`; Reverse `to…from`; Pingpong `from…to` then back down to `from + 1` (a tag over frames 0–2 gives 0, 1, 2, 1); PingpongReverse `to…from` then back up to `to − 1` (frames 0–2 give 2, 1, 0, 1). A tag whose direction byte Pincel doesn't know is exported as Forward.
+- [x] AC-05 (option): Where the scale is N, the exported image is `N × width` by `N × height` pixels and every source pixel becomes an N×N block of exactly its colour.
+- [x] AC-06 (event): When the user exports as APNG, then the editor downloads `<stem>.png` (`<stem>` is the document's file name without `.aseprite` / `.ase`, as for the existing exports), a PNG file with an `acTL` chunk whose frame count equals the number of exported frames.
+- [x] AC-07 (always): Decoding an exported APNG yields, for every frame, exactly the composed sprite frame at that position of the sequence (upscaled by the scale), independent of the frames before it.
+- [x] AC-08 (always): Each APNG frame's delay equals the source frame's duration in milliseconds.
+- [x] AC-09 (option): Where the loop choice is "forever", the APNG's play count is 0 (infinite); where it is N, the APNG's play count is N.
+- [x] AC-10 (always): The loop choice defaults to the chosen tag's repeat count when that tag has a non-zero repeat count, and to "forever" otherwise (all frames, or a tag with repeat count 0).
+- [x] AC-11 (event): When the user exports as GIF, then the editor downloads `<stem>.gif`, a file starting with `GIF89a` that carries a NETSCAPE2.0 loop extension with loop count N − 1 (0 for forever), and no loop extension when N = 1.
+- [x] AC-12 (always): In an exported GIF, a pixel whose composed alpha is below 128 is transparent and a pixel with alpha 128 or more is opaque.
+- [x] AC-13 (state): While every exported frame fits a 256-entry colour table (its distinct opaque colours, plus one entry when the frame has transparent pixels), each decoded GIF frame keeps the exact RGB of every opaque pixel.
+- [x] AC-14 (state): While GIF is chosen and at least one exported frame does not fit a 256-entry colour table, the dialog shows a warning that the GIF will be approximated, and the export still writes a GIF.
+- [x] AC-15 (state): While GIF is chosen and an exported frame has semi-transparent pixels (alpha between 1 and 254), the dialog shows a hint that GIF transparency is on/off only.
+- [x] AC-16 (always): Each GIF frame's delay is the source duration in hundredths of a second, rounded to the nearest integer, and never less than 2.
+- [x] AC-17 (always): Decoding an exported GIF yields transparent pixels in frame k wherever composed frame k is transparent, even when an earlier frame was opaque there.
+- [x] AC-18 (error): If the export fails (the renderer refuses the sprite, for example an indexed sprite; the sequence has no frames; or a caller of the wasm API passes a scale outside 1–10 or an unknown tag), then the export returns an error instead of bytes, no file is written, and in the editor the status bar reports the failure with the error message.
+- [x] AC-19 (error): If the scaled output would be wider or higher than 16384 pixels, then the export fails with an error naming the limit and no file is written.
 
 ## Technical notes
 
@@ -105,25 +105,34 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts) | built |        |
-| AC-02 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_counts_the_sequence_frames` (crates/pincel-core/src/codec/animation/mod.rs) | built |        |
-| AC-03 | `animation_frames_all_frames_are_forward_once` (crates/pincel-core/src/codec/animation/sequence.rs) | built |        |
-| AC-04 | `animation_frames_forward_tag_runs_from_to`, `animation_frames_reverse_tag_runs_to_from`, `animation_frames_pingpong_returns_without_repeating_ends`, `animation_frames_pingpong_reverse_starts_at_to`, `animation_frames_single_frame_tag_is_one_frame_in_every_direction`, `animation_frames_unknown_direction_byte_plays_forward` (crates/pincel-core/src/codec/animation/sequence.rs); `export_animation_apng_frames_equal_composed_frames_in_sequence_order` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-05 | `upscale_nearest_makes_exact_blocks`, `scaled_size_multiplies_both_edges` (crates/pincel-core/src/codec/scale.rs); `export_animation_apng_scale_makes_exact_blocks` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-06 | `APNG export downloads <stem>.png with an acTL frame count` (ui/e2e/export-animation.spec.ts); `export_animation_apng_has_png_signature_and_actl_frame_count` (crates/pincel-core/src/codec/animation/apng.rs); `export_animation_apng_carries_actl_with_frame_count` (crates/pincel-wasm/src/animation.rs) | built |        |
-| AC-07 | `export_animation_apng_frames_equal_composed_frames_in_sequence_order`, `export_animation_apng_single_frame_is_valid_animation` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-08 | `export_animation_apng_delay_is_duration_in_ms` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-09 | `export_animation_apng_play_count_follows_loops` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
-| AC-10 | `the loop choice defaults to the tag repeat count`, `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_default_loops_follow_the_tag_repeats` (crates/pincel-core/src/codec/animation/mod.rs); `animation_info_reports_count_loops_and_notices` (crates/pincel-wasm/src/animation.rs) | built |        |
-| AC-11 | `GIF export downloads <stem>.gif with the NETSCAPE loop count` (ui/e2e/export-animation.spec.ts); `export_animation_gif_starts_with_gif89a`, `export_animation_gif_loop_extension_counts_extra_plays` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-12 | `export_animation_gif_alpha_threshold_is_128` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-13 | `export_animation_gif_fitting_frames_keep_exact_rgb`, `fits_table_counts_the_transparent_entry` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-14 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_frames_over_the_gif_table` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_gif_overflowing_frame_is_quantized_and_written` (crates/pincel-core/src/codec/animation/gif.rs); `median_cut_overflowing_set_returns_at_most_max_colors` (crates/pincel-core/src/codec/animation/quantize.rs) | built |        |
-| AC-15 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_semi_transparent_pixels` (crates/pincel-core/src/codec/animation/mod.rs); `has_partial_alpha_detects_alpha_between_1_and_254` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-16 | `delay_cs_rounds_to_hundredths_with_minimum_two`, `export_animation_gif_frame_delays_follow_durations` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-17 | `export_animation_gif_pixel_turning_transparent_shows_transparent`, `export_animation_gif_frames_follow_sequence_and_scale` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
-| AC-18 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_indexed_sprite_returns_render_error`, `export_animation_frameless_sprite_returns_no_frames`, `export_animation_scale_out_of_range_returns_err`, `export_animation_unknown_tag_returns_err` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_bad_arguments_return_err` (crates/pincel-wasm/src/animation.rs) | built |        |
-| AC-19 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_over_edge_limit_returns_err_naming_limit` (crates/pincel-core/src/codec/animation/mod.rs); `scaled_size_above_limit_returns_err_naming_limit`, `scaled_size_exactly_at_limit_is_accepted` (crates/pincel-core/src/codec/scale.rs); `export_animation_over_edge_limit_names_the_limit` (crates/pincel-wasm/src/animation.rs) | built |        |
+| AC-01 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts) | verified | e7cee29 |
+| AC-02 | `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_counts_the_sequence_frames` (crates/pincel-core/src/codec/animation/mod.rs) | verified | e7cee29 |
+| AC-03 | `animation_frames_all_frames_are_forward_once` (crates/pincel-core/src/codec/animation/sequence.rs) | verified | 74d5722 |
+| AC-04 | `animation_frames_forward_tag_runs_from_to`, `animation_frames_reverse_tag_runs_to_from`, `animation_frames_pingpong_returns_without_repeating_ends`, `animation_frames_pingpong_reverse_starts_at_to`, `animation_frames_single_frame_tag_is_one_frame_in_every_direction`, `animation_frames_unknown_direction_byte_plays_forward` (crates/pincel-core/src/codec/animation/sequence.rs); `export_animation_apng_frames_equal_composed_frames_in_sequence_order` (crates/pincel-core/src/codec/animation/apng.rs) | verified | 74d5722 |
+| AC-05 | `upscale_nearest_makes_exact_blocks`, `scaled_size_multiplies_both_edges` (crates/pincel-core/src/codec/scale.rs); `export_animation_apng_scale_makes_exact_blocks` (crates/pincel-core/src/codec/animation/apng.rs) | verified | 74d5722 |
+| AC-06 | `APNG export downloads <stem>.png with an acTL frame count` (ui/e2e/export-animation.spec.ts); `export_animation_apng_has_png_signature_and_actl_frame_count` (crates/pincel-core/src/codec/animation/apng.rs); `export_animation_apng_carries_actl_with_frame_count` (crates/pincel-wasm/src/animation.rs) | verified | e7cee29 |
+| AC-07 | `export_animation_apng_frames_equal_composed_frames_in_sequence_order`, `export_animation_apng_single_frame_is_valid_animation` (crates/pincel-core/src/codec/animation/apng.rs) | verified | 74d5722 |
+| AC-08 | `export_animation_apng_delay_is_duration_in_ms` (crates/pincel-core/src/codec/animation/apng.rs) | verified | 74d5722 |
+| AC-09 | `export_animation_apng_play_count_follows_loops` (crates/pincel-core/src/codec/animation/apng.rs) | verified | 74d5722 |
+| AC-10 | `the loop choice defaults to the tag repeat count`, `the dialog offers format, frames, scale and loop and estimates the output` (ui/e2e/export-animation.spec.ts); `animation_info_default_loops_follow_the_tag_repeats` (crates/pincel-core/src/codec/animation/mod.rs); `animation_info_reports_count_loops_and_notices` (crates/pincel-wasm/src/animation.rs) | verified | e7cee29 |
+| AC-11 | `GIF export downloads <stem>.gif with the NETSCAPE loop count` (ui/e2e/export-animation.spec.ts); `export_animation_gif_starts_with_gif89a`, `export_animation_gif_loop_extension_counts_extra_plays` (crates/pincel-core/src/codec/animation/gif.rs) | verified | e7cee29 |
+| AC-12 | `export_animation_gif_alpha_threshold_is_128` (crates/pincel-core/src/codec/animation/gif.rs) | verified | ad1cd36 |
+| AC-13 | `export_animation_gif_fitting_frames_keep_exact_rgb`, `fits_table_counts_the_transparent_entry` (crates/pincel-core/src/codec/animation/gif.rs) | verified | ad1cd36 |
+| AC-14 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_frames_over_the_gif_table` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_gif_overflowing_frame_is_quantized_and_written` (crates/pincel-core/src/codec/animation/gif.rs); `median_cut_overflowing_set_returns_at_most_max_colors` (crates/pincel-core/src/codec/animation/quantize.rs) | verified | e7cee29 |
+| AC-15 | `GIF notices warn about approximated colours and on/off transparency` (ui/e2e/export-animation.spec.ts); `animation_info_flags_semi_transparent_pixels` (crates/pincel-core/src/codec/animation/mod.rs); `has_partial_alpha_detects_alpha_between_1_and_254` (crates/pincel-core/src/codec/animation/gif.rs) | verified | e7cee29 |
+| AC-16 | `delay_cs_rounds_to_hundredths_with_minimum_two`, `export_animation_gif_frame_delays_follow_durations` (crates/pincel-core/src/codec/animation/gif.rs) | verified | ad1cd36 |
+| AC-17 | `export_animation_gif_pixel_turning_transparent_shows_transparent`, `export_animation_gif_frames_follow_sequence_and_scale` (crates/pincel-core/src/codec/animation/gif.rs) | verified | ad1cd36 |
+| AC-18 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_indexed_sprite_returns_render_error`, `export_animation_frameless_sprite_returns_no_frames`, `export_animation_scale_out_of_range_returns_err`, `export_animation_unknown_tag_returns_err` (crates/pincel-core/src/codec/animation/mod.rs); `export_animation_bad_arguments_return_err` (crates/pincel-wasm/src/animation.rs) | verified | 74d3e7f |
+| AC-19 | `an output over 16384 px fails in the status bar without a download` (ui/e2e/export-animation.spec.ts); `export_animation_over_edge_limit_returns_err_naming_limit` (crates/pincel-core/src/codec/animation/mod.rs); `scaled_size_above_limit_returns_err_naming_limit`, `scaled_size_exactly_at_limit_is_accepted` (crates/pincel-core/src/codec/scale.rs); `export_animation_over_edge_limit_names_the_limit` (crates/pincel-wasm/src/animation.rs) | verified | e7cee29 |
+
+## Summary
+
+> Completed: 2026-10-29
+
+- File ▸ Export ▸ Animation… (web menu and native macOS menu) opens a dialog with format (APNG / GIF), frames (all or one tag), scale ×1–×10 and loop (forever / N plays), a live frame-count and size estimate and the two GIF notices.
+- `pincel-core` `export_animation` / `animation_info` / `animation_frames`: tag directions including pingpong without repeated ends, the nearest-neighbour upscale in crate-private `codec/scale.rs`, the 16384 px per-edge cap, frames streamed one at a time.
+- APNG through `png` 0.18 (full-canvas frames, dispose None, blend Source, delay in ms, play count); GIF through `gif` 0.14 (one palette per frame, exact when it fits 256 entries, in-house median cut otherwise, alpha threshold 128, delay ≥ 2 cs, disposal to background, NETSCAPE2.0 loop count N − 1).
+- `pincel-wasm` `exportAnimation(format, tag?, scale, loops)` and `animationInfo(tag?)`; failures reach the status bar without a download.
 
 ## Decisions
 
