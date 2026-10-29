@@ -620,7 +620,7 @@ const events = doc.drainEvents();
 
 A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
 
-`drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity.
+`drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
 ### 9.4 Input Handling
 
