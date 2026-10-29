@@ -114,23 +114,23 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `pencil_stroke_square_click_paints_n_by_n_block`, `pencil_stroke_size_3_square_stamps_3x3`, `pencil_stroke_even_size_extends_top_left` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_size_3_click_paints_centred_block` (`crates/pincel-wasm/src/stroke.rs`); "a size-3 pencil click paints a 3x3 block" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-02 | `pencil_stroke_round_shape_skips_corners` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_round_size_3_click_paints_plus` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
+| AC-03 | `pencil_stroke_jump_stamps_every_line_pixel_at_every_size`, `pencil_stroke_size_1_matches_bresenham` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_jump_paints_connected_line` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a fast pencil stroke stays connected" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-04 | `pencil_stroke_revert_restores_first_touch_values`, `pencil_stroke_two_strokes_add_two_undo_entries`, `pencil_stroke_random_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_gesture_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
+| AC-05 | `pencil_stroke_out_of_bounds_points_are_skipped` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_beyond_canvas_paints_in_bounds_part_without_error` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
+| AC-06 | `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `eraser_stroke_clears_the_pencil_footprint` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
+| AC-07 | "a Shift pencil drag snaps to the nearest 45 degree direction", "touch device › the latched Shift toggle constrains a pencil drag" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-08 | `pixel_perfect_removes_l_corner`, `pencil_stroke_random_strokes_hold_invariants`, `pencil_stroke_transparent_clears_pencil_footprint` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_pixel_perfect_drops_staircase_corners` (`crates/pincel-wasm/src/stroke.rs`); "a pixel-perfect staircase leaves its corners empty" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-09 | `pixel_perfect_keeps_corner_painted_earlier_in_stroke` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |  |
+| AC-10 | `pixel_perfect_has_no_effect_above_size_1` (`crates/pincel-core/src/command/pencil_stroke.rs`); "pixel-perfect is disabled above size 1" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-11 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-12 | "a typed size outside 1-8 clamps to the nearest bound" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-13 | "[ and ] step the brush size within 1-8" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-14 | `begin_stroke_on_locked_layer_errs_and_adds_no_undo_entry`, `begin_stroke_without_image_layer_errs` (`crates/pincel-wasm/src/stroke.rs`) | built |  |
+| AC-15 | "pencil and eraser show size, shape and pixel-perfect options" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-16 | "pencil and eraser share one size / shape / pixel-perfect setting" (`ui/e2e/pencil.spec.ts`) | built |  |
+| AC-17 | "brush settings survive a reload" (`ui/e2e/pencil.spec.ts`) | built |  |
 
 ## Decisions
 
@@ -143,3 +143,12 @@ This spec is the base for `pixel-pressure`, `symmetry-tiled-mode` and `shading-i
 - 2026-10-29: Pencil and Eraser share one size / shape / pixel-perfect setting (AC-16) — Image mode already shares `tool.size` and `tool.shape` between Pencil and Eraser, and Aseprite shares its brush across tools (owner accepted the recommendation).
 - 2026-10-29: An even-size square stamp gets its extra row / column on the top and left: it spans `x − N/2 … x + N/2 − 1` (AC-01) — this is Aseprite's brush origin (`−size/2`), so strokes line up with what Aseprite users expect (owner accepted the recommendation).
 - 2026-10-29: Size, shape and pixel-perfect persist across sessions in one IndexedDB `pixelBrush` pref, with defaults when it is missing (AC-17) — brush size is the option users set once, it is a few lines, and the colour-picker spec persists colours the same way (owner accepted the recommendation).
+- 2026-10-29 (spec-build): The live stroke stays on the undo top and `Bus::continue_stroke(to, cels)` extends it, instead of each `strokeTo` merging a segment command — the bus applies a command before merging it, so a standalone segment would paint pixel-perfect corners the merge could no longer take back.
+- 2026-10-29 (spec-build): `PencilStroke` replays its input samples on every `apply` and records first-touch values in `prior`, so redo is deterministic and undo restores pre-stroke values however often the stroke crossed a pixel.
+- 2026-10-29 (spec-build): Pixel-perfect keeps a per-pixel count of the kept path; a corner is restored only when its count drops to zero, which is how "painted earlier in the same stroke" (AC-09) is decided.
+- 2026-10-29 (spec-build): Round masks keep cell (i, j) while (2i−(N−1))² + (2j−(N−1))² < (N−1)² + 2(N−1) (sizes 1–2 are full squares) — it gives the 5-pixel plus at size 3 and cuts the corners at every N ≥ 3, close to Aseprite's round brushes (assumption row 1).
+- 2026-10-29 (spec-build): A Shift-snapped diagonal runs as far as the longer of the two pointer deltas, like the Line tool's Shift snap; the axis wins when |minor| ≤ tan 22.5° · |major|.
+- 2026-10-29 (spec-build): The random-stroke invariant test is a seeded LCG loop inside `pencil_stroke.rs` instead of `proptest`, because `proptest` is not a `pincel-core` dev-dependency and adding one needs approval.
+- 2026-10-29 (spec-build): `beginStroke` takes `size` as `u32` and clamps it to 1–8, so an out-of-range JS number cannot wrap; the Shape control is a select (Square / Round) like the shape tools' mode select.
+- 2026-10-29 (spec-build): E2e tests read pixels back with the Eyedropper (`#000000` = transparent); a pick of a transparent pixel also sets the foreground alpha to 0, so each spec paints before it picks.
+- 2026-10-29 (spec-build): New public API — `pincel-core`: `PencilStroke`, `PixelBrush`, `BrushShape`, `MIN_BRUSH_SIZE`, `MAX_BRUSH_SIZE`, `AnyCommand::PencilStroke`, `Bus::continue_stroke`; `pincel-wasm`: `Document.beginStroke`, `Document.strokeTo`.
