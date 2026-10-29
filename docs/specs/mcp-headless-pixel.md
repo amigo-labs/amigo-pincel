@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Pixel
@@ -49,52 +49,52 @@ From the design spec `docs/specs/mcp.md` (draft, 2026-05-13) this keeps the agen
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When an MCP client starts `pincel-mcp` and sends `initialize` over stdio, then the server replies with its name and version and announces the tools and resources capabilities, and afterwards answers `tools/list`, `tools/call`, `resources/list`, `resources/read` and `ping`.
-- [ ] AC-02 (always): Every tool returned by `tools/list` has a unique `area.verb` name, a non-empty description and an input schema of type `object` whose `required` entries all appear in its `properties`; the list contains every shared and Pixel tool listed under Technical notes.
-- [ ] AC-03 (event): When the client calls `doc.new` with `mode: "pixel"`, `width` and `height`, then the session holds a new Pixel document of that size, it becomes the active document, the result carries its `doc` id and info, and nothing is written to the workspace.
-- [ ] AC-04 (option): Where `doc.new` gets a `palette` preset id, the new document's palette equals that built-in preset; without it, the palette equals the default of a New Pixel document in the editor (DB32).
-- [ ] AC-05 (always): A tool called without `doc` acts on the active document; a tool called with `doc` acts on that document and leaves every other open document unchanged.
-- [ ] AC-06 (error): If `doc` names no open document, or a document tool is called while no document is open, then the call fails with `isError: true` and a message naming the missing id (or saying that no document is open), and no document changes.
-- [ ] AC-07 (event): When the client calls `doc.list` or `doc.info`, then each document's width, height, layers, frames, tags, palette size, active layer, active frame and dirty state are reported; the dirty state is true after a successful mutating call and false after `doc.save`.
-- [ ] AC-08 (event): When the client calls `doc.close`, then the document is no longer listed by `doc.list`, and a later call naming its id fails as in AC-06.
-- [ ] AC-09 (always): Every successful mutating tool call that changes the document is exactly one undo step: one `doc.undo` returns the document to its exact state before the call, and one `doc.redo` re-applies the whole call.
-- [ ] AC-10 (event): When the client calls `doc.undo` or `doc.redo`, then the result reports the new undo and redo depths.
-- [ ] AC-11 (event): When the client calls `doc.preview`, then the result contains MCP image content holding a PNG of the composed frame in which every document pixel is an s×s block of one color — s being `scale`, or, without `scale`, the smallest integer that makes the longest side at least 256 px (s = 1 when the longest side already is), never below 1 — and the result states the PNG's width and height. The PNG is at most 2048 px on each edge (AC-45).
-- [ ] AC-12 (option): Where `doc.preview` gets `frame` or `region`, the preview shows that frame, or only that rectangle of the frame; where it gets `grid: true` and the scale is at least 4, it differs from the same preview without grid only in a 1-px line of `#808080` at 50 % alpha on the first row and the first column of every document-pixel block; where the scale is below 4, no grid is drawn and the result says "grid omitted below scale 4".
-- [ ] AC-13 (event): When the client calls `doc.read_pixels` with a region of at most 64×64 and `format: "hex"`, then the result has one text row per pixel row of the region with one color per pixel, equal to the pixels of the given layer's cel in the given frame, or of the composed frame when no layer is given.
-- [ ] AC-14 (error): If `doc.read_pixels` gets a region larger than 64×64 in either dimension, or a region outside the canvas, then the call fails with `isError: true` and a message stating the limit or the canvas size.
-- [ ] AC-15 (event): When `layer.add`, `layer.set` (name, visible, opacity, blend, locked) or `layer.remove` succeed, then `layer.list` reports the changed layer stack in order with these properties; a layer added or set with `parent` is a child of that group.
-- [ ] AC-16 (event): When `frame.add` (with optional `clone_from` and `duration_ms`), `frame.set_duration` or `frame.remove` succeed, then `frame.list` reports the changed frames and durations, and a frame added with `clone_from` has the same cel pixels as its source frame.
-- [ ] AC-17 (event): When `tag.add` (name, from, to, direction) or `tag.remove` succeed, then `tag.list` reports the changed tags with these properties.
-- [ ] AC-18 (event): When the client calls `palette.get`, `palette.set` (entries) or `palette.load_preset` (DB32, DB16, PICO-8, Game Boy, NES), then `palette.get` afterwards returns the set entries, or exactly the preset's colors.
-- [ ] AC-19 (event): When the client calls `draw.pixels` with a batch of `{x, y, color}`, then each listed pixel of the target cel has its color afterwards and no other pixel changed; colors are accepted as `#RRGGBB`, `#RRGGBBAA` and `{ "index": n }`.
-- [ ] AC-20 (error): If any pixel of a `draw.pixels` batch lies outside the canvas, then the call fails with `isError: true`, the message names the first offending pixel and the canvas size (e.g. "pixel (40, 3) outside 32×32 canvas"), and the document is unchanged.
-- [ ] AC-21 (error): If a color argument is malformed, or a palette index is not in the palette, then the call fails with `isError: true`, the message names the argument and the accepted forms, and the document is unchanged.
-- [ ] AC-22 (event): When the client calls `draw.line`, `draw.rect` or `draw.ellipse` (with `filled`), then the target cel has the same pixels as after the editor's Line, Rectangle or Ellipse tool with the same endpoints, color and fill.
-- [ ] AC-23 (event): When the client calls `draw.fill`, then the target cel has the same pixels as after the editor's Bucket tool from the same seed with the same color; with `contiguous: false`, every pixel of the seed's color changes.
-- [ ] AC-24 (event): When the client calls `draw.clear` with a `region`, then exactly the pixels of the target cel inside the region become transparent; without `region`, every pixel of the target cel does.
-- [ ] AC-25 (state): While a selection set by `selection.set_rect` exists, `draw.fill` and `effect.apply` change no pixel outside it; after `selection.clear` they act on the whole cel again.
-- [ ] AC-26 (event): When the client calls `effect.apply` with an effect id and parameters from the `pincel-effects` catalog, then the target cel has the same pixels as after applying that effect with these parameters in the editor.
-- [ ] AC-27 (error): If `effect.apply` names an unknown effect id, or a parameter outside its range, then the call fails with `isError: true`, the message names the id or the parameter and its allowed range, and the document is unchanged.
-- [ ] AC-28 (error): If a mutating tool targets a locked layer (or a layer inside a locked group), then the call fails with `isError: true` naming the layer, and the document is unchanged.
-- [ ] AC-29 (event): When the client calls `doc.open` with a workspace-relative `.aseprite` path, then the session holds a Pixel document with the same layers, frames, tags, palette and pixels as the editor opens from that file, it becomes the active document, and the result carries its `doc` id and info.
-- [ ] AC-30 (event): When the client calls `doc.save`, then a `.aseprite` file is written to `path`, or without `path` to the file the document was opened from or last saved to, and opening that file again yields the same layers, frames, tags, palette and pixels.
-- [ ] AC-31 (error): If `doc.save` without `path` is called on a document that was never opened from or saved to a file, then the call fails with `isError: true` asking for a `path`, and nothing is written.
-- [ ] AC-32 (event): When the client calls `export.png` with `path` (and optional `frame`, `scale`), then a PNG file is written there whose pixels equal the `doc.preview` of the same frame at the same scale without grid.
-- [ ] AC-33 (event): When the client calls `export.sheet` with `columns` and `path` (and optional `tag`, `scale`), then a PNG is written with the frames — only the tag's frames when `tag` is given — laid out left to right, top to bottom in that many columns; where `json` is given, a JSON file in the Aseprite sheet-data format naming the PNG and listing one rectangle per exported frame is written as well.
-- [ ] AC-34 (error): If a path argument resolves outside the workspace (through `..`, an absolute path, or a symlink leading out), then the call fails with `isError: true` and `E007: path outside workspace`, and nothing is read or written.
-- [ ] AC-35 (option): Where `--workspace <dir>` is given, paths resolve inside that directory; without it, inside the current working directory.
-- [ ] AC-36 (option): Where `--read-only` is given, `doc.save`, `export.png` and `export.sheet` fail with `isError: true` saying the workspace is read-only and write nothing, while `doc.open` and all in-memory tools keep working.
-- [ ] AC-37 (error): If `tools/call` names an unknown tool, or its arguments do not match the tool's input schema, then the server answers with an error naming the tool or the offending argument, and keeps serving later requests.
-- [ ] AC-38 (error): If a message on stdin is not valid JSON-RPC, then the server answers with a JSON-RPC parse error and keeps serving later requests.
-- [ ] AC-39 (event): When the client calls `resources/list`, then it contains one `pincel://palettes/{id}` resource per built-in palette preset, and `resources/read` of one returns that preset's colors.
-- [ ] AC-40 (event): When a client spawns `pincel-mcp` in an empty temporary workspace and runs `initialize` → `tools/list` → `doc.new` → `draw.pixels` → `doc.preview` → `export.png`, then the preview result contains image content, and the exported PNG exists inside the workspace and contains the drawn pixels.
-- [ ] AC-41 (event, manual: only a published release runs the release workflow): When a release is published, its assets include a `pincel-mcp` binary for each desktop platform the release workflow builds.
-- [ ] AC-42 (always, manual: documentation): The README documents installing `pincel-mcp` and registering it with Claude Code via `claude mcp add pincel -- pincel-mcp --workspace .`.
-- [ ] AC-43 (always): `draw.*`, `selection.*` and `effect.apply` take optional `layer` (an id from `layer.list`) and `frame` (an index) arguments; without them they act on the document's active layer and frame — the active layer being the active image layer or, if none is active, the lowest image layer, as in the editor. `layer.add` and `frame.add` make the new layer or frame active; explicit `layer` / `frame` arguments do not change which layer or frame is active.
-- [ ] AC-44 (event): When the client calls `doc.read_pixels` with `format: "index"`, then each pixel is written as the decimal index of the first palette entry with exactly that RGBA value, or as `-` when no entry matches (fully transparent pixels included when no palette entry is transparent).
-- [ ] AC-45 (error): If `doc.preview` at the given `scale` (or at scale 1) would produce a PNG wider or taller than 2048 px, then the call fails with `isError: true`, the message names the 2048 px cap and suggests `region`, and no image is returned.
-- [ ] AC-46 (error): If `doc.new` gets a `width` or `height` outside 1–4096, then the call fails with `isError: true` and the message "width must be 1–4096" (or "height must be 1–4096"), and no document is added.
+- [x] AC-01 (event): When an MCP client starts `pincel-mcp` and sends `initialize` over stdio, then the server replies with its name and version and announces the tools and resources capabilities, and afterwards answers `tools/list`, `tools/call`, `resources/list`, `resources/read` and `ping`.
+- [x] AC-02 (always): Every tool returned by `tools/list` has a unique `area.verb` name, a non-empty description and an input schema of type `object` whose `required` entries all appear in its `properties`; the list contains every shared and Pixel tool listed under Technical notes.
+- [x] AC-03 (event): When the client calls `doc.new` with `mode: "pixel"`, `width` and `height`, then the session holds a new Pixel document of that size, it becomes the active document, the result carries its `doc` id and info, and nothing is written to the workspace.
+- [x] AC-04 (option): Where `doc.new` gets a `palette` preset id, the new document's palette equals that built-in preset; without it, the palette equals the default of a New Pixel document in the editor (DB32).
+- [x] AC-05 (always): A tool called without `doc` acts on the active document; a tool called with `doc` acts on that document and leaves every other open document unchanged.
+- [x] AC-06 (error): If `doc` names no open document, or a document tool is called while no document is open, then the call fails with `isError: true` and a message naming the missing id (or saying that no document is open), and no document changes.
+- [x] AC-07 (event): When the client calls `doc.list` or `doc.info`, then each document's width, height, layers, frames, tags, palette size, active layer, active frame and dirty state are reported; the dirty state is true after a successful mutating call and false after `doc.save`.
+- [x] AC-08 (event): When the client calls `doc.close`, then the document is no longer listed by `doc.list`, and a later call naming its id fails as in AC-06.
+- [x] AC-09 (always): Every successful mutating tool call that changes the document is exactly one undo step: one `doc.undo` returns the document to its exact state before the call, and one `doc.redo` re-applies the whole call.
+- [x] AC-10 (event): When the client calls `doc.undo` or `doc.redo`, then the result reports the new undo and redo depths.
+- [x] AC-11 (event): When the client calls `doc.preview`, then the result contains MCP image content holding a PNG of the composed frame in which every document pixel is an s×s block of one color — s being `scale`, or, without `scale`, the smallest integer that makes the longest side at least 256 px (s = 1 when the longest side already is), never below 1 — and the result states the PNG's width and height. The PNG is at most 2048 px on each edge (AC-45).
+- [x] AC-12 (option): Where `doc.preview` gets `frame` or `region`, the preview shows that frame, or only that rectangle of the frame; where it gets `grid: true` and the scale is at least 4, it differs from the same preview without grid only in a 1-px line of `#808080` at 50 % alpha on the first row and the first column of every document-pixel block; where the scale is below 4, no grid is drawn and the result says "grid omitted below scale 4".
+- [x] AC-13 (event): When the client calls `doc.read_pixels` with a region of at most 64×64 and `format: "hex"`, then the result has one text row per pixel row of the region with one color per pixel, equal to the pixels of the given layer's cel in the given frame, or of the composed frame when no layer is given.
+- [x] AC-14 (error): If `doc.read_pixels` gets a region larger than 64×64 in either dimension, or a region outside the canvas, then the call fails with `isError: true` and a message stating the limit or the canvas size.
+- [x] AC-15 (event): When `layer.add`, `layer.set` (name, visible, opacity, blend, locked) or `layer.remove` succeed, then `layer.list` reports the changed layer stack in order with these properties; a layer added or set with `parent` is a child of that group.
+- [x] AC-16 (event): When `frame.add` (with optional `clone_from` and `duration_ms`), `frame.set_duration` or `frame.remove` succeed, then `frame.list` reports the changed frames and durations, and a frame added with `clone_from` has the same cel pixels as its source frame.
+- [x] AC-17 (event): When `tag.add` (name, from, to, direction) or `tag.remove` succeed, then `tag.list` reports the changed tags with these properties.
+- [x] AC-18 (event): When the client calls `palette.get`, `palette.set` (entries) or `palette.load_preset` (DB32, DB16, PICO-8, Game Boy, NES), then `palette.get` afterwards returns the set entries, or exactly the preset's colors.
+- [x] AC-19 (event): When the client calls `draw.pixels` with a batch of `{x, y, color}`, then each listed pixel of the target cel has its color afterwards and no other pixel changed; colors are accepted as `#RRGGBB`, `#RRGGBBAA` and `{ "index": n }`.
+- [x] AC-20 (error): If any pixel of a `draw.pixels` batch lies outside the canvas, then the call fails with `isError: true`, the message names the first offending pixel and the canvas size (e.g. "pixel (40, 3) outside 32×32 canvas"), and the document is unchanged.
+- [x] AC-21 (error): If a color argument is malformed, or a palette index is not in the palette, then the call fails with `isError: true`, the message names the argument and the accepted forms, and the document is unchanged.
+- [x] AC-22 (event): When the client calls `draw.line`, `draw.rect` or `draw.ellipse` (with `filled`), then the target cel has the same pixels as after the editor's Line, Rectangle or Ellipse tool with the same endpoints, color and fill.
+- [x] AC-23 (event): When the client calls `draw.fill`, then the target cel has the same pixels as after the editor's Bucket tool from the same seed with the same color; with `contiguous: false`, every pixel of the seed's color changes.
+- [x] AC-24 (event): When the client calls `draw.clear` with a `region`, then exactly the pixels of the target cel inside the region become transparent; without `region`, every pixel of the target cel does.
+- [x] AC-25 (state): While a selection set by `selection.set_rect` exists, `draw.fill` and `effect.apply` change no pixel outside it; after `selection.clear` they act on the whole cel again.
+- [x] AC-26 (event): When the client calls `effect.apply` with an effect id and parameters from the `pincel-effects` catalog, then the target cel has the same pixels as after applying that effect with these parameters in the editor.
+- [x] AC-27 (error): If `effect.apply` names an unknown effect id, or a parameter outside its range, then the call fails with `isError: true`, the message names the id or the parameter and its allowed range, and the document is unchanged.
+- [x] AC-28 (error): If a mutating tool targets a locked layer (or a layer inside a locked group), then the call fails with `isError: true` naming the layer, and the document is unchanged.
+- [x] AC-29 (event): When the client calls `doc.open` with a workspace-relative `.aseprite` path, then the session holds a Pixel document with the same layers, frames, tags, palette and pixels as the editor opens from that file, it becomes the active document, and the result carries its `doc` id and info.
+- [x] AC-30 (event): When the client calls `doc.save`, then a `.aseprite` file is written to `path`, or without `path` to the file the document was opened from or last saved to, and opening that file again yields the same layers, frames, tags, palette and pixels.
+- [x] AC-31 (error): If `doc.save` without `path` is called on a document that was never opened from or saved to a file, then the call fails with `isError: true` asking for a `path`, and nothing is written.
+- [x] AC-32 (event): When the client calls `export.png` with `path` (and optional `frame`, `scale`), then a PNG file is written there whose pixels equal the `doc.preview` of the same frame at the same scale without grid.
+- [x] AC-33 (event): When the client calls `export.sheet` with `columns` and `path` (and optional `tag`, `scale`), then a PNG is written with the frames — only the tag's frames when `tag` is given — laid out left to right, top to bottom in that many columns; where `json` is given, a JSON file in the Aseprite sheet-data format naming the PNG and listing one rectangle per exported frame is written as well.
+- [x] AC-34 (error): If a path argument resolves outside the workspace (through `..`, an absolute path, or a symlink leading out), then the call fails with `isError: true` and `E007: path outside workspace`, and nothing is read or written.
+- [x] AC-35 (option): Where `--workspace <dir>` is given, paths resolve inside that directory; without it, inside the current working directory.
+- [x] AC-36 (option): Where `--read-only` is given, `doc.save`, `export.png` and `export.sheet` fail with `isError: true` saying the workspace is read-only and write nothing, while `doc.open` and all in-memory tools keep working.
+- [x] AC-37 (error): If `tools/call` names an unknown tool, or its arguments do not match the tool's input schema, then the server answers with an error naming the tool or the offending argument, and keeps serving later requests.
+- [x] AC-38 (error): If a message on stdin is not valid JSON-RPC, then the server answers with a JSON-RPC parse error and keeps serving later requests.
+- [x] AC-39 (event): When the client calls `resources/list`, then it contains one `pincel://palettes/{id}` resource per built-in palette preset, and `resources/read` of one returns that preset's colors.
+- [x] AC-40 (event): When a client spawns `pincel-mcp` in an empty temporary workspace and runs `initialize` → `tools/list` → `doc.new` → `draw.pixels` → `doc.preview` → `export.png`, then the preview result contains image content, and the exported PNG exists inside the workspace and contains the drawn pixels.
+- [x] AC-41 (event, manual: only a published release runs the release workflow): When a release is published, its assets include a `pincel-mcp` binary for each desktop platform the release workflow builds.
+- [x] AC-42 (always, manual: documentation): The README documents installing `pincel-mcp` and registering it with Claude Code via `claude mcp add pincel -- pincel-mcp --workspace .`.
+- [x] AC-43 (always): `draw.*`, `selection.*` and `effect.apply` take optional `layer` (an id from `layer.list`) and `frame` (an index) arguments; without them they act on the document's active layer and frame — the active layer being the active image layer or, if none is active, the lowest image layer, as in the editor. `layer.add` and `frame.add` make the new layer or frame active; explicit `layer` / `frame` arguments do not change which layer or frame is active.
+- [x] AC-44 (event): When the client calls `doc.read_pixels` with `format: "index"`, then each pixel is written as the decimal index of the first palette entry with exactly that RGBA value, or as `-` when no entry matches (fully transparent pixels included when no palette entry is transparent).
+- [x] AC-45 (error): If `doc.preview` at the given `scale` (or at scale 1) would produce a PNG wider or taller than 2048 px, then the call fails with `isError: true`, the message names the 2048 px cap and suggests `region`, and no image is returned.
+- [x] AC-46 (error): If `doc.new` gets a `width` or `height` outside 1–4096, then the call fails with `isError: true` and the message "width must be 1–4096" (or "height must be 1–4096"), and no document is added.
 
 ## Technical notes
 
@@ -207,56 +207,65 @@ Every tool takes an optional `doc`. `draw.*`, `selection.*` and `effect.apply` a
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-10-29
+
+- New platform-free crate `pincel-agent`: 35 `area.verb` tools (shared document tools, `layer.*`, `frame.*`, `tag.*`, `palette.*`, `draw.*`, `selection.*`, `effect.apply`, `export.*`) over an in-memory multi-document `Workspace`, hand-written JSON schemas, `pincel://palettes/{id}` resources and a pixel-exact PNG preview.
+- New binary `pincel-mcp`: in-house newline-delimited JSON-RPC 2.0 over stdio (MCP `2025-06-18`), workspace sandbox (`E007`, symlink-safe) with `--workspace` / `--read-only`.
+- Every mutating call is exactly one undo step: `pincel-core` gains `CommandBatch`, `PutCel`, `PatchCel`, `AddEmptyCel`, `Bus::last` and `Sprite::paint_target_layer`; pixel edits store only the diff rectangle (§6.3).
+- Distribution: `cargo install --path crates/pincel-mcp`, release binaries for Windows x64, macOS universal and Linux x64, and a README section for registering it with Claude Code.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `initialize_announces_name_version_and_capabilities` (`crates/pincel-mcp/src/server.rs`); `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-02 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-03 | `doc_new_creates_active_document_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-04 | `doc_new_palette_is_preset_or_db32` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-05 | `tools_act_on_active_doc_or_named_doc_only` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-06 | `unknown_doc_or_no_open_doc_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-07 | `doc_info_and_list_report_fields_and_dirty_state` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-08 | `doc_close_removes_document_and_later_calls_fail` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-09 | `every_mutating_call_is_exactly_one_undo_step`, `draw_pixels_empty_batch_records_no_undo_step` (`crates/pincel-agent/src/tests/doc.rs`); `edit_on_large_cel_stores_only_the_diff_rect` (`crates/pincel-agent/src/tests/draw.rs`); `batch_is_one_bus_entry` (`crates/pincel-core/src/command/batch.rs`), `apply_swaps_rect_and_revert_restores` (`crates/pincel-core/src/command/patch_cel.rs`) | built |        |
-| AC-10 | `undo_and_redo_report_depths` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-11 | `preview_scales_nearest_and_returns_png`, `preview_of_one_pixel_sprite_is_256_square` (`crates/pincel-agent/src/tests/preview.rs`); `preview_result_carries_png_image_content` (`crates/pincel-mcp/src/server.rs`) | built |        |
-| AC-12 | `preview_frame_and_region_select_what_is_shown`, `preview_grid_only_changes_block_borders_and_is_omitted_below_scale_4` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
-| AC-13 | `read_pixels_hex_grid_matches_cel` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
-| AC-14 | `read_pixels_limits_region_size_and_canvas` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
-| AC-15 | `layer_tools_change_and_list_the_stack` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
-| AC-16 | `frame_tools_change_frames_and_clone_cels` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
-| AC-17 | `tag_tools_change_and_list_tags` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
-| AC-18 | `palette_tools_set_and_load_presets` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
-| AC-19 | `draw_pixels_sets_listed_pixels_only_in_all_color_forms` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-20 | `draw_pixels_outside_canvas_rejects_whole_batch` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-21 | `malformed_color_or_missing_palette_index_fails_naming_argument` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-22 | `draw_shapes_match_the_editor_tools` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-23 | `draw_fill_matches_bucket_and_non_contiguous_recolors_all` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-24 | `draw_clear_clears_region_or_whole_cel` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-25 | `selection_limits_fill_and_effect_until_cleared` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-26 | `effect_apply_matches_the_editor_effect` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-27 | `effect_apply_unknown_id_or_out_of_range_param_fails` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-28 | `locked_layer_or_locked_group_refuses_edits` (`crates/pincel-agent/src/tests/structure.rs`) | built |        |
-| AC-29 | `doc_open_matches_what_the_editor_reads_from_the_file`, `doc_open_corrupt_file_fails_naming_it` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-30 | `doc_save_round_trips_and_defaults_to_the_document_file` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-31 | `doc_save_without_path_on_new_document_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-32 | `export_png_equals_preview_without_grid` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-33 | `export_sheet_lays_out_frames_and_writes_sheet_json` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
-| AC-34 | `resolve_rejects_parent_escape_and_absolute_paths`, `write_outside_writes_nothing`, `symlink_leading_out_is_refused` (unix symlink; Windows directory symlink or junction) (`crates/pincel-mcp/src/sandbox.rs`); `export_sheet_with_escaping_json_path_writes_nothing` (`crates/pincel-mcp/src/server.rs`); `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-35 | `parse_args_reads_workspace_and_read_only` (`crates/pincel-mcp/src/lib.rs`); `workspace_option_and_read_only_mode`, `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-36 | `read_only_refuses_writes_but_reads` (`crates/pincel-mcp/src/sandbox.rs`); `workspace_option_and_read_only_mode` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-37 | `unknown_tool_and_bad_arguments_are_named_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-38 | `invalid_json_gets_parse_error_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-39 | `resources_list_and_read_palette_presets` (`crates/pincel-mcp/src/server.rs`); `list_resources_has_one_uri_per_preset`, `read_resource_returns_the_preset_colors` (`crates/pincel-agent/src/resources.rs`) | built |        |
-| AC-40 | `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | built |        |
-| AC-41 | manual: owner accepted the review of the `build pincel-mcp` step in `.github/workflows/release.yml` (build for Windows x64, macOS universal, Linux x64; upload; SHA256SUMS) in place of a published release, 2026-10-29 — confirm on the next release | built |        |
-| AC-42 | manual: owner checked the README section "Use Pincel from an AI agent (MCP)" (install, release binaries, `claude mcp add`, options), 2026-10-29 | built |        |
-| AC-43 | `paint_target_defaults_to_active_layer_and_frame` (`crates/pincel-agent/src/tests/draw.rs`) | built |        |
-| AC-44 | `read_pixels_index_format_uses_first_exact_palette_match` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
-| AC-45 | `preview_above_2048_cap_fails_suggesting_region` (`crates/pincel-agent/src/tests/preview.rs`) | built |        |
-| AC-46 | `doc_new_out_of_range_size_fails_without_adding_a_document` (`crates/pincel-agent/src/tests/doc.rs`) | built |        |
+| AC-01 | `initialize_announces_name_version_and_capabilities` (`crates/pincel-mcp/src/server.rs`); `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-02 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-03 | `doc_new_creates_active_document_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-04 | `doc_new_palette_is_preset_or_db32` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-05 | `tools_act_on_active_doc_or_named_doc_only` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-06 | `unknown_doc_or_no_open_doc_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-07 | `doc_info_and_list_report_fields_and_dirty_state` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-08 | `doc_close_removes_document_and_later_calls_fail` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-09 | `every_mutating_call_is_exactly_one_undo_step`, `draw_pixels_empty_batch_records_no_undo_step` (`crates/pincel-agent/src/tests/doc.rs`); `edit_on_large_cel_stores_only_the_diff_rect` (`crates/pincel-agent/src/tests/draw.rs`); `batch_is_one_bus_entry` (`crates/pincel-core/src/command/batch.rs`), `apply_swaps_rect_and_revert_restores` (`crates/pincel-core/src/command/patch_cel.rs`) | verified | f10b887 |
+| AC-10 | `undo_and_redo_report_depths` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-11 | `preview_scales_nearest_and_returns_png`, `preview_of_one_pixel_sprite_is_256_square` (`crates/pincel-agent/src/tests/preview.rs`); `preview_result_carries_png_image_content` (`crates/pincel-mcp/src/server.rs`) | verified | 132926b |
+| AC-12 | `preview_frame_and_region_select_what_is_shown`, `preview_grid_only_changes_block_borders_and_is_omitted_below_scale_4` (`crates/pincel-agent/src/tests/preview.rs`); `blend_grid_over_transparent_is_half_grey` (`crates/pincel-agent/src/preview.rs`) | verified | 132926b |
+| AC-13 | `read_pixels_hex_grid_matches_cel` (`crates/pincel-agent/src/tests/preview.rs`) | verified | 132926b |
+| AC-14 | `read_pixels_limits_region_size_and_canvas` (`crates/pincel-agent/src/tests/preview.rs`) | verified | 132926b |
+| AC-15 | `layer_tools_change_and_list_the_stack` (`crates/pincel-agent/src/tests/structure.rs`) | verified | 132926b |
+| AC-16 | `frame_tools_change_frames_and_clone_cels` (`crates/pincel-agent/src/tests/structure.rs`) | verified | 132926b |
+| AC-17 | `tag_tools_change_and_list_tags` (`crates/pincel-agent/src/tests/structure.rs`) | verified | 132926b |
+| AC-18 | `palette_tools_set_and_load_presets` (`crates/pincel-agent/src/tests/structure.rs`) | verified | 132926b |
+| AC-19 | `draw_pixels_sets_listed_pixels_only_in_all_color_forms` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-20 | `draw_pixels_outside_canvas_rejects_whole_batch` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-21 | `malformed_color_or_missing_palette_index_fails_naming_argument` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-22 | `draw_shapes_match_the_editor_tools` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-23 | `draw_fill_matches_bucket_and_non_contiguous_recolors_all` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-24 | `draw_clear_clears_region_or_whole_cel` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-25 | `selection_limits_fill_and_effect_until_cleared` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-26 | `effect_apply_matches_the_editor_effect` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-27 | `effect_apply_unknown_id_or_out_of_range_param_fails` (`crates/pincel-agent/src/tests/draw.rs`) | verified | 132926b |
+| AC-28 | `locked_layer_or_locked_group_refuses_edits` (`crates/pincel-agent/src/tests/structure.rs`) | verified | 132926b |
+| AC-29 | `doc_open_matches_what_the_editor_reads_from_the_file`, `doc_open_corrupt_file_fails_naming_it` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-30 | `doc_save_round_trips_and_defaults_to_the_document_file` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-31 | `doc_save_without_path_on_new_document_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-32 | `export_png_equals_preview_without_grid` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-33 | `export_sheet_lays_out_frames_and_writes_sheet_json` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
+| AC-34 | `resolve_rejects_parent_escape_and_absolute_paths`, `write_outside_writes_nothing`, `symlink_leading_out_is_refused` (unix symlink; Windows directory symlink or junction) (`crates/pincel-mcp/src/sandbox.rs`); `export_sheet_with_escaping_json_path_writes_nothing` (`crates/pincel-mcp/src/server.rs`); `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-35 | `parse_args_reads_workspace_and_read_only` (`crates/pincel-mcp/src/lib.rs`); `workspace_option_and_read_only_mode`, `paths_resolve_in_cwd_without_workspace_and_escapes_fail` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-36 | `read_only_refuses_writes_but_reads` (`crates/pincel-mcp/src/sandbox.rs`); `workspace_option_and_read_only_mode` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-37 | `unknown_tool_and_bad_arguments_are_named_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-38 | `invalid_json_gets_parse_error_and_serving_continues` (`crates/pincel-mcp/src/server.rs`); `bad_messages_get_errors_and_serving_continues` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-39 | `resources_list_and_read_palette_presets` (`crates/pincel-mcp/src/server.rs`); `list_resources_has_one_uri_per_preset`, `read_resource_returns_the_preset_colors` (`crates/pincel-agent/src/resources.rs`) | verified | c00ff71 |
+| AC-40 | `end_to_end_draw_preview_export_in_temp_workspace` (`crates/pincel-mcp/tests/stdio.rs`) | verified | c00ff71 |
+| AC-41 | manual: owner accepted the review of the `build pincel-mcp` step in `.github/workflows/release.yml` (build for Windows x64, macOS universal, Linux x64; upload; SHA256SUMS) in place of a published release, 2026-10-29 — confirm on the next release | verified | d4cbe55 |
+| AC-42 | manual: owner checked the README section "Use Pincel from an AI agent (MCP)" (install, release binaries, `claude mcp add`, options), 2026-10-29 | verified | 87b9bde |
+| AC-43 | `paint_target_defaults_to_active_layer_and_frame` (`crates/pincel-agent/src/tests/draw.rs`); `paint_target_layer_prefers_active_image_layer_else_lowest_image` (`crates/pincel-core/src/document/mod.rs`) | verified | 86065e3 |
+| AC-44 | `read_pixels_index_format_uses_first_exact_palette_match` (`crates/pincel-agent/src/tests/preview.rs`) | verified | 132926b |
+| AC-45 | `preview_above_2048_cap_fails_suggesting_region` (`crates/pincel-agent/src/tests/preview.rs`) | verified | 132926b |
+| AC-46 | `doc_new_out_of_range_size_fails_without_adding_a_document` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 132926b |
 
 ## Decisions
 
