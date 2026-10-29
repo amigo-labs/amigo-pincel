@@ -447,6 +447,11 @@
             file.busy = false;
           }
         }
+        // Queued behind the `tick` above, so the document has composed
+        // by the time the canvas reports ready.
+        requestAnimationFrame(() => {
+          if (!cancelled) ed.ready = true;
+        });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -900,6 +905,7 @@
                       ? 'grab'
                       : 'crosshair'}
               aria-label="Pincel canvas"
+              data-ready={ed.ready}
               oncontextmenu={(e) => e.preventDefault()}
               onpointerdown={onPointerDown}
               onpointermove={onPointerMove}

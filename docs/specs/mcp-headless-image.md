@@ -31,6 +31,7 @@ Second of three specs migrated from the legacy plan `18-mcp` (removed 2026-10-29
 - Live control of the open desktop document — because `mcp-live-desktop` covers it
 - `validate.run` — because the plan schedules validation as a later phase
 - Hosted MCP, accounts, telemetry, curriculum resources, generative image models — because the plan excludes them for v1 (see `mcp-headless-pixel`)
+- MCP prompts (`create-sprite`, `edit-screenshot`) — follow-up spec `mcp-prompts` once the tools are stable, because `pincel://guide` already covers both workflows and prompts add a third MCP capability to test with no new tool power
 
 ## Acceptance criteria
 
@@ -53,12 +54,14 @@ Second of three specs migrated from the legacy plan `18-mcp` (removed 2026-10-29
 - [ ] AC-17 (event): When the client calls `resources/read` for `pincel://guide`, then it returns a text guide with a section each on the workflow (plan → draw → preview → export), the coordinate system, colors, undo, preview and common pitfalls, covering both modes.
 - [ ] AC-18 (always): `pincel://effects` lists exactly the effect and adjustment ids of the `pincel-effects` catalog, each with its parameters and their ranges, so a change to the catalog changes the resource without a hand edit.
 - [ ] AC-19 (error): If an Image file passed to `doc.open` is corrupt or of an unsupported format, then the call fails with `isError: true` naming the file, and no document is added.
+- [ ] AC-20 (error): If `doc.save` without `path` is called on an Image document opened from a flat image (PNG, JPEG, WebP, BMP, GIF or TIFF), then the call fails with `isError: true` saying the document was opened from that format and asking for a `.ora` path to `doc.save`, or `export.png` for a flat image; nothing is written and the source file is not overwritten.
+- [ ] AC-21 (error): If `doc.new`, `doc.open`, `canvas.resize` or `image.scale` would produce an Image document wider or taller than 16384 px, or larger than 8192 × 8192 px (64 Mpx) in area, then the call fails with `isError: true` naming the limit and the requested size, and no document is added or the document is unchanged.
 
 ## Technical notes
 
 Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 
-**Prerequisite refactor (plan "phase 0", no spec of its own).** Move the Image `CommandSpec` enum and its dispatch `run_command` out of `crates/pincel-image-wasm/src/lib.rs` (`enum CommandSpec` ≈L468, `fn run_command` ≈L846) into a plain crate or module that `pincel-agent` can call natively. ts-rs generation must keep working: `cargo test -p pincel-image-wasm export_command_spec` still writes `ui/src/modes/image/core/generated/`, and CI checks for drift. No behavior change; all wasm tests green; `refactor(...)` commits only.
+**Prerequisite refactor (plan "phase 0", no spec of its own).** Move the Image `CommandSpec` enum and its dispatch `run_command` out of `crates/pincel-image-wasm/src/lib.rs` (`enum CommandSpec` ≈L468, `fn run_command` ≈L846) into a public module of `pincel-image-core`, e.g. `command::spec` (`CommandSpec` + `run_command`), so `pincel-agent` can call them natively. No new crate. The `ts_rs::TS` derives move behind an optional feature `ts` of `pincel-image-core` (optional dependency on the `ts-rs` 12 the workspace already uses); `pincel-image-wasm` enables that feature in its dev-dependency. ts-rs generation must keep working: `cargo test -p pincel-image-wasm export_command_spec` still writes `ui/src/modes/image/core/generated/`, and CI checks for drift. No behavior change; all wasm tests green; `refactor(...)` commits only.
 
 **Existing commands to reuse** (`CommandSpec` variants today): `PencilStroke`, `EraserStroke`, `RecolorStroke`, `SmudgeStroke`, `FillBucket`, `DrawShape`, `DrawGradient`, `DrawText`, `AddLayer`, `RemoveLayer`, `MoveLayer`, `RenameLayer`, `SetLayerOpacity`, `SetLayerBlendMode`, `SetLayerVisible`, `SetLayerLocked`, `SelectRectangle`, `SelectEllipse`, `SelectWand`, `Deselect`, `FlipCanvas`, `RotateCanvas`, `ScaleImage`, `ResizeCanvas`, `CropToSelection`. Effects through `pincel_effects::EffectSpec`. Codecs: the `image` crate in `pincel-image-core` (png, jpeg, webp, bmp, gif, tiff) and the ORA codec.
 
@@ -78,7 +81,9 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 
 **Text.** `pincel-image-core` rasterises text with `ab_glyph`; the caller supplies the font bytes and the app ships Liberation Sans (Decision Log 2026-09-06). The headless binary must embed a font.
 
-**Size limits.** The editor caps Image documents at 16384 px per side and `MAX_CANVAS_AREA` = 8192 × 8192 (`ui/src/modes/image/stores/editor.svelte.ts`), a wasm32 memory limit; the native binary is not bound by it (see Open questions).
+**Size limits.** The editor caps Image documents at 16384 px per side and `MAX_CANVAS_AREA` = 8192 × 8192 (`ui/src/modes/image/stores/editor.svelte.ts`), a wasm32 memory limit. The headless server enforces the same limits on `doc.new`, `doc.open`, `canvas.resize` and `image.scale` (AC-21), although the native binary is not bound by wasm32, so every file it writes opens in the editor.
+
+**Saving.** `doc.save` writes only `.ora`; a document opened from a flat image has no `.ora` file to save to, so `doc.save` without `path` fails (AC-20). `save-original-format` is an editor feature and does not apply headless.
 
 ## Edge cases
 
@@ -91,21 +96,21 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 | `doc.open` of an animated GIF | Opens with the same layers and pixels as the editor opens it |
 | `export.jpeg` of an image with transparency | Written as the editor's JPEG export writes it (alpha flattened the same way) |
 | `layer.remove` of the only layer | Fails as the editor's Remove Layer does; document unchanged |
+| `doc.open` of `shot.png`, then `doc.save` without `path` | Fails (AC-20) naming PNG and suggesting a `.ora` path or `export.png`; `shot.png` untouched |
+| `doc.new` with 20000 × 100 | Fails (AC-21): side limit 16384 |
+| `image.scale` of 8192 × 8192 to 200 % | Fails (AC-21): area limit 64 Mpx; document unchanged |
 
 ## Assumptions
 
 | Assumption | Reason | Risk |
 | ---------- | ------ | ---- |
 | `draw.text` uses the same bundled font as the editor (Liberation Sans) | Same output as the editor; no font file needed in the workspace | Low |
-| The draw tools act on the same target layer as the Pixel tools (whatever `mcp-headless-pixel` settles) | One convention for both modes | Medium |
+| The draw tools act on the same target layer as the Pixel tools (optional `layer`, else the active layer — `mcp-headless-pixel` AC-43) | One convention for both modes | Low |
 | The shape, text and stroke tools reuse the editor's commands, so "same pixels as the editor" is the correctness reference | The plan: one tool implementation, no re-implementation | Low |
 
 ## Open questions
 
-- Phase 0 for Image: may the extracted `CommandSpec` and its dispatch live in a new crate (which?) or must they move into `pincel-image-core`? The plan leaves "a plain crate or module" open, and a new crate is a public-API / crate-boundary decision.
-- What does `doc.save` without `path` do for an Image document opened from a flat image (PNG / JPEG / …): write `.ora`, overwrite the original format (flattened, as `save-original-format` proposes for the editor), or fail and ask for a path?
-- Should the headless server enforce the editor's Image limits (side ≤ 16384, area ≤ 64 Mpx) on `doc.new`, `doc.open`, `canvas.resize` and `image.scale`, although the native binary is not bound by wasm32's 4 GB — and what is the error?
-- Are the optional MCP prompts `create-sprite` (size, subject, palette) and `edit-screenshot` (crop, annotate, export) part of v1, and in which spec?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -130,9 +135,15 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
+| AC-20 |      | open   |        |
+| AC-21 |      | open   |        |
 
 ## Decisions
 
 - Image tools are implemented in the platform-free `pincel-agent` crate over `pincel-image-core`, never in the editor — the same code later serves live mode (plan, 2026-10-28).
 - `pincel://effects` is generated from the `pincel-effects` catalog, not hand-written — it cannot drift from the effects the tools accept (plan).
 - `layer.*` on Image documents has no groups until `image-layer-groups` is built — the tools expose what the core supports (plan).
+- 2026-10-29: The Image `CommandSpec` and `run_command` move into `pincel-image-core` as a public module (`command::spec`), with the `ts_rs::TS` derives behind an optional feature `ts` that `pincel-image-wasm` enables in its dev-dependency; no new crate — the core already depends on serde, so this is the smallest move both `pincel-agent` and the wasm crate can call; §15 row recorded with the 2026-10-29 Decision Log batch (owner accepted the recommendation).
+- 2026-10-29: `doc.save` without `path` on a document opened from a flat image fails and asks for a `.ora` path or `export.png`; the server never flattens or overwrites on its own (AC-20) — a silent flattening overwrite loses layers with no user present, and it matches the "ask for a path" pattern of `mcp-headless-pixel` AC-31 (owner accepted the recommendation).
+- 2026-10-29: The headless server enforces the editor's Image limits (side ≤ 16384, area ≤ 64 Mpx) on `doc.new`, `doc.open`, `canvas.resize` and `image.scale` (AC-21) — files written headlessly must open in the editor, whose wasm build has these limits (owner accepted the recommendation).
+- 2026-10-29: The MCP prompts `create-sprite` / `edit-screenshot` are not part of v1; they become the follow-up spec `mcp-prompts` — the plan marks them optional, `pincel://guide` covers both workflows, and prompts add a capability to test with no new tool power (owner accepted the recommendation).

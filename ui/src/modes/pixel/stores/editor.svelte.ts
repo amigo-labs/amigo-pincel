@@ -34,6 +34,9 @@ export const DEFAULT_FILE_NAME = 'pincel.aseprite';
 function edInit() {
   return {
     doc: null as Document | null,
+    /** The mount's document is loaded, fitted and composed once — the
+     *  editor takes input. Published as `data-ready` on the canvas. */
+    ready: false,
     /** Bumped whenever the wasm side may have changed what panels derive
      *  from; the wasm getters are opaque to Svelte's reactive graph. */
     docRev: 0,

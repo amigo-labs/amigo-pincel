@@ -13,7 +13,7 @@ design: [pincel.md §3.2, pincel.md §4.1, pincel.md §4.2, pincel.md §15]
 Two gaps in `compose()` (spec §4.1) that real Aseprite files hit all the time:
 
 1. **Linked cels** are rejected with `RenderError::LinkedCelUnsupported`. A linked cel reuses another frame's cel on the same layer; every hand-drawn animation that holds a pose across frames uses them. Pincel already preserves links on read and write (§3.2), so such a file opens and saves — but no frame containing a link can be shown, thumbnailed, onion-skinned or exported.
-2. **Group layers** are skipped: a group's visibility already hides its whole subtree (Decision Log 2026-07-09), but its **opacity and blend mode are ignored**, so a group set to 50 % or Multiply renders as if it were 100 % Normal. The design says how groups should render: "Group layers fold their children into a temporary buffer, then blend that buffer into the parent" (§4.2). The 2026-07-09 Decision Log entry deferred exactly this fold to Phase 2.
+2. **Group layers** are skipped: a group's visibility already hides its whole subtree (Decision Log 2026-07-09), but its **opacity and blend mode are ignored**, so a group set to 50 % or Multiply renders as if it were 100 % Normal. The design says how groups should render: "Group layers fold their children into a temporary buffer, then blend that buffer into the parent" (§4.2). The 2026-07-09 Decision Log entry deferred exactly this fold to Phase 2; a 2026-10-29 entry supersedes that folding part and brings the fold into Phase 1.
 
 How the `.aseprite` format encodes groups (format reference <https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md>, Layer Chunk `0x2004`, NOTE.1): each layer carries a "child level" relative to the previously read layer; a layer at level *d* + 1 directly after a group at level *d* is that group's child, and nesting goes arbitrarily deep. Pincel's reader turns this into `Layer::parent`, and `Sprite.layers` stays flat and bottom-first with each group's subtree as one contiguous run directly after the group header (§3.2, Decision Log 2026-10-12). Group layers carry their own opacity (valid when header flag bit 0 is set, which the writer sets) and blend mode. Linked cels are Cel Type 1 with a "frame position to link with".
 
@@ -63,6 +63,7 @@ Already decided: blend modes are computed in u8 sRGB, and Aseprite pixel-exact p
 - [ ] AC-17 (always): Composing a sub-viewport or a dirty hint returns the same pixels as the matching region of a full-frame compose, for documents with groups and linked cels.
 - [ ] AC-18 (event): When a sprite with nested groups that use non-default opacity and blend modes is written to `.aseprite` and read back, then every frame composes to the same pixels as before writing.
 - [ ] AC-19 (error): If the layer hierarchy is inconsistent — a parent cycle, or a layer whose parent id names no layer — then `compose()` returns without panicking or hanging; a layer with a parent id that names no layer renders as a top-level layer.
+- [ ] AC-20 (always): A group at opacity 255 with blend mode Normal passes its children through: a Multiply child multiplies with the layers below the group.
 
 ## Technical notes
 
@@ -85,7 +86,7 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | Link target lies in a frame outside the onion-skin range | Still resolved — links reach any frame of the sprite |
 | Empty group, or a group whose children have no cel in this frame | Contributes nothing |
 | A cel stored on a group layer (corrupt document) | Ignored, as today |
-| Group at opacity 255 / Normal containing a Multiply child | See Open questions (isolated vs pass-through) |
+| Group at opacity 255 / Normal containing a Multiply child | Passes through: the child multiplies with the layers below the group (AC-20) |
 | Hidden child inside a visible group at opacity 128 | Child contributes nothing; siblings render at the group's opacity |
 | Group subtree not contiguous in an in-memory sprite | `compose()` returns without panicking (AC-19); the writer refuses to save it anyway |
 
@@ -98,8 +99,7 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 ## Open questions
 
-- Group opacity / blend-mode folding is deferred to Phase 2 by the 2026-07-09 Decision Log entry ("compose() skips group layers and propagates group visibility"). Doing it now needs a new Decision Log entry that supersedes that part (as 2026-10-27 superseded the HSL fallback), otherwise it mixes Phase 1 and Phase 2 (CLAUDE.md §9). Write that entry?
-- Does a group at opacity 255 with blend mode Normal also composite its children in isolation (§4.2 read literally — a Multiply child then no longer multiplies with the layers below the group, which changes how existing files look), or does it pass its children through to the backdrop as today?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -124,6 +124,7 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
+| AC-20 |      | open   |        |
 
 ## Decisions
 
@@ -132,3 +133,5 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 - Under "all layers" groups still fold — "all" overrides visibility only, so a thumbnail or export of everything still looks like the document.
 - Under an explicit layer selection a group folds only when it is selected itself — the selection is an explicit override, as it already is for visibility; the layer thumbnail selects the layer plus its subtree, so a group's thumbnail shows its opacity and a child's thumbnail shows the child alone.
 - AC-12 allows a difference of 1 per channel because isolated u8 compositing may round differently from compositing straight onto the backdrop.
+- 2026-10-29: A Decision Log entry supersedes the folding part of 2026-07-09: `compose()` follows linked cels (target's data, position and cel opacity) and folds a group's opacity / blend mode through a temporary buffer when the group is not 255 / Normal, and the 2026-07-09 row is marked "folding superseded 2026-10-29" — real `.aseprite` files use both, §4.2 already describes the fold, and the entry avoids an AGENTS.md §9 phase violation, as 2026-10-27 superseded the HSL fallback (owner accepted the recommendation).
+- 2026-10-29: A group at 255 / Normal passes its children through to the backdrop; only opacity < 255 or a non-Normal blend mode isolates (AC-20) — existing files keep their look, AC-12 already assumes it, and it matches Aseprite's renderer as far as known (a reference fixture should confirm); Image mode stays always-isolated by design (owner accepted the recommendation).

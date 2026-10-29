@@ -3,7 +3,7 @@ status: todo
 created: 2026-10-28
 size: L
 mode: Pixel
-design: [pincel.md §7.3, pincel.md §3.3, pincel.md §3.6]
+design: [pincel.md §7.3, pincel.md §7.5, pincel.md §3.3, pincel.md §3.6]
 ---
 
 # Animated export (APNG, GIF) in Pixel mode
@@ -14,7 +14,7 @@ Pixel art is shared as animated GIFs (chat, forums, itch.io). Aseprite, Piskel, 
 
 File ▸ Export ▸ Animation… writes the animation as **APNG** or **GIF**. The user chooses all frames or one tag, the export follows the tag's direction, applies an integer scale and a loop count, and every frame keeps its own duration.
 
-APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decision Log 2026-08-20), which can write APNG. GIF needs `gif` as a new direct dependency of `pincel-core` and is blocked on approval (see Open questions).
+APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decision Log 2026-08-20), which can write APNG. GIF uses `gif` 0.14 as a new direct dependency of `pincel-core`, approved 2026-10-29 (see Decisions).
 
 ## Scope
 
@@ -26,14 +26,14 @@ APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decis
 - Per-frame durations carried into the file
 - Nearest-neighbour integer upscale
 - APNG writer
-- GIF writer (after the dependency approval), with a warning when the colours have to be approximated and a hint when semi-transparent pixels lose their partial alpha
+- GIF writer, with a warning when the colours have to be approximated and a hint when semi-transparent pixels lose their partial alpha
 - en + de strings
 
 ### Out of scope
 
 - Animated WebP — because the workspace's `image-webp` encodes still lossless images only.
 - MP4 / WebM video — because the workspace has no video encoder and adding one is a new dependency (AGENTS.md §9).
-- Per-layer export — reason not given by the legacy plan (see Open questions).
+- Per-layer export — because it writes one file per layer, which needs a multi-file save flow; follow-up together with split-layer sheet export.
 - Export from Image mode — because Image-mode documents have no frames.
 - Frame-difference optimization (sub-rect frames) — because full-canvas frames are simple and correct; file size can be optimized later.
 - Changing the sprite-sheet frame order — because `select_frames` for sheets keeps its forward order; that is existing behavior.
@@ -50,7 +50,7 @@ APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decis
 - [ ] AC-08 (always): Each APNG frame's delay equals the source frame's duration in milliseconds.
 - [ ] AC-09 (option): Where the loop choice is "forever", the APNG's play count is 0 (infinite); where it is N, the APNG's play count is N.
 - [ ] AC-10 (always): The loop choice defaults to the chosen tag's repeat count when that tag has a non-zero repeat count, and to "forever" otherwise (all frames, or a tag with repeat count 0).
-- [ ] AC-11 (event): When the user exports as GIF, then the editor downloads `<stem>.gif`, a file starting with `GIF89a` that carries a NETSCAPE2.0 loop extension.
+- [ ] AC-11 (event): When the user exports as GIF, then the editor downloads `<stem>.gif`, a file starting with `GIF89a` that carries a NETSCAPE2.0 loop extension with loop count N − 1 (0 for forever), and no loop extension when N = 1.
 - [ ] AC-12 (always): In an exported GIF, a pixel whose composed alpha is below 128 is transparent and a pixel with alpha 128 or more is opaque.
 - [ ] AC-13 (state): While every exported frame fits a 256-entry colour table (its distinct opaque colours, plus one entry when the frame has transparent pixels), each decoded GIF frame keeps the exact RGB of every opaque pixel.
 - [ ] AC-14 (state): While GIF is chosen and at least one exported frame does not fit a 256-entry colour table, the dialog shows a warning that the GIF will be approximated, and the export still writes a GIF.
@@ -58,6 +58,7 @@ APNG needs no new dependency: `pincel-core` already depends on `png` 0.18 (Decis
 - [ ] AC-16 (always): Each GIF frame's delay is the source duration in hundredths of a second, rounded to the nearest integer, and never less than 2.
 - [ ] AC-17 (always): Decoding an exported GIF yields transparent pixels in frame k wherever composed frame k is transparent, even when an earlier frame was opaque there.
 - [ ] AC-18 (error): If the export fails (the renderer refuses the sprite, for example an indexed sprite; the sequence has no frames; or a caller of the wasm API passes a scale outside 1–10 or an unknown tag), then the export returns an error instead of bytes, no file is written, and in the editor the status bar reports the failure with the error message.
+- [ ] AC-19 (error): If the scaled output would be wider or higher than 16384 pixels, then the export fails with an error naming the limit and no file is written.
 
 ## Technical notes
 
@@ -75,7 +76,9 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 **APNG.** `png` 0.18 writes APNG (`acTL` / `fcTL` through `Encoder::set_animated` and `set_frame_delay`; check the 0.18 names). Proposed: every frame at full canvas size, `dispose_op = None`, `blend_op = Source`; delay `duration_ms / 1000`.
 
-**GIF.** `gif` 0.14 is in `Cargo.lock` only as a dependency of `image`; adding it to `pincel-core` adds no new crate to the lockfile. Proposed: one 8-bit palette per frame; quantize frames that don't fit with `Frame::from_rgba_speed` (NeuQuant); disposal `Background`; delay in 1/100 s (browsers clamp faster delays).
+**GIF.** `gif = "0.14"` (approved 2026-10-29; MIT OR Apache-2.0; `default-features = false` plus `std`, encoder side only) is already in `Cargo.lock` as a dependency of `image`, so adding it to `pincel-core` adds no new crate to the lockfile. Loop count: N plays in total → NETSCAPE2.0 loop count N − 1; forever → 0; N = 1 → no NETSCAPE block. Proposed: one 8-bit palette per frame; quantize frames that don't fit with `Frame::from_rgba_speed` (NeuQuant); disposal `Background`; delay in 1/100 s (browsers clamp faster delays).
+
+**Memory.** Frames are encoded one at a time (compose → scale → encode → drop); never hold all scaled frames. Memory is bounded by one scaled frame plus the output bytes. The 16384 px per-edge cap is shared with `scaled-export`.
 
 **wasm.** `crates/pincel-wasm/src/lib.rs`: `exportPng(frame)` (≈L167), `exportAtlas(columns, tag, image_name)` (≈L190). Proposed `exportAnimation(format, tag?, scale, loops)` following the `exportAtlas` style; the npm API is public (§17.5).
 
@@ -96,11 +99,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 ## Open questions
 
-- Approve `gif` (0.14) as a direct dependency of `pincel-core` (AGENTS.md §9 / §12, stop and ask). AC-11 to AC-17 depend on it.
-- The Decision Log entry (APNG first, GIF after approval, animated WebP deferred because `image-webp` encodes still images only) and the "Animated export" subsection in `pincel.md` §7 are not written yet.
-- GIF loop count: does N mean N plays in total (as APNG's play count) or N repeats after the first play (the NETSCAPE2.0 field counts repeats, and browsers differ)?
-- Does the 16384 px per edge output cap of the scaled-export spec also apply here, and is there a limit on frames × scaled size to bound memory?
-- Per-layer export is out of scope, but the legacy plan gives no reason; confirm and state why.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -124,6 +123,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
+| AC-19 |      | open   |        |
 
 ## Decisions
 
@@ -132,3 +132,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-28 (legacy plan): The loop default comes from the tag's repeat count — the tag already records how often it should play.
 - 2026-10-28 (legacy plan): GIF alpha threshold 128 and minimum delay 2 cs — GIF transparency is 1-bit, and browsers clamp faster delays.
 - 2026-10-28 (legacy plan): APNG ships before GIF — it needs no new dependency.
+- 2026-10-29: `gif = "0.14"` becomes a direct dependency of `pincel-core` (MIT OR Apache-2.0, `default-features = false` plus `std`, encoder only); AC-11 to AC-17 are unblocked — the crate is already compiled into the workspace through `image`, builds for wasm32, and an in-house LZW / NETSCAPE writer would be a second codec to maintain (owner accepted the recommendation).
+- 2026-10-29: The Decision Log entry for animated export (APNG through `png` 0.18, GIF through `gif` 0.14, one 8-bit palette per frame, alpha threshold 128, delay ≥ 2 cs, animated WebP deferred) and a `pincel.md` §7.5 "Animated export" paragraph are added — AGENTS.md §2.1 requires the entry before code, and §7.3 has no animated format yet (owner accepted the recommendation).
+- 2026-10-29: A GIF loop count N means N plays in total: NETSCAPE2.0 loop count N − 1, no NETSCAPE block for N = 1, 0 for forever — one meaning across APNG, GIF and the tag's `repeats`, avoiding browser differences around the repeat field (owner accepted the recommendation).
+- 2026-10-29: The 16384 px per-edge cap of `scaled-export` applies with the same error (AC-19); there is no frames × size cap, frames are streamed one at a time instead — one limit shared with `scaled-export`, and streaming bounds memory without a second, arbitrary limit (owner accepted the recommendation).
+- 2026-10-29: Per-layer export stays out of scope — it writes one file per layer, which the single-download export flow and dialog don't handle; it belongs with a future split-layers option shared with sprite-sheet export (owner accepted the recommendation).

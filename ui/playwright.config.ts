@@ -7,7 +7,8 @@ import { defineConfig, devices } from '@playwright/test';
 // test would only slow the run, and offline behaviour is not under test.
 // docs/specs/pincel.md §7.4.
 // `PINCEL_E2E_PORT` moves the preview server off the default port, so
-// parallel checkouts (git worktrees) don't reuse each other's server.
+// two checkouts can run their suites side by side without one reusing
+// the other's server (and testing the wrong bundle).
 const port = Number(process.env.PINCEL_E2E_PORT ?? 4173);
 
 export default defineConfig({
