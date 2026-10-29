@@ -277,6 +277,13 @@ mod tests {
     }
 
     #[test]
+    fn set_palette_color_different_index_does_not_merge() {
+        let mut first = SetPaletteColor::new(0, Rgba::new(1, 2, 3, 255));
+        let second = SetPaletteColor::new(1, Rgba::new(4, 5, 6, 255));
+        assert!(!first.merge(&second));
+    }
+
+    #[test]
     fn set_palette_color_unknown_index_returns_err() {
         let (mut s, mut c) = doc();
         assert_eq!(
