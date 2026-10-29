@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -7,6 +7,16 @@ design: [pincel.md §4.1, pincel.md §4.2, pincel.md §4.3, pincel.md §4.4, pin
 ---
 
 # Pixel compose and render adapters
+
+## Summary
+
+> Completed: 2026-10-29
+
+- `pincel_core::compose()` flattens one RGBA frame into a caller-owned, non-premultiplied RGBA8 buffer: bottom-up z-order, layer × cel opacity, nearest-neighbour integer zoom up to 64, viewport sub-regions and a dirty-rect hint that renders only the overlap.
+- Layer filters `Visible` (group visibility walk), `All` and `Only(ids)` (sprite z-order); group layers draw no pixels of their own.
+- All 19 blend modes via the W3C compositing formula with Pincel's integer rounding — separable terms within ±1 of a float reference over every channel pair, the four HSL modes keeping the promised luminance.
+- Tilemap cels expand through their tileset (tile id 0 skipped, `rotate_90` → `flip_x` → `flip_y`); onion skin tints previous frames red and next frames blue with a linear fade and no wrap-around; non-RGBA modes, linked cels, overlays and corrupt cels are refused with the matching `RenderError`.
+- The Pixel editor draws through WebGPU or the Canvas2D fallback (`?renderer=canvas2d` forces it), names the backend in the status bar, recomposes on every document change and keeps previews, marquee, tile-stamp hover and slice accents on a separate overlay canvas.
 
 ## Context
 
@@ -33,34 +43,34 @@ This spec records the behavior as built. Already decided (Decision Log, §15): e
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): `compose()` returns a non-premultiplied RGBA8 buffer, row-major, whose width and height are the rendered region's width and height times `zoom`, with every sprite pixel repeated as a `zoom`×`zoom` block (nearest neighbour).
-- [ ] AC-02 (always): Layers composite bottom-up in z-order: an opaque pixel of an upper `Normal` layer replaces the pixel below, and a translucent one is blended source-over onto it.
-- [ ] AC-03 (always): A cel pixel's effective alpha is its own alpha scaled by the layer opacity and by the cel opacity.
-- [ ] AC-04 (always): Only the cels of the requested frame are drawn; a layer without a cel on that frame contributes nothing, and a cel reaching past the viewport is clipped to it.
-- [ ] AC-05 (option): Where a viewport smaller than the canvas is requested, the buffer holds exactly that region of the frame, at the requested zoom.
-- [ ] AC-06 (option): Where the layer filter is `Visible` (the default), a layer is drawn only if it and every ancestor group are visible.
-- [ ] AC-07 (option): Where the layer filter is `All`, every layer is drawn, including hidden layers and children of hidden groups.
-- [ ] AC-08 (option): Where the layer filter is `Only(ids)`, exactly the listed layers are drawn, in the sprite's z-order.
-- [ ] AC-09 (always): A group layer contributes no pixels of its own; its children are drawn as separate layers.
-- [ ] AC-10 (always): Under every non-`Normal` blend mode, a source over a fully transparent backdrop yields the source unchanged, and a fully transparent source leaves the backdrop unchanged.
-- [ ] AC-11 (always): An opaque source over an opaque backdrop yields the W3C blend term per channel for Multiply, Screen, Overlay (HardLight with the operands swapped), Darken, Lighten, Addition (saturating at 255) and Subtract (clamping at 0).
-- [ ] AC-12 (always): An opaque source over an opaque backdrop yields the W3C / Aseprite blend term per channel for ColorDodge, ColorBurn, HardLight, SoftLight, Difference, Exclusion and Divide.
-- [ ] AC-13 (always): Hue, Saturation, Color and Luminosity yield the W3C non-separable blend term (within ±1 per channel of an independent float reference); Hue, Saturation and Color keep the backdrop's luminance, Luminosity takes the source's.
-- [ ] AC-14 (always): A translucent source under a non-`Normal` mode mixes the blend term with the backdrop by the W3C compositing formula.
-- [ ] AC-15 (always): A tilemap cel draws each grid cell's tile at the cel position plus the cell's grid offset, skips tile id 0, and applies `rotate_90` (clockwise) first, then `flip_x`, then `flip_y`.
-- [ ] AC-16 (option): Where an onion skin is requested, up to `frames_back` previous and `frames_forward` next frames are drawn under the current frame — previous frames with each colour channel moved halfway toward red, next frames halfway toward blue — and opaque pixels of the current frame hide them.
-- [ ] AC-17 (option): Where an onion skin spans several frames, the nearest neighbour is drawn at the configured alpha and the one at distance `k` of `n` at `alpha · (n − k + 1) / n`; frames before the first or after the last frame are skipped without wrap-around.
-- [ ] AC-18 (option): Where a dirty hint is given, the buffer covers only the intersection of viewport and hint, reports that rect's sprite-coordinate origin, and its pixels equal the same region of a full render; a hint disjoint from the viewport yields an empty buffer and no error.
-- [ ] AC-19 (error): If the sprite's color mode is not RGBA, then `compose()` fails with `UnsupportedColorMode`.
-- [ ] AC-20 (error): If `zoom` is 0 or above 64, the viewport is empty, or the frame index is past the last frame, then `compose()` fails with `InvalidZoom`, `EmptyViewport` or `UnknownFrame`; zoom 64 succeeds.
-- [ ] AC-21 (error): If a drawn layer has a linked cel on the requested frame, then `compose()` fails with `LinkedCelUnsupported`.
-- [ ] AC-22 (error): If any overlay (grid, slices, selection marquee) is requested, then `compose()` fails with `OverlaysUnsupported`.
-- [ ] AC-23 (error): If a drawn cel is corrupt — buffer colour mode differs from the sprite's, buffer length doesn't match its size, cel kind doesn't match the layer kind, the tileset is missing, a tile id is past the tileset, a tilemap grid doesn't match its tile count, or `rotate_90` is set on a non-square tileset — then `compose()` fails with the matching `RenderError` instead of drawing.
-- [ ] AC-24 (error): If a tile's image size differs from its tileset's tile size, then `compose()` fails with `TileSizeMismatch`.
-- [ ] AC-25 (event): When the Pixel editor opens, it shows the canvas through WebGPU if the browser provides a working WebGPU device, else through Canvas2D, and the status bar names the active backend (`webgpu` / `canvas2d`).
-- [ ] AC-26 (option): Where the page URL carries `?renderer=canvas2d`, the Pixel editor uses Canvas2D even when WebGPU is available.
-- [ ] AC-27 (event): When the document changes (paint, undo / redo, frame switch, layer visibility), the canvas shows the newly composed frame without further user action.
-- [ ] AC-28 (state): While a drag preview, selection marquee, tile-stamp hover or active-slice accent is shown, it is drawn on a layer above the sprite and never becomes part of the document's pixels or of an exported frame.
+- [x] AC-01 (always): `compose()` returns a non-premultiplied RGBA8 buffer, row-major, whose width and height are the rendered region's width and height times `zoom`, with every sprite pixel repeated as a `zoom`×`zoom` block (nearest neighbour).
+- [x] AC-02 (always): Layers composite bottom-up in z-order: an opaque pixel of an upper `Normal` layer replaces the pixel below, and a translucent one is blended source-over onto it.
+- [x] AC-03 (always): A cel pixel's effective alpha is its own alpha scaled by the layer opacity and by the cel opacity.
+- [x] AC-04 (always): Only the cels of the requested frame are drawn; a layer without a cel on that frame contributes nothing, and a cel reaching past the viewport is clipped to it.
+- [x] AC-05 (option): Where a viewport smaller than the canvas is requested, the buffer holds exactly that region of the frame, at the requested zoom.
+- [x] AC-06 (option): Where the layer filter is `Visible` (the default), a layer is drawn only if it and every ancestor group are visible.
+- [x] AC-07 (option): Where the layer filter is `All`, every layer is drawn, including hidden layers and children of hidden groups.
+- [x] AC-08 (option): Where the layer filter is `Only(ids)`, exactly the listed layers are drawn, in the sprite's z-order.
+- [x] AC-09 (always): A group layer contributes no pixels of its own; its children are drawn as separate layers.
+- [x] AC-10 (always): Under every non-`Normal` blend mode, a source over a fully transparent backdrop yields the source unchanged, and a fully transparent source leaves the backdrop unchanged.
+- [x] AC-11 (always): An opaque source over an opaque backdrop yields the W3C blend term per channel for Multiply, Screen, Overlay (HardLight with the operands swapped), Darken, Lighten, Addition (saturating at 255) and Subtract (clamping at 0).
+- [x] AC-12 (always): An opaque source over an opaque backdrop yields the W3C / Aseprite blend term per channel for ColorDodge, ColorBurn, HardLight, SoftLight, Difference, Exclusion and Divide.
+- [x] AC-13 (always): Hue, Saturation, Color and Luminosity yield the W3C non-separable blend term (within ±1 per channel of an independent float reference); Hue, Saturation and Color keep the backdrop's luminance, Luminosity takes the source's.
+- [x] AC-14 (always): A translucent source under a non-`Normal` mode mixes the blend term with the backdrop by the W3C compositing formula.
+- [x] AC-15 (always): A tilemap cel draws each grid cell's tile at the cel position plus the cell's grid offset, skips tile id 0, and applies `rotate_90` (clockwise) first, then `flip_x`, then `flip_y`.
+- [x] AC-16 (option): Where an onion skin is requested, up to `frames_back` previous and `frames_forward` next frames are drawn under the current frame — previous frames with each colour channel moved halfway toward red, next frames halfway toward blue — and opaque pixels of the current frame hide them.
+- [x] AC-17 (option): Where an onion skin spans several frames, the nearest neighbour is drawn at the configured alpha and the one at distance `k` of `n` at `alpha · (n − k + 1) / n`; frames before the first or after the last frame are skipped without wrap-around.
+- [x] AC-18 (option): Where a dirty hint is given, the buffer covers only the intersection of viewport and hint, reports that rect's sprite-coordinate origin, and its pixels equal the same region of a full render; a hint disjoint from the viewport yields an empty buffer and no error.
+- [x] AC-19 (error): If the sprite's color mode is not RGBA, then `compose()` fails with `UnsupportedColorMode`.
+- [x] AC-20 (error): If `zoom` is 0 or above 64, the viewport is empty, or the frame index is past the last frame, then `compose()` fails with `InvalidZoom`, `EmptyViewport` or `UnknownFrame`; zoom 64 succeeds.
+- [x] AC-21 (error): If a drawn layer has a linked cel on the requested frame, then `compose()` fails with `LinkedCelUnsupported`.
+- [x] AC-22 (error): If any overlay (grid, slices, selection marquee) is requested, then `compose()` fails with `OverlaysUnsupported`.
+- [x] AC-23 (error): If a drawn cel is corrupt — buffer colour mode differs from the sprite's, buffer length doesn't match its size, cel kind doesn't match the layer kind, the tileset is missing, a tile id is past the tileset, a tilemap grid doesn't match its tile count, or `rotate_90` is set on a non-square tileset — then `compose()` fails with the matching `RenderError` instead of drawing.
+- [x] AC-24 (error): If a tile's image size differs from its tileset's tile size, then `compose()` fails with `TileSizeMismatch`.
+- [x] AC-25 (event): When the Pixel editor opens, it shows the canvas through WebGPU if the browser provides a working WebGPU device, else through Canvas2D, and the status bar names the active backend (`webgpu` / `canvas2d`).
+- [x] AC-26 (option): Where the page URL carries `?renderer=canvas2d`, the Pixel editor uses Canvas2D even when WebGPU is available.
+- [x] AC-27 (event): When the document changes (paint, undo / redo, frame switch, layer visibility), the canvas shows the newly composed frame without further user action.
+- [x] AC-28 (state): While a drag preview, selection marquee, tile-stamp hover or active-slice accent is shown, it is drawn on a layer above the sprite and never becomes part of the document's pixels or of an exported frame.
 
 ## Technical notes
 
@@ -109,34 +119,34 @@ pub struct OnionSkin { pub previous_alpha: u8, pub next_alpha: u8, pub frames_ba
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel-core: render::compose::tests::zoom_duplicates_pixels_horizontally_and_vertically`, `render::compose::tests::zoom_3_produces_9x_pixel_count`, `render::image_layer::tests::opaque_cel_matches_source` | built | |
-| AC-02 | `pincel-core: render::compose::tests::opaque_top_layer_overrides_bottom`, `render::compose::tests::translucent_top_blends_with_bottom`; `pincel-core (tests/render_compose.rs): end_to_end_two_layer_sprite_composes_to_expected_pixels` | built | |
-| AC-03 | `pincel-core: render::image_layer::tests::layer_opacity_scales_alpha`, `render::image_layer::tests::cel_opacity_scales_alpha` | built | |
-| AC-04 | `pincel-core (tests/render_compose.rs): frame_navigation_picks_per_frame_cel_data`; `pincel-core: render::image_layer::tests::cel_clipped_to_viewport` | built | |
-| AC-05 | `pincel-core: render::image_layer::tests::viewport_offset_renders_subregion`; `pincel-core (tests/render_compose.rs): viewport_subregion_with_zoom_returns_zoomed_subregion` | built | |
-| AC-06 | `pincel-core: render::compose::tests::invisible_layer_is_skipped`, `render::compose::tests::hidden_group_hides_child_layers`, `render::compose::tests::hidden_grandparent_hides_nested_child` | built | |
-| AC-07 | `pincel-core: render::compose::tests::layer_filter_all_renders_invisible`, `render::compose::tests::layer_filter_all_ignores_hidden_group` | built | |
-| AC-08 | `pincel-core: render::compose::tests::layer_filter_only_renders_subset`, `layer_filter_only_draws_in_sprite_z_order_not_list_order` | built | |
-| AC-09 | `pincel-core: render::compose::tests::group_layer_is_skipped_and_children_render` | built | |
-| AC-10 | `pincel-core: render::blend::tests::blend_over_transparent_backdrop_equals_source`, `transparent_source_leaves_backdrop_unchanged` | built | |
-| AC-11 | `pincel-core: render::blend::tests::multiply_blends_channels`, `screen_blends_channels`, `overlay_matches_hardlight_swapped`, `darken_takes_min_and_lighten_takes_max`, `addition_saturates_at_255` | built | |
-| AC-12 | `pincel-core: render::blend::tests::separable_modes_match_w3c_reference_for_every_channel_pair`, `separable_modes_hit_their_exact_terms_at_known_points`, `separable_modes_compose_opaque_source_as_blend_term` | built | |
-| AC-13 | `pincel-core: render::blend::tests::hsl_modes_match_w3c_reference_values`, `hsl_modes_compose_opaque_source_as_blend_term`, `hsl_modes_keep_the_luminance_they_promise` | built | |
-| AC-14 | `pincel-core: render::blend::tests::blend_with_translucent_source_matches_w3c_formula`, `hsl_modes_with_translucent_source_mix_like_separable_modes` | built | |
-| AC-15 | `pincel-core: render::tilemap_layer::tests::tilemap_renders_tile_at_grid_position`, `tilemap_cel_position_offsets_tile_placement`, `tilemap_empty_tile_id_zero_is_skipped_without_consulting_tileset`, `tilemap_flip_x_mirrors_tile_horizontally`, `tilemap_flip_y_mirrors_tile_vertically`, `tilemap_rotate_90_rotates_clockwise`, `tilemap_combined_flags_rotate_then_flip_x_then_flip_y` | built | |
-| AC-16 | `pincel-core: render::onion::tests::previous_frame_shows_red_tinted_under_a_hole`, `next_frame_is_blue_tinted_at_next_alpha`, `opaque_current_frame_hides_the_onion`, `previous_frame_tint_moves_each_channel_halfway_to_red`, `next_frame_tint_moves_each_channel_halfway_to_blue` | built | |
-| AC-17 | `pincel-core: render::onion::tests::farther_frames_fade_linearly`, `first_frame_without_neighbours_renders_plainly`, `first_frame_does_not_wrap_to_the_last_frame`, `last_frame_does_not_wrap_to_the_first_frame` | built | |
-| AC-18 | `pincel-core: render::compose::tests::dirty_hint_inside_viewport_renders_only_intersection`, `dirty_hint_partially_outside_viewport_clamps_to_overlap`, `dirty_hint_disjoint_from_viewport_returns_empty_buffer`, `dirty_hint_equal_to_viewport_matches_full_render`, `dirty_hint_with_zoom_upscales_only_intersection` | built | |
-| AC-19 | `pincel-core: render::compose::tests::rejects_indexed_color_mode` | built | |
-| AC-20 | `pincel-core: render::compose::tests::rejects_invalid_zoom`, `zoom_at_max_factor_succeeds`, `rejects_empty_viewport`, `rejects_unknown_frame` | built | |
-| AC-21 | `pincel-core: render::compose::tests::rejects_linked_cel` | built | |
-| AC-22 | `pincel-core: render::compose::tests::rejects_overlays_request`, `rejects_slices_or_selection_marquee_overlay_alone` | built | |
-| AC-23 | `pincel-core: render::compose::tests::rejects_cel_with_wrong_color_mode`, `rejects_malformed_cel_buffer`, `rejects_tilemap_data_on_image_layer`, `tilemap_image_cel_on_tilemap_layer_errors`; `render::tilemap_layer::tests::tilemap_missing_tileset_errors`, `tilemap_dangling_tile_id_errors`, `tilemap_malformed_cel_buffer_errors`, `tilemap_grid_whose_tile_count_overflows_usize_errors`, `tilemap_rotate_90_on_non_square_errors` | built | |
-| AC-24 | `pincel-core: render::tilemap_layer::tests::tilemap_tile_with_wrong_image_size_errors` | built | |
-| AC-25 | `ui/e2e/renderer.spec.ts`: `pixel mode: a working WebGPU device draws the canvas through WebGPU`, `pixel mode: without a WebGPU adapter the canvas falls back to Canvas2D` | built | |
-| AC-26 | `ui/e2e/renderer.spec.ts`: `pixel mode: ?renderer=canvas2d forces Canvas2D although WebGPU works` | built | |
-| AC-27 | `ui/e2e/compose.spec.ts`: `pixel mode: the canvas follows paint, undo / redo, frames and layer visibility` | built | |
-| AC-28 | `ui/e2e/compose.spec.ts`: `pixel mode: a drag preview and the selection marquee stay off the sprite`, `pixel mode: the tile-stamp hover and the active slice stay off the sprite` | built | |
+| AC-01 | `render::compose::tests::zoom_duplicates_pixels_horizontally_and_vertically`, `…::zoom_3_produces_9x_pixel_count` (crates/pincel-core/src/render/compose.rs), `render::image_layer::tests::opaque_cel_matches_source`, `…::layer_opacity_scales_alpha` (non-premultiplied output; crates/pincel-core/src/render/image_layer.rs) | verified |  |
+| AC-02 | `render::compose::tests::opaque_top_layer_overrides_bottom`, `…::translucent_top_blends_with_bottom` (crates/pincel-core/src/render/compose.rs), `render_compose::end_to_end_two_layer_sprite_composes_to_expected_pixels` (crates/pincel-core/tests/render_compose.rs) | verified |  |
+| AC-03 | `render::image_layer::tests::layer_opacity_scales_alpha`, `…::cel_opacity_scales_alpha` (crates/pincel-core/src/render/image_layer.rs) | verified |  |
+| AC-04 | `render_compose::frame_navigation_picks_per_frame_cel_data` (crates/pincel-core/tests/render_compose.rs), `render::image_layer::tests::cel_clipped_to_viewport` (crates/pincel-core/src/render/image_layer.rs), `render::onion::tests::first_frame_does_not_wrap_to_the_last_frame` (frame without a cel draws nothing; crates/pincel-core/src/render/onion.rs) | verified |  |
+| AC-05 | `render::image_layer::tests::viewport_offset_renders_subregion` (crates/pincel-core/src/render/image_layer.rs), `render_compose::viewport_subregion_with_zoom_returns_zoomed_subregion` (crates/pincel-core/tests/render_compose.rs) | verified |  |
+| AC-06 | `render::compose::tests::invisible_layer_is_skipped`, `…::hidden_group_hides_child_layers`, `…::hidden_grandparent_hides_nested_child` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-07 | `render::compose::tests::layer_filter_all_renders_invisible`, `…::layer_filter_all_ignores_hidden_group` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-08 | `render::compose::tests::layer_filter_only_renders_subset`, `…::layer_filter_only_draws_in_sprite_z_order_not_list_order` (crates/pincel-core/src/render/compose.rs) | verified | 553a141 |
+| AC-09 | `render::compose::tests::group_layer_is_skipped_and_children_render` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-10 | `render::blend::tests::blend_over_transparent_backdrop_equals_source`, `…::transparent_source_leaves_backdrop_unchanged` (crates/pincel-core/src/render/blend.rs) | verified | 553a141 |
+| AC-11 | `render::blend::tests::multiply_blends_channels`, `…::screen_blends_channels`, `…::overlay_matches_hardlight_swapped`, `…::darken_takes_min_and_lighten_takes_max`, `…::addition_saturates_at_255` (crates/pincel-core/src/render/blend.rs) | verified |  |
+| AC-12 | `render::blend::tests::separable_modes_match_w3c_reference_for_every_channel_pair`, `…::separable_modes_hit_their_exact_terms_at_known_points`, `…::separable_modes_compose_opaque_source_as_blend_term` (crates/pincel-core/src/render/blend.rs) | verified | b1dce89 |
+| AC-13 | `render::blend::tests::hsl_modes_match_w3c_reference_values`, `…::hsl_modes_compose_opaque_source_as_blend_term`, `…::hsl_modes_keep_the_luminance_they_promise` (crates/pincel-core/src/render/blend.rs) | verified |  |
+| AC-14 | `render::blend::tests::blend_with_translucent_source_matches_w3c_formula`, `…::hsl_modes_with_translucent_source_mix_like_separable_modes` (crates/pincel-core/src/render/blend.rs) | verified |  |
+| AC-15 | `render::tilemap_layer::tests::tilemap_renders_tile_at_grid_position`, `…::tilemap_cel_position_offsets_tile_placement`, `…::tilemap_empty_tile_id_zero_is_skipped_without_consulting_tileset`, `…::tilemap_flip_x_mirrors_tile_horizontally`, `…::tilemap_flip_y_mirrors_tile_vertically`, `…::tilemap_rotate_90_rotates_clockwise`, `…::tilemap_combined_flags_rotate_then_flip_x_then_flip_y` (crates/pincel-core/src/render/tilemap_layer.rs) | verified | 553a141 |
+| AC-16 | `render::onion::tests::previous_frame_shows_red_tinted_under_a_hole`, `…::next_frame_is_blue_tinted_at_next_alpha`, `…::opaque_current_frame_hides_the_onion`, `…::previous_frame_tint_moves_each_channel_halfway_to_red`, `…::next_frame_tint_moves_each_channel_halfway_to_blue` (crates/pincel-core/src/render/onion.rs) | verified | 553a141 |
+| AC-17 | `render::onion::tests::farther_frames_fade_linearly`, `…::first_frame_without_neighbours_renders_plainly`, `…::first_frame_does_not_wrap_to_the_last_frame`, `…::last_frame_does_not_wrap_to_the_first_frame` (crates/pincel-core/src/render/onion.rs) | verified | 553a141 |
+| AC-18 | `render::compose::tests::dirty_hint_inside_viewport_renders_only_intersection`, `…::dirty_hint_partially_outside_viewport_clamps_to_overlap`, `…::dirty_hint_disjoint_from_viewport_returns_empty_buffer`, `…::dirty_hint_equal_to_viewport_matches_full_render`, `…::dirty_hint_with_zoom_upscales_only_intersection` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-19 | `render::compose::tests::rejects_indexed_color_mode` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-20 | `render::compose::tests::rejects_invalid_zoom`, `…::zoom_at_max_factor_succeeds`, `…::rejects_empty_viewport`, `…::rejects_unknown_frame` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-21 | `render::compose::tests::rejects_linked_cel` (crates/pincel-core/src/render/compose.rs) | verified |  |
+| AC-22 | `render::compose::tests::rejects_overlays_request`, `…::rejects_slices_or_selection_marquee_overlay_alone` (crates/pincel-core/src/render/compose.rs) | verified | 553a141 |
+| AC-23 | `render::compose::tests::rejects_cel_with_wrong_color_mode`, `…::rejects_malformed_cel_buffer`, `…::rejects_tilemap_data_on_image_layer`, `…::tilemap_image_cel_on_tilemap_layer_errors` (crates/pincel-core/src/render/compose.rs), `render::tilemap_layer::tests::tilemap_missing_tileset_errors`, `…::tilemap_dangling_tile_id_errors`, `…::tilemap_malformed_cel_buffer_errors`, `…::tilemap_grid_whose_tile_count_overflows_usize_errors`, `…::tilemap_rotate_90_on_non_square_errors` (crates/pincel-core/src/render/tilemap_layer.rs) | verified |  |
+| AC-24 | `render::tilemap_layer::tests::tilemap_tile_with_wrong_image_size_errors` (crates/pincel-core/src/render/tilemap_layer.rs) | verified | b1dce89 |
+| AC-25 | `ui/e2e/renderer.spec.ts › pixel mode: a working WebGPU device draws the canvas through WebGPU`, `› pixel mode: without a WebGPU adapter the canvas falls back to Canvas2D` | verified | 2b620a7 |
+| AC-26 | `ui/e2e/renderer.spec.ts › pixel mode: ?renderer=canvas2d forces Canvas2D although WebGPU works` | verified | 2b620a7 |
+| AC-27 | `ui/e2e/compose.spec.ts › pixel mode: the canvas follows paint, undo / redo, frames and layer visibility` | verified | 2b620a7 |
+| AC-28 | `ui/e2e/compose.spec.ts › pixel mode: a drag preview and the selection marquee stay off the sprite`, `› pixel mode: the tile-stamp hover and the active slice stay off the sprite` | verified | 2b620a7 |
 
 ## Decisions
 
