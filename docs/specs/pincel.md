@@ -368,6 +368,26 @@ interface CanvasRenderer {
 
 The adapter chooses the backend at startup; users can force Canvas2D via a setting (debug toggle).
 
+### 4.5 Performance budgets
+
+The budgets are contracts (Decision Log 2026-10-29): every performance change states before → after on the benchmark it targets, a budget once met may not regress by more than 10 %, and benchmarks run outside the 60 s PR gate. The benchmarks, the browser performance script (`ui/e2e-perf/`) and the budget check are specified in `docs/specs/performance-benchmarks.md`; the owning spec is the one whose change is expected to meet the budget.
+
+**Reference machine ("mid laptop"):** a 4-core / 8-thread x86 laptop of the 2021 class (i5-1135G7 / Ryzen 5 5500U class), 16 GB RAM, "balanced" power plan, current stable Chrome. **"4G":** Lighthouse's Slow 4G throttling — 150 ms RTT, 1.6 Mbps down, 750 kbps up. CPU is not throttled.
+
+| Scenario | Budget | Owning spec |
+| -------- | ------ | ----------- |
+| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom | ≤ 16 ms (60 fps) | `performance-image-cache` |
+| Pan / zoom, Image 4K 10 layers | 60 fps, no recompose while panning | `performance-image-cache` |
+| Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | `performance-image-kernel`, `performance-build-simd` |
+| Pixel: pencil drag on 256×256 at zoom 32 | 60 fps, dab latency ≤ 8 ms | `performance-input-path` |
+| Open a 4K PNG | ≤ 1 s to first paint | measured first; `performance-image-open` if missed |
+| Effect preview (Gaussian r = 10) on 4K | proxy ≤ 100 ms, full result ≤ 500 ms, UI never blocks | `performance-background-jobs` |
+| Autosave and export of a 4K multi-layer doc | zero UI jank (no frame > 50 ms) | `performance-background-jobs` |
+| Cold start (no cache) → start screen interactive | ≤ 1.5 s mid laptop / 4G; warm ≤ 0.5 s | `performance-build-simd` |
+| Memory, 4K × 10 layers with 50 undo steps, as `WebAssembly.Memory` `buffer.byteLength` | ≤ 1 GB | `performance-image-undo-memory` |
+
+**Regression guard.** On the reference machine the budget check runs in *budget mode*: a budget that has never been met is `pending` and does not fail; from the first run that meets it, a value more than 10 % over it fails. On CI runners it runs in *baseline mode*: each runner is compared with its own last recorded numbers, and more than 10 % worse fails; the budgets are not checked there.
+
 ---
 
 ## 5. Tool System
