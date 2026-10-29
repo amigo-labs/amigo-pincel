@@ -4,7 +4,7 @@ created: 2026-10-28
 size: M
 mode: both
 design: [pincel.md §5.2, pincel.md §9.4, pincel.md §17.4]
-depends_on: [performance-benchmarks]
+depends_on: [performance-benchmarks, pixel-pencil]
 ---
 
 # Performance: input path
@@ -28,6 +28,7 @@ This spec owns the Pixel budget from `performance-benchmarks`: a pencil drag on 
 - The Pixel stroke command and its gesture API (`beginStroke` / `strokeTo` / `endStroke`) — because `pixel-pencil` defines them; this spec only feeds them batched samples
 - Image-mode dab cost — because `performance-image-cache` owns the Image dab budget
 - Pen pressure and tilt — because `pixel-pressure` and the existing Image pen support cover them
+- Predicted pointer tip (`getPredictedEvents()`) — follow-up, because the plan marks it optional, it needs its own overlay design (drawing and removing the provisional tip), and the dab latency is to be measured first
 
 ## Acceptance criteria
 
@@ -41,7 +42,7 @@ This spec owns the Pixel budget from `performance-benchmarks`: a pencil drag on 
 Hints from the legacy plan (2026-10-28); paths drift.
 
 - Image mode: `getCoalescedEvents` in `ui/src/modes/image/tools/pointer.ts` (≈L388). Batch all samples of one rAF into a single wasm call; present once per rAF.
-- Pixel mode: `applyTool` per pixel in `crates/pincel-wasm/src/lib.rs` (≈L552); pointer handling in `ui/src/modes/pixel/pointer.ts`. Use `getCoalescedEvents`, with segments via `pixel-pencil`'s `strokeTo`.
+- Pixel mode: `applyTool` per pixel in `crates/pincel-wasm/src/lib.rs` (≈L552); pointer handling in `ui/src/modes/pixel/pointer.ts`. Use `getCoalescedEvents`, and feed all coalesced samples of one animation frame to `pixel-pencil`'s `strokeTo` once per frame — `pixel-pencil` is built first (`depends_on`); `shading-ink` and `symmetry-tiled-mode` build on the same stroke API, so nothing is wired twice.
 - Check `touch-action` / `pointer-events` CSS so the browser never waits on scroll handling (`touch-action: none` exists today on the layers panel and the tile editor, not verified on both canvas stages). AC-03 can be checked in e2e through the canvas stage's computed style and a touchscreen drag.
 - Playwright cannot synthesize coalesced events; AC-01 / AC-02 are best proven at the wasm / core level.
 
@@ -56,8 +57,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 ## Open questions
 
-- Pixel batching needs `pixel-pencil`'s `strokeTo` gesture API, whose Decision Log entry is still open — must `pixel-pencil` be built first, or does this spec cover Pixel-mode coalescing on today's `applyTool` / `applyLine`?
-- Is the predicted-tip feature (`getPredictedEvents()`, a provisional tip drawn ahead of the pointer to cut perceived latency on pens) part of this spec, and if so, what must it show and how is it removed when the real samples arrive? The plan marks it optional.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -71,3 +71,5 @@ Hints from the legacy plan (2026-10-28); paths drift.
 ## Decisions
 
 - The input path never waits for heavy work: samples are batched per animation frame and presented once (plan, 2026-10-28).
+- 2026-10-29: `pixel-pencil` is built first and this spec feeds its `strokeTo` with all coalesced samples once per animation frame, instead of coalescing on today's `applyTool` / `applyLine` — the plan's design uses `strokeTo`, and `shading-ink` and `symmetry-tiled-mode` build on the same stroke API, so nothing gets wired twice (owner accepted the recommendation).
+- 2026-10-29: The predicted pointer tip (`getPredictedEvents()`) is not part of this spec but a follow-up, after the dab latency is measured — the plan marks it optional, and it needs its own overlay design (owner accepted the recommendation).
