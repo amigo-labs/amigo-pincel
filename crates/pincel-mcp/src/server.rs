@@ -16,7 +16,7 @@ const METHOD_NOT_FOUND: i64 = -32601;
 const INVALID_PARAMS: i64 = -32602;
 const RESOURCE_NOT_FOUND: i64 = -32002;
 
-const INSTRUCTIONS: &str = "Pincel edits pixel-art documents in memory. Loop: doc.new or doc.open, then layer / frame / palette / draw tools, check the result with doc.preview (an image) or doc.read_pixels (exact colors), and write files with doc.save / export.png / export.sheet. Paths are relative to the workspace. Every mutating call is one doc.undo step.";
+const INSTRUCTIONS: &str = "Pincel edits documents in memory, in two modes that follow the file: Pixel documents (pixel art: .aseprite, frames, palette) and Image documents (photos, screenshots, mockups: PNG / JPEG / WebP / BMP / GIF / TIFF / .ora, brushes, shapes, text, selections). Read pincel://guide first. Loop: doc.new or doc.open, then layer and draw tools, check the result with doc.preview (an image) or doc.read_pixels (exact colors), and write files with doc.save / export.*. Paths are relative to the workspace. Every mutating call is one doc.undo step.";
 
 /// An MCP server over one session of documents.
 pub struct Server<H: FileHost> {
@@ -126,8 +126,12 @@ impl<H: FileHost> Server<H> {
                 ))?;
                 let text = read_resource(uri)
                     .map_err(|e| (RESOURCE_NOT_FOUND, format!("Resource not found: {e}")))?;
+                let mime = list_resources()
+                    .into_iter()
+                    .find(|r| r.uri == uri)
+                    .map_or("application/json", |r| r.mime_type);
                 Ok(json!({
-                    "contents": [{ "uri": uri, "mimeType": "application/json", "text": text }],
+                    "contents": [{ "uri": uri, "mimeType": mime, "text": text }],
                 }))
             }
             other => Err((METHOD_NOT_FOUND, format!("Method not found: `{other}`"))),
@@ -298,7 +302,7 @@ mod tests {
             .as_array()
             .map(|a| a.iter().filter_map(|r| r["uri"].as_str()).collect())
             .unwrap_or_default();
-        assert_eq!(uris.len(), 5);
+        assert_eq!(uris.len(), 7);
         for id in ["db32", "db16", "pico8", "gameboy", "nes"] {
             assert!(
                 uris.contains(&format!("pincel://palettes/{id}").as_str()),
@@ -322,6 +326,38 @@ mod tests {
             json!({ "uri": "pincel://palettes/vga" }),
         );
         assert_eq!(r["error"]["code"], RESOURCE_NOT_FOUND);
+    }
+
+    #[test]
+    fn resources_read_guide_and_effects_with_their_mime_types() {
+        let mut s = Server::new(Mem::default());
+        let list = rpc(&mut s, 1, "resources/list", json!({}));
+        let listed = |uri: &str| {
+            list["result"]["resources"]
+                .as_array()
+                .and_then(|a| a.iter().find(|r| r["uri"] == uri))
+                .map(|r| r["mimeType"].clone())
+                .expect(uri)
+        };
+        for (i, (uri, mime)) in [
+            ("pincel://guide", "text/markdown"),
+            ("pincel://effects", "application/json"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert_eq!(listed(uri), mime);
+            let r = rpc(
+                &mut s,
+                i as i64 + 2,
+                "resources/read",
+                json!({ "uri": uri }),
+            );
+            let content = &r["result"]["contents"][0];
+            assert_eq!(content["mimeType"], mime, "{uri}");
+            let text = content["text"].as_str().expect("text");
+            assert_eq!(text, pincel_agent::read_resource(uri).expect("read"));
+        }
     }
 
     #[test]

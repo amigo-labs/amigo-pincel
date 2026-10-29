@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Image
@@ -35,27 +35,27 @@ Second of three specs migrated from the legacy plan `18-mcp` (removed 2026-10-29
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the client calls `doc.new` with `mode: "image"`, `width` and `height`, then the session holds a new Image document of that size, it becomes the active document, the result carries its `doc` id and info, and nothing is written to the workspace.
-- [ ] AC-02 (event): When the client calls `doc.open` with a workspace-relative PNG, JPEG, WebP, BMP, GIF, TIFF or `.ora` path, then the session holds an Image document with the same layers and pixels as the editor opens from that file, and it becomes the active document; a `.aseprite` path still opens a Pixel document.
-- [ ] AC-03 (always): On Image documents the shared tools behave as on Pixel documents: `doc.info` / `doc.list` report size, layers and dirty state, `doc.preview` returns PNG image content of the composed image, `doc.read_pixels` with `format: "hex"` returns the region's colors, and every successful mutating call is exactly one undo step for `doc.undo` / `doc.redo`.
-- [ ] AC-04 (event): When `layer.add`, `layer.set` (name, visible, opacity, blend, locked) or `layer.remove` succeed on an Image document, then `layer.list` reports the changed layer stack in order with these properties.
-- [ ] AC-05 (error): If a Pixel-only tool (`frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse`, `draw.clear`, `selection.*`, `export.sheet`, `doc.read_pixels` with `format: "index"`, `layer.*` with `parent`) is called on an Image document, or an Image-only tool on a Pixel document, then the call fails with `isError: true`, the message names the document's mode, and the document is unchanged.
-- [ ] AC-06 (event): When the client calls `draw.stroke` with `points`, size, hardness, opacity and color, then the target layer has the same pixels as after the editor's Brush tool along the same points with the same settings; with `tool: "eraser"`, the same pixels as after the Eraser tool.
-- [ ] AC-07 (event): When the client calls `draw.shape` (rect, rounded, ellipse, polygon or line, with stroke and fill), then the target layer has the same pixels as after the editor's matching shape tool with the same geometry, stroke and fill.
-- [ ] AC-08 (event): When the client calls `draw.text` with text, position, size, color and align, then the target layer has the same pixels as after the editor's Text tool with the same settings.
-- [ ] AC-09 (event): When the client calls `draw.fill` or `draw.gradient`, then the target layer has the same pixels as after the editor's Bucket or Gradient tool with the same arguments.
-- [ ] AC-10 (event): When the client calls `select.rect`, `select.ellipse` or `select.wand`, then the document's selection equals the one the editor's matching selection tool makes with the same arguments; `select.clear` removes it.
-- [ ] AC-11 (state): While a selection exists, `draw.fill`, `adjust.apply` and `effect.apply` change no pixel outside it, and blend feathered edges by coverage as the editor does.
-- [ ] AC-12 (event): When the client calls `adjust.apply` or `effect.apply` with an id and parameters from the `pincel-effects` catalog, then the target layer has the same pixels as after the editor applies it; an unknown id or a parameter outside its range fails with `isError: true` naming it, and the document is unchanged.
-- [ ] AC-13 (event): When the client calls `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate`, then the document's size and pixels equal those after the editor's matching command, and one `doc.undo` restores size and pixels.
-- [ ] AC-14 (error): If `image.crop_to_selection` is called while no selection exists, then the call fails with `isError: true` saying a selection is needed, and the document is unchanged.
-- [ ] AC-15 (event): When the client calls `export.png`, `export.webp` or `export.jpeg` (with `quality`) with a workspace path, then a file of that format is written there that decodes to the composed image (pixel-equal for PNG and WebP lossless output, within the codec's loss for JPEG and lossy WebP).
-- [ ] AC-16 (event): When the client calls `doc.save` with a `.ora` path on an Image document, then an OpenRaster file is written that reopens with the same layers, layer properties and pixels.
-- [ ] AC-17 (event): When the client calls `resources/read` for `pincel://guide`, then it returns a text guide with a section each on the workflow (plan → draw → preview → export), the coordinate system, colors, undo, preview and common pitfalls, covering both modes.
-- [ ] AC-18 (always): `pincel://effects` lists exactly the effect and adjustment ids of the `pincel-effects` catalog, each with its parameters and their ranges, so a change to the catalog changes the resource without a hand edit.
-- [ ] AC-19 (error): If an Image file passed to `doc.open` is corrupt or of an unsupported format, then the call fails with `isError: true` naming the file, and no document is added.
-- [ ] AC-20 (error): If `doc.save` without `path` is called on an Image document opened from a flat image (PNG, JPEG, WebP, BMP, GIF or TIFF), then the call fails with `isError: true` saying the document was opened from that format and asking for a `.ora` path to `doc.save`, or `export.png` for a flat image; nothing is written and the source file is not overwritten.
-- [ ] AC-21 (error): If `doc.new`, `doc.open`, `canvas.resize` or `image.scale` would produce an Image document wider or taller than 16384 px, or larger than 8192 × 8192 px (64 Mpx) in area, then the call fails with `isError: true` naming the limit and the requested size, and no document is added or the document is unchanged.
+- [x] AC-01 (event): When the client calls `doc.new` with `mode: "image"`, `width` and `height`, then the session holds a new Image document of that size, it becomes the active document, the result carries its `doc` id and info, and nothing is written to the workspace.
+- [x] AC-02 (event): When the client calls `doc.open` with a workspace-relative PNG, JPEG, WebP, BMP, GIF, TIFF or `.ora` path, then the session holds an Image document with the same layers and pixels as the editor opens from that file, and it becomes the active document; a `.aseprite` path still opens a Pixel document.
+- [x] AC-03 (always): On Image documents the shared tools behave as on Pixel documents: `doc.info` / `doc.list` report size, layers and dirty state, `doc.preview` returns PNG image content of the composed image, `doc.read_pixels` with `format: "hex"` returns the region's colors, and every successful mutating call is exactly one undo step for `doc.undo` / `doc.redo`.
+- [x] AC-04 (event): When `layer.add`, `layer.set` (name, visible, opacity, blend, locked) or `layer.remove` succeed on an Image document, then `layer.list` reports the changed layer stack in order with these properties.
+- [x] AC-05 (error): If a Pixel-only tool (`frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse`, `draw.clear`, `selection.*`, `export.sheet`, `doc.read_pixels` with `format: "index"`, `layer.*` with `parent`) is called on an Image document, or an Image-only tool on a Pixel document, then the call fails with `isError: true`, the message names the document's mode, and the document is unchanged.
+- [x] AC-06 (event): When the client calls `draw.stroke` with `points`, size, hardness, opacity and color, then the target layer has the same pixels as after the editor's Brush tool along the same points with the same settings; with `tool: "eraser"`, the same pixels as after the Eraser tool.
+- [x] AC-07 (event): When the client calls `draw.shape` (rect, rounded, ellipse, polygon or line, with stroke and fill), then the target layer has the same pixels as after the editor's matching shape tool with the same geometry, stroke and fill.
+- [x] AC-08 (event): When the client calls `draw.text` with text, position, size, color and align, then the target layer has the same pixels as after the editor's Text tool with the same settings.
+- [x] AC-09 (event): When the client calls `draw.fill` or `draw.gradient`, then the target layer has the same pixels as after the editor's Bucket or Gradient tool with the same arguments.
+- [x] AC-10 (event): When the client calls `select.rect`, `select.ellipse` or `select.wand`, then the document's selection equals the one the editor's matching selection tool makes with the same arguments; `select.clear` removes it.
+- [x] AC-11 (state): While a selection exists, `draw.fill`, `adjust.apply` and `effect.apply` change no pixel outside it, and blend feathered edges by coverage as the editor does.
+- [x] AC-12 (event): When the client calls `adjust.apply` or `effect.apply` with an id and parameters from the `pincel-effects` catalog, then the target layer has the same pixels as after the editor applies it; an unknown id or a parameter outside its range fails with `isError: true` naming it, and the document is unchanged.
+- [x] AC-13 (event): When the client calls `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate`, then the document's size and pixels equal those after the editor's matching command, and one `doc.undo` restores size and pixels.
+- [x] AC-14 (error): If `image.crop_to_selection` is called while no selection exists, then the call fails with `isError: true` saying a selection is needed, and the document is unchanged.
+- [x] AC-15 (event): When the client calls `export.png`, `export.webp` or `export.jpeg` (with `quality`) with a workspace path, then a file of that format is written there that decodes to the composed image (pixel-equal for PNG and WebP lossless output, within the codec's loss for JPEG and lossy WebP).
+- [x] AC-16 (event): When the client calls `doc.save` with a `.ora` path on an Image document, then an OpenRaster file is written that reopens with the same layers, layer properties and pixels.
+- [x] AC-17 (event): When the client calls `resources/read` for `pincel://guide`, then it returns a text guide with a section each on the workflow (plan → draw → preview → export), the coordinate system, colors, undo, preview and common pitfalls, covering both modes.
+- [x] AC-18 (always): `pincel://effects` lists exactly the effect and adjustment ids of the `pincel-effects` catalog, each with its parameters and their ranges, so a change to the catalog changes the resource without a hand edit.
+- [x] AC-19 (error): If an Image file passed to `doc.open` is corrupt or of an unsupported format, then the call fails with `isError: true` naming the file, and no document is added.
+- [x] AC-20 (error): If `doc.save` without `path` is called on an Image document opened from a flat image (PNG, JPEG, WebP, BMP, GIF or TIFF), then the call fails with `isError: true` saying the document was opened from that format and asking for a `.ora` path to `doc.save`, or `export.png` for a flat image; nothing is written and the source file is not overwritten.
+- [x] AC-21 (error): If `doc.new`, `doc.open`, `canvas.resize` or `image.scale` would produce an Image document wider or taller than 16384 px, or larger than 8192 × 8192 px (64 Mpx) in area, then the call fails with `isError: true` naming the limit and the requested size, and no document is added or the document is unchanged.
 
 ## Technical notes
 
@@ -112,31 +112,41 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-10-29
+
+- `pincel-mcp` serves Image documents: `doc.new` with `mode: "image"`, `doc.open` of PNG, JPEG, WebP, BMP, GIF, TIFF and `.ora`, the shared `doc.*` / `layer.*` tools, `.ora` save and PNG / JPEG / WebP export, with the editor's size limits (16384 px per side, 64 Mpx).
+- New Image tools in `pincel-agent` (`draw.stroke`, `draw.shape`, `draw.text`, `draw.gradient`, `select.*`, `adjust.apply`, `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip`, `image.rotate`, `export.jpeg`, `export.webp`) build the editor's `CommandSpec` and run it through the same `run_command`; the Text tool embeds the editor's Liberation Sans.
+- Phase-0 refactor: `CommandSpec` and `run_command` move from `pincel-image-wasm` into `pincel_image_core::command::spec`, the ts-rs derive sits behind the optional `ts` feature, and the generated `CommandSpec.ts` is unchanged.
+- Resources `pincel://guide` (Markdown agent guide for both modes) and `pincel://effects` (JSON generated from the catalog table the tools validate against); `resources/read` answers with the listed MIME type.
+- Tools of the other mode fail naming the document's mode and change nothing.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-01 | `image_doc_new_creates_active_image_document_and_writes_nothing` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-02 | `image_doc_open_matches_what_the_editor_opens` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-03 | `image_shared_tools_report_preview_read_and_undo` (`crates/pincel-agent/src/tests/image.rs`); the `one_undo_step` checks in `crates/pincel-agent/src/tests/image_draw.rs` | verified | a175f1a |
+| AC-04 | `image_layer_tools_change_and_list_the_stack`, `image_layer_remove_of_only_layer_fails_like_the_editor` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-05 | `tools_of_the_other_mode_fail_naming_the_mode_and_change_nothing` (`crates/pincel-agent/src/tests/image.rs`); `image_tools_refuse_locked_layers_and_pixel_documents` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-06 | `draw_stroke_matches_brush_and_eraser`, `draw_stroke_with_empty_points_fails_naming_points` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-07 | `draw_shape_matches_the_shape_tools` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-08 | `draw_text_matches_the_text_tool` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-09 | `draw_fill_and_gradient_match_bucket_and_gradient_tools` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-10 | `select_tools_match_the_selection_tools_and_clear_removes_it` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-11 | `selection_limits_fill_adjust_and_effect_with_feathered_edges` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-12 | `adjust_and_effect_apply_match_the_editor`, `adjust_and_effect_apply_refuse_unknown_ids_and_bad_params` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-13 | `canvas_and_image_transforms_match_the_editor_and_undo_in_one_step` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-14 | `crop_to_selection_without_selection_fails` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
+| AC-15 | `image_exports_decode_to_the_composed_image` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-16 | `image_doc_save_writes_ora_that_reopens_identically` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-17 | `read_resource_guide_covers_workflow_and_both_modes`, `list_resources_has_guide_and_effects` (`crates/pincel-agent/src/resources.rs`); `resources_read_guide_and_effects_with_their_mime_types` (`crates/pincel-mcp/src/server.rs`); `image_document_open_edit_save_and_export_over_stdio` (`crates/pincel-mcp/tests/stdio.rs`) | verified | a2649fc |
+| AC-18 | `effects_resource_lists_exactly_the_catalog_with_ranges` (`crates/pincel-agent/src/resources.rs`); `catalog_covers_every_effect_in_menu_order` (`crates/pincel-agent/src/pixel/effects.rs`) | verified | a2649fc |
+| AC-19 | `image_doc_open_corrupt_or_unsupported_file_fails_naming_it` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-20 | `image_doc_save_without_path_after_flat_open_fails_and_writes_nothing` (`crates/pincel-agent/src/tests/image.rs`) | verified | a175f1a |
+| AC-21 | `image_size_limits_refuse_new_and_open` (`crates/pincel-agent/src/tests/image.rs`); `resize_and_scale_refuse_sizes_above_the_limits` (`crates/pincel-agent/src/tests/image_draw.rs`) | verified | a175f1a |
 
 ## Decisions
 
@@ -147,3 +157,16 @@ Hints from the legacy plan (2026-10-28). Paths drift — grep for the names.
 - 2026-10-29: `doc.save` without `path` on a document opened from a flat image fails and asks for a `.ora` path or `export.png`; the server never flattens or overwrites on its own (AC-20) — a silent flattening overwrite loses layers with no user present, and it matches the "ask for a path" pattern of `mcp-headless-pixel` AC-31 (owner accepted the recommendation).
 - 2026-10-29: The headless server enforces the editor's Image limits (side ≤ 16384, area ≤ 64 Mpx) on `doc.new`, `doc.open`, `canvas.resize` and `image.scale` (AC-21) — files written headlessly must open in the editor, whose wasm build has these limits (owner accepted the recommendation).
 - 2026-10-29: The MCP prompts `create-sprite` / `edit-screenshot` are not part of v1; they become the follow-up spec `mcp-prompts` — the plan marks them optional, `pincel://guide` covers both workflows, and prompts add a capability to test with no new tool power (owner accepted the recommendation).
+- 2026-10-29 (build): the phase-0 move puts `CommandSpec`, `run_command`, `StrokeScratch`, `layer_locked` and `parse_sample` into the public module `pincel_image_core::command::spec` (new public API); `run_command` takes the stroke scratch and the font faces as arguments instead of wasm thread-locals, and `pincel-image-wasm` keeps them per handle — the generated `CommandSpec.ts` is unchanged.
+- 2026-10-29 (build): Image tools build the editor's `CommandSpec` and run it through `run_command` (strokes with a fresh `stroke_id` per call, so two calls never merge); `effect.apply` / `adjust.apply` repeat the wasm `apply_effect` (effect on the layer, `masked_region` by coverage, one `SetPixels`) because `pincel-image-core` does not depend on `pincel-effects`. Several layer property changes in one call are one agent-local `Batch` command, so `layer.add` / `layer.set` stay one undo step.
+- 2026-10-29 (build): Image layers get stable integer ids (assigned per core layer UUID, never reused, kept across undo) so `layer` arguments use the same integer form as Pixel documents; `layer.list` reports opacity on the Pixel 0–255 scale and only the 12 blend modes Image mode has. `layer.add` adds on top of the stack and makes the layer active, as in Pixel mode.
+- 2026-10-29 (build): Image selections are undo steps (as in the editor's Image mode), unlike the Pixel `selection.*` tools; select tools live under `select.*`, Pixel ones keep `selection.*`.
+- 2026-10-29 (build): Image tool parameters follow the editor's option bar: brush / fill / gradient `opacity` and brush `hardness` in % (0–100), defaults from the editor's tool store (brush 8 px, tolerance 32, stroke width 3, corner radius 16, 5 polygon sides, text 48 px, anti-aliasing on, JPEG quality 90); polygon `rotation` is in degrees (the core takes radians); `canvas.resize` anchors top_left and `image.scale` resamples bilinear by default, as the core commands do.
+- 2026-10-29 (build): `adjust.apply` takes the ids of the editor's Adjust menu (`group: 'adjust'` in `catalog.ts`) on both modes; `effect.apply` keeps taking every catalog id, so Pixel behavior is unchanged.
+- 2026-10-29 (build): `draw.fill` gains `tolerance` and `opacity` for Image documents; on Pixel documents they are refused, because the Pixel Bucket matches the seed color exactly.
+- 2026-10-29 (build): `doc.new` checks sizes in code instead of the schema (Pixel 1–4096 with the old message, Image 1–16384 plus the 64 Mpx area), so the AC-21 message can name both the limit and the requested size.
+- 2026-10-29 (build): `doc.open` routes by extension (`.aseprite` / `.ase` → Pixel) and otherwise opens an Image document — `.ora` (or a ZIP signature) as a project, anything else through the core decoder; the flat format named in the AC-20 message comes from the file signature. Image `doc.preview` keeps the Pixel rules (no downscale, 2048 px cap, `region` for larger images).
+- 2026-10-29 (build): the Text tool's font is embedded in `pincel-agent` with `include_bytes!` from `ui/public/fonts/LiberationSans-Regular.ttf` — one copy of the font in the repository; `cargo install --path` builds in place, so the path resolves.
+- 2026-10-29 (build): `pincel-agent` gains `pincel-image-core` as a dependency and the workspace `image` crate as a dev-dependency (GIF / TIFF / WebP fixtures for AC-02); both are already in the lockfile, so no new external dependency.
+- 2026-10-29 (build): `pincel://guide` is Markdown (`text/markdown`) kept in `crates/pincel-agent/src/guide.md`; its test checks the required sections and that every tool it names exists. `pincel://effects` is JSON generated from the same catalog table `effect.apply` validates against (ids in menu order, `kind` effect / adjustment, each parameter with type, range or options and default); that table is pinned to `pincel_effects::EFFECT_NAMES` by `catalog_covers_every_effect_in_menu_order`. `resources/read` now answers with the MIME type `resources/list` gives.
+- 2026-10-29 (build): the Image document and shared-tool code was written before its tests in this run; the only red run recorded for that block is `doc.info` refusing Image documents. The editing tools' tests ran red first (unknown tools).

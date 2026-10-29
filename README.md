@@ -68,7 +68,8 @@ in Image mode, and the New dialog offers both.
 
 `pincel-mcp` is a headless [Model Context Protocol](https://modelcontextprotocol.io)
 server: Claude Code, Claude Desktop or any MCP client can create, draw,
-preview and export Pixel documents (`.aseprite`, PNG, sprite sheets)
+preview and export Pixel documents (`.aseprite`, PNG, sprite sheets) and
+Image documents (PNG, JPEG, WebP, BMP, GIF, TIFF, OpenRaster `.ora`)
 through it. Documents live in memory; files are read and written only
 inside the workspace directory.
 
@@ -92,8 +93,9 @@ claude mcp add pincel -- pincel-mcp --workspace .
 Options: `--workspace <dir>` (default: the current directory) and
 `--read-only` (no `doc.save` / `export.*`). The tools are named
 `area.verb` (`doc.new`, `draw.pixels`, `doc.preview`, `export.png`, …);
-`tools/list` describes each one, and the built-in palettes are resources
-at `pincel://palettes/{id}`.
+`tools/list` describes each one. Resources: `pincel://guide` (how to use
+the tools, for the model), `pincel://effects` (effect and adjustment
+parameters) and the built-in palettes at `pincel://palettes/{id}`.
 
 ## Repository layout
 
@@ -107,7 +109,7 @@ crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
                          independent of Pincel types.
 crates/pincel-wasm/      wasm-bindgen bindings for pincel-core (cdylib).
 crates/pincel-image-wasm/   wasm-bindgen bindings for pincel-image-core (cdylib).
-crates/pincel-agent/     Agent tools (MCP tool layer) over pincel-core, no I/O.
+crates/pincel-agent/     Agent tools (MCP tool layer) over both cores, no I/O.
 crates/pincel-mcp/       `pincel-mcp` binary: MCP over stdio, workspace sandbox.
 ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
                          src/App.svelte is the two-mode shell,
