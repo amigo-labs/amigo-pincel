@@ -109,12 +109,12 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-06 | `ui/e2e/save-original.spec.ts` "\"Don't ask again\" flattens later Saves of the document without asking" | built  |        |
 | AC-07 | `ui/e2e/save-original.spec.ts` "JPEG asks its quality once per document" | built  |        |
 | AC-08 | `ui/e2e/save-original.spec.ts` "Save writes an opened webp back under its own name and format" | built  |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-09 | `ui/e2e/save-original.spec.ts` "Save of a GIF opens Save As with a notice that GIF is not written back" (GIF is the only decodable format without an encoder) | built  |        |
+| AC-10 | `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one", "Save As preselects .ora for a layered document" | built  |        |
 | AC-11 | `ui/e2e/save-original.spec.ts` "Save writes an opened … back under its own name and format" (title before / after Save) | built  |        |
 | AC-12 | `ui/e2e/save-original.spec.ts` "a document opened from .ora still saves as OpenRaster"; `ui/e2e/ora.spec.ts` "image mode: Save writes an OpenRaster file that reopens with its layers" | built  |        |
 | AC-13 | `ui/e2e/save-original.spec.ts` "a flattening Save keeps an autosave snapshot that recovers every layer"; `ui/e2e/recovery.spec.ts` "image: an autosaved edit is offered and recovered after a reload" | built  |        |
-| AC-14 |      | open   |        |
+| AC-14 | `ui/e2e/save-original.spec.ts` "Save of a GIF opens Save As with a notice that GIF is not written back" | built  |        |
 
 ## Decisions
 
@@ -132,3 +132,5 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-29 (spec-build): The file identity (name, handle / path, format, remembered JPEG quality) lives in `ui/src/modes/image/core/document-file.ts`, the Save flow in `core/save-flow.ts`, its prompts in `components/dialogs/SaveDialogs.svelte` — `controller.ts` and `ImageEditor.svelte` were already near the 800-line limit (AGENTS.md).
 - 2026-10-29 (spec-build): A flattening Save writes a fresh autosave snapshot of the layered document (`AutosaveSession.keep()`) instead of only leaving the old one — without it, a flattening Save before the first 30-second tick would leave nothing to recover.
 - 2026-10-29 (spec-build): "Don't ask again" is remembered when the user picks *Flatten* with it checked, even if the save picker is then cancelled — the answer is about the prompt, not about the write.
+- 2026-10-29 (spec-build): Save As (and Save of a format without an encoder) first shows Pincel's own "Save As" dialog with a format list, then the save picker / native dialog / download for that one format — the download fallback has no native format choice, so only an in-app list offers every format on every platform (AC-10) and can carry the notice (AC-09, AC-14).
+- 2026-10-29 (spec-build): AC-09 and AC-14 share one notice, "{format} files cannot be written back. Choose a format to save in." — GIF is the only format Pincel opens but cannot write, so AC-09's generic case is proven through it; a single-layer document whose format has no encoder preselects PNG.

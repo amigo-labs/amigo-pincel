@@ -11,6 +11,7 @@ import type {
   ShapeMode,
   TextAlign,
 } from '../core/wasm';
+import type { DocSaveFormat } from '../core/document-file';
 
 /** The open document and its derived state. `handle` is the Rust-side index. */
 export const editor = $state({
@@ -51,7 +52,16 @@ export const ui = $state({
  *  dialog that answers it calls `resolve`. */
 export type SavePrompt =
   | { kind: 'jpeg'; resolve: (quality: number | null) => void }
-  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void };
+  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void }
+  | {
+      /** Save As: pick the format to write. */
+      kind: 'format';
+      preselect: DocSaveFormat;
+      /** The document's own format when it cannot be written back (e.g.
+       *  `GIF`): the dialog says so. */
+      unwritable: string | null;
+      resolve: (format: DocSaveFormat | null) => void;
+    };
 
 /** The answer to "Flatten image?": write the flattened composite, or save
  *  the layers as `.ora` instead; `dontAsk` remembers Flatten for the

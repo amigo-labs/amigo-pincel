@@ -5,6 +5,7 @@
   import { savePrompt, type FlattenChoice } from '../../stores/editor.svelte';
   import ExportDialog from './ExportDialog.svelte';
   import Modal from './Modal.svelte';
+  import SaveAsDialog from './SaveAsDialog.svelte';
 
   // "Don't ask again" starts unchecked on every flatten prompt.
   let dontAsk = $state(false);
@@ -44,4 +45,12 @@
       <span>{t('save.dontAskAgain')}</span>
     </label>
   </Modal>
+{:else if savePrompt.value?.kind === 'format'}
+  {@const prompt = savePrompt.value}
+  <SaveAsDialog
+    preselect={prompt.preselect}
+    unwritable={prompt.unwritable}
+    onSave={(format) => prompt.resolve(format)}
+    onClose={() => prompt.resolve(null)}
+  />
 {/if}

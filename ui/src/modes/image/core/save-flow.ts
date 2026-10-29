@@ -1,6 +1,7 @@
 // Image-mode Save / Save As (docs/specs/save-original-format.md): picks the
-// format, asks what the format needs (flatten, JPEG quality once per
-// document), then writes through `document-file`. Prompts are answered by
+// format (Save As, or a format without an encoder, asks), asks what the
+// format needs (flatten, JPEG quality once per document), then writes
+// through `document-file`. Prompts are answered by
 // `SaveDialogs`.
 import {
   editor,
@@ -12,9 +13,11 @@ import {
   flattenWithoutAsking,
   flatteningLoses,
   flattensWithoutAsking,
+  formatLabel,
   rememberedJpegQuality,
   saveFormat,
   writeDocument,
+  type DocSaveFormat,
 } from './document-file';
 import type { SaveTarget } from '../../../lib/fs';
 
@@ -42,7 +45,22 @@ function ask<T>(make: (resolve: (value: T) => void) => SavePrompt): Promise<T> {
 export async function saveDocument(forceAs = false): Promise<SaveResult | null> {
   if (editor.handle === null) return null;
   const own = saveFormat();
-  const format = own ?? 'ora';
+  let format: DocSaveFormat;
+  if (forceAs || own === null) {
+    // Save As, or a format Pincel cannot write back (GIF): pick the format.
+    // A layered document defaults to `.ora`, which keeps its layers.
+    const picked = await ask<DocSaveFormat | null>((resolve) => ({
+      kind: 'format',
+      preselect: editor.layers.length > 1 ? 'ora' : (own ?? 'png'),
+      unwritable: own === null ? formatLabel() : null,
+      resolve,
+    }));
+    if (picked === null) return null;
+    format = picked;
+    forceAs = true;
+  } else {
+    format = own;
+  }
   const flattened = format !== 'ora' && flatteningLoses();
   if (flattened && !flattensWithoutAsking()) {
     const choice = await ask<FlattenChoice | null>((resolve) => ({ kind: 'flatten', resolve }));
@@ -61,6 +79,6 @@ export async function saveDocument(forceAs = false): Promise<SaveResult | null> 
     if (q === null) return null;
     quality = q;
   }
-  const target = await writeDocument(format, { forceAs: forceAs || own === null, quality });
+  const target = await writeDocument(format, { forceAs, quality });
   return target === null ? null : { target, flattened };
 }

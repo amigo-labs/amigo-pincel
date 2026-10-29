@@ -340,6 +340,55 @@ test('"Don\'t ask again" flattens later Saves of the document without asking', a
   await expect(prompt).toHaveCount(0);
 });
 
+const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
+
+test('Save As offers every writable format and writes the chosen one', async ({ page }) => {
+  await openFile(page, 'screenshot.png', 'png');
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  const format = dialog.getByLabel('Format');
+  await expect(format.locator('option')).toHaveText([
+    'OpenRaster (.ora)',
+    'PNG',
+    'JPEG',
+    'WebP (lossless)',
+    'BMP',
+    'TIFF',
+  ]);
+  // One layer: the document's own format is preselected.
+  await expect(format).toHaveValue('png');
+  await format.selectOption('webp');
+  const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
+  expect(written.name).toBe('screenshot.webp');
+  expect(formatOf(written.bytes)).toBe('webp');
+  await expect(page.getByTitle('screenshot.webp', { exact: true })).toBeVisible();
+});
+
+test('Save As preselects .ora for a layered document', async ({ page }) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  await expect(dialog.getByLabel('Format')).toHaveValue('ora');
+  const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
+  expect(written.name).toBe('screenshot.ora');
+  expect(formatOf(written.bytes)).toBe('ora');
+});
+
+test('Save of a GIF opens Save As with a notice that GIF is not written back', async ({ page }) => {
+  await openFile(page, 'anim.gif', 'gif');
+  await expect(page.getByTitle('anim.gif', { exact: true })).toBeVisible();
+  await paint(page);
+  await menu(page, 'File', 'Save');
+  const dialog = saveAsDialog(page);
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('GIF files cannot be written back');
+  await expect(dialog.getByLabel('Format')).toHaveValue('png');
+  const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
+  expect(written.name).toBe('anim.png');
+  expect(formatOf(written.bytes)).toBe('png');
+  await expect(page.getByTitle('anim.png', { exact: true })).toBeVisible();
+});
+
 test('a flattening Save keeps an autosave snapshot that recovers every layer', async ({ page }) => {
   await openLayered(page);
   await menu(page, 'File', 'Save');

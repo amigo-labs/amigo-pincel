@@ -95,6 +95,13 @@ export function saveFormat(): DocSaveFormat | null {
   return isWritable(file.format) ? file.format : null;
 }
 
+/** Short name of the document's own format for messages (`GIF`), from the
+ *  detected format or else the file extension. */
+export function formatLabel(): string {
+  const ext = /\.([^.]+)$/.exec(file.name)?.[1];
+  return (file.format ?? ext ?? '?').toUpperCase();
+}
+
 /** The JPEG quality remembered for this document, if any. */
 export function rememberedJpegQuality(): number | null {
   return file.jpegQuality;

@@ -675,6 +675,11 @@ export const de: Record<MessageKey, string> = {
   'save.flatten': 'Reduzieren',
   'save.asOra': 'Als .ora speichern…',
   'save.dontAskAgain': 'Für dieses Dokument nicht mehr fragen',
+  'save.asTitle': 'Speichern unter',
+  'save.format': 'Format',
+  'save.fmtOra': 'OpenRaster (.ora)',
+  'save.noEncoder':
+    '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',
   'resize.constrain': 'Proportionen beibehalten',
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',
