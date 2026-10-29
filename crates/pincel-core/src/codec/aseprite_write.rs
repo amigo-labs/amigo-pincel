@@ -41,12 +41,13 @@ use crate::document::{
 };
 
 /// Canonical 32-bit bitmasks used for Cel Type 3 (Compressed Tilemap)
-/// emission. Match Aseprite's defaults; the M8.4 reader expects the same
-/// layout. The on-disk slot the loader 0.4.2 parses as "y_flip" comes
-/// before "x_flip" — see `aseprite_writer::write_cel_body`.
+/// emission: Aseprite's own (`doc/tile.h`), X flip first on disk as the
+/// spec orders them. `aseprite-writer` mirrors `aseprite-loader` 0.4.2,
+/// which names that first slot `y_flip` — so the X mask travels in the
+/// writer's `bitmask_y_flip` field (see the tilemap arm below).
 const TILE_ID_MASK: u32 = 0x1fff_ffff;
-const Y_FLIP_MASK: u32 = 0x2000_0000;
-const X_FLIP_MASK: u32 = 0x4000_0000;
+const X_FLIP_MASK: u32 = 0x2000_0000;
+const Y_FLIP_MASK: u32 = 0x4000_0000;
 const DIAG_FLIP_MASK: u32 = 0x8000_0000;
 
 /// Serialize a Pincel [`Sprite`] / [`CelMap`] pair to the Aseprite v1.3
@@ -641,8 +642,10 @@ fn build_cel_chunk(
                 height,
                 bits_per_tile: 32,
                 bitmask_tile_id: TILE_ID_MASK,
-                bitmask_x_flip: X_FLIP_MASK,
-                bitmask_y_flip: Y_FLIP_MASK,
+                // Swapped on purpose: the writer emits `bitmask_y_flip`
+                // into the dword the Aseprite spec calls X flip.
+                bitmask_x_flip: Y_FLIP_MASK,
+                bitmask_y_flip: X_FLIP_MASK,
                 bitmask_diagonal_flip: DIAG_FLIP_MASK,
                 tiles: raw_tiles,
             }

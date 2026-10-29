@@ -308,10 +308,13 @@ fn build_cels(
                 } => decode_tilemap_cel(
                     (*width, *height),
                     *bits_per_tile,
+                    // aseprite-loader 0.4.2 parses the second mask dword
+                    // into `bitmask_y_flip`; the Aseprite spec (and
+                    // Aseprite itself) makes it the X flip mask.
                     TilemapMasks {
                         tile_id: *bitmask_tile_id,
-                        x_flip: *bitmask_x_flip,
-                        y_flip: *bitmask_y_flip,
+                        x_flip: *bitmask_y_flip,
+                        y_flip: *bitmask_x_flip,
                         diagonal_flip: *bitmask_diagonal_flip,
                     },
                     data,

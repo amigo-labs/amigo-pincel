@@ -136,8 +136,9 @@ fn tileset_chunk(
 }
 
 const TILE_ID_MASK: u32 = 0x1fffffff;
-const Y_FLIP_MASK: u32 = 0x20000000;
-const X_FLIP_MASK: u32 = 0x40000000;
+// Aseprite's own masks (doc/tile.h); the spec orders them X, Y, diagonal.
+const X_FLIP_MASK: u32 = 0x20000000;
+const Y_FLIP_MASK: u32 = 0x40000000;
 const DIAG_FLIP_MASK: u32 = 0x80000000;
 
 /// Build a Cel chunk (`0x2005`) of Cel Type 3 (Compressed Tilemap).
@@ -145,8 +146,8 @@ const DIAG_FLIP_MASK: u32 = 0x80000000;
 /// `tiles_raw` is a row-major list of 32-bit raw tile entries (already
 /// containing tile_id bits and any flip / rotate bits set). The masks
 /// emitted here are the canonical Aseprite layout
-/// (`tile_id | y_flip | x_flip | diagonal_flip`); they match what
-/// `aseprite-loader` 0.4.2 parses.
+/// (`tile_id | x_flip | y_flip | diagonal_flip`), as Aseprite writes them.
+/// `aseprite-loader` 0.4.2 parses the second dword into its `y_flip` field.
 fn tilemap_cel_chunk(layer_index: u16, grid_w: u16, grid_h: u16, tiles_raw: &[u32]) -> Vec<u8> {
     assert_eq!(
         tiles_raw.len(),
@@ -165,8 +166,8 @@ fn tilemap_cel_chunk(layer_index: u16, grid_w: u16, grid_h: u16, tiles_raw: &[u3
     push_word(&mut body, grid_h);
     push_word(&mut body, 32); // bits_per_tile
     push_dword(&mut body, TILE_ID_MASK);
-    push_dword(&mut body, Y_FLIP_MASK);
     push_dword(&mut body, X_FLIP_MASK);
+    push_dword(&mut body, Y_FLIP_MASK);
     push_dword(&mut body, DIAG_FLIP_MASK);
     zeros(&mut body, 10); // reserved
     let mut raw = Vec::with_capacity(tiles_raw.len() * 4);
