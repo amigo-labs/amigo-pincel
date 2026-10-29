@@ -93,6 +93,59 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Measurements
+
+### Running
+
+```bash
+cargo bench -p pincel-image-core --bench compose
+cargo bench -p pincel-core --bench compose
+cd ui
+pnpm wasm:build:release && pnpm install && pnpm build
+pnpm perf                                  # writes e2e-perf/results/browser.json
+pnpm perf:check --mode budget --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md
+```
+
+On the reference machine add `--write` so budgets met for the first time are recorded in `ui/e2e-perf/budgets-met.json` (commit it). CI runs the same in baseline mode (`.github/workflows/perf.yml`). Update the tables below from `measurements.md` with the date and machine.
+
+### Latest results
+
+Measured 2026-10-29 on a developer laptop, **not the reference machine**: AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 156.0.8078.4. Native numbers here are about 2.5× the dev-container figures under Technical notes, so compare only runs from the same machine. Benches: `cargo bench` (native release, criterion median). Browser: `pnpm perf` against the production build with release wasm (`pnpm wasm:build:release`), headless Chromium, no network throttling except the cold-start scenario. Budget mode on these numbers: `cold-start/cold` and `cold-start/warm` met, everything else `pending`.
+
+| Benchmark | Median |
+| --------- | ------ |
+| `bench/compose/compose_256_dirty_hint_4x4` | 0.0003 ms |
+| `bench/compose/compose_256_four_layers_full` | 4.81 ms |
+| `bench/compose/compose_256_single_layer_full` | 0.7988 ms |
+| `bench/compose/compose_4096_single_layer_zoom_1` | 159 ms |
+| `bench/compose/compose_64_tilemap_full` | 0.0232 ms |
+| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0098 ms |
+| `bench/image_compose/full_1024_10layers` | 1509 ms |
+| `bench/image_compose/full_1024_2layers` | 262 ms |
+| `bench/image_compose/full_1024_5layers` | 851 ms |
+| `bench/image_compose/full_2048_10layers` | 5833 ms |
+| `bench/image_compose/full_2048_2layers` | 980 ms |
+| `bench/image_compose/full_2048_5layers` | 2822 ms |
+| `bench/image_compose/full_4096_10layers` | 24416 ms |
+| `bench/image_compose/full_4096_2layers` | 3745 ms |
+| `bench/image_compose/full_4096_5layers` | 11365 ms |
+| `bench/image_effect/gaussian_r10_4k` | 2805 ms |
+| `bench/image_region/fit_4k_10layers` | 16176 ms |
+| `bench/image_region/zoom1_4k_10layers` | 3860 ms |
+| `bench/image_stroke/brush_100_dabs_4k_10layers` | 2.08 ms |
+
+| Browser scenario | Frame p50 / p95 | Longest frame | Dab latency p50 / p95 | Scenario metrics |
+| ---------------- | --------------- | ------------- | --------------------- | ---------------- |
+| `image-brush-4k` | 16.7 ms / 700 ms | 1216 ms | 78.4 ms / 732 ms | — |
+| `image-pan-zoom-4k` | 16.7 ms / 317 ms | 1483 ms | — | — |
+| `image-recompose-4k` | 16.7 ms / 16.8 ms | 317 ms | — | recompose-p50 261 ms, recompose-p95 318 ms |
+| `image-gaussian-4k` | 16.7 ms / 16.8 ms | 1817 ms | — | proxy 1836 ms, full 1444 ms |
+| `image-autosave-export-4k` | 16.7 ms / 33.3 ms | 2066 ms | — | — |
+| `image-memory-4k` | 16.7 ms / 700 ms | 2050 ms | — | wasm-memory-mb 2318 MiB |
+| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 22.9 ms / 31.2 ms | — |
+| `image-open-4k-png` | 16.7 ms / 33.3 ms | 9050 ms | — | first-paint 9240 ms |
+| `cold-start` | 16.7 ms / 16.8 ms | 33.4 ms | — | cold 706 ms, warm 426 ms |
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -103,7 +156,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
 | AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
 | AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); manual: a dispatched run is still to be checked | built |        |
-| AC-07 |      | open   |        |
+| AC-07 | `## Measurements` › "Latest results" (benches and browser scenarios, date and machine); manual: a reference-machine run is still to be recorded | built |        |
 | AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes) | built |        |
 
 ## Decisions
