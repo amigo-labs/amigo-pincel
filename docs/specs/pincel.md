@@ -394,8 +394,8 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 
 | Tool | Behavior |
 |------|----------|
-| Pencil | Single-pixel line, brush-size variants 1–8, hold Shift = constrain to 0/45/90° |
-| Eraser | Clears to transparent (RGBA) or transparent-index (Indexed) |
+| Pencil | Freehand stroke with a square or round brush of size 1–8 (`[` / `]`), hold Shift = constrain to 0/45/90°, optional pixel-perfect (drops L-corner pixels at size 1, off by default); one stroke is one `PencilStroke` undo entry |
+| Eraser | Clears to transparent (RGBA) or transparent-index (Indexed); shares the Pencil's size, shape and pixel-perfect setting |
 | Bucket | Paint-fill, contiguous (default) or all-matching, tolerance 0 in MVP |
 | Line | Bresenham line between press and release |
 | Rectangle | Outline + filled variants, hold Shift = square |
@@ -600,7 +600,10 @@ The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/sr
 import init, { Document } from '@amigo-labs/pincel-wasm';
 
 const doc = Document.new(64, 64, ColorMode.Rgba);
-doc.applyTool(toolId, { x, y, button, mods, phase });
+doc.applyTool(toolId, x, y, color);           // single pixel
+doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
+doc.strokeTo(x, y);                            // per pointer sample; one undo entry
+doc.endStroke();
 const frame = doc.compose(viewport, zoom, options);
 //  ^ frame.pixels is a Uint8ClampedArray view into WASM memory (zero-copy)
 ```
@@ -612,13 +615,15 @@ const events = doc.drainEvents();
 // events: layer-changed, palette-changed, undo-pushed, dirty-rect, …
 ```
 
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity.
 
 ### 9.4 Input Handling
 
 Mouse and pen input is captured on the canvas element with the full `PointerEvent` API (pressure, tilt, pointer-type). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
 
-Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes and snaps lines to 45°, adds to a selection; Alt subtracts; both intersect.
+Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes, snaps lines and Pixel-mode Pencil / Eraser strokes to 45°, adds to a selection; Alt subtracts; both intersect.
 
 ### 9.5 Language
 
