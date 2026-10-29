@@ -359,6 +359,58 @@ mod tests {
     }
 
     #[test]
+    fn layer_in_a_locked_group_refuses_every_paint_tool_and_keeps_its_pixels() {
+        const FONT: &[u8] = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../pincel-core/tests/fixtures/LiberationSans-Regular.ttf"
+        ));
+        let font = crate::text::register_font(FONT);
+        let red = 0xFF0000FF;
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0x00FF00FF).expect("paint");
+        doc.end_stroke();
+        let group = doc.add_group("g").expect("group");
+        doc.move_layer_to(0, group, "into").expect("into");
+        doc.set_layer_editable(group, false).expect("lock group");
+        assert!(doc.layer_editable(0), "the layer itself stays editable");
+        assert!(doc.layer_locked(0), "locked through its group");
+        let depth = doc.undo_depth();
+        let cel = |doc: &Document| doc.cels.get(LayerId::new(0), FrameIndex::new(0)).cloned();
+        let before = cel(&doc);
+        let results = [
+            doc.begin_stroke("pencil", red, 3, "square", false),
+            doc.begin_stroke("eraser", red, 1, "round", false),
+            doc.apply_tool("pencil", 2, 2, red),
+            doc.apply_tool("eraser", 1, 1, red),
+            doc.apply_line(0, 0, 7, 7, red),
+            doc.apply_rectangle(0, 0, 7, 7, red, true),
+            doc.apply_ellipse(0, 0, 7, 7, red, true),
+            doc.apply_shape("rectangle", 0, 0, 7, 7, "fill", 1, red, red, 0.0),
+            doc.apply_bucket(3, 3, red),
+            doc.draw_text(font, "Hi", 0, 0, 12.0, red, false, false, false, "left")
+                .map(|_| ()),
+        ];
+        for (i, r) in results.iter().enumerate() {
+            let err = r.as_ref().expect_err("refused");
+            assert!(err.contains("locked"), "tool {i}: {err}");
+        }
+        assert_eq!(cel(&doc), before, "no pixel changed");
+        assert_eq!(doc.undo_depth(), depth, "no undo entry");
+        // A stroke refused at its start leaves nothing for strokeTo.
+        let _ = doc.stroke_to(4, 4);
+        assert_eq!(
+            cel(&doc),
+            before,
+            "strokeTo after a refused begin paints nothing"
+        );
+        doc.set_layer_editable(group, true).expect("unlock");
+        doc.begin_stroke("pencil", red, 1, "square", false)
+            .expect("strokes once unlocked");
+        doc.stroke_to(2, 2).expect("paints once unlocked");
+        doc.end_stroke();
+    }
+
+    #[test]
     fn layer_depth_counts_parent_groups() {
         let mut doc = Document::new(4, 4).expect("dims");
         assert_eq!(doc.layer_depth(0), 0);

@@ -61,9 +61,11 @@ test('pixel mode: a fast pencil stroke stays connected', async ({ page }) => {
     [1, 1],
     [14, 14],
   ]);
-  // Sample a pixel in the middle of the diagonal with the eyedropper.
-  await fg(page).fill('#000000');
-  expect(await pick(page, at, 7, 7)).toBe('#00ff00');
+  // Sample every pixel of the diagonal with the eyedropper.
+  for (let i = 1; i <= 14; i += 1) {
+    await fg(page).fill('#000000');
+    expect(await pick(page, at, i, i), `pixel (${i}, ${i})`).toBe('#00ff00');
+  }
 });
 
 test('pencil and eraser show size, shape and pixel-perfect options', async ({ page }) => {
