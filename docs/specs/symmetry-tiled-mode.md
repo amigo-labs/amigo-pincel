@@ -47,7 +47,7 @@ Both features hook into the stamping of the Pencil / Eraser stroke from the `pix
 - [ ] AC-05 (always): A symmetric stroke, mirrored pixels included, is one undo entry; undo restores every touched pixel to its value from before the stroke.
 - [ ] AC-06 (option): Where symmetry and pixel-perfect are both on, the mirrored pixels are exactly the mirror images of the primary stroke's pixels after its L-corner removal.
 - [ ] AC-07 (event): When a mirror image falls outside the canvas (an off-centre axis) and tiled mode is None, that mirrored pixel is skipped without an error.
-- [ ] AC-08 (state): While symmetry is on and the Pencil or the Eraser is active, the active axis lines are drawn over the canvas; while symmetry is off, none are drawn.
+- [ ] AC-08 (state): While symmetry is on and the Pencil or the Eraser is active, the active axis lines are drawn over the canvas; while symmetry is on, the axis handles (AC-09) are shown with any tool active; while symmetry is off, neither lines nor handles are drawn.
 - [ ] AC-09 (event): When the user drags an axis handle — a small triangle in the canvas margin outside the sprite, above the canvas for the vertical axis and left of it for the horizontal axis — the axis moves in half-pixel steps with any tool active and later strokes mirror across the new position; when the user double-clicks a handle, its axis returns to the canvas centre. A press inside the canvas never moves an axis.
 - [ ] AC-10 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a symmetry control with the choices none, left–right, top–bottom and both.
 - [ ] AC-11 (state): While symmetry is on, the Line, shape and Bucket tools paint without mirroring.
@@ -143,6 +143,8 @@ Both features hook into the stamping of the Pencil / Eraser stroke from the `pix
 | AC-22 |      | open   |        |
 
 ## Decisions
+
+- 2026-10-29: Axis handles show with any tool while symmetry is on; axis lines only with Pencil / Eraser — because AC-09 lets any tool move an axis, so its handle must be visible (orchestrator, resolving the AC-08 / AC-09 gap).
 
 - Symmetry applies to Pencil and Eraser only — because that is Aseprite's default and the stroke command is the single place where mirroring can stay one undo step (legacy plan).
 - Axis positions use half-pixel units — because an axis must be able to sit on a pixel edge (even sizes) or a pixel centre (odd sizes) (legacy plan).
