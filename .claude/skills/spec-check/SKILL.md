@@ -21,7 +21,7 @@ Without an argument: take the feature spec with `status: todo` from Context; wit
    - Manual ACs (suffix after the form, e.g. `(state, manual: visual design)`): fulfilled only with an entry `manual: {who} checked {what}, {date}` in the Evidence column `Test`. Without it the AC stays open.
    - Dropped ACs (struck through, Evidence status `dropped`) need no evidence and don't count as open. A test that still checks them is a note in the scope check.
 4. **Contradictions:** if the code contradicts an AC, an edge case or a decision of the spec — or a design-spec section it references — that is a blocker.
-5. **Definition of done** (CLAUDE.md §11): new public Rust items without doc comments, user-visible strings outside `t()` or missing in `de.ts`, or a forbidden pattern from §9 are blockers.
+5. **Definition of done** (AGENTS.md §11): new public Rust items without doc comments, user-visible strings outside `t()` or missing in `de.ts`, or a forbidden pattern from §9 are blockers.
 6. **Scope check:** changed tests and files of the branch (`git diff --stat main...HEAD`) that map to no AC are listed as notes — not a blocker.
 
 ## Verdict

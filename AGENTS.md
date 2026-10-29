@@ -104,18 +104,17 @@ Stop and yield to human review at any of these triggers:
 - Any `unsafe` block is added
 - The session has produced ~400 lines of changes and a coherent stopping point exists
 
-When stopping, write a short status note in the commit message or in a `STATUS.md` file at repo root with:
+When stopping, the state lives in the repository, not in a status file:
 
-- What was completed
-- What's the next concrete task
-- Any open questions
+- Feature work: the spec's `## Evidence` (what is built), `## Open questions` (what blocks) and `## Decisions`
+- Anything else: the commit message says what was completed and what comes next
 
 ### 3.4 Resume Protocol
 
 When starting a session that continues prior work:
 
 1. `git log --oneline -10` to see recent commits
-2. Read `STATUS.md` if present
+2. Read the open feature specs the SessionStart hook lists (order: `docs/specs/README.md`)
 3. Read the last commit message and diff
 4. Run `cargo check && cargo test` — must be green before proceeding
 5. State the next task explicitly
@@ -136,67 +135,11 @@ When working in this repo:
 
 ## 4. Implementation Order
 
-Implement in this order. Each step is a milestone gate; do not start step N+1 until step N is complete and committed.
+Milestones M1–M16 are done; their history is in git and in the Decision Log (`docs/specs/pincel.md` §15).
 
-```
-M1  pincel-core skeleton
-    └─ Cargo.toml workspace, basic types (Sprite, Layer, Frame, Cel, Palette)
-    └─ No I/O, no rendering. Pure data model + builder API.
-    └─ Unit tests for type construction.
+New work comes as feature specs (`docs/specs/<name>.md`, `.claude/rules/specs.md`). Their order, dependencies and the backlog of gaps not yet written as specs live in `docs/specs/README.md`. Open items that are not code — release secrets, checks on real hardware — are listed there too.
 
-M2  pincel-core commands + undo
-    └─ Command trait, command bus, undo stack
-    └─ Implement 3 commands: SetPixel, AddLayer, AddFrame
-    └─ Tests: apply / revert round-trip preserves state
-
-M3  pincel-core compose() — image layers only
-    └─ RGBA-only path first, indexed deferred
-    └─ No tilemaps, no slices, no overlays
-    └─ Snapshot test: known sprite produces expected RGBA bytes
-
-M4  aseprite-loader integration (read)
-    └─ Adapter from loader output to pincel-core::Sprite
-    └─ Fixture: open a hand-crafted .aseprite, assert structure
-    └─ Skip tilemap/slice chunks at first; preserve as opaque
-
-M5  aseprite-writer crate — image layers only
-    └─ Chunks: Header, Layer (0x2004), Cel (0x2005, image), Palette (0x2019), Tags (0x2018)
-    └─ Round-trip test: read fixture → write → read → assert equal
-
-M6  pincel-wasm + minimal UI
-    └─ wasm-bindgen exports for Document, applyTool, compose
-    └─ Svelte 5 + Vite scaffold under ui/
-    └─ Single tool: Pencil
-    └─ Demo: open .aseprite, paint, save (download), reopen — file valid in Aseprite
-
-M7  Tools expansion
-    └─ Eraser, Bucket, Line, Rectangle, Ellipse, Eyedropper, Move, Selection
-    └─ Each tool: command type + input handler + UI button
-
-M8  Tilemap support
-    └─ Document model: Tilemap layer, Tileset, TileRef
-    └─ aseprite-loader: hydrate tilemap chunks
-    └─ aseprite-writer: write Tileset (0x2023) and Tilemap Cel (Cel Type 3)
-    └─ UI: Tileset Panel, Tilemap Stamp tool, Tileset Editor sub-mode
-
-M9  Slice support
-    └─ Document model: Slice, SliceKey
-    └─ aseprite read/write: Slice Chunk (0x2022)
-    └─ UI: Slice tool, Slices Panel, 9-patch + pivot editing
-
-M10 PWA polish
-    └─ Service worker, IndexedDB autosave, recent files registry
-    └─ File System Access API + download fallback
-
-M11 Tauri build
-    └─ src-tauri/, native commands, OS dialogs, file association
-
-M12 Performance pass
-    └─ Dirty-rect compose, profiling
-    └─ Target: 256×256 sprite at zoom 32 maintains 60 fps
-```
-
-Each milestone is a sequence of S/M tasks. Plan the tasks before starting the milestone; write them as a checklist in `STATUS.md`.
+A spec is at most size L (§3.2); an XL feature is split into several specs before work starts.
 
 ---
 
@@ -466,10 +409,10 @@ For UI tasks add:
 - [ ] `pnpm build` succeeds
 - [ ] Visually verified in dev server
 
-For milestone-level work add:
+For feature-spec work add:
 
-- [ ] Exit criterion in spec §16 is met
-- [ ] `STATUS.md` updated
+- [ ] `/spec-check` verdict is `READY` and the spec is `status: implemented`
+- [ ] `docs/specs/README.md` lists the spec under "Done"
 - [ ] Demo recorded or screenshotted in PR description
 
 ---
@@ -507,7 +450,7 @@ Project-specific skills live under `.claude/skills/`. When a skill exists for a 
 | `/spec <name>` | Write or revise a feature spec with acceptance criteria and a clarification pass |
 | `/spec-build <name>` | Implement a feature spec test-first, one commit series per AC block, independent verifier loop |
 | `/spec-check <name>` | Independent acceptance against a full gate run; only it sets `status: implemented` |
-| `/spec-extract` | Spec from existing code, current-state analysis, or migration of a `docs/specs/todo/` plan |
+| `/spec-extract` | Spec from existing code, or current-state analysis of an open spec |
 | `/qa` | Full gate run (`.claude/gates.json`, mirrors CI) |
 
 Rules under `.claude/rules/` load with this file. Hooks (`.claude/settings.json`): SessionStart lists open feature specs, a guard refuses new suppressions (§9), and the Stop hook runs the fast gates for the areas a turn changed.
@@ -526,11 +469,10 @@ These don't need to exist on day one. Add them when you've implemented the secon
 ## 14. Quick Reference: Where Things Live
 
 ```
-docs/specs/pincel.md          The spec — what to build
+docs/specs/pincel.md          The design spec — architecture, data model, Decision Log (§15)
 docs/specs/<name>.md          Feature specs with acceptance criteria (/spec), next to the design specs
-docs/specs/todo/              Legacy session plans; /spec-extract --migrate turns one into a feature spec
-CLAUDE.md                     This file — how to build it
-STATUS.md                     Current session state, next task
+docs/specs/README.md          Index: spec order, dependencies, backlog, open non-code items
+AGENTS.md                     This file — how to build it (CLAUDE.md only imports it)
 .gitattributes                Line endings (§6.4) — LF in index and working tree
 .claude/skills/               Project-specific skill recipes (spec workflow, qa)
 .claude/rules/                Always-loaded rules: spec triage, quality gates
@@ -572,13 +514,11 @@ src-tauri/                    Native shell
 
 ---
 
----
-
 ## Gotchas
 
 Pitfalls and non-obvious knowledge that code and git history don't show. Short entries, no noise; `/spec-build` adds to this list when a loop surprised it.
 
-*None yet.*
+- **Stale wasm package breaks `pnpm check`.** `ui/` links `crates/*/pkg` (gitignored build output). After Rust changes to a wasm crate — or pulling someone else's — svelte-check reports missing exports (e.g. "has no exported member 'paste_layer'") although the Rust source has them. Fix: `pnpm wasm:build` in `ui/`, not a code change.
 
 ---
 

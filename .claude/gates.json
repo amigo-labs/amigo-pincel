@@ -1,5 +1,5 @@
 {
-  "$comment": "Quality gates for the hooks in .claude/hooks/ and the /qa, /spec-build, /spec-check skills. `full` mirrors .github/workflows/ci.yml (minus the pincel-tauri job, CLAUDE.md §10); `fast` runs in the Stop hook, filtered by `paths` (prefixes of changed repository paths). `needs` lists the ids a gate waits for; gates without needs between them run in parallel.",
+  "$comment": "Quality gates for the hooks in .claude/hooks/ and the /qa, /spec-build, /spec-check skills. `full` mirrors .github/workflows/ci.yml (minus the pincel-tauri job, AGENTS.md §10); `fast` runs in the Stop hook, filtered by `paths` (prefixes of changed repository paths). `needs` lists the ids a gate waits for; gates without needs between them run in parallel.",
   "fast": [
     {
       "id": "rust-fmt",

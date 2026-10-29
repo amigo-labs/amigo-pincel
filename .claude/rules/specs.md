@@ -9,7 +9,7 @@ Two kinds of spec live in `docs/specs/`:
 | Design spec | `pincel.md`, `canvas.md`, `mcp.md` (`status: draft`, no acceptance criteria) | Architecture, data model, the Decision Log (`pincel.md` §15) |
 | Feature spec | `docs/specs/<name>.md` (`status: todo` / `implemented`, `## Acceptance criteria`) | One feature: what it does, how we prove it |
 
-A feature spec references the design-spec sections it builds on and never contradicts them. A feature that needs an architectural decision (cross-crate boundary, file format, new dependency, public API shape) gets a Decision Log entry in `pincel.md` §15 in the same commit as the spec (CLAUDE.md §2.1). The older session plans in `docs/specs/todo/` are legacy; `/spec-extract --migrate <file>` turns one into a feature spec when it becomes next.
+A feature spec references the design-spec sections it builds on and never contradicts them. A feature that needs an architectural decision (cross-crate boundary, file format, new dependency, public API shape) gets a Decision Log entry in `pincel.md` §15 in the same commit as the spec (AGENTS.md §2.1). `docs/specs/README.md` indexes the feature specs: order, dependencies, done, and the backlog of gaps not yet written as specs.
 
 ## Triage
 
@@ -24,7 +24,7 @@ Classify every new input before touching code:
 | Refactoring, tooling, docs, questions | Directly, no spec |
 | "Carry on", "build X", "implement the spec" | `/spec-build <name>` |
 | "Is X done?", acceptance after manual implementation | `/spec-check <name>` |
-| Document existing behavior, or pick up a `docs/specs/todo/` plan | `/spec-extract <area>` / `/spec-extract --migrate <file>` |
+| Document existing behavior | `/spec-extract <area>` |
 
 Only `/spec-check` sets a spec to `status: implemented` — never by hand.
 
@@ -32,8 +32,8 @@ Only `/spec-check` sets a spec to `status: implemented` — never by hand.
 
 Project knowledge belongs in the repository, not on one machine:
 
-- **Pitfalls and non-obvious knowledge** → `## Gotchas` in `CLAUDE.md`. Only what cannot be read from code or git history; no noise.
+- **Pitfalls and non-obvious knowledge** → `## Gotchas` in `AGENTS.md`. Only what cannot be read from code or git history; no noise.
 - **Architecture decisions** → Decision Log in `docs/specs/pincel.md` §15.
 - **Feature-local decisions** → `## Decisions` of the feature spec, with the reason.
-- **Progress of a feature** → `## Evidence` of the feature spec (it replaces a `STATUS.md` note for spec work).
+- **Progress of a feature** → `## Evidence` of the feature spec (there is no separate status file).
 - **Never** into auto memory under `~/.claude` — it is switched off for this project because it stays on one machine.

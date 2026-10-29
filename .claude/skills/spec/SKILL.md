@@ -16,7 +16,7 @@ Check `docs/specs/$0.md` (name in ASCII kebab-case):
 - **Exists without acceptance criteria** → that is a design spec (`pincel.md`, `canvas.md`, `mcp.md`, …), not a feature spec. Propose a different name, e.g. `$0-<aspect>`.
 - **New** → continue with step 2
 
-If the request touches an existing feature spec (see Context), propose its revision mode instead of creating a second one. If it matches a legacy plan in `docs/specs/todo/`, propose `/spec-extract --migrate <file>` as the starting point.
+If the request touches an existing feature spec (see Context), propose its revision mode instead of creating a second one.
 
 ## Step 2: Research + questions
 
@@ -24,7 +24,7 @@ Both in parallel:
 
 **Research** (Explore agents):
 
-- Find the design-spec sections in `docs/specs/pincel.md` (and `canvas.md`, `mcp.md`, … where relevant) that the feature builds on, and the matching plan in `docs/specs/todo/` if any
+- Find the design-spec sections in `docs/specs/pincel.md` (and `canvas.md`, `mcp.md`, … where relevant) that the feature builds on, and the entry in `docs/specs/README.md` (order, backlog) if any
 - Find existing code in the feature area: `pincel-core` / `pincel-image-core` / `pincel-effects`, the wasm bindings, `ui/src/modes/<mode>/`, shared `ui/src/lib/`
 - Identify reusable commands, types, components and e2e helpers
 - Check for conflicts with other feature specs and with the Decision Log (`pincel.md` §15)
@@ -42,11 +42,11 @@ If the user says at the first question that they want no spec ("just do it"), st
 
 **Invent nothing:** what the user doesn't answer becomes an assumption (with a reason) or an open question — never a silent guess.
 
-**Architecture:** if the feature needs a decision CLAUDE.md §2.1 / §12 reserves for the user (new dependency, public API shape, cross-crate boundary, file-format change), ask it here. The answer goes into a Decision Log entry in `docs/specs/pincel.md` §15, written in step 3 alongside the spec.
+**Architecture:** if the feature needs a decision AGENTS.md §2.1 / §12 reserves for the user (new dependency, public API shape, cross-crate boundary, file-format change), ask it here. The answer goes into a Decision Log entry in `docs/specs/pincel.md` §15, written in step 3 alongside the spec.
 
 ## Step 3: Write
 
-Write the spec to `docs/specs/$0.md` (template below). Size it per CLAUDE.md §3.2: an XL feature is split into several specs before writing.
+Write the spec to `docs/specs/$0.md` (template below). Size it per AGENTS.md §3.2: an XL feature is split into several specs before writing. Add it to `docs/specs/README.md` (order table, or remove its backlog row).
 
 ## Step 4: Clarification pass
 
@@ -68,13 +68,13 @@ Turn the findings into questions for the user (AskUserQuestion), adjust the spec
 Whether you commit the spec without asking is decided by the **commit mode** in Context (`SPEC_AUTOCOMMIT`, per developer):
 
 - **on** (default — also when the Context line is missing or says anything other than `ask`): `spec-build` only starts on a clean working tree and reads the committed spec — an unsaved spec would make it abort at once. So commit the spec yourself, and only it:
-  1. `git add docs/specs/$0.md` (plus `docs/specs/pincel.md` if step 2 added a Decision Log entry) — never `git add -A`, no other files.
+  1. `git add docs/specs/$0.md docs/specs/README.md` (plus `docs/specs/pincel.md` if step 2 added a Decision Log entry) — never `git add -A`, no other files.
   2. Commit `docs(spec): add $0` (new) or `docs(spec): revise $0` (revision mode).
 - **ask**: ask via AskUserQuestion before the commit — do not end the turn without this question. The question names the files and the commit message; the options are "Commit now" and "Continue without commit":
   - "Commit now": commit as with **on**.
   - "Continue without commit": you don't commit. Name the `git add` command and the commit message and point out that `spec-build` only starts once the spec is committed.
 
-`main` is protected (CLAUDE.md §8): if the checkout is on `main`, first create and switch to `feat/$0` (`git switch -c feat/$0`, or `git switch feat/$0` if it exists — uncommitted changes come along) and commit there; `spec-build` continues on that branch. In both modes no `git push` — pushing and merging is the user's job.
+`main` is protected (AGENTS.md §8): if the checkout is on `main`, first create and switch to `feat/$0` (`git switch -c feat/$0`, or `git switch feat/$0` if it exists — uncommitted changes come along) and commit there; `spec-build` continues on that branch. In both modes no `git push` — pushing and merging is the user's job.
 
 If uncommitted changes other than the spec are in the working tree, leave them untouched; mention in the report that `spec-build` only starts once they are dealt with.
 
@@ -162,8 +162,8 @@ design: [{pincel.md §x.y}, …]
 - **Five forms**, every AC carries its form in parentheses: `(always)` for invariants, `(event)` When … then, `(state)` While …, `(error)` If … then, `(option)` Where … is set.
 - **Falsifiable**: not "should be fast" but "Image compose of a 1024×1024 document with 4 layers takes under 16 ms in the benchmark". What cannot be observed goes under Open questions.
 - **Behavior, not technique**: an AC survives a rewrite of the implementation.
-- **Testable by automation** (CLAUDE.md §7): Rust unit/integration tests for core behavior, round-trip tests for codecs, Playwright e2e (`ui/e2e/`) for UI behavior. Only what truly cannot be automated (e.g. purely visual design, feel of a pen on a tablet) gets `manual: {reason}` after the form, e.g. `- [ ] AC-06 (state, manual: visual design): While …`. The form stays; the suffix only says a human provides the evidence — `spec-build` stops before acceptance and lists these checks.
-- UI ACs never require reading canvas pixels from app code (CLAUDE.md §9); e2e tests may compare element screenshots (§7.4).
+- **Testable by automation** (AGENTS.md §7): Rust unit/integration tests for core behavior, round-trip tests for codecs, Playwright e2e (`ui/e2e/`) for UI behavior. Only what truly cannot be automated (e.g. purely visual design, feel of a pen on a tablet) gets `manual: {reason}` after the form, e.g. `- [ ] AC-06 (state, manual: visual design): While …`. The form stays; the suffix only says a human provides the evidence — `spec-build` stops before acceptance and lists these checks.
+- UI ACs never require reading canvas pixels from app code (AGENTS.md §9); e2e tests may compare element screenshots (§7.4).
 - At least **3 edge cases**, every out-of-scope item with "— because".
 - **Spec = WHAT**, not HOW — no file names or task lists in the ACs.
 - Spec language is **English**; talk to the user in their language.
@@ -172,9 +172,6 @@ design: [{pincel.md §x.y}, …]
 
 Existing specs:
 !`grep -L '^## Acceptance criteria' docs/specs/*.md 2>/dev/null | sed 's/$/ (design spec)/'; grep -l '^## Acceptance criteria' docs/specs/*.md 2>/dev/null || echo "No feature specs yet"`
-
-Legacy plans:
-!`ls docs/specs/todo/*.md 2>/dev/null | grep -v README || echo "none"`
 
 Commit mode:
 !`node .claude/hooks/commit-mode.mjs 2>/dev/null || echo "on"`

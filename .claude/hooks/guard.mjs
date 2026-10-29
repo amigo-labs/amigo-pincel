@@ -1,6 +1,6 @@
 // PreToolUse (Edit|Write|MultiEdit): refuses edits that add a suppression to
 // code (`#[allow(`, `@ts-ignore`, `#[ignore`, ... -- the list comes from
-// .claude/gates.json) instead of fixing the cause. CLAUDE.md §9 forbids them
+// .claude/gates.json) instead of fixing the cause. AGENTS.md §9 forbids them
 // unless justified; that justification needs a human.
 //
 // Counted is what the edit ADDS: existing suppressions stay editable. This is
@@ -53,7 +53,7 @@ try {
     if (added.length > 0) {
       deny(
         `New suppression (${added.join(', ')}) refused: fix the cause instead of silencing the warning or test. ` +
-          'If it is truly justified (CLAUDE.md §9: documented reason, issue link for #[ignore]), stop and ask the user to add it.',
+          'If it is truly justified (AGENTS.md §9: documented reason, issue link for #[ignore]), stop and ask the user to add it.',
       );
     }
   }

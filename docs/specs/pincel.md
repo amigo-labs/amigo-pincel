@@ -1038,7 +1038,7 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 | Photopea | The strongest image editor in the browser, PSD-centred | No ads, native desktop builds, pixel-art mode, open source |
 | Paint.NET 5.2 / Pinta 3 | The paint.net feature set on Windows (Paint.NET) and on Mac / Linux (Pinta, MIT) | Pixel-art mode, a browser build, tablet input |
 
-**Gaps the comparison exposes** (candidates for later phases, not commitments; each has a task spec under `docs/specs/todo/`, indexed in its README together with a backlog of smaller gaps):
+**Gaps the comparison exposes** (candidates for later phases, not commitments; each has a feature spec under `docs/specs/`, indexed in `docs/specs/README.md` together with a backlog of smaller gaps):
 
 - **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
 - **Pen pressure in Pixel mode.** Aseprite, LibreSprite, Pixelorama and Resprite support it; Pincel has it in Image mode only.

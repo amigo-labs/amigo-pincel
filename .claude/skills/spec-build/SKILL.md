@@ -6,7 +6,7 @@ argument-hint: '<spec-name>'
 
 # Spec Build: $ARGUMENTS
 
-You implement `docs/specs/$0.md` **without asking**. The spec is the brief, the tests are the proof, and the last word belongs to a verifier that has never seen your chat. You only ask the user when a precondition is violated or a CLAUDE.md stopping point needs them — otherwise you run until `READY` or the round limit. In commit mode `ask` you additionally ask before every commit (see Commit mode).
+You implement `docs/specs/$0.md` **without asking**. The spec is the brief, the tests are the proof, and the last word belongs to a verifier that has never seen your chat. You only ask the user when a precondition is violated or a AGENTS.md stopping point needs them — otherwise you run until `READY` or the round limit. In commit mode `ask` you additionally ask before every commit (see Commit mode).
 
 Without an argument: take the feature spec with `status: todo` from Context; if there are several, let the user pick once via AskUserQuestion.
 
@@ -19,7 +19,7 @@ Check in this order, all before the first change. If one is violated, the skill 
 3. That version exists, has `## Acceptance criteria` and is `status: todo`.
 4. Its `## Open questions` is empty (no bullets). Otherwise: point to `/spec $0`.
 5. Every AC carries one of the five forms and is falsifiable; manual ACs additionally carry `manual: {reason}` after the form.
-6. **Build is green before you start** (CLAUDE.md §3.4): `cargo check` for the crates the spec touches. If it is red on the clean checkout, abort and report — never build on top of a broken state.
+6. **Build is green before you start** (AGENTS.md §3.4): `cargo check` for the crates the spec touches. If it is red on the clean checkout, abort and report — never build on top of a broken state.
 7. **Switch branch** — only now, when 1–6 hold: if the checkout is on `main`, create `feat/$0` and switch to it (if it exists: switch). On any other branch the skill stays there — the user chose it.
 
 ## Commit mode
@@ -42,22 +42,22 @@ An abort or a new session costs nothing this way. If uncommitted changes of an a
 
 ## Plan
 
-- Read the spec in full, the design-spec sections it references (`design:` in its front matter), `CLAUDE.md` (including `## Gotchas`), the rules under `.claude/rules/` and the code in the feature area (Explore agents).
+- Read the spec in full, the design-spec sections it references (`design:` in its front matter), `AGENTS.md` (including `## Gotchas`), the rules under `.claude/rules/` and the code in the feature area (Explore agents).
 - Group the open ACs into **blocks**: related behavior that can be tested together and reviewed in one commit series. Rather three sensible blocks than ten micro steps.
 - Create one task per block (TaskCreate). No plan file, no review stop.
-- **Session budget** (CLAUDE.md §3.2–3.3): one session builds roughly one M task (~400 changed lines). When that is reached and a block boundary exists, stop after the block's commit and report; the user resumes with `/spec-build $0`.
+- **Session budget** (AGENTS.md §3.2–3.3): one session builds roughly one M task (~400 changed lines). When that is reached and a block boundary exists, stop after the block's commit and report; the user resumes with `/spec-build $0`.
 
 ## Implement (per block, without asking)
 
-1. **Test first.** For every AC of the block at least one test, following CLAUDE.md §7: inline `#[cfg(test)]` unit tests named `<function>_<scenario>_<expected>`, `tests/` integration tests for cross-module flows, round-trip and `proptest` tests for codecs, Playwright specs under `ui/e2e/` (helpers in `ui/e2e/helpers.ts`) for UI behavior. Run it and record the **red run**: command and output show it fails for the right reason (`cargo test -p <crate> <test_name>`; for e2e `pnpm build` then `pnpm exec playwright test <file>` in `ui/`, after `pnpm wasm:build` if Rust changed). A test that is green at once proves nothing — then it is wrong or the behavior already exists (record that under `## Decisions`).
-2. **Implement** until the block's tests are green. Respect CLAUDE.md §5 (crate conventions: no platform deps in the cores, UI goes through the wasm adapters, every user-visible string through `t()` with `en.ts` and `de.ts`) and §9 (forbidden patterns).
+1. **Test first.** For every AC of the block at least one test, following AGENTS.md §7: inline `#[cfg(test)]` unit tests named `<function>_<scenario>_<expected>`, `tests/` integration tests for cross-module flows, round-trip and `proptest` tests for codecs, Playwright specs under `ui/e2e/` (helpers in `ui/e2e/helpers.ts`) for UI behavior. Run it and record the **red run**: command and output show it fails for the right reason (`cargo test -p <crate> <test_name>`; for e2e `pnpm build` then `pnpm exec playwright test <file>` in `ui/`, after `pnpm wasm:build` if Rust changed). A test that is green at once proves nothing — then it is wrong or the behavior already exists (record that under `## Decisions`).
+2. **Implement** until the block's tests are green. Respect AGENTS.md §5 (crate conventions: no platform deps in the cores, UI goes through the wasm adapters, every user-visible string through `t()` with `en.ts` and `de.ts`) and §9 (forbidden patterns).
 3. **Fast gates**: `node .claude/hooks/gates.mjs fast`; `fix` commands where the script names them. No suppressions, no weakened tests — fix the cause.
 4. **Evidence**: in `## Evidence` per AC the test name + file, status `built`. The `Commit` column stays empty — the hash only exists after the commit; `spec-check` fills it in at acceptance via the AC IDs in the commit messages.
-5. **Commit** only the files this block changed, with the spec's Evidence change in the block's last commit — add explicitly by path, never `git add -A`, `git add .` or `git commit -a`. One concept per commit (CLAUDE.md §2.4): a block that touches `pincel-core`, `pincel-wasm` and `ui` is a short series of commits, one per scope; `aseprite-writer` changes never share a commit with app changes (§9). Conventional Commits with the AC IDs in the message, e.g. `feat(pincel-core): add grid to Sprite (AC-02, AC-03)`. In commit mode `ask`, ask first (see Commit mode).
+5. **Commit** only the files this block changed, with the spec's Evidence change in the block's last commit — add explicitly by path, never `git add -A`, `git add .` or `git commit -a`. One concept per commit (AGENTS.md §2.4): a block that touches `pincel-core`, `pincel-wasm` and `ui` is a short series of commits, one per scope; `aseprite-writer` changes never share a commit with app changes (§9). Conventional Commits with the AC IDs in the message, e.g. `feat(pincel-core): add grid to Sprite (AC-02, AC-03)`. In commit mode `ask`, ask first (see Commit mode).
 
 **Unclear detail decision:** don't ask. Pick the most obvious solution that fits the codebase and record it with a one-sentence reason under `## Decisions`.
 
-**Stopping points that need the user** (CLAUDE.md §3.3, §12) — don't decide them alone: a new dependency in `Cargo.toml` / `package.json`, a new `unsafe` block, a test that would have to be disabled, an architectural decision missing from the Decision Log, or an AC that turns out wrong. Skip the block, record the reason under `## Open questions` and continue with the next block. New public API that the ACs require is fine: list it under `## Decisions` and in the report for review, with doc comments on every public item (§6.1).
+**Stopping points that need the user** (AGENTS.md §3.3, §12) — don't decide them alone: a new dependency in `Cargo.toml` / `package.json`, a new `unsafe` block, a test that would have to be disabled, an architectural decision missing from the Decision Log, or an AC that turns out wrong. Skip the block, record the reason under `## Open questions` and continue with the next block. New public API that the ACs require is fine: list it under `## Decisions` and in the report for review, with doc comments on every public item (§6.1).
 
 ## Full gates
 
@@ -81,8 +81,8 @@ It derives everything from the repository. Its verdict decides:
 
 ## Completion
 
-1. **Keep knowledge:** what was surprising in the loop and can't be read from the code (pitfalls, environment quirks), as a short entry under `## Gotchas` in `CLAUDE.md`. No noise — nothing that code or git history shows. Never into auto memory.
-2. **Commit** the spec (and `CLAUDE.md` if changed): `docs(spec): mark $0 implemented`. In commit mode `ask`, ask first.
+1. **Keep knowledge:** what was surprising in the loop and can't be read from the code (pitfalls, environment quirks), as a short entry under `## Gotchas` in `AGENTS.md`. No noise — nothing that code or git history shows. Never into auto memory.
+2. **Commit** the spec (and `AGENTS.md` if changed): `docs(spec): mark $0 implemented`. In commit mode `ask`, ask first.
 3. **Report** to the user, in their language:
 
 ```markdown

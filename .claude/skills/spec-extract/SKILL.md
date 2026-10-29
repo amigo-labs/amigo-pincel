@@ -1,18 +1,17 @@
 ---
 name: spec-extract
-description: Reverse engineering — writes feature specs from existing code, records the current state of the code in a spec, or migrates a legacy session plan from docs/specs/todo/ into a feature spec.
-argument-hint: '<area or feature-name> | --analyze [<spec-name>] | --migrate <docs/specs/todo/file.md>'
+description: Reverse engineering — writes feature specs from existing code, or records the current state of the code in an open spec.
+argument-hint: '<area or feature-name> | --analyze [<spec-name>]'
 ---
 
 # Spec Extract
 
-You analyse existing code or legacy plans and turn them into feature specs in the format of `/spec`. Three modes:
+You analyse existing code and turn it into feature specs in the format of `/spec`. Two modes:
 
 | Call | Mode | Function |
 | ---- | ---- | -------- |
 | `/spec-extract <area>` | Reverse engineering | Derive a spec from code |
 | `/spec-extract --analyze [<name>]` | Current state | Enrich an existing spec with the state of the code |
-| `/spec-extract --migrate <file>` | Migration | Turn a plan from `docs/specs/todo/` into a feature spec |
 
 The template and the AC rules are those of `/spec` (`.claude/skills/spec/SKILL.md`) — read them first.
 
@@ -103,30 +102,14 @@ Update or add the `## Current state` section in the spec:
 
 ---
 
-## Mode: migration (`--migrate <file>`)
-
-The plans in `docs/specs/todo/` (front matter `id: todo-…`, sections Goal / Why / Current state / Design / Tasks / Out of scope) predate feature specs. Migrate one at a time, when it becomes next — never all at once.
-
-1. **Name:** derive `<name>` from the file name without its number (`09-pixel-grid.md` → `pixel-grid`); if it collides with a design spec, add an aspect.
-2. **Context** from Goal and Why. **Scope** from Goal and Out of scope (every out-of-scope item needs a "— because"; ask if the plan gives none).
-3. **Acceptance criteria** in the five forms with stable IDs (`AC-01` …) from Goal, Design and the tests the plan lists. Requirements that don't translate unambiguously into an AC go under `## Open questions` — don't guess.
-4. **Technical notes** from Current state and Design (paths, line hints, document-model and format notes) — they help `spec-build`, so keep them, marked as hints that drift.
-5. **Decisions:** recommendations and "stop and ask" points of the plan. Settled ones go to `## Decisions` with their reason; unsettled ones (new dependency, Decision Log entry still to write) to `## Open questions`.
-6. The task list and commit plan are dropped — `spec-build` groups blocks itself; git keeps the history.
-7. Front matter: `status: todo` (or `implemented` only if the plan says `done` — still unchecked boxes, `/spec-check` confirms), `created` of the plan, `size` and `mode` from the plan, `design:` from its §-references.
-8. Run the clarification pass of `/spec` (step 4) on the result.
-9. Delete the old file (git keeps the history) and in `docs/specs/todo/README.md` point its table row to the new spec.
-
----
-
 ## Commit
 
-Whether you commit the written, migrated or deleted files without asking is decided by the **commit mode** in Context (`SPEC_AUTOCOMMIT`, per developer):
+Whether you commit the written files without asking is decided by the **commit mode** in Context (`SPEC_AUTOCOMMIT`, per developer):
 
 - **on** (default — also when the Context line is missing or says anything other than `ask`): `spec-build` only starts on a clean working tree and reads the committed spec — so commit yourself:
-  1. Only the affected files, by path: `git add docs/specs/<name>.md` (for migration also the deleted plan and `docs/specs/todo/README.md`, by path) — never `git add -A`, no other files.
-  2. Commit `docs(spec): extract <name>`, `docs(spec): analyze <name>` or `docs(spec): migrate <name> to a feature spec`.
-  3. On `main` (protected, CLAUDE.md §8) first switch to `feat/<name>`, where `spec-build` continues.
+  1. Only the affected files, by path: `git add docs/specs/<name>.md` — never `git add -A`, no other files.
+  2. Commit `docs(spec): extract <name>` or `docs(spec): analyze <name>`. Add the new spec to `docs/specs/README.md` in the same commit.
+  3. On `main` (protected, AGENTS.md §8) first switch to `feat/<name>`, where `spec-build` continues.
 - **ask**: ask via AskUserQuestion before the commit — do not end the turn without this question. The question names the files and the commit message; the options are "Commit now" and "Continue without commit":
   - "Commit now": commit as with **on**.
   - "Continue without commit": you don't commit. Name the `git add` command with exactly these paths and the commit message, and point out that `spec-build` only starts once the specs are committed.
@@ -145,9 +128,6 @@ In both modes no `git push` — pushing and merging is the user's job.
 
 Existing specs:
 !`grep -L '^## Acceptance criteria' docs/specs/*.md 2>/dev/null | sed 's/$/ (design spec)/'; grep -l '^## Acceptance criteria' docs/specs/*.md 2>/dev/null || echo "No feature specs yet"`
-
-Legacy plans:
-!`ls docs/specs/todo/*.md 2>/dev/null | grep -v README || echo "none"`
 
 Commit mode:
 !`node .claude/hooks/commit-mode.mjs 2>/dev/null || echo "on"`

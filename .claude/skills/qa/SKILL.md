@@ -5,7 +5,7 @@ description: Runs the project's full QA pass (rustfmt, clippy with -D warnings, 
 
 # QA
 
-The commands are not here but in `.claude/gates.json` (list `full`). It mirrors `.github/workflows/ci.yml` minus the `pincel-tauri` job (CLAUDE.md §10). Green here means green in the pipeline.
+The commands are not here but in `.claude/gates.json` (list `full`). It mirrors `.github/workflows/ci.yml` minus the `pincel-tauri` job (AGENTS.md §10). Green here means green in the pipeline.
 
 ## Procedure
 
@@ -23,7 +23,7 @@ If `.claude/hooks/gates.mjs` is missing, run the entries of `full` **in the give
 - Changing the gate configuration: `.claude/settings.json`, `.claude/hooks/`, `.claude/gates.json`, the CI workflow.
 - Deleting, skipping (`#[ignore]`, `test.skip`, `test.fixme`) or weakening tests to make them green.
 
-If a warning really is a false positive after careful review, don't resolve it yourself: name the spot and the reason to the user (CLAUDE.md §9).
+If a warning really is a false positive after careful review, don't resolve it yourself: name the spot and the reason to the user (AGENTS.md §9).
 
 ## Report
 
