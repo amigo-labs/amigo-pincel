@@ -6,7 +6,10 @@ import { defineConfig, devices } from '@playwright/test';
 // service worker is blocked: precaching the ~13 MiB of dev wasm on every
 // test would only slow the run, and offline behaviour is not under test.
 // docs/specs/pincel.md §7.4.
-const port = 4173;
+// `PINCEL_E2E_PORT` moves the preview server off the default port, so
+// two checkouts can run their suites side by side without one reusing
+// the other's server (and testing the wrong bundle).
+const port = Number(process.env.PINCEL_E2E_PORT ?? 4173);
 
 export default defineConfig({
   testDir: 'e2e',

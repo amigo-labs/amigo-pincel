@@ -47,12 +47,15 @@ Already decided: Pixel mode has groups (`LayerKind::Group`, `parent`, contiguous
 - [ ] AC-09 (always): A group composites in isolation: its children blend only with each other, starting from transparent, and the result blends into the layers below with the group's blend mode — a Multiply child inside a Normal group does not multiply with layers below the group, and a group set to Multiply multiplies its whole composite with the layers below.
 - [ ] AC-10 (always): A document without groups composes exactly as before this feature (byte-identical composite for the existing compose tests).
 - [ ] AC-11 (state): While a group is locked, painting, fill and effects on any of its descendants are refused with the locked-layer notice, and the descendants' rows show the inherited lock.
-- [ ] AC-12 (error): If a painting tool, fill or effect targets a group layer itself, then it is refused with the same status-bar notice as for a locked layer and the document is unchanged.
+- [ ] AC-12 (error): If a painting tool, fill, effect or Move selected pixels targets a group layer itself, then it is refused with the same status-bar notice as for a locked layer and the document is unchanged.
 - [ ] AC-13 (error): If Merge Down is invoked when the active layer or the layer below it is a group, or the two layers have different parents, then it is refused and the document is unchanged.
 - [ ] AC-14 (event): When the user chooses Layer ▸ Merge Group with a group active, then the group and its subtree are replaced by one raster layer at the group's position, the document composite is the same before and after, and one Undo restores the group and its subtree.
 - [ ] AC-15 (event): When Merge Visible or Flatten Image runs on a document with groups, then the resulting composite equals the composite before the merge, with each group's visibility, opacity and blend mode applied.
 - [ ] AC-16 (event): When the user changes visibility, lock, opacity or blend mode on a group row with the same controls a raster layer has, then the change is stored on the group, acts on its whole subtree, and is one undo step.
-- [ ] AC-17 (event): When the user collapses a group row, then its descendant rows are hidden in the layers panel and the composite is unchanged; expanding the group shows them again.
+- [ ] AC-17 (event): When the user collapses a group row, then its descendant rows are hidden in the layers panel and the composite is unchanged; expanding the group shows them again. The collapse is not an undo step and is not saved with the document.
+- [ ] AC-18 (state): While a group is active, Move (layer) and layer flips / rotations transform all its raster descendants in one undo step.
+- [ ] AC-19 (event): When the user pastes with a group active, then the new layer is inserted directly above the group, at the group's level.
+- [ ] AC-20 (error): If deleting a layer or group would leave no raster layer, then it is refused and the tree is unchanged.
 
 ## Technical notes
 
@@ -78,7 +81,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - `effectively_visible` walks the parents (`render/compose.rs` ≈L301).
 - wasm `addGroup` (`crates/pincel-wasm/src/layer_ops.rs`) adds the group on top of the root stack, named `Group N`, and makes it active.
 
-**Model design (from the plan).** Mirror pincel-core: `LayerKind::Group`, `parent: Option<Uuid>`, contiguous-subtree invariant in the flat Vec. A group layer should not allocate a canvas-sized pixel buffer — either a small `ImageBuffer` change (empty buffer) or `pixels: Option<ImageBuffer>` behind accessors. Make `compose` / `compose_region` / `compose_over` recursive over subtrees with a transparent temp buffer per group. Suggested tests: `hidden_group_hides_children`, `group_opacity_applies_once_to_composite_not_per_child`, `group_blend_mode_blends_composite`, `merge_group_matches_composite`, plus a proptest over random add / move / remove sequences for the invariant (AC-06).
+**Model design (from the plan).** Mirror pincel-core: `LayerKind::Group`, `parent: Option<Uuid>`, contiguous-subtree invariant in the flat Vec. A group layer does not allocate a canvas-sized pixel buffer: it keeps `pixels: ImageBuffer` as an empty 0×0 buffer (doc comment: "canvas-sized for raster layers, 0×0 for groups"); resize and transform skip groups. Canvas / image resize are document-wide and skip the 0×0 group buffers. The collapsed state is per-session view state in the shared layers panel, keyed by layer id (usable by Pixel mode too). `remove_layer`'s `LastLayer` rule becomes "at least one raster layer". Make `compose` / `compose_region` / `compose_over` recursive over subtrees with a transparent temp buffer per group. Suggested tests: `hidden_group_hides_children`, `group_opacity_applies_once_to_composite_not_per_child`, `group_blend_mode_blends_composite`, `merge_group_matches_composite`, plus a proptest over random add / move / remove sequences for the invariant (AC-06).
 
 **Shared layers panel.** `ui/src/lib/components/layers/` already supports trees: `LayerRow.depth` / `isGroup` / `lockedByParent` (`layers.ts`), drop place `'into'`, `onMove`, `onAddGroup`, Alt+←/→ (`LayersPanel.svelte`). It has **no collapse control** yet. The Pixel mapping in `ui/src/modes/pixel/components/LayersPanel.svelte` (≈L78–128) is the example; the Image mapping in `ui/src/modes/image/components/panels/LayersPanel.svelte` (≈L42–79) sets none of these and passes only `onReorder`. Pixel menu key `menu.newGroup` exists; reuse Pixel i18n keys where the wording matches.
 
@@ -105,12 +108,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 ## Open questions
 
-- The Decision Log entry in `pincel.md` §15 for Image-mode groups (model mirrors pincel-core; Image mode folds groups in isolation while Pixel mode still does not, deliberately, see 2026-07-09) is not written yet; the plan requires it before any code.
-- Group layer storage: an empty `ImageBuffer` or `pixels: Option<ImageBuffer>` behind accessors — the plan asks to choose one and record it.
-- Is a group's collapsed state document state (saved, undoable) or per-session view state? The plan names "collapse" in its goal but has no design for it, and the shared panel has no collapse control yet.
-- What do the Move tool, layer transforms, canvas / image resize and Paste do when the active layer is a group — refuse like painting, or apply to the whole subtree? The plan lists `transform.rs`, `resize.rs` and `paste.rs` as affected but gives no behavior.
-- Must a document keep at least one raster layer? Today the last layer cannot be deleted; with groups, deleting a group that contains every other layer, or a document of only empty groups, is not covered by the plan.
-- Until `image-layer-groups-ora` lands, saving a grouped document as `.ora` writes a flat stack and loses group opacity, blend and visibility (the same data loss the ORA spec fixes). Ship both specs in the same release, or must this spec guard `.ora` save of grouped documents?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -133,6 +131,9 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-15 |      | open   |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
+| AC-18 |      | open   |        |
+| AC-19 |      | open   |        |
+| AC-20 |      | open   |        |
 
 ## Decisions
 
@@ -141,3 +142,9 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - Paint, fill and effects on a group are refused with the locked-layer notice; lock and hide inherit down the tree — because a group has no pixels of its own, and inheriting matches Pixel mode's `lockedByParent` / `effectively_visible`.
 - Merge Down refuses groups and cross-parent merges; Merge Group rasterizes a group to its composite; Merge Visible and Flatten Image fold through groups — because that matches Pixel mode's rules and keeps every merge composite-preserving.
 - The ORA part is split into the spec `image-layer-groups-ora` — because the legacy plan was XL (four M sessions) and the ORA round-trip is a separate user-visible capability.
+- 2026-10-29: A Decision Log entry records Image-mode groups mirroring pincel-core (`LayerKind::Group`, `parent`, contiguous subtree in the flat Vec, `MoveLayerTo`), isolated group compositing (§4.2) and the 0×0 group buffer, with Pixel mode's 2026-07-09 rule unaffected — the plan requires it before code, and it records the deliberate cross-mode difference (owner accepted the recommendation).
+- 2026-10-29: A group keeps `pixels: ImageBuffer` as an empty 0×0 buffer instead of `Option<ImageBuffer>`; resize and transform skip groups — `.pixels` has about 250 uses in `pincel-image-core`, and an `Option` would touch all of them for no behavioural gain (owner accepted the recommendation).
+- 2026-10-29: A group's collapsed state is per-session view state in the shared layers panel, keyed by layer id, not saved and not undoable (AC-17) — collapsing changes no pixels, ORA has no standard attribute for it, and undo entries for view toggles would be noise (owner accepted the recommendation).
+- 2026-10-29: With a group active, Move (layer) and layer flips / rotations transform every raster descendant in one undo step (AC-18); Move selected pixels is refused like painting (AC-12); canvas / image resize are document-wide and skip group buffers; Paste inserts above the group as its sibling (AC-19) — moving or flipping a group's content is the expected group operation (Krita, Photoshop), while pixel edits on a group have no target (owner accepted the recommendation).
+- 2026-10-29: A document must keep at least one raster layer; deleting a layer or group that would leave none is refused (AC-20) — every tool, fill and paste needs a raster target, and the rule generalizes today's `LastLayer` check (owner accepted the recommendation).
+- 2026-10-29: Released together with `image-layer-groups-ora`; the release PR is not merged between the two, and there is no interim `.ora` save guard — autosave also writes ORA, so a save-only guard wouldn't cover recovery, and a guard would be throw-away code (owner accepted the recommendation).

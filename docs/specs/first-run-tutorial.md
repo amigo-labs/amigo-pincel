@@ -23,7 +23,7 @@ Migrated from the legacy plan `20-first-run-tutorial` (removed 2026-10-29, see g
 - A tour of five to seven steps with a highlighted anchor and one sentence each, covering: the two modes; creating or opening a document; the tool rail and its sections; the options bar; the panels; undo and the shortcut overview; where to find help
 - Step lists per context: start screen, Pixel editor, Image editor
 - A first-launch banner on the start screen offering the tour; a one-time hint per editor offering that editor's part
-- Replaying the tour from Help ▸ Tour, including the macOS native Help menu
+- Replaying the tour from Help ▸ Tour, including the macOS native Help menu, and from a Tour button on the start screen where no native Help menu exists
 - Keyboard control and screen-reader semantics of the tour
 - Two sample documents (a small animated sprite, a layered image) and an "Open a sample" entry on the start screen, available offline
 - English and German strings
@@ -45,7 +45,7 @@ Migrated from the legacy plan `20-first-run-tutorial` (removed 2026-10-29, see g
 - [ ] AC-07 (event): When the tour is open, then Esc skips it, → and Enter go to the next step, ← goes to the previous step, and keyboard focus stays inside the callout.
 - [ ] AC-08 (always): The open tour is exposed as a dialog to assistive technology, and its step text is announced when the step changes.
 - [ ] AC-09 (option): Where the OS or browser requests reduced motion, the highlight and callout move between steps without any animation or transition.
-- [ ] AC-10 (event): When an editor (Pixel or Image) opens for the first time, then a one-line hint offers that editor's part of the tour; on later opens of the same editor, also after a reload, the hint does not show.
+- [ ] AC-10 (event): When an editor (Pixel or Image) opens for the first time, then a one-line hint offers that editor's part of the tour; on later opens of the same editor, also after a reload, the hint does not show. The hint does not show at all when the user chose No thanks on the start-screen banner.
 - [ ] AC-11 (event): When the user chooses Help ▸ Tour in an editor, then the tour for that editor starts at step 1, regardless of stored tour choices.
 - [ ] AC-12 (option, manual: the macOS native menu bar cannot be driven by Playwright): Where the desktop app runs on macOS, the native Help menu carries a Tour entry that starts the tour for the current context.
 - [ ] AC-13 (event): When the user chooses "Open a sample" on the start screen and picks the sprite sample, then it opens in Pixel mode with 4 frames, at least one tag, 2 layers and a slice.
@@ -53,6 +53,7 @@ Migrated from the legacy plan `20-first-run-tutorial` (removed 2026-10-29, see g
 - [ ] AC-15 (state): While the app is offline after it has been loaded once, both samples still open.
 - [ ] AC-16 (always): Each sample file is at most 100 KB and is licensed CC0.
 - [ ] AC-17 (always): Every tour, banner, hint and sample string exists in English and German.
+- [ ] AC-18 (option): Where no native Help menu exists, the start screen shows a Tour button beside About that starts the start-screen tour at step 1.
 
 ## Technical notes
 
@@ -76,7 +77,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 | IndexedDB unavailable (private mode, blocked storage) | Banner shows on every launch; choosing Tour / No thanks still works for the session; no error is shown |
 | Phone layout (390 px): tool rail is a bottom strip, panels are a sheet | Steps anchor to the strip / sheet button where present, otherwise center (AC-06) |
 | Window resized or rotated while a step is shown | Highlight and callout follow the anchor's new position and stay inside the viewport |
-| User opens a file from the banner screen without answering the banner | Nothing stored; banner shows again on the next start-screen visit |
+| User opens a file from the banner screen without answering the banner | Nothing stored; banner shows again on the next start-screen visit; the editor hint still shows (AC-10) |
 | Sample fails to load (corrupt cache) | The normal open-error path reports it; the start screen stays usable |
 
 ## Assumptions
@@ -88,9 +89,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 
 ## Open questions
 
-- The Decision Log entry is not written yet: own tour engine (no library), banner instead of an auto-started modal, and the two CC0 sample files shipped with the app (the plan's first task; CLAUDE.md §2.1).
-- How is the start-screen part of the tour replayed where the start screen has no menu bar (web, Windows, Linux) — a Tour button next to the existing About button, or not at all?
-- Does choosing "No thanks" on the start-screen banner also suppress the per-editor hints (AC-10), or do the hints still show once per mode?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -113,6 +112,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 | AC-15 |      | open   |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
+| AC-18 |      | open   |        |
 
 ## Decisions
 
@@ -123,3 +123,6 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - Samples are CC0 and at most 100 KB each so they can be precached for offline use without weighing on the PWA (plan).
 - No `depends_on: more-languages`: the plan only says the tour is better after it if it should ship translated; English and German are enough to ship, and the typed dictionaries force the missing translations whichever spec lands second.
 - Help ▸ Tour also appears in the macOS native Help menu (AC-12): on macOS the in-app Help menu is not shown (Decision Log 2026-10-27), so otherwise the tour could not be replayed there.
+- 2026-10-29: A Decision Log entry records the in-house tour engine (`ui/src/lib/tour/`, ARIA-anchored, no library) offered by a start-screen banner and a one-time hint per editor, never auto-started, and the two CC0 samples (`slime.aseprite`, `postcard.ora`, ≤ 100 KB each) shipped in `ui/public/samples/` and precached — binary sample assets and the UX pattern are architecture-level choices (AGENTS.md §2.1) (owner accepted the recommendation).
+- 2026-10-29: Where no native Help menu exists, the start screen shows a Tour button beside About that replays the start-screen tour (AC-18); on macOS the native Help ▸ Tour serves the start screen — it reuses the existing About pattern and gives the start-screen tour a replay path on every platform (owner accepted the recommendation).
+- 2026-10-29: Choosing No thanks on the banner (`tourDeclined`) also suppresses the per-editor hints; Tour, or not answering, leaves them on (AC-10) — a user who explicitly declined shouldn't be asked twice more, and Help ▸ Tour remains available (owner accepted the recommendation).

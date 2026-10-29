@@ -19,8 +19,8 @@ Already decided: `.ora` is the Image-mode project format, and `stack.xml` is rea
 
 ### In scope
 
-- Reading nested `<stack>` elements as groups with their name, opacity, visibility and `composite-op`
-- Writing groups as nested `<stack>` elements with `isolation="isolate"`
+- Reading nested `<stack>` elements as groups with their name, opacity, visibility, `composite-op` and lock (`edit-locked`)
+- Writing groups as nested `<stack>` elements with `isolation="isolate"` and, for locked groups, `edit-locked="true"`
 - Write → read round-trip of the layer tree
 - Flat `.ora` files keep opening as before
 
@@ -32,10 +32,10 @@ Already decided: `.ora` is the Image-mode project format, and `stack.xml` is rea
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When an `.ora` whose `stack.xml` contains nested `<stack>` elements is opened, then each nested stack becomes a group with the stack's name, opacity, visibility and blend mode, and each layer sits inside the group of the stack that contains it, in the file's order.
+- [ ] AC-01 (event): When an `.ora` whose `stack.xml` contains nested `<stack>` elements is opened, then each nested stack becomes a group with the stack's name, opacity, visibility, blend mode and lock, and each layer sits inside the group of the stack that contains it, in the file's order.
 - [ ] AC-02 (state): While a group opened from a nested stack is hidden or below 100 % opacity, its children are hidden or composited at that opacity as a whole, exactly as for a group created in Pincel — never fully visible.
-- [ ] AC-03 (event): When a document with groups is saved as `.ora`, then each group is written as a nested `<stack>` carrying its name, opacity, visibility, blend mode and `isolation="isolate"`, with its children inside it in document order.
-- [ ] AC-04 (always): Writing a document with nested groups to `.ora` and reading it back yields the same layer tree: names, order, parents, visibility, opacity, blend modes and pixels.
+- [ ] AC-03 (event): When a document with groups is saved as `.ora`, then each group is written as a nested `<stack>` carrying its name, opacity, visibility, blend mode, lock (`edit-locked="true"` when locked) and `isolation="isolate"`, with its children inside it in document order.
+- [ ] AC-04 (always): Writing a document with nested groups to `.ora` and reading it back yields the same layer tree: names, order, parents, visibility, opacity, blend modes, locks and pixels.
 - [ ] AC-05 (always): An `.ora` with a single flat `<stack>` opens with the same layers, offsets and properties as before this feature.
 - [ ] AC-06 (event): When the user saves a document with a group as `.ora` in Image mode and reopens the file, then the layers panel still shows the group with its child indented below it.
 - [ ] AC-07 (always): The `mergedimage.png` written into the `.ora` equals the document composite, with groups applied in isolation.
@@ -57,6 +57,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | Stack with an unknown `composite-op` | Same fallback as an unknown `composite-op` on a layer today |
 | Stack with `isolation="auto"` or no `isolation` attribute (Krita / GIMP default) | Opens as an isolated group, because pass-through is out of scope |
 | Stacks nested several levels deep | Every level becomes a group with the correct parent |
+| Unbalanced `<stack>` / `</stack>` | Open stacks close at the end of the file; a stray close tag is ignored; the file opens |
 | More nested stacks plus layers than the 999-layer limit | Open fails with the existing layer-limit error; no crash, the previous document stays open |
 
 ## Assumptions
@@ -67,8 +68,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 ## Open questions
 
-- Should the group's lock be written and read (Krita's `edit-locked` on `<stack>`, as layers do today)? The plan's attribute list for `<stack>` is `name opacity visibility composite-op isolation` only, so a locked group would lose its lock on save.
-- What should opening do when `stack.xml` has unbalanced `<stack>` / `</stack>` tags — refuse the file with an error, or recover best-effort by closing open stacks at the end?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -86,3 +86,5 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 - No XML crate: the existing attribute scanner gains `<stack` / `</stack>` depth tracking — because Decision Log 2026-10-11 rules out an XML parser dependency for `stack.xml`.
 - Groups are written with `isolation="isolate"` — because Image-mode groups composite isolated (spec `image-layer-groups`), and the attribute tells other ORA readers to do the same.
+- 2026-10-29: A group's lock is written as `edit-locked="true"` on `<stack>` and read back, exactly as for `<layer>` (AC-01, AC-03, AC-04) — otherwise a locked group loses its lock on every save, and it is one attribute through the existing scanner (owner accepted the recommendation).
+- 2026-10-29: Unbalanced `<stack>` tags are recovered best-effort: open stacks close at the end of `stack.xml`, a stray `</stack>` is ignored, and no notice is shown — the reader is already lenient (an attribute scanner, not a validating parser), and the layers and pixels are intact (owner accepted the recommendation).

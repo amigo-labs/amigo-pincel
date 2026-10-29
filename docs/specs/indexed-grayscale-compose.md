@@ -21,7 +21,7 @@ What the Aseprite file format reference (<https://github.com/aseprite/aseprite/b
 - Layer flag `8` marks the background layer (kept in Pincel as `Layer::extra_flags` bit `0x8`).
 - Palette entries carry an alpha byte (0–255), which Pincel's palette keeps.
 
-Already decided: blend modes are computed in u8 sRGB and Aseprite pixel-exact parity is out of scope (Decision Log 2026-07-09, 2026-10-27); indexed painting is Phase 2, so palette remove / reorder / replace are refused on indexed sprites while recolouring an entry is allowed (§3.7, Decision Log 2026-10-11); §3.1 marks Grayscale as "Phase 2".
+Already decided: blend modes are computed in u8 sRGB and Aseprite pixel-exact parity is out of scope (Decision Log 2026-07-09, 2026-10-27); indexed painting is Phase 2, so palette remove / reorder / replace are refused on indexed sprites while recolouring an entry is allowed (§3.7, Decision Log 2026-10-11); §3.1 marks Grayscale as "Phase 2"; a 2026-10-29 Decision Log entry pulls Grayscale *rendering* into Phase 1 (editing stays Phase 2).
 
 ## Scope
 
@@ -54,6 +54,7 @@ Already decided: blend modes are computed in u8 sRGB and Aseprite pixel-exact pa
 - [ ] AC-09 (error): If a cel's or tile's pixel buffer uses a color mode other than the sprite's, then `compose()` fails with `RenderError::CelColorModeMismatch` naming the layer and frame.
 - [ ] AC-10 (error): If a cel's or tile's pixel buffer length doesn't match its dimensions for the sprite's color mode (1 byte per pixel Indexed, 2 Grayscale), then `compose()` fails with `RenderError::MalformedCelBuffer` naming the layer and frame, as for RGBA.
 - [ ] AC-11 (always): `compose()` no longer returns `RenderError::UnsupportedColorMode` for any color mode the document model can represent.
+- [ ] AC-12 (event): When an Indexed pixel's index is at or past the palette's end and is not the transparent index, then it contributes nothing to the output.
 
 ## Technical notes
 
@@ -71,6 +72,7 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | Scenario | Expected behavior |
 | -------- | ----------------- |
 | Transparent index is outside the palette (e.g. 255 with a 32-entry palette) | Pixels equal to it are still transparent on non-background layers (AC-02) |
+| Index at or past the palette's end that is not the transparent index | Renders transparent (AC-12) |
 | Palette entry with alpha < 255 on a non-background layer | Renders with that alpha, then layer / cel opacity multiply on top (AC-01) |
 | Background layer whose transparent-index entry has alpha 0 | Renders as that entry, i.e. transparent — the flag only stops the index from being special |
 | Grayscale pixel with A = 0 | Contributes nothing, whatever V is |
@@ -87,8 +89,7 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 ## Open questions
 
-- Grayscale is marked "Phase 2" in §3.1 (and in `ColorMode`'s doc comment). Rendering it now mixes Phase 1 and Phase 2 (CLAUDE.md §9) unless a Decision Log entry pulls Grayscale *rendering* into Phase 1 — write that entry, or drop AC-04 and narrow AC-11 so Grayscale stays rejected?
-- What does an index at or past the end of the palette (and not the transparent index) render as: transparent, or a structured `RenderError` like `TileIdOutOfRange`? The format reference doesn't say; transparent keeps a file with one stray index viewable, an error surfaces corrupt data.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -105,9 +106,12 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
+| AC-12 |      | open   |        |
 
 ## Decisions
 
 - The palette is looked up at compose time, not cached into RGBA cels — §4.2 prescribes it, and it makes palette recolours show immediately (AC-07) without touching cel data.
 - The transparent-index and background-layer rules come from the Aseprite format reference, not from Aseprite's renderer source — the reference is the contract the codec already follows; renderer parity is out of scope.
 - The SetPixel payload question from the old prompt is not decided here — rendering does not depend on it, and indexed painting is Phase 2.
+- 2026-10-29: A Decision Log entry pulls Indexed and Grayscale *rendering* into Phase 1 (`compose()` palette lookup, transparent index, background flag; Grayscale as (V, V, V, A)) while painting, codec support and conversion stay Phase 2, and `pincel.md` §3.1's Grayscale comment becomes "rendering Phase 1, editing Phase 2"; AC-04 stays — §4.2 already prescribes conversion at composite time, Grayscale rendering is one pure expansion, and it removes the last `UnsupportedColorMode` and unblocks the codec work (owner accepted the recommendation).
+- 2026-10-29: An Indexed pixel whose index is at or past the palette's end (and not the transparent index) renders transparent (AC-12) — the reader already pads palette gaps with transparent entries, so the rule is consistent, keeps a file with one stray index viewable, and leaves corruption checks to the codec (owner accepted the recommendation).

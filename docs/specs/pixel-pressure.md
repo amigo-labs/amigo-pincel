@@ -13,7 +13,7 @@ depends_on: [pixel-pencil]
 
 Pincel reads pen pressure only in Image mode. §18.5 lists "Pen pressure in Pixel mode" as a gap: Aseprite (since 1.2.18), LibreSprite (1.2), Pixelorama and Resprite all map pressure to the brush size of their pixel tools.
 
-Pixel mode was left out on purpose. Decision Log 2026-10-12 ("Pen pressure in Image mode") ends with "Pixel mode is excluded on purpose", and §17.4 says "Pixel-mode tools stay pressure-free — a 1-px pencil has nothing to scale". The `pixel-pencil` spec introduces brush sizes 1–8, so there is now something to scale. This feature reverses the exclusion, which needs a new Decision Log entry (see Open questions).
+Pixel mode was left out on purpose. Decision Log 2026-10-12 ("Pen pressure in Image mode") ends with "Pixel mode is excluded on purpose", and §17.4 says "Pixel-mode tools stay pressure-free — a 1-px pencil has nothing to scale". The `pixel-pencil` spec introduces brush sizes 1–8, so there is now something to scale. This feature reverses the exclusion through a 2026-10-29 Decision Log entry (see Decisions).
 
 With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and the chosen size. It is opt-in through the tool options, the same as in Image mode.
 
@@ -63,7 +63,7 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 **Design (from the legacy plan)**
 
 - `PencilStroke` (from `pixel-pencil`) gets `pressure: Vec<f32>` parallel to `path` (empty = full pressure); each Bresenham step stamps the size interpolated from its neighbouring samples.
-- wasm: `strokeTo(x, y, pressure: f32)`; the UI passes `1.0` for mouse and touch.
+- wasm: `strokeTo(x, y, pressure?: number)` — an optional `Option<f32>`, absent = 1, so the public npm API stays non-breaking; the UI passes `1.0` (or nothing) for mouse and touch.
 - `pointer.ts` uses `getCoalescedEvents()` for pens and mice (smoother strokes too) and passes `pressureOf(e)` when the "Size" checkbox is on.
 - Suggested tests: `pencil_stroke_light_pressure_paints_smaller_stamp`, `pencil_stroke_full_pressure_matches_plain_stroke`, `pixel_perfect_applies_only_to_size_1_runs`, a wasm test for the pressure argument, and e2e `pixel mode: a light pen stroke is thinner than a firm one` comparing element screenshots like the Image-mode test. Move the CDP pen helper `penStroke(page, target, force, tilt)` from `ui/e2e/pressure.spec.ts` (≈L8–33) into `ui/e2e/helpers.ts`.
 
@@ -87,7 +87,7 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 
 ## Open questions
 
-- The Decision Log entry reversing "Pixel mode is excluded on purpose" (2026-10-12) is not written yet; it also has to update §17.4 ("Pixel-mode tools stay pressure-free"), the §18.2 table row (Pincel "Pen pressure" → ✓) and §18.5, and record the extra `pressure` argument on the `pixel-pencil` stroke API of the public `pincel-wasm` package.
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -108,3 +108,4 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 
 - Only size is driven by pressure, no opacity dynamics — because pixel art has no partial alpha (legacy plan).
 - Pressure follows the Image-mode model (per-sample values, linear interpolation along a segment, mouse and touch at full pressure, checkbox on by default) and reuses its i18n keys — because both modes should behave the same and the pattern is proven (legacy plan).
+- 2026-10-29: A Decision Log entry supersedes "Pixel mode is excluded on purpose" (2026-10-12): Pencil / Eraser stamp size = max(1, round(N · p)), interpolated per Bresenham step, opt-in "Size" checkbox on by default like Image mode, and wasm `strokeTo(x, y, pressure?)` with an optional `Option<f32>` (absent = 1); `pincel.md` §17.4 ("Pixel-mode tools scale stamp size only, never opacity"), §18.2 (Pen pressure ✓) and §18.5 are updated — an optional argument keeps the npm API non-breaking and matches the `pixel-pencil` stroke API shape (owner accepted the recommendation).

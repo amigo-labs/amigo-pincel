@@ -12,7 +12,7 @@ design: [pincel.md §2.3, pincel.md §3.7, pincel.md §5.2, pincel.md §5.4, pin
 
 Pixel artists build gradients by dithering between palette colors instead of blending, so no new colors enter the sprite. Pixel mode has no gradient tool at all; Image mode has a blending gradient (`pincel-image-core`, §5.4) whose output is not palette-clean.
 
-This spec adds a **Gradient** tool to Pixel mode: drag a line and the area (the selection, or the whole target when there is none) fills with a **dithered** ramp from the foreground to the background color — linear or radial, with an ordered-dither (Bayer 2×2 / 4×4 / 8×8) matrix or hard bands. It creates no new colors.
+This spec adds a **Gradient** tool to Pixel mode: drag a line and the area (the selection, or the target cel — a canvas-sized cel on a layer without one — when there is none) fills with a **dithered** ramp from the foreground to the background color — linear or radial, with an ordered-dither (Bayer 2×2 / 4×4 / 8×8) matrix or hard bands. It creates no new colors.
 
 Already decided: the two cores stay separate (Decision Log 2026-09-06, "Two cores, one shell"), so `pincel-core` must not depend on `pincel-image-core`; `pincel-effects` serves both cores. Neither the tool nor its menu entry is in §5.2 yet.
 
@@ -35,6 +35,8 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 - Gradient kinds beyond linear and radial (reflected, conical, diamond, which Image mode has) — because the legacy plan limits the Pixel-mode tool to linear and radial
 - Blended (non-dithered) gradients in Pixel mode — because they create new colors, which is exactly what this tool avoids
 - Changes to Image mode's gradient behavior — because Image mode only shares the moved parameter math, its output must stay identical
+- Writing palette indices on indexed sprites — Phase 2 with indexed painting (§3.7, AGENTS.md §9)
+- Dithering through a palette range — because the range selection comes with `shading-ink`; follow-up
 
 ## Acceptance criteria
 
@@ -50,8 +52,9 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 - [ ] AC-10 (event): When the user presses `G`, the tool selection cycles through the fill group, which contains Bucket and Gradient.
 - [ ] AC-11 (event): When the Gradient tool becomes active, the options bar shows a Kind control (linear / radial) and a Dither control (none / Bayer 2×2 / Bayer 4×4 / Bayer 8×8).
 - [ ] AC-12 (error): If the drag starts and ends on the same point, then nothing changes and no undo entry is added.
-- [ ] AC-13 (error): If the target layer is locked or the document has no paintable image layer, then nothing changes and no undo entry is added.
+- [ ] AC-13 (error): If the target layer is locked, the document has no paintable image layer, or the sprite is indexed or grayscale, then nothing changes and no undo entry is added.
 - [ ] AC-14 (always): Image mode's gradient results stay identical after its parameter math is shared with Pixel mode.
+- [ ] AC-15 (state): While no selection exists, the gradient writes every pixel of the target cel; it never grows the cel.
 
 ## Technical notes
 
@@ -95,10 +98,7 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 
 ## Open questions
 
-- The Decision Log entry for moving the linear / radial ramp math into `pincel-effects` and the §5.2 tool-table entry for the Gradient tool are not written yet.
-- Indexed sprites: the plan wants the gradient to write palette indices (fg / bg index) as its main advantage over Image mode, but indexed painting is Phase 2 (§3.7) and every Pixel paint command rejects indexed cels today — include indexed support (Phase 2 work, CLAUDE.md §9), or refuse indexed cels like the Bucket?
-- Multi-color ramp: the plan optionally dithers through a palette range selected in the Palette panel, but that range selection is introduced by the later `shading-ink` spec — in scope here (and then depending on `shading-ink`), or a follow-up?
-- Without a selection, what is the gradient's area — the whole canvas, or only the target cel's own bounds when the cel is smaller than the canvas? (The plan says "the whole cel", growing it "like `FillRegion` does", but `FillRegion` never grows cels.)
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -118,9 +118,14 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
+| AC-15 |      | open   |        |
 
 ## Decisions
 
 - The linear / radial parameter math moves into `pincel-effects` and both cores call it — because `pincel-core` must not depend on `pincel-image-core` (Decision Log 2026-09-06) and `pincel-effects` already serves both (legacy plan).
 - Ordered (Bayer) dithering with a per-pixel threshold — because it is deterministic and creates no new colors (legacy plan).
 - The Gradient tool lives in the fill group cycled by `G` — because it fills an area like the Bucket and `G` already selects that group (legacy plan; `TOOL_GROUP_KEYS`).
+- 2026-10-29: A Decision Log entry records moving the linear / radial `t(px, py)` math from `pincel-image-core` into `pincel-effects` and the dithered Pixel Gradient tool (fg → bg, Bayer 2/4/8 or hard split, no new colors) in the `G` fill group, and `pincel.md` §5.2 gains a Gradient row — AGENTS.md §2.1, and §5.2 lists every Pixel tool (owner accepted the recommendation).
+- 2026-10-29: Indexed and grayscale cels are refused like `FillRegion` does (AC-13); writing palette indices comes later with indexed painting — indexed painting is Phase 2 (§3.7) and AGENTS.md §9 forbids mixing phases, while fg / bg-only output already creates no new colors in RGBA (owner accepted the recommendation).
+- 2026-10-29: Dithering through a palette range is a follow-up; this spec stays fg → bg and does not depend on `shading-ink` — it keeps the spec at size M and independent, and the ramp can later take N colors without changing the dither rule (owner accepted the recommendation).
+- 2026-10-29: Without a selection the gradient covers the target cel's bounds clipped to the canvas and never grows the cel; a layer without a cel gets the usual canvas-sized cel (`ensure_paint_cel`) (AC-15) — Phase 1 never auto-grows cels, and trimmed cels only come from imported `.aseprite` files (owner accepted the recommendation).
