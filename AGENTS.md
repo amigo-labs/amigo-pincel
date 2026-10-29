@@ -519,6 +519,7 @@ src-tauri/                    Native shell
 Pitfalls and non-obvious knowledge that code and git history don't show. Short entries, no noise; `/spec-build` adds to this list when a loop surprised it.
 
 - **Stale wasm package breaks `pnpm check`.** `ui/` links `crates/*/pkg` (gitignored build output). After Rust changes to a wasm crate — or pulling someone else's — svelte-check reports missing exports (e.g. "has no exported member 'paste_layer'") although the Rust source has them. Fix: `pnpm wasm:build` in `ui/`, not a code change.
+- **Parallel worktrees share the e2e port.** Locally Playwright reuses any server already on port 4173 (`reuseExistingServer`), so a second checkout silently tests the other checkout's build. Give each worktree its own port: `PINCEL_E2E_PORT=4291 pnpm test:e2e`.
 
 ---
 
