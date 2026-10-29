@@ -24,6 +24,7 @@ mod move_layer;
 mod move_layer_to;
 mod move_selection_content;
 mod palette_ops;
+mod paste_layer;
 mod patch_cel;
 mod pencil_stroke;
 mod place_tile;
@@ -75,6 +76,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
 };
+pub use paste_layer::{PasteLayer, PastedImage};
 pub use patch_cel::{AddEmptyCel, PatchCel};
 pub use pencil_stroke::{BrushShape, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, PencilStroke, PixelBrush};
 pub use place_tile::PlaceTile;
@@ -197,6 +199,7 @@ pub enum AnyCommand {
     PatchCel(PatchCel),
     AddEmptyCel(AddEmptyCel),
     Batch(CommandBatch),
+    PasteLayer(PasteLayer),
 }
 
 impl AnyCommand {
@@ -259,6 +262,7 @@ impl AnyCommand {
             Self::PatchCel(c) => c.apply(doc, cels),
             Self::AddEmptyCel(c) => c.apply(doc, cels),
             Self::Batch(c) => c.apply(doc, cels),
+            Self::PasteLayer(c) => c.apply(doc, cels),
         }
     }
 
@@ -317,6 +321,7 @@ impl AnyCommand {
             Self::PatchCel(c) => c.revert(doc, cels),
             Self::AddEmptyCel(c) => c.revert(doc, cels),
             Self::Batch(c) => c.revert(doc, cels),
+            Self::PasteLayer(c) => c.revert(doc, cels),
         }
     }
 
@@ -404,7 +409,14 @@ impl AnyCommand {
             Self::PatchCel(c) => c.dirty_region(),
             Self::AddEmptyCel(c) => c.dirty_region(),
             Self::Batch(c) => c.dirty_region(),
+            Self::PasteLayer(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<PasteLayer> for AnyCommand {
+    fn from(c: PasteLayer) -> Self {
+        Self::PasteLayer(c)
     }
 }
 

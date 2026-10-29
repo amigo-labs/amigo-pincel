@@ -12,7 +12,8 @@ use pincel_image_core::command::spec::{
 use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
 use pincel_image_core::{
     BlendMode, Color, Document, Eyedropper, ImageBuffer, Interpolation, Point, Rect, SampleSize,
-    compose, compose_region, masked_region, scale,
+    compose, compose_region, copy_selection as copy_selection_pixels, delete_selection,
+    masked_region, scale,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -110,16 +111,76 @@ pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
 }
 
 /// Pastes an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a new layer above
-/// the active one, at the top-left (spec §5.4). With `expand`, a smaller
-/// canvas grows to fit it first; otherwise the image is cropped. One undo step.
+/// the active one, its top-left at canvas `(x, y)` (spec §5.4). With
+/// `expand`, the canvas first grows (anchored top-left) to cover the image
+/// there; otherwise the image is cropped. One undo step.
 #[wasm_bindgen]
-pub fn paste_layer(handle: u32, data: &[u8], expand: bool) -> Result<(), JsError> {
+pub fn paste_layer(handle: u32, data: &[u8], x: i32, y: i32, expand: bool) -> Result<(), JsError> {
     let buffer =
         pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
-        bus.apply(Box::new(PasteLayer::new(buffer, expand)))
+        bus.apply(Box::new(PasteLayer::at(buffer, x, y, expand)))
             .map_err(to_js)
     })
+}
+
+/// Copy (spec §5.4): the active layer — with `merged`, the composite of the
+/// visible layers — cropped to the selection's bounding box (the whole
+/// canvas without a selection), alpha scaled by the selection's coverage,
+/// as PNG bytes. The document is unchanged; the copy's canvas origin is
+/// `get_selection_bounds`. Errors when the selection is empty.
+#[wasm_bindgen]
+pub fn copy_selection(handle: u32, merged: bool) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| copy_png(&bus.document, merged))
+}
+
+/// Cut (spec §5.4): [`copy_selection`] of the active layer, then its
+/// selected pixels (the whole layer without a selection) are cleared in one
+/// undo step. Returns the PNG bytes.
+#[wasm_bindgen]
+pub fn cut_selection(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        let png = copy_png(&bus.document, false)?;
+        let layer = bus.document.active_layer_index();
+        if let Some(cmd) = delete_selection(layer, &bus.document) {
+            bus.apply(Box::new(cmd)).map_err(to_js)?;
+        }
+        Ok(png)
+    })
+}
+
+/// Clipboard identity of an encoded image: `"{w}x{h}:{hash}"` of its decoded
+/// pixels, hashed premultiplied so a clipboard that re-encodes the image
+/// (Chromium does) keeps the key. Tells Pincel's own copy apart.
+#[wasm_bindgen]
+pub fn image_key(data: &[u8]) -> Result<String, JsError> {
+    let buffer =
+        pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(rgba_key(buffer.width(), buffer.height(), buffer.data()))
+}
+
+fn copy_png(doc: &Document, merged: bool) -> Result<Vec<u8>, JsError> {
+    let (_, pixels) =
+        copy_selection_pixels(doc, merged).ok_or_else(|| JsError::new("nothing is selected"))?;
+    to_png_bytes(&pixels, 1).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// FNV-1a over premultiplied RGBA8, prefixed with the size. Must match
+/// `pincel-wasm`'s `imageKey`.
+fn rgba_key(width: u32, height: u32, rgba: &[u8]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut feed = |b: u8| {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    };
+    for px in rgba.as_chunks::<4>().0 {
+        let a = u32::from(px[3]);
+        for &c in &px[..3] {
+            feed(((u32::from(c) * a + 127) / 255) as u8);
+        }
+        feed(px[3]);
+    }
+    format!("{width}x{height}:{hash:016x}")
 }
 
 /// Serializes the document as an OpenRaster (`.ora`) project with every
@@ -575,12 +636,14 @@ mod project_tests {
 #[cfg(test)]
 mod paste_tests {
     use super::*;
+    use pincel_image_core::SelectionMask;
+    use pincel_image_core::command::AddLayer;
 
     #[test]
     fn paste_layer_expands_canvas_and_undo_restores_it() {
         let handle = insert(CommandBus::new(Document::new(4, 4).expect("doc")));
         let png = to_png_bytes(&ImageBuffer::new_transparent(6, 5), 1).expect("png");
-        paste_layer(handle, &png, true).expect("paste");
+        paste_layer(handle, &png, 0, 0, true).expect("paste");
         let after = with_bus(handle, |bus| {
             let doc = &bus.document;
             Ok((doc.canvas.width(), doc.canvas.height(), doc.layers().len()))
@@ -594,6 +657,126 @@ mod paste_tests {
         })
         .expect("undo");
         assert_eq!(undone, (4, 4, 1));
+    }
+
+    fn layer_pixel(handle: u32, layer: usize, x: u32, y: u32) -> Color {
+        with_bus(handle, |bus| {
+            Ok(bus.document.layers()[layer]
+                .pixels
+                .get_pixel(x, y)
+                .expect("in bounds"))
+        })
+        .expect("read")
+    }
+
+    /// 4×4 document with red at (1, 1) and blue at (3, 3) on its layer.
+    fn painted() -> u32 {
+        let mut doc = Document::new(4, 4).expect("doc");
+        let px = &mut doc.active_layer_mut().pixels;
+        px.set_pixel(1, 1, Color::rgba(255, 0, 0, 255));
+        px.set_pixel(3, 3, Color::rgba(0, 0, 255, 255));
+        insert(CommandBus::new(doc))
+    }
+
+    fn select(handle: u32, x: i32, y: i32, w: u32, h: u32) {
+        with_bus(handle, |bus| {
+            bus.document.selection = Some(SelectionMask::rectangle(4, 4, Rect::new(x, y, w, h)));
+            Ok(())
+        })
+        .expect("select");
+    }
+
+    #[test]
+    fn paste_layer_lands_at_the_position_and_expands_to_cover_it() {
+        let handle = insert(CommandBus::new(Document::new(4, 4).expect("doc")));
+        let mut img = ImageBuffer::new_transparent(6, 5);
+        img.set_pixel(0, 0, Color::WHITE);
+        let png = to_png_bytes(&img, 1).expect("png");
+        paste_layer(handle, &png, 1, 2, true).expect("paste");
+        let size = with_bus(handle, |bus| {
+            Ok((bus.document.canvas.width(), bus.document.canvas.height()))
+        })
+        .expect("read");
+        assert_eq!(size, (7, 7));
+        assert_eq!(layer_pixel(handle, 1, 1, 2), Color::WHITE);
+    }
+
+    #[test]
+    fn copy_selection_is_the_selected_box_and_leaves_the_document_alone() {
+        let handle = painted();
+        select(handle, 1, 1, 2, 2);
+        let png = copy_selection(handle, false).expect("copy");
+        let img = pincel_image_core::codec::decode(&png).expect("decode");
+        assert_eq!((img.width(), img.height()), (2, 2));
+        assert_eq!(img.get_pixel(0, 0), Some(Color::rgba(255, 0, 0, 255)));
+        assert_eq!(img.get_pixel(1, 1), Some(Color::TRANSPARENT));
+        let undoable = with_bus(handle, |bus| Ok(bus.history.can_undo())).expect("read");
+        assert!(!undoable);
+        assert_eq!(layer_pixel(handle, 0, 1, 1), Color::rgba(255, 0, 0, 255));
+    }
+
+    #[test]
+    fn copy_selection_merged_and_whole_layer_without_selection() {
+        let handle = painted();
+        with_bus(handle, |bus| {
+            bus.apply(Box::new(AddLayer::above(0))).map_err(to_js)
+        })
+        .expect("layer");
+        let own = pincel_image_core::codec::decode(&copy_selection(handle, false).expect("copy"))
+            .expect("decode");
+        assert_eq!((own.width(), own.height()), (4, 4));
+        assert_eq!(
+            own.get_pixel(1, 1),
+            Some(Color::TRANSPARENT),
+            "empty top layer"
+        );
+        let merged =
+            pincel_image_core::codec::decode(&copy_selection(handle, true).expect("copy merged"))
+                .expect("decode");
+        assert_eq!(merged.get_pixel(1, 1), Some(Color::rgba(255, 0, 0, 255)));
+    }
+
+    #[test]
+    fn cut_selection_copies_clears_and_one_undo_restores() {
+        let handle = painted();
+        select(handle, 1, 1, 2, 2);
+        let copied = copy_selection(handle, false).expect("copy");
+        let cut = cut_selection(handle).expect("cut");
+        assert_eq!(image_key(&cut).ok(), image_key(&copied).ok());
+        assert_eq!(layer_pixel(handle, 0, 1, 1), Color::TRANSPARENT);
+        assert_eq!(layer_pixel(handle, 0, 3, 3), Color::rgba(0, 0, 255, 255));
+        let restored = with_bus(handle, |bus| {
+            bus.undo().map_err(to_js)?;
+            Ok(bus.history.can_undo())
+        })
+        .expect("undo");
+        assert!(!restored, "one undo step");
+        assert_eq!(layer_pixel(handle, 0, 1, 1), Color::rgba(255, 0, 0, 255));
+    }
+
+    #[test]
+    fn cut_selection_without_selection_clears_the_layer() {
+        let handle = painted();
+        let cut =
+            pincel_image_core::codec::decode(&cut_selection(handle).expect("cut")).expect("decode");
+        assert_eq!((cut.width(), cut.height()), (4, 4));
+        assert_eq!(layer_pixel(handle, 0, 3, 3), Color::TRANSPARENT);
+        with_bus(handle, |bus| bus.undo().map_err(to_js)).expect("undo");
+        assert_eq!(layer_pixel(handle, 0, 3, 3), Color::rgba(0, 0, 255, 255));
+    }
+
+    #[test]
+    fn image_key_survives_reencoding_and_ignores_hidden_color() {
+        let mut img = ImageBuffer::new_transparent(2, 1);
+        img.set_pixel(0, 0, Color::rgba(10, 20, 30, 128));
+        let a = to_png_bytes(&img, 1).expect("png");
+        let b = to_png_bytes(&img, 9).expect("png");
+        assert_ne!(a, b);
+        assert_eq!(image_key(&a).ok(), image_key(&b).ok());
+        assert_eq!(
+            rgba_key(1, 1, &[200, 100, 50, 0]),
+            rgba_key(1, 1, &[0, 0, 0, 0])
+        );
     }
 }
 
