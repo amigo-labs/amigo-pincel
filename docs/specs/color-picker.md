@@ -3,7 +3,7 @@ status: todo
 created: 2026-10-28
 size: L
 mode: both
-design: [pincel.md §9.2, pincel.md §1.3]
+design: [pincel.md §9.2, pincel.md §1.3, pincel.md §15]
 ---
 
 # Own color picker: HSV, alpha, hex, recent colors
@@ -31,6 +31,7 @@ Pincel gets its own picker, the same in both modes and on every OS, opened in a 
 - Color harmonies, a color wheel and named swatches — because the goal is parity with the baseline pickers (HSV + alpha + hex + recent); these are extras beyond it.
 - Wide-gamut or HDR colors — because they are a Phase-1 non-goal (§1.3).
 - Changes to the Pixel palette panel — because the palette stays as it is; recent colors don't replace it.
+- Sampling with the picker open — because the popover stays modal; a non-modal popover over the canvas needs pointer routing and focus rules for little gain, and the picker shows the sampled color the next time it opens (AC-22).
 
 ## Acceptance criteria
 
@@ -51,10 +52,12 @@ Pincel gets its own picker, the same in both modes and on every OS, opened in a 
 - [ ] AC-15 (event): When the app is reloaded, then each mode's recent colors and its last foreground and background color, including alpha, are restored.
 - [ ] AC-16 (event): When the user paints in Pixel mode with foreground `#11223380` on a transparent layer and samples that pixel with the Eyedropper, then the foreground becomes `#11223380` (A field shows 128).
 - [ ] AC-17 (event): When the user paints in Image mode on a transparent layer with foreground alpha 128 and tool opacity 100 %, then the Eyedropper sampling that layer yields alpha 128; with tool opacity 50 % it yields alpha 64 (±1).
-- [ ] AC-18 (event): When the user presses Escape or clicks outside the popover, then the popover closes and the last committed color stays.
+- [ ] AC-18 (event): When the user presses Escape, the popover closes and uncommitted field text is discarded; when the user clicks outside, valid uncommitted field text is committed first, then the popover closes.
 - [ ] AC-19 (always): The swap and reset buttons next to the swatches keep working: swap exchanges foreground and background including their alpha; reset sets opaque black foreground and opaque white background.
 - [ ] AC-20 (always): The popover lies fully inside the window, also at a 360 px wide viewport and when the swatch sits near a window edge.
 - [ ] AC-21 (option): Where the UI language is German, the picker's labels (hue, saturation, value, alpha, recent colors, hex) are German.
+- [ ] AC-22 (event): When the Eyedropper changes the color while the picker is closed, then the next time the picker opens it shows the sampled color and alpha.
+- [ ] AC-23 (event): When the user commits a hex with 3 or 6 digits, then the alpha stays unchanged; when it has 8 digits, the alpha is set from the last pair.
 
 ## Technical notes
 
@@ -75,7 +78,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 **Image mode:**
 - `tool.foreground` / `tool.background` are `#rrggbb` with no alpha (`ui/src/modes/image/stores/editor.svelte.ts` ≈L194–196); opacity is the separate `tool.opacity` (1–100 %).
-- `colorWithOpacity(hex)` (`ui/src/modes/image/core/controller.ts` ≈L63) bakes opacity into the RGBA it sends — plan recommendation: effective alpha = color alpha × tool opacity, computed there.
+- `colorWithOpacity(hex)` (`ui/src/modes/image/core/controller.ts` ≈L63) bakes opacity into the RGBA it sends — decided (2026-10-29): painted alpha = round(color alpha × `tool.opacity` / 100), rounded to the nearest integer, computed there.
 - `sampleColor` (`controller.ts` ≈L798) drops alpha today (`rgbToHex(r, g, b)`) — must keep it for AC-17. Its `tool.eyedropperSample` decides layer vs. image sampling; AC-17's test must sample the painted transparent layer, not a composite over an opaque background.
 - `ColorsPanel.svelte` is at `ui/src/modes/image/components/panels/ColorsPanel.svelte`; it passes no alpha props. Image colors are not persisted today.
 
@@ -100,7 +103,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | Picker opened for the background color | Changes affect only the background; foreground unchanged |
 | Alpha 0 committed | Valid color; swatch shows the checkerboard |
 | Phone width (360 px) | Popover stays fully on screen (AC-20) |
-| Hex typed but popover closed without Enter | See Open questions |
+| Hex typed but popover closed without Enter | Escape discards the text; an outside click commits it if valid, drops it if invalid (AC-18, AC-06) |
 
 ## Assumptions
 
@@ -113,11 +116,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 ## Open questions
 
-- Decision Log entry not yet written: own CSS-only picker replacing `<input type="color">`, per-mode recent colors in IndexedDB, persisted alpha — confirm and add to `pincel.md` §15 together with the §9.2 Colors paragraph.
-- Image-mode alpha rule (plan recommendation, needs the Decision Log entry): is the painted alpha = color alpha × tool opacity, as AC-17 assumes, paint.net-style?
-- Does entering a 6- or 3-digit hex keep the current alpha or reset it to 255?
-- The plan wants the open picker to reflect the Eyedropper, but the popover's backdrop closes it on any outside click, so the Eyedropper can't be used while it is open. Should the backdrop leave the canvas usable (picker stays open while sampling), or is "shows the sampled color the next time it opens" enough?
-- When the popover closes (Escape / outside click) with hex or number-field text that was typed but not committed with Enter, is that text applied or discarded?
+<!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
 ## Evidence
 
@@ -144,6 +143,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
 | AC-21 |      | open   |        |
+| AC-22 |      | open   |        |
+| AC-23 |      | open   |        |
 
 ## Decisions
 
@@ -151,3 +152,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): Live preview while dragging, one commit at the end — recent colors and prefs would otherwise fill up with intermediate colors.
 - 2026-10-28 (legacy plan): Recent colors: last 12, most recent first, de-duplicated, per mode in IndexedDB — localStorage is forbidden (AGENTS.md §9) and the two modes use colors differently.
 - 2026-10-28 (legacy plan): Pixel mode keeps its palette panel — recent colors complement it, they don't replace it.
+- 2026-10-29: A Decision Log entry records the own CSS-only picker (HSV area, hue / alpha sliders, `#RRGGBB[AA]` hex, RGBA fields, 12 recent colors per mode in IndexedDB) replacing `<input type="color">` in both modes, with fg / bg alpha persisted per mode, and `pincel.md` §9.2 Colors gains one sentence — AGENTS.md §2.1 requires the entry before code, and one entry also covers the Image-mode alpha rule (owner accepted the recommendation).
+- 2026-10-29: In Image mode the painted alpha is the color's alpha × `tool.opacity` / 100, rounded to the nearest integer, in `colorWithOpacity` — it is paint.net's model, keeps the opacity slider meaningful, and AC-17 already encodes it (owner accepted the recommendation).
+- 2026-10-29: A 3- or 6-digit hex keeps the current alpha; only an 8-digit hex sets alpha (AC-23) — hex codes pasted from palettes are RGB-only, alpha has its own slider and field, and Figma behaves the same way (owner accepted the recommendation).
+- 2026-10-29: The popover stays modal and reads the current fg / bg each time it opens, so the Eyedropper's color shows on the next open (AC-22); sampling with the picker open is out of scope — a non-modal popover over the canvas needs pointer routing and focus rules for little gain (owner accepted the recommendation).
+- 2026-10-29: Fields commit on Enter and on blur (`change`); an outside click blurs and so commits valid text, invalid text is dropped as in AC-06, and Escape discards uncommitted text (AC-18) — this matches native input `change` semantics and keeps Escape's meaning of cancel (owner accepted the recommendation).
