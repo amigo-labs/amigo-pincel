@@ -214,6 +214,45 @@ mod tests {
     }
 
     #[test]
+    fn add_layer_below_top_inserts_transparent_layer_above_active_and_undoes() {
+        use crate::command::CommandBus;
+
+        // Three opaque layers; the middle one is active, not the top.
+        let mut doc = Document::new(4, 4).unwrap();
+        doc.add_layer("Middle").unwrap();
+        doc.add_layer("Top").unwrap();
+        for layer in &mut doc.layers {
+            layer.pixels.data_mut().fill(255);
+        }
+        doc.set_active_layer(1).unwrap();
+        let ids: Vec<_> = doc.layers.iter().map(|l| l.id).collect();
+
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(AddLayer::above(1))).unwrap();
+        let doc = &bus.document;
+        assert_eq!(doc.layers.len(), 4);
+        assert_eq!(doc.active_layer_index(), 2, "the new layer is active");
+        assert_eq!(
+            doc.layers[1].id, ids[1],
+            "the old active layer stays below it"
+        );
+        assert_eq!(doc.layers[3].id, ids[2], "the old top stays on top");
+        assert!(
+            doc.layers[2]
+                .pixels
+                .data()
+                .chunks_exact(4)
+                .all(|px| px[3] == 0),
+            "the new layer is fully transparent"
+        );
+
+        assert!(bus.undo().unwrap());
+        let doc = &bus.document;
+        assert_eq!(doc.layers.iter().map(|l| l.id).collect::<Vec<_>>(), ids);
+        assert_eq!(doc.active_layer_index(), 1);
+    }
+
+    #[test]
     fn remove_layer_round_trip_preserves_layer_identity() {
         let mut doc = Document::new(8, 8).unwrap();
         doc.add_layer("Layer 2").unwrap();
