@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, pixelCanvas } from './helpers';
+import { createDocument, drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
 
 // Autosave and recovery (spec §10, M10.3), the same in both modes: an
 // edit is snapshotted after 30 s, a reload offers it in the Recovery
@@ -59,6 +59,7 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   const newDialog = page.getByRole('dialog', { name: 'New document' });
   await newDialog.getByRole('button', { name: 'Create' }).click();
   await expect(newDialog).toBeHidden();
+  await waitForEditor(page, 'pixel');
   const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
   // The probe is async; give it time to (not) open the dialog.
   await page.waitForTimeout(500);
@@ -89,6 +90,7 @@ test('"Not now" keeps the dialog away for the rest of the page load', async ({ p
   const newDialog = page.getByRole('dialog', { name: 'New document' });
   await newDialog.getByRole('button', { name: 'Create' }).click();
   await expect(newDialog).toBeHidden();
+  await waitForEditor(page, 'pixel');
   await page.waitForTimeout(500);
   await expect(recovery).toHaveCount(0);
 });
