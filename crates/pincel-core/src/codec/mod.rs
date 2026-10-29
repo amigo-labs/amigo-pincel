@@ -20,7 +20,10 @@ mod png;
 mod scale;
 mod sheet_data;
 
-pub use animation::{AnimationFormat, AnimationOptions, animation_frames, export_animation};
+pub use animation::{
+    AnimationFormat, AnimationInfo, AnimationOptions, animation_frames, animation_info,
+    export_animation,
+};
 pub use aseprite_read::{AsepriteReadOutput, read_aseprite};
 pub use aseprite_write::write_aseprite;
 pub use error::CodecError;

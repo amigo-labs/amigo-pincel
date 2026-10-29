@@ -94,6 +94,10 @@ pub enum ExportError {
         /// Scaled output height in pixels.
         height: u64,
     },
+
+    /// The `gif` encoder failed while writing.
+    #[error("gif encode failed: {0}")]
+    GifEncode(String),
 }
 
 /// Knobs for [`export_atlas_png`].

@@ -116,12 +116,12 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | AC-09 | `export_animation_apng_play_count_follows_loops` (crates/pincel-core/src/codec/animation/apng.rs) | built |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `export_animation_gif_alpha_threshold_is_128` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
+| AC-13 | `export_animation_gif_fitting_frames_keep_exact_rgb`, `fits_table_counts_the_transparent_entry` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-16 | `delay_cs_rounds_to_hundredths_with_minimum_two`, `export_animation_gif_frame_delays_follow_durations` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
+| AC-17 | `export_animation_gif_pixel_turning_transparent_shows_transparent`, `export_animation_gif_frames_follow_sequence_and_scale` (crates/pincel-core/src/codec/animation/gif.rs) | built |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 
@@ -137,3 +137,6 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: A GIF loop count N means N plays in total: NETSCAPE2.0 loop count N − 1, no NETSCAPE block for N = 1, 0 for forever — one meaning across APNG, GIF and the tag's `repeats`, avoiding browser differences around the repeat field (owner accepted the recommendation).
 - 2026-10-29: The 16384 px per-edge cap of `scaled-export` applies with the same error (AC-19); there is no frames × size cap, frames are streamed one at a time instead — one limit shared with `scaled-export`, and streaming bounds memory without a second, arbitrary limit (owner accepted the recommendation).
 - 2026-10-29: Per-layer export stays out of scope — it writes one file per layer, which the single-download export flow and dialog don't handle; it belongs with a future split-layers option shared with sprite-sheet export (owner accepted the recommendation).
+- 2026-10-29 (spec-build): GIF frames that overflow the 256-entry table are reduced by a small in-house median cut (`codec/animation/quantize.rs`) instead of `gif`'s NeuQuant `Frame::from_rgba_speed` — that function needs `gif`'s `color_quant` feature, beyond the approved `default-features = false` plus `std`, and it treats every non-zero alpha as opaque, contradicting the 128 threshold.
+- 2026-10-29 (spec-build): New public `pincel-core` API: `AnimationFormat`, `AnimationOptions`, `AnimationInfo`, `animation_frames`, `animation_info`, `export_animation` and the `ExportError` variants `InvalidScale`, `ScaledTooLarge`, `GifEncode`. `animation_info` gives the dialog its frame count, default loop count and the two GIF notices without encoding — the dialog cannot know the colour count otherwise.
+- 2026-10-29 (spec-build): The shared upscale lives in `codec/scale.rs` (`scaled_size`, `upscale_nearest`, crate-private) for `scaled-export` to reuse; a plain block copy rather than `Raster::resample`, which lives in the command layer.
