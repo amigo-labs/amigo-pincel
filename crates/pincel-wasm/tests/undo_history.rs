@@ -53,6 +53,32 @@ fn frame_layer_and_onion_skin_changes_add_no_history_entry() {
 }
 
 #[test]
+fn selection_changes_add_no_history_entry() {
+    let mut doc = Document::new(8, 8).expect("dims");
+    stroke(&mut doc, 0, 0);
+    stroke(&mut doc, 1, 0);
+    assert!(doc.undo());
+    assert_eq!((doc.undo_depth(), doc.redo_depth()), (1, 1));
+
+    doc.set_selection(1, 1, 4, 4);
+    doc.select_rect(2, 2, 3, 3, "replace").expect("replace");
+    doc.clear_selection();
+
+    assert_eq!(doc.undo_depth(), 1, "no entry added");
+    assert_eq!(doc.redo_depth(), 1, "redo history untouched");
+}
+
+#[test]
+fn gpl_import_is_one_undoable_entry() {
+    let mut doc = Document::new(4, 4).expect("dims");
+    let gpl = "GIMP Palette\nName: Two\n#\n255 0 0 red\n0 255 0 green\n";
+    assert_eq!(doc.import_gpl(gpl).expect("import"), 2);
+    assert_eq!(doc.undo_depth(), 1);
+    assert!(doc.undo());
+    assert_eq!(doc.palette_count(), 32, "DB32 restored");
+}
+
+#[test]
 fn failed_edits_add_no_entry_and_keep_redo_history() {
     let mut doc = Document::new(4, 4).expect("dims");
     stroke(&mut doc, 0, 0);
