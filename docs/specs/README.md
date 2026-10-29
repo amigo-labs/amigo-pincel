@@ -5,7 +5,7 @@ Two kinds of spec live here (`.claude/rules/specs.md`):
 - **Design specs** — architecture, data model and the Decision Log: [`pincel.md`](pincel.md) (§15 Decision Log, §18 competitive landscape), [`canvas.md`](canvas.md), [`cli.md`](cli.md), [`lessons.md`](lessons.md), [`mcp.md`](mcp.md), [`website-spec.md`](website-spec.md).
 - **Feature specs** — one feature each, with acceptance criteria and an Evidence table: written with `/spec`, built with `/spec-build`, accepted with `/spec-check` (the only step that sets `status: implemented`).
 
-Every feature spec below is `status: todo`. A spec with open questions goes back to `/spec <name>` first; `spec-build` refuses it until they are settled. None has had the stranger-reader clarification pass of `/spec` step 4 yet; it runs when the spec is next revised.
+Feature specs are `status: todo` until `/spec-check` accepts them (see "Done"). A spec with open questions goes back to `/spec <name>` first; `spec-build` refuses it until they are settled. None has had the stranger-reader clarification pass of `/spec` step 4 yet; it runs when the spec is next revised.
 
 ## Existing behavior — awaiting acceptance
 
@@ -13,10 +13,10 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-compose](pixel-compose.md), [pixel-drawing-tools](pixel-drawing-tools.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-drawing-tools](pixel-drawing-tools.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
 | Image mode | [image-editing](image-editing.md), [image-files](image-files.md) |
 | Both modes | [effects-adjustments](effects-adjustments.md), [pen-input](pen-input.md), [i18n](i18n.md) |
-| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md), [wasm-npm-api](wasm-npm-api.md) |
+| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -68,7 +68,9 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 ## Done
 
+- [pixel-compose](pixel-compose.md)
 - [pixel-undo-history](pixel-undo-history.md)
+- [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs
 
