@@ -49,9 +49,15 @@ fn paint_save_open_roundtrip_preserves_pixels() {
     assert_eq!(pixel_at(&pixels, W, 0, 0), [255, 0, 0, 255]);
     assert_eq!(pixel_at(&pixels, W, 3, 4), [0, 255, 0, 255]);
     assert_eq!(pixel_at(&pixels, W, 7, 7), [0, 0, 255, 255]);
-    // Spot-check a few unpainted pixels stay fully transparent.
-    assert_eq!(pixel_at(&pixels, W, 1, 0), [0, 0, 0, 0]);
-    assert_eq!(pixel_at(&pixels, W, 0, 7), [0, 0, 0, 0]);
+    // Every unpainted pixel stays fully transparent.
+    let painted = [(0, 0), (3, 4), (7, 7)];
+    for y in 0..H {
+        for x in 0..W {
+            if !painted.contains(&(x, y)) {
+                assert_eq!(pixel_at(&pixels, W, x, y), [0, 0, 0, 0], "({x}, {y})");
+            }
+        }
+    }
 }
 
 #[test]
