@@ -288,6 +288,70 @@ mod tests {
             .expect("draw")
         );
         assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(opaque(&doc), 0, "no pixel changed");
+    }
+
+    #[test]
+    fn draw_text_applies_colour_size_bold_italic_anti_alias_and_alignment() {
+        let font = register_font(FONT);
+        let draw = |size: f32, bold: bool, italic: bool, aa: bool, align: &str| {
+            let mut doc = Document::new(128, 48).expect("dims");
+            assert!(
+                doc.draw_text(font, "Hi", 64, 4, size, 0x3366CCFF, bold, italic, aa, align)
+                    .expect("draw")
+            );
+            assert_eq!(doc.undo_depth(), 1, "one undo entry");
+            doc.compose(0, 1).expect("compose").pixels()
+        };
+        let painted = |px: &[u8]| -> Vec<(u32, u32)> {
+            px.as_chunks::<4>()
+                .0
+                .iter()
+                .enumerate()
+                .filter(|(_, p)| p[3] > 0)
+                .map(|(i, _)| (i as u32 % 128, i as u32 / 128))
+                .collect()
+        };
+        let span = |px: &[u8]| {
+            let xs: Vec<u32> = painted(px).iter().map(|p| p.0).collect();
+            (
+                *xs.iter().min().expect("ink"),
+                *xs.iter().max().expect("ink"),
+            )
+        };
+        let height = |px: &[u8]| {
+            let ys: Vec<u32> = painted(px).iter().map(|p| p.1).collect();
+            ys.iter().max().expect("ink") - ys.iter().min().expect("ink") + 1
+        };
+
+        let base = draw(16.0, false, false, false, "left");
+        // Colour: aliased text is binary, every inked pixel is the colour.
+        for p in base.as_chunks::<4>().0.iter().filter(|p| p[3] > 0) {
+            assert_eq!(*p, [0x33, 0x66, 0xCC, 0xFF]);
+        }
+        // Size: a larger size inks a taller run of rows.
+        assert!(height(&draw(32.0, false, false, false, "left")) > height(&base) * 3 / 2);
+        // Bold inks more pixels, italic moves them.
+        let bold = draw(16.0, true, false, false, "left");
+        assert!(
+            painted(&bold).len() > painted(&base).len(),
+            "bold is heavier"
+        );
+        assert_ne!(
+            draw(16.0, false, true, false, "left"),
+            base,
+            "italic differs"
+        );
+        // Anti-alias: partial alpha only when it is on.
+        let aa = draw(16.0, false, false, true, "left");
+        assert!(aa.as_chunks::<4>().0.iter().any(|p| p[3] > 0 && p[3] < 255));
+        // Alignment around the anchor x = 64.
+        let (l0, _) = span(&base);
+        assert!(l0 >= 64, "left starts at the anchor");
+        let (_, r1) = span(&draw(16.0, false, false, false, "right"));
+        assert!(r1 <= 64, "right ends at the anchor");
+        let (c0, c1) = span(&draw(16.0, false, false, false, "center"));
+        assert!(c0 < 64 && c1 > 64, "center straddles the anchor");
     }
 
     #[test]
