@@ -23,6 +23,7 @@ mod move_layer;
 mod move_layer_to;
 mod move_selection_content;
 mod palette_ops;
+mod pencil_stroke;
 mod place_tile;
 mod reframe_canvas;
 mod remove_frame;
@@ -70,6 +71,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
 };
+pub use pencil_stroke::{BrushShape, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, PencilStroke, PixelBrush};
 pub use place_tile::PlaceTile;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
 pub use remove_frame::RemoveFrame;
@@ -137,6 +139,7 @@ pub trait Command {
 #[derive(Debug)]
 pub enum AnyCommand {
     SetPixel(SetPixel),
+    PencilStroke(PencilStroke),
     DrawLine(DrawLine),
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
@@ -194,6 +197,7 @@ impl AnyCommand {
     ) -> Result<(), CommandError> {
         match self {
             Self::SetPixel(c) => c.apply(doc, cels),
+            Self::PencilStroke(c) => c.apply(doc, cels),
             Self::DrawLine(c) => c.apply(doc, cels),
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
@@ -247,6 +251,7 @@ impl AnyCommand {
     pub(crate) fn revert(&mut self, doc: &mut Sprite, cels: &mut CelMap) {
         match self {
             Self::SetPixel(c) => c.revert(doc, cels),
+            Self::PencilStroke(c) => c.revert(doc, cels),
             Self::DrawLine(c) => c.revert(doc, cels),
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
@@ -329,6 +334,7 @@ impl AnyCommand {
     pub fn dirty_region(&self) -> DirtyRegion {
         match self {
             Self::SetPixel(c) => c.dirty_region(),
+            Self::PencilStroke(c) => c.dirty_region(),
             Self::DrawLine(c) => c.dirty_region(),
             Self::DrawRectangle(c) => c.dirty_region(),
             Self::DrawEllipse(c) => c.dirty_region(),
@@ -449,6 +455,12 @@ impl From<MovePaletteEntry> for AnyCommand {
 impl From<SetPixel> for AnyCommand {
     fn from(c: SetPixel) -> Self {
         Self::SetPixel(c)
+    }
+}
+
+impl From<PencilStroke> for AnyCommand {
+    fn from(c: PencilStroke) -> Self {
+        Self::PencilStroke(c)
     }
 }
 
