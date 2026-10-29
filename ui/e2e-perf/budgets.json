@@ -1,0 +1,90 @@
+{
+  "$comment": "Performance budgets (docs/specs/pincel.md §4.5, docs/specs/performance-benchmarks.md). Every value is lower-is-better; `max` is in `unit`. Frame-rate budgets (60 fps) check the p95 frame time against 16.7 ms, latency budgets the p95 latency. Checked in budget mode only (reference machine).",
+  "tolerance": 0.1,
+  "budgets": [
+    {
+      "metric": "browser/image-brush-4k/dab-latency-p95",
+      "scenario": "Brush dab -> pixels on screen, Image 3840x2160, 10 layers",
+      "max": 16,
+      "unit": "ms",
+      "owner": "performance-image-cache"
+    },
+    {
+      "metric": "browser/image-pan-zoom-4k/frame-p95",
+      "scenario": "Pan / zoom, Image 4K 10 layers (60 fps)",
+      "max": 16.7,
+      "unit": "ms",
+      "owner": "performance-image-cache"
+    },
+    {
+      "metric": "browser/image-recompose-4k/recompose-p50",
+      "scenario": "Full recompose, Image 4K 10 layers (wasm)",
+      "max": 100,
+      "unit": "ms",
+      "owner": "performance-image-kernel"
+    },
+    {
+      "metric": "browser/pixel-pencil-256-z32/frame-p95",
+      "scenario": "Pixel: pencil drag on 256x256 at zoom 32 (60 fps)",
+      "max": 16.7,
+      "unit": "ms",
+      "owner": "performance-input-path"
+    },
+    {
+      "metric": "browser/pixel-pencil-256-z32/dab-latency-p95",
+      "scenario": "Pixel: pencil drag on 256x256 at zoom 32, dab latency",
+      "max": 8,
+      "unit": "ms",
+      "owner": "performance-input-path"
+    },
+    {
+      "metric": "browser/image-open-4k-png/first-paint",
+      "scenario": "Open a 4K PNG, time to first paint",
+      "max": 1000,
+      "unit": "ms",
+      "owner": "performance-image-open"
+    },
+    {
+      "metric": "browser/image-gaussian-4k/proxy",
+      "scenario": "Effect preview (Gaussian r = 10) on 4K, proxy",
+      "max": 100,
+      "unit": "ms",
+      "owner": "performance-background-jobs"
+    },
+    {
+      "metric": "browser/image-gaussian-4k/full",
+      "scenario": "Effect (Gaussian r = 10) on 4K, full result",
+      "max": 500,
+      "unit": "ms",
+      "owner": "performance-background-jobs"
+    },
+    {
+      "metric": "browser/image-autosave-export-4k/frame-max",
+      "scenario": "Autosave and export of a 4K multi-layer doc, longest frame",
+      "max": 50,
+      "unit": "ms",
+      "owner": "performance-background-jobs"
+    },
+    {
+      "metric": "browser/cold-start/cold",
+      "scenario": "Cold start (no cache, Slow 4G) -> start screen interactive",
+      "max": 1500,
+      "unit": "ms",
+      "owner": "performance-build-simd"
+    },
+    {
+      "metric": "browser/cold-start/warm",
+      "scenario": "Warm start -> start screen interactive",
+      "max": 500,
+      "unit": "ms",
+      "owner": "performance-build-simd"
+    },
+    {
+      "metric": "browser/image-memory-4k/wasm-memory-mb",
+      "scenario": "Memory, 4K x 10 layers with 50 undo steps (WebAssembly.Memory)",
+      "max": 1024,
+      "unit": "MB",
+      "owner": "performance-image-undo-memory"
+    }
+  ]
+}

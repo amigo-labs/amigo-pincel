@@ -100,11 +100,11 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `image_compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `image_region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `image_stroke/brush_100_dabs_4k_10layers`, `image_effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
 | AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
 | AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes) | built |        |
 
 ## Decisions
 
@@ -119,3 +119,6 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29 (spec-build): `pincel-image-core` gains `criterion` and `pincel-effects` as dev-dependencies — both are workspace crates already in `Cargo.lock`, and AC-01 needs the Gaussian blur inside this crate's bench.
 - 2026-10-29 (spec-build): The 100-dab stroke bench applies 100 single-point Pencil strokes (one dab each, size 20, one per pointer event as the UI sends them) through `Command::apply` without an undo stack — exactly 100 dabs, and the measured cost is rasterize + apply, not history growth.
 - 2026-10-29 (spec-build): The region benches render into a 1920×1080 viewport: at zoom 1 a centered 1920×1080 rect, at fit zoom the whole 3840×2160 canvas scaled bilinearly to 1920×1080, as `composite_region` does — a full-HD window is the common desktop case.
+- 2026-10-29 (spec-build): The budget check is `ui/e2e-perf/check-budgets.ts`, run directly by Node's type stripping (`pnpm perf:check`, Node ≥ 22.18) — no new dependency, and it stays under the UI's strict TypeScript and lint. Its unit tests are `ui/e2e/perf-budget-check.spec.ts`: pure Node, no browser, so they join the PR e2e run; AC-05 only keeps the benchmarks and the browser script out.
+- 2026-10-29 (spec-build): Frame-rate budgets ("60 fps") check the p95 frame time against 16.7 ms and latency budgets the p95 latency — p95 is what a user feels as stutter, and the p50 is reported alongside.
+- 2026-10-29 (spec-build): Budget mode keeps "first met" dates in `ui/e2e-perf/budgets-met.json`; `--write` updates it and the reference-machine run commits it. Baseline mode keeps the runner's last values in a file the workflow caches per runner; a run with a regression never overwrites it, so the regression keeps failing until fixed.
