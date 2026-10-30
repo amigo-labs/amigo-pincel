@@ -396,14 +396,17 @@ test('Save of a GIF opens Save As with a notice that GIF is not written back', a
   await expect(page.getByTitle('anim.png', { exact: true })).toBeVisible();
 });
 
-test('a flattening Save keeps an autosave snapshot that recovers every layer', async ({ page }) => {
-  await openLayered(page);
+/** Saves the open layered document flattened through the prompt. */
+async function saveFlattened(page: Page): Promise<{ name: string; bytes: Uint8Array }> {
   await menu(page, 'File', 'Save');
-  await download(page, () => flattenPrompt(page).getByRole('button', { name: 'Flatten' }).click());
-  await expect(page.getByTitle('screenshot.png', { exact: true })).toBeVisible();
+  return download(page, () => flattenPrompt(page).getByRole('button', { name: 'Flatten' }).click());
+}
+
+/** Reloads the page, creates a new image and recovers the snapshot the
+ *  earlier page load left. */
+async function recoverAfterReload(page: Page): Promise<void> {
   // Let the IndexedDB write settle before leaving the page.
   await page.waitForTimeout(500);
-
   await page.reload();
   await gotoStart(page);
   await page.getByRole('button', { name: 'New image' }).click();
@@ -413,6 +416,29 @@ test('a flattening Save keeps an autosave snapshot that recovers every layer', a
   await expect(recovery).toBeVisible();
   await recovery.getByRole('button', { name: 'Recover' }).first().click();
   await expect(recovery).toHaveCount(0);
+}
+
+test('a flattening Save keeps an autosave snapshot that recovers every layer', async ({ page }) => {
+  await openLayered(page);
+  await saveFlattened(page);
+  await expect(page.getByTitle('screenshot.png', { exact: true })).toBeVisible();
+
+  await recoverAfterReload(page);
   await expect(layerRows(page)).toHaveCount(2);
   await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
+});
+
+test('a recovered document keeps saving in its detected format, not its extension', async ({
+  page,
+}) => {
+  // PNG bytes under a `.jpg` name: the content decides, Save writes PNG.
+  await openFile(page, 'photo.jpg', 'png');
+  await paint(page);
+  await page.getByTitle('Add layer').click();
+  expect(formatOf((await saveFlattened(page)).bytes)).toBe('png');
+
+  await recoverAfterReload(page);
+  const again = await saveFlattened(page);
+  expect(again.name).toBe('photo.jpg');
+  expect(formatOf(again.bytes)).toBe('png');
 });

@@ -48,7 +48,7 @@
     featherSelection,
     type ExportFormat,
   } from './core/controller';
-  import { docFormat, fileName } from './core/document-file';
+  import { docFormat, fileFormat, fileName, parseDocFormat } from './core/document-file';
   import { saveDocument } from './core/save-flow';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
@@ -426,14 +426,16 @@
     savedDepth: () => editor.savedUndoDepth,
     busy: () => saving,
     name: () => fileName(),
+    format: () => fileFormat(),
     encode: () => projectBytes(true),
     open: async (bytes, meta) => {
-      // The snapshot is OpenRaster; Save keeps writing the format the
-      // snapshot's file name says (a recovered PNG saves back as PNG).
+      // The snapshot is OpenRaster; Save keeps writing the format stored
+      // with it (a recovered PNG saves back as PNG). Older snapshots carry
+      // none: the file name's extension stands in.
       await openBytes(bytes, meta.name, 'image/openraster', {
         handle: null,
         path: null,
-        format: docFormat(formatFromName(meta.name)) ?? 'ora',
+        format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
       });
       markUnsaved();
     },

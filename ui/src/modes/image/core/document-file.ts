@@ -90,6 +90,20 @@ export function fileStem(): string {
   return file.name.replace(/\.[^.]+$/, '') || DEFAULT_STEM;
 }
 
+/** The document's own format, as detected at open (autosave stores it
+ *  so a recovered document keeps saving back to it). */
+export function fileFormat(): DocFormat | null {
+  return file.format;
+}
+
+const DOC_FORMATS: readonly DocFormat[] = ['ora', 'png', 'jpeg', 'webp', 'bmp', 'tiff', 'gif'];
+
+/** Narrows a stored format string back to a `DocFormat`; `null` when it
+ *  is missing or unknown. */
+export function parseDocFormat(value: string | undefined): DocFormat | null {
+  return DOC_FORMATS.find((f) => f === value) ?? null;
+}
+
 /** The format Save writes back to; `null` when it has no encoder. */
 export function saveFormat(): DocSaveFormat | null {
   return isWritable(file.format) ? file.format : null;

@@ -42,6 +42,9 @@ export interface AutosaveHost {
   busy(): boolean;
   /** Display name stored with the snapshot. */
   name(): string;
+  /** File format stored with the snapshot, for editors that track one
+   *  apart from the name (`AutosaveSnapshotMeta.format`). */
+  format?(): string | null;
   /** The document's project bytes (`.aseprite` / OpenRaster). */
   encode(): Uint8Array | null;
   /** Replace the open document with recovered bytes and mark it unsaved. */
@@ -113,7 +116,8 @@ export class AutosaveSession {
     try {
       const bytes = this.host.encode();
       if (bytes === null) return;
-      await writeSnapshot(id, this.host.name(), bytes, this.host.mode);
+      const format = this.host.format?.() ?? undefined;
+      await writeSnapshot(id, this.host.name(), bytes, this.host.mode, format);
       // A New / Open may have swapped the document during the await; its
       // own baseline must not be clobbered with this stale depth.
       if (this.docId === id) this.lastWriteDepth = depth;
