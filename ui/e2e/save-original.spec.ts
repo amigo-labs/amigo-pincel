@@ -300,6 +300,13 @@ test('a single layer whose opacity would be lost asks to flatten', async ({ page
   await expect(flattenPrompt(page)).toBeVisible();
 });
 
+test('a single hidden layer asks to flatten', async ({ page }) => {
+  await openFile(page, 'screenshot.png', 'png');
+  await layerRows(page).click();
+  await menu(page, 'File', 'Save');
+  await expect(flattenPrompt(page)).toBeVisible();
+});
+
 test('Save as .ora… in the flatten prompt saves the layers as OpenRaster', async ({ page }) => {
   await openLayered(page);
   await menu(page, 'File', 'Save');

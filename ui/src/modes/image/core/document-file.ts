@@ -118,11 +118,12 @@ export function flattenWithoutAsking(): void {
 }
 
 /** `true` when a flat image would lose something the document has: more
- *  than one layer, or a layer's opacity or blend mode. */
+ *  than one layer, a hidden layer (left out of the composite), or a
+ *  layer's opacity or blend mode. */
 export function flatteningLoses(): boolean {
   return (
     editor.layers.length > 1 ||
-    editor.layers.some((l) => l.opacity < 1 || l.blend_mode !== 'normal')
+    editor.layers.some((l) => !l.visible || l.opacity < 1 || l.blend_mode !== 'normal')
   );
 }
 
