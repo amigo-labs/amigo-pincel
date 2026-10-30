@@ -17,6 +17,7 @@ import {
   drawGradient,
   moveSelectionContent,
   moveSelectionMask,
+  deselect,
 } from '../core/controller';
 import {
   editor,
@@ -101,9 +102,50 @@ const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_sele
 
 /**
  * Cancels the in-flight gesture without committing (Escape). Wired up by
- * `attachTools`; a no-op while no canvas is mounted.
+ * `attachTools`; a no-op while no canvas is mounted. Answers whether a
+ * gesture was in progress, so Escape deselects only when none was.
  */
-export const gestureControl = { cancel: (): void => {} };
+export const gestureControl = { cancel: (): boolean => false };
+
+/** Tools that may start on the stage beside the canvas (image-editing AC-29, AC-32). */
+const STAGE_TOOLS: ReadonlySet<ToolKind> = new Set([
+  'rect_select',
+  'ellipse_select',
+  'lasso',
+  'polygon_lasso',
+  'magic_wand',
+]);
+
+function onCanvas(p: [number, number]): boolean {
+  return p[0] >= 0 && p[1] >= 0 && p[0] < editor.width && p[1] < editor.height;
+}
+
+/** The bounding box of `points` misses the canvas entirely. */
+function offCanvas(points: ReadonlyArray<[number, number]>): boolean {
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  return (
+    Math.max(...xs) <= 0 ||
+    Math.max(...ys) <= 0 ||
+    Math.min(...xs) >= editor.width ||
+    Math.min(...ys) >= editor.height
+  );
+}
+
+/**
+ * A selection gesture that selects no canvas pixel (a click, or a shape off
+ * the canvas): Deselect in replace mode, nothing otherwise (AC-30) —
+ * combining an empty shape would empty the selection under intersect.
+ */
+function missedCanvas(mode: SelectionMode): void {
+  if (mode === 'replace' && editor.hasSelection) deselect();
+}
+
+/** A press on a control floating over the stage (zoom buttons, text entry). */
+function onControl(e: PointerEvent): boolean {
+  const el = e.target;
+  return el instanceof Element && el.closest('button, input, select, textarea, a') !== null;
+}
 
 /**
  * Normalizes two corners into a positive-size rect, each corner snapped to
@@ -160,6 +202,9 @@ function constrainShape(
 
 /**
  * Attaches the active tool's pointer behavior to a canvas. Returns a teardown.
+ * `canvas` covers the document and maps pointer coordinates; `stage`, the
+ * viewport around it, takes the events, so a selection gesture can start
+ * beside the canvas (spec §9.4).
  *
  * Paint tools draw incrementally over a drag (one undo step per drag). Fill and
  * Eyedropper act on click. Selection tools drag a rubber band (rect/ellipse),
@@ -169,6 +214,7 @@ function constrainShape(
  */
 export function attachTools(
   canvas: HTMLElement,
+  stage: HTMLElement,
   redraw: () => void,
   onPlaceText?: (cx: number, cy: number, e: PointerEvent) => void,
 ): () => void {
@@ -199,14 +245,15 @@ export function attachTools(
   /** Commits the placed polygon if it has enough vertices, then resets. */
   const commitPolygon = (): void => {
     if (polygonPoints.length >= 3) {
-      selectPolygon(polygonPoints, polygonMode);
+      if (offCanvas(polygonPoints)) missedCanvas(polygonMode);
+      else selectPolygon(polygonPoints, polygonMode);
     }
     polygonPoints = [];
     selectionPreview.value = null;
   };
 
   const onDown = (e: PointerEvent): void => {
-    if (e.button !== 0 && e.button !== 2) {
+    if ((e.button !== 0 && e.button !== 2) || onControl(e)) {
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
@@ -231,6 +278,11 @@ export function attachTools(
     }
 
     const point = toCanvasPoint(canvas, e);
+    const inside = onCanvas(point);
+    // Beside the canvas only the selection gestures start (AC-32).
+    if (!inside && !STAGE_TOOLS.has(tool.kind)) {
+      return;
+    }
 
     // Pixel-writing tools refuse a locked layer (spec §3.2); say why.
     if (WRITES_PIXELS.has(tool.kind)) {
@@ -243,7 +295,8 @@ export function attachTools(
     editor.notice = null;
 
     if (tool.kind === 'magic_wand') {
-      selectWand(point[0], point[1], selectionModeOf(e));
+      if (inside) selectWand(point[0], point[1], selectionModeOf(e));
+      else missedCanvas(selectionModeOf(e));
       return;
     }
 
@@ -261,7 +314,7 @@ export function attachTools(
       gestureKind = tool.kind;
       start = point;
       last = point;
-      canvas.setPointerCapture(e.pointerId);
+      stage.setPointerCapture(e.pointerId);
       shapePreview.value = {
         kind: shape,
         a: point,
@@ -297,7 +350,7 @@ export function attachTools(
       start = point;
       last = point;
       selMode = selectionModeOf(e);
-      canvas.setPointerCapture(e.pointerId);
+      stage.setPointerCapture(e.pointerId);
       if (tool.kind === 'lasso') {
         lassoPath = [point];
         selectionPreview.value = { shape: 'lasso', points: lassoPath };
@@ -317,7 +370,7 @@ export function attachTools(
     lastAzimuth = azimuthOf(e);
     start = point;
     strokeId = nextStrokeId++;
-    canvas.setPointerCapture(e.pointerId);
+    stage.setPointerCapture(e.pointerId);
 
     switch (tool.kind) {
       case 'pencil':
@@ -433,18 +486,27 @@ export function attachTools(
     }
     if (DRAG_SELECT.has(gestureKind) && start && last) {
       if (gestureKind === 'lasso') {
-        if (lassoPath.length >= 3) {
+        if (lassoPath.length >= 3 && !offCanvas(lassoPath)) {
           selectPolygon(lassoPath, selMode);
+        } else {
+          missedCanvas(selMode);
         }
         lassoPath = [];
       } else {
         const r = rectFromCorners(start, last);
-        if (r.w > 0 && r.h > 0) {
-          if (gestureKind === 'ellipse_select') {
-            selectEllipse(r.x, r.y, r.w, r.h, selMode);
-          } else {
-            selectRectangle(r.x, r.y, r.w, r.h, selMode);
-          }
+        const missed =
+          r.w === 0 ||
+          r.h === 0 ||
+          offCanvas([
+            [r.x, r.y],
+            [r.x + r.w, r.y + r.h],
+          ]);
+        if (missed) {
+          missedCanvas(selMode);
+        } else if (gestureKind === 'ellipse_select') {
+          selectEllipse(r.x, r.y, r.w, r.h, selMode);
+        } else {
+          selectRectangle(r.x, r.y, r.w, r.h, selMode);
         }
       }
       selectionPreview.value = null;
@@ -474,8 +536,8 @@ export function attachTools(
     activePointer = null;
     last = null;
     start = null;
-    if (canvas.hasPointerCapture(e.pointerId)) {
-      canvas.releasePointerCapture(e.pointerId);
+    if (stage.hasPointerCapture(e.pointerId)) {
+      stage.releasePointerCapture(e.pointerId);
     }
   };
 
@@ -485,9 +547,10 @@ export function attachTools(
    * placed polygon vertices dropped. Pencil/Eraser paint incrementally, so
    * pixels already applied stay — as a single undoable stroke (stroke_id).
    */
-  const abort = (): void => {
-    if (activePointer !== null && canvas.hasPointerCapture(activePointer)) {
-      canvas.releasePointerCapture(activePointer);
+  const abort = (): boolean => {
+    const inProgress = active || polygonPoints.length > 0;
+    if (activePointer !== null && stage.hasPointerCapture(activePointer)) {
+      stage.releasePointerCapture(activePointer);
     }
     active = false;
     activePointer = null;
@@ -497,6 +560,7 @@ export function attachTools(
     polygonPoints = [];
     selectionPreview.value = null;
     shapePreview.value = null;
+    return inProgress;
   };
 
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
@@ -505,7 +569,7 @@ export function attachTools(
     if (active && e.pointerId !== activePointer) {
       return;
     }
-    abort();
+    void abort();
   };
 
   // Double-click closes a polygonal-lasso selection.
@@ -518,21 +582,21 @@ export function attachTools(
   // Suppress the context menu so right-button paint/sample works.
   const onContextMenu = (e: Event): void => e.preventDefault();
 
-  canvas.addEventListener('pointerdown', onDown);
-  canvas.addEventListener('pointermove', onMove);
-  canvas.addEventListener('pointerup', onUp);
-  canvas.addEventListener('pointercancel', onCancel);
-  canvas.addEventListener('dblclick', onDblClick);
-  canvas.addEventListener('contextmenu', onContextMenu);
+  stage.addEventListener('pointerdown', onDown);
+  stage.addEventListener('pointermove', onMove);
+  stage.addEventListener('pointerup', onUp);
+  stage.addEventListener('pointercancel', onCancel);
+  stage.addEventListener('dblclick', onDblClick);
+  stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
 
   return () => {
-    gestureControl.cancel = () => {};
-    canvas.removeEventListener('pointerdown', onDown);
-    canvas.removeEventListener('pointermove', onMove);
-    canvas.removeEventListener('pointerup', onUp);
-    canvas.removeEventListener('pointercancel', onCancel);
-    canvas.removeEventListener('dblclick', onDblClick);
-    canvas.removeEventListener('contextmenu', onContextMenu);
+    gestureControl.cancel = () => false;
+    stage.removeEventListener('pointerdown', onDown);
+    stage.removeEventListener('pointermove', onMove);
+    stage.removeEventListener('pointerup', onUp);
+    stage.removeEventListener('pointercancel', onCancel);
+    stage.removeEventListener('dblclick', onDblClick);
+    stage.removeEventListener('contextmenu', onContextMenu);
   };
 }
