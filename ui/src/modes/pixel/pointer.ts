@@ -78,6 +78,61 @@ export function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
   return { x, y };
 }
 
+// The pointer handlers sit on the stage around the canvas (spec §9.4).
+// Presses on its other children — the TileEditor overlay — are theirs.
+function fromStage(e: PointerEvent): boolean {
+  const target = e.target;
+  return (
+    target === e.currentTarget ||
+    target === view.canvas ||
+    (view.canvas !== null && target === view.canvas.parentElement)
+  );
+}
+
+function onCanvas(point: { x: number; y: number } | null): boolean {
+  return point !== null && point.x >= 0 && point.y >= 0 && point.x < ed.canvasW && point.y < ed.canvasH;
+}
+
+// The rect `x, y, w, h` misses the canvas entirely.
+function offCanvas(x: number, y: number, w: number, h: number): boolean {
+  return x + w <= 0 || y + h <= 0 || x >= ed.canvasW || y >= ed.canvasH;
+}
+
+// What may start on the stage beside the canvas: selection gestures and
+// view gestures (pixel-selection-move AC-21 – AC-24). Space-drag pans
+// before this is asked.
+function startsOffCanvas(): boolean {
+  return toolState.tool.startsWith('selection') || (toolState.tool === 'move' && !ed.selection);
+}
+
+// A selection shape that misses the canvas: deselect in replace mode,
+// otherwise change nothing (AC-22) — combining an empty shape would empty
+// the selection under intersect.
+function missedCanvas(mode: SelectionMode): void {
+  if (mode === 'replace') ed.doc?.clearSelection();
+}
+
+/** True while any pointer gesture is in flight (Escape must not deselect then). */
+export function gestureInProgress(): boolean {
+  return (
+    live.painting ||
+    live.dragStart !== null ||
+    live.lassoPoints !== null ||
+    toolState.moveSelStart !== null ||
+    view.panning
+  );
+}
+
+/** Escape during a Rectangle / Ellipse marquee drag: drop it, keep the selection (AC-23). */
+export function cancelMarqueeDrag(): boolean {
+  if (live.dragTool !== 'selection-rect' && live.dragTool !== 'selection-ellipse') return false;
+  live.dragStart = null;
+  live.dragPreview = null;
+  live.dragTool = null;
+  live.needsRecompose = true;
+  return true;
+}
+
 // Find a tilemap layer bound to `tilesetId`. The Stamp tool needs
 // a target layer; today we auto-pick the topmost matching tilemap
 // layer (highest z-index), which matches the natural "the last
@@ -220,8 +275,12 @@ export function lockedEditTarget(): string | null {
 }
 
 export function onPointerDown(e: PointerEvent) {
+  if (!fromStage(e)) return;
+  // Capture on the stage that took the press: the canvas would split a
+  // double-click on the stage into two single clicks.
+  const stage = e.currentTarget as Element;
   if (live.pinch.down(e)) {
-    view.canvas?.setPointerCapture(e.pointerId);
+    stage.setPointerCapture(e.pointerId);
     cancelGesture();
     live.pinchZoom0 = view.zoom;
     return;
@@ -231,8 +290,10 @@ export function onPointerDown(e: PointerEvent) {
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(toolState.tool)) return;
   if (e.button !== 0 && e.button !== 2) return;
+  const inside = onCanvas(spriteCoord(e));
+  if (!inside && !view.spaceDown && !startsOffCanvas()) return;
   live.useBg = e.button === 2;
-  view.canvas?.setPointerCapture(e.pointerId);
+  stage.setPointerCapture(e.pointerId);
   live.gestureUndoDepth = ed.doc?.undoDepth ?? 0;
   // Space-drag always pans, regardless of the active tool (spec §5.2
   // — Move tool "Pans canvas with space-drag"). Move-tool press
@@ -293,7 +354,8 @@ export function onPointerDown(e: PointerEvent) {
     return;
   }
   if (toolState.tool === 'selection-wand') {
-    commitWand(e);
+    if (inside) commitWand(e);
+    else missedCanvas(selectionModeFor(e));
     return;
   }
   if (toolState.tool === 'text') {
@@ -422,6 +484,10 @@ export function commitSelection(x0: number, y0: number, x1: number, y1: number) 
   const minY = Math.min(y0, y1);
   const w = Math.abs(x1 - x0) + 1;
   const h = Math.abs(y1 - y0) + 1;
+  if (offCanvas(minX, minY, w, h)) {
+    missedCanvas(live.dragSelMode);
+    return;
+  }
   ed.doc.selectRect(minX, minY, w, h, live.dragSelMode);
 }
 
@@ -437,6 +503,10 @@ export function commitEllipseSelection(x0: number, y0: number, x1: number, y1: n
   const minY = Math.min(y0, y1);
   const w = Math.abs(x1 - x0) + 1;
   const h = Math.abs(y1 - y0) + 1;
+  if (offCanvas(minX, minY, w, h)) {
+    missedCanvas(live.dragSelMode);
+    return;
+  }
   ed.doc.selectEllipse(minX, minY, w, h, live.dragSelMode);
 }
 
@@ -447,6 +517,14 @@ export function commitPolygonPoints(pts: { x: number; y: number }[], mode: Selec
   try {
     if (pts.length < 3) {
       if (mode === 'replace') ed.doc.clearSelection();
+      return;
+    }
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    if (offCanvas(minX, minY, Math.max(...xs) - minX + 1, Math.max(...ys) - minY + 1)) {
+      missedCanvas(mode);
       return;
     }
     const flat = new Int32Array(pts.length * 2);
@@ -469,6 +547,14 @@ export function commitPolygon() {
   live.polyHover = null;
   if (pts) commitPolygonPoints(pts, live.dragSelMode);
   live.needsRecompose = true;
+}
+
+// Double-click closes a Polygonal Lasso. `pointerdown` does not carry a
+// reliable click count in every engine, so the `dblclick` event is the
+// signal (pixel-selection-move AC-04).
+export function onDoubleClick(e: MouseEvent) {
+  if (e.target !== e.currentTarget && e.target !== view.canvas) return;
+  if (toolState.polyPoints) commitPolygon();
 }
 
 export function cancelPolygon() {
@@ -500,6 +586,7 @@ export function commitWand(e: PointerEvent) {
 }
 
 export function onPointerMove(e: PointerEvent) {
+  if (!fromStage(e)) return;
   const frame = live.pinch.move(e);
   if (frame) {
     applyPinch(frame);
@@ -571,9 +658,8 @@ export function onPointerLeave() {
 }
 
 export function onPointerUp(e: PointerEvent) {
-  if (view.canvas?.hasPointerCapture(e.pointerId)) {
-    view.canvas.releasePointerCapture(e.pointerId);
-  }
+  const stage = e.currentTarget as Element;
+  if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
   const pinched = live.pinch.suppressing;
   live.pinch.up(e);
   if (pinched) return;
