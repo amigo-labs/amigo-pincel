@@ -523,6 +523,10 @@ Pixel mode exports an animation (all frames, or one tag played in its direction)
 
 Animated WebP and video are deferred (no encoder in the workspace).
 
+### 7.6 Image-mode save
+
+Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, a hidden layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
+
 ---
 
 ## 8. Crate: `aseprite-writer`
@@ -681,6 +685,7 @@ The UI ships in English and German. Strings live in a typed dictionary under `ui
 - Each document gets a stable UUID; autosave snapshots are keyed by `(doc_uuid, timestamp)`
 - On open, Pincel checks for unsaved changes from a previous session and offers recovery
 - Both modes run the same session (`ui/src/lib/idb/autosave-session.svelte.ts`): a clean document (undo depth at the last save) is never written; a save or a fresh open drops the document's snapshots; a **recovered document counts as unsaved** and keeps its snapshot until the user saves; discarding the last listed snapshot closes the Recovery dialog
+- Exception (§7.6): an Image-mode Save that flattens a layered document into its file marks the document saved but does not drop its snapshot — it writes a fresh one, so recovery still restores every layer
 
 ### 10.4 Threading
 

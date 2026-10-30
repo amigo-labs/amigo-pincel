@@ -11,6 +11,7 @@ import type {
   ShapeMode,
   TextAlign,
 } from '../core/wasm';
+import type { DocSaveFormat } from '../core/document-file';
 
 /** The open document and its derived state. `handle` is the Rust-side index. */
 export const editor = $state({
@@ -34,6 +35,9 @@ export const editor = $state({
   /** A live effect preview composite that overrides the canvas while an effect
    * dialog is open; `null` shows the real composite (spec §11 live preview). */
   previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+  /** The document's file name, as Save writes it (mirrored from
+   *  `core/document-file.ts` for the editor title). */
+  fileName: 'image.ora',
   /** One-line notice for the status bar (e.g. painting on a locked layer). */
   notice: null as string | null,
 });
@@ -43,6 +47,32 @@ export const ui = $state({
   /** True while a modal dialog is open; global shortcuts are suppressed. */
   modalOpen: false,
 });
+
+/** A question the Save flow is waiting on (save-original-format); the
+ *  dialog that answers it calls `resolve`. */
+export type SavePrompt =
+  | { kind: 'jpeg'; resolve: (quality: number | null) => void }
+  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void }
+  | {
+      /** Save As: pick the format to write. */
+      kind: 'format';
+      preselect: DocSaveFormat;
+      /** The document's own format when it cannot be written back (e.g.
+       *  `GIF`): the dialog says so. */
+      unwritable: string | null;
+      resolve: (format: DocSaveFormat | null) => void;
+    };
+
+/** The answer to "Flatten image?": write the flattened composite, or save
+ *  the layers as `.ora` instead; `dontAsk` remembers Flatten for the
+ *  document. `null` (Cancel) writes nothing. */
+export interface FlattenChoice {
+  action: 'flatten' | 'ora';
+  dontAsk: boolean;
+}
+
+/** The Save flow's open prompt, `null` while none is shown. */
+export const savePrompt = $state({ value: null as SavePrompt | null });
 
 /** Canvas view transform (spec §6.4). `fit` re-centres/-scales to the viewport
  * until the user zooms or pans. Zoom is display px per document px. */

@@ -14,9 +14,10 @@ use crate::render::over_background;
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+use image::codecs::tiff::TiffEncoder;
 use image::codecs::webp::WebPEncoder;
 use image::{ExtendedColorType, ImageEncoder};
-use std::io::{Cursor, Write};
+use std::io::{Cursor, Seek, Write};
 pub mod ora;
 
 pub use ora::{OraError, from_ora_bytes, to_ora_bytes};
@@ -120,6 +121,20 @@ pub fn encode_webp<W: Write>(buf: &ImageBuffer, writer: W) -> Result<(), CodecEr
         .map_err(CodecError::Encode)
 }
 
+/// Encodes the buffer as lossless RGBA8 TIFF to `writer`.
+///
+/// TIFF needs a seekable sink (the IFD offsets are patched after the strips).
+pub fn encode_tiff<W: Write + Seek>(buf: &ImageBuffer, writer: W) -> Result<(), CodecError> {
+    TiffEncoder::new(writer)
+        .write_image(
+            buf.data(),
+            buf.width(),
+            buf.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .map_err(CodecError::Encode)
+}
+
 /// Convenience: encode to PNG bytes.
 pub fn to_png_bytes(buf: &ImageBuffer, compression: u8) -> Result<Vec<u8>, CodecError> {
     let mut out = Cursor::new(Vec::new());
@@ -145,6 +160,13 @@ pub fn to_bmp_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
 pub fn to_webp_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
     let mut out = Cursor::new(Vec::new());
     encode_webp(buf, &mut out)?;
+    Ok(out.into_inner())
+}
+
+/// Convenience: encode to lossless TIFF bytes.
+pub fn to_tiff_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
+    let mut out = Cursor::new(Vec::new());
+    encode_tiff(buf, &mut out)?;
     Ok(out.into_inner())
 }
 
@@ -186,6 +208,16 @@ mod tests {
         let back = decode(&bytes).unwrap();
         assert_eq!(src.width(), back.width());
         assert_eq!(src.data(), back.data());
+    }
+
+    #[test]
+    fn to_tiff_bytes_round_trip_is_pixel_exact() {
+        let mut src = gradient(9, 7);
+        src.set_pixel(3, 2, Color::rgba(10, 20, 30, 0));
+        src.set_pixel(4, 2, Color::rgba(200, 100, 50, 77));
+        let bytes = to_tiff_bytes(&src).unwrap();
+        assert!(bytes.starts_with(b"II*\0") || bytes.starts_with(b"MM\0*"));
+        assert_eq!(decode(&bytes).unwrap(), src);
     }
 
     #[test]

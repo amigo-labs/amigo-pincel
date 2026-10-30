@@ -7,7 +7,8 @@
 // ask again.
 //
 // Behaviour both modes share:
-// - A clean document (undo depth at the last save) is never written.
+// - A clean document (undo depth at the last save) is never written —
+//   unless the save lost part of it (`keep()`, a flattened image).
 // - A document swapped during the async write keeps its own baseline.
 // - A recovered document counts as unsaved, and its snapshot stays until
 //   the user saves — closing the tab right after recovering loses nothing.
@@ -42,6 +43,9 @@ export interface AutosaveHost {
   busy(): boolean;
   /** Display name stored with the snapshot. */
   name(): string;
+  /** File format stored with the snapshot, for editors that track one
+   *  apart from the name (`AutosaveSnapshotMeta.format`). */
+  format?(): string | null;
   /** The document's project bytes (`.aseprite` / OpenRaster). */
   encode(): Uint8Array | null;
   /** Replace the open document with recovered bytes and mark it unsaved. */
@@ -60,6 +64,10 @@ export class AutosaveSession {
 
   readonly available = isIdbAvailable();
   private lastWriteDepth = 0;
+  /** The file on disk lost part of the document (`keep()`): the snapshot
+   *  stays current even at the saved depth, until a full save or another
+   *  document. */
+  private retainAtSaved = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private recovering = false;
 
@@ -94,12 +102,29 @@ export class AutosaveSession {
   async tick(): Promise<void> {
     const depth = this.host.depth();
     if (!this.available || this.timer === null || depth === null || this.host.busy()) return;
-    if (depth === this.lastWriteDepth || depth === this.host.savedDepth()) return;
+    if (depth === this.lastWriteDepth) return;
+    if (depth === this.host.savedDepth() && !this.retainAtSaved) return;
+    await this.write(depth);
+  }
+
+  /** The document was saved to a file that lost part of it (a flattened
+   *  image): snapshot it now and keep the snapshot current, so recovery
+   *  still restores every layer (save-original-format AC-13). */
+  async keep(): Promise<void> {
+    const depth = this.host.depth();
+    if (!this.available || depth === null) return;
+    this.retainAtSaved = true;
+    await this.write(depth);
+  }
+
+  /** Encode the document and store it as the session's snapshot. */
+  private async write(depth: number): Promise<void> {
     const id = this.docId;
     try {
       const bytes = this.host.encode();
       if (bytes === null) return;
-      await writeSnapshot(id, this.host.name(), bytes, this.host.mode);
+      const format = this.host.format?.() ?? undefined;
+      await writeSnapshot(id, this.host.name(), bytes, this.host.mode, format);
       // A New / Open may have swapped the document during the await; its
       // own baseline must not be clobbered with this stale depth.
       if (this.docId === id) this.lastWriteDepth = depth;
@@ -116,6 +141,7 @@ export class AutosaveSession {
     const previous = this.docId;
     this.docId = id;
     this.lastWriteDepth = this.host.depth() ?? 0;
+    this.retainAtSaved = false;
     if (previous !== id) await this.clear(previous);
     await this.clear();
   }
@@ -123,6 +149,7 @@ export class AutosaveSession {
   /** The document was saved: nothing left to recover. */
   async saved(): Promise<void> {
     this.lastWriteDepth = this.host.depth() ?? 0;
+    this.retainAtSaved = false;
     await this.clear();
   }
 
@@ -136,6 +163,7 @@ export class AutosaveSession {
       await this.host.open(full.bytes, meta);
       this.docId = meta.docId;
       this.lastWriteDepth = this.host.depth() ?? 0;
+      this.retainAtSaved = false;
       this.dismiss();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

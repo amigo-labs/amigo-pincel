@@ -690,6 +690,18 @@ export const de: Record<MessageKey, string> = {
   'resize.resizeCanvasTitle': 'Arbeitsfläche ändern',
   'resize.scaleImageTitle': 'Bild skalieren',
   'export.quality': 'Qualität',
+  'save.jpegTitle': 'JPEG-Qualität',
+  'save.flattenTitle': 'Auf eine Ebene reduzieren?',
+  'save.flattenBody':
+    'Dieses Format speichert keine Ebenen, Deckkraft oder Füllmethoden. Die Datei erhält das reduzierte Bild; das geöffnete Dokument behält seine Ebenen.',
+  'save.flatten': 'Reduzieren',
+  'save.asOra': 'Als .ora speichern…',
+  'save.dontAskAgain': 'Für dieses Dokument nicht mehr fragen',
+  'save.asTitle': 'Speichern unter',
+  'save.format': 'Format',
+  'save.fmtOra': 'OpenRaster (.ora)',
+  'save.noEncoder':
+    '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',
   'resize.constrain': 'Proportionen beibehalten',
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',

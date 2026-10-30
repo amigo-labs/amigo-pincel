@@ -25,6 +25,8 @@ import initWasm, {
   export_png,
   export_jpeg,
   export_webp,
+  export_bmp,
+  export_tiff,
   get_document_info,
   get_selection_mask,
   register_font,
@@ -479,6 +481,8 @@ export const core = {
   exportPng: (handle: number, compression: number): Uint8Array => export_png(handle, compression),
   exportJpeg: (handle: number, quality: number): Uint8Array => export_jpeg(handle, quality),
   exportWebp: (handle: number): Uint8Array => export_webp(handle),
+  exportBmp: (handle: number): Uint8Array => export_bmp(handle),
+  exportTiff: (handle: number): Uint8Array => export_tiff(handle),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),

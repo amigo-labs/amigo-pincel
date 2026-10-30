@@ -35,9 +35,7 @@
     pasteImage,
     copyImage,
     exportImage,
-    saveProject,
     projectBytes,
-    projectName,
     markUnsaved,
     undo,
     redo,
@@ -50,6 +48,9 @@
     featherSelection,
     type ExportFormat,
   } from './core/controller';
+  import { docFormat, fileFormat, fileName, parseDocFormat } from './core/document-file';
+  import { saveDocument } from './core/save-flow';
+  import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import MainCanvas from './components/canvas/MainCanvas.svelte';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
@@ -85,7 +86,7 @@
     toolGroupForKey,
     toolHint,
   } from '../../lib/shell/shortcuts';
-  import { hasFsAccess } from '../../lib/fs';
+  import { formatFromName, hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
   import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
@@ -397,16 +398,19 @@
     }
   }
 
-  // Save / Save As write the OpenRaster project (spec §15, 2026-10-11);
-  // Export stays the flat PNG / JPEG / WebP path.
+  // Save / Save As write back to the opened file in its own format, or the
+  // OpenRaster project (save-original-format, core/save-flow.ts); Export
+  // stays the flat PNG / JPEG / WebP path.
   let saving = false;
   async function save(forceAs = false): Promise<void> {
     if (saving || editor.handle === null) return;
     saving = true;
     try {
-      const target = await saveProject(forceAs);
-      await autosave.saved();
-      await recordRecent(target);
+      const result = await saveDocument(forceAs);
+      if (result === null) return;
+      // A flattened file lost the layers: the snapshot keeps them (AC-13).
+      await (result.flattened ? autosave.keep() : autosave.saved());
+      await recordRecent(result.target);
     } catch (e) {
       loadError = t('img.saveFailed', { error: String(e) });
     } finally {
@@ -421,10 +425,18 @@
     depth: () => (editor.handle === null ? null : editor.undoDepth),
     savedDepth: () => editor.savedUndoDepth,
     busy: () => saving,
-    name: () => projectName(),
+    name: () => fileName(),
+    format: () => fileFormat(),
     encode: () => projectBytes(true),
     open: async (bytes, meta) => {
-      await openBytes(bytes, meta.name, 'image/openraster');
+      // The snapshot is OpenRaster; Save keeps writing the format stored
+      // with it (a recovered PNG saves back as PNG). Older snapshots carry
+      // none: the file name's extension stands in.
+      await openBytes(bytes, meta.name, 'image/openraster', {
+        handle: null,
+        path: null,
+        format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
+      });
       markUnsaved();
     },
     report: (action, error) => {
@@ -802,7 +814,7 @@
 <EditorFrame
   mode="image"
   {menus}
-  title={editor.handle === null ? t('px.noDocument') : projectName()}
+  title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
@@ -948,6 +960,8 @@
     </p>
   </Modal>
 {/if}
+
+<SaveDialogs />
 
 {#if jpegDialogOpen}
   <ExportDialog

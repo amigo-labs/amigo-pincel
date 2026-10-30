@@ -38,6 +38,10 @@ export interface AutosaveSnapshotMeta {
    *  OpenRaster bytes for Image mode. Absent on rows written before
    *  Image-mode autosave existed, which are all Pixel mode. */
   mode?: EditorMode;
+  /** The file format the document saves back to, when the editor tracks
+   *  one apart from the name (Image mode: content-detected at open).
+   *  Absent on older rows; the name's extension stands in. */
+  format?: string;
 }
 
 export interface AutosaveSnapshot extends AutosaveSnapshotMeta {
@@ -54,24 +58,19 @@ export async function writeSnapshot(
   name: string,
   bytes: Uint8Array,
   mode: EditorMode = 'pixel',
+  format?: string,
 ): Promise<AutosaveSnapshot> {
   const db = await openDb();
   const ts = Date.now();
-  const snapshot: AutosaveSnapshot = {
-    docId,
-    ts,
-    name,
-    byteLength: bytes.length,
-    mode,
-    bytes,
-  };
   const meta: AutosaveSnapshotMeta = {
     docId,
     ts,
     name,
     byteLength: bytes.length,
     mode,
+    ...(format === undefined ? {} : { format }),
   };
+  const snapshot: AutosaveSnapshot = { ...meta, bytes };
   const tx = db.transaction([STORE_AUTOSAVE, STORE_AUTOSAVE_META], 'readwrite');
   const bytesStore = tx.objectStore(STORE_AUTOSAVE);
   const metaStore = tx.objectStore(STORE_AUTOSAVE_META);
