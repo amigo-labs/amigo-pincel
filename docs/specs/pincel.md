@@ -514,7 +514,16 @@ Sprite-sheet export emits an optional sidecar JSON describing frame durations, t
 
 Pincel does **not** export to `.ait` directly. The engine's existing `amigo_assets` pipeline reads `.aseprite` files and produces engine-internal formats. Pincel's only contract with the engine is: produce a valid `.aseprite` file at a known location.
 
-### 7.5 Image-mode save
+### 7.5 Animated export
+
+Pixel mode exports an animation (all frames, or one tag played in its direction) as **APNG** or **GIF** (feature spec `animated-export.md`, Decision Log 2026-10-29). Every frame is composed at zoom 1 over the full canvas, upscaled by an integer nearest-neighbour factor 1–10 (16384 px per-edge cap, shared with `scaled-export.md`) and encoded one at a time, so memory stays bounded by one scaled frame plus the output.
+
+- **APNG** (`png` 0.18): keeps the `.png` extension; full-canvas frames with `dispose_op = None` and `blend_op = Source`, delay `duration_ms / 1000`, play count 0 for forever.
+- **GIF** (`gif` 0.14): one 8-bit palette per frame, exact when the frame's opaque colours plus one transparent entry fit 256 entries, quantized otherwise; alpha below 128 is transparent; delay in hundredths of a second, at least 2; disposal to background. A loop count N means N plays in total (NETSCAPE2.0 loop count N − 1, no block for N = 1, 0 for forever).
+
+Animated WebP and video are deferred (no encoder in the workspace).
+
+### 7.6 Image-mode save
 
 Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
 
@@ -627,7 +636,7 @@ await init();
 const doc = new Document(64, 64);
 doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
 doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
-doc.strokeTo(x, y);                       // per pointer sample; one undo entry
+doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
 //  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
@@ -642,7 +651,7 @@ const events = doc.drainEvents();
 // event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
-A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
 
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
@@ -676,7 +685,7 @@ The UI ships in English and German. Strings live in a typed dictionary under `ui
 - Each document gets a stable UUID; autosave snapshots are keyed by `(doc_uuid, timestamp)`
 - On open, Pincel checks for unsaved changes from a previous session and offers recovery
 - Both modes run the same session (`ui/src/lib/idb/autosave-session.svelte.ts`): a clean document (undo depth at the last save) is never written; a save or a fresh open drops the document's snapshots; a **recovered document counts as unsaved** and keeps its snapshot until the user saves; discarding the last listed snapshot closes the Recovery dialog
-- Exception (§7.5): an Image-mode Save that flattens a layered document into its file marks the document saved but does not drop its snapshot — it writes a fresh one, so recovery still restores every layer
+- Exception (§7.6): an Image-mode Save that flattens a layered document into its file marks the document saved but does not drop its snapshot — it writes a fresh one, so recovery still restores every layer
 
 ### 10.4 Threading
 
@@ -997,7 +1006,7 @@ These have been requested for years in Piskel's tracker. Pincel should accommoda
 
 Piskel README states: *"There is no support for mobile."* This is a self-imposed limitation rooted in event-handling assumptions made in 2012. The pixel-art community on iPad with Apple Pencil is large and underserved.
 
-Pincel's input layer uses the modern `PointerEvent` API end-to-end, capturing pen pressure, tilt, and pointer-type from day one (Section 9.4). Two-finger pan/zoom is part of the standard input handling, not a tablet special case. On-screen Shift / Alt toggles stand in for the keyboard (§9.4). In Image mode the brush and eraser read stylus pressure per sample (coalesced events included) and scale the dab size and / or opacity, each switchable in the tool options; mouse and touch paint at full pressure. The flat tip has an angle (default 45°) and, with "Tilt turns the nib" on, follows the stylus azimuth per sample (Pointer Events `azimuthAngle`, else `tiltX` / `tiltY`); an upright pen or one without tilt uses the angle. Pixel-mode tools stay pressure-free — a 1-px pencil has nothing to scale. Pincel's PWA build is the reference target for iPad — Tauri-on-iPad is not a supported path (Tauri mobile is Android-first, iOS support is alpha).
+Pincel's input layer uses the modern `PointerEvent` API end-to-end, capturing pen pressure, tilt, and pointer-type from day one (Section 9.4). Two-finger pan/zoom is part of the standard input handling, not a tablet special case. On-screen Shift / Alt toggles stand in for the keyboard (§9.4). In Image mode the brush and eraser read stylus pressure per sample (coalesced events included) and scale the dab size and / or opacity, each switchable in the tool options; mouse and touch paint at full pressure. The flat tip has an angle (default 45°) and, with "Tilt turns the nib" on, follows the stylus azimuth per sample (Pointer Events `azimuthAngle`, else `tiltX` / `tiltY`); an upright pen or one without tilt uses the angle. In Pixel mode the Pencil and Eraser scale their stamp size to max(1, round(N × p)) behind the same on-by-default "Size" option, interpolated per Bresenham step; Pixel-mode tools scale stamp size only, never opacity (Decision Log 2026-10-29). Pincel's PWA build is the reference target for iPad — Tauri-on-iPad is not a supported path (Tauri mobile is Android-first, iOS support is alpha).
 
 This means Pincel should design its tool palette and shortcut layout to be **usable without keyboard modifiers**. Long-press for context menus, on-screen modifier keys (the Aseprite mobile pattern), pinch-to-zoom. Validate this in M5 (full tool set milestone).
 
@@ -1055,7 +1064,7 @@ Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry mark
 
 | Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
 |------|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ~ Image mode only | ✗ |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ✗ |
 | Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
 | LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
 | Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
@@ -1114,7 +1123,6 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 **Gaps the comparison exposes** (candidates for later phases, not commitments; each has a feature spec under `docs/specs/`, indexed in `docs/specs/README.md` together with a backlog of smaller gaps):
 
 - **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
-- **Pen pressure in Pixel mode.** Aseprite, LibreSprite, Pixelorama and Resprite support it; Pincel has it in Image mode only.
 - **Indexed painting, autotiling, scripting.** Already listed in §13.
 - **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
 - **Layer groups in Image mode.** Pixel mode already has them.

@@ -30,6 +30,15 @@ export function clampBrushSize(n: number): number {
   return Math.min(MAX_BRUSH_SIZE, Math.max(MIN_BRUSH_SIZE, Math.round(n)));
 }
 
+/**
+ * Pen pressure for a stroke sample (docs/specs/pixel-pressure.md), or
+ * `undefined` — full size — for mouse and touch or with the pressure Size
+ * option off. The core clamps the value to 0–1.
+ */
+export function strokePressure(e: PointerEvent): number | undefined {
+  return toolState.pressureSize && e.pointerType === 'pen' ? e.pressure : undefined;
+}
+
 /** Step the shared brush size by `delta`, staying within 1–8. */
 export function stepBrushSize(delta: number): void {
   toolState.brushSize = clampBrushSize(toolState.brushSize + delta);

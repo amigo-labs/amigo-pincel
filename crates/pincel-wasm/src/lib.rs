@@ -19,6 +19,7 @@
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod animation;
 mod clipboard;
 mod effects;
 mod events;
@@ -31,6 +32,7 @@ mod text;
 mod timeline;
 mod transforms;
 
+pub use animation::AnimationInfo;
 pub use clipboard::CopiedImage;
 pub use effects::effect_names;
 pub use events::Event;
@@ -4079,7 +4081,7 @@ mod tests {
     fn drag(doc: &mut Document, tool: &str, color: u32, pts: &[(i32, i32)]) -> Result<(), String> {
         doc.begin_stroke(tool, color, 1, "square", false)?;
         for &(x, y) in pts {
-            doc.stroke_to(x, y)?;
+            doc.stroke_to(x, y, None)?;
         }
         doc.end_stroke();
         Ok(())

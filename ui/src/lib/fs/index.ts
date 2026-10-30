@@ -77,13 +77,17 @@ const TIFF_TYPES: FilePickerAcceptType[] = [
   { description: 'TIFF image', accept: { 'image/tiff': ['.tif', '.tiff'] } },
 ];
 
+const GIF_TYPES: FilePickerAcceptType[] = [
+  { description: 'GIF image', accept: { 'image/gif': ['.gif'] } },
+];
+
 // Every raster format the Image mode decodes (pincel-image-core codec).
 const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...PNG_TYPES,
   ...JPEG_TYPES,
   ...WEBP_TYPES,
   ...BMP_TYPES,
-  { description: 'GIF image', accept: { 'image/gif': ['.gif'] } },
+  ...GIF_TYPES,
   ...TIFF_TYPES,
 ];
 
@@ -164,13 +168,15 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
 /** Encoded-export formats of the Image mode (WebP is lossless). */
 /** Raster formats the Image mode exports. */
 export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
-/** Everything `saveExport` can write: images, JSON sidecars, palettes. */
-export type ExportFormat = ImageExportFormat | 'json' | 'gpl';
+/** Everything `saveExport` can write: images, animated GIFs, JSON
+ *  sidecars, palettes. */
+export type ExportFormat = ImageExportFormat | 'gif' | 'json' | 'gpl';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
   jpeg: JPEG_TYPES,
   webp: WEBP_TYPES,
+  gif: GIF_TYPES,
   json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
   gpl: GPL_TYPES,
 };
@@ -179,6 +185,7 @@ const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] 
   png: { name: 'PNG image', extensions: ['png'] },
   jpeg: { name: 'JPEG image', extensions: ['jpg', 'jpeg'] },
   webp: { name: 'WebP image', extensions: ['webp'] },
+  gif: { name: 'GIF image', extensions: ['gif'] },
   json: { name: 'JSON data', extensions: ['json'] },
   gpl: { name: 'GIMP palette', extensions: ['gpl'] },
 };

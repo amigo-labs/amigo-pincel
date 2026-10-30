@@ -96,6 +96,9 @@ function toolInit() {
     brushShape: 'square' as BrushShape,
     /** Off by default (pixel-pencil AC-15); only acts at size 1. */
     pixelPerfect: false,
+    /** Pen pressure scales the brush size; on by default like Image mode
+     *  (pixel-pressure AC-08). Shared by Pencil and Eraser, not persisted. */
+    pressureSize: true,
     strokeWidth: 1,
     shapeMode: 'outline' as ShapeMode,
     cornerRadius: 4,
@@ -146,6 +149,8 @@ function dialogsInit() {
     effect: null as EffectDef | null,
     resize: null as ResizeMode | null,
     sheet: false,
+    /** File ▸ Export ▸ Animation… is open. */
+    animation: false,
     renaming: null as { id: number; name: string } | null,
     /** Select ▸ Expand… / Contract… awaiting a radius. */
     selectionRadius: null as 'expand' | 'contract' | null,

@@ -3081,6 +3081,7 @@ dependencies = [
  "aseprite-writer",
  "criterion",
  "flate2",
+ "gif",
  "png 0.18.1",
  "thiserror 2.0.21",
 ]

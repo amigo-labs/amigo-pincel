@@ -1,6 +1,7 @@
 <script lang="ts">
   // Options-bar controls of the Pixel-mode Pencil / Eraser: size (field +
-  // slider, 1–8), shape and pixel-perfect. One setting shared by both tools.
+  // slider, 1–8), shape, pixel-perfect and pen pressure → size. One setting
+  // shared by both tools.
   import { t } from '../../../lib/i18n/index.svelte';
   import { MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, clampBrushSize } from '../brush';
   import { toolState } from '../stores/editor.svelte';
@@ -51,3 +52,10 @@
   />
   {t('opt.pixelPerfect')}
 </label>
+<span class="opt" role="group" aria-label={t('pressure.label')} title={t('pressure.hint')}>
+  <span class="text-pc-muted">{t('pressure.label')}</span>
+  <label class="flex items-center gap-1">
+    <input type="checkbox" bind:checked={toolState.pressureSize} />
+    {t('pressure.size')}
+  </label>
+</span>

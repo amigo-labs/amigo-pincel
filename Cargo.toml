@@ -29,6 +29,8 @@ pincel-core = { version = "1.4.0", path = "crates/pincel-core" } # x-release-ple
 pincel-effects = { version = "1.4.0", path = "crates/pincel-effects" } # x-release-please-version
 pincel-image-core = { version = "1.4.0", path = "crates/pincel-image-core" } # x-release-please-version
 png = "0.18"
+# Animated GIF export in pincel-core, encoder side only (docs/specs/pincel.md §15, 2026-10-29).
+gif = { version = "0.14", default-features = false, features = ["std"] }
 ab_glyph = "0.2"
 thiserror = "2"
 wasm-bindgen = "0.2"

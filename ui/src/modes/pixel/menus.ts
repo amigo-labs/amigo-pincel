@@ -46,6 +46,7 @@ export interface PixelMenuContext {
   importPng(): void;
   exportPng(): void;
   exportSheet(): void;
+  exportAnimation(): void;
   undo(): void;
   redo(): void;
   deleteSelection(): void;
@@ -124,6 +125,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           items: [
             { label: t('menu.exportPngFrame'), shortcut: hint('export'), run: c.exportPng },
             { label: t('menu.exportSheet'), shortcut: hint('exportSheet'), run: c.exportSheet },
+            { label: t('menu.exportAnimation'), run: c.exportAnimation },
           ],
         },
       ]),
