@@ -35,7 +35,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
-| 15 | [save-original-format](save-original-format.md) | Image | M | — | Screenshot workflow |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
 | 18 | [outline-effect](outline-effect.md) | both | M | — | Adds a color param kind to effects |
@@ -72,6 +71,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-undo-history](pixel-undo-history.md)
+- [save-original-format](save-original-format.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs
