@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod updater;
+mod webview_data;
 
 // Sync helpers split out from the async commands so unit tests can
 // exercise the FS round-trip without spinning up a Tokio runtime.
@@ -416,6 +417,8 @@ fn main() {
                 let _ = app.emit("open-file", path);
             }
         }))
+        // After single-instance, so a second launch exits before it runs.
+        .plugin(webview_data::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::UpdaterState::default())
