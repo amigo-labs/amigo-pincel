@@ -80,7 +80,7 @@ export function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
 
 // The pointer handlers sit on the stage around the canvas (spec §9.4).
 // Presses on its other children — the TileEditor overlay — are theirs.
-function fromStage(e: PointerEvent): boolean {
+function fromStage(e: Event): boolean {
   const target = e.target;
   return (
     target === e.currentTarget ||
@@ -553,7 +553,7 @@ export function commitPolygon() {
 // reliable click count in every engine, so the `dblclick` event is the
 // signal (pixel-selection-move AC-04).
 export function onDoubleClick(e: MouseEvent) {
-  if (e.target !== e.currentTarget && e.target !== view.canvas) return;
+  if (!fromStage(e)) return;
   if (toolState.polyPoints) commitPolygon();
 }
 
@@ -655,6 +655,15 @@ export function onPointerLeave() {
     toolState.stampHover = null;
     live.needsRecompose = true;
   }
+}
+
+// A cancelled pointer (touch scroll, palm rejection, a native drag) abandons
+// the gesture instead of committing it (pixel-selection-move edge cases).
+export function onPointerCancel(e: PointerEvent) {
+  const stage = e.currentTarget as Element;
+  if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
+  live.pinch.up(e);
+  cancelGesture();
 }
 
 export function onPointerUp(e: PointerEvent) {

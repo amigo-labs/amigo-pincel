@@ -255,6 +255,164 @@ test('image: the Pan tool pans from the stage', async ({ page }) => {
   await expect(undoButton(page)).toBeDisabled();
 });
 
+// ---- Round 2: the remaining gestures of AC-21 – AC-24 / AC-29 – AC-32 ----
+
+/** A point on the stage left of the canvas, `dx` CSS px out, at canvas row fraction `fy`. */
+async function stageLeft(page: Page, mode: Mode, dx: number, fy: number): Promise<[number, number]> {
+  const box = await canvasOf(page, mode).boundingBox();
+  if (!box) throw new Error('canvas not visible');
+  return [box.x - dx, box.y + box.height * fy];
+}
+
+/** Fires `pointercancel` for the mouse pointer at the element under `at`. */
+async function cancelPointer(page: Page, at: [number, number]): Promise<void> {
+  await page.evaluate(([x, y]) => {
+    const el = document.elementFromPoint(x, y);
+    el?.dispatchEvent(
+      new PointerEvent('pointercancel', { pointerId: 1, pointerType: 'mouse', bubbles: true }),
+    );
+  }, at);
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  const full: [number, number] = mode === 'pixel' ? [PX, PX] : [IMG, IMG];
+  const open = (page: Page) => openDoc(page, mode);
+
+  test(`${mode}: an ellipse dragged from the stage reaches the edge column`, async ({ page }) => {
+    await open(page);
+    await paintRed(page, mode, 0, 4);
+    await useTool(page, 'm', 'Ellipse Select');
+    await dragFrom(page, await stageTopLeft(page, mode), await mid(page, mode, 9, 9));
+    const img = await copySelection(page);
+    expect(img.width).toBeLessThan(full[0]);
+    expect(pixelOf(img, 0, 4)).toEqual(RED);
+  });
+
+  test(`${mode}: an ellipse click on the canvas deselects`, async ({ page }) => {
+    await open(page);
+    await marquee(page, mode, 2, 2, 5, 5);
+    await useTool(page, 'm', 'Ellipse Select');
+    await page.mouse.click(...(await mid(page, mode, 9, 9)));
+    expect(await size(page)).toEqual(full);
+  });
+
+  test(`${mode}: lasso, polygon and ellipse entirely on the stage deselect, Shift keeps`, async ({
+    page,
+  }) => {
+    await open(page);
+    const a = await stageLeft(page, mode, 40, 0.2);
+    const b = await stageLeft(page, mode, 10, 0.2);
+    const c = await stageLeft(page, mode, 10, 0.6);
+    const d = await stageLeft(page, mode, 40, 0.6);
+    const lasso = async () => {
+      await useTool(page, 'q', 'Lasso');
+      await page.mouse.move(...a);
+      await page.mouse.down();
+      for (const p of [b, c, d, a]) await page.mouse.move(...p, { steps: 3 });
+      await page.mouse.up();
+    };
+    const polygon = async () => {
+      await useTool(page, 'q', 'Polygonal Lasso');
+      for (const p of [a, b, c]) await page.mouse.click(...p);
+      await page.mouse.dblclick(...d);
+    };
+    const ellipse = async () => {
+      await useTool(page, 'm', 'Ellipse Select');
+      await dragFrom(page, a, c);
+    };
+    for (const gesture of [lasso, polygon, ellipse]) {
+      await marquee(page, mode, 2, 2, 5, 5);
+      await page.keyboard.down('Shift');
+      await gesture();
+      await page.keyboard.up('Shift');
+      expect(await size(page)).toEqual([4, 4]);
+      await gesture();
+      expect(await size(page)).toEqual(full);
+    }
+  });
+
+  test(`${mode}: Escape during a lasso or ellipse drag drops it; moving and releasing then changes nothing`, async ({
+    page,
+  }) => {
+    await open(page);
+    const before = await canvasOf(page, mode).screenshot();
+    for (const [key, name] of [
+      ['q', 'Lasso'],
+      ['m', 'Ellipse Select'],
+    ] as const) {
+      await useTool(page, key, name);
+      await page.mouse.move(...(await mid(page, mode, 2, 2)));
+      await page.mouse.down();
+      await page.mouse.move(...(await mid(page, mode, 9, 3)), { steps: 3 });
+      await page.mouse.move(...(await mid(page, mode, 9, 9)), { steps: 3 });
+      await page.keyboard.press('Escape');
+      await expect
+        .poll(async () => Buffer.compare(await canvasOf(page, mode).screenshot(), before))
+        .toBe(0);
+      await page.mouse.move(...(await mid(page, mode, 3, 9)), { steps: 3 });
+      await page.mouse.up();
+      expect(await size(page)).toEqual(full);
+    }
+  });
+
+  test(`${mode}: a cancelled pointer drops a marquee drag`, async ({ page }) => {
+    await open(page);
+    await marquee(page, mode, 2, 2, 5, 5);
+    const p = await mid(page, mode, 9, 9);
+    await page.mouse.move(...(await mid(page, mode, 7, 7)));
+    await page.mouse.down();
+    await page.mouse.move(...p, { steps: 3 });
+    await cancelPointer(page, p);
+    await page.mouse.up();
+    expect(await size(page)).toEqual([4, 4]);
+  });
+
+  test(`${mode}: a paint or Move press on the stage keeps the selection`, async ({ page }) => {
+    await open(page);
+    await paintRed(page, mode, 3, 3);
+    await marquee(page, mode, 2, 2, 5, 5);
+    const from = await stageTopLeft(page, mode);
+    await page.keyboard.press('b');
+    await dragFrom(page, from, await mid(page, mode, 3, 3));
+    await page.keyboard.press('v');
+    await dragFrom(page, from, await mid(page, mode, 6, 6));
+    const img = await copySelection(page);
+    expect([img.width, img.height]).toEqual([4, 4]);
+    expect(pixelOf(img, 1, 1)).toEqual(RED);
+    if (mode === 'pixel') await expect(pxDepths(page, 1)).toBeVisible();
+    else {
+      // One step back is the selection itself: nothing was added on the stage.
+      await undoButton(page).click();
+      expect(await size(page)).toEqual(full);
+    }
+  });
+
+  test(`${mode}: Space-drag pans from the stage`, async ({ page }) => {
+    await open(page);
+    const before = await canvasOf(page, mode).boundingBox();
+    const from = await stageTopLeft(page, mode);
+    await page.keyboard.down('Space');
+    await dragFrom(page, from, [from[0] + 30, from[1] + 20]);
+    await page.keyboard.up('Space');
+    const after = await canvasOf(page, mode).boundingBox();
+    expect(after?.x).toBeCloseTo((before?.x ?? 0) + 30, 0);
+  });
+}
+
+test('image: Escape discards an open polygonal lasso and keeps the selection', async ({ page }) => {
+  await openDoc(page, 'image');
+  await marquee(page, 'image', 2, 2, 5, 5);
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [10, 10],
+    [20, 10],
+    [20, 20],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'image', x, y)));
+  await page.keyboard.press('Escape');
+  expect(await size(page)).toEqual([4, 4]);
+});
+
 // ---- Pixel selection ACs that had no test (pixel-selection-move) --------
 
 test('pixel: a marquee selects A–B inclusive and draws its outline (AC-01)', async ({ page }) => {

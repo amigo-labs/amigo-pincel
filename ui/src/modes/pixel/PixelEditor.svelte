@@ -109,6 +109,7 @@
     commitPolygon,
     gestureInProgress,
     onDoubleClick,
+    onPointerCancel,
     onPointerDown,
     onPointerLeave,
     onPointerMove,
@@ -935,7 +936,7 @@
           onpointerdown={onPointerDown}
           onpointermove={onPointerMove}
           onpointerup={onPointerUp}
-          onpointercancel={onPointerUp}
+          onpointercancel={onPointerCancel}
           onpointerleave={onPointerLeave}
           ondblclick={onDoubleClick}
         >
