@@ -30,10 +30,20 @@ import { afterImageCommand } from './image-ops';
 import { dialogs, ed, file } from './stores/editor.svelte';
 
 /** Shell callbacks this module serves (`EditorProps`). */
-const shell: { requestNew: () => void; openForeign: (opened: OpenedFile) => void } = {
+const shell: {
+  requestNew: () => void;
+  openForeign: (opened: OpenedFile) => void;
+  openFile: (opened: OpenedFile) => void;
+} = {
   requestNew: () => {},
   openForeign: () => {},
+  openFile: () => {},
 };
+
+/** Hand a document to the shell, which guards unsaved changes and opens it. */
+export function openInShell(opened: OpenedFile): void {
+  shell.openFile(opened);
+}
 
 /** Hand the shell's callbacks to the file operations (editor mount). */
 export function bindShell(next: typeof shell): void {

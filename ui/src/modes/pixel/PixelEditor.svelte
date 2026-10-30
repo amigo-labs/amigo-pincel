@@ -43,7 +43,7 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
-  import { onPaste, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
+  import { onPaste, pasteAsNewImage, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
   import {
     addFrame,
     addGroup,
@@ -147,13 +147,18 @@
     initialNew,
     onRequestNew,
     onOpenForeign,
+    onOpenFile,
     onDirtyChange,
     registerMenuHandlers,
   }: EditorProps = $props();
 
   // Module-level store: start every mount from a fresh state.
   resetPixelStore();
-  bindShell({ requestNew: () => onRequestNew(), openForeign: (opened) => onOpenForeign(opened) });
+  bindShell({
+    requestNew: () => onRequestNew(),
+    openForeign: (opened) => onOpenForeign(opened),
+    openFile: (opened) => onOpenFile(opened),
+  });
   initAutosave();
 
   // Release version stamped in by the release workflow; `dev` locally.
@@ -238,6 +243,7 @@
       deleteSelection: deleteSelectionPixels,
       copy: runCopy,
       paste: () => void pasteFromClipboard(),
+      pasteNewImage: () => void pasteAsNewImage(),
       swapColors,
       resetColors,
       selectAll: () => selectAction('all'),
@@ -367,6 +373,9 @@
         return true;
       case 'resetColors':
         resetColors();
+        return true;
+      case 'pasteNewImage':
+        void pasteAsNewImage();
         return true;
     }
     if (!ed.doc) return false;

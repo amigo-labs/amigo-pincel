@@ -23,11 +23,12 @@ Already decided (Decision Log 2026-10-28): Image mode pastes a clipboard image a
 - Paste position: at the copy origin for the app's own copy pasted into the document it came from, otherwise at the top-left of the visible viewport
 - Pixel mode: paste as a new layer, the expand-canvas dialog, and one undo step for paste and for Import PNG as layer
 - Indexed Pixel sprites copy as RGBA
+- Paste as New Image: Ctrl/⌘+V on the start screen, Edit ▸ Paste as New Image (Ctrl/⌘+Alt+V) in both modes (added 2026-10-30)
 
 ### Out of scope
 
 - A floating, movable paste with transform handles — because it needs selection transforms, which are Phase 2 (§13, §17.3)
-- Paste into New Image (Ctrl+Alt+V) — because it is a separate, cheap follow-up (hand the shell an opened file built from the PNG)
+- A native macOS menu entry for Paste as New Image — because the in-app Edit menu carries it on every platform and the native Edit menu lists only the accelerators it owns (§9.4)
 - Copying text or SVG — because both editors hold raster content and PNG is the one format both modes and other apps share
 - Nearest-palette mapping on paste into an indexed Pixel sprite — Phase 2 with indexed painting (§3.7, AGENTS.md §9)
 
@@ -54,6 +55,11 @@ Already decided (Decision Log 2026-10-28): Image mode pastes a clipboard image a
 - [ ] AC-19 (event): When the user copies in Pixel mode while the active layer is a group or a tilemap layer, then the clipboard holds that layer's rendered pixels (a group's composite, a tilemap's rendered tiles).
 - [ ] AC-20 (error): If the user cuts in Pixel mode while the active layer is a group or a tilemap layer, then the cut is refused with a notice and the document and the clipboard are unchanged.
 - [ ] AC-21 (event): When the user cuts with no selection, then the clipboard holds the whole active layer and the layer is cleared; one Undo restores it.
+- [ ] AC-22 (event): When the user presses Ctrl/⌘+V or Ctrl/⌘+Alt+V on the start screen (no document open, focus not in a text field, no modal dialog open) and there is an image to paste — the image the paste carries (any image type the browser decodes), or else Pincel's in-app copy — then it opens as a new Image-mode document of the image's size with one layer holding it, titled "Pasted image.png" ("Eingefügtes Bild.png" in German), with no file behind it: the first Save offers a location or downloads, as for any document without a file (`file-access` AC-04, AC-06).
+- [ ] AC-23 (event): When the user chooses Edit ▸ Paste as New Image or presses Ctrl/⌘+Alt+V in either mode, then Pincel first reads the image Paste would use (the system clipboard image, or Pincel's in-app copy when the last system write failed or the system clipboard holds no image); when there is one, the unsaved-changes guard of File ▸ Open… runs and, unless the user cancels it, the image replaces the open document as a new document as in AC-22.
+- [ ] AC-24 (always): In both modes the Edit menu lists Paste as New Image directly below Paste, showing Ctrl+Alt+V (⌥⌘V on macOS).
+- [ ] AC-25 (error): If Paste as New Image from an open editor finds no image (none on the clipboard, the read refused or not supported, and no in-app copy), then the editor's notice `paste.noImage` ("The clipboard holds no image") appears, no guard dialog shows and the open document stays as it was.
+- [ ] AC-26 (state): While focus is in a text field or a modal dialog (`role="dialog"` or `"alertdialog"`) is open, Ctrl/⌘+V and Ctrl/⌘+Alt+V create no document.
 
 ## Technical notes
 
@@ -100,6 +106,12 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | Pasted image too large to expand the canvas to (beyond the mode's size limits) | Image mode's existing `paste.tooLarge` behavior: the image is cropped to the canvas, with the notice |
 | Paste at the layer limit | Refused with the mode's existing layer-limit behavior; document unchanged |
 | Copy twice, paste once | The second copy wins, both on the system clipboard and in the in-app record |
+| Paste as New Image of an image larger than Image mode's size limits | Handled as opening a PNG file of that size (`image-files` limits) — because the pasted image becomes a document exactly like an opened PNG |
+| Ctrl/⌘+V on the start screen with only text on the clipboard and no in-app copy | Nothing happens, no notice |
+| The clipboard image cannot be decoded (corrupt data) | The shell's open error notice, as for a broken file; nothing opens |
+| The shortcut pressed again while the pasted document is still opening | Ignored; one document opens |
+| Keyboard layouts where Ctrl+Alt is AltGr | Outside text fields Ctrl+Alt+V still runs Paste as New Image; in text fields it types as usual |
+| Paste as New Image while the clipboard read asks the user (permission prompt in Chromium and WebView2, paste callout in WebKit) | The browser's prompt shows; refusing it is AC-25 |
 
 ## Open questions
 
@@ -130,6 +142,11 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-19 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Copy on a group takes its rendered pixels; Cut on it is refused; `crates/pincel-core/src/clipboard.rs` copy_pixels_group_takes_its_rendered_subtree, copy_pixels_tilemap_takes_its_rendered_tiles; `crates/pincel-wasm/src/clipboard.rs` copy_selection_on_a_group_takes_its_rendered_children, copy_selection_on_a_tilemap_takes_its_rendered_tiles | built |        |
 | AC-20 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Copy on a group takes its rendered pixels; Cut on it is refused; `crates/pincel-wasm/src/clipboard.rs` cut_selection_on_group_or_tilemap_is_refused_unchanged | built |        |
 | AC-21 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Cut without a selection takes and clears the whole layer; one Undo restores it; `ui/e2e/image-clipboard.spec.ts` › image: Cut copies and clears the selection, without one the whole layer; Undo restores; `crates/pincel-wasm/src/clipboard.rs` cut_selection_without_selection_clears_the_whole_layer; `crates/pincel-image-wasm/src/lib.rs` cut_selection_without_selection_clears_the_layer | built |        |
+| AC-22 | `ui/e2e/paste-new-image.spec.ts` › Ctrl+V on the start screen opens the clipboard image as a new Image document (AC-22); `ui/e2e/paste-new-image.spec.ts` › Ctrl+Alt+V on the start screen opens the clipboard image too (AC-22); `ui/e2e/paste-new-image.spec.ts` › Ctrl+V on the start screen with text only does nothing | built |        |
+| AC-23 | `ui/e2e/paste-new-image.spec.ts` › pixel: Ctrl+Alt+V opens the clipboard image as a new Image document (AC-23); `ui/e2e/paste-new-image.spec.ts` › image: Ctrl+Alt+V opens the clipboard image as a new Image document (AC-23); `ui/e2e/paste-new-image.spec.ts` › pixel: Paste as New Image asks before discarding unsaved changes (AC-23) | built |        |
+| AC-24 | `ui/e2e/paste-new-image.spec.ts` › pixel: the Edit menu lists Paste as New Image below Paste (AC-24); `ui/e2e/paste-new-image.spec.ts` › image: the Edit menu lists Paste as New Image below Paste (AC-24) | built |        |
+| AC-25 | `ui/e2e/paste-new-image.spec.ts` › pixel: Paste as New Image with no image shows a notice and keeps the document (AC-25); `ui/e2e/paste-new-image.spec.ts` › image: Paste as New Image with no image shows a notice and keeps the document (AC-25) | built |        |
+| AC-26 | `ui/e2e/paste-new-image.spec.ts` › Ctrl+V in a start-screen text field creates no document (AC-26) | built |        |
 
 ## Decisions
 
@@ -154,3 +171,12 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-29 (spec-build): Import PNG as layer keeps its place (top of the stack, at the origin) and only moves onto `PasteLayer`; Paste names its layer `Layer {n}` like Image mode — because the import's placement is not in this spec.
 - 2026-10-29 (spec-build): Copy Merged has no shortcut, and Pixel mode's notices go to the footer status line (Image mode: its notice bar) — because AC-01 lists none and each editor already reports there.
 - 2026-10-29 (spec-build): New public API — `pincel-core`: `copy_pixels`, `CopySource`, `CopiedPixels`, `CopyError` (module `clipboard`), `PasteLayer`, `PastedImage`, `encode_png`; `pincel-wasm`: `CopiedImage`, `Document.copySelection`, `cutSelection`, `pasteLayer`, `imageKey`; `pincel-image-core`: `copy_selection`, `PasteLayer::at`; `pincel-image-wasm`: `copy_selection`, `cut_selection`, `image_key`, and `paste_layer(handle, data, x, y, expand)` — because the ACs need copy, cut, positioned paste and the clipboard identity on both sides of the boundary.
+- 2026-10-30: Revision — Paste as New Image moves from out of scope into the spec (AC-22 – AC-26), on the owner's request to hand images to Pincel from the clipboard without opening a document first.
+- 2026-10-30: A pasted new document always opens in Image mode — because the clipboard image is a PNG and a PNG opens in Image mode (§1.1: the mode follows the document); a pixel artist imports it as a layer with Ctrl+V instead.
+- 2026-10-30: Ctrl/⌘+V on the start screen uses the `paste` event, Ctrl/⌘+Alt+V and the menu item the async Clipboard API — because the browser fires `paste` only for the plain shortcut; the async read may show the browser's permission prompt, which is accepted.
+- 2026-10-30: The new document is titled "Pasted image.png" and has no file behind it — because the shell opens it like a picked PNG (same code path), so Save behaves as for any document without a handle.
+- 2026-10-30: Paste as New Image reads the clipboard before the unsaved-changes guard — because the read needs the user activation of the key press or menu click, and a guard dialog for a paste that then finds nothing would be noise.
+- 2026-10-30: An empty Ctrl/⌘+V on the start screen stays silent, while an empty Paste as New Image in an editor shows a notice — because Ctrl+V on the start screen is often a stray key with text on the clipboard, while the editor command was chosen on purpose.
+- 2026-10-30: The title "Pasted image.png" names the source and the format the bytes are in, so the tab and Save As suggest a recognizable PNG name.
+- 2026-10-30: Accepting the browser's clipboard prompt for Ctrl/⌘+Alt+V — because no browser fires a `paste` event for that chord, and the async Clipboard API is the only way to read the image then.
+- 2026-10-30 (spec-build): AC-26 and the text-only start-screen case held before the change (nothing created a document from the start screen); their tests guard the new listeners. A new `EditorProps.onOpenFile` hands a pasted document to the shell, which runs the unsaved-changes guard of File ▸ Open… — because `onOpenForeign` routes without a guard.
