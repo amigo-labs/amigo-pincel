@@ -106,7 +106,9 @@ const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_sele
 export const gestureControl = { cancel: (): void => {} };
 
 /**
- * Normalizes two corners into a positive-size rect.
+ * Normalizes two corners into a positive-size rect, each corner snapped to
+ * the nearest pixel grid line on its own (rounding the size instead would
+ * drop the column under a far edge).
  *
  * Shift is reserved for the selection combine mode (add), so rectangle/ellipse
  * do not also constrain to a square on Shift — that would conflict with the
@@ -116,11 +118,20 @@ function rectFromCorners(
   a: [number, number],
   b: [number, number],
 ): { x: number; y: number; w: number; h: number } {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const x = Math.round(Math.min(a[0], a[0] + dx));
-  const y = Math.round(Math.min(a[1], a[1] + dy));
-  return { x, y, w: Math.round(Math.abs(dx)), h: Math.round(Math.abs(dy)) };
+  const x0 = Math.round(Math.min(a[0], b[0]));
+  const y0 = Math.round(Math.min(a[1], b[1]));
+  const x1 = Math.round(Math.max(a[0], b[0]));
+  const y1 = Math.round(Math.max(a[1], b[1]));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** The rubber band of a rect/ellipse drag: the snapped rect it will commit. */
+function snappedCorners(a: [number, number], b: [number, number]): [number, number][] {
+  const r = rectFromCorners(a, b);
+  return [
+    [r.x, r.y],
+    [r.x + r.w, r.y + r.h],
+  ];
 }
 
 /**
@@ -292,7 +303,7 @@ export function attachTools(
         selectionPreview.value = { shape: 'lasso', points: lassoPath };
       } else {
         const shape = tool.kind === 'ellipse_select' ? 'ellipse' : 'rect';
-        selectionPreview.value = { shape, points: [point, point] };
+        selectionPreview.value = { shape, points: snappedCorners(point, point) };
       }
       return;
     }
@@ -362,7 +373,7 @@ export function attachTools(
         selectionPreview.value = { shape: 'lasso', points: lassoPath };
       } else {
         const shape = gestureKind === 'ellipse_select' ? 'ellipse' : 'rect';
-        selectionPreview.value = { shape, points: [start, point] };
+        selectionPreview.value = { shape, points: snappedCorners(start, point) };
       }
       last = point;
       return;
