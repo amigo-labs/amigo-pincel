@@ -1,5 +1,70 @@
 # Changelog
 
+## [1.5.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.4.0...v1.5.0) (2026-10-30)
+
+
+### Features
+
+* add skills for feature specification and verification ([6526967](https://github.com/amigo-labs/amigo-pincel/commit/6526967d4e9afa5dbd4158800aeab8c22ed5ba09))
+* copy, cut and paste in both modes (copy-cut-paste) ([28b8cc5](https://github.com/amigo-labs/amigo-pincel/commit/28b8cc54f573669ab38cb3c88b1cce49412ba8d7))
+* **perf:** benchmarks, budgets and nightly performance workflow ([4229ec7](https://github.com/amigo-labs/amigo-pincel/commit/4229ec72edc2cf5471d1a64409a5b0c7e238b7d6))
+* **pincel-agent:** add pincel://guide and pincel://effects resources (AC-17, AC-18) ([a2649fc](https://github.com/amigo-labs/amigo-pincel/commit/a2649fc1f8ba7e2b63eab0a017ce768f0f8ac909))
+* **pincel-agent:** add the Pixel agent tool layer (AC-02..AC-33, AC-43..AC-46) ([132926b](https://github.com/amigo-labs/amigo-pincel/commit/132926be6ac5eff75800583825b63986c570e5e5))
+* **pincel-agent:** Image documents over MCP (mcp-headless-image) ([5b65b7d](https://github.com/amigo-labs/amigo-pincel/commit/5b65b7df2131aee1aa73dd940cb25144b2f04df3))
+* **pincel-agent:** open, edit, save and export Image documents (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-19, AC-20, AC-21) ([a175f1a](https://github.com/amigo-labs/amigo-pincel/commit/a175f1af5fe661ecc887324c593fddbe5c794d3a))
+* **pincel-core:** add CommandBatch and PutCel commands (AC-09) ([f10b887](https://github.com/amigo-labs/amigo-pincel/commit/f10b887afab2e4c3356e3efa3e7612b23a5df490))
+* **pincel-core:** add copy_pixels and the PasteLayer command (AC-02, AC-04, AC-05, AC-07, AC-11, AC-18, AC-19) ([842fa4c](https://github.com/amigo-labs/amigo-pincel/commit/842fa4ce741d6cc8f2bb04c31f49886086aaa9c2))
+* **pincel-core:** add PatchCel and AddEmptyCel dirty-rect commands (AC-09) ([05d67e8](https://github.com/amigo-labs/amigo-pincel/commit/05d67e81334f23ed1faa8081acb2be66695ef130))
+* **pincel-core:** add PencilStroke command with brush sizes and pixel-perfect (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-08, AC-09, AC-10) ([6a7e87e](https://github.com/amigo-labs/amigo-pincel/commit/6a7e87eea8461e3f0e564be9faaa992112066e74))
+* **pincel-core:** animated export as APNG and GIF (animated-export) ([11545c5](https://github.com/amigo-labs/amigo-pincel/commit/11545c5b1ad3aa507530aea336713005507c90b1))
+* **pincel-core:** export animations as APNG with tag direction and scale (AC-03, AC-04, AC-05, AC-07, AC-08, AC-09) ([74d5722](https://github.com/amigo-labs/amigo-pincel/commit/74d5722d6fe0677138fffe0db0e70198cb619386))
+* **pincel-core:** export animations as GIF and describe them for the dialog (AC-12, AC-13, AC-16, AC-17) ([ad1cd36](https://github.com/amigo-labs/amigo-pincel/commit/ad1cd367accdc96fd046173018ff3ea4f8ed54dc))
+* **pincel-core:** scale PencilStroke stamps by pen pressure (AC-01, AC-02, AC-04, AC-05, AC-06, AC-09, AC-10) ([3e205f0](https://github.com/amigo-labs/amigo-pincel/commit/3e205f028a21d5cca1eaea31bab6dcdac2f47c13))
+* **pincel-image-core:** add copy_selection and PasteLayer::at (AC-02, AC-03, AC-04, AC-05, AC-09, AC-10) ([a08d803](https://github.com/amigo-labs/amigo-pincel/commit/a08d80395a38c15db020f76715e82eb30bb9a56b))
+* **pincel-image-core:** add lossless TIFF encoder (AC-01) ([6f20017](https://github.com/amigo-labs/amigo-pincel/commit/6f20017f9c0935e418929c5c0a552db5b11973a8))
+* **pincel-image-wasm:** add copy_selection, cut_selection, image_key and a paste position (AC-02, AC-03, AC-04, AC-05, AC-06, AC-09, AC-10, AC-21) ([a4f8a7f](https://github.com/amigo-labs/amigo-pincel/commit/a4f8a7f58b4a3362be42efe97e7fa939e015bc1e))
+* **pincel-image-wasm:** export the composite as BMP and TIFF (AC-01) ([44f2d55](https://github.com/amigo-labs/amigo-pincel/commit/44f2d5594eb2ae9d19ba3d77f758108b1c25e26e))
+* **pincel-mcp:** add the stdio MCP server with workspace sandbox (AC-01, AC-34..AC-40) ([c00ff71](https://github.com/amigo-labs/amigo-pincel/commit/c00ff713b9fc41080181a1da7bf108a8d39c3174))
+* **pincel-mcp:** headless MCP server for Pixel documents ([773b296](https://github.com/amigo-labs/amigo-pincel/commit/773b296fa75ee59999bc148cf799bb65a53abc75))
+* **pincel-mcp:** serve resources with their MIME type and describe Image mode (AC-17, AC-18) ([50acfa0](https://github.com/amigo-labs/amigo-pincel/commit/50acfa0f3a984c02b3625a65c37d9ba4647192be))
+* **pincel-wasm:** add beginStroke / strokeTo gesture API for Pencil and Eraser (AC-01, AC-03, AC-04, AC-05, AC-06, AC-08, AC-14) ([ec6b135](https://github.com/amigo-labs/amigo-pincel/commit/ec6b13528fbc078d2a5a931aeceb240a11423b50))
+* **pincel-wasm:** add copySelection, cutSelection, pasteLayer and imageKey (AC-02, AC-04, AC-05, AC-06, AC-07, AC-11, AC-12, AC-18, AC-19, AC-20, AC-21) ([3e4198d](https://github.com/amigo-labs/amigo-pincel/commit/3e4198d1c78e077d6d4a961c026fb6b2e0c1f292))
+* **pincel-wasm:** add optional pressure argument to strokeTo (AC-01, AC-04, AC-05, AC-09, AC-10) ([f8f6a56](https://github.com/amigo-labs/amigo-pincel/commit/f8f6a56e853d5e0a3abb348f6e7ac550f3cc6b2c))
+* **pincel-wasm:** expose exportAnimation and animationInfo (AC-18) ([74d3e7f](https://github.com/amigo-labs/amigo-pincel/commit/74d3e7f2c2232eaad6587f9f274c253b2005ee71))
+* **pixel:** pen pressure scales the Pencil and Eraser (pixel-pressure) ([4610e12](https://github.com/amigo-labs/amigo-pincel/commit/4610e12fc5bf6beaf6b90604a266281377e6fc67))
+* **pixel:** pencil brush sizes 1-8, round shape, pixel-perfect and Shift constrain ([1afe8df](https://github.com/amigo-labs/amigo-pincel/commit/1afe8df514d8a76642a2426796cc2c2e357adcd3))
+* **tauri:** add Export Animation to the native File menu ([44af9fb](https://github.com/amigo-labs/amigo-pincel/commit/44af9fbab1ad1e2860362149e0e314ce5f77dc18))
+* **ui:** add File &gt; Export &gt; Animation dialog for APNG and GIF (AC-01, AC-02, AC-06, AC-10, AC-11, AC-14, AC-15, AC-18, AC-19) ([e7cee29](https://github.com/amigo-labs/amigo-pincel/commit/e7cee295c2420ec104fb2e0e7ff6b8203d031dcd))
+* **ui:** ask to flatten layered documents on Image-mode Save (AC-02, AC-03, AC-04, AC-05, AC-06, AC-13) ([d88e864](https://github.com/amigo-labs/amigo-pincel/commit/d88e8649d2202019c498bc25068cf205934f8666))
+* **ui:** brush size, shape, pixel-perfect and Shift constrain for the Pixel pencil (AC-01, AC-03, AC-07, AC-08, AC-10, AC-11, AC-12, AC-13, AC-15, AC-16, AC-17) ([f730687](https://github.com/amigo-labs/amigo-pincel/commit/f730687f1fc898bcbec85873b94de19370697497))
+* **ui:** Cut, Copy, Copy Merged and Paste in both modes (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-18, AC-19, AC-20, AC-21) ([ee56179](https://github.com/amigo-labs/amigo-pincel/commit/ee56179f58b2b62705c739b94bc06cb7172c650b))
+* **ui:** offer every writable format in Image-mode Save As (AC-09, AC-10, AC-14) ([1558134](https://github.com/amigo-labs/amigo-pincel/commit/1558134c6b8183b5ef013dc5ff12b60ee95b380e))
+* **ui:** save Image-mode documents back to their original format (AC-01, AC-07, AC-08, AC-11, AC-12) ([9ba032c](https://github.com/amigo-labs/amigo-pincel/commit/9ba032c3f9ce9445ecd80d6c72812dd21e4f32b0))
+* **ui:** save Image-mode documents back to their original format (save-original-format) ([cebd982](https://github.com/amigo-labs/amigo-pincel/commit/cebd982c9421e2a90bc88d78812bd6d578772778))
+* **ui:** scale the Pixel-mode Pencil and Eraser with pen pressure (AC-03, AC-05, AC-07, AC-08, AC-09) ([a8fc24e](https://github.com/amigo-labs/amigo-pincel/commit/a8fc24ec367fb56c20e628e1ef63ad1193c4543f))
+
+
+### Bug Fixes
+
+* **aseprite-writer:** emit tileset chunks before the layers that reference them ([dfd4fde](https://github.com/amigo-labs/amigo-pincel/commit/dfd4fde9a2d72163ddb1a1dbda2a668af9026441))
+* **pincel-agent:** check every export.sheet output path before writing (AC-34) ([1e0ae49](https://github.com/amigo-labs/amigo-pincel/commit/1e0ae49b68c4885b7c96e693ce7b45fcd5c1db38))
+* **pincel-agent:** store only the changed rectangle per pixel edit (AC-09) ([bd859a1](https://github.com/amigo-labs/amigo-pincel/commit/bd859a1e8f5b93d36fbdc1b824ed5ab1a9cd7da9))
+* **pincel-core:** read and write tile flip bits the way Aseprite does ([353439e](https://github.com/amigo-labs/amigo-pincel/commit/353439e92b4becf55bd78e9a3ddee8dd1d086f46))
+* **pincel-core:** read and write tile flip bits the way Aseprite does ([59b59af](https://github.com/amigo-labs/amigo-pincel/commit/59b59af12d3976234bed9aca4fb4312734e9269a))
+* **pincel-image-core:** escape NUL bytes in the TIFF magic test ([9dd6929](https://github.com/amigo-labs/amigo-pincel/commit/9dd6929b597ee68f3db3a411f77f09bb18fa6a73))
+* **pincel-image-core:** Soft Light follows W3C Compositing-1, not Pegtop (AC-02) ([085b900](https://github.com/amigo-labs/amigo-pincel/commit/085b900cca543167b7c51fa17614b7a739ef8b28))
+* **pincel-image-core:** Soft Light follows W3C; close image-editing evidence gaps ([e57ab0d](https://github.com/amigo-labs/amigo-pincel/commit/e57ab0dc9c8800eda90a248ec4289c575a6e620d))
+* **ui:** ask to flatten when the image's only layer is hidden ([f072774](https://github.com/amigo-labs/amigo-pincel/commit/f0727748f297701a3f037de74acec61596efa62c))
+* **ui:** cancel a pending Image-mode Save prompt when the editor unmounts ([a7d52ea](https://github.com/amigo-labs/amigo-pincel/commit/a7d52eaa28bb2679f78d9fda47084205f3e5fb81))
+* **ui:** keep a recovered image's detected save format in its snapshot ([35ffcc4](https://github.com/amigo-labs/amigo-pincel/commit/35ffcc446f9ef4fa45f5acf8e2d09a272b8f2056))
+* **ui:** keep the layered snapshot current after a flattening Save ([fbedd4a](https://github.com/amigo-labs/amigo-pincel/commit/fbedd4ac958afa384804a63f19fc9531cfa65920))
+* **ui:** lock the Shift pencil direction until Shift is released (AC-07, AC-17) ([cddb39b](https://github.com/amigo-labs/amigo-pincel/commit/cddb39ba604d0e32857b23212839efd74451f9ca))
+* **ui:** route every e2e path into an editor through waitForEditor ([e282fe0](https://github.com/amigo-labs/amigo-pincel/commit/e282fe044fc9788f5e2e9a626aef335cc0dc6856))
+* **ui:** route every e2e path into an editor through waitForEditor ([a5b71e4](https://github.com/amigo-labs/amigo-pincel/commit/a5b71e47f3a4ce4196781b26bca46c956fba1adf))
+* **ui:** skip off-canvas pixels of a pencil or eraser stroke silently (AC-04) ([9e8930d](https://github.com/amigo-labs/amigo-pincel/commit/9e8930d41293e6296fd5b1065e1e2baafa516b9b))
+* **ui:** wait for editor readiness before e2e input ([42c3e2b](https://github.com/amigo-labs/amigo-pincel/commit/42c3e2bacb563d7002beb8ede9e3a37df95dad93))
+* **ui:** wait for editor readiness before e2e input ([8a6def7](https://github.com/amigo-labs/amigo-pincel/commit/8a6def77399a1a81505d2f40ba4c1d4aef215fee))
+
 ## [1.4.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.3.1...v1.4.0) (2026-10-28)
 
 
