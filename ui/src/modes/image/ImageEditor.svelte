@@ -497,8 +497,10 @@
       e.preventDefault();
       return;
     }
+    // Escape drops a gesture in progress; with none, it deselects
+    // (image-editing AC-31).
     if (e.key === 'Escape') {
-      gestureControl.cancel();
+      if (!gestureControl.cancel() && editor.hasSelection) deselect();
       return;
     }
     const group = toolGroupForKey(e);

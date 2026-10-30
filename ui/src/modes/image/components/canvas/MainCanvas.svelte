@@ -338,7 +338,7 @@
     viewCommands.zoomOut = () => setZoom(view.zoom / 1.25);
     viewCommands.fit = fitView;
     viewCommands.actual = () => setZoom(1);
-    const detach = attachTools(surface, redraw, placeText);
+    const detach = attachTools(surface, viewport, redraw, placeText);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
       if (view.fit) {
@@ -378,9 +378,12 @@
 
 <svelte:window onkeydown={onSpace} onkeyup={onSpace} onblur={() => (spaceDown = false)} />
 
+<!-- The viewport is the tool stage (selection gestures start beside the
+     canvas, spec §9.4); `select-none` keeps a drag from starting a text
+     selection that the next press would drag away (pointercancel). -->
 <div
   bind:this={viewport}
-  class="relative h-full w-full touch-none overflow-hidden bg-pc-bg"
+  class="relative h-full w-full touch-none overflow-hidden bg-pc-bg select-none"
   onwheel={onWheel}
   onpointerdowncapture={onPointerDownCapture}
   onpointermovecapture={onPointerMoveCapture}

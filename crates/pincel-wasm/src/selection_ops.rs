@@ -334,6 +334,14 @@ mod tests {
     }
 
     #[test]
+    fn invert_without_selection_selects_the_whole_canvas() {
+        let mut doc = Document::new(3, 2).expect("dims");
+        assert!(!doc.has_selection());
+        doc.invert_selection();
+        assert_eq!(count(&doc), 6);
+    }
+
+    #[test]
     fn delete_and_move_honour_the_shaped_mask() {
         let mut doc = Document::new(3, 1).expect("dims");
         for x in 0..3 {

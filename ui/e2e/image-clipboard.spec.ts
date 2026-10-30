@@ -107,6 +107,19 @@ test('image: Copy puts the selected box on the clipboard and changes nothing', a
   expect(pixelOf(layer, 0, 0)).toEqual(RED);
 });
 
+test('image: a Rectangle Select snaps each corner to the nearest grid line', async ({ page }) => {
+  await createDocument(page, 'image', { width: SIZE, height: SIZE });
+  await fill(page, '#ff0000', 1, 1);
+  // 0.4 snaps to 0 and 10.6 to 11: an 11 × 11 box, not round(10.2) = 10.
+  await page.keyboard.press('m');
+  await page.mouse.move(...(await point(page, 0.4, 0.4)));
+  await page.mouse.down();
+  await page.mouse.move(...(await point(page, 10.6, 10.6)), { steps: 4 });
+  await page.mouse.up();
+  const img = await copyVia(page, () => page.keyboard.press('ControlOrMeta+c'));
+  expect([img.width, img.height]).toEqual([11, 11]);
+});
+
 test('image: Copy keeps only the selected pixels of a shaped selection', async ({ page }) => {
   await createDocument(page, 'image', { width: SIZE, height: SIZE });
   await fill(page, '#ff0000', 1, 1);

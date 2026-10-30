@@ -104,8 +104,12 @@
   } from './image-ops';
   import {
     BG_TOOLS,
+    cancelMarqueeDrag,
     cancelPolygon,
     commitPolygon,
+    gestureInProgress,
+    onDoubleClick,
+    onPointerCancel,
     onPointerDown,
     onPointerLeave,
     onPointerMove,
@@ -304,6 +308,9 @@
         cancelPolygon();
         return;
       }
+      // A marquee drag drops without touching the selection; Escape during
+      // any other drag leaves both alone (pixel-selection-move AC-12, AC-23).
+      if (cancelMarqueeDrag() || gestureInProgress()) return;
       if (ed.selection && !isEditableTarget(e.target)) {
         deselect();
         return;
@@ -917,10 +924,21 @@
     {/if}
   {/snippet}
   {#snippet viewport()}
+        <!-- The stage takes the pointer, not just the canvas, so a selection
+             gesture can start beside the canvas (spec §9.4); `onPointerDown`
+             lets only selection and view gestures start there. -->
         <div
-          class="absolute inset-0 flex items-center justify-center overflow-hidden"
+          class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
           bind:clientWidth={view.stageW}
           bind:clientHeight={view.stageH}
+          role="presentation"
+          oncontextmenu={(e) => e.preventDefault()}
+          onpointerdown={onPointerDown}
+          onpointermove={onPointerMove}
+          onpointerup={onPointerUp}
+          onpointercancel={onPointerCancel}
+          onpointerleave={onPointerLeave}
+          ondblclick={onDoubleClick}
         >
     <!--
             Stacked render surfaces (spec §4.4, M12.5): the base canvas
@@ -953,12 +971,6 @@
                       : 'crosshair'}
               aria-label="Pincel canvas"
               data-ready={ed.ready}
-              oncontextmenu={(e) => e.preventDefault()}
-              onpointerdown={onPointerDown}
-              onpointermove={onPointerMove}
-              onpointerup={onPointerUp}
-              onpointercancel={onPointerUp}
-              onpointerleave={onPointerLeave}
             ></canvas>
             <canvas
               bind:this={view.overlay}
