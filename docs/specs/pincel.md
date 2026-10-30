@@ -525,7 +525,7 @@ Animated WebP and video are deferred (no encoder in the workspace).
 
 ### 7.6 Image-mode save
 
-Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
+Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, a hidden layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
 
 ---
 

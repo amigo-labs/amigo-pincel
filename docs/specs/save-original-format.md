@@ -34,7 +34,7 @@ This spec makes Save behave like paint.net: open `screenshot.png`, edit it, pres
 ## Acceptance criteria
 
 - [ ] AC-01 (event): When the user opens a PNG, JPEG, WebP, BMP or TIFF file, edits it and saves (File ▸ Save or Ctrl/⌘+S) with a single layer at full opacity and Normal blend, then the opened file is written in its own format under its own name — no `.ora` dialog — and the document is marked saved.
-- [ ] AC-02 (event): When the user saves such a document while it has more than one layer, or a layer whose opacity or blend mode would be lost by flattening, then a "Flatten image?" prompt appears with *Flatten* (default), *Save as .ora…* and *Cancel*.
+- [ ] AC-02 (event): When the user saves such a document while it has more than one layer, a hidden layer, or a layer whose opacity or blend mode would be lost by flattening, then a "Flatten image?" prompt appears with *Flatten* (default), *Save as .ora…* and *Cancel*.
 - [ ] AC-03 (event): When the user chooses *Flatten*, then the file is written as the flattened composite in its original format, the open document keeps all its layers, and the document is marked saved.
 - [ ] AC-04 (event): When the user chooses *Save as .ora…*, then the `.ora` Save As flow runs and the layers are saved in an OpenRaster file.
 - [ ] AC-05 (event): When the user chooses *Cancel* in the flatten prompt, then nothing is written and the document stays marked unsaved.
