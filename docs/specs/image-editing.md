@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: S
 mode: Image
@@ -34,6 +34,7 @@ Already decided: the tool set and keys (§5.4, Decision Log 2026-10-27), the lay
 - The selection: shapes, combine modes, feather, Select menu, Delete, selection bounding every pixel tool
 - Image menu (canvas flip / rotate / resize / scale / crop) and Layer menu transforms (flip / rotate)
 - Undo / redo of every document edit
+- Selection gestures that start on the stage around the canvas, deselecting by click and by Escape (added 2026-10-30)
 
 ### Out of scope
 
@@ -44,6 +45,7 @@ Already decided: the tool set and keys (§5.4, Decision Log 2026-10-27), the lay
 - Layer groups — because the planned `image-layer-groups` spec adds them; Image mode has no groups today
 - The shared keymap's non-tool actions, the tool rail layout and the touch modifier toggles — because the `app-shell`, `shortcut-overview` and `tablet-gestures` specs cover them
 - Autosave of Image documents — because the `autosave-recovery` spec covers it
+- Starting Brush, Eraser, Recolor, Smudge, Paint Bucket, Gradient, Eyedropper, Line, Shapes, Text or a Move variant on the stage — because the owner asked for selection gestures only; opening the stage to other tools is a separate decision (AC-32)
 
 ## Acceptance criteria
 
@@ -75,6 +77,10 @@ Already decided: the tool set and keys (§5.4, Decision Log 2026-10-27), the lay
 - [x] AC-26 (always): Undo reverts the last document edit and Redo re-applies it; a new edit after an Undo discards the redo steps; the history has a fixed capacity and drops the oldest step once full.
 - [x] AC-27 (event): When the user selects the Pan tool (H) or the Zoom tool (Z), then the rail shows it active; a click with Zoom steps the view in, and the zoom-out and 1:1 buttons keep working while Zoom is the active tool.
 - [x] AC-28 (event): When the user presses a tool key, then the tool of §5.4 becomes active — V Move (repeated presses cycle Move Layer, Move Selected Pixels, Move Selection), H Pan, Z Zoom, M Marquee, Q Lasso, W Magic Wand, B Brush, E Eraser, R Recolor, S Smudge, G Paint Bucket, N Gradient, I Eyedropper, L Line, U Shapes (repeated presses cycle Rectangle, Rounded Rectangle, Ellipse, Polygon), T Text.
+- [ ] AC-29 (event): When a Rectangle Select, Ellipse Select, Lasso or Polygonal Lasso gesture starts on the stage — the part of the editor's canvas area that the canvas does not cover, excluding controls floating over it (zoom control, on-screen modifier toggles) — then it builds the shape it would build if the canvas extended under the pointer, and the selection keeps only that shape's canvas pixels: a Rectangle Select dragged from the stage beyond the canvas's top-left corner to the canvas point (10.4, 6.6) selects the 10 × 7 box at (0, 0) (each corner snaps to its nearest pixel grid line), and a Lasso or Polygonal Lasso traced around the canvas's top-left corner selects pixel (0, 0).
+- [ ] AC-30 (event): When Rectangle Select or Ellipse Select is released with a box of zero width or height after snapping (a click), when a Rectangle Select, Ellipse Select, Lasso or Polygonal Lasso gesture or a Magic Wand click whose shape's bounding box lies entirely off the canvas (for example a click on the stage), or when a freehand Lasso drag ends with fewer than three points, then in replace mode a present selection is cleared as one undo step, as Select ▸ Deselect does; with no selection present (Select ▸ Deselect disabled), or in add, subtract or intersect mode, nothing changes and no undo step is added.
+- [ ] AC-31 (event): When Escape is pressed (no dialog open, focus not in a text field), then a Rectangle Select, Ellipse Select or Lasso drag or an open Polygonal Lasso is discarded without a selection change or undo step, and moving and releasing the pointer afterwards changes nothing; any other drag in progress is cancelled as before and the selection stays; with no gesture in progress, a present selection is cleared as one undo step.
+- [ ] AC-32 (event): When a press with the Brush, Eraser, Recolor, Smudge, Paint Bucket, Gradient, Eyedropper, Line, Shapes, Text or a Move variant starts on the stage, then no pixel changes and no undo step is added; the Pan and Zoom tools, Space-drag and middle-button panning work from the stage as they do from the canvas.
 
 ## Technical notes
 
@@ -95,6 +101,8 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 `CommandSpec` tags (TS mirror generated into `ui/src/modes/image/core/generated/CommandSpec.ts`): `pencil_stroke`, `recolor_stroke`, `smudge_stroke`, `eraser_stroke`, `fill_bucket`, `translate_layer`, `translate_selection`, `translate_selection_mask`, `delete_selection`, `add_layer`, `remove_layer`, `move_layer`, `duplicate_layer`, `rename_layer`, `set_layer_opacity`, `set_layer_blend_mode`, `set_layer_visible`, `set_layer_locked`, `merge_down`, `merge_visible`, `flatten_image`, `select_rectangle`, `select_ellipse`, `select_polygon`, `select_wand`, `select_all`, `deselect`, `invert_selection`, `expand_selection`, `contract_selection`, `feather_selection`, `transform_layer` (`flip_h` / `flip_v` / `rotate_180`), `rotate_layer_90`, `flip_canvas`, `rotate_canvas` (`cw90` / `ccw90` / `rotate_180`), `scale_image`, `resize_canvas` (anchor), `crop_to_selection`, `draw_shape` (`line` / `rectangle` / `rounded_rectangle` / `ellipse` / `polygon`), `draw_gradient` (kind `linear` / `reflected` / `radial` / `conical` / `diamond`, channel `color` / `transparency`), `draw_text`. A command that misses the canvas, has a zero offset, an empty selection or a bad layer index is a silent no-op (no undo step).
 
+**Stage input** (AC-29 – AC-32): today `attachTools(surface, …)` (`components/canvas/MainCanvas.svelte`) binds the tool dispatcher to the document-sized `surface` div, so a press on the stage around it is lost; the viewport div only handles Pan, Zoom, Space, middle button and pinch. `toCanvasPoint()` (`tools/pointer.ts`) already maps any client point relative to the surface rect, unclamped, and `pincel-image-core` clips every selection shape to the canvas. The viewport also hosts the zoom control and the text entry, which keep their own pointer input. Escape today only calls `gestureControl.cancel()`; a click without drag commits nothing (`w`/`h` = 0). AC-30's deselect is the `deselect` command, sent only while a selection is present.
+
 **UI** (`ui/src/modes/image/`): `ImageEditor.svelte` (menus, keys, dialogs), `core/controller.ts` (builds every command; Gradient: `from` = foreground, `to` = background; Recolor: `from` = background, `to` = foreground; shapes: stroke = foreground, fill = background, both at the tool opacity), `tools/pointer.ts` (Shift = add, Alt = subtract, Shift+Alt = intersect for selections; Shift constrains shapes; right button → background color), `components/panels/LayersPanel.svelte` over the shared `lib/components/layers/LayersPanel.svelte`. Text uses the bundled Liberation Sans, registered once (`ensureFont`).
 
 ## Edge cases
@@ -110,7 +118,14 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | Crop to Selection without a selection | Nothing changes; the menu item is disabled |
 | Invert Selection with no selection | Results in an empty selection (no selection means everything is selected) |
 | Expand / Contract / Feather with no selection | Nothing changes |
-| Magic Wand click off the canvas | Nothing changes |
+| Magic Wand click off the canvas | See AC-30: replace mode clears a present selection, other modes change nothing |
+| Selection gesture entirely on the stage, never touching the canvas | As AC-30: replace mode clears a present selection (one undo step), other modes change nothing |
+| Canvas zoomed so far that it covers the whole viewport | There is no stage; gestures start on the canvas as before |
+| Stage gesture released outside the window | The release still ends it (pointer capture) |
+| `pointercancel` (touch, pen) during a stage gesture | The gesture is abandoned; the selection stays |
+| Right button pressed on the stage with a selection tool | Nothing happens |
+| Text entry open, press on the stage | The entry commits, as a press anywhere outside it does today |
+| Polygonal Lasso vertices placed on the stage | Allowed; the closed polygon is clipped to the canvas — requiring on-canvas vertices would bring the edge problem back |
 | Gradient with a zero-length drag | Nothing changes |
 | Text with only whitespace, or the font cannot be loaded | Nothing is committed, no error |
 | Adding a layer to a document with 999 layers | Refused |
@@ -152,6 +167,10 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC-26 | `command::tests::apply_then_undo_restores_state`, `…::new_command_after_undo_discards_redo`, `…::undo_on_empty_history_returns_false`, `…::capacity_drops_oldest_command` (crates/pincel-image-core/src/command/mod.rs) | verified |  |
 | AC-27 | `ui/e2e/tools.spec.ts › image mode: Pan and Zoom are rail tools`, `ui/e2e/tools.spec.ts › image mode: the zoom buttons still work with the Zoom tool selected` | verified |  |
 | AC-28 | `ui/e2e/tools.spec.ts › image mode: W, B, E, G and T select their tools`, `ui/e2e/tools.spec.ts › image mode: L selects Line and the shapes are its own group`, `ui/e2e/tools.spec.ts › image mode: Pan and Zoom are rail tools`, `ui/e2e/tools.spec.ts › image mode: the move tools drag pixels, the outline, or the layer`, `ui/e2e/tools.spec.ts › image mode: the Gradient tool paints a ramp`, `ui/e2e/tools.spec.ts › image mode: Recolor writes only over the colour it replaces`, `ui/e2e/tools.spec.ts › image mode: Smudge drags along a stroke`, `ui/e2e/shortcuts.spec.ts › image mode: the shared keymap selects tools and cycles variants` | verified | 3080c1f |
+| AC-29 |  | open |  |
+| AC-30 |  | open |  |
+| AC-31 |  | open |  |
+| AC-32 |  | open |  |
 
 Not separately evidenced inside built ACs: the Gradient's Conical and Diamond kinds (AC-14 lists only the tested kinds), selection clipping of Eraser, Recolor and Smudge (AC-11 lists only the tested tools), the default undo capacity of 100 (AC-26 says "fixed capacity").
 
@@ -165,3 +184,8 @@ Not separately evidenced inside built ACs: the Gradient's Conical and Diamond ki
 - The second `/spec-check` found Image-mode Soft Light used the Pegtop formula, not the W3C formula AC-02 names. This was fixed as a bug (Decision Log 2026-10-29, `pincel.md` §15): `soft_light_matches_absolute_w3c_values` was red before the fix (cb 0.25, cs 1 gave 0.4375, not 0.5). Only the `cs > 0.5` branch changed; the compose snapshots and proptests do not use Soft Light and stayed unchanged.
 - The other tests from that round were green on their first run. Each was run red against a temporary, reverted break. AC-02: Overlay's operands swapped, then Hard Light's. AC-07: `FillBucket` dropped from `CommandSpec::edited_layer`; the test now names every pixel-writing variant, one line each. AC-21: Move Selection shifting by `(dx, 0)`. AC-23: Invert Selection recorded as two steps.
 - AC-07's hide and reorder of a locked layer is evidenced in `pincel-image-wasm` through `run_command` behind the `edited_layer` gate, because `apply_command` itself builds a `JsError` and so only runs on wasm targets.
+- 2026-10-30: Revision — selection gestures may start on the stage around the canvas (AC-29 – AC-32), and Image mode deselects in replace mode as Pixel mode does: by a click without drag, by a gesture off the canvas, and by Escape with no gesture in progress. Requested by the owner (edge pixels were hard to hit; Image mode had no click or Escape deselect). Status back to `todo` for the new ACs; AC-01 – AC-28 stay verified because their behavior on the canvas is unchanged — only presses on the stage, clicks without drag, Escape and the Magic Wand edge row are new.
+- 2026-10-30: Only the selection gestures, the Magic Wand and view tools start on the stage (AC-32) — because the owner asked for selections; Gradient, Line or Move Selection could work from the stage too, but that is a separate decision.
+- 2026-10-30: A selection gesture or wand click whose bounding box lies entirely off the canvas deselects in replace mode and changes nothing in the other modes (AC-30), the same rule as Pixel mode (`pixel-selection-move` AC-22) — because combining an empty shape would empty the selection under intersect, which nobody means by clicking beside the canvas.
+- 2026-10-30: Escape and click deselect are specified here rather than in `app-shell` or `shortcut-overview` — because they are selection behavior, not keymap entries.
+- 2026-10-30: Deselecting by click or Escape is one undo step, and none when nothing was selected — because Select ▸ Deselect already is one undo step (AC-23) and a click should undo the same way; an empty step would clutter the history.
