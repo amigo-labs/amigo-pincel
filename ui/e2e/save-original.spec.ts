@@ -428,6 +428,25 @@ test('a flattening Save keeps an autosave snapshot that recovers every layer', a
   await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
 });
 
+test('the kept snapshot follows undo and redo back to the saved state', async ({ page }) => {
+  await page.clock.install();
+  await openLayered(page);
+  await saveFlattened(page);
+  // Undo the added layer and let autosave snapshot the one-layer state,
+  // then redo back to the saved state: the snapshot must catch up.
+  await menu(page, 'Edit', 'Undo');
+  await expect(layerRows(page)).toHaveCount(1);
+  await page.clock.fastForward(31_000);
+  await page.waitForTimeout(500);
+  await menu(page, 'Edit', 'Redo');
+  await expect(layerRows(page)).toHaveCount(2);
+  await expect(page.getByTitle('screenshot.png', { exact: true })).toBeVisible();
+  await page.clock.fastForward(31_000);
+
+  await recoverAfterReload(page);
+  await expect(layerRows(page)).toHaveCount(2);
+});
+
 test('a recovered document keeps saving in its detected format, not its extension', async ({
   page,
 }) => {
