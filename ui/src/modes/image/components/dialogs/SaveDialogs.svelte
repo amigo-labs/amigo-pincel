@@ -1,6 +1,7 @@
 <script lang="ts">
   // The prompts of the Image-mode Save flow (core/save-flow.ts): each one
   // answers the open `savePrompt`, which closes it.
+  import { onDestroy } from 'svelte';
   import { t } from '../../../../lib/i18n/index.svelte';
   import { savePrompt, type FlattenChoice } from '../../stores/editor.svelte';
   import ExportDialog from './ExportDialog.svelte';
@@ -9,6 +10,11 @@
 
   // "Don't ask again" starts unchecked on every flatten prompt.
   let dontAsk = $state(false);
+
+  // `savePrompt` is module state and outlives this editor: when a native
+  // New / Open replaces the editor mid-prompt, cancel the abandoned Save so
+  // the next editor neither shows the prompt nor writes through it.
+  onDestroy(() => savePrompt.value?.resolve(null));
 
   function answerFlatten(
     resolve: (choice: FlattenChoice | null) => void,
