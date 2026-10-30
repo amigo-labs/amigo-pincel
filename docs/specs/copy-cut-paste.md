@@ -142,11 +142,11 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-19 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Copy on a group takes its rendered pixels; Cut on it is refused; `crates/pincel-core/src/clipboard.rs` copy_pixels_group_takes_its_rendered_subtree, copy_pixels_tilemap_takes_its_rendered_tiles; `crates/pincel-wasm/src/clipboard.rs` copy_selection_on_a_group_takes_its_rendered_children, copy_selection_on_a_tilemap_takes_its_rendered_tiles | built |        |
 | AC-20 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Copy on a group takes its rendered pixels; Cut on it is refused; `crates/pincel-wasm/src/clipboard.rs` cut_selection_on_group_or_tilemap_is_refused_unchanged | built |        |
 | AC-21 | `ui/e2e/pixel-clipboard.spec.ts` › pixel: Cut without a selection takes and clears the whole layer; one Undo restores it; `ui/e2e/image-clipboard.spec.ts` › image: Cut copies and clears the selection, without one the whole layer; Undo restores; `crates/pincel-wasm/src/clipboard.rs` cut_selection_without_selection_clears_the_whole_layer; `crates/pincel-image-wasm/src/lib.rs` cut_selection_without_selection_clears_the_layer | built |        |
-| AC-22 |  | open |        |
-| AC-23 |  | open |        |
-| AC-24 |  | open |        |
-| AC-25 |  | open |        |
-| AC-26 |  | open |        |
+| AC-22 | `ui/e2e/paste-new-image.spec.ts` › Ctrl+V on the start screen opens the clipboard image as a new Image document (AC-22); `ui/e2e/paste-new-image.spec.ts` › Ctrl+Alt+V on the start screen opens the clipboard image too (AC-22); `ui/e2e/paste-new-image.spec.ts` › Ctrl+V on the start screen with text only does nothing | built |        |
+| AC-23 | `ui/e2e/paste-new-image.spec.ts` › pixel: Ctrl+Alt+V opens the clipboard image as a new Image document (AC-23); `ui/e2e/paste-new-image.spec.ts` › image: Ctrl+Alt+V opens the clipboard image as a new Image document (AC-23); `ui/e2e/paste-new-image.spec.ts` › pixel: Paste as New Image asks before discarding unsaved changes (AC-23) | built |        |
+| AC-24 | `ui/e2e/paste-new-image.spec.ts` › pixel: the Edit menu lists Paste as New Image below Paste (AC-24); `ui/e2e/paste-new-image.spec.ts` › image: the Edit menu lists Paste as New Image below Paste (AC-24) | built |        |
+| AC-25 | `ui/e2e/paste-new-image.spec.ts` › pixel: Paste as New Image with no image shows a notice and keeps the document (AC-25); `ui/e2e/paste-new-image.spec.ts` › image: Paste as New Image with no image shows a notice and keeps the document (AC-25) | built |        |
+| AC-26 | `ui/e2e/paste-new-image.spec.ts` › Ctrl+V in a start-screen text field creates no document (AC-26) | built |        |
 
 ## Decisions
 
@@ -179,3 +179,4 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-30: An empty Ctrl/⌘+V on the start screen stays silent, while an empty Paste as New Image in an editor shows a notice — because Ctrl+V on the start screen is often a stray key with text on the clipboard, while the editor command was chosen on purpose.
 - 2026-10-30: The title "Pasted image.png" names the source and the format the bytes are in, so the tab and Save As suggest a recognizable PNG name.
 - 2026-10-30: Accepting the browser's clipboard prompt for Ctrl/⌘+Alt+V — because no browser fires a `paste` event for that chord, and the async Clipboard API is the only way to read the image then.
+- 2026-10-30 (spec-build): AC-26 and the text-only start-screen case held before the change (nothing created a document from the start screen); their tests guard the new listeners. A new `EditorProps.onOpenFile` hands a pasted document to the shell, which runs the unsaved-changes guard of File ▸ Open… — because `onOpenForeign` routes without a guard.

@@ -7,11 +7,14 @@ import {
   clipboardImage,
   docTag,
   imageSize,
+  newImageBytes,
   pasteEventImage,
   pastePosition,
+  pastedImageFile,
   resolvePaste,
   storeCopy,
 } from '../../lib/clipboard';
+import { openInShell } from './file-ops';
 import { isTypingTarget } from '../../lib/shell/shortcuts';
 import { t } from '../../lib/i18n/index.svelte';
 import { MAX_DOC_SIZE, dialogs, ed, live, view } from './stores/editor.svelte';
@@ -141,6 +144,21 @@ export async function pasteFromClipboard(): Promise<void> {
   const blob = await clipboardImage();
   if (ed.doc !== doc) return;
   await beginPaste(blob);
+}
+
+/**
+ * Edit ▸ Paste as New Image (Ctrl/⌘+Alt+V): the image Paste would use opens
+ * as a new document; without one, a notice and no guard (copy-cut-paste
+ * AC-23, AC-25).
+ */
+export async function pasteAsNewImage(): Promise<void> {
+  const system = await clipboardImage();
+  const bytes = await newImageBytes(system);
+  if (!bytes) {
+    ed.status = t('paste.noImage');
+    return;
+  }
+  openInShell(pastedImageFile(bytes, system?.type ?? 'image/png'));
 }
 
 /** Ctrl+V / ⌘V: the browser's `paste` event, which needs no permission. */

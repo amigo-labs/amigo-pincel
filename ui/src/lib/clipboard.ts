@@ -1,3 +1,6 @@
+import type { OpenedFile } from './fs';
+import { t } from './i18n/index.svelte';
+
 // Images on the system clipboard, for New-image sizing and Edit ▸ Copy /
 // Cut / Paste (spec §9.2, §5.4). Two ways in: the async Clipboard API, which a menu item or
 // an opening dialog can call, and the `paste` event that Ctrl+V / ⌘V
@@ -130,6 +133,22 @@ export async function resolvePaste(
   const bytes = new Uint8Array(await system.arrayBuffer());
   const own = rec !== null && rec.key !== null && keyOf(bytes) === rec.key;
   return { bytes, origin: own && rec ? inPlace(rec) : null };
+}
+
+/**
+ * The image Paste as New Image opens (copy-cut-paste AC-22, AC-23): the one
+ * Paste would use — the system image, or the in-app copy when the last
+ * system write failed or the system clipboard holds no image.
+ */
+export async function newImageBytes(system: Blob | null): Promise<Uint8Array | null> {
+  const rec = lastCopy;
+  if (rec && (rec.writeFailed || !system)) return rec.png;
+  return system ? new Uint8Array(await system.arrayBuffer()) : null;
+}
+
+/** A pasted image as a document the shell opens, with no file behind it. */
+export function pastedImageFile(bytes: Uint8Array, mime: string): OpenedFile {
+  return { name: t('paste.newImageName'), bytes, mime, handle: null, path: null };
 }
 
 const tags = new WeakMap<object, string>();

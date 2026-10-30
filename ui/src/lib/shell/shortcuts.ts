@@ -26,6 +26,7 @@ export type ShortcutAction =
   | 'cut'
   | 'copy'
   | 'paste'
+  | 'pasteNewImage'
   | 'selectAll'
   | 'deselect'
   | 'invertSelection'
@@ -61,6 +62,8 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   // Menu hint only: editors leave the key to the browser, whose `paste`
   // event carries the clipboard without a permission prompt.
   paste: [{ key: 'v', mod: true }],
+  // No browser fires `paste` for this chord: the async Clipboard API reads it.
+  pasteNewImage: [{ key: 'v', mod: true, alt: true }],
   selectAll: [{ key: 'a', mod: true }],
   deselect: [{ key: 'd', mod: true }],
   invertSelection: [{ key: 'i', mod: true, shift: true }],
