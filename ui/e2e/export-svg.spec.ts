@@ -1,6 +1,15 @@
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, pixelCanvas, waitForEditor } from './helpers';
+import {
+  createDocument,
+  drag,
+  gotoStart,
+  imageCanvas,
+  menu,
+  pixelCanvas,
+  waitForEditor,
+} from './helpers';
 
 // File ▸ Export ▸ SVG… in both modes (docs/specs/vectorize-dialog.md).
 
@@ -219,6 +228,7 @@ test('pixel-exact refuses more than 256 colours until another mode is chosen', a
     'Pixel-exact supports at most 256 colours; this image has 400.',
   );
   await expect(exportButton).toBeDisabled();
+  await expect(dialog(page).getByRole('img', { name: 'SVG preview' })).toHaveCount(0);
   await modeSelect(page).selectOption('color');
   await expect(dialog(page).getByRole('alert')).toHaveCount(0);
   await expect(exportButton).toBeEnabled();
@@ -311,4 +321,104 @@ test.describe('tablet', () => {
     // The drawer stays rendered but sits under the modal backdrop.
     await expect(addLayer.click({ trial: true, timeout: 1000 })).rejects.toThrow();
   });
+});
+
+/** Opens `name` with `bytes` through the start screen's Open… (input fallback). */
+async function openNamed(
+  page: Page,
+  mode: 'pixel' | 'image',
+  name: string,
+  mimeType: string,
+  buffer: Buffer,
+): Promise<void> {
+  await gotoStart(page);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Open…' }).click(),
+  ]);
+  await chooser.setFiles({ name, mimeType, buffer });
+  await waitForEditor(page, mode);
+}
+
+test('a named document exports under its own name', async ({ page }) => {
+  const ase = await readFile(
+    join(
+      import.meta.dirname,
+      '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite',
+    ),
+  );
+  await openNamed(page, 'pixel', 'hero.aseprite', 'application/octet-stream', ase);
+  await openDialog(page);
+  expect((await exportDownload(page)).name).toBe('hero.svg');
+
+  await gotoStart(page);
+  const png = Buffer.from(
+    await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(8, 8);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      ctx.fillStyle = '#336699';
+      ctx.fillRect(0, 0, 4, 8);
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
+    }),
+  );
+  await openNamed(page, 'image', 'photo.png', 'image/png', png);
+  await openDialog(page);
+  expect((await exportDownload(page)).name).toBe('photo.svg');
+});
+
+test('the save picker offers the SVG type and receives the SVG', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      pickerOptions: unknown;
+      written: string[];
+      showSaveFilePicker: (options: unknown) => Promise<unknown>;
+    };
+    w.written = [];
+    w.showSaveFilePicker = async (options) => {
+      w.pickerOptions = options;
+      return {
+        kind: 'file',
+        name: 'pincel.svg',
+        createWritable: async () => ({
+          write: async (data: Uint8Array | Blob) =>
+            void w.written.push(
+              data instanceof Blob ? await data.text() : new TextDecoder().decode(data),
+            ),
+          close: async () => undefined,
+        }),
+      };
+    };
+  });
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await paintPixel(page);
+  await openDialog(page);
+  await dialog(page).getByRole('button', { name: 'Export' }).click();
+  await expect(page.getByText(/exported SVG · \d+ bytes/)).toBeVisible();
+  const { options, written } = await page.evaluate(() => {
+    const w = window as unknown as { pickerOptions: unknown; written: string[] };
+    return { options: w.pickerOptions, written: w.written };
+  });
+  expect(options).toMatchObject({
+    suggestedName: 'pincel.svg',
+    types: [{ accept: { 'image/svg+xml': ['.svg'] } }],
+  });
+  expect(written.join('')).toMatch(/^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+});
+
+test('image: a hidden layer is not exported', async ({ page }) => {
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
+  await openDialog(page);
+  await expect(summary(page)).toHaveText(/^1 layer/);
+  await page.keyboard.press('Escape');
+  await page
+    .getByRole('button', { name: /^Hide / })
+    .first()
+    .click();
+  await openDialog(page);
+  await expect(summary(page)).toHaveText(/^0 layers · 0 outlines/);
+  const { text } = await exportDownload(page);
+  expect(text).not.toContain('<path');
 });
