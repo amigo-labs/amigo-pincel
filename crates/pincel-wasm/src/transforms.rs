@@ -160,6 +160,45 @@ mod tests {
     }
 
     #[test]
+    fn transform_layer_flip_v_and_rotations_stay_inside_the_selection() {
+        const RED: u32 = 0xFF0000FF;
+        const BLUE: u32 = 0x0000FFFF;
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.apply_tool("pencil", 1, 1, RED).expect("paint");
+        doc.end_stroke();
+        doc.apply_tool("pencil", 0, 0, BLUE).expect("paint");
+        doc.end_stroke();
+        doc.set_selection(1, 1, 2, 2);
+        // Each turn is one undo entry, about the selection's 2 × 2 box;
+        // the blue pixel outside the box never moves.
+        for (orientation, (x, y)) in [
+            ("flip_vertical", (1, 2)),
+            ("rotate_90_cw", (2, 1)),
+            ("rotate_90_ccw", (1, 2)),
+            ("rotate_180", (2, 2)),
+        ] {
+            let depth = doc.undo_depth();
+            doc.transform_layer(orientation).expect("transform");
+            assert_eq!(doc.undo_depth(), depth + 1, "{orientation}");
+            assert_eq!(px(&doc, x, y), RED, "{orientation}");
+            assert_eq!(px(&doc, 0, 0), BLUE, "{orientation}");
+            assert!(doc.undo());
+            assert_eq!(px(&doc, 1, 1), RED, "{orientation} undone");
+        }
+    }
+
+    #[test]
+    fn crop_clips_a_selection_past_the_edge_and_ignores_one_off_the_canvas() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.set_selection(2, 2, 5, 5);
+        assert!(doc.crop_to_selection().expect("crop"));
+        assert_eq!((doc.width(), doc.height()), (2, 2));
+        doc.set_selection(10, 10, 2, 2);
+        assert!(!doc.crop_to_selection().expect("off canvas"));
+        assert_eq!((doc.width(), doc.height()), (2, 2));
+    }
+
+    #[test]
     fn transform_canvas_rotate_swaps_dimensions() {
         let mut doc = Document::new(3, 2).expect("dims");
         doc.apply_tool("pencil", 0, 0, 0x00FF00FF).expect("paint");
