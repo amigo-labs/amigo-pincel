@@ -209,6 +209,46 @@ fn pixel_exact_refuses_more_than_256_colours_and_recovers() {
 }
 
 #[test]
+fn pixel_exact_reports_the_exact_colour_count() {
+    let img = Img::new(20, 15, |x, y| {
+        let i = y * 20 + x;
+        [i as u8, (i >> 8) as u8, 7, 255]
+    });
+    assert_eq!(
+        TraceSession::new(&img.rgba, img.w, img.h)
+            .expect("valid image")
+            .trace(&exact()),
+        Err(TraceError::TooManyColors {
+            count: 300,
+            max: 256
+        })
+    );
+}
+
+#[test]
+fn pixel_exact_checks_the_potrace_options_too() {
+    let img = Img::new(2, 1, |x, _| if x == 0 { R } else { B });
+    let mut s = TraceSession::new(&img.rgba, img.w, img.h).expect("valid image");
+    for (alpha_max, opt_tolerance, option) in
+        [(2.0, 0.2, "alpha_max"), (1.0, -1.0, "opt_tolerance")]
+    {
+        let opts = TraceOptions {
+            potrace: PotraceParams {
+                alpha_max,
+                opt_tolerance,
+                ..PotraceParams::default()
+            },
+            ..exact()
+        };
+        assert!(
+            matches!(s.trace(&opts), Err(TraceError::InvalidOption { option: o, .. }) if o == option),
+            "{option}"
+        );
+    }
+    assert_eq!(s.trace(&exact()).expect("valid options").layers.len(), 2);
+}
+
+#[test]
 fn svg_document_per_mode() {
     let img = Img::new(2, 1, |x, _| if x == 0 { R } else { HALF });
     let r = trace(&img, &exact());

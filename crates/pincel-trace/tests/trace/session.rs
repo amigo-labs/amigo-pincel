@@ -427,3 +427,89 @@ fn color_alpha_cut_off_is_128_free_and_pinned() {
         assert_eq!(r.layers[0].area, 16);
     }
 }
+
+#[test]
+fn mono_with_every_outline_dropped_has_zero_layers() {
+    // One black pixel: filled, but its outline (area 1) is not above the
+    // minimum area 2 (AC-09).
+    let img = Img::new(5, 5, |x, y| {
+        if (x, y) == (2, 2) {
+            [0, 0, 0, 255]
+        } else {
+            [255, 255, 255, 255]
+        }
+    });
+    let r = trace(&img, &mono(Threshold::Manual(128)));
+    assert!(r.layers.is_empty());
+    assert_eq!(r.stats.paths, 0);
+}
+
+#[test]
+fn colours_without_a_kept_outline_get_no_layer() {
+    // The four-colour image plus a 1-px magenta speck: magenta receives the
+    // pixel but its only outline falls to the minimum area (AC-11).
+    let mut img = images::four_colour();
+    img.rgba[0..4].copy_from_slice(&[255, 0, 255, 255]);
+    let all = ["#f4efe6", "#2e86ab", "#c0392b", "#27ae60", "#ff00ff"];
+    let r = trace(&img, &pinned(&all));
+    assert_eq!(r.layers.len(), 4);
+    assert!(!hexes(&r).contains(&"#ff00ff".to_string()));
+    assert!(r.layers.iter().all(|l| !l.path_data.is_empty()));
+}
+
+#[test]
+fn range_boundaries_are_accepted() {
+    let img = images::disc();
+    let pot = |alpha_max, opt_tolerance| TraceOptions {
+        potrace: PotraceParams {
+            alpha_max,
+            opt_tolerance,
+            ..PotraceParams::default()
+        },
+        ..TraceOptions::default()
+    };
+    for opts in [
+        colors(2),
+        colors(16),
+        pot(0.0, 0.2),
+        pot(1.34, 0.2),
+        pot(1.0, 0.0),
+        pinned(&[
+            "#000000", "#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777",
+            "#888888", "#999999", "#aaaaaa", "#bbbbbb", "#cccccc", "#dddddd", "#eeeeee", "#ffffff",
+        ]),
+    ] {
+        assert!(session(&img).trace(&opts).is_ok(), "{opts:?}");
+    }
+}
+
+#[test]
+fn auto_threshold_cache_keeps_despeckle_apart() {
+    // A grey disc on a light ground with isolated black points on a 3 × 3
+    // grid: the median removes the points, which moves Otsu's threshold
+    // (60 without despeckle, 150 with it).
+    let img = Img::new(60, 60, |x, y| {
+        let v = if (x - 30).pow(2) + (y - 30).pow(2) <= 15 * 15 {
+            120
+        } else if x % 3 == 1 && y % 3 == 1 {
+            0
+        } else {
+            180
+        };
+        [v, v, v, 255]
+    });
+    let with = |despeckle| TraceOptions {
+        despeckle,
+        ..mono(Threshold::Auto)
+    };
+    let mut s = session(&img);
+    let plain = s.trace(&with(false)).expect("trace");
+    let cached = s.trace(&with(true)).expect("trace");
+    let fresh = session(&img).trace(&with(true)).expect("trace");
+    assert_eq!(cached.threshold_used, fresh.threshold_used);
+    assert_eq!(cached, fresh);
+    assert_ne!(
+        plain.threshold_used, fresh.threshold_used,
+        "despeckle moves the threshold here"
+    );
+}
