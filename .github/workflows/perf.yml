@@ -104,7 +104,7 @@ jobs:
         run: pnpm perf
 
       - name: restore runner baseline
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: perf-baseline
           key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
@@ -115,7 +115,7 @@ jobs:
           mkdir -p "$BASELINE_DIR"
           pnpm perf:check --mode baseline --runner "$ImageOS-$RUNNER_ARCH" --baseline "$BASELINE_DIR/baseline.json" --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md --write
       - name: save runner baseline
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: perf-baseline
           key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
