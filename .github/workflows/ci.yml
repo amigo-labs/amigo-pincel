@@ -111,7 +111,7 @@ jobs:
       # @playwright/test version is pinned by pnpm-lock.yaml, so its hash
       # is an exact key. System libraries live outside the cache and are
       # installed separately on a hit.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
