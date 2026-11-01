@@ -30,8 +30,12 @@ import initWasm, {
   get_document_info,
   get_selection_mask,
   register_font,
+  vectorizer,
+  type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
+
+export type { Vectorizer };
 
 /** Per-layer state for the layers panel (spec §16.5). */
 export interface LayerInfo {
@@ -441,6 +445,8 @@ export const core = {
     composite_region(handle, x, y, w, h, outW, outH) as Uint8ClampedArray<ArrayBuffer>,
   composite: (handle: number): Uint8ClampedArray<ArrayBuffer> =>
     composite(handle) as Uint8ClampedArray<ArrayBuffer>,
+  /** A tracer over the composite for File ▸ Export ▸ SVG… (vectorize-dialog); free it when done. */
+  vectorizer: (handle: number): Vectorizer => vectorizer(handle),
   applyCommand: (handle: number, command: ToolCommand): void =>
     apply_command(handle, JSON.stringify(command)),
   /** Applies effect `name` with positional `params` (the shared

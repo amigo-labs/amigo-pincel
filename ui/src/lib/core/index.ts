@@ -14,6 +14,8 @@ import init, {
   registerFont,
   type ComposeFrame,
   type Event as PincelEvent,
+  type VectorizeResult,
+  type Vectorizer,
 } from '@amigo-labs/pincel-wasm';
 // Vite-native URL import. Using the `?url` query forces Vite to copy
 // the binary into the bundle and hand back the asset URL, instead of
@@ -22,7 +24,7 @@ import init, {
 // explicit form is unambiguous and survives bundling.
 import wasmUrl from '@amigo-labs/pincel-wasm/pincel_wasm_bg.wasm?url';
 
-export type { ComposeFrame, PincelEvent };
+export type { ComposeFrame, PincelEvent, VectorizeResult, Vectorizer };
 export { Document, blendModeNames, effectNames, registerFont };
 
 let initPromise: Promise<void> | null = null;

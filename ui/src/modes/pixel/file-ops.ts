@@ -2,7 +2,8 @@
 // export.
 
 import { invoke } from '@tauri-apps/api/core';
-import { Document } from '../../lib/core';
+import { Document, type Vectorizer } from '../../lib/core';
+import type { SvgTrace } from '../../lib/components/SvgExportDialog.svelte';
 import {
   type OpenedFile,
   type SaveTarget,
@@ -319,6 +320,54 @@ export async function exportPng() {
     if (await saveExport(bytes, `${base}${suffix}.png`)) {
       ed.status = t('px.exportedPng', { bytes: bytes.length });
     }
+  } catch (err) {
+    ed.status = t('status.failed', {
+      action: t('act.export'),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    file.busy = false;
+  }
+}
+
+// File ▸ Export ▸ SVG… (docs/specs/vectorize-dialog.md). The vectorizer
+// lives while the dialog is open, so re-tracing reuses its caches.
+let vectorizer: Vectorizer | null = null;
+
+export function openSvgDialog() {
+  if (ed.doc && !file.busy) dialogs.svg = true;
+}
+
+export function closeSvgDialog() {
+  dialogs.svg = false;
+  vectorizer?.free();
+  vectorizer = null;
+}
+
+/** Traces the current frame with the dialog's mode and option vector. */
+export function traceSvg(mode: number, params: number[]): SvgTrace {
+  if (!ed.doc) return { error: 'no document' };
+  try {
+    vectorizer ??= ed.doc.vectorizer(ed.currentFrame);
+    const r = vectorizer.trace(mode, new Float64Array(params));
+    try {
+      return { svg: r.svg, layers: r.layers, outlines: r.outlines, threshold: r.threshold };
+    } finally {
+      r.free();
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function exportSvg(svg: string) {
+  closeSvgDialog();
+  if (!ed.doc || file.busy) return;
+  file.busy = true;
+  try {
+    const bytes = new Uint8Array(new TextEncoder().encode(svg));
+    const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
+    if (await saveExport(bytes, `${base}.svg`, 'svg')) ed.status = t('px.exportedSvg', { bytes: bytes.length });
   } catch (err) {
     ed.status = t('status.failed', {
       action: t('act.export'),

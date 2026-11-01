@@ -10,6 +10,7 @@
   import { isShapeTool, toolGroups } from './tools';
   import SpriteSheetDialog from './components/SpriteSheetDialog.svelte';
   import AnimationExportDialog from './components/AnimationExportDialog.svelte';
+  import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
@@ -73,8 +74,12 @@
     autosave,
     bindShell,
     confirmDiscard,
+    closeSvgDialog,
     describeAnimation,
     exportAnimation,
+    exportSvg,
+    openSvgDialog,
+    traceSvg,
     exportPng,
     exportSheet,
     fsAccessAvailable,
@@ -242,6 +247,7 @@
       exportPng: () => void exportPng(),
       exportSheet: openSheetDialog,
       exportAnimation: openAnimationDialog,
+      exportSvg: openSvgDialog,
       undo,
       redo,
       deleteSelection: deleteSelectionPixels,
@@ -303,7 +309,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || autosave.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
     if (dialogs.selectionRadius || dialogs.paste || help.about) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -441,7 +447,7 @@
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
     const blocked = Boolean(
-      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.selectionRadius || dialogs.paste,
+      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
     );
     onPaste(e, blocked || help.about || toolState.textAnchor !== null);
   }
@@ -559,6 +565,7 @@
       'menu:exportPng': () => void exportPng(),
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
+      'menu:exportSvg': openSvgDialog,
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': zoomIn,
@@ -1107,6 +1114,15 @@
     frameHeight={ed.canvasH}
     onSubmit={(o) => void exportSheet(o)}
     onCancel={() => (dialogs.sheet = false)}
+  />
+{/if}
+
+{#if dialogs.svg && ed.doc}
+  <SvgExportDialog
+    defaultMode="exact"
+    trace={traceSvg}
+    onExport={(svg) => void exportSvg(svg)}
+    onCancel={closeSvgDialog}
   />
 {/if}
 

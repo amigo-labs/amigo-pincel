@@ -169,8 +169,8 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
 /** Raster formats the Image mode exports. */
 export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
 /** Everything `saveExport` can write: images, animated GIFs, JSON
- *  sidecars, palettes. */
-export type ExportFormat = ImageExportFormat | 'gif' | 'json' | 'gpl';
+ *  sidecars, palettes, SVG (vectorize-dialog). */
+export type ExportFormat = ImageExportFormat | 'gif' | 'json' | 'gpl' | 'svg';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
@@ -179,6 +179,7 @@ const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   gif: GIF_TYPES,
   json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
   gpl: GPL_TYPES,
+  svg: [{ description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } }],
 };
 
 const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] }> = {
@@ -188,6 +189,7 @@ const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] 
   gif: { name: 'GIF image', extensions: ['gif'] },
   json: { name: 'JSON data', extensions: ['json'] },
   gpl: { name: 'GIMP palette', extensions: ['gpl'] },
+  svg: { name: 'SVG image', extensions: ['svg'] },
 };
 
 function startsWith(bytes: Uint8Array, sig: number[], offset = 0): boolean {

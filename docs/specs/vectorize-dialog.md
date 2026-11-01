@@ -87,18 +87,20 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-01 | `both modes list SVG… last under File ▸ Export` (`ui/e2e/export-svg.spec.ts`); the disabled state comes from the Export submenu's existing no-document flag, which no e2e path can reach with an editor mounted | built |        |
+| AC-02 | `pixel: the dialog opens pixel-exact with defaults and exports the frame`, `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-03 | `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-04 | `image: the dialog opens in colour mode, …` (summary follows invert), `pixel: the dialog opens pixel-exact …` (preview, undo unchanged) (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-05 | `pixel: the dialog opens pixel-exact with defaults and exports the frame` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-06 | `Cancel and Escape close the dialog without saving or editing` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-07 | `pixel-exact refuses more than 256 colours until another mode is chosen` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-08 | `cancelling the save picker saves nothing and shows no error` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-09 | `a hidden layer is not exported` (`ui/e2e/export-svg.spec.ts`); Rust: `vectorize::tests::vectorizer_traces_the_visible_frame_pixel_exact` (`crates/pincel-wasm/src/vectorize.rs`) | built |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-11 | `menu entry, dialog and summary follow the German language` (`ui/e2e/export-svg.spec.ts`) | built |        |
 
 ## Decisions
+
+- 2026-11-01 (spec-build) — UI behaviour is test-after (AGENTS.md §2.3): the e2e spec was written against the finished dialog; the wasm bindings have native Rust tests. The summary uses singular and plural forms ("1 layer", "4 layers") in both languages. The preview `<img>` scales the SVG to the preview box. The macOS native menu item (AC-10) is built in `src-tauri/src/main.rs` and checked by CI's Tauri job; its behaviour needs a Mac.
 
 - 2026-11-01 — Written autonomously under the owner's goal "Vectorizer completely integrated", following their earlier decisions (Rust port, export only, Vectorizer repository deleted afterwards); every choice not settled by them is listed under Assumptions.

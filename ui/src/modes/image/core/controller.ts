@@ -23,7 +23,9 @@ import {
   type DrawShapeCommand,
   type ShapeKind,
   type DrawTextCommand,
+  type Vectorizer,
 } from './wasm';
+import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
 import { editor, tool } from '../stores/editor.svelte';
 import {
   formatFromName,
@@ -848,6 +850,38 @@ export function redo(): void {
 }
 
 export type { ExportFormat };
+
+// File ▸ Export ▸ SVG… (docs/specs/vectorize-dialog.md). The vectorizer
+// lives while the dialog is open, so re-tracing reuses its caches.
+let svgVectorizer: Vectorizer | null = null;
+
+/** Traces the composite with the dialog's mode and option vector. */
+export function traceSvg(mode: number, params: number[]): SvgTrace {
+  if (editor.handle === null) return { error: 'no document' };
+  try {
+    svgVectorizer ??= core.vectorizer(editor.handle);
+    const r = svgVectorizer.trace(mode, new Float64Array(params));
+    try {
+      return { svg: r.svg, layers: r.layers, outlines: r.outlines, threshold: r.threshold };
+    } finally {
+      r.free();
+    }
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Frees the dialog's vectorizer. */
+export function closeSvgExport(): void {
+  svgVectorizer?.free();
+  svgVectorizer = null;
+}
+
+/** Saves `svg` as `<stem>.svg`; `false` when the user cancelled. */
+export async function exportSvg(svg: string): Promise<boolean> {
+  if (editor.handle === null) return false;
+  return saveExport(new Uint8Array(new TextEncoder().encode(svg)), `${fileStem()}.svg`, 'svg');
+}
 
 /** Exports the composite in `format` through the shared file layer
  * (FSA save picker / Tauri dialog / download). Resolves `false` when the
