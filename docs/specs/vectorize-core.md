@@ -165,19 +165,21 @@ Terms used below:
 | AC-09 | `session::mono_auto_threshold_lands_in_the_valley`, `session::mono_manual_threshold_invert_and_fill`, `session::mono_invert_fills_a_transparent_image` (`tests/trace/session.rs`) | built |        |
 | AC-10 | `session::despeckle_collapses_salt_and_pepper` (`tests/trace/session.rs`) | built |        |
 | AC-11 | `session::pinned_palette_uses_exactly_the_pinned_colours` (`tests/trace/session.rs`) | built |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-12 | `pixel_exact::pixel_exact_layers_cover_exactly_their_pixels`, `pixel_exact::pixel_exact_rectangle_is_four_steps_and_ignores_min_area`, `pixel_exact::pixel_exact_checkerboard_keeps_every_pixel_centre_right` (`tests/trace/pixel_exact.rs`) | built |        |
+| AC-13 | `pixel_exact::pixel_exact_alpha_order_and_ties` (`tests/trace/pixel_exact.rs`) | built |        |
+| AC-14 | `pixel_exact::svg_document_per_mode` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-15 | `session::stats_add_up` (`tests/trace/session.rs`) | built |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-16 | `session::same_options_give_identical_results` (`tests/trace/session.rs`), `pixel_exact::svg_is_byte_identical_across_sessions` (`tests/trace/pixel_exact.rs`) | built |        |
+| AC-17 | `pixel_exact::changing_options_in_one_session_matches_fresh_sessions` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-18 | `session::session_rejects_bad_images` (`tests/trace/session.rs`) | built |        |
 | AC-19 | `session::trace_rejects_out_of_range_options_and_recovers` (`tests/trace/session.rs`) | built |        |
-| AC-20 |      | open   |        |
+| AC-20 | `pixel_exact::pixel_exact_refuses_more_than_256_colours_and_recovers` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-21 |      | open   |        |
 | AC-22 |      | open   |        |
 
 ## Decisions
+
+- 2026-11-01 (spec-build) — Pixel-exact outlines are linked edge by edge with a right turn where two pixels of the layer touch only at a corner, so such pixels get separate outlines; `fill-opacity` is written with up to three decimals (128 → `0.502`).
 
 - 2026-11-01 (spec-build) — A Potrace port check before the golden corpus: 4 shapes × 6 turn policies give byte-identical path data to the reference. One reference quirk is kept on purpose: in `calcLon`, `ct[dir]++` with a fractional `dir` (both or neither direction non-zero) sets a stray JavaScript property instead of a counter, so the port only counts even numerators — the C original rounds down instead and would differ.
 - 2026-11-01 (spec-build) — `TraceResult` carries `kind` (colour / mono / pixel-exact) because the SVG document depends on the mode (AC-14); the threshold used is a `u16` because Otsu can return 256 in the reference.

@@ -20,15 +20,19 @@
 
 mod color;
 mod error;
+mod pixel_exact;
 mod potrace;
 mod quality;
 mod quantize;
 mod session;
+mod svg;
 
 pub use color::{Rgb, Rgba};
 pub use error::TraceError;
+pub use pixel_exact::MAX_EXACT_COLORS;
 pub use potrace::{PotraceParams, TurnPolicy};
 pub use session::{
     Layer, MAX_COLORS, MAX_SIDE, Mode, ResultKind, Threshold, TraceOptions, TraceResult,
     TraceSession, TraceStats,
 };
+pub use svg::to_svg;

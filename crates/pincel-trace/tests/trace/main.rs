@@ -2,4 +2,5 @@
 
 mod geom;
 mod images;
+mod pixel_exact;
 mod session;

@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use crate::color::{Rgb, Rgba};
 use crate::error::TraceError;
+use crate::pixel_exact::trace_exact;
 use crate::potrace::{Bitmap, PotraceParams, Tag, TracedPath, path_data, trace as potrace};
 use crate::quality::{despeckle, effective_brightness, otsu};
 use crate::quantize::{Quantization, quantize_image, quantize_with_palette};
@@ -44,6 +45,9 @@ pub enum Mode {
         /// The colour of the one layer.
         fill: Rgb,
     },
+    /// One layer per distinct colour, outlines along the pixel edges; at
+    /// most 256 colours. Despeckle and the Potrace parameters do not apply.
+    PixelExact,
 }
 
 /// Options of one trace (`docs/specs/vectorize-core.md`, Terms: default
@@ -78,6 +82,8 @@ pub enum ResultKind {
     Color,
     /// Monochrome mode.
     Mono,
+    /// Pixel-exact mode.
+    PixelExact,
 }
 
 /// One colour and its outlines.
@@ -100,7 +106,8 @@ pub struct TraceStats {
     pub segments: u64,
     /// Bézier curve segments.
     pub curves: u64,
-    /// Straight segments (Potrace corners).
+    /// Straight segments (Potrace corners, or every step in pixel-exact
+    /// mode).
     pub lines: u64,
 }
 
@@ -200,6 +207,7 @@ impl TraceSession {
                 invert,
                 fill,
             } => self.trace_mono(*threshold, *invert, *fill, opts),
+            Mode::PixelExact => self.trace_pixel_exact(),
         }
     }
 
@@ -331,6 +339,34 @@ impl TraceSession {
             layers,
             stats,
             threshold_used: Some(th),
+        })
+    }
+}
+
+impl TraceSession {
+    fn trace_pixel_exact(&mut self) -> Result<TraceResult, TraceError> {
+        let exact = trace_exact(&self.rgba, self.width as usize, self.height as usize)?;
+        let mut stats = TraceStats::default();
+        let layers = exact
+            .into_iter()
+            .map(|l| {
+                stats.paths += l.outlines;
+                stats.segments += l.steps;
+                stats.lines += l.steps;
+                Layer {
+                    color: l.color,
+                    area: l.area,
+                    path_data: l.path_data,
+                }
+            })
+            .collect();
+        Ok(TraceResult {
+            width: self.width,
+            height: self.height,
+            kind: ResultKind::PixelExact,
+            layers,
+            stats,
+            threshold_used: None,
         })
     }
 }
