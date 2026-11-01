@@ -33,6 +33,9 @@ export interface EditorProps {
   /** The editor opened a file that belongs to the other mode; the shell
    *  re-routes it (after its own unsaved-changes guard). */
   onOpenForeign: (file: OpenedFile) => void;
+  /** Open a document the editor was handed (Paste as New Image): the shell
+   *  runs its unsaved-changes guard, then routes it like Open…. */
+  onOpenFile: (file: OpenedFile) => void;
   /** Mirror of the editor's dirty state, for the shell's guards. */
   onDirtyChange: (dirty: boolean) => void;
   /** Re-open a recent through the shell, which reads the file (FSA handle

@@ -98,7 +98,6 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
-| Paste into New Image (Ctrl+Alt+V) | Cheap follow-up to copy-cut-paste |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
