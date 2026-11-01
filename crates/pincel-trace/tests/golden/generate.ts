@@ -178,6 +178,7 @@ const cases: [string, string, Opts][] = [
   ["square_min_area_2", "square_with_stray_pixel", mono],
   ["square_min_area_0", "square_with_stray_pixel", { ...mono, minArea: 0 }],
   ["noisy", "noisy_two_tone", mono],
+  ["speckled_default", "speckled_two_tone", mono],
   ["speckled", "speckled_two_tone", { ...mono, threshold: 130, minArea: 0 }],
   ["speckled_despeckle", "speckled_two_tone", { ...mono, threshold: 130, minArea: 0, despeckle: true }],
   ["four_colour", "four_colour", color],

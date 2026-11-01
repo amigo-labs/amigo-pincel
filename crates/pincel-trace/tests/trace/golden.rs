@@ -143,7 +143,7 @@ fn assert_same_path(case: &str, got: &str, want: &str) {
 #[test]
 fn golden_corpus_matches_the_reference() {
     let cases = cases();
-    assert_eq!(cases.len(), 28, "corpus case count");
+    assert_eq!(cases.len(), 29, "corpus case count");
     for case in &cases {
         let img = image(&case.image);
         let r: TraceResult = TraceSession::new(&img.rgba, img.w, img.h)

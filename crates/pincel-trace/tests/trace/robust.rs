@@ -83,6 +83,10 @@ fn every_mode_on_every_test_image_traces_without_panic() {
                 let r = session.trace(&opts).expect("accepted options trace");
                 let svg = to_svg(&r);
                 assert!(svg.starts_with("<svg ") && svg.ends_with("</svg>"));
+                assert!(
+                    !svg.contains("NaN") && !svg.contains("inf"),
+                    "no NaN or infinite number (AC-04)"
+                );
             }
         }
     }
@@ -117,6 +121,10 @@ fn every_mode_on_the_benchmark_images_traces_without_panic() {
                 let r = session.trace(&opts).expect("accepted options trace");
                 let svg = to_svg(&r);
                 assert!(svg.starts_with("<svg ") && svg.ends_with("</svg>"));
+                assert!(
+                    !svg.contains("NaN") && !svg.contains("inf"),
+                    "no NaN or infinite number (AC-04)"
+                );
             }
         }
     }
