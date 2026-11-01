@@ -176,6 +176,7 @@ test("image: the dialog opens in colour mode, shows each mode's options and upda
   const { name, text } = await exportDownload(page);
   expect(name).toBe('image.svg');
   expect(text).toContain('viewBox="0 0 64 64"');
+  await expect(dialog(page)).toHaveCount(0);
 });
 
 test('Cancel and Escape close the dialog without saving or editing', async ({ page }) => {
@@ -271,6 +272,21 @@ test('cancelling the save picker saves nothing and shows no error', async ({ pag
   await expect(dialog(page)).toHaveCount(0);
   await expect(page.getByText(/exported SVG|failed/)).toHaveCount(0);
   await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+});
+test('image: cancelling the save picker saves nothing and shows no error', async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as { showSaveFilePicker?: unknown }).showSaveFilePicker = () =>
+      Promise.reject(new DOMException('cancelled', 'AbortError'));
+  });
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  await openDialog(page);
+  await dialog(page).getByRole('button', { name: 'Export' }).click();
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByText(/failed|cancelled/i)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+  expect(downloads).toBe(0);
 });
 
 test('menu entry, dialog and summary follow the German language', async ({ page }) => {

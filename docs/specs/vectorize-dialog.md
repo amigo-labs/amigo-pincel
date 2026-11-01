@@ -91,15 +91,17 @@ Terms used below:
 | AC-02 | `pixel: the dialog opens pixel-exact with defaults and exports the frame`, `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-03 | `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`; each mode asserts what it shows and what it hides) | built |        |
 | AC-04 | `image: the dialog opens in colour mode, …` (summary and preview `src` follow invert within 1 s), `pixel: the dialog opens pixel-exact …` (preview, undo unchanged), `Cancel and Escape close the dialog without saving or editing` (canvas screenshot unchanged) (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-05 | `pixel: the dialog opens pixel-exact with defaults and exports the frame` (`pincel.svg`, status line), `image: the dialog opens in colour mode, …` (`image.svg`), `a named document exports under its own name` (`hero.svg`, `photo.svg`), `the save picker offers the SVG type and receives the SVG` (`image/svg+xml`) (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-05 | `pixel: the dialog opens pixel-exact with defaults and exports the frame` (`pincel.svg`, status line), `image: the dialog opens in colour mode, …` (`image.svg`, dialog closes), `a named document exports under its own name` (`hero.svg`, `photo.svg`), `the save picker offers the SVG type and receives the SVG` (`image/svg+xml`) (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-06 | `Cancel and Escape close the dialog without saving or editing` (`ui/e2e/export-svg.spec.ts`, both modes) | built |        |
 | AC-07 | `pixel-exact refuses more than 256 colours until another mode is chosen` (`ui/e2e/export-svg.spec.ts`; reason in place of the preview) | built |        |
-| AC-08 | `cancelling the save picker saves nothing and shows no error` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-08 | `cancelling the save picker saves nothing and shows no error`, `image: cancelling the save picker saves nothing and shows no error` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-09 | `a hidden layer is not exported`, `image: a hidden layer is not exported`, `onion skin and the selection outline are not exported` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-10 |      | open   |        |
 | AC-11 | `menu entry, dialog and summary follow the German language` (`ui/e2e/export-svg.spec.ts`) | built |        |
 
 ## Decisions
+
+- 2026-11-01 (after the third spec-check) — Image mode's own export handler had no test for closing the dialog after Export (AC-05) or for a cancelled save picker (AC-08); both are tested now, and each test fails when the handler keeps the dialog open or reports the cancel as an error.
 
 - 2026-11-01 (after the second spec-check) — AC-05's named-document name and file type had no test that a hard-coded name or another type would fail; both are covered now (each new test fails under that mutation). AC-07's "in place of the preview" and AC-09 in Image mode got their own assertions; the Rust test formerly listed for AC-09 traces only a visible layer and is no evidence for it.
 
