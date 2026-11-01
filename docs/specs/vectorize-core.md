@@ -155,29 +155,32 @@ Terms used below:
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-02 | `potrace::tests::trace_disc_gives_few_segments_close_to_the_circle` (`src/potrace.rs`) | built |        |
+| AC-03 | `session::mono_ring_pixel_centres_follow_even_odd_outlines` (`tests/trace/session.rs`) | built |        |
+| AC-04 | `potrace::tests::trace_rectangle_has_exact_corners_and_finite_numbers` (`src/potrace.rs`), `session::mono_rectangle_starts_at_reference_point` (`tests/trace/session.rs`) | built |        |
+| AC-05 | `potrace::tests::trace_min_area_drops_small_outlines` (`src/potrace.rs`), `session::mono_min_area_drops_the_stray_pixel` (`tests/trace/session.rs`) | built |        |
+| AC-06 | `potrace::tests::path_data_relative_steps_close_without_drift` (`src/potrace.rs`) | built |        |
+| AC-07 | `session::color_four_colour_image_finds_all_four_largest_first` (`tests/trace/session.rs`) | built |        |
+| AC-08 | `session::color_transparent_pixels_belong_to_no_layer` (`tests/trace/session.rs`) | built |        |
+| AC-09 | `session::mono_auto_threshold_lands_in_the_valley`, `session::mono_manual_threshold_invert_and_fill`, `session::mono_invert_fills_a_transparent_image` (`tests/trace/session.rs`) | built |        |
+| AC-10 | `session::despeckle_collapses_salt_and_pepper` (`tests/trace/session.rs`) | built |        |
+| AC-11 | `session::pinned_palette_uses_exactly_the_pinned_colours` (`tests/trace/session.rs`) | built |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-15 | `session::stats_add_up` (`tests/trace/session.rs`) | built |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-18 | `session::session_rejects_bad_images` (`tests/trace/session.rs`) | built |        |
+| AC-19 | `session::trace_rejects_out_of_range_options_and_recovers` (`tests/trace/session.rs`) | built |        |
 | AC-20 |      | open   |        |
 | AC-21 |      | open   |        |
 | AC-22 |      | open   |        |
 
 ## Decisions
+
+- 2026-11-01 (spec-build) — A Potrace port check before the golden corpus: 4 shapes × 6 turn policies give byte-identical path data to the reference. One reference quirk is kept on purpose: in `calcLon`, `ct[dir]++` with a fractional `dir` (both or neither direction non-zero) sets a stray JavaScript property instead of a counter, so the port only counts even numerators — the C original rounds down instead and would differ.
+- 2026-11-01 (spec-build) — `TraceResult` carries `kind` (colour / mono / pixel-exact) because the SVG document depends on the mode (AC-14); the threshold used is a `u16` because Otsu can return 256 in the reference.
 
 - 2026-11-01 — Port to Rust instead of copying the TypeScript into `ui/`: logic belongs in a core crate (AGENTS.md §5), Pincel has no TypeScript unit-test runner, and the agent tools and CLI are Rust.
 - 2026-11-01 — Export only: no vector layers, the result never returns into the document (owner's decision).
