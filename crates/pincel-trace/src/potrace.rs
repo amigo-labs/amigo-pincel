@@ -100,7 +100,7 @@ pub(crate) struct TracedPath {
 
 /// Traces `bm` into closed outlines. Every buffer that grows with the
 /// image or an outline is reserved fallibly, so running out of memory is
-/// [`TraceError::OutOfMemory`], not an abort (AC-18).
+/// [`TraceError::OutOfMemory`], not an abort (AC-23).
 pub(crate) fn trace(bm: &Bitmap, params: &PotraceParams) -> Result<Vec<TracedPath>, TraceError> {
     let mut out = Vec::new();
     for mut path in bm_to_pathlist(bm, params)? {
@@ -1166,7 +1166,7 @@ fn pair(x: f64, y: f64) -> String {
 
 /// Serialises traced outlines as SVG path data: one absolute move per
 /// outline, then relative steps on a 1/1000 grid accumulated so rounding
-/// never drifts, then `z`. The string grows fallibly (AC-18): room for one
+/// never drifts, then `z`. The string grows fallibly (AC-23): room for one
 /// segment is reserved before it is written.
 pub(crate) fn path_data(paths: &[TracedPath]) -> Result<String, TraceError> {
     let mut out = String::new();

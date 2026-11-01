@@ -46,7 +46,7 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
         }
         let key = u32::from_be_bytes([px[0], px[1], px[2], px[3]]);
         // The map keeps counting past the limit for the error message, so
-        // it can grow with the image: reserve fallibly (AC-18).
+        // it can grow with the image: reserve fallibly (AC-23).
         let slot = match index.get(&key) {
             Some(&slot) => slot,
             None => {
@@ -81,7 +81,7 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
         }
     };
     // Count first, then reserve each colour's edge list exactly: the lists
-    // grow with the image, so running out of memory is an error (AC-18).
+    // grow with the image, so running out of memory is an error (AC-23).
     let mut area = vec![0_u64; colors.len()];
     let mut counts = vec![0_usize; colors.len()];
     for y in 0..hi {
@@ -156,7 +156,7 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
 
 /// Links boundary edges into closed outlines and writes them as path data.
 /// Every buffer here grows with the outline, so each is reserved fallibly
-/// (AC-18).
+/// (AC-23).
 fn link(edges: &[Edge], stride: i64) -> Result<(String, u64, u64), TraceError> {
     let key = |x: i64, y: i64| y * stride + x;
     let mut from: HashMap<i64, [usize; 2]> = HashMap::new();
