@@ -43,7 +43,7 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
-  import { onPaste, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
+  import { onPaste, pasteAsNewImage, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
   import {
     addFrame,
     addGroup,
@@ -104,8 +104,12 @@
   } from './image-ops';
   import {
     BG_TOOLS,
+    cancelMarqueeDrag,
     cancelPolygon,
     commitPolygon,
+    gestureInProgress,
+    onDoubleClick,
+    onPointerCancel,
     onPointerDown,
     onPointerLeave,
     onPointerMove,
@@ -147,13 +151,18 @@
     initialNew,
     onRequestNew,
     onOpenForeign,
+    onOpenFile,
     onDirtyChange,
     registerMenuHandlers,
   }: EditorProps = $props();
 
   // Module-level store: start every mount from a fresh state.
   resetPixelStore();
-  bindShell({ requestNew: () => onRequestNew(), openForeign: (opened) => onOpenForeign(opened) });
+  bindShell({
+    requestNew: () => onRequestNew(),
+    openForeign: (opened) => onOpenForeign(opened),
+    openFile: (opened) => onOpenFile(opened),
+  });
   initAutosave();
 
   // Release version stamped in by the release workflow; `dev` locally.
@@ -238,6 +247,7 @@
       deleteSelection: deleteSelectionPixels,
       copy: runCopy,
       paste: () => void pasteFromClipboard(),
+      pasteNewImage: () => void pasteAsNewImage(),
       swapColors,
       resetColors,
       selectAll: () => selectAction('all'),
@@ -304,6 +314,9 @@
         cancelPolygon();
         return;
       }
+      // A marquee drag drops without touching the selection; Escape during
+      // any other drag leaves both alone (pixel-selection-move AC-12, AC-23).
+      if (cancelMarqueeDrag() || gestureInProgress()) return;
       if (ed.selection && !isEditableTarget(e.target)) {
         deselect();
         return;
@@ -367,6 +380,9 @@
         return true;
       case 'resetColors':
         resetColors();
+        return true;
+      case 'pasteNewImage':
+        void pasteAsNewImage();
         return true;
     }
     if (!ed.doc) return false;
@@ -917,10 +933,21 @@
     {/if}
   {/snippet}
   {#snippet viewport()}
+        <!-- The stage takes the pointer, not just the canvas, so a selection
+             gesture can start beside the canvas (spec §9.4); `onPointerDown`
+             lets only selection and view gestures start there. -->
         <div
-          class="absolute inset-0 flex items-center justify-center overflow-hidden"
+          class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
           bind:clientWidth={view.stageW}
           bind:clientHeight={view.stageH}
+          role="presentation"
+          oncontextmenu={(e) => e.preventDefault()}
+          onpointerdown={onPointerDown}
+          onpointermove={onPointerMove}
+          onpointerup={onPointerUp}
+          onpointercancel={onPointerCancel}
+          onpointerleave={onPointerLeave}
+          ondblclick={onDoubleClick}
         >
     <!--
             Stacked render surfaces (spec §4.4, M12.5): the base canvas
@@ -953,12 +980,6 @@
                       : 'crosshair'}
               aria-label="Pincel canvas"
               data-ready={ed.ready}
-              oncontextmenu={(e) => e.preventDefault()}
-              onpointerdown={onPointerDown}
-              onpointermove={onPointerMove}
-              onpointerup={onPointerUp}
-              onpointercancel={onPointerUp}
-              onpointerleave={onPointerLeave}
             ></canvas>
             <canvas
               bind:this={view.overlay}

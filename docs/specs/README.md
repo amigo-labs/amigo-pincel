@@ -14,7 +14,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
-| Image mode | [image-files](image-files.md) |
+| Image mode | [image-files](image-files.md), [image-editing](image-editing.md) (revised 2026-10-30: selections from the stage, AC-29 – AC-32) |
 | Both modes | [effects-adjustments](effects-adjustments.md), [pen-input](pen-input.md), [i18n](i18n.md) |
 | Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
@@ -64,7 +64,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 ## Done
 
 - [animated-export](animated-export.md)
-- [image-editing](image-editing.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [pixel-compose](pixel-compose.md)
@@ -98,7 +97,6 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
-| Paste into New Image (Ctrl+Alt+V) | Cheap follow-up to copy-cut-paste |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |

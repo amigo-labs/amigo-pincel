@@ -61,8 +61,10 @@
   import {
     clipboardImage,
     imageSize,
+    newImageBytes,
     pasteEventImage,
     pastePosition,
+    pastedImageFile,
     resolvePaste,
     storeCopy,
   } from '../../lib/clipboard';
@@ -112,6 +114,7 @@
     onRequestOpen,
     onDirtyChange,
     onOpenRecent,
+    onOpenFile,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -212,6 +215,17 @@
     const blob = await clipboardImage();
     if (editor.handle !== handle) return;
     await beginPaste(blob, handle);
+  }
+
+  // Edit ▸ Paste as New Image (copy-cut-paste AC-23, AC-25).
+  async function pasteAsNewImage(): Promise<void> {
+    const system = await clipboardImage();
+    const bytes = await newImageBytes(system);
+    if (!bytes) {
+      editor.notice = t('paste.noImage');
+      return;
+    }
+    onOpenFile(pastedImageFile(bytes, system?.type ?? 'image/png'));
   }
 
   function onPaste(e: ClipboardEvent): void {
@@ -497,8 +511,10 @@
       e.preventDefault();
       return;
     }
+    // Escape drops a gesture in progress; with none, it deselects
+    // (image-editing AC-31).
     if (e.key === 'Escape') {
-      gestureControl.cancel();
+      if (!gestureControl.cancel() && editor.hasSelection) deselect();
       return;
     }
     const group = toolGroupForKey(e);
@@ -529,6 +545,9 @@
         return true;
       case 'redo':
         redo();
+        return true;
+      case 'pasteNewImage':
+        void pasteAsNewImage();
         return true;
       case 'copy':
       case 'cut':
@@ -650,6 +669,11 @@
           shortcut: hint('paste'),
           disabled: !hasDoc,
           run: () => void pasteFromClipboard(),
+        },
+        {
+          label: t('menu.pasteNewImage'),
+          shortcut: hint('pasteNewImage'),
+          run: () => void pasteAsNewImage(),
         },
         {
           label: t('menu.deleteSelection'),

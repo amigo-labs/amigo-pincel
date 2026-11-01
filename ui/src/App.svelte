@@ -30,6 +30,8 @@
   import { syncRecentMenu, wireNativeMenu, type EditorMenuHandlers } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { t } from './lib/i18n/index.svelte';
+  import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
+  import { actionFor, isTypingTarget } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
 
   type EditorModule = { default: Component<EditorProps> };
@@ -168,6 +170,32 @@
     }
   }
 
+  // Ctrl/⌘+V (or Ctrl/⌘+Alt+V) on the start screen opens the clipboard
+  // image as a new document (copy-cut-paste AC-22, AC-26). An empty paste
+  // stays silent: it is often a stray key with text on the clipboard.
+  function startScreenIdle(target: EventTarget | null): boolean {
+    if (session.mode !== 'start' || busy || newDialog !== null || help.about) return false;
+    if (isTypingTarget(target)) return false;
+    return !(target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]'));
+  }
+
+  async function openPasted(system: Blob | null): Promise<void> {
+    const bytes = await newImageBytes(system);
+    if (bytes) openFile(pastedImageFile(bytes, system?.type ?? 'image/png'));
+  }
+
+  function onShellPaste(e: ClipboardEvent) {
+    if (!startScreenIdle(e.target)) return;
+    e.preventDefault();
+    void openPasted(pasteEventImage(e));
+  }
+
+  function onShellKeydown(e: KeyboardEvent) {
+    if (actionFor(e) !== 'pasteNewImage' || !startScreenIdle(e.target)) return;
+    e.preventDefault();
+    void clipboardImage().then(openPasted);
+  }
+
   async function onDropFile(file: File) {
     if (busy) return;
     busy = true;
@@ -296,6 +324,8 @@
   });
 </script>
 
+<svelte:window onpaste={onShellPaste} onkeydown={onShellKeydown} />
+
 {#if session.mode === 'start' && booting}
   <div class="h-full bg-pc-bg"></div>
 {:else if session.mode === 'start'}
@@ -321,6 +351,7 @@
         onRequestNew={() => guard(() => requestNew(currentMode))}
         onRequestOpen={() => guard(() => void openFromPicker())}
         onOpenForeign={openFile}
+        onOpenFile={(f) => guard(() => openFile(f))}
         onDirtyChange={(dirty) => (session.dirty = dirty)}
         onOpenRecent={(r) => guard(() => void openRecent(r))}
         registerMenuHandlers={(h) => (editorMenu = h)}

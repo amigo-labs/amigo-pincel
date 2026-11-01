@@ -53,6 +53,8 @@ export interface PixelMenuContext {
   /** Edit ▸ Cut / Copy / Copy Merged (spec §5.4). */
   copy(kind: 'copy' | 'merged' | 'cut'): void;
   paste(): void;
+  /** Edit ▸ Paste as New Image (copy-cut-paste AC-23). */
+  pasteNewImage(): void;
   swapColors(): void;
   resetColors(): void;
   selectAll(): void;
@@ -141,6 +143,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.copy'), shortcut: hint('copy'), disabled: noDoc, run: () => c.copy('copy') },
         { label: t('menu.copyMerged'), disabled: noDoc, run: () => c.copy('merged') },
         { label: t('menu.paste'), shortcut: hint('paste'), disabled: noDoc, run: c.paste },
+        { label: t('menu.pasteNewImage'), shortcut: hint('pasteNewImage'), run: c.pasteNewImage },
         {
           label: t('menu.deleteSelection'),
           shortcut: hint('deleteSelection'),

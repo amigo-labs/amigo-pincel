@@ -2115,6 +2115,28 @@ mod tests {
     }
 
     #[test]
+    fn delete_selection_keeps_the_selection_and_adds_one_undo_entry() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let red = Rgba::new(255, 0, 0, 255).to_u32();
+        doc.apply_tool("pencil", 2, 2, red).expect("paint");
+        doc.end_stroke();
+        doc.set_selection(1, 1, 2, 3);
+        let depth = doc.undo_depth();
+        assert!(doc.delete_selection().expect("delete ran"));
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert!(doc.has_selection(), "the selection stays");
+        assert_eq!(
+            (
+                doc.selection_x(),
+                doc.selection_y(),
+                doc.selection_width(),
+                doc.selection_height()
+            ),
+            (1, 1, 2, 3)
+        );
+    }
+
+    #[test]
     fn delete_selection_without_selection_returns_false() {
         let mut doc = Document::new(4, 4).expect("dims");
         assert!(!doc.delete_selection().expect("no-op ok"));
