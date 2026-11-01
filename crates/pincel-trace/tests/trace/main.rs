@@ -6,3 +6,4 @@ mod images;
 mod pixel_exact;
 mod robust;
 mod session;
+mod wire;

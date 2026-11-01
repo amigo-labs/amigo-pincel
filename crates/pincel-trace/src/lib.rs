@@ -33,6 +33,6 @@ pub use pixel_exact::MAX_EXACT_COLORS;
 pub use potrace::{PotraceParams, TurnPolicy};
 pub use session::{
     Layer, MAX_COLORS, MAX_SIDE, Mode, ResultKind, Threshold, TraceOptions, TraceResult,
-    TraceSession, TraceStats,
+    TraceSession, TraceStats, WIRE_LEN,
 };
 pub use svg::to_svg;

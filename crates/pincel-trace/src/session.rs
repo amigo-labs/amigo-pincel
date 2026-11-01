@@ -75,6 +75,69 @@ impl Default for TraceOptions {
     }
 }
 
+/// Length of the option vector [`TraceOptions::from_wire`] reads.
+pub const WIRE_LEN: usize = 9;
+
+impl TraceOptions {
+    /// Options from the flat wire format both wasm layers pass
+    /// (`docs/specs/vectorize-dialog.md`): `mode` is 0 colours, 1 monochrome,
+    /// 2 pixel-exact; `params` is `[colors, threshold (−1 = automatic),
+    /// invert, fill (0xRRGGBB), despeckle, min_area, alpha_max, opt_curve,
+    /// opt_tolerance]`, flags as 0 / 1. Every field is read in every mode.
+    /// Ranges of the Potrace options are checked by [`TraceSession::trace`].
+    pub fn from_wire(mode: u8, params: &[f64]) -> Result<Self, TraceError> {
+        if params.len() != WIRE_LEN {
+            return Err(invalid(
+                "params",
+                format!("{} values, expected {WIRE_LEN}", params.len()),
+            ));
+        }
+        let int = |name: &'static str, v: f64, max: f64| {
+            if v.is_finite() && v.fract() == 0.0 && (0.0..=max).contains(&v) {
+                Ok(v)
+            } else {
+                Err(invalid(
+                    name,
+                    format!("{v} is not a whole number in 0 – {max}"),
+                ))
+            }
+        };
+        let colors = int("colors", params[0], 255.0)? as u8;
+        let threshold = if params[1] == -1.0 {
+            Threshold::Auto
+        } else {
+            Threshold::Manual(int("threshold", params[1], 255.0)? as u8)
+        };
+        let fill = int("fill", params[3], f64::from(0xff_ffff))? as u32;
+        let fill = Rgb::new((fill >> 16) as u8, (fill >> 8) as u8, fill as u8);
+        let min_area = int("min_area", params[5], f64::from(u32::MAX))? as u32;
+        let mode = match mode {
+            0 => Mode::Color {
+                colors,
+                pinned: None,
+            },
+            1 => Mode::Mono {
+                threshold,
+                invert: params[2] != 0.0,
+                fill,
+            },
+            2 => Mode::PixelExact,
+            other => return Err(invalid("mode", format!("{other} is not 0, 1 or 2"))),
+        };
+        Ok(Self {
+            mode,
+            despeckle: params[4] != 0.0,
+            potrace: PotraceParams {
+                min_area,
+                alpha_max: params[6],
+                opt_curve: params[7] != 0.0,
+                opt_tolerance: params[8],
+                ..PotraceParams::default()
+            },
+        })
+    }
+}
+
 /// Which mode a result came from; the SVG document depends on it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ResultKind {
