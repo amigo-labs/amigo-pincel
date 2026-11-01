@@ -3,6 +3,7 @@
 //! implementation's worker, including its caches.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::color::{Rgb, Rgba};
 use crate::error::TraceError;
@@ -203,7 +204,7 @@ pub struct TraceSession {
     height: u32,
     rgba: Vec<u8>,
     despeckled: Option<Vec<u8>>,
-    quant_cache: HashMap<QuantKey, Quantization>,
+    quant_cache: HashMap<QuantKey, Arc<Quantization>>,
     otsu_cache: [Option<u16>; 2],
 }
 
@@ -293,20 +294,22 @@ impl TraceSession {
         colors: u8,
         pinned: Option<&[Rgb]>,
         use_despeckle: bool,
-    ) -> Result<Quantization, TraceError> {
+    ) -> Result<Arc<Quantization>, TraceError> {
         let key = match pinned {
             Some(p) => QuantKey::Pinned(p.to_vec(), use_despeckle),
             None => QuantKey::Free(colors, use_despeckle),
         };
+        // Shared, not copied: a cache hit costs no image-sized allocation.
         if let Some(q) = self.quant_cache.get(&key) {
-            return Ok(q.clone());
+            return Ok(Arc::clone(q));
         }
         let src = self.source(use_despeckle)?;
         let q = match pinned {
             Some(p) => quantize_with_palette(src, p.to_vec())?,
             None => quantize_image(src, usize::from(colors))?,
         };
-        self.quant_cache.insert(key, q.clone());
+        let q = Arc::new(q);
+        self.quant_cache.insert(key, Arc::clone(&q));
         Ok(q)
     }
 
