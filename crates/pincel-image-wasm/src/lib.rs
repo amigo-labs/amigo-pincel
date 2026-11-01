@@ -23,6 +23,10 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod vectorize;
+
+pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
+
 thread_local! {
     /// Open documents by handle. Handles are never reused, so a stale handle
     /// held by JS errors instead of silently aliasing a newer document.

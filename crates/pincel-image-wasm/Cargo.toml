@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 pincel-image-core = { workspace = true }
 pincel-effects = { workspace = true }
+pincel-trace = { workspace = true }
 # Enables uuid's JS getrandom backend so v4 UUIDs work under wasm32.
 uuid = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }
