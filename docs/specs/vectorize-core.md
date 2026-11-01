@@ -181,7 +181,7 @@ Terms used below:
 
 ## Decisions
 
-- 2026-11-01 (after the third spec-check) — Its twelve mutations all fail a test now; the five that survived got tests: monochrome with every outline dropped (AC-09), a colour that receives pixels but keeps no outline (AC-11), validation in pixel-exact mode and the accepted range ends (AC-19), the exact colour count above 257 (AC-20); plus the automatic-threshold cache kept apart by despeckle (AC-17, Technical notes). AC-06's sum rule names Potrace outlines: pixel-exact outlines close their last run with `z`, as AC-12 states. The check's script is reproducible from the commit message of this change.
+- 2026-11-01 (after the third spec-check) — Its twelve mutations all fail a test now; the five that survived got tests: monochrome with every outline dropped (AC-09), a colour that receives pixels but keeps no outline (AC-11), validation in pixel-exact mode and the accepted range ends (AC-19), the exact colour count above 257 (AC-20); plus the automatic-threshold cache kept apart by despeckle (AC-17, Technical notes). AC-06's sum rule names Potrace outlines: pixel-exact outlines close their last run with `z`, as AC-12 states.
 
 - 2026-11-01 (revision after the second spec-check) — AC-18's out-of-memory clause moved into its own criterion, AC-23, marked manual: no test can force an allocation failure without a failing global allocator, which needs `unsafe` code (`unsafe_code = "deny"`, AGENTS.md §6.1), so a code review signs it off. AC-18 keeps the input checks. The same check found three clauses no test caught under mutation, now covered: pixel-exact ignores despeckle (AC-12), the height limit (AC-18) and the alpha 127 / 128 cut-off in colour mode, free and pinned (AC-08, AC-11).
 
