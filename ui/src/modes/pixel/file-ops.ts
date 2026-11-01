@@ -331,25 +331,36 @@ export async function exportPng() {
 }
 
 // File ▸ Export ▸ SVG… (docs/specs/vectorize-dialog.md). The vectorizer
-// lives while the dialog is open, so re-tracing reuses its caches.
-let vectorizer: Vectorizer | null = null;
+// lives while the dialog is open, so re-tracing reuses its caches. It is
+// tied to the document and frame it was made from: a document replaced
+// while the dialog is open (native File ▸ New / Open) gets a fresh one.
+let vectorizer: { source: Document; frame: number; tracer: Vectorizer } | null = null;
+
+function dropVectorizer() {
+  vectorizer?.tracer.free();
+  vectorizer = null;
+}
 
 export function openSvgDialog() {
-  if (ed.doc && !file.busy) dialogs.svg = true;
+  if (!ed.doc || file.busy) return;
+  dropVectorizer();
+  dialogs.svg = true;
 }
 
 export function closeSvgDialog() {
   dialogs.svg = false;
-  vectorizer?.free();
-  vectorizer = null;
+  dropVectorizer();
 }
 
 /** Traces the current frame with the dialog's mode and option vector. */
 export function traceSvg(mode: number, params: number[]): SvgTrace {
   if (!ed.doc) return { error: 'no document' };
   try {
-    vectorizer ??= ed.doc.vectorizer(ed.currentFrame);
-    const r = vectorizer.trace(mode, new Float64Array(params));
+    if (vectorizer?.source !== ed.doc || vectorizer.frame !== ed.currentFrame) {
+      dropVectorizer();
+      vectorizer = { source: ed.doc, frame: ed.currentFrame, tracer: ed.doc.vectorizer(ed.currentFrame) };
+    }
+    const r = vectorizer.tracer.trace(mode, new Float64Array(params));
     try {
       return { svg: r.svg, layers: r.layers, outlines: r.outlines, threshold: r.threshold };
     } finally {

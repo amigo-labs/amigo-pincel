@@ -852,15 +852,20 @@ export function redo(): void {
 export type { ExportFormat };
 
 // File ▸ Export ▸ SVG… (docs/specs/vectorize-dialog.md). The vectorizer
-// lives while the dialog is open, so re-tracing reuses its caches.
-let svgVectorizer: Vectorizer | null = null;
+// lives while the dialog is open, so re-tracing reuses its caches. It is
+// tied to the document handle it was made from: a document replaced while
+// the dialog is open (native File ▸ New / Open) gets a fresh one.
+let svgVectorizer: { handle: number; tracer: Vectorizer } | null = null;
 
 /** Traces the composite with the dialog's mode and option vector. */
 export function traceSvg(mode: number, params: number[]): SvgTrace {
   if (editor.handle === null) return { error: 'no document' };
   try {
-    svgVectorizer ??= core.vectorizer(editor.handle);
-    const r = svgVectorizer.trace(mode, new Float64Array(params));
+    if (svgVectorizer?.handle !== editor.handle) {
+      closeSvgExport();
+      svgVectorizer = { handle: editor.handle, tracer: core.vectorizer(editor.handle) };
+    }
+    const r = svgVectorizer.tracer.trace(mode, new Float64Array(params));
     try {
       return { svg: r.svg, layers: r.layers, outlines: r.outlines, threshold: r.threshold };
     } finally {
@@ -871,9 +876,9 @@ export function traceSvg(mode: number, params: number[]): SvgTrace {
   }
 }
 
-/** Frees the dialog's vectorizer. */
+/** Frees the dialog's vectorizer (on close, and before the dialog opens). */
 export function closeSvgExport(): void {
-  svgVectorizer?.free();
+  svgVectorizer?.tracer.free();
   svgVectorizer = null;
 }
 

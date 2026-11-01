@@ -247,7 +247,9 @@
   }
 
   function openSvgExport(): void {
-    if (editor.handle !== null) svgOpen = true;
+    if (editor.handle === null) return;
+    closeSvgExport();
+    svgOpen = true;
   }
 
   function closeSvg(): void {
