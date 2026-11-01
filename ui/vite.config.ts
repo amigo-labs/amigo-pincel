@@ -43,6 +43,11 @@ export default defineConfig({
     svelte(),
     tailwindcss(),
     VitePWA({
+      // The desktop app embeds its assets, so it needs no offline cache, and
+      // WebView2 cannot update a worker served from Tauri's custom protocol:
+      // a registered worker froze the UI at its first version
+      // (src-tauri/src/webview_data.rs removes the old registration).
+      disable: isTauri,
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',

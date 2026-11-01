@@ -3,7 +3,7 @@
 import { packColor, unpackColor } from '../../lib/color';
 import { t } from '../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
-import { constrainedEndpoint, syncMeta } from './render';
+import { constrainedEndpoint, syncMeta, syncSelection } from './render';
 import { type SelectionMode, colors, ed, live, toolState, view } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
@@ -276,6 +276,9 @@ export function lockedEditTarget(): string | null {
 
 export function onPointerDown(e: PointerEvent) {
   if (!fromStage(e)) return;
+  // The Move tool decides on `ed.selection`, which otherwise catches up
+  // on the next frame after a selection change.
+  syncSelection();
   // Capture on the stage that took the press: the canvas would split a
   // double-click on the stage into two single clicks.
   const stage = e.currentTarget as Element;

@@ -19,8 +19,21 @@ export async function createDocument(
   const card = page.getByRole('form', { name });
   await expect(card).toBeVisible();
   if (size) {
-    await card.getByLabel('Width').fill(String(size.width));
-    await card.getByLabel('Height').fill(String(size.height));
+    // The dialog sizes a new image from a clipboard image asynchronously (the
+    // clipboard outlives the test within a worker's browser). A prefill that
+    // lands inside `fill()` drops its select-all and the typed digits append
+    // ("3232"), so fill until the field holds the value; once it differs from
+    // the default, the prefill leaves the size alone.
+    for (const [label, value] of [
+      ['Width', String(size.width)],
+      ['Height', String(size.height)],
+    ] as const) {
+      const field = card.getByLabel(label);
+      await expect(async () => {
+        await field.fill(value);
+        await expect(field).toHaveValue(value, { timeout: 500 });
+      }).toPass();
+    }
   }
   await card.getByRole('button', { name: 'Create' }).click();
   await expect(card).toBeHidden();
