@@ -12,14 +12,20 @@ name: Release
 # Git integration builds and serves it from main (root wrangler.toml,
 # scripts/cf-build.sh).
 #
-# No code signing certificate: Windows SmartScreen and macOS Gatekeeper
-# warn on first launch. The updater only installs what is signed with the
-# Tauri updater key.
+# No code signing certificate from a CA, as in amigo-blinzel: no
+# Authenticode, no notarization, so Windows SmartScreen and macOS
+# Gatekeeper warn on first launch. The Mac app is signed with amigo-labs'
+# self-signed certificate (ad hoc without it). The updater only installs
+# what is signed with the Tauri updater key.
 #
 # Needed (organization secrets of amigo-labs; a repository secret of the
 # same name would shadow them):
 #   secret   TAURI_SIGNING_PRIVATE_KEY           the organization's updater key
 #   secret   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+# Optional (shared with amigo-blinzel; without them the Mac app is ad hoc
+# signed):
+#   secret   MACOS_SIGNING_CERT                  self-signed code signing .p12, base64
+#   secret   MACOS_SIGNING_CERT_PASSWORD         its password
 #
 # The npm publish needs no secret: `publish-npm` authenticates through
 # OIDC trusted publishing and runs when the repository variable
@@ -175,6 +181,38 @@ jobs:
       - name: install ui dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile
+      # amigo-labs' self-signed certificate, as in amigo-blinzel: not trusted
+      # by Gatekeeper, but a stable identity, so macOS keeps the user's
+      # permissions (folder access) across updates; an ad hoc signature
+      # changes with every build. `tauri build` signs the app and the disk
+      # image with APPLE_SIGNING_IDENTITY (the certificate's SHA-1 hash).
+      # Without the secret the app stays ad hoc signed.
+      - name: macOS signing identity
+        if: runner.os == 'macOS'
+        env:
+          CERT: ${{ secrets.MACOS_SIGNING_CERT }}
+          CERT_PASSWORD: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$CERT" ]; then echo "MACOS_SIGNING_CERT is not set: signing ad hoc"; exit 0; fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(openssl rand -hex 16)
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$CERT" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          security import "$RUNNER_TEMP/signing.p12" -k "$keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/signing.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          # The keychain holds only the .p12's certificate, whatever its name.
+          hash=$(security find-certificate -a -Z "$keychain" | awk '/SHA-1/ {print $NF; exit}')
+          test -n "$hash" || { echo "no certificate in MACOS_SIGNING_CERT"; exit 1; }
+          # Self-signed: trusted for code signing on this runner only.
+          security find-certificate -a -p "$keychain" > "$RUNNER_TEMP/signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+            -k /Library/Keychains/System.keychain "$RUNNER_TEMP/signing.pem"
+          echo "APPLE_SIGNING_IDENTITY=$hash" >> "$GITHUB_ENV"
       # tauri.conf.json's beforeBuildCommand builds ui/dist; the wasm
       # packages and node_modules above are its prerequisites.
       - name: build desktop bundles
@@ -187,6 +225,18 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build ${{ matrix.args }}
+      - name: macOS signature
+        if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
+        env:
+          BUNDLE: ${{ matrix.bundle }}
+        run: |
+          set -euo pipefail
+          app=$(echo "$BUNDLE"/macos/*.app)
+          codesign --verify --deep --strict --verbose "$app"
+          info=$(codesign --display --verbose=2 "$app" 2>&1)
+          echo "$info" | grep -E '^(Authority|Signature)=' || true
+          echo "$info" | grep -q '^Authority=' \
+            || { echo "::error::$app is not signed with the certificate"; exit 1; }
       # Stable names, so releases/latest/download/<name> links and
       # latest.json keep working across versions.
       - name: Name the files
