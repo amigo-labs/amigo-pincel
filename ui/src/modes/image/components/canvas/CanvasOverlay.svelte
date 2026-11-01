@@ -12,6 +12,7 @@
   // transform, so lines stay one device pixel wide at every zoom and the
   // backing store never exceeds the viewport (spec §8.5).
   import { selectionMask } from '../../core/controller';
+  import { selectionOutline } from './selection-outline';
 
   let canvas: HTMLCanvasElement;
   // Boundary of the committed selection, rebuilt only when the document
@@ -21,41 +22,10 @@
   let running = false;
   let dashOffset = 0;
 
-  /** Traces the boundary edges of the committed selection mask. */
+  /** The committed selection's boundary as closed outlines. */
   function buildSelectionPath(): Path2D | null {
     const mask = selectionMask();
-    if (!mask) {
-      return null;
-    }
-    const w = editor.width;
-    const h = editor.height;
-    const sel = (x: number, y: number): boolean =>
-      x >= 0 && y >= 0 && x < w && y < h && (mask[y * w + x] ?? 0) >= 128;
-    const path = new Path2D();
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        if (!sel(x, y)) {
-          continue;
-        }
-        if (!sel(x - 1, y)) {
-          path.moveTo(x, y);
-          path.lineTo(x, y + 1);
-        }
-        if (!sel(x + 1, y)) {
-          path.moveTo(x + 1, y);
-          path.lineTo(x + 1, y + 1);
-        }
-        if (!sel(x, y - 1)) {
-          path.moveTo(x, y);
-          path.lineTo(x + 1, y);
-        }
-        if (!sel(x, y + 1)) {
-          path.moveTo(x, y + 1);
-          path.lineTo(x + 1, y + 1);
-        }
-      }
-    }
-    return path;
+    return mask ? selectionOutline(mask, editor.width, editor.height) : null;
   }
 
   /** Builds the path for the in-progress selection gesture, if any. */
@@ -225,4 +195,8 @@
   });
 </script>
 
-<canvas bind:this={canvas} class="pointer-events-none absolute inset-0 h-full w-full"></canvas>
+<canvas
+  bind:this={canvas}
+  class="pointer-events-none absolute inset-0 h-full w-full"
+  data-testid="selection-overlay"
+></canvas>
