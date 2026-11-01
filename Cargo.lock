@@ -3119,6 +3119,7 @@ dependencies = [
  "js-sys",
  "pincel-effects",
  "pincel-image-core",
+ "pincel-trace",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -3166,6 +3167,7 @@ version = "1.5.0"
 dependencies = [
  "pincel-core",
  "pincel-effects",
+ "pincel-trace",
  "wasm-bindgen",
 ]
 

@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 pincel-core = { workspace = true }
 pincel-effects = { workspace = true }
+pincel-trace = { workspace = true }
 wasm-bindgen = { workspace = true }
 
 [lints]
