@@ -356,3 +356,52 @@ fn trace_rejects_out_of_range_options_and_recovers() {
         1
     );
 }
+
+/// A `w × h` image, left half `left`, right half `right`.
+fn halves(w: u32, h: u32, left: [u8; 4], right: [u8; 4]) -> Img {
+    Img::new(w, h, |x, _| if x < i64::from(w / 2) { left } else { right })
+}
+
+#[test]
+fn mono_partial_alpha_blends_towards_white() {
+    // Black at alpha 128: 0 × a + 255 × (1 − 128/255) = 127.
+    // Black at alpha 191: 255 × (64/255) = 64.
+    for (alpha, brightness) in [(128_u8, 127_u8), (191, 64)] {
+        let img = Img::new(4, 4, |_, _| [0, 0, 0, alpha]);
+        let above = trace(&img, &mono(Threshold::Manual(brightness + 1)));
+        assert_eq!(
+            above.layers.len(),
+            1,
+            "alpha {alpha}: {brightness} < threshold"
+        );
+        assert_eq!(above.layers[0].area, 16);
+        let at = trace(&img, &mono(Threshold::Manual(brightness)));
+        assert!(
+            at.layers.is_empty(),
+            "alpha {alpha}: {brightness} is not below itself"
+        );
+    }
+}
+
+#[test]
+fn pinned_equal_areas_keep_the_listed_order() {
+    let img = halves(8, 4, [255, 0, 0, 255], [0, 0, 255, 255]);
+    assert_eq!(
+        hexes(&trace(&img, &pinned(&["#0000ff", "#ff0000"]))),
+        ["#0000ff", "#ff0000"]
+    );
+    assert_eq!(
+        hexes(&trace(&img, &pinned(&["#ff0000", "#0000ff"]))),
+        ["#ff0000", "#0000ff"]
+    );
+}
+
+#[test]
+fn pinned_colours_closer_than_the_merge_distance_stay_apart() {
+    // Greys 127 and 128 differ by far less than ΔE 2.5 but sit in different
+    // colour bins, so each receives its own half.
+    let img = halves(8, 4, [127, 127, 127, 255], [128, 128, 128, 255]);
+    let r = trace(&img, &pinned(&["#7f7f7f", "#808080"]));
+    assert_eq!(hexes(&r), ["#7f7f7f", "#808080"]);
+    assert!(r.layers.iter().all(|l| l.area == 16));
+}

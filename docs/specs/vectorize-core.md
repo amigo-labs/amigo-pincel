@@ -162,25 +162,26 @@ Terms used below:
 | AC-06 | `potrace::tests::path_data_relative_steps_close_without_drift` (`src/potrace.rs`) | built |        |
 | AC-07 | `session::color_four_colour_image_finds_all_four_largest_first` (`tests/trace/session.rs`) | built |        |
 | AC-08 | `session::color_transparent_pixels_belong_to_no_layer` (`tests/trace/session.rs`) | built |        |
-| AC-09 | `session::mono_auto_threshold_lands_in_the_valley`, `session::mono_manual_threshold_invert_and_fill`, `session::mono_invert_fills_a_transparent_image` (`tests/trace/session.rs`) | built |        |
+| AC-09 | `session::mono_auto_threshold_lands_in_the_valley`, `session::mono_manual_threshold_invert_and_fill`, `session::mono_invert_fills_a_transparent_image`, `session::mono_partial_alpha_blends_towards_white` (`tests/trace/session.rs`) | built |        |
 | AC-10 | `session::despeckle_collapses_salt_and_pepper` (`tests/trace/session.rs`) | built |        |
-| AC-11 | `session::pinned_palette_uses_exactly_the_pinned_colours` (`tests/trace/session.rs`) | built |        |
+| AC-11 | `session::pinned_palette_uses_exactly_the_pinned_colours`, `session::pinned_equal_areas_keep_the_listed_order`, `session::pinned_colours_closer_than_the_merge_distance_stay_apart` (`tests/trace/session.rs`) | built |        |
 | AC-12 | `pixel_exact::pixel_exact_layers_cover_exactly_their_pixels`, `pixel_exact::pixel_exact_rectangle_is_four_steps_and_ignores_min_area`, `pixel_exact::pixel_exact_checkerboard_keeps_every_pixel_centre_right` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-13 | `pixel_exact::pixel_exact_alpha_order_and_ties` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-14 | `pixel_exact::svg_document_per_mode` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-15 | `session::stats_add_up` (`tests/trace/session.rs`) | built |        |
-| AC-16 | `session::same_options_give_identical_results` (`tests/trace/session.rs`), `pixel_exact::svg_is_byte_identical_across_sessions` (`tests/trace/pixel_exact.rs`) | built |        |
+| AC-16 | `session::same_options_give_identical_results` (`tests/trace/session.rs`), `pixel_exact::svg_is_byte_identical_across_sessions` (`tests/trace/pixel_exact.rs`); equal-area order: `session::tests::trace_color_equal_areas_keep_palette_order` (`src/session.rs`), `session::pinned_equal_areas_keep_the_listed_order` | built |        |
 | AC-17 | `pixel_exact::changing_options_in_one_session_matches_fresh_sessions` (`tests/trace/pixel_exact.rs`) | built |        |
 | AC-18 | `session::session_rejects_bad_images` (`tests/trace/session.rs`) | built |        |
 | AC-19 | `session::trace_rejects_out_of_range_options_and_recovers` (`tests/trace/session.rs`) | built |        |
 | AC-20 | `pixel_exact::pixel_exact_refuses_more_than_256_colours_and_recovers` (`tests/trace/pixel_exact.rs`) | built |        |
-| AC-21 | `robust::every_mode_on_every_test_image_traces_without_panic` (`tests/trace/robust.rs`) | built |        |
+| AC-21 | `robust::every_mode_on_every_test_image_traces_without_panic`, `robust::every_mode_on_the_benchmark_images_traces_without_panic` (`tests/trace/robust.rs`) | built |        |
 | AC-22 | `benches/trace.rs` (`cargo bench -p pincel-trace --bench trace`), 2026-11-01 on a 4-core Intel Xeon @ 2.80 GHz (Linux container): line art 230.4 ms vs reference 705.7 ms, text scan 37.3 ms vs 88.7 ms, noise 346.4 ms vs 1561.2 ms (reference medians: `timing` lines of `tests/golden/corpus.txt`); manual sign-off pending | built |        |
 
 ## Decisions
 
 - 2026-11-01 (spec-build) — The golden corpus is a plain text file (`case` / `result` / `layer` lines) instead of JSON, so the test needs no new dev-dependency; the reference's `catch` around the curve optimisation fired 0 times on the corpus, so the port has no fallback (Technical notes). AC-01's test was green at its first run because the port preceded it; a deliberate 0.002 px change in the corpus makes it fail.
 - 2026-11-01 (spec-build) — AC-21's test was green at its first run: it guards behaviour the earlier blocks built.
+- 2026-11-01 (spec-build, after spec-check) — The acceptance check found clauses no test pinned down: partial alpha in monochrome (AC-09), ties and unmerged pinned colours (AC-11), equal-area order in colour mode (AC-16) and the benchmark images in the no-panic test (AC-21). The new tests passed at once because the behaviour existed; each fails under the mutation the check used (step instead of blend, reversed tie order, merging pinned colours closer than ΔE 2.5). The benchmark images run once per mode with and without despeckle; to keep them inside the test budget (AGENTS.md §7.5) `pincel-trace` is built with `opt-level = 3` in the dev profile (root `Cargo.toml`), which takes the crate's tests from about a minute to about 12 s.
 
 - 2026-11-01 (spec-build) — Pixel-exact outlines are linked edge by edge with a right turn where two pixels of the layer touch only at a corner, so such pixels get separate outlines; `fill-opacity` is written with up to three decimals (128 → `0.502`).
 

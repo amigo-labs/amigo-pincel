@@ -87,3 +87,37 @@ fn every_mode_on_every_test_image_traces_without_panic() {
         }
     }
 }
+
+/// The three benchmark images are test images too. They are large, so
+/// each runs once per mode (the option variations above are covered on
+/// the small images), with and without despeckle.
+#[test]
+fn every_mode_on_the_benchmark_images_traces_without_panic() {
+    let modes = [
+        Mode::Color {
+            colors: 6,
+            pinned: None,
+        },
+        Mode::Mono {
+            threshold: Threshold::Auto,
+            invert: false,
+            fill: Rgb::new(0, 0, 0),
+        },
+        Mode::PixelExact,
+    ];
+    for img in [images::line_art(), images::text_scan(), images::noise()] {
+        let mut session = TraceSession::new(&img.rgba, img.w, img.h).expect("valid image");
+        for mode in &modes {
+            for despeckle in [false, true] {
+                let opts = TraceOptions {
+                    mode: mode.clone(),
+                    despeckle,
+                    ..TraceOptions::default()
+                };
+                let r = session.trace(&opts).expect("accepted options trace");
+                let svg = to_svg(&r);
+                assert!(svg.starts_with("<svg ") && svg.ends_with("</svg>"));
+            }
+        }
+    }
+}

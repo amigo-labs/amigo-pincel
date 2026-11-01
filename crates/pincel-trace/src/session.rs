@@ -486,3 +486,36 @@ fn validate(opts: &TraceOptions) -> Result<(), TraceError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::quantize::build_palette;
+
+    #[test]
+    fn trace_color_equal_areas_keep_palette_order() {
+        // Four colours in four equal quarters (AC-16).
+        let quarters = [[200, 30, 30], [30, 200, 30], [30, 30, 200], [220, 220, 40]];
+        let mut rgba = Vec::new();
+        for y in 0..8 {
+            for x in 0..8 {
+                let [r, g, b] = quarters[(y / 4) * 2 + x / 4];
+                rgba.extend_from_slice(&[r, g, b, 255]);
+            }
+        }
+        let palette = build_palette(&rgba, 4);
+        assert_eq!(palette.len(), 4);
+        let mut s = TraceSession::new(&rgba, 8, 8).expect("valid image");
+        let opts = TraceOptions {
+            mode: Mode::Color {
+                colors: 4,
+                pinned: None,
+            },
+            ..TraceOptions::default()
+        };
+        let r = s.trace(&opts).expect("trace");
+        assert!(r.layers.iter().all(|l| l.area == 16));
+        let got: Vec<Rgb> = r.layers.iter().map(|l| l.color.rgb()).collect();
+        assert_eq!(got, palette);
+    }
+}

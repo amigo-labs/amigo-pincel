@@ -51,3 +51,9 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# The tracer is pure number crunching; unoptimised, its no-panic test on
+# the benchmark images (docs/specs/vectorize-core.md AC-21) alone takes
+# about a minute. Optimised it fits the test budget (AGENTS.md §7.5).
+[profile.dev.package.pincel-trace]
+opt-level = 3

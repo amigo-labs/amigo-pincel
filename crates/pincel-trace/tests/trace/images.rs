@@ -139,3 +139,63 @@ pub fn speckled_two_tone() -> Img {
 pub fn transparent_1x1() -> Img {
     Img::new(1, 1, |_, _| [0, 0, 0, 0])
 }
+
+fn grey(v: u8) -> [u8; 4] {
+    [v, v, v, 255]
+}
+
+/// *line art* (benchmark): 40 rings and 40 lines, 1.5 px wide.
+pub fn line_art() -> Img {
+    Img::new(1600, 1600, |x, y| {
+        let (fx, fy) = (x as f64, y as f64);
+        let dc = ((fx - 800.0) * (fx - 800.0) + (fy - 800.0) * (fy - 800.0)).sqrt();
+        let on_circle = (1..=40).any(|k| (dc - f64::from(k * 20)).abs() <= 1.5);
+        let on_line = (0..40).any(|i| {
+            let (x1, y1, x2, y2) = (0.0, f64::from(40 * i), 1599.0, f64::from(1599 - 40 * i));
+            let num = ((x2 - x1) * (y1 - fy) - (x1 - fx) * (y2 - y1)).abs();
+            num / ((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)).sqrt() <= 1.5
+        });
+        grey(if on_circle || on_line { 0 } else { 255 })
+    })
+}
+
+/// *text scan* (benchmark): noisy paper with 50 × 30 dark glyph boxes.
+pub fn text_scan() -> Img {
+    let mut bg = JsRng::new(1);
+    let mut rgba = Vec::with_capacity(1200 * 1200 * 4);
+    for _ in 0..1200 * 1200 {
+        rgba.extend_from_slice(&grey(clamped(235.0 + (bg.next() * 20.0 - 10.0))));
+    }
+    let mut rnd = JsRng::new(5);
+    for row in 0..30 {
+        for col in 0..50 {
+            let gw = 8 + (rnd.next() * 9.0).floor() as usize;
+            let gh = 12 + (rnd.next() * 13.0).floor() as usize;
+            for y in 0..gh {
+                for x in 0..gw {
+                    let i = ((row * 40 + 6 + y) * 1200 + col * 24 + 4 + x) * 4;
+                    rgba[i..i + 4].copy_from_slice(&grey(30));
+                }
+            }
+        }
+    }
+    Img {
+        w: 1200,
+        h: 1200,
+        rgba,
+    }
+}
+
+/// *noise* (benchmark): black or white per pixel, seed 3.
+pub fn noise() -> Img {
+    let mut rnd = JsRng::new(3);
+    let mut rgba = Vec::with_capacity(800 * 800 * 4);
+    for _ in 0..800 * 800 {
+        rgba.extend_from_slice(&grey(if rnd.next() < 0.5 { 0 } else { 255 }));
+    }
+    Img {
+        w: 800,
+        h: 800,
+        rgba,
+    }
+}
