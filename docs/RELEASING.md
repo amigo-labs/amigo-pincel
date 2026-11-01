@@ -77,8 +77,11 @@ them that way, so renaming a file means changing it there too:
 | `latest.json` | Updater manifest |
 | `SHA256SUMS` | Checksums of every file except the signatures |
 
-Nothing carries a code signing certificate: Windows SmartScreen and
-macOS Gatekeeper warn on first launch (macOS: right-click → Open).
+Nothing carries a code signing certificate from a CA (no Authenticode,
+no Apple notarization), as in amigo-blinzel: Windows SmartScreen and
+macOS Gatekeeper warn on first launch (macOS: right-click → Open). The
+Mac app and disk image are signed with amigo-labs' self-signed
+certificate (see "macOS signing certificate" below), ad hoc without it.
 
 ## Self-updater (desktop)
 
@@ -195,6 +198,33 @@ replace it (for all apps at once):
 3. Then store the new key and password in the two organization secrets
    and delete `UPDATER_SIGNING_KEY_ID`; later releases are signed with
    the new key and checked against the app's public key again.
+
+### macOS signing certificate (optional)
+
+The Mac app is signed with amigo-labs' self-signed code signing
+certificate (CN `amigo-labs`), the one amigo-blinzel uses. Gatekeeper
+does not trust it, so the first-launch warning stays; it gives the app a
+stable identity instead: macOS keeps what the user allowed (access to
+Documents, Desktop, Downloads, …) across updates, while an ad hoc
+signature changes with every build and asks again.
+
+- The certificate is the **organization secrets** `MACOS_SIGNING_CERT`
+  (the .p12, base64) and `MACOS_SIGNING_CERT_PASSWORD`, shared with the
+  selected repositories. amigo-blinzel's
+  `packaging/macos/create-signing-cert.sh` creates it and sets the
+  secrets; to give Pincel access, run it with the full repository list:
+  `create-signing-cert.sh --repos amigo-blinzel,amigo-pincel` (asks for
+  the .p12's password, needs organization admin rights).
+- `release.yml` imports it into a temporary keychain on the macOS
+  runner, trusts it there for code signing, and hands its SHA-1 hash to
+  `tauri build` as `APPLE_SIGNING_IDENTITY`; Tauri signs the app (with
+  the hardened runtime) and the disk image, and the updater archive
+  holds the signed app. A step then checks the signature with
+  `codesign --verify`.
+- Without the secrets the release still runs and the app is ad hoc
+  signed, as before.
+- Never replace the certificate: a new one makes every Mac ask for its
+  permissions again, for every amigo-labs app.
 
 ### npm publish (`@amigo-labs/pincel-wasm`)
 
