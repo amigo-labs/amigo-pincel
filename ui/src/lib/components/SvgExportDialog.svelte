@@ -4,13 +4,13 @@
 
   /** One trace from the editor's `Vectorizer`: the SVG and its counts, or why it failed. */
   export type SvgTrace =
-    | { svg: string; layers: number; outlines: number; threshold: number }
-    | { error: string };
+    { svg: string; layers: number; outlines: number; threshold: number } | { error: string };
 
   export const SVG_MODE_WIRE: Record<SvgMode, number> = { color: 0, mono: 1, exact: 2 };
 </script>
 
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { t } from '../i18n/index.svelte';
 
   // Export as SVG (docs/specs/vectorize-dialog.md). Presentational: the
@@ -87,7 +87,9 @@
     svgResult
       ? t('svg.summary', {
           layers:
-            svgResult.layers === 1 ? t('svg.layersOne') : t('svg.layersMany', { n: svgResult.layers }),
+            svgResult.layers === 1
+              ? t('svg.layersOne')
+              : t('svg.layersMany', { n: svgResult.layers }),
           outlines:
             svgResult.outlines === 1
               ? t('svg.outlinesOne')
@@ -104,10 +106,40 @@
     if ('svg' in fresh) onExport(fresh.svg);
   }
 
+  let form: HTMLFormElement;
+  let modeField: HTMLSelectElement;
+
+  // Modal focus: the Mode field takes focus on open, Tab stays inside the
+  // dialog, and focus returns to where it was on close.
+  onMount(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modeField.focus();
+    return () => previous?.focus();
+  });
+
+  function focusables(): HTMLElement[] {
+    return Array.from(form.querySelectorAll<HTMLElement>('select, input, button')).filter(
+      (el) => !el.hasAttribute('disabled'),
+    );
+  }
+
   function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
+    } else if (e.key === 'Tab') {
+      const items = focusables();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      const inside = form.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   }
 
@@ -117,12 +149,13 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
   role="dialog"
   aria-modal="true"
   aria-label={t('svg.title')}
 >
   <form
+    bind:this={form}
     class="flex max-h-[90vh] w-96 flex-col gap-3 overflow-y-auto rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
@@ -133,7 +166,7 @@
 
     <label class="flex flex-col gap-1 text-xs">
       <span>{t('svg.mode')}</span>
-      <select class={field} bind:value={mode} aria-label={t('svg.mode')}>
+      <select bind:this={modeField} class={field} bind:value={mode} aria-label={t('svg.mode')}>
         <option value="color">{t('svg.modeColor')}</option>
         <option value="mono">{t('svg.modeMono')}</option>
         <option value="exact">{t('svg.modeExact')}</option>
@@ -143,7 +176,15 @@
     {#if mode === 'color'}
       <label class="flex items-center justify-between gap-2 text-xs">
         <span>{t('svg.colors')}</span>
-        <input type="number" min="2" max="16" step="1" class="w-20 {field}" bind:value={colors} aria-label={t('svg.colors')} />
+        <input
+          type="number"
+          min="2"
+          max="16"
+          step="1"
+          class="w-20 {field}"
+          bind:value={colors}
+          aria-label={t('svg.colors')}
+        />
       </label>
     {:else if mode === 'mono'}
       <label class="flex items-center gap-2 text-xs">
@@ -180,7 +221,14 @@
       </label>
       <label class="flex items-center justify-between gap-2 text-xs">
         <span>{t('svg.minArea')}</span>
-        <input type="number" min="0" step="1" class="w-20 {field}" bind:value={minArea} aria-label={t('svg.minArea')} />
+        <input
+          type="number"
+          min="0"
+          step="1"
+          class="w-20 {field}"
+          bind:value={minArea}
+          aria-label={t('svg.minArea')}
+        />
       </label>
       <label class="flex items-center justify-between gap-2 text-xs">
         <span>{t('svg.cornerThreshold')}</span>
@@ -219,7 +267,9 @@
         <img class="h-full w-full object-contain p-1" src={previewUrl} alt={t('svg.preview')} />
       {/if}
     </div>
-    <p class="text-xs text-pc-muted" aria-live="polite" data-testid="svg-summary">{summary ?? ''}</p>
+    <p class="text-xs text-pc-muted" aria-live="polite" data-testid="svg-summary">
+      {summary ?? ''}
+    </p>
 
     <div class="flex justify-end gap-2">
       <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>

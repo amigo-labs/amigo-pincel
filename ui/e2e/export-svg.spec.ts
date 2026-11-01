@@ -277,3 +277,38 @@ test('menu entry, dialog and summary follow the German language', async ({ page 
   await expect(d.getByRole('button', { name: 'Exportieren' })).toBeVisible();
   await expect(d.getByRole('button', { name: 'Abbrechen' })).toBeVisible();
 });
+
+test('the dialog takes focus, keeps Tab inside and returns focus on close', async ({ page }) => {
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  await openDialog(page);
+  const d = dialog(page);
+  await expect(modeSelect(page)).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(d.getByRole('button', { name: 'Export' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(modeSelect(page)).toBeFocused();
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press('Tab');
+    expect(await d.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(d).toHaveCount(0);
+  expect(
+    await page.evaluate(() => document.activeElement?.closest('[role="dialog"]') ?? null),
+  ).toBeNull();
+});
+
+test.describe('tablet', () => {
+  test.use({ viewport: { width: 820, height: 1180 } });
+
+  test('the dialog covers the open panel drawer', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await page.getByRole('button', { name: 'Toggle panels' }).click();
+    const drawer = page.getByRole('complementary', { name: 'Panels' });
+    const addLayer = drawer.getByRole('button', { name: 'Add layer' });
+    await expect(addLayer).toBeVisible();
+    await openDialog(page);
+    // The drawer stays rendered but sits under the modal backdrop.
+    await expect(addLayer.click({ trial: true, timeout: 1000 })).rejects.toThrow();
+  });
+});
