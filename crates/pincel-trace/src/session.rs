@@ -331,8 +331,8 @@ impl TraceSession {
             for (cell, &ix) in bm.data.iter_mut().zip(&q.idx) {
                 *cell = u8::from(ix >= 0 && ix as usize == j);
             }
-            let paths = potrace(&bm, &opts.potrace);
-            let d = path_data(&paths);
+            let paths = potrace(&bm, &opts.potrace)?;
+            let d = path_data(&paths)?;
             if d.is_empty() {
                 continue;
             }
@@ -383,8 +383,8 @@ impl TraceSession {
             *cell = u8::from(filled);
             area += u64::from(filled);
         }
-        let paths = potrace(&bm, &opts.potrace);
-        let d = path_data(&paths);
+        let paths = potrace(&bm, &opts.potrace)?;
+        let d = path_data(&paths)?;
         let mut stats = TraceStats::default();
         let mut layers = Vec::new();
         if !d.is_empty() {

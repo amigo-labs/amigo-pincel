@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 use crate::color::Rgba;
-use crate::error::{TraceError, try_vec};
+use crate::error::{TraceError, try_push, try_vec};
 
 /// Most distinct colours pixel-exact mode accepts.
 pub const MAX_EXACT_COLORS: usize = 256;
@@ -45,11 +45,18 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
             continue;
         }
         let key = u32::from_be_bytes([px[0], px[1], px[2], px[3]]);
-        let next = index.len();
-        let slot = *index.entry(key).or_insert_with(|| {
-            seen_all += 1;
-            next.min(usize::from(u16::MAX - 1)) as u16
-        });
+        // The map keeps counting past the limit for the error message, so
+        // it can grow with the image: reserve fallibly (AC-18).
+        let slot = match index.get(&key) {
+            Some(&slot) => slot,
+            None => {
+                index.try_reserve(1).map_err(|_| TraceError::OutOfMemory)?;
+                let slot = index.len().min(usize::from(u16::MAX - 1)) as u16;
+                index.insert(key, slot);
+                seen_all += 1;
+                slot
+            }
+        };
         if seen_all > MAX_EXACT_COLORS {
             continue;
         }
@@ -73,8 +80,30 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
             idx[(y * wi + x) as usize]
         }
     };
-    let mut edges: Vec<Vec<Edge>> = vec![Vec::new(); colors.len()];
+    // Count first, then reserve each colour's edge list exactly: the lists
+    // grow with the image, so running out of memory is an error (AC-18).
     let mut area = vec![0_u64; colors.len()];
+    let mut counts = vec![0_usize; colors.len()];
+    for y in 0..hi {
+        for x in 0..wi {
+            let c = at(x, y);
+            if c == u16::MAX {
+                continue;
+            }
+            area[usize::from(c)] += 1;
+            counts[usize::from(c)] += usize::from(at(x, y - 1) != c)
+                + usize::from(at(x + 1, y) != c)
+                + usize::from(at(x, y + 1) != c)
+                + usize::from(at(x - 1, y) != c);
+        }
+    }
+    let mut edges: Vec<Vec<Edge>> = Vec::with_capacity(colors.len());
+    for &n in &counts {
+        let mut list = Vec::new();
+        list.try_reserve_exact(n)
+            .map_err(|_| TraceError::OutOfMemory)?;
+        edges.push(list);
+    }
     for y in 0..hi {
         for x in 0..wi {
             let c = at(x, y);
@@ -82,7 +111,6 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
                 continue;
             }
             let list = &mut edges[usize::from(c)];
-            area[usize::from(c)] += 1;
             if at(x, y - 1) != c {
                 list.push(Edge { x, y, dir: 0 });
             }
@@ -114,7 +142,7 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
     order.sort_by(|&a, &b| area[b].cmp(&area[a]));
     let mut layers = Vec::with_capacity(order.len());
     for c in order {
-        let (path_data, outlines, steps) = link(&edges[c], wi + 1);
+        let (path_data, outlines, steps) = link(&edges[c], wi + 1)?;
         layers.push(ExactLayer {
             color: colors[c],
             area: area[c],
@@ -127,15 +155,19 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
 }
 
 /// Links boundary edges into closed outlines and writes them as path data.
-fn link(edges: &[Edge], stride: i64) -> (String, u64, u64) {
+/// Every buffer here grows with the outline, so each is reserved fallibly
+/// (AC-18).
+fn link(edges: &[Edge], stride: i64) -> Result<(String, u64, u64), TraceError> {
     let key = |x: i64, y: i64| y * stride + x;
-    let mut from: HashMap<i64, [usize; 2]> = HashMap::with_capacity(edges.len());
+    let mut from: HashMap<i64, [usize; 2]> = HashMap::new();
+    from.try_reserve(edges.len())
+        .map_err(|_| TraceError::OutOfMemory)?;
     for (i, e) in edges.iter().enumerate() {
         from.entry(key(e.x, e.y))
             .and_modify(|slot| slot[1] = i)
             .or_insert([i, usize::MAX]);
     }
-    let mut used = vec![false; edges.len()];
+    let mut used = try_vec(edges.len(), false)?;
     let mut out = String::new();
     let (mut outlines, mut steps) = (0_u64, 0_u64);
     for start in 0..edges.len() {
@@ -149,8 +181,8 @@ fn link(edges: &[Edge], stride: i64) -> (String, u64, u64) {
         loop {
             used[e] = true;
             let edge = edges[e];
-            verts.push((edge.x, edge.y));
-            dirs.push(edge.dir);
+            try_push(&mut verts, (edge.x, edge.y))?;
+            try_push(&mut dirs, edge.dir)?;
             let (nx, ny) = (edge.x + DIRS[edge.dir].0, edge.y + DIRS[edge.dir].1);
             if (nx, ny) == (sx, sy) {
                 break;
@@ -180,23 +212,32 @@ fn link(edges: &[Edge], stride: i64) -> (String, u64, u64) {
             continue;
         };
         let (mx, my) = verts[first];
+        out.try_reserve(STEP_ROOM)
+            .map_err(|_| TraceError::OutOfMemory)?;
         out.push_str(&format!("M{mx} {my}"));
         let mut runs: Vec<(usize, i64)> = Vec::new();
         for k in 0..n {
             let d = dirs[(first + k) % n];
             match runs.last_mut() {
                 Some((rd, len)) if *rd == d => *len += 1,
-                _ => runs.push((d, 1)),
+                _ => try_push(&mut runs, (d, 1))?,
             }
         }
         for &(d, len) in &runs[..runs.len() - 1] {
             let (dx, dy) = (DIRS[d].0 * len, DIRS[d].1 * len);
             let sep = if dy < 0 { "" } else { " " };
+            out.try_reserve(STEP_ROOM)
+                .map_err(|_| TraceError::OutOfMemory)?;
             out.push_str(&format!("l{dx}{sep}{dy}"));
         }
+        out.try_reserve(1).map_err(|_| TraceError::OutOfMemory)?;
         out.push('z');
         outlines += 1;
         steps += runs.len() as u64;
     }
-    (out, outlines, steps)
+    Ok((out, outlines, steps))
 }
+
+/// Bytes reserved before writing one move or step: a letter and two
+/// integers of at most 20 characters each.
+const STEP_ROOM: usize = 48;

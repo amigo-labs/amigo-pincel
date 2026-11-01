@@ -4,7 +4,7 @@
 //! arithmetic follows the TypeScript step by step so the golden corpus
 //! (`docs/specs/vectorize-core.md` AC-01) matches.
 
-use crate::error::{TraceError, try_vec};
+use crate::error::{TraceError, try_push, try_vec};
 
 /// A point in pixel-edge coordinates.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -98,27 +98,32 @@ pub(crate) struct TracedPath {
     pub curve: Curve,
 }
 
-/// Traces `bm` into closed outlines.
-pub(crate) fn trace(bm: &Bitmap, params: &PotraceParams) -> Vec<TracedPath> {
+/// Traces `bm` into closed outlines. Every buffer that grows with the
+/// image or an outline is reserved fallibly, so running out of memory is
+/// [`TraceError::OutOfMemory`], not an abort (AC-18).
+pub(crate) fn trace(bm: &Bitmap, params: &PotraceParams) -> Result<Vec<TracedPath>, TraceError> {
     let mut out = Vec::new();
-    for mut path in bm_to_pathlist(bm, params) {
-        calc_sums(&mut path);
-        calc_lon(&mut path);
-        best_polygon(&mut path);
-        let mut curve = adjust_vertices(&path);
+    for mut path in bm_to_pathlist(bm, params)? {
+        calc_sums(&mut path)?;
+        calc_lon(&mut path)?;
+        best_polygon(&mut path)?;
+        let mut curve = adjust_vertices(&path)?;
         smooth(&mut curve, params.alpha_max);
         if params.opt_curve {
-            curve = opti_curve(&curve, params.opt_tolerance);
+            curve = opti_curve(&curve, params.opt_tolerance)?;
         }
-        out.push(TracedPath {
-            curve: Curve {
-                n: curve.n,
-                tag: curve.tag,
-                c: curve.c,
+        try_push(
+            &mut out,
+            TracedPath {
+                curve: Curve {
+                    n: curve.n,
+                    tag: curve.tag,
+                    c: curve.c,
+                },
             },
-        });
+        )?;
     }
-    out
+    Ok(out)
 }
 
 // ---------- helpers (same semantics as the TypeScript) ----------
@@ -292,7 +297,12 @@ fn majority(bm1: &Bitmap, x: i64, y: i64) -> i64 {
     0
 }
 
-fn find_path(bm: &Bitmap, bm1: &Bitmap, start: (i64, i64), policy: TurnPolicy) -> RawPath {
+fn find_path(
+    bm: &Bitmap,
+    bm1: &Bitmap,
+    start: (i64, i64),
+    policy: TurnPolicy,
+) -> Result<RawPath, TraceError> {
     let mut path = RawPath {
         max_x: -1,
         ..RawPath::default()
@@ -301,7 +311,7 @@ fn find_path(bm: &Bitmap, bm1: &Bitmap, start: (i64, i64), policy: TurnPolicy) -
     let (mut dirx, mut diry) = (0_i64, 1_i64);
     let positive = at(bm, start.0, start.1);
     loop {
-        path.pt.push((x, y));
+        try_push(&mut path.pt, (x, y))?;
         if x > path.max_x {
             path.max_x = x;
         }
@@ -340,7 +350,7 @@ fn find_path(bm: &Bitmap, bm1: &Bitmap, start: (i64, i64), policy: TurnPolicy) -
             diry = -tmp;
         }
     }
-    path
+    Ok(path)
 }
 
 fn xor_path(bm1: &mut Bitmap, path: &RawPath) {
@@ -357,8 +367,14 @@ fn xor_path(bm1: &mut Bitmap, path: &RawPath) {
     }
 }
 
-fn bm_to_pathlist(bm: &Bitmap, params: &PotraceParams) -> Vec<RawPath> {
-    let mut bm1 = bm.clone();
+fn bm_to_pathlist(bm: &Bitmap, params: &PotraceParams) -> Result<Vec<RawPath>, TraceError> {
+    let mut data = try_vec(bm.data.len(), 0_u8)?;
+    data.copy_from_slice(&bm.data);
+    let mut bm1 = Bitmap {
+        w: bm.w,
+        h: bm.h,
+        data,
+    };
     let size = bm1.w * bm1.h;
     let mut pathlist = Vec::new();
     let mut i = 0_i64;
@@ -370,21 +386,23 @@ fn bm_to_pathlist(bm: &Bitmap, params: &PotraceParams) -> Vec<RawPath> {
             break;
         }
         let start = (i % bm1.w, i / bm1.w);
-        let path = find_path(bm, &bm1, start, params.turn_policy);
+        let path = find_path(bm, &bm1, start, params.turn_policy)?;
         xor_path(&mut bm1, &path);
         if path.area > i64::from(params.min_area) {
-            pathlist.push(path);
+            try_push(&mut pathlist, path)?;
         }
     }
-    pathlist
+    Ok(pathlist)
 }
 
 // ---------- Phase 2: path -> polygon ----------
 
-fn calc_sums(path: &mut RawPath) {
+fn calc_sums(path: &mut RawPath) -> Result<(), TraceError> {
     path.x0 = path.pt[0].0;
     path.y0 = path.pt[0].1;
-    let mut sums = Vec::with_capacity(path.pt.len() + 1);
+    let mut sums = Vec::new();
+    sums.try_reserve_exact(path.pt.len() + 1)
+        .map_err(|_| TraceError::OutOfMemory)?;
     sums.push(Sums::default());
     for (i, &(px, py)) in path.pt.iter().enumerate() {
         let x = (px - path.x0) as f64;
@@ -399,6 +417,7 @@ fn calc_sums(path: &mut RawPath) {
         });
     }
     path.sums = sums;
+    Ok(())
 }
 
 /// `ct[dir]++` with `dir = (3 + 3 sx + sy) / 2`: in the TypeScript a
@@ -411,13 +430,13 @@ fn bump(ct: &mut [i64; 4], sx: i64, sy: i64) {
     }
 }
 
-fn calc_lon(path: &mut RawPath) {
+fn calc_lon(path: &mut RawPath) -> Result<(), TraceError> {
     let pt = &path.pt;
     let n = pt.len() as i64;
     let nu = pt.len();
-    let mut pivk = vec![0_i64; nu];
-    let mut nc = vec![0_i64; nu];
-    let mut lon = vec![0_i64; nu];
+    let mut pivk = try_vec(nu, 0_i64)?;
+    let mut nc = try_vec(nu, 0_i64)?;
+    let mut lon = try_vec(nu, 0_i64)?;
 
     let mut k: i64 = 0;
     for i in (0..n).rev() {
@@ -530,6 +549,7 @@ fn calc_lon(path: &mut RawPath) {
         i -= 1;
     }
     path.lon = lon;
+    Ok(())
 }
 
 fn penalty3(path: &RawPath, i: i64, mut j: i64) -> f64 {
@@ -572,15 +592,15 @@ fn penalty3(path: &RawPath, i: i64, mut j: i64) -> f64 {
     s.sqrt()
 }
 
-fn best_polygon(path: &mut RawPath) {
+fn best_polygon(path: &mut RawPath) -> Result<(), TraceError> {
     let n = path.pt.len() as i64;
     let nu = path.pt.len();
-    let mut pen = vec![0.0_f64; nu + 1];
-    let mut prev = vec![0_i64; nu + 1];
-    let mut clip0 = vec![0_i64; nu];
-    let mut clip1 = vec![0_i64; nu + 1];
-    let mut seg0 = vec![0_i64; nu + 1];
-    let mut seg1 = vec![0_i64; nu + 1];
+    let mut pen = try_vec(nu + 1, 0.0_f64)?;
+    let mut prev = try_vec(nu + 1, 0_i64)?;
+    let mut clip0 = try_vec(nu, 0_i64)?;
+    let mut clip1 = try_vec(nu + 1, 0_i64)?;
+    let mut seg0 = try_vec(nu + 1, 0_i64)?;
+    let mut seg1 = try_vec(nu + 1, 0_i64)?;
 
     for i in 0..n {
         let mut c = modi(path.lon[modi(i - 1, n) as usize] - 1, n);
@@ -633,7 +653,7 @@ fn best_polygon(path: &mut RawPath) {
         }
     }
     path.m = m as usize;
-    let mut po = vec![0_i64; m as usize];
+    let mut po = try_vec(m as usize, 0_i64)?;
     let mut i = n;
     let mut j = m - 1;
     while i > 0 {
@@ -642,6 +662,7 @@ fn best_polygon(path: &mut RawPath) {
         j -= 1;
     }
     path.po = po;
+    Ok(())
 }
 
 // ---------- Phase 3: polygon -> vertices ----------
@@ -655,14 +676,14 @@ struct WorkCurve {
 }
 
 impl WorkCurve {
-    fn new(n: usize) -> Self {
-        Self {
+    fn new(n: usize) -> Result<Self, TraceError> {
+        Ok(Self {
             n,
-            tag: vec![Tag::Corner; n],
-            c: vec![Point::default(); n * 3],
-            vertex: vec![Point::default(); n],
-            alpha: vec![0.0; n],
-        }
+            tag: try_vec(n, Tag::Corner)?,
+            c: try_vec(n * 3, Point::default())?,
+            vertex: try_vec(n, Point::default())?,
+            alpha: try_vec(n, 0.0)?,
+        })
     }
 }
 
@@ -739,17 +760,17 @@ fn quadform(q: &Mat3, w: Point) -> f64 {
     sum
 }
 
-fn adjust_vertices(path: &RawPath) -> WorkCurve {
+fn adjust_vertices(path: &RawPath) -> Result<WorkCurve, TraceError> {
     let m = path.m;
     let mi = m as i64;
     let po = &path.po;
     let n = path.pt.len() as i64;
     let pt = &path.pt;
     let (x0, y0) = (path.x0 as f64, path.y0 as f64);
-    let mut ctr = vec![Point::default(); m];
-    let mut dir = vec![Point::default(); m];
-    let mut q = vec![[[0.0_f64; 3]; 3]; m];
-    let mut curve = WorkCurve::new(m);
+    let mut ctr = try_vec(m, Point::default())?;
+    let mut dir = try_vec(m, Point::default())?;
+    let mut q = try_vec(m, [[0.0_f64; 3]; 3])?;
+    let mut curve = WorkCurve::new(m)?;
 
     for i in 0..m {
         let mut j = po[modi(i as i64 + 1, mi) as usize];
@@ -845,7 +866,7 @@ fn adjust_vertices(path: &RawPath) -> WorkCurve {
             y: yv + y0,
         };
     }
-    curve
+    Ok(curve)
 }
 
 // ---------- Phase 4: smoothing and corners ----------
@@ -1016,16 +1037,16 @@ fn opti_penalty(
     Some(res)
 }
 
-fn opti_curve(curve: &WorkCurve, opttolerance: f64) -> WorkCurve {
+fn opti_curve(curve: &WorkCurve, opttolerance: f64) -> Result<WorkCurve, TraceError> {
     let m = curve.n;
     let mi = m as i64;
     let vert = &curve.vertex;
-    let mut pt = vec![0_i64; m + 1];
-    let mut pen = vec![0.0_f64; m + 1];
-    let mut len = vec![0_i64; m + 1];
-    let mut opt: Vec<Option<Opti>> = vec![None; m + 1];
-    let mut convc = vec![0_i64; m];
-    let mut areac = vec![0.0_f64; m + 1];
+    let mut pt = try_vec(m + 1, 0_i64)?;
+    let mut pen = try_vec(m + 1, 0.0_f64)?;
+    let mut len = try_vec(m + 1, 0_i64)?;
+    let mut opt: Vec<Option<Opti>> = try_vec(m + 1, None)?;
+    let mut convc = try_vec(m, 0_i64)?;
+    let mut areac = try_vec(m + 1, 0.0_f64)?;
 
     for i in 0..mi {
         convc[i as usize] = if curve.tag[i as usize] == Tag::Curve {
@@ -1078,7 +1099,7 @@ fn opti_curve(curve: &WorkCurve, opttolerance: f64) -> WorkCurve {
         }
     }
     let om = len[m] as usize;
-    let mut ocurve = WorkCurve::new(om);
+    let mut ocurve = WorkCurve::new(om)?;
     let mut j = mi;
     for i in (0..om).rev() {
         let ju = j as usize;
@@ -1103,7 +1124,7 @@ fn opti_curve(curve: &WorkCurve, opttolerance: f64) -> WorkCurve {
         }
         j = pt[ju];
     }
-    ocurve
+    Ok(ocurve)
 }
 
 // ---------- SVG path data ----------
@@ -1133,6 +1154,10 @@ fn nfmt(n: f64) -> String {
     }
 }
 
+/// Bytes reserved before writing one segment: a command letter and up to
+/// three coordinate pairs of two numbers, each at most about 20 characters.
+const SEGMENT_ROOM: usize = 128;
+
 fn pair(x: f64, y: f64) -> String {
     let sy = nfmt(y);
     let sep = if sy.starts_with('-') { "" } else { " " };
@@ -1141,9 +1166,14 @@ fn pair(x: f64, y: f64) -> String {
 
 /// Serialises traced outlines as SVG path data: one absolute move per
 /// outline, then relative steps on a 1/1000 grid accumulated so rounding
-/// never drifts, then `z`.
-pub(crate) fn path_data(paths: &[TracedPath]) -> String {
+/// never drifts, then `z`. The string grows fallibly (AC-18): room for one
+/// segment is reserved before it is written.
+pub(crate) fn path_data(paths: &[TracedPath]) -> Result<String, TraceError> {
     let mut out = String::new();
+    let room = |out: &mut String| {
+        out.try_reserve(SEGMENT_ROOM)
+            .map_err(|_| TraceError::OutOfMemory)
+    };
     for path in paths {
         let cv = &path.curve;
         let n = cv.n;
@@ -1152,9 +1182,11 @@ pub(crate) fn path_data(paths: &[TracedPath]) -> String {
         }
         let mut cx = q3(cv.c[(n - 1) * 3 + 2].x);
         let mut cy = q3(cv.c[(n - 1) * 3 + 2].y);
+        room(&mut out)?;
         out.push('M');
         out.push_str(&pair(cx, cy));
         for i in 0..n {
+            room(&mut out)?;
             if cv.tag[i] == Tag::Curve {
                 let (c1, c2, c3) = (cv.c[i * 3], cv.c[i * 3 + 1], cv.c[i * 3 + 2]);
                 let (sx, sy) = (cx, cy);
@@ -1185,7 +1217,7 @@ pub(crate) fn path_data(paths: &[TracedPath]) -> String {
         }
         out.push('z');
     }
-    out
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -1221,7 +1253,7 @@ mod tests {
         let bm = bitmap(100, 100, |x, y| {
             (x - 50).pow(2) + (y - 50).pow(2) <= 30 * 30
         });
-        let paths = trace(&bm, &PotraceParams::default());
+        let paths = trace(&bm, &PotraceParams::default()).expect("trace");
         assert_eq!(paths.len(), 1);
         let cv = &paths[0].curve;
         assert!(cv.n <= 6, "{} segments", cv.n);
@@ -1253,7 +1285,10 @@ mod tests {
             let d = (x - 60).pow(2) + (y - 60).pow(2);
             (20 * 20..=45 * 45).contains(&d)
         });
-        assert_eq!(trace(&bm, &PotraceParams::default()).len(), 2);
+        assert_eq!(
+            trace(&bm, &PotraceParams::default()).expect("trace").len(),
+            2
+        );
     }
 
     #[test]
@@ -1261,8 +1296,8 @@ mod tests {
         let bm = bitmap(80, 60, |x, y| {
             (10..70).contains(&x) && (10..50).contains(&y)
         });
-        let paths = trace(&bm, &PotraceParams::default());
-        let d = path_data(&paths);
+        let paths = trace(&bm, &PotraceParams::default()).expect("trace");
+        let d = path_data(&paths).expect("path data");
         assert!(d.starts_with("M10 30"), "{d}");
         for bad in ["NaN", "inf", "  "] {
             assert!(!d.contains(bad), "{d}");
@@ -1293,8 +1328,8 @@ mod tests {
             min_area: 0,
             ..PotraceParams::default()
         };
-        assert_eq!(trace(&bm, &two).len(), 1);
-        assert_eq!(trace(&bm, &zero).len(), 2);
+        assert_eq!(trace(&bm, &two).expect("trace").len(), 1);
+        assert_eq!(trace(&bm, &zero).expect("trace").len(), 2);
     }
 
     /// Splits path data into commands and numbers.
@@ -1336,7 +1371,8 @@ mod tests {
             let d = (x - 150).pow(2) + (y - 150).pow(2);
             (60 * 60..=120 * 120).contains(&d)
         });
-        let d = path_data(&trace(&bm, &PotraceParams::default()));
+        let d =
+            path_data(&trace(&bm, &PotraceParams::default()).expect("trace")).expect("path data");
         let toks = tokens(&d);
         assert!(!toks.is_empty());
         let num = |t: &str| t.parse::<f64>().expect("number");

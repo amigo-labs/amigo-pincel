@@ -62,3 +62,11 @@ pub(crate) fn try_vec<T: Clone>(len: usize, value: T) -> Result<Vec<T>, TraceErr
     v.resize(len, value);
     Ok(v)
 }
+
+/// Appends `value`, or fails with [`TraceError::OutOfMemory`] when the
+/// vector cannot grow.
+pub(crate) fn try_push<T>(v: &mut Vec<T>, value: T) -> Result<(), TraceError> {
+    v.try_reserve(1).map_err(|_| TraceError::OutOfMemory)?;
+    v.push(value);
+    Ok(())
+}
