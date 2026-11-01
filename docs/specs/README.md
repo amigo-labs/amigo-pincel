@@ -60,6 +60,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 38 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | both | M | — | |
 | 39 | [power-user-shortcuts-palette](power-user-shortcuts-palette.md) | both | M | — | Command palette; no open questions |
 | 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
+| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; the golden corpus must be generated before the Vectorizer repository is deleted |
 
 ## Done
 
@@ -78,6 +79,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 Not code; they need a person, hardware or an account.
 
 - **Release prerequisites** (`docs/RELEASING.md`): updater signing key as organization secrets, `RELEASE_PLEASE_TOKEN`, npm trusted publisher for `@amigo-labs/pincel-wasm` then `PUBLISH_NPM=true`, `pincel.amigo-labs.dev` as the Worker's custom domain.
+- **Delete `daniel-rck/Vectorizer`** once vectorize-core (its golden corpus committed) and vectorize-dialog are done (Decision Log 2026-11-01).
 - **Native-speaker review** of the German copy: `website/src/lib/i18n/de.ts` and `ui/src/lib/i18n/de.ts` are machine-written.
 - **Checks on real hardware** (spec §16 exit criteria): 60 fps at 256×256 / zoom 32 on M1 and mid-tier Windows (F2 probe); Lighthouse PWA ≥ 90; a Pincel-saved file opened in upstream Aseprite and a Pincel tilemap loaded by `amigo_assets` (former M6.7); real Tauri installs and the self-update on Windows, macOS and Linux.
 
@@ -98,6 +100,7 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
 | Brush stabilizer / stroke smoothing | Image brush first |
+| SVG export dialog (`vectorize-dialog`) | After vectorize-core: File ▸ Export as SVG… in both modes, wasm / Tauri bindings, live preview; pixel-exact mode for Pixel mode |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
 | CJK font for the Text tool | Needed for Japanese text on canvas (more-languages) |
