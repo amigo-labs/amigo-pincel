@@ -20,7 +20,7 @@ pub(crate) fn effective_brightness(px: &[u8]) -> f64 {
 pub(crate) fn otsu(d: &[u8]) -> u16 {
     let mut hist = [0.0_f64; 256];
     let mut total = 0.0_f64;
-    for px in d.chunks_exact(4) {
+    for px in d.as_chunks::<4>().0 {
         let eff = js_round(effective_brightness(px));
         hist[eff as usize] += 1.0;
         total += 1.0;

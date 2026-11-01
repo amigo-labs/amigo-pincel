@@ -378,7 +378,7 @@ impl TraceSession {
         let src = self.source(opts.despeckle)?;
         let thf = f64::from(th);
         let mut area = 0_u64;
-        for (cell, px) in bm.data.iter_mut().zip(src.chunks_exact(4)) {
+        for (cell, px) in bm.data.iter_mut().zip(src.as_chunks::<4>().0) {
             let filled = (effective_brightness(px) < thf) != invert;
             *cell = u8::from(filled);
             area += u64::from(filled);

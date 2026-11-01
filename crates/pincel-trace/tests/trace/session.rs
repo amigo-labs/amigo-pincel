@@ -131,7 +131,13 @@ fn color_transparent_pixels_belong_to_no_layer() {
         }
         px
     });
-    let opaque = img.rgba.chunks_exact(4).filter(|p| p[3] >= 128).count() as u64;
+    let opaque = img
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .filter(|p| p[3] >= 128)
+        .count() as u64;
     let r = trace(&img, &colors(6));
     assert!(!hexes(&r).contains(&"#c0392b".to_string()));
     assert_eq!(r.layers.iter().map(|l| l.area).sum::<u64>(), opaque);

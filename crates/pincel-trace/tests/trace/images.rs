@@ -124,7 +124,7 @@ pub fn noisy_two_tone() -> Img {
 pub fn speckled_two_tone() -> Img {
     let mut img = noisy_two_tone();
     let mut rng = JsRng::new(7);
-    for px in img.rgba.chunks_exact_mut(4) {
+    for px in img.rgba.as_chunks_mut::<4>().0 {
         if rng.next() < 0.04 {
             let v = if rng.next() < 0.5 { 0 } else { 255 };
             px[0] = v;

@@ -87,7 +87,7 @@ pub(crate) fn build_palette(d: &[u8], k: usize) -> Vec<Rgb> {
     // Insertion order matters: the reference iterates a JavaScript Map.
     let mut slots: HashMap<usize, usize> = HashMap::new();
     let mut sums: Vec<[f64; 4]> = Vec::new();
-    for px in d.chunks_exact(4) {
+    for px in d.as_chunks::<4>().0 {
         if px[3] < 128 {
             continue;
         }
@@ -192,7 +192,7 @@ pub(crate) fn quantize_with_palette(
         .map(|c| rgb_to_lab(f64::from(c.r), f64::from(c.g), f64::from(c.b)))
         .collect();
     let mut lut = vec![-1_i16; 32_768];
-    for (p, px) in d.chunks_exact(4).enumerate() {
+    for (p, px) in d.as_chunks::<4>().0.iter().enumerate() {
         if px[3] < 128 {
             continue;
         }

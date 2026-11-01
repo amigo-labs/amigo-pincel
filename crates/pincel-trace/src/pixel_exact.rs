@@ -40,7 +40,7 @@ pub(crate) fn trace_exact(rgba: &[u8], w: usize, h: usize) -> Result<Vec<ExactLa
     let mut colors: Vec<Rgba> = Vec::new();
     let mut seen_all = 0_usize;
     let mut idx = try_vec(w * h, u16::MAX)?;
-    for (p, px) in rgba.chunks_exact(4).enumerate() {
+    for (p, px) in rgba.as_chunks::<4>().0.iter().enumerate() {
         if px[3] == 0 {
             continue;
         }
