@@ -317,3 +317,30 @@ fn changing_options_in_one_session_matches_fresh_sessions() {
         assert_eq!(s.trace(opts).expect("trace"), trace(&img, opts), "{opts:?}");
     }
 }
+
+#[test]
+fn pixel_exact_ignores_despeckle() {
+    // Despeckle would turn the lone red pixel white; pixel-exact keeps it.
+    let img = Img::new(5, 5, |x, y| {
+        if (x, y) == (2, 2) {
+            R
+        } else {
+            [255, 255, 255, 255]
+        }
+    });
+    let plain = trace(&img, &exact());
+    let despeckled = trace(
+        &img,
+        &TraceOptions {
+            despeckle: true,
+            ..exact()
+        },
+    );
+    assert_eq!(to_svg(&despeckled), to_svg(&plain));
+    assert!(
+        plain
+            .layers
+            .iter()
+            .any(|l| l.color == Rgba::new(255, 0, 0, 255) && l.area == 1)
+    );
+}

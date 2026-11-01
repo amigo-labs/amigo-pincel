@@ -298,6 +298,11 @@ fn session_rejects_bad_images() {
     let edge = vec![0_u8; 32_767 * 4];
     assert!(TraceSession::new(&edge, 32_767, 1).is_ok());
     assert!(matches!(
+        TraceSession::new(&wide, 1, 32_768),
+        Err(TraceError::TooLarge { .. })
+    ));
+    assert!(TraceSession::new(&edge, 1, 32_767).is_ok());
+    assert!(matches!(
         TraceSession::new(&[], u32::MAX, u32::MAX),
         Err(TraceError::TooLarge { .. })
     ));
@@ -410,4 +415,15 @@ fn pinned_colours_closer_than_the_merge_distance_stay_apart() {
     let r = trace(&img, &pinned(&["#7f7f7f", "#808080"]));
     assert_eq!(hexes(&r), ["#7f7f7f", "#808080"]);
     assert!(r.layers.iter().all(|l| l.area == 16));
+}
+
+#[test]
+fn color_alpha_cut_off_is_128_free_and_pinned() {
+    // Left half alpha 128 (opaque enough), right half alpha 127 (ignored).
+    let img = halves(8, 4, [255, 0, 0, 128], [0, 0, 255, 127]);
+    for opts in [colors(6), pinned(&["#ff0000", "#0000ff"])] {
+        let r = trace(&img, &opts);
+        assert_eq!(hexes(&r), ["#ff0000"]);
+        assert_eq!(r.layers[0].area, 16);
+    }
 }
