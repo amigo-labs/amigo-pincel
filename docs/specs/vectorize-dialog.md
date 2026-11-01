@@ -45,7 +45,7 @@ Terms used below:
 - [ ] AC-02 (event): When the user picks File ▸ Export ▸ SVG…, then the export dialog opens titled "Export as SVG" with the mode preselected — Pixel-exact in Pixel mode, Colours in Image mode — and every option at the `vectorize-core` default (6 colours, automatic threshold, invert off, fill black, despeckle off, minimum area 2, corner threshold 1.0, curve optimisation on, tolerance 0.2).
 - [ ] AC-03 (state): While the export dialog is open, it shows only the options of the selected mode — colour count for Colours; threshold (automatic or a value 0 – 255), invert and fill colour for Monochrome; nothing extra for Pixel-exact — plus despeckle and the Potrace options for Colours and Monochrome.
 - [ ] AC-04 (state): While the export dialog is open, it shows a preview of the SVG the current options produce and the summary line (for example "4 layers · 12 outlines · 3.2 KB"); both update within a second after an option changes; the document, its undo history and the canvas stay unchanged.
-- [ ] AC-05 (event): When the user presses Export, then the SVG of the current options, traced from the source image, is saved under the document's file name with the extension `.svg` (`pincel.svg` for an unsaved document) and the type `image/svg+xml`, the dialog closes, and Pixel mode's status bar reads "exported SVG · <n> bytes".
+- [ ] AC-05 (event): When the user presses Export, then the SVG of the current options, traced from the source image, is saved under the document's file name with the extension `.svg` — for an unsaved document the name the editor's PNG export uses, `pincel.svg` in Pixel mode and `image.svg` in Image mode — and the type `image/svg+xml`, the dialog closes, and Pixel mode's status bar reads "exported SVG · <n> bytes".
 - [ ] AC-06 (event): When the user presses Cancel or Escape, then the dialog closes, no file is saved, and the document and its undo history are unchanged.
 - [ ] AC-07 (error): If the selected mode cannot trace the source image — Pixel-exact with more than 256 colours — then the dialog shows the reason with the colour count in place of the preview and disables Export, and choosing another mode or option recovers.
 - [ ] AC-08 (error): If the user cancels the save dialog, then nothing is saved, no error is shown, and the document is unchanged.
@@ -87,19 +87,21 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `both modes list SVG… last under File ▸ Export` (`ui/e2e/export-svg.spec.ts`); the disabled state comes from the Export submenu's existing no-document flag, which no e2e path can reach with an editor mounted | built |        |
+| AC-01 | `both modes list SVG… last under File ▸ Export`, `File ▸ Export is disabled until the document is loaded` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-02 | `pixel: the dialog opens pixel-exact with defaults and exports the frame`, `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-03 | `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-04 | `image: the dialog opens in colour mode, …` (summary follows invert), `pixel: the dialog opens pixel-exact …` (preview, undo unchanged) (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-05 | `pixel: the dialog opens pixel-exact with defaults and exports the frame` (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-06 | `Cancel and Escape close the dialog without saving or editing` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-03 | `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`; each mode asserts what it shows and what it hides) | built |        |
+| AC-04 | `image: the dialog opens in colour mode, …` (summary and preview `src` follow invert within 1 s), `pixel: the dialog opens pixel-exact …` (preview, undo unchanged), `Cancel and Escape close the dialog without saving or editing` (canvas screenshot unchanged) (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-05 | `pixel: the dialog opens pixel-exact with defaults and exports the frame` (`pincel.svg`), `image: the dialog opens in colour mode, …` (`image.svg`) (`ui/e2e/export-svg.spec.ts`); the type `image/svg+xml` is the `svg` export format in `ui/src/lib/fs/index.ts` | built |        |
+| AC-06 | `Cancel and Escape close the dialog without saving or editing` (`ui/e2e/export-svg.spec.ts`, both modes) | built |        |
 | AC-07 | `pixel-exact refuses more than 256 colours until another mode is chosen` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-08 | `cancelling the save picker saves nothing and shows no error` (`ui/e2e/export-svg.spec.ts`) | built |        |
-| AC-09 | `a hidden layer is not exported` (`ui/e2e/export-svg.spec.ts`); Rust: `vectorize::tests::vectorizer_traces_the_visible_frame_pixel_exact` (`crates/pincel-wasm/src/vectorize.rs`) | built |        |
+| AC-09 | `a hidden layer is not exported`, `onion skin and the selection outline are not exported` (`ui/e2e/export-svg.spec.ts`); Rust: `vectorize::tests::vectorizer_traces_the_visible_frame_pixel_exact` (`crates/pincel-wasm/src/vectorize.rs`) | built |        |
 | AC-10 |      | open   |        |
 | AC-11 | `menu entry, dialog and summary follow the German language` (`ui/e2e/export-svg.spec.ts`) | built |        |
 
 ## Decisions
+
+- 2026-11-01 (revision after spec-check) — AC-05 named `pincel.svg` for every unsaved document, while Image mode names an unsaved document's exports `image.*` (its PNG export saves `image.png`). The criterion now follows each editor's existing name instead of giving Image mode a second default; the code and its test already did. The acceptance check also found clauses without a test — the disabled Export submenu before a document has loaded (AC-01), the options each mode hides (AC-03), the preview update within a second and the unchanged canvas (AC-04), Image-mode Cancel / Escape (AC-06), onion skin and the selection outline (AC-09); the added tests passed at once because the behaviour existed, and the AC-01 test fails when the submenu's no-document flag is removed.
 
 - 2026-11-01 (spec-build) — UI behaviour is test-after (AGENTS.md §2.3): the e2e spec was written against the finished dialog; the wasm bindings have native Rust tests. The summary uses singular and plural forms ("1 layer", "4 layers") in both languages. The preview `<img>` scales the SVG to the preview box. The macOS native menu item (AC-10) is built in `src-tauri/src/main.rs` and checked by CI's Tauri job; its behaviour needs a Mac.
 

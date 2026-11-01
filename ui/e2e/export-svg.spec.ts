@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, menu, pixelCanvas } from './helpers';
+import { createDocument, gotoStart, menu, pixelCanvas, waitForEditor } from './helpers';
 
 // File ▸ Export ▸ SVG… in both modes (docs/specs/vectorize-dialog.md).
 
@@ -29,7 +29,10 @@ async function exportDownload(page: Page): Promise<{ name: string; text: string 
     page.waitForEvent('download'),
     dialog(page).getByRole('button', { name: 'Export' }).click(),
   ]);
-  return { name: download.suggestedFilename(), text: await readFile(await download.path(), 'utf8') };
+  return {
+    name: download.suggestedFilename(),
+    text: await readFile(await download.path(), 'utf8'),
+  };
 }
 
 async function paintPixel(page: Page): Promise<void> {
@@ -50,7 +53,40 @@ test('both modes list SVG… last under File ▸ Export', async ({ page }) => {
   }
 });
 
-test('pixel: the dialog opens pixel-exact with defaults and exports the frame', async ({ page }) => {
+test('File ▸ Export is disabled until the document is loaded', async ({ page }) => {
+  for (const mode of ['pixel', 'image'] as const) {
+    // Hold the core's wasm: the editor mounts its menus, but no document
+    // arrives until the request is released.
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route('**/*.wasm', async (route) => {
+      await held;
+      await route.continue();
+    });
+    await gotoStart(page);
+    const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
+    await page.getByRole('button', { name }).click();
+    await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+    const file = page.getByRole('menu', { name: 'File', exact: true });
+    await expect(file.getByRole('menuitem', { name: 'Export', exact: true })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    release();
+    await waitForEditor(page, mode);
+    await page.unroute('**/*.wasm');
+    await menu(page, 'File', 'Export');
+    await expect(
+      page
+        .getByRole('menu', { name: 'Export', exact: true })
+        .getByRole('menuitem', { name: 'SVG…' }),
+    ).toBeEnabled();
+    await page.keyboard.press('Escape');
+  }
+});
+
+test('pixel: the dialog opens pixel-exact with defaults and exports the frame', async ({
+  page,
+}) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await paintPixel(page);
   await openDialog(page);
@@ -70,7 +106,7 @@ test('pixel: the dialog opens pixel-exact with defaults and exports the frame', 
   await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
 });
 
-test('image: the dialog opens in colour mode, shows each mode\'s options and updates the summary', async ({
+test("image: the dialog opens in colour mode, shows each mode's options and updates the summary", async ({
   page,
 }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
@@ -84,6 +120,9 @@ test('image: the dialog opens in colour mode, shows each mode\'s options and upd
   await expect(d.getByLabel('Optimise curves')).toBeChecked();
   await expect(d.getByLabel('Curve tolerance')).toHaveValue('0.2');
   await expect(summary(page)).toHaveText(/layers? · \d+ outlines?/);
+  for (const hidden of ['Automatic threshold', 'Threshold', 'Invert', 'Fill colour']) {
+    await expect(d.getByLabel(hidden, { exact: true })).toHaveCount(0);
+  }
 
   await modeSelect(page).selectOption('mono');
   await expect(d.getByLabel('Automatic threshold')).toBeChecked();
@@ -91,14 +130,39 @@ test('image: the dialog opens in colour mode, shows each mode\'s options and upd
   await expect(d.getByLabel('Invert')).not.toBeChecked();
   await expect(d.getByLabel('Fill colour')).toHaveValue('#000000');
   await expect(d.getByLabel('Number of colours')).toHaveCount(0);
+  for (const shown of [
+    'Despeckle',
+    'Minimum area (px²)',
+    'Corner threshold',
+    'Optimise curves',
+    'Curve tolerance',
+  ]) {
+    await expect(d.getByLabel(shown)).toBeVisible();
+  }
   // A white canvas has nothing darker than the threshold; invert fills it all.
+  // Preview and summary follow an option change within a second (AC-04).
   await expect(summary(page)).toHaveText(/^0 layers · 0 outlines/);
+  const preview = d.getByRole('img', { name: 'SVG preview' });
+  const before = await preview.getAttribute('src');
   await d.getByLabel('Invert').check();
-  await expect(summary(page)).toHaveText(/^1 layer · 1 outline ·/);
+  await expect(summary(page)).toHaveText(/^1 layer · 1 outline ·/, { timeout: 1000 });
+  await expect(preview).not.toHaveAttribute('src', before ?? '', { timeout: 1000 });
 
   await modeSelect(page).selectOption('exact');
-  await expect(d.getByLabel('Despeckle')).toHaveCount(0);
-  await expect(d.getByLabel('Invert')).toHaveCount(0);
+  for (const hidden of [
+    'Number of colours',
+    'Automatic threshold',
+    'Threshold',
+    'Invert',
+    'Fill colour',
+    'Despeckle',
+    'Minimum area (px²)',
+    'Corner threshold',
+    'Optimise curves',
+    'Curve tolerance',
+  ]) {
+    await expect(d.getByLabel(hidden, { exact: true })).toHaveCount(0);
+  }
 
   const { name, text } = await exportDownload(page);
   expect(name).toBe('image.svg');
@@ -110,13 +174,26 @@ test('Cancel and Escape close the dialog without saving or editing', async ({ pa
   page.on('download', () => (downloads += 1));
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await paintPixel(page);
+  // Opening the dialog and tracing leaves the canvas as it was (AC-04).
+  const canvasBefore = await pixelCanvas(page).screenshot();
   await openDialog(page);
+  await expect(summary(page)).toHaveText(/^1 layer/);
   await dialog(page).getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog(page)).toHaveCount(0);
   await openDialog(page);
   await page.keyboard.press('Escape');
   await expect(dialog(page)).toHaveCount(0);
   await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  expect(await pixelCanvas(page).screenshot()).toEqual(canvasBefore);
+
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  await openDialog(page);
+  await dialog(page).getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog(page)).toHaveCount(0);
+  await openDialog(page);
+  await page.keyboard.press('Escape');
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   expect(downloads).toBe(0);
 });
 
@@ -152,6 +229,21 @@ test('a hidden layer is not exported', async ({ page }) => {
   await paintPixel(page);
   await page.getByRole('button', { name: /^Hide / }).click();
   await openDialog(page);
+  await expect(summary(page)).toHaveText(/^0 layers · 0 outlines/);
+  const { text } = await exportDownload(page);
+  expect(text).not.toContain('<path');
+});
+
+test('onion skin and the selection outline are not exported', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await paintPixel(page);
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  await timeline.getByRole('button', { name: 'Add frame' }).click();
+  await expect(timeline.getByText('frame 2/2')).toBeVisible();
+  await timeline.getByLabel('Onion skin').check();
+  await page.keyboard.press('ControlOrMeta+a');
+  await openDialog(page);
+  // Frame 2 is empty: the red pixel shows only as onion skin from frame 1.
   await expect(summary(page)).toHaveText(/^0 layers · 0 outlines/);
   const { text } = await exportDownload(page);
   expect(text).not.toContain('<path');
