@@ -305,6 +305,9 @@
     // which is mounted by App.svelte rather than by this editor.
     if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || autosave.snapshots.length > 0) return;
     if (dialogs.selectionRadius || dialogs.paste || help.about) return;
+    // `ed.selection` otherwise catches up on the next frame; a key pressed
+    // right after a marquee release must already see that selection.
+    syncSelection();
     if (e.key === 'Escape') {
       if (dialogs.confirm) {
         dialogs.confirm = null;

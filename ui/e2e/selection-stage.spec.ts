@@ -491,6 +491,41 @@ test('pixel: Delete clears the selected pixels as one undo entry (AC-12)', async
   await expect(pxDepths(page, 2)).toBeVisible();
 });
 
+/** Releases a pixel marquee over `(3, 3)` – `(5, 5)` and presses `key` in the
+ *  same task, so no animation frame runs between the two (a slow machine). */
+async function releaseMarqueeThenPress(page: Page, key: string): Promise<void> {
+  await useTool(page, 'm', 'Rectangle Select');
+  await page.mouse.move(...(await mid(page, 'pixel', 3, 3)));
+  await page.mouse.down();
+  const to = await mid(page, 'pixel', 5, 5);
+  await page.mouse.move(...to, { steps: 5 });
+  await pixelCanvas(page).evaluate(
+    (canvas, [x, y, k]) => {
+      const stage = canvas.closest('.select-none');
+      if (!stage) throw new Error('stage not found');
+      const at = { bubbles: true, clientX: x, clientY: y, pointerId: 1, isPrimary: true };
+      stage.dispatchEvent(new PointerEvent('pointerup', { ...at, pointerType: 'mouse' }));
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: k, code: k, bubbles: true }));
+    },
+    [to[0], to[1], key] as const,
+  );
+  await page.mouse.up();
+}
+
+test('pixel: Delete right after the marquee is released clears it (AC-12)', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await paintRed(page, 'pixel', 4, 4);
+  await expect(pxDepths(page, 1)).toBeVisible();
+  await releaseMarqueeThenPress(page, 'Delete');
+  await expect(pxDepths(page, 2)).toBeVisible();
+});
+
+test('pixel: Escape right after the marquee is released deselects (AC-12)', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await releaseMarqueeThenPress(page, 'Escape');
+  expect(await size(page)).toEqual([PX, PX]);
+});
+
 test('pixel: a Move drag released where it started changes nothing (AC-17)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: PX, height: PX });
   await paintRed(page, 'pixel', 4, 4);
