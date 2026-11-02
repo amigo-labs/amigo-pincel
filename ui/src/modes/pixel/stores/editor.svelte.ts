@@ -151,6 +151,8 @@ function dialogsInit() {
     sheet: false,
     /** File ▸ Export ▸ Animation… is open. */
     animation: false,
+    /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
+    svg: false,
     renaming: null as { id: number; name: string } | null,
     /** Select ▸ Expand… / Contract… awaiting a radius. */
     selectionRadius: null as 'expand' | 'contract' | null,

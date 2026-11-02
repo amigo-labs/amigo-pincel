@@ -7,6 +7,7 @@ members = [
   "crates/pincel-mcp",
   "crates/pincel-core",
   "crates/pincel-effects",
+  "crates/pincel-trace",
   "crates/pincel-wasm",
   "src-tauri",
 ]
@@ -28,6 +29,7 @@ pincel-agent = { version = "1.5.0", path = "crates/pincel-agent" } # x-release-p
 pincel-core = { version = "1.5.0", path = "crates/pincel-core" } # x-release-please-version
 pincel-effects = { version = "1.5.0", path = "crates/pincel-effects" } # x-release-please-version
 pincel-image-core = { version = "1.5.0", path = "crates/pincel-image-core" } # x-release-please-version
+pincel-trace = { version = "1.5.0", path = "crates/pincel-trace" } # x-release-please-version
 png = "0.18"
 # Animated GIF export in pincel-core, encoder side only (docs/specs/pincel.md §15, 2026-10-29).
 gif = { version = "0.14", default-features = false, features = ["std"] }
@@ -49,3 +51,9 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# The tracer is pure number crunching; unoptimised, its no-panic test on
+# the benchmark images (docs/specs/vectorize-core.md AC-21) alone takes
+# about a minute. Optimised it fits the test budget (AGENTS.md §7.5).
+[profile.dev.package.pincel-trace]
+opt-level = 3

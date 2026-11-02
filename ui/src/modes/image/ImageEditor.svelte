@@ -46,6 +46,9 @@
     expandSelection,
     contractSelection,
     featherSelection,
+    closeSvgExport,
+    exportSvg,
+    traceSvg,
     type ExportFormat,
   } from './core/controller';
   import { docFormat, fileFormat, fileName, parseDocFormat } from './core/document-file';
@@ -57,6 +60,7 @@
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
+  import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import Modal from './components/dialogs/Modal.svelte';
   import {
     clipboardImage,
@@ -120,6 +124,8 @@
 
   let loadError = $state<string | null>(null);
   let jpegDialogOpen = $state(false);
+  /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
+  let svgOpen = $state(false);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   let effectOpen = $state<EffectDef | null>(null);
   // Layer ▸ Rename… target while its dialog is open.
@@ -238,6 +244,17 @@
     }
     e.preventDefault();
     void beginPaste(pasteEventImage(e), handle);
+  }
+
+  function openSvgExport(): void {
+    if (editor.handle === null) return;
+    closeSvgExport();
+    svgOpen = true;
+  }
+
+  function closeSvg(): void {
+    svgOpen = false;
+    closeSvgExport();
   }
 
   function runExport(format: ExportFormat, quality?: number): void {
@@ -476,6 +493,7 @@
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
+      'menu:exportSvg': openSvgExport,
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': () => viewCommands.zoomIn(),
@@ -601,6 +619,7 @@
       effectOpen !== null ||
       transformDialog !== null ||
       jpegDialogOpen ||
+      svgOpen ||
       radiusOp !== null ||
       pasteDialog !== null;
   });
@@ -640,6 +659,7 @@
             { label: t('menu.exportJpeg'), run: () => runExport('jpeg') },
             // Lossless only: no pure-Rust lossy encoder (ADR-007).
             { label: t('menu.exportWebp'), run: () => runExport('webp') },
+            { label: t('menu.exportSvg'), run: openSvgExport },
           ],
         },
       ]),
@@ -986,6 +1006,18 @@
 {/if}
 
 <SaveDialogs />
+
+{#if svgOpen}
+  <SvgExportDialog
+    defaultMode="color"
+    trace={traceSvg}
+    onExport={(svg) => {
+      closeSvg();
+      exportSvg(svg).catch((e) => (loadError = t('img.exportFailed', { error: String(e) })));
+    }}
+    onCancel={closeSvg}
+  />
+{/if}
 
 {#if jpegDialogOpen}
   <ExportDialog

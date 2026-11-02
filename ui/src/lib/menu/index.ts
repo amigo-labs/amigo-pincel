@@ -29,6 +29,7 @@ export type EditorMenuId =
   | 'menu:exportPng'
   | 'menu:exportSheet'
   | 'menu:exportAnimation'
+  | 'menu:exportSvg'
   | 'menu:undo'
   | 'menu:redo'
   | 'menu:zoomIn'

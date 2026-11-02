@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -482,6 +482,7 @@ AGENTS.md                     This file — how to build it (CLAUDE.md only impo
 crates/pincel-core/           Pixel-mode core: pure logic, no I/O, no platform
 crates/pincel-image-core/     Image-mode core (from amigo-fineliner): layers, brushes, codecs
 crates/pincel-effects/        Stateless effects + adjustments, shared by both cores
+crates/pincel-trace/          Raster → SVG tracing (Potrace port of Vectorizer, pixel-exact mode), shared by both modes
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
@@ -527,6 +528,8 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 - **Canvas screenshots include overlays.** An element screenshot of the canvas also captures what floats over it: the first pen or touch pointerdown reveals the on-screen Shift / Alt toggles over the canvas corner, and a focused zoom-control button draws its focus ring over it. A spec that compares canvas screenshots before and after a pen stroke reveals the toggles first (one stroke + undo) and keeps focus off the zoom control (`ui/e2e/pixel-pressure.spec.ts`).
 - **No service worker in the desktop app.** WebView2 cannot fetch a worker script from Tauri's `http://tauri.localhost` (`registration.update()` fails with "unknown error when fetching the script"), so a registered worker never updates and serves its first cached bundle forever — an updated app silently shows an old UI. `ui/vite.config.ts` disables `vite-plugin-pwa` when `TAURI_ENV_PLATFORM` is set, and `src-tauri/src/webview_data.rs` deletes a worker an older build left behind. To inspect the installed app's webview, start it with `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` and connect Playwright over CDP.
 - **A drag on a selectable stage cancels the next one.** Pointer handlers on a container (not on the canvas) let a mouse drag start a text selection over the container; the next press inside that selection starts a native drag (`dragstart`) and the browser ends the pointer with `pointercancel`, so the gesture silently does nothing. Both editors' stages carry `select-none`; keep it on any element that takes tool input.
+- **Preinstalled Chromium older than the pinned Playwright.** `@playwright/test` looks for its own browser revision (e.g. `chromium_headless_shell-1248`) under `PLAYWRIGHT_BROWSERS_PATH`; a container that ships an older one (`-1243`) fails every e2e spec with "Executable doesn't exist" — not a code failure. Without network installs, point `PLAYWRIGHT_BROWSERS_PATH` at a scratch directory that symlinks the expected revision names to the installed ones, then run `pnpm test:e2e` or the full gates.
+- **CI's clippy can be newer than the container's.** CI installs the current stable toolchain; a container on an older one passes `-D warnings` and then CI fails on a lint the local clippy doesn't know (Rust 1.99's `chunks_exact_to_as_chunks` on `chunks_exact(4)`). Check with CI's version before pushing Rust: `rustup toolchain install <version> --profile minimal -c clippy`, then `cargo +<version> clippy …`.
 - **E2e Chromium has no WebGPU adapter.** The Playwright browser exposes `navigator.gpu`, but `requestAdapter()` resolves `null` even with `--enable-unsafe-webgpu` / SwiftShader flags, so every e2e run renders through Canvas2D. A spec about the WebGPU path installs a stand-in device with `addInitScript` (see `ui/e2e/renderer.spec.ts`); it cannot check GPU output.
 
 ---

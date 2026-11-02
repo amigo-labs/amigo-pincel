@@ -31,6 +31,7 @@ mod stroke;
 mod text;
 mod timeline;
 mod transforms;
+mod vectorize;
 
 pub use animation::AnimationInfo;
 pub use clipboard::CopiedImage;
@@ -38,6 +39,7 @@ pub use effects::effect_names;
 pub use events::Event;
 pub use layer_ops::blend_mode_names;
 pub use text::register_font;
+pub use vectorize::{VectorizeResult, Vectorizer};
 
 use events::EventQueue;
 use pincel_core::{

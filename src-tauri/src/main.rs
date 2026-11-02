@@ -88,6 +88,7 @@ struct Labels {
     export_png: &'static str,
     export_sheet: &'static str,
     export_animation: &'static str,
+    export_svg: &'static str,
     quit: &'static str,
     edit: &'static str,
     undo: &'static str,
@@ -122,6 +123,7 @@ const LABELS_EN: Labels = Labels {
     export_png: "Export as PNG\u{2026}",
     export_sheet: "Export Sprite Sheet\u{2026}",
     export_animation: "Export Animation\u{2026}",
+    export_svg: "Export as SVG\u{2026}",
     quit: "Quit",
     edit: "Edit",
     undo: "Undo",
@@ -153,6 +155,7 @@ const LABELS_DE: Labels = Labels {
     export_png: "Als PNG exportieren\u{2026}",
     export_sheet: "Sprite-Sheet exportieren\u{2026}",
     export_animation: "Animation exportieren\u{2026}",
+    export_svg: "Als SVG exportieren\u{2026}",
     quit: "Beenden",
     edit: "Bearbeiten",
     undo: "R\u{fc}ckg\u{e4}ngig",
@@ -307,6 +310,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build(app)?;
     let export_animation_item =
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
+    let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
 
     let file = SubmenuBuilder::new(app, l.file)
         .item(&new_item)
@@ -319,6 +323,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&export_png_item)
         .item(&export_sheet_item)
         .item(&export_animation_item)
+        .item(&export_svg_item)
         .separator()
         .item(&PredefinedMenuItem::quit(app, Some(l.quit))?)
         .build()?;
