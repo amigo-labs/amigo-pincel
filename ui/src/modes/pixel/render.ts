@@ -9,6 +9,7 @@ import {
   overlayIsIdle,
   paintOverlays as paintOverlayLayer,
 } from './overlay-painter';
+import { motion } from '../../lib/motion.svelte';
 import { colors, ed, live, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
 
@@ -228,8 +229,16 @@ export function tick() {
     // active, advance `marchPhase` once every
     // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the
     // overlay redraws. With no selection the counters reset and the
-    // recompose path stays idle.
-    if (
+    // recompose path stays idle. Under reduced motion the phase rests at
+    // 0 and the outlines stand still (docs/specs/reduced-motion.md); they
+    // are still repainted whenever the selection or a drag changes.
+    if (motion.reduced) {
+      live.marchTicks = 0;
+      if (view.marchPhase !== 0) {
+        view.marchPhase = 0;
+        if (!live.needsRecompose) paintOverlays();
+      }
+    } else if (
       ed.selection ||
       (live.dragStart &&
         (live.dragTool === 'selection-rect' ||

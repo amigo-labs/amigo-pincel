@@ -105,6 +105,7 @@
   import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
+  import { reduceMotionMenuItem } from '../../lib/motion.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
@@ -886,6 +887,8 @@
           disabled: !hasDoc,
           run: () => viewCommands.actual(),
         },
+        { kind: 'separator' },
+        reduceMotionMenuItem(),
         { kind: 'separator' },
         languageMenu(),
       ],

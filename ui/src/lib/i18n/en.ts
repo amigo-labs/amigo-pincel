@@ -288,6 +288,8 @@ export const en = {
   'menu.zoomFit': 'Fit to Window',
   'menu.zoomActual': 'Actual Size',
   'menu.probe': 'Frame-Time Probe',
+  'menu.reduceMotion': 'Reduce Motion',
+  'menu.reduceMotionSystem': 'Reduce Motion (on in system settings)',
 
   // Effects
   'effect.gaussian_blur': 'Gaussian Blur',

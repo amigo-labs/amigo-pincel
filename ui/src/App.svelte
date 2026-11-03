@@ -45,6 +45,7 @@
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
   import { actionFor, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
+  import { initMotion } from './lib/motion.svelte';
   import { loadKeymap } from './lib/shell/keymap';
 
   type EditorModule = { default: Component<EditorProps> };
@@ -282,6 +283,7 @@
 
   onMount(() => {
     void initLocale();
+    void initMotion();
     void loadKeymap();
     let cancelled = false;
     void loadAutoNew()

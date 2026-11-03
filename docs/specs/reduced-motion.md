@@ -94,19 +94,19 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-01 | `pixel: under reduced motion the selection outline stands still (AC-01)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-02 | `pixel: without reduced motion the selection outline marches (AC-02, AC-11)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-03 | `pixel: under reduced motion a drag preview and the active slice outline stand still (AC-03, AC-09)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-04 | `pixel: under reduced motion a changed selection shows at its new place (AC-04)`, `image: …` (same title); `pixel: View ▸ Reduce Motion stills the outline without the system setting (AC-09)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-05 | `pixel: a switch of the system setting stops and starts the march without a reload (AC-05)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-06 | `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-07 | `pixel: frame playback still advances under reduced motion (AC-07)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-08 | manual sign-off pending: check the still outline on light and dark content in both modes (`manual: {who} checked {what}, {date}`); both overlays keep their black and white dashes, only the march stops | open |        |
+| AC-09 | `pixel: View ▸ Reduce Motion stills the outline without the system setting (AC-09)`, `image: …` (same title); `pixel: under reduced motion a drag preview and the active slice outline stand still (AC-03, AC-09)`; `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-10 | `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-11 | `pixel: without reduced motion the selection outline marches (AC-02, AC-11)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-12 | `View ▸ Reduce Motion is German in the German UI (AC-12)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-13 | `pixel: under a system reduce request the entry stays unchecked and names the system setting (AC-13)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 
 ## Decisions
 
@@ -115,3 +115,8 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 - 2026-10-29 (migration): Size raised from the plan's S to M — the change spans a shared flag, both overlays, global CSS, the View menu of both modes, prefs, i18n and e2e.
 - 2026-10-29: A Decision Log entry records honouring `prefers-reduced-motion` and the in-app View ▸ Reduce Motion (IndexedDB pref): static selection / marching outlines, UI transitions and animations finish instantly, frame playback and the animation preview keep running, all through one shared `motion` flag (`ui/src/lib/motion.svelte.ts`) for both editors and the tour; `pincel.md` §9.4 gains one sentence — AGENTS.md §2.1 (owner accepted the recommendation).
 - 2026-10-29: View ▸ Reduce Motion has two states: checked = always reduce, unchecked = follow the system, with no way to force motion on; while the system requests reduce, the label gets the suffix "(on in system settings)" and the checkbox shows only the user's own option (AC-13) — a system reduce request should always win (accessibility first), and the suffix explains the effective state without a three-way control (owner accepted the recommendation).
+- 2026-11-03 (build): The e2e stillness check compares four canvas screenshots taken 300, 370 and 430 ms after the first — one pair 300 ms apart can land on the same dash phase by chance (the ants' period is a few hundred milliseconds), which made a single-pair check pass before the change.
+- 2026-11-03 (build): The label carries the suffix whenever the system requests reduced motion, checked or not — the 2026-10-29 decision ties the suffix to the system request, and it stays true information when the option is on as well.
+- 2026-11-03 (build): Pixel mode's render tick keeps running (it drains the core's events every frame); under reduced motion only `marchPhase` stops advancing and rests at 0, and Image mode's overlay stops its rAF loop and redraws once per change at dash offset 0 — the tick has work besides the ants, the overlay loop has none.
+- 2026-11-03 (build): View ▸ Reduce Motion lives in the in-window menu bar of both editors (next to Language), not in the native Tauri menu — the native View menu carries only the zoom entries and has no Language submenu either.
+- 2026-11-03 (build): AC-07's test was green from the start — frame playback never read the flag; the test guards that it stays that way.

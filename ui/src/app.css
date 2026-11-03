@@ -126,3 +126,27 @@
     color: #000 !important;
   }
 }
+
+/* Reduced motion (docs/specs/reduced-motion.md, spec §9.4): UI transitions
+   and animations finish instantly when the system asks for it or View ▸
+   Reduce Motion sets `data-reduce-motion` on <html> (`lib/motion.svelte.ts`).
+   Canvas content — frame playback, the animation preview — is not CSS and
+   keeps running. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] ::before,
+:root[data-reduce-motion] ::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

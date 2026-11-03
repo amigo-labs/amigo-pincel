@@ -295,6 +295,8 @@ export const de: Record<MessageKey, string> = {
   'menu.zoomFit': 'An Fenster anpassen',
   'menu.zoomActual': 'Originalgröße',
   'menu.probe': 'Frame-Zeit-Messung',
+  'menu.reduceMotion': 'Bewegung reduzieren',
+  'menu.reduceMotionSystem': 'Bewegung reduzieren (in den Systemeinstellungen an)',
 
   // Effects
   'effect.gaussian_blur': 'Gaußscher Weichzeichner',

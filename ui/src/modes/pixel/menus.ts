@@ -9,6 +9,7 @@ import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
 import { languageMenu } from '../../lib/i18n/locale';
+import { reduceMotionMenuItem } from '../../lib/motion.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
 
@@ -245,6 +246,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.zoomActual'), shortcut: hint('zoomActual'), disabled: !c.hasDoc, run: c.zoomActual },
         { kind: 'separator' },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
+        reduceMotionMenuItem(),
         { kind: 'separator' },
         languageMenu(),
       ],
