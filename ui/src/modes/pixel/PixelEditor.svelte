@@ -1067,8 +1067,10 @@
     value={1}
     onCancel={() => (dialogs.selectionRadius = null)}
     onApply={(radius) => {
+      // Read the operation before closing: `op` follows `selectionRadius`.
+      const action = op;
       dialogs.selectionRadius = null;
-      selectAction(op, radius);
+      selectAction(action, radius);
     }}
   />
 {/if}

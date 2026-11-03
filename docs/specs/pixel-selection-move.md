@@ -111,8 +111,6 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 
 ## Open questions
 
-- AC-11: in an e2e run, Select ▸ Expand… with radius 1 on a 4 × 4 marquee left the copied selection at 4 × 4 (expected 6 × 6), so Apply may not reach the core in Pixel mode — the earlier evidence only checked that the dialog opens and closes. Investigate (bug fix with a red test) before AC-11 is marked built again.
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -127,7 +125,7 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 | AC-08 | `crates/pincel-wasm/src/selection_ops.rs › tests::subtract_or_intersect_with_nothing_selected_stays_empty` | built | |
 | AC-09 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the canvas deselects; `ui/e2e/selection-stage.spec.ts` › pixel: a lasso click without a drag deselects; `ui/e2e/selection-stage.spec.ts` › pixel: an ellipse click on the canvas deselects | built | |
 | AC-10 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract`; `crates/pincel-wasm/src/lib.rs › tests::clear_selection_drops_the_rect_and_emits_zeros`; `crates/pincel-wasm/src/selection_ops.rs › tests::invert_without_selection_selects_the_whole_canvas` | built | |
-| AC-11 | `ui/e2e/tools.spec.ts › pixel mode: Select ▸ Expand asks for a radius`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract`; Select ▸ Expand… / Contract… not proven in the UI — see Open questions | open | |
+| AC-11 | `ui/e2e/pixel-clipboard.spec.ts › pixel: Select ▸ Expand and Contract change the selection by the radius` (copied box 4 × 4 → 6 × 6 → 2 × 2 → whole layer once cleared), `ui/e2e/tools.spec.ts › pixel mode: Select ▸ Expand asks for a radius`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract` | built | |
 | AC-12 | `ui/e2e/selection-stage.spec.ts` › pixel: Ctrl+A, Ctrl+Shift+I and Ctrl+D select all, invert and deselect (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Delete clears the selected pixels as one undo entry (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects | built | |
 | AC-13 | `crates/pincel-wasm/src/lib.rs › tests::selection_is_not_undoable_in_the_m7_8_slice` | built | |
 | AC-14 | `crates/pincel-wasm/src/lib.rs › tests::delete_selection_clears_pixels_and_undoes`; `crates/pincel-wasm/src/selection_ops.rs › tests::delete_and_move_honour_the_shaped_mask`; `crates/pincel-wasm/src/lib.rs › tests::delete_selection_keeps_the_selection_and_adds_one_undo_entry` | built | |
@@ -143,6 +141,8 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 | AC-24 | `ui/e2e/selection-stage.spec.ts` › pixel: a paint press on the stage changes nothing; `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans from the stage; `ui/e2e/selection-stage.spec.ts` › pixel: a paint or Move press on the stage keeps the selection; `ui/e2e/selection-stage.spec.ts` › pixel: Space-drag pans from the stage | built | |
 
 ## Decisions
+
+- 2026-11-03 — AC-11's open question was a bug: the radius dialog's Apply cleared `dialogs.selectionRadius` before calling `selectAction(op, …)`, and `op` is a `{@const}` that follows that state, so the call got `null` and changed nothing. Apply now reads the operation first, as the Rename dialog already did. The new e2e test was red before the fix (copied box stayed 4 × 4).
 
 - 2026-10-29: Extracted from the code as it stands; differences to `pincel.md` §5.2 / §13.1 are not ACs — see the extraction report.
 - 2026-10-30: Revision — selection gestures may start on the stage around the canvas (AC-21 – AC-24), so the edge column and row can be selected without hitting a one-pixel target; a click on the stage deselects in replace mode, and Escape now also discards a marquee drag in progress. Requested by the owner, who wants the selection tools to "grab outside the canvas".
