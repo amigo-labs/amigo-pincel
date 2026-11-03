@@ -103,8 +103,6 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- Image mode, locked layer (AC-12): confirming the dialog throws an uncaught `layer is locked` in the console, leaves the dialog open and shows no notice; Pixel mode closes the dialog and shows "<Effect> failed: …". The layer and the history stay unchanged in both, so AC-12 holds — should Image mode close the dialog and report the refusal like Pixel mode (an AC-11 / AC-12 wording change)?
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -129,6 +127,8 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC-18 | `pincel-effects: tests/transparent_neighbours.rs › spatial_effects_ignore_the_colour_of_transparent_pixels`, `spatial_effects_keep_gray_neighbours_of_transparent_red_pixels_gray` | built | |
 
 ## Decisions
+
+- 2026-11-03 — The open question about Image mode's locked layer was settled as a bug, not a wording change: an effect refused there threw out of the dialog's Apply, left the dialog open and reported nothing. Apply now closes the dialog, clears the preview and shows "<Effect> failed: …" as Pixel mode does; AC-12's e2e test checks both modes and was red for Image mode before.
 
 - 2026-11-03: Test gaps closed for behavior that already existed; each new test was shown to fail on a deliberate, reverted break: AC-01 (menu entries never disabled), AC-02 (Gaussian Radius default 3; Reset keeping the values), AC-05 (Escape applying instead of cancelling), AC-08 (scope line always "whole layer"), AC-09 (notices replaced by "<Effect> applied"; Image core ignoring the selection), AC-11 (Pixel failure status replaced; `applyEffect` swallowing errors), AC-12 (Pixel core targeting a locked layer; Image core without its lock check), AC-03 Image core (preview without the effect). AC-03's e2e and AC-18 were red on the unchanged code (the two bugs below).
 - 2026-11-03: Bug (AC-03): Preview off kept showing Invert Colors and Sharpen, because "preview off" was the empty parameter vector — also their real one. The dialog now sends `null` for "preview off" (`fix(ui)`).

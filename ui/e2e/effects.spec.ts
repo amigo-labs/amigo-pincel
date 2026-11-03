@@ -537,14 +537,11 @@ for (const mode of MODES) {
     await menu(page, 'Adjustments', 'Invert Colors');
     const dialog = effectDialog(page);
     await dialog.getByRole('button', { name: 'OK', exact: true }).click();
+    // Both modes close the dialog and report the refusal.
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(/^Invert Colors failed: .*locked/)).toBeVisible();
     if (mode === 'pixel') {
-      await expect(page.getByText(/^Invert Colors failed: .*locked/)).toBeVisible();
       await expect(page.getByText('undo 2 / redo 0')).toBeVisible();
-    }
-    // Image mode keeps the dialog open on the refusal (see the spec's open
-    // questions); close it so it does not cover the toolbar.
-    if (await dialog.isVisible()) {
-      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
     expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);
     // The refused effect left no undo step: Undo reverts the lock itself.

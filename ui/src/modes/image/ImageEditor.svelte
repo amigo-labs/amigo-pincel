@@ -972,10 +972,22 @@
         else previewEffect(effectOpen.id, params);
       }}
       onApply={(params) => {
-        if (effectOpen && !applyEffect(effectOpen.id, params)) {
-          editor.notice = t('fx.selectionEmpty', { effect: effectLabel(effectOpen) });
-        }
+        const def = effectOpen;
         effectOpen = null;
+        if (!def) return;
+        try {
+          if (!applyEffect(def.id, params)) {
+            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(def) });
+          }
+        } catch (err) {
+          // A refusal (a locked layer) leaves the document as it was; report
+          // it like Pixel mode instead of throwing out of the dialog.
+          clearEffectPreview();
+          editor.notice = t('px.effectFailed', {
+            effect: effectLabel(def),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }}
       onCancel={() => {
         clearEffectPreview();
