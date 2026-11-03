@@ -347,17 +347,36 @@ fn crop(src: &ImageBuffer, rect: Rect) -> ImageBuffer {
 fn halve(src: &ImageBuffer, dst: &mut ImageBuffer, [x0, y0, x1, y1]: [u32; 4]) {
     let (sw, sh) = (src.width(), src.height());
     let s = src.data();
+    let stride = sw as usize * 4;
     let dw = dst.width() as usize;
     let d = dst.data_mut();
     for y in y0..y1 {
-        let rows = [2 * y, 2 * y + 1];
+        let top = 2 * y as usize * stride;
+        let full_rows = 2 * y + 1 < sh;
         for x in x0..x1 {
-            let cols = [2 * x, 2 * x + 1];
+            let o = (y as usize * dw + x as usize) * 4;
+            let px = &mut d[o..o + 4];
+            if full_rows && 2 * x + 1 < sw {
+                let i = top + 8 * x as usize;
+                let quad = [i, i + 4, i + stride, i + stride + 4];
+                let a = quad.map(|i| u32::from(s[i + 3]));
+                if a[0] == a[1] && a[0] == a[2] && a[0] == a[3] {
+                    // Equal alphas cancel out of the premultiplied average:
+                    // (a·Σc + 2a) / 4a = (Σc + 2) / 4, the same bytes as the
+                    // general case without a division.
+                    for c in 0..3 {
+                        let sum: u32 = quad.iter().map(|&i| u32::from(s[i + c])).sum();
+                        px[c] = if a[0] == 0 { 0 } else { ((sum + 2) >> 2) as u8 };
+                    }
+                    px[3] = a[0] as u8;
+                    continue;
+                }
+            }
             let (mut n, mut sa) = (0u32, 0u32);
             let mut sc = [0u32; 3];
-            for &sy in rows.iter().filter(|&&sy| sy < sh) {
-                for &sx in cols.iter().filter(|&&sx| sx < sw) {
-                    let i = (sy as usize * sw as usize + sx as usize) * 4;
+            for sy in [2 * y, 2 * y + 1].into_iter().filter(|&sy| sy < sh) {
+                for sx in [2 * x, 2 * x + 1].into_iter().filter(|&sx| sx < sw) {
+                    let i = sy as usize * stride + sx as usize * 4;
                     let a = u32::from(s[i + 3]);
                     n += 1;
                     sa += a;
@@ -366,11 +385,10 @@ fn halve(src: &ImageBuffer, dst: &mut ImageBuffer, [x0, y0, x1, y1]: [u32; 4]) {
                     }
                 }
             }
-            let o = (y as usize * dw + x as usize) * 4;
             for c in 0..3 {
-                d[o + c] = (sc[c] + sa / 2).checked_div(sa).unwrap_or(0) as u8;
+                px[c] = (sc[c] + sa / 2).checked_div(sa).unwrap_or(0) as u8;
             }
-            d[o + 3] = ((sa + n / 2) / n.max(1)) as u8;
+            px[3] = ((sa + n / 2) / n.max(1)) as u8;
         }
     }
 }
@@ -654,6 +672,43 @@ mod tests {
     }
 
     proptest! {
+        /// `halve`'s division-free path for equal alphas gives the same
+        /// bytes as the premultiplied box average it shortcuts.
+        #[test]
+        fn halve_matches_the_premultiplied_box_average(
+            (w, h) in (1u32..9, 1u32..9),
+            seed in any::<u32>(),
+            alphas in prop::collection::vec(prop::sample::select(vec![0u8, 1, 77, 255]), 1..4),
+        ) {
+            let mut src = patch(w, h, seed);
+            for (i, px) in src.data_mut().as_chunks_mut::<4>().0.iter_mut().enumerate() {
+                // Few distinct alphas, so equal-alpha quads are common.
+                px[3] = alphas[i % alphas.len()];
+            }
+            let (hw, hh) = (w.div_ceil(2), h.div_ceil(2));
+            let mut got = ImageBuffer::new_transparent(hw, hh);
+            halve(&src, &mut got, [0, 0, hw, hh]);
+            for y in 0..hh {
+                for x in 0..hw {
+                    let (mut n, mut sa, mut sc) = (0u32, 0u32, [0u32; 3]);
+                    for sy in (2 * y..2 * y + 2).filter(|&sy| sy < h) {
+                        for sx in (2 * x..2 * x + 2).filter(|&sx| sx < w) {
+                            let p = src.get_pixel(sx, sy).expect("inside");
+                            let a = u32::from(p.a);
+                            n += 1;
+                            sa += a;
+                            for (acc, c) in sc.iter_mut().zip([p.r, p.g, p.b]) {
+                                *acc += u32::from(c) * a;
+                            }
+                        }
+                    }
+                    let c = sc.map(|c| (c + sa / 2).checked_div(sa).unwrap_or(0) as u8);
+                    let want = Color::rgba(c[0], c[1], c[2], ((sa + n / 2) / n) as u8);
+                    prop_assert_eq!(got.get_pixel(x, y), Some(want), "({}, {})", x, y);
+                }
+            }
+        }
+
         /// The division-free path for equal alphas gives the same bytes as
         /// the premultiplied average it shortcuts.
         #[test]
