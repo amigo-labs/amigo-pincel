@@ -155,10 +155,13 @@
             />
           </button>
           {#if open}
+            <!-- novalidate: an out-of-range size is clamped by `newDocParams`,
+                 not refused by the browser's min / max check (app-shell AC-06). -->
             <form
               id={`new-${card.mode}-form`}
               class="flex flex-wrap items-center gap-2 px-4 pb-4"
               aria-label={t(card.title)}
+              novalidate
               onsubmit={(e) => {
                 e.preventDefault();
                 const params = newDocParams(card.mode, width, height);

@@ -71,8 +71,11 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
+  <!-- novalidate: an out-of-range size is clamped by `newDocParams`, not
+       refused by the browser's min / max check (app-shell AC-06). -->
   <form
     class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    novalidate
     onsubmit={(e) => {
       e.preventDefault();
       submit();
