@@ -341,6 +341,135 @@ mod tests {
         assert_eq!(doc.undo_depth(), depth);
     }
 
+    /// Outline wire params: Outside, Square, thickness 1, `color`.
+    fn outline(color: u32) -> [f64; 4] {
+        [0.0, 1.0, 1.0, f64::from(color)]
+    }
+
+    #[test]
+    fn apply_effect_outline_is_one_undo_step_and_redo_reapplies_it() {
+        let mut doc = Document::new(5, 5).expect("dims");
+        doc.apply_tool("pencil", 2, 2, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        let before = cel_bytes(&doc);
+        let depth = doc.undo_depth();
+        assert!(
+            doc.apply_effect("outline", &outline(0x0000_FF80))
+                .expect("apply")
+        );
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert_eq!(pixel(&doc, 1, 1), 0x0000_FF80, "neighbour takes the colour");
+        assert_eq!(pixel(&doc, 0, 0) & 0xFF, 0, "non-neighbour stays clear");
+        assert_eq!(pixel(&doc, 2, 2), 0xFF0000FF);
+        let after = cel_bytes(&doc);
+        assert!(doc.undo());
+        assert_eq!(cel_bytes(&doc), before, "one undo restores the cel");
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(cel_bytes(&doc), after, "redo applies the same outline");
+    }
+
+    #[test]
+    fn apply_effect_outline_fills_the_selection_from_an_opaque_pixel_outside_it() {
+        let mut doc = Document::new(5, 5).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        doc.set_selection(2, 0, 3, 3);
+        assert!(
+            doc.apply_effect("outline", &outline(0x00FF00FF))
+                .expect("apply")
+        );
+        for (x, y) in [(2, 0), (2, 1), (2, 2)] {
+            assert_eq!(
+                pixel(&doc, x, y),
+                0x00FF00FF,
+                "({x}, {y}) inside the selection"
+            );
+        }
+        for (x, y) in [(0, 0), (1, 0), (0, 1), (0, 2), (1, 2)] {
+            assert_eq!(
+                pixel(&doc, x, y) & 0xFF,
+                0,
+                "({x}, {y}) outside the selection"
+            );
+        }
+        assert_eq!(pixel(&doc, 1, 1), 0xFF0000FF);
+    }
+
+    #[test]
+    fn apply_effect_outline_never_writes_outside_a_trimmed_cel() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, ColorMode::Rgba);
+        buf.data = vec![255, 0, 0, 255, 0, 0, 0, 0];
+        let mut cel = pincel_core::Cel::image(crate::DEFAULT_LAYER_ID, FrameIndex::new(0), buf);
+        cel.position = (1, 1);
+        doc.cels.insert(cel);
+        assert!(
+            doc.apply_effect("outline", &outline(0x0000FFFF))
+                .expect("apply")
+        );
+        assert_eq!(cel_bytes(&doc), vec![255, 0, 0, 255, 0, 0, 255, 255]);
+        let cel = doc
+            .cels
+            .get(crate::DEFAULT_LAYER_ID, doc.current_frame)
+            .expect("cel");
+        assert_eq!(cel.position, (1, 1), "the cel is not grown");
+        for (x, y) in [
+            (0, 0),
+            (1, 0),
+            (2, 0),
+            (0, 1),
+            (3, 1),
+            (0, 2),
+            (1, 2),
+            (2, 2),
+        ] {
+            assert_eq!(pixel(&doc, x, y) & 0xFF, 0, "({x}, {y}) beyond the cel");
+        }
+    }
+
+    #[test]
+    fn apply_effect_outline_on_an_indexed_sprite_errors_with_the_rgba_message() {
+        let mut doc = Document::new(2, 1).expect("dims");
+        let indexed = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = indexed;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, indexed);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let depth = doc.undo_depth();
+        let invert = doc.apply_effect("invert", &[]).expect_err("invert refused");
+        let err = doc
+            .apply_effect("outline", &outline(0x000000FF))
+            .expect_err("outline refused");
+        assert_eq!(err, invert, "same message as every other effect");
+        assert_eq!(err, "effects require an RGBA document");
+        assert_eq!(cel_bytes(&doc), vec![1, 0]);
+        assert_eq!(doc.undo_depth(), depth);
+    }
+
+    #[test]
+    fn apply_effect_outline_bad_color_or_arity_errors_and_changes_nothing() {
+        let mut doc = Document::new(3, 3).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        let before = cel_bytes(&doc);
+        let depth = doc.undo_depth();
+        assert!(doc.apply_effect("outline", &[0.0, 1.0, 1.0, 0.5]).is_err());
+        assert!(doc.apply_effect("outline", &[0.0, 1.0, 1.0, -1.0]).is_err());
+        assert!(doc.apply_effect("outline", &[0.0, 1.0, 1.0]).is_err());
+        assert!(
+            doc.preview_effect("outline", &[0.0, 1.0, 1.0, 4e9 * 2.0], 1)
+                .is_err()
+        );
+        assert_eq!(cel_bytes(&doc), before);
+        assert_eq!(doc.undo_depth(), depth);
+    }
+
     #[test]
     fn preview_effect_honours_zoom() {
         let doc = Document::new(2, 3).expect("dims");
