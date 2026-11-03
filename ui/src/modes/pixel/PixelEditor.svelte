@@ -825,7 +825,12 @@
     doc={ed.doc}
     rev={ed.docRev}
     selectedTile={toolState.stampTile}
-    onChange={() => (ed.docRev += 1)}
+    onChange={() => {
+      // Tileset edits join the undo bus: refresh its depth so Undo / Redo
+      // and the status bar follow.
+      syncMeta();
+      ed.docRev += 1;
+    }}
     onSelectStampTile={(tilesetId, tileId) => {
       toolState.stampTile = { tilesetId, tileId };
       // Auto-switch to the Stamp tool so a single click on a tile
