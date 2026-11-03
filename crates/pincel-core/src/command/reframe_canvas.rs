@@ -164,12 +164,9 @@ impl Command for ReframeCanvas {
             .iter()
             .map(|s| {
                 let mut s = s.clone();
+                // Center and pivot are relative to the bounds and move with them.
                 for k in &mut s.keys {
                     k.bounds = shift(k.bounds);
-                    k.center = k.center.map(shift);
-                    k.pivot = k
-                        .pivot
-                        .map(|p| ((i64::from(p.0) + dx) as i32, (i64::from(p.1) + dy) as i32));
                 }
                 s
             })
@@ -229,6 +226,34 @@ mod tests {
             CelData::Image(b) => b.data.iter().step_by(4).copied().collect(),
             _ => unreachable!(),
         }
+    }
+
+    #[test]
+    fn resize_moves_slice_bounds_but_keeps_center_and_pivot_relative() {
+        let (mut s, mut c) = doc();
+        s.slices.push(crate::document::Slice {
+            id: crate::document::SliceId::new(0),
+            name: "s".into(),
+            color: crate::document::Rgba::BLACK,
+            keys: vec![crate::document::SliceKey {
+                frame: F,
+                bounds: Rect::new(0, 0, 2, 2),
+                center: Some(Rect::new(1, 1, 1, 1)),
+                pivot: Some((1, 0)),
+            }],
+            user_data: None,
+        });
+        let mut bus = Bus::new();
+        bus.execute(
+            ReframeCanvas::resize(2, 2, 4, 4, Anchor::Center).into(),
+            &mut s,
+            &mut c,
+        )
+        .unwrap();
+        let k = &s.slices[0].keys[0];
+        assert_eq!(k.bounds, Rect::new(1, 1, 2, 2));
+        assert_eq!(k.center, Some(Rect::new(1, 1, 1, 1)));
+        assert_eq!(k.pivot, Some((1, 0)));
     }
 
     #[test]
