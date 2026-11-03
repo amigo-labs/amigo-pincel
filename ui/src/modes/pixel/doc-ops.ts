@@ -12,7 +12,7 @@ import {
 } from './playback';
 import { syncMeta, syncSelection } from './render';
 import { colors, dialogs, ed, live, play, toolState } from './stores/editor.svelte';
-import { fitView } from './view-ops';
+import { fitNewDocument } from './view-ops';
 
 /** A Select-menu command. */
 export type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
@@ -230,7 +230,7 @@ export function resetDocViewState() {
   applyOnion(play.onion);
   live.needsRecompose = true;
   syncMeta();
-  fitView();
+  fitNewDocument();
   syncSelection();
   ed.docRev += 1;
   toolState.stampTile = null;

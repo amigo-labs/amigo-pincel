@@ -77,6 +77,9 @@ function viewInit() {
     /** Live size of the canvas stage, for `fitView`. */
     stageW: 0,
     stageH: 0,
+    /** The canvas stage itself: `fitView` measures it when the bound size
+     *  has not caught up with a layout change yet. */
+    stage: null as HTMLElement | null,
     panning: false,
     /** Space held: temporary pan-on-drag. */
     spaceDown: false,

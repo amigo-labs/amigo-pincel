@@ -126,7 +126,7 @@
   import {
     MAX_ZOOM,
     MIN_ZOOM,
-    fitView,
+    fitNewDocument,
     onWheel,
     resetView,
     zoomActual,
@@ -482,7 +482,7 @@
         const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.height ?? 64)));
         ed.doc = new Document(w, h);
         syncMeta();
-        fitView();
+        fitNewDocument();
         syncSelection();
         live.needsRecompose = true;
         ed.lastSavedUndoDepth = ed.doc.undoDepth;
@@ -948,6 +948,7 @@
              lets only selection and view gestures start there. -->
         <div
           class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
+          bind:this={view.stage}
           bind:clientWidth={view.stageW}
           bind:clientHeight={view.stageH}
           role="presentation"
