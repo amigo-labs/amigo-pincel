@@ -110,7 +110,6 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- AC-08: the inline rename field opens without keyboard focus (its `autofocus` has no effect on a field mounted after page load), so the user has to click into it before typing. AC-08 does not say whether the field takes focus when the rename button is pressed; should it?
 
 ## Evidence
 
@@ -159,6 +158,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-41 | `ui/e2e/playback.spec.ts › each frame stays on screen for its own duration (AC-41)`; `ui/e2e/playback.spec.ts › a late frame skips ahead to keep wall-clock time (AC-41)` | built | |
 
 ## Decisions
+
+- 2026-11-03 — The inline rename field now takes focus with the old name selected when it opens (a `use:` action; `autofocus` has no effect on a field mounted after page load). The AC-08 e2e test checks the focus and was red before; the panel is shared, so Image mode gains it too.
 
 - 2026-11-03: Test gaps closed for AC-02, AC-06, AC-08, AC-09, AC-12, AC-17, AC-27, AC-31, AC-32, AC-34, AC-37, AC-38, AC-40 and AC-41 (`ui/e2e/layers.spec.ts`, `ui/e2e/timeline.spec.ts`, `ui/e2e/playback.spec.ts`; the playback tests drive a paused page clock). Each test that was green at once was run red against a deliberate break, then reverted: new layers named `Layer {count}` (AC-02), Delete enabled with one layer (AC-06), no group badge (AC-09), Alt+→ dropping above the group (AC-12), no "Locked by its group" hint (AC-17), `.` unbound (AC-27), a five-colour tag cycle (AC-32), spaces and `-` taken as identifier-like (AC-34), wrong wrap and bounce frames in `advance` (AC-37), Play enabled with one frame (AC-38), onion changes marking the document unsaved (AC-40), every frame timed by the first one and the clock restarting at each change (AC-41).
 - 2026-11-03: Bug (AC-08): the inline rename was an undo step in the document, but the editor did not mirror the undo depth, so the Undo button, the status bar and the unsaved marker missed it (`fix(ui): count a Pixel inline layer rename as an undo step in the UI`); the AC-08 test was red before.

@@ -78,6 +78,12 @@
   let editingKey = $state<string | null>(null);
   let draft = $state('');
 
+  // `autofocus` only works on page load, not on an element inserted later.
+  function focusAndSelect(el: HTMLInputElement): void {
+    el.focus();
+    el.select();
+  }
+
   function startRename(row: LayerRow): void {
     editingKey = row.key;
     draft = row.name;
@@ -261,11 +267,10 @@
           <LayerThumbnail source={() => thumbnail(row)} {revision} />
           <div class="ml-1 min-w-0 flex-1">
             {#if editingKey === row.key}
-              <!-- svelte-ignore a11y_autofocus -->
               <input
                 class="opt-field w-full"
                 bind:value={draft}
-                autofocus
+                use:focusAndSelect
                 aria-label={t('layers.renameLabel', { name: row.name })}
                 onkeydown={(e) => onRenameKey(e, row)}
                 onblur={() => commitRename(row)}

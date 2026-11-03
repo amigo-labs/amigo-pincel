@@ -267,8 +267,8 @@ test('pixel: inline rename commits the trimmed name on Enter; Escape, blank and 
   const rename = async (name: string) => {
     await page.getByRole('button', { name: `Rename ${name}`, exact: true }).click();
     const field = page.getByRole('textbox', { name: `Rename ${name}` });
-    // The field opens without focus (see the spec's open questions).
-    await field.click();
+    // The field opens focused with the old name selected.
+    await expect(field).toBeFocused();
     return field;
   };
 
