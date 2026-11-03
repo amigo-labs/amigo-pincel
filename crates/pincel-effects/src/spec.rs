@@ -10,6 +10,9 @@
 //! Choice-style parameters (a blur kind, an algorithm) travel as small
 //! integer indices; booleans as `0` / `1`. Every constructor clamps or
 //! defaults out-of-range values the same way the underlying effect does.
+//! A colour travels as one slot holding `0xRRGGBBAA` as an integer (exact
+//! in an `f64`); a colour slot that is not an integer in `0..=u32::MAX` is
+//! an error, not clamped (`docs/specs/pincel.md` §15, 2026-10-29).
 
 use crate::adjust::{
     BrightnessContrast, ColorBalance, CurveChannel, Curves, Grayscale, GrayscaleMethod,
@@ -21,6 +24,7 @@ use crate::effect::Effect;
 use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
+use crate::outline::{MAX_THICKNESS, MIN_THICKNESS, Outline, OutlinePlace, OutlineShape};
 use crate::sharpen::{Sharpen, UnsharpMask};
 
 /// Every effect and adjustment the crate ships, with typed parameters.
@@ -129,6 +133,16 @@ pub enum EffectSpec {
     Posterize { levels: u32 },
     /// `threshold`: `[threshold]`.
     Threshold { threshold: u8 },
+    /// `outline`: `[place, shape, thickness, color]` with `place`
+    /// `0` = outside, `1` = inside, `2` = both, `shape` `0` = circle,
+    /// `1` = square, `thickness` clamped to `1..=8` and `color` a
+    /// `0xRRGGBBAA` colour slot. Kept as `[r, g, b, a]`.
+    Outline {
+        place: OutlinePlace,
+        shape: OutlineShape,
+        thickness: u32,
+        color: [u8; 4],
+    },
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -144,6 +158,7 @@ pub const EFFECT_NAMES: &[&str] = &[
     "relief",
     "add_noise",
     "reduce_noise",
+    "outline",
     "brightness_contrast",
     "hue_saturation",
     "curves",
@@ -176,6 +191,21 @@ fn u(v: f64) -> u32 {
         v.round().clamp(0.0, u32::MAX as f64) as u32
     } else {
         0
+    }
+}
+
+/// A colour slot: an integer `0xRRGGBBAA` in `0..=u32::MAX`, as
+/// `[r, g, b, a]`; anything else is [`EffectError::InvalidParam`].
+fn color(name: &str, params: &[f64], index: usize) -> Result<[u8; 4], EffectError> {
+    let v = params[index];
+    if v.is_finite() && v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&v) {
+        Ok((v as u32).to_be_bytes())
+    } else {
+        Err(EffectError::InvalidParam {
+            effect: name.to_owned(),
+            index,
+            reason: "a colour must be an integer 0xRRGGBBAA in 0..=4294967295",
+        })
     }
 }
 
@@ -380,6 +410,24 @@ impl EffectSpec {
                     threshold: u(p[0]).min(255) as u8,
                 }
             }
+            "outline" => {
+                expect_len(name, p, 4)?;
+                let color = color(name, p, 3)?;
+                Self::Outline {
+                    place: match u(p[0]) {
+                        1 => OutlinePlace::Inside,
+                        2 => OutlinePlace::Both,
+                        _ => OutlinePlace::Outside,
+                    },
+                    shape: if u(p[1]) == 0 {
+                        OutlineShape::Circle
+                    } else {
+                        OutlineShape::Square
+                    },
+                    thickness: u(p[2]).clamp(MIN_THICKNESS, MAX_THICKNESS),
+                    color,
+                }
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -471,6 +519,12 @@ impl EffectSpec {
             },
             Self::Posterize { levels } => Posterize::new(*levels).apply(src),
             Self::Threshold { threshold } => Threshold::new(*threshold).apply(src),
+            Self::Outline {
+                place,
+                shape,
+                thickness,
+                color,
+            } => Outline::new(*place, *shape, *thickness, *color).apply(src),
         }
     }
 
@@ -497,6 +551,7 @@ impl EffectSpec {
             Self::Grayscale { .. } => "Grayscale",
             Self::Posterize { .. } => "Posterize",
             Self::Threshold { .. } => "Threshold",
+            Self::Outline { .. } => "Outline",
         }
     }
 }
@@ -537,6 +592,7 @@ mod tests {
             ("grayscale", &[3.0, 0.5, 0.25, 0.25]),
             ("posterize", &[4.0]),
             ("threshold", &[128.0]),
+            ("outline", &[0.0, 1.0, 1.0, 4278190335.0]),
         ];
         for (name, params) in cases {
             let spec =
@@ -581,6 +637,80 @@ mod tests {
         let spec = EffectSpec::from_params("invert", &[]).unwrap();
         let out = spec.run(&solid(1, 1, [10, 20, 30, 200]));
         assert_eq!(out.data(), &[245, 235, 225, 200]);
+    }
+
+    #[test]
+    fn from_params_outline_reads_place_shape_thickness_and_color() {
+        let spec = EffectSpec::from_params("outline", &[2.0, 0.0, 3.0, f64::from(0x1020_3040u32)])
+            .expect("outline");
+        assert_eq!(
+            spec,
+            EffectSpec::Outline {
+                place: OutlinePlace::Both,
+                shape: OutlineShape::Circle,
+                thickness: 3,
+                color: [0x10, 0x20, 0x30, 0x40],
+            }
+        );
+        assert_eq!(spec.label(), "Outline");
+    }
+
+    #[test]
+    fn from_params_outline_clamps_thickness_to_1_through_8() {
+        let thickness = |t: f64| match EffectSpec::from_params("outline", &[0.0, 1.0, t, 255.0]) {
+            Ok(EffectSpec::Outline { thickness, .. }) => thickness,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(thickness(0.0), 1);
+        assert_eq!(thickness(-5.0), 1);
+        assert_eq!(thickness(9.0), 8);
+        assert_eq!(thickness(1e9), 8);
+    }
+
+    #[test]
+    fn from_params_outline_wrong_arity_is_an_error() {
+        assert!(matches!(
+            EffectSpec::from_params("outline", &[0.0, 1.0, 1.0]),
+            Err(EffectError::ParamCount {
+                expected: 4,
+                got: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn from_params_outline_color_not_a_u32_integer_is_an_error() {
+        for bad in [
+            -1.0,
+            0.5,
+            4_294_967_296.0,
+            f64::NAN,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+        ] {
+            assert!(
+                matches!(
+                    EffectSpec::from_params("outline", &[0.0, 1.0, 1.0, bad]),
+                    Err(EffectError::InvalidParam { index: 3, .. })
+                ),
+                "{bad} accepted"
+            );
+        }
+        assert!(EffectSpec::from_params("outline", &[0.0, 1.0, 1.0, 4_294_967_295.0]).is_ok());
+        assert!(EffectSpec::from_params("outline", &[0.0, 1.0, 1.0, 0.0]).is_ok());
+    }
+
+    #[test]
+    fn run_outline_colours_the_neighbours_of_a_single_pixel() {
+        let mut data = vec![0u8; 3 * 3 * 4];
+        data[16..20].copy_from_slice(&[1, 2, 3, 255]);
+        let src = EffectImage::from_rgba8(3, 3, data).unwrap();
+        let spec = EffectSpec::from_params("outline", &[0.0, 1.0, 1.0, f64::from(0xFF00_00FFu32)])
+            .unwrap();
+        let out = spec.run(&src);
+        assert_eq!(&out.data()[0..4], &[255, 0, 0, 255]);
+        assert_eq!(&out.data()[16..20], &[1, 2, 3, 255]);
     }
 
     #[test]
