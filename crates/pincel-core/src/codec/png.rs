@@ -862,6 +862,60 @@ mod tests {
     }
 
     #[test]
+    fn export_atlas_png_fails_whole_when_one_frame_cannot_be_composed() {
+        // Frames 0 and 1 compose; only the last frame is broken, and the
+        // sheet still fails with the composer's error for that frame.
+        let mut corrupt = solid(2, 2, [1, 2, 3, 255]);
+        corrupt.data.truncate(4);
+        let last = |data: CelData| Cel {
+            data,
+            ..Cel::image(LayerId::new(0), FrameIndex::new(2), solid(2, 2, [0; 4]))
+        };
+        let cases = [
+            (
+                last(CelData::Linked(FrameIndex::new(0))),
+                RenderError::LinkedCelUnsupported {
+                    layer: LayerId::new(0),
+                    frame: FrameIndex::new(2),
+                },
+            ),
+            (
+                last(CelData::Image(corrupt)),
+                RenderError::MalformedCelBuffer {
+                    layer: LayerId::new(0),
+                    frame: FrameIndex::new(2),
+                },
+            ),
+        ];
+        for (broken, expected) in cases {
+            let (sprite, mut cels) = striped_sprite(2, 2, 3, Vec::new());
+            cels.insert(broken);
+            export_frame_png(&sprite, &cels, FrameIndex::new(1)).expect("frame 1 composes");
+            match export_atlas_png(&sprite, &cels, &AtlasOptions::new(3)) {
+                Err(ExportError::Render(err)) => assert_eq!(err, expected),
+                Err(err) => panic!("unexpected error: {err}"),
+                Ok(_) => panic!("a sheet with a broken frame produced an image"),
+            }
+        }
+
+        // A non-RGBA sprite fails the sheet the same way.
+        let sprite = Sprite::builder(2, 2)
+            .color_mode(ColorMode::Indexed {
+                transparent_index: 0,
+            })
+            .add_layer(Layer::image(LayerId::new(0), "art"))
+            .add_frame(Frame::new(100))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        match export_atlas_png(&sprite, &CelMap::new(), &AtlasOptions::new(2)) {
+            Err(ExportError::Render(RenderError::UnsupportedColorMode { .. })) => {}
+            Err(err) => panic!("unexpected error: {err}"),
+            Ok(_) => panic!("an indexed sheet produced an image"),
+        }
+    }
+
+    #[test]
     fn export_exports_non_normal_blend_mode_like_compose() {
         // `compose()` renders every separable blend mode (spec §4), so export
         // inherits that rather than refusing the sprite.
