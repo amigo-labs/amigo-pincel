@@ -11,6 +11,7 @@ import {
   formatFromName,
   hasFsAccess,
   isPngBytes,
+  mimeFromName,
   pickAndOpen,
   saveBytes,
   saveExport,
@@ -264,6 +265,20 @@ export async function openRecent(r: RecentFile) {
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
       ed.status = t('px.recentNoHandle', { name: r.name });
+      return;
+    }
+    // The registry also lists Image-mode files: anything that is not a
+    // sprite goes to the shell, which routes it like any other open
+    // (app-shell AC-09, AC-10).
+    const format = sniffFormat(bytes) ?? formatFromName(name);
+    if (format !== null && format !== 'aseprite') {
+      shell.openForeign({
+        name,
+        bytes,
+        mime: mimeFromName(name),
+        handle: nextTarget.handle,
+        path: nextTarget.path,
+      });
       return;
     }
     const next = Document.openAseprite(bytes);
