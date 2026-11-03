@@ -1,8 +1,10 @@
 //! Layer compositing (spec §6).
 
 mod blend;
+mod cache;
 
 pub use blend::blend_channel;
+pub use cache::RenderCache;
 
 use crate::color::{BlendMode, Color};
 use crate::document::{ImageBuffer, Layer};

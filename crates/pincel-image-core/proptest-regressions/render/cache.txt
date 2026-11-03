@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0d86245c3e04237241831c33c02c3a1f9d7c6da1e1af9cd6126f30aad9149a75 # shrinks to (w, h, n) = (1, 1, 1), ops = [(Paint { layer: 0, rect: (0, 0, 1, 1), seed: 0 }, (0, 1, 1, 1))]
+cc 0c675fa88dadeed4ff681dc907c4b508ba4f48c7b35cc471a15be4b485788a96 # shrinks to (w, h, n) = (7, 17, 1), ops = [(Paint { layer: 0, rect: (0, 0, 1, 1), seed: 0 }, (0, 0, 4, 17), (4, 6)), (Paint { layer: 0, rect: (0, 4, 5, 11), seed: 0 }, (0, 0, 1, 1), (1, 1)), (Paint { layer: 0, rect: (0, 0, 1, 1), seed: 0 }, (0, 0, 1, 5), (1, 2))]
