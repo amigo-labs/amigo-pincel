@@ -76,7 +76,12 @@
   // on the next mutation that targets the same tileset.
   let rowError = $state<Record<number, string | null>>({});
 
+  // The form always opens with the defaults (tilemaps.md AC-02), whatever
+  // an earlier, cancelled or submitted form held.
   function openForm() {
+    formName = 'Tileset';
+    formTileW = 16;
+    formTileH = 16;
     formOpen = true;
     formError = null;
   }
@@ -110,7 +115,6 @@
     }
     formOpen = false;
     formError = null;
-    formName = 'Tileset';
     onChange?.();
   }
 
