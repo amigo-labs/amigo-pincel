@@ -92,28 +92,30 @@ This spec records the behavior as built. Already decided in §3.7: a new documen
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pincel-wasm: tests::fresh_document_seeds_the_db32_palette`; `pincel-core: document::palette::tests::db32_has_32_opaque_entries_from_black_to_olive`; `ui/e2e/palette.spec.ts › palette: DB32 by default, add / recolor / move / delete with undo` | built | |
-| AC-02 |      | open   | |
+| AC-02 | `ui/e2e/palette.spec.ts › add appends the foreground color and alpha and selects it` | built | |
 | AC-03 | `pincel-core: command::palette_ops::tests::add_palette_entry_to_full_palette_returns_err` | built | |
-| AC-04 |      | open   | |
-| AC-05 |      | open   | |
-| AC-06 |      | open   | |
-| AC-07 |      | open   | |
+| AC-04 | `ui/e2e/palette.spec.ts › palette presets and .gpl › the add button is disabled while the palette holds 256 entries` | built | |
+| AC-05 | `ui/e2e/palette.spec.ts › clicking a swatch picks the foreground and opens the entry editor` | built | |
+| AC-06 | `ui/e2e/palette.spec.ts › right-clicking a swatch picks the background without a context menu` | built | |
+| AC-07 | `ui/e2e/palette.spec.ts › swatches matching the foreground RGB are marked active` | built | |
 | AC-08 | `ui/e2e/palette.spec.ts › palette: DB32 by default, add / recolor / move / delete with undo`; `pincel-wasm: tests::palette_edits_route_through_undo`; `pincel-core: command::palette_ops::tests::set_palette_color_applies_reverts_and_merges` | built | |
 | AC-09 | `ui/e2e/palette.spec.ts › palette: DB32 by default, add / recolor / move / delete with undo`; `pincel-core: command::palette_ops::tests::move_palette_entry_shifts_between_and_reverts` | built | |
-| AC-10 |      | open   | |
+| AC-10 | `ui/e2e/palette.spec.ts › dragging a swatch onto another moves the entry there` | built | |
 | AC-11 | `ui/e2e/palette.spec.ts › palette: DB32 by default, add / recolor / move / delete with undo` | built | |
 | AC-12 | `pincel-wasm: tests::palette_edits_route_through_undo`, `tests::palette_presets_and_gpl_round_trip_through_undo`; `pincel-core: command::palette_ops::tests::add_palette_entry_appends_and_reverts`, `remove_palette_entry_round_trips_with_name`, `replace_palette_swaps_and_reverts` | built | |
 | AC-13 | `ui/e2e/palette.spec.ts › palette presets and .gpl › a preset replaces the palette in one undo step`; `pincel-core: document::palette::tests::preset_sizes_and_names_round_trip` | built | |
 | AC-14 | `ui/e2e/palette.spec.ts › palette presets and .gpl › .gpl import and export`; `pincel-core: codec::gpl::tests::read_skips_headers_comments_and_blank_lines` | built | |
-| AC-15 |      | open   | |
+| AC-15 | `pincel-wasm: tests::import_gpl_invalid_file_returns_err_and_keeps_palette`; `pincel-core: codec::gpl::tests::read_rejects_missing_header_and_bad_lines`, `read_rejects_more_than_256_entries` | built | |
 | AC-16 | `ui/e2e/palette.spec.ts › palette presets and .gpl › .gpl import and export`; `pincel-core: codec::gpl::tests::write_then_read_round_trips_colours_and_names` | built | |
 | AC-17 | `pincel-core: command::palette_ops::tests::remove_and_move_refuse_indexed_documents`, `replace_palette_refused_on_indexed_sprites` | built | |
-| AC-18 |      | open   | |
+| AC-18 | `pincel-core: command::palette_ops::tests::palette_edits_past_last_entry_return_err_and_keep_palette` | built | |
 | AC-19 | `pincel-wasm: tests::palette_getters_read_colors_and_names`, `tests::palette_getters_error_out_of_range` | built | |
-| AC-20 |      | open   | |
-| AC-21 |      | open   | |
-| AC-22 |      | open   | |
-| AC-23 |      | open   | |
+| AC-20 | `ui/e2e/color-pair.spec.ts › D resets to opaque black / white, X swaps colors and alphas` | built | |
+| AC-21 | `ui/e2e/color-pair.spec.ts › the hex field sets the foreground from a full hex value only` | built | |
+| AC-22 | `ui/e2e/color-pair.spec.ts › the alpha slider sets the foreground alpha and shows it` | built | |
+| AC-23 | `ui/e2e/color-pair.spec.ts › foreground and background colors survive a reload, alphas reset` | built | |
 
 ## Decisions
+
+- 2026-11-03: The open ACs (02, 04–07, 10, 15, 18, 20–23) describe behaviour that already existed, so their new tests were green at once. Each was shown to fail against a temporary, reverted break: `+` not selecting the new entry (AC-02), the 256 cap dropped from the add button (AC-04), `onPick` / `onPickBg` forcing alpha 255 and the swatch's `contextmenu` `preventDefault` removed (AC-05, AC-06), the active mark also requiring an opaque entry (AC-07), the drop handler not moving (AC-10), `read_gpl` accepting a file without the header (AC-15), `MovePaletteEntry` not checking `to` (AC-18), `swapColors` not swapping the alphas (AC-20), the hex field accepting 2–6 digits (AC-21), the slider storing `255 − value` (AC-22) and the background pref not restored (AC-23). No code contradicted an AC.
 
