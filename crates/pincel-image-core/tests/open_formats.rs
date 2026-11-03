@@ -111,7 +111,10 @@ fn open_animated_gif_keeps_the_first_frame_only() {
     assert_one_background_layer(&doc, 3, 2);
     let data = doc.layers()[0].pixels.data();
     assert!(
-        data.chunks_exact(4).all(|px| px == [200, 10, 10, 255]),
+        data.as_chunks::<4>()
+            .0
+            .iter()
+            .all(|px| px == &[200, 10, 10, 255]),
         "first frame expected, got {data:?}"
     );
 }
