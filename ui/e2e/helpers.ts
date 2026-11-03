@@ -6,6 +6,28 @@ export async function gotoStart(page: Page, url = './'): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
 }
 
+/**
+ * The value of the IndexedDB pref `key`, read straight from the `prefs`
+ * store (`undefined` when unset). Prefs are written fire-and-forget, so a
+ * spec that reloads or navigates right after a change polls this first, or
+ * the navigation can abort the write.
+ */
+export async function storedPref(page: Page, key: string): Promise<unknown> {
+  return page.evaluate(
+    (k) =>
+      new Promise<unknown>((resolve) => {
+        const open = indexedDB.open('pincel');
+        open.onsuccess = () => {
+          const get = open.result.transaction('prefs').objectStore('prefs').get(k);
+          get.onsuccess = () => resolve((get.result as { value?: unknown } | undefined)?.value);
+          get.onerror = () => resolve(null);
+        };
+        open.onerror = () => resolve(null);
+      }),
+    key,
+  );
+}
+
 /** Creates a new document of `mode` through the start screen's New card. */
 export async function createDocument(
   page: Page,

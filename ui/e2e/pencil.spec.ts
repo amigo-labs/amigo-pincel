@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, pixelCanvas } from './helpers';
+import { createDocument, pixelCanvas, storedPref } from './helpers';
 
 // Pixel-mode Pencil / Eraser (docs/specs/pixel-pencil.md): brush size and
 // shape, Shift constraint, pixel-perfect, shared and persisted options.
@@ -286,20 +286,7 @@ test('brush settings survive a reload', async ({ page }) => {
   await shapeSelect(page).selectOption('round');
   // Wait until the pref reached IndexedDB before navigating away.
   await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          new Promise<unknown>((resolve) => {
-            const open = indexedDB.open('pincel');
-            open.onsuccess = () => {
-              const get = open.result.transaction('prefs').objectStore('prefs').get('pixelBrush');
-              get.onsuccess = () => resolve((get.result as { value?: unknown } | undefined)?.value);
-              get.onerror = () => resolve(null);
-            };
-            open.onerror = () => resolve(null);
-          }),
-      ),
-    )
+    .poll(() => storedPref(page, 'pixelBrush'))
     .toEqual({ size: 5, shape: 'round', pixelPerfect: true });
   await page.reload();
   await setup(page);
