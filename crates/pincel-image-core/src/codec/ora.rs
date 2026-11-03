@@ -380,6 +380,44 @@ mod tests {
         }
     }
 
+    /// Decodes the archive entry `name` of an `.ora`.
+    fn entry_image(bytes: &[u8], name: &str) -> ImageBuffer {
+        let mut zip = ZipArchive::new(Cursor::new(bytes)).expect("zip");
+        decode(&read_entry(&mut zip, name).expect("entry")).expect("png")
+    }
+
+    #[test]
+    fn to_ora_bytes_merged_image_is_the_visible_composite() {
+        let doc = sample_doc();
+        let bytes = to_ora_bytes(&doc, 6).expect("write");
+        let merged = entry_image(&bytes, "mergedimage.png");
+        assert_eq!(merged, compose(doc.layers()));
+        // The hidden top layer is left out, the multiplied one blends in.
+        let mut shown = sample_doc();
+        shown.set_active_layer(2).expect("active");
+        shown.active_layer_mut().visible = true;
+        shown
+            .active_layer_mut()
+            .pixels
+            .set_pixel(0, 0, Color::rgba(0, 255, 0, 255));
+        assert_ne!(merged, compose(shown.layers()));
+        assert_ne!(merged, doc.layers()[0].pixels);
+    }
+
+    #[test]
+    fn to_ora_bytes_thumbnail_fits_256_px_with_the_canvas_aspect() {
+        for ((w, h), thumb) in [
+            ((600, 300), (256, 128)),
+            ((100, 1000), (25, 256)),
+            ((40, 30), (40, 30)),
+        ] {
+            let doc = Document::new(w, h).expect("doc");
+            let bytes = to_ora_bytes(&doc, 1).expect("write");
+            let t = entry_image(&bytes, "Thumbnails/thumbnail.png");
+            assert_eq!((t.width(), t.height()), thumb, "{w}×{h}");
+        }
+    }
+
     #[test]
     fn from_ora_bytes_places_offset_layers_and_flattens_nested_stacks() {
         let layer = ImageBuffer::from_raw(1, 1, vec![9, 9, 9, 255]).expect("buf");
