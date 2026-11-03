@@ -221,7 +221,9 @@
         >
           <span class="truncate text-sm text-pc-text" title={ts.name}>{ts.name}</span>
           <span class="text-xs text-pc-faint">
-            id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
+            {ts.tileCount === 1
+              ? t('tiles.summaryOne', { id: ts.id, w: ts.tileW, h: ts.tileH })
+              : t('tiles.summary', { id: ts.id, w: ts.tileW, h: ts.tileH, count: ts.tileCount })}
           </span>
           <div class="flex gap-1">
             <button
@@ -230,7 +232,7 @@
               onclick={() => addTile(ts.id)}
               aria-label={t('tiles.addTile', { name: ts.name })}
             >
-              + Tile
+              {t('tiles.plusTile')}
             </button>
             <button
               type="button"
@@ -238,7 +240,7 @@
               onclick={() => addTilemapLayer(ts.id, ts.name)}
               aria-label={t('tiles.addLayer', { name: ts.name })}
             >
-              + Layer
+              {t('tiles.plusLayer')}
             </button>
           </div>
           {#if rowError[ts.id]}
