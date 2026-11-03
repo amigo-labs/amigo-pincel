@@ -224,10 +224,11 @@
       // to a 1x1 minimum) so the user has a starting 9-patch they can
       // refine — typing into an empty quartet otherwise rejects from
       // the wasm "partial center" guard and the row sits in an error
-      // state until all four fields are filled.
+      // state until all four fields are filled. The center is relative
+      // to the bounds origin, as Aseprite stores it.
       if (row.cw === 0 || row.ch === 0) {
-        row.cx = row.x + 1;
-        row.cy = row.y + 1;
+        row.cx = 1;
+        row.cy = 1;
         row.cw = Math.max(1, row.w - 2);
         row.ch = Math.max(1, row.h - 2);
       }
@@ -240,9 +241,10 @@
     if (on) {
       // Default the pivot to the slice's top-left corner; users
       // recentering to the bbox center is the common follow-up edit.
-      // Aseprite signs the pivot, so negatives are valid.
-      row.px = row.x;
-      row.py = row.y;
+      // Like the center, the pivot is relative to the bounds origin;
+      // Aseprite signs it, so negatives are valid.
+      row.px = 0;
+      row.py = 0;
     }
     commit(row);
   }

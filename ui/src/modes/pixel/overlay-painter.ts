@@ -177,19 +177,22 @@ function paintActiveSlice(
         break;
       }
     }
+    const x = doc.sliceKeyX(id, k);
+    const y = doc.sliceKeyY(id, k);
     paintSelectionMarquee(
       overlay,
-      doc.sliceKeyX(id, k),
-      doc.sliceKeyY(id, k),
+      x,
+      y,
       doc.sliceKeyWidth(id, k),
       doc.sliceKeyHeight(id, k),
       marchPhase,
     );
+    // Center and pivot are relative to the bounds origin (Aseprite format).
     if (doc.sliceKeyHasCenter(id, k)) {
       paintRectOutline(
         overlay,
-        doc.sliceKeyCenterX(id, k),
-        doc.sliceKeyCenterY(id, k),
+        x + doc.sliceKeyCenterX(id, k),
+        y + doc.sliceKeyCenterY(id, k),
         doc.sliceKeyCenterWidth(id, k),
         doc.sliceKeyCenterHeight(id, k),
         // The slice's own color, opaque, so a 9-patch band reads as
@@ -198,7 +201,7 @@ function paintActiveSlice(
       );
     }
     if (doc.sliceKeyHasPivot(id, k)) {
-      paintPivotCrosshair(overlay, doc.sliceKeyPivotX(id, k), doc.sliceKeyPivotY(id, k));
+      paintPivotCrosshair(overlay, x + doc.sliceKeyPivotX(id, k), y + doc.sliceKeyPivotY(id, k));
     }
   } catch {
     // Slice disappeared mid-frame.
