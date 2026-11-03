@@ -41,7 +41,8 @@ export type ShortcutAction =
   | 'brushLarger'
   | 'prevFrame'
   | 'nextFrame'
-  | 'togglePlay';
+  | 'togglePlay'
+  | 'shortcuts';
 
 /** Primary chord per action, plus alternates matched but not displayed. */
 export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
@@ -79,6 +80,9 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   prevFrame: [{ key: ',' }],
   nextFrame: [{ key: '.' }],
   togglePlay: [{ key: 'Enter' }],
+  // Help ▸ Keyboard Shortcuts. `/` is matched without Shift, so layouts
+  // that type it with Shift (German: Ctrl+Shift+7) reach it too.
+  shortcuts: [{ key: '/', mod: true }],
 };
 
 /**
@@ -119,6 +123,7 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'exportSheet',
   'undo',
   'redo',
+  'shortcuts',
 ]);
 
 const IS_MAC = isMac();
@@ -142,6 +147,17 @@ export function chordLabel(c: Chord): string {
 export function hint(action: ShortcutAction): string {
   const c = SHORTCUTS[action][0];
   return c ? chordLabel(c) : '';
+}
+
+/** Display labels of all of an action's chords, the primary (= `hint`) first. */
+export function chordLabels(action: ShortcutAction): string[] {
+  return SHORTCUTS[action].map(chordLabel);
+}
+
+/** A modifier key's name in the platform's notation: `Shift`, or `⇧` on macOS. */
+export function modifierLabel(modifier: 'shift' | 'alt'): string {
+  if (IS_MAC) return modifier === 'shift' ? '⇧' : '⌥';
+  return modifier === 'shift' ? 'Shift' : 'Alt';
 }
 
 /** Display label of a tool group's key, or `undefined`. */

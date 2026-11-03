@@ -91,6 +91,7 @@
     isTypingTarget,
     toolGroupForKey,
     toolHint,
+    type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { formatFromName, hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
@@ -99,7 +100,7 @@
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
-  import { help } from '../../lib/help/state.svelte';
+  import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
@@ -236,7 +237,7 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    if (handle === null || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
@@ -367,6 +368,41 @@
       },
     ].map((g) => ({ ...g, shortcut: toolHint(g.id) }) as ToolGroup<ToolKind>),
   );
+
+  /**
+   * Every shared action `runShortcut` (or, for `paste`, the paste event)
+   * serves. No frames in Image mode, so no frame keys and no sheet export.
+   */
+  const IMAGE_ACTIONS: readonly ShortcutAction[] = [
+    'open',
+    'save',
+    'saveAs',
+    'export',
+    'undo',
+    'redo',
+    'cut',
+    'copy',
+    'paste',
+    'pasteNewImage',
+    'deleteSelection',
+    'selectAll',
+    'deselect',
+    'invertSelection',
+    'zoomIn',
+    'zoomOut',
+    'zoomFit',
+    'zoomActual',
+    'shortcuts',
+    'swapColors',
+    'resetColors',
+    'brushSmaller',
+    'brushLarger',
+  ];
+
+  /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
+  function openOverview(): void {
+    openShortcuts({ actions: IMAGE_ACTIONS, groups: toolGroups });
+  }
 
   const toolLabel = $derived(
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
@@ -503,6 +539,7 @@
     return () => {
       autosave.close();
       registerMenuHandlers(null);
+      closeShortcuts();
     };
   });
 
@@ -518,7 +555,7 @@
   function onKeydown(e: KeyboardEvent): void {
     // Ignore shortcuts while typing in a field (text-entry overlay included)
     // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
+    if (ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
@@ -607,6 +644,9 @@
         return true;
       case 'brushLarger':
         tool.size = Math.min(500, tool.size + (tool.size >= 10 ? 5 : 1));
+        return true;
+      case 'shortcuts':
+        openOverview();
         return true;
       default:
         return false;
@@ -837,7 +877,7 @@
         languageMenu(),
       ],
     },
-    ...helpMenus(),
+    ...helpMenus(openOverview),
   ]);
 
   // Warn before discarding edits on reload/close.

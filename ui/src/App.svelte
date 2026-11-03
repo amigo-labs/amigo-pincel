@@ -8,7 +8,14 @@
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import AboutDialog from './lib/components/AboutDialog.svelte';
-  import { closeAbout, help, loadUpdaterState } from './lib/help/state.svelte';
+  import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
+  import {
+    closeAbout,
+    closeShortcuts,
+    help,
+    helpDialogOpen,
+    loadUpdaterState,
+  } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -174,7 +181,7 @@
   // image as a new document (copy-cut-paste AC-22, AC-26). An empty paste
   // stays silent: it is often a stray key with text on the clipboard.
   function startScreenIdle(target: EventTarget | null): boolean {
-    if (session.mode !== 'start' || busy || newDialog !== null || help.about) return false;
+    if (session.mode !== 'start' || busy || newDialog !== null || helpDialogOpen()) return false;
     if (isTypingTarget(target)) return false;
     return !(target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]'));
   }
@@ -403,6 +410,10 @@
 
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
+{/if}
+
+{#if help.shortcuts}
+  <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
 {/if}
 
 {#if shellError}

@@ -40,7 +40,7 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
-  import { help } from '../../lib/help/state.svelte';
+  import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
@@ -220,6 +220,42 @@
   });
 
   const railGroups = $derived(toolGroups(toolState.stampTile));
+
+  /** Every shared action `runShortcut` (or, for `paste`, the paste event) serves. */
+  const PIXEL_ACTIONS: readonly ShortcutAction[] = [
+    'open',
+    'save',
+    'saveAs',
+    'export',
+    'exportSheet',
+    'undo',
+    'redo',
+    'cut',
+    'copy',
+    'paste',
+    'pasteNewImage',
+    'deleteSelection',
+    'selectAll',
+    'deselect',
+    'invertSelection',
+    'zoomIn',
+    'zoomOut',
+    'zoomFit',
+    'zoomActual',
+    'shortcuts',
+    'swapColors',
+    'resetColors',
+    'brushSmaller',
+    'brushLarger',
+    'prevFrame',
+    'nextFrame',
+    'togglePlay',
+  ];
+
+  /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
+  function openOverview(): void {
+    openShortcuts({ actions: PIXEL_ACTIONS, groups: railGroups });
+  }
   const toolLabel = $derived(
     groupOf(railGroups, toolState.tool)?.tools.find((x) => x.id === toolState.tool)?.label ?? '',
   );
@@ -297,6 +333,7 @@
       zoomFit: resetView,
       zoomActual,
       toggleProbe,
+      openShortcuts: openOverview,
     }),
   );
 
@@ -310,7 +347,7 @@
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
     if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
-    if (dialogs.selectionRadius || dialogs.paste || help.about) return;
+    if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
     syncSelection();
@@ -393,6 +430,9 @@
       case 'pasteNewImage':
         void pasteAsNewImage();
         return true;
+      case 'shortcuts':
+        openOverview();
+        return true;
     }
     if (!ed.doc) return false;
     switch (action) {
@@ -449,7 +489,7 @@
     const blocked = Boolean(
       dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
     );
-    onPaste(e, blocked || help.about || toolState.textAnchor !== null);
+    onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
 
   function onKeyUp(e: KeyboardEvent) {
@@ -578,6 +618,7 @@
       stopPlayback();
       autosave.close();
       registerMenuHandlers(null);
+      closeShortcuts();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('paste', onWindowPaste);
       window.removeEventListener('keyup', onKeyUp);

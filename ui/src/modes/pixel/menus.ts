@@ -85,6 +85,8 @@ export interface PixelMenuContext {
   zoomFit(): void;
   zoomActual(): void;
   toggleProbe(): void;
+  /** Help ▸ Keyboard Shortcuts. */
+  openShortcuts(): void;
 }
 
 function transforms(run: (op: TransformOp) => void, disabled: boolean): MenuItem[] {
@@ -247,6 +249,6 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         languageMenu(),
       ],
     },
-    ...helpMenus(),
+    ...helpMenus(c.openShortcuts),
   ];
 }
