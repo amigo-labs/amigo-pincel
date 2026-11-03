@@ -101,6 +101,7 @@ struct Labels {
     zoom_out: &'static str,
     reset_zoom: &'static str,
     help: &'static str,
+    shortcuts: &'static str,
     about: &'static str,
     check_updates: &'static str,
     auto_update: &'static str,
@@ -136,6 +137,7 @@ const LABELS_EN: Labels = Labels {
     zoom_out: "Zoom Out",
     reset_zoom: "Reset Zoom",
     help: "Help",
+    shortcuts: "Keyboard Shortcuts",
     about: "About Pincel",
     check_updates: "Check for Updates\u{2026}",
     auto_update: "Install Updates Automatically",
@@ -168,6 +170,7 @@ const LABELS_DE: Labels = Labels {
     zoom_out: "Verkleinern",
     reset_zoom: "Zoom zur\u{fc}cksetzen",
     help: "Hilfe",
+    shortcuts: "Tastenk\u{fc}rzel",
     about: "\u{dc}ber Pincel",
     check_updates: "Nach Updates suchen\u{2026}",
     auto_update: "Updates automatisch installieren",
@@ -360,7 +363,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&reset_zoom)
         .build()?;
 
+    // Help ▸ Keyboard Shortcuts: the mounted editor opens its overview
+    // (docs/specs/shortcut-overview.md); the start screen ignores it.
+    let shortcuts = MenuItemBuilder::with_id("menu:shortcuts", l.shortcuts)
+        .accelerator("CmdOrCtrl+/")
+        .build(app)?;
     let help = SubmenuBuilder::new(app, l.help)
+        .item(&shortcuts)
+        .separator()
         .item(&PredefinedMenuItem::about(
             app,
             Some(l.about),
