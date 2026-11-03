@@ -41,7 +41,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
 | 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
-| 22 | [pixel-pressure](pixel-pressure.md) | Pixel | M | pixel-pencil | |
 | 23 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
 | 24 | [image-layer-groups](image-layer-groups.md) | Image | L | — | |
 | 25 | [image-layer-groups-ora](image-layer-groups-ora.md) | Image | M | image-layer-groups | Fixes ORA group opacity / visibility lost on open |
@@ -72,6 +71,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-pencil](pixel-pencil.md)
+- [pixel-pressure](pixel-pressure.md)
 - [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [save-original-format](save-original-format.md)
