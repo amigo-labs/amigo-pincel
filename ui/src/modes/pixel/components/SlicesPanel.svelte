@@ -220,11 +220,18 @@
   } as const satisfies Partial<Record<keyof SliceRow, MessageKey>>;
   type NumberField = keyof typeof FIELD_LABELS;
 
-  function onNumberCommit(row: SliceRow, field: NumberField, value: number) {
-    if (!Number.isFinite(value)) return;
+  function onNumberCommit(row: SliceRow, field: NumberField, input: HTMLInputElement) {
+    const value = Number(input.value);
+    const stored = String((row as Record<string, unknown>)[field as string]);
+    if (!Number.isFinite(value)) {
+      input.value = stored;
+      return;
+    }
     const truncated = Math.trunc(value);
     if (UNSIGNED_FIELDS.has(field) && truncated < 1) {
       rowError[row.id] = t('slices.mustBePositive', { field: t(FIELD_LABELS[field]) });
+      // A refused entry snaps back, so the row reads like the slice.
+      input.value = stored;
       return;
     }
     rowError[row.id] = null;
@@ -357,7 +364,7 @@
                   inputmode="numeric"
                   value={s.x}
                   onchange={(e) =>
-                    onNumberCommit(s, 'x', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'x', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -369,7 +376,7 @@
                   inputmode="numeric"
                   value={s.y}
                   onchange={(e) =>
-                    onNumberCommit(s, 'y', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'y', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -384,7 +391,7 @@
                   inputmode="numeric"
                   value={s.w}
                   onchange={(e) =>
-                    onNumberCommit(s, 'w', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'w', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -397,7 +404,7 @@
                   inputmode="numeric"
                   value={s.h}
                   onchange={(e) =>
-                    onNumberCommit(s, 'h', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'h', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -425,7 +432,7 @@
                     inputmode="numeric"
                     value={s.cx}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cx', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cx', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -437,7 +444,7 @@
                     inputmode="numeric"
                     value={s.cy}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cy', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cy', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -452,7 +459,7 @@
                     inputmode="numeric"
                     value={s.cw}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cw', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cw', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -465,7 +472,7 @@
                     inputmode="numeric"
                     value={s.ch}
                     onchange={(e) =>
-                      onNumberCommit(s, 'ch', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'ch', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -492,7 +499,7 @@
                   inputmode="numeric"
                   value={s.px}
                   onchange={(e) =>
-                    onNumberCommit(s, 'px', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'px', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -504,7 +511,7 @@
                   inputmode="numeric"
                   value={s.py}
                   onchange={(e) =>
-                    onNumberCommit(s, 'py', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'py', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>

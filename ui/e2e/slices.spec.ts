@@ -330,6 +330,8 @@ test('row X / Y / W / H commits are one undo step each, sizes below 1 are refuse
   ] as const) {
     await commitField(r, label, value);
     await expect(r.getByRole('alert')).toHaveText(`${label} must be a positive integer`);
+    // The refused entry snaps back to the stored size.
+    await expect(r.getByLabel(label, { exact: true })).toHaveValue('8');
   }
   await r.getByLabel('9-patch').check();
   await commitField(r, 'cW', '0');
@@ -339,7 +341,6 @@ test('row X / Y / W / H commits are one undo step each, sizes below 1 are refuse
   await expect.poll(() => alphaAt(page, 12, 9)).toBe(255);
   await expect.poll(() => alphaAt(page, 11, 8)).toBe(255);
   // Undo takes back the 9-patch tick, then the X edit: nothing else landed.
-  // (A refused field keeps showing the typed value, so read X and the ants.)
   await undoButton(page).click();
   await expect(r.getByLabel('9-patch')).not.toBeChecked();
   await undoButton(page).click();

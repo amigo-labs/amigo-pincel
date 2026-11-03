@@ -84,9 +84,6 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- Canvas operations still treat a key's 9-patch center and pivot as sprite coordinates: `ReframeCanvas` shifts them by the canvas offset along with the bounds, and `TransformCanvas` / `ScaleImage` orient or scale them against the canvas size, not the key's bounds. Under the bounds-relative model (Decisions 2026-10-29) a resize or flip moves them twice or to the wrong place. Out of scope here (image operations own canvas transforms); needs a decision there.
-- After a refused W / H (or 9-patch width / height) entry the field keeps showing the refused value (e.g. `0`) until that size changes in the document, so the row reads differently from the slice. Should a refused entry snap back to the stored value?
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -111,6 +108,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-18 | `pincel-core: command::remove_frame::tests::apply_shifts_slice_keys_and_keeps_the_removed_frames_key`, `command::remove_frame::tests::apply_drops_removed_frames_key_when_next_frame_has_one`, `command::remove_frame::tests::revert_restores_frames_and_cels_exactly` | built | |
 
 ## Decisions
+
+- 2026-11-03 — The two open questions of the test-gap pass were settled as bugs: (1) canvas operations now keep a key's 9-patch center and pivot relative to its bounds — `ReframeCanvas` moves only the bounds, `TransformCanvas` orients center and pivot inside the slice's own size, `ScaleImage` keeps scaling them proportionally, which is already right for bounds-relative values (`reframe_canvas::tests::resize_moves_slice_bounds_but_keeps_center_and_pivot_relative`, `transform_canvas::tests::flip_and_rotate_orient_center_and_pivot_within_the_slice_bounds`, both red before); (2) a refused W / H / cW / cH entry snaps back to the stored value, so the row reads like the slice (the AC-10 e2e test checks the field and was red before).
 
 - 2026-10-29: A key's 9-patch center and pivot are relative to the key's bounds origin in the core, the panel and the overlay (AC-04, AC-09, AC-12, AC-13 changed; the core doc comment gets fixed) — this matches the Aseprite format, so files round-trip correctly and a redrawn slice keeps its 9-patch and pivot attached (owner accepted the recommendation).
 - 2026-11-03: Bug found by the new tests: the Slices panel still seeded a new center at `(x + 1, y + 1)` and a new pivot at `(x, y)`, and the overlay drew both at their stored values, i.e. in sprite space — the AC-04, AC-09, AC-12 and AC-13 tests were red (seeded `cX` 3 for `1`, pivot `pX` 5 for `0`, no crosshair at the bounds-relative point). Fixed in the panel and `paintActiveSlice` (`fix(ui)`); the core and wasm doc comments now say "relative to the bounds origin".
