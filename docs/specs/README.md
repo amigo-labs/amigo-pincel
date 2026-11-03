@@ -60,7 +60,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 38 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | both | M | — | |
 | 39 | [power-user-shortcuts-palette](power-user-shortcuts-palette.md) | both | M | — | Command palette; no open questions |
 | 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
-| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; the golden corpus must be generated before the Vectorizer repository is deleted |
+| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 
 ## Done
@@ -80,7 +80,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 Not code; they need a person, hardware or an account.
 
 - **Release prerequisites** (`docs/RELEASING.md`): updater signing key as organization secrets, access to the `MACOS_SIGNING_CERT` organization secrets (`create-signing-cert.sh --repos amigo-blinzel,amigo-pincel`, optional), `RELEASE_PLEASE_TOKEN`, npm trusted publisher for `@amigo-labs/pincel-wasm` then `PUBLISH_NPM=true`, `pincel.amigo-labs.dev` as the Worker's custom domain.
-- **Delete `daniel-rck/Vectorizer`** once vectorize-core (its golden corpus committed) and vectorize-dialog are done (Decision Log 2026-11-01).
 - **Native-speaker review** of the German copy: `website/src/lib/i18n/de.ts` and `ui/src/lib/i18n/de.ts` are machine-written.
 - **Checks on real hardware** (spec §16 exit criteria): 60 fps at 256×256 / zoom 32 on M1 and mid-tier Windows (F2 probe); Lighthouse PWA ≥ 90; a Pincel-saved file opened in upstream Aseprite and a Pincel tilemap loaded by `amigo_assets` (former M6.7); real Tauri installs and the self-update on Windows, macOS and Linux.
 
