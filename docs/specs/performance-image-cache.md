@@ -69,13 +69,13 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `region_at_zoom_one_matches_a_fresh_compose_after_any_edits` (proptest, `crates/pincel-image-core/src/render/cache.rs`); `composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-05 | `byte_size_stays_within_the_budget_and_keeps_every_level` (`crates/pincel-image-core/src/render/cache.rs`) | built |        |
+| AC-06 | `region_after_canvas_size_changes_matches_compose`, `region_detects_a_size_change_it_was_not_told_about` (`crates/pincel-image-core/src/render/cache.rs`); the resize step of `composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
+| AC-07 | `region_below_zoom_one_matches_a_fresh_pyramid_after_any_edits` (proptest), `blend4_matches_the_premultiplied_average` (`crates/pincel-image-core/src/render/cache.rs`); `composite_region_below_zoom_one_samples_the_pyramid_of_a_fresh_compose` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
 
 ## Decisions
 
@@ -83,3 +83,12 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - The cache lives in the core per document, not in the UI — document state stays in Rust (CLAUDE.md §9, pincel.md §17.1).
 - 2026-10-29: Zoom ≥ 1 stays byte-identical to a fresh compose; the zoom < 1 display may differ from today's bilinear downscale and must equal sampling the same box-filtered pyramid built from a fresh compose — display downscaling is not document content, and mips look better than single-step bilinear, which aliases on strong zoom-out (owner accepted the recommendation).
 - 2026-10-29: Downscaled levels are never skipped by default (≈ 340 MB at 64 Mpx); only if the `performance-benchmarks` memory scenario fails are mips skipped above 32 Mpx, with zoom < 1 then bilinear-downscaled from the cached full-resolution composite — measure first, and the fallback still avoids recomposing every layer (owner accepted the recommendation).
+- 2026-11-03 (spec-build): `performance-image-kernel` is not in this branch (its spec is still `todo`, `render/mod.rs` still runs the float path). The cache only calls `compose_region`, so it picks the kernel up unchanged once it lands; every number below is measured on the float path.
+- 2026-11-03 (spec-build): Commands report what they change: `Command::damage` (default `Damage::Full`, always correct) — `SetPixels` / `MoveSelection` their edit rects, selection, rename, lock and a new (transparent) layer nothing — and `CommandBus` collects it until `take_damage`. The alternative, diffing layers, would need a copy of every layer; the default keeps any command that does not override it correct.
+- 2026-11-03 (spec-build): The cache is `pincel_image_core::RenderCache` (new public API: `new`, `update`, `region`, `composite`, `size`, `level_count`, `byte_size`; plus `command::Damage`, `Command::damage`, `CommandBus::take_damage`). `pincel-image-wasm` keeps one per handle next to the bus and serves `composite_region` from it; the UI is unchanged.
+- 2026-11-03 (spec-build): Levels are tiled (128 px of their own level) and built lazily: a damaged rect is recomposed at once only inside full-resolution tiles that are already valid, and the pyramid tiles above it go stale; `Damage::Full` (layer properties, moves, canvas changes) marks everything stale, and the next presentation composes only the tiles it shows. The cache also rebuilds itself when the canvas size differs from the document's, whatever damage it was given.
+- 2026-11-03 (spec-build): Pyramid level `l` is `ceil(w / 2^l) × ceil(h / 2^l)`, the 2×2 box filter of level `l - 1` in premultiplied alpha with integer rounding (edge pixels average what exists). Zoom < 1 picks the largest level whose scale `2^l` is at most the reduction `min(w / out_w, h / out_h)` and samples it bilinearly (8-bit fixed-point weights, premultiplied, integer rounding), so zoom in (½, 1) samples the full-resolution level. Integer math makes the incremental and the fresh pyramid byte-identical by construction.
+- 2026-11-03 (spec-build): AC-05 counts every byte the cache holds (pixels and tile flags). Levels are added only while the total stays within `1.34 × w × h × 4`; for real documents that is every level down to 1×1 (checked up to 8192 × 8192), only tiny canvases (e.g. 3 × 3) stop early because of rounding up.
+- 2026-11-03 (spec-build): No stroke cache of the layers above the active one. Pre-blending them into one buffer cannot be byte-identical (blend modes and per-layer rounding are not associative), which AC-01 requires; and a full-size `below` buffer would add another `w × h × 4` bytes on top of the 1.33 the pyramid takes, past AC-05's 1.34. Each dab instead recomposes all layers in its own rect, which meets AC-02 with a wide margin (see Evidence); revisit only if AC-03 misses for big brushes.
+- 2026-11-03 (spec-build): The memory fallback (no levels above 32 Mpx) is not built. `image-memory-4k` misses its 1 GB budget already without this cache (2318 MiB, undo memory, owned by `performance-image-undo-memory`), and at 4K it could not trigger the fallback anyway; the cache adds ≈ 44 MB there.
+- 2026-11-03 (spec-build): `composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` was green before the wasm change — `composite_region` recomposed on every call, so exactness at zoom ≥ 1 already held; its red run is the core proptest with the damage handling disabled (both proptests fail). The zoom < 1 wasm test was red (bilinear `scale` ≠ pyramid sample).

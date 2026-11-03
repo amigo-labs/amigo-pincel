@@ -13,9 +13,8 @@ use pincel_image_core::command::spec::{
 };
 use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
 use pincel_image_core::{
-    BlendMode, Color, Document, Eyedropper, ImageBuffer, Interpolation, Point, Rect, SampleSize,
-    compose, compose_region, copy_selection as copy_selection_pixels, delete_selection,
-    masked_region, scale,
+    BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
+    compose, copy_selection as copy_selection_pixels, delete_selection, masked_region,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -38,6 +37,10 @@ thread_local! {
     /// single undo step by `stroke_id` — so a tool that remembers something
     /// between dabs has to remember it here, not inside one call.
     static STROKES: RefCell<HashMap<u32, StrokeScratch>> = RefCell::new(HashMap::new());
+    /// The presented composite of each document (docs/specs/performance-image-cache.md),
+    /// created on its first `composite_region` and fed the bus's damage on
+    /// every one after.
+    static CACHES: RefCell<HashMap<u32, RenderCache>> = RefCell::new(HashMap::new());
     /// Registered font byte blobs, indexed by font id (see `register_font`).
     /// The Text tool re-parses these per commit (ADR-012), so JS uploads each
     /// face once and references it by id rather than passing bytes per command.
@@ -208,6 +211,9 @@ pub fn close_document(handle: u32) {
     });
     STROKES.with(|strokes| {
         strokes.borrow_mut().remove(&handle);
+    });
+    CACHES.with(|caches| {
+        caches.borrow_mut().remove(&handle);
     });
 }
 
@@ -418,12 +424,14 @@ pub fn redo(handle: u32) -> Result<bool, JsError> {
     with_bus(handle, |bus| bus.redo().map_err(to_js))
 }
 
-/// Composites only the canvas rect `(x, y, w, h)` (clipped to the canvas)
-/// and resamples it to `out_w × out_h` — the UI's viewport renderer, so
-/// a canvas larger than any browser canvas still displays (spec §6.4).
-/// Pass the clipped size as `out_w` / `out_h` for 1:1 pixels; smaller
-/// sizes downscale bilinearly (zoomed-out views). Returns RGBA8 rows of
-/// the output size; an empty region yields an empty array.
+/// Presents the canvas rect `(x, y, w, h)` (clipped to the canvas) at
+/// `out_w × out_h` — the UI's viewport renderer, so a canvas larger than
+/// any browser canvas still displays (spec §6.4). The pixels come from the
+/// document's cached composite, updated only where commands changed it
+/// (docs/specs/performance-image-cache.md): the clipped size as `out_w` /
+/// `out_h` gives 1:1 pixels identical to a fresh compose; smaller sizes
+/// (zoomed-out views) sample the cache's downscaled pyramid. Returns RGBA8
+/// rows of the output size; an empty region yields an empty array.
 #[wasm_bindgen]
 pub fn composite_region(
     handle: u32,
@@ -435,20 +443,16 @@ pub fn composite_region(
     out_h: u32,
 ) -> Result<Clamped<Vec<u8>>, JsError> {
     with_bus(handle, |bus| {
-        let region = compose_region(bus.document.layers(), Rect::new(x, y, w, h));
-        if region.width() == 0 || region.height() == 0 {
-            return Ok(Clamped(Vec::new()));
-        }
-        let (ow, oh) = (
-            out_w.clamp(1, region.width()),
-            out_h.clamp(1, region.height()),
-        );
-        let out = if (ow, oh) == (region.width(), region.height()) {
-            region
-        } else {
-            scale(&region, ow, oh, Interpolation::Bilinear)
-        };
-        Ok(Clamped(out.into_raw()))
+        let damage = bus.take_damage();
+        CACHES.with(|caches| {
+            let mut caches = caches.borrow_mut();
+            let cache = caches
+                .entry(handle)
+                .or_insert_with(|| RenderCache::new(&bus.document));
+            cache.update(&bus.document, damage);
+            let out = cache.region(&bus.document, Rect::new(x, y, w, h), out_w, out_h);
+            Ok(Clamped(out.into_raw()))
+        })
     })
 }
 
@@ -805,6 +809,7 @@ mod paste_tests {
 #[cfg(test)]
 mod region_tests {
     use super::*;
+    use pincel_image_core::compose_region;
 
     #[test]
     fn composite_region_crops_and_downscales() {
@@ -816,6 +821,113 @@ mod region_tests {
         assert_eq!(small.0.len(), 4 * 3 * 4);
         let outside = composite_region(handle, 20, 20, 4, 4, 4, 4).expect("empty");
         assert!(outside.0.is_empty());
+    }
+
+    /// A 3-layer 40×30 document with differently colored, half-transparent
+    /// upper layers.
+    fn layered() -> u32 {
+        let handle = insert(CommandBus::new(Document::new(40, 30).expect("doc")));
+        for (layer, color) in [(0, [200, 40, 10, 255]), (1, [10, 90, 220, 140])] {
+            if layer > 0 {
+                apply_command(
+                    handle,
+                    &format!(r#"{{"type":"add_layer","active":{}}}"#, layer - 1),
+                )
+                .expect("add layer");
+            }
+            let dab = format!(
+                r#"{{"type":"pencil_stroke","layer":{layer},"size":30,"color":{color:?},"opacity":1,"points":[[{x},15]],"stroke_id":{layer}}}"#,
+                x = 12 + layer * 14
+            );
+            apply_command(handle, &dab).expect("paint");
+        }
+        apply_command(handle, r#"{"type":"add_layer","active":1}"#).expect("add layer");
+        handle
+    }
+
+    fn fresh_compose(handle: u32, x: i32, y: i32, w: u32, h: u32) -> Vec<u8> {
+        with_bus(handle, |bus| {
+            Ok(compose_region(bus.document.layers(), Rect::new(x, y, w, h)).into_raw())
+        })
+        .expect("compose")
+    }
+
+    fn canvas(handle: u32) -> (u32, u32) {
+        with_bus(handle, |bus| {
+            Ok((bus.document.canvas.width(), bus.document.canvas.height()))
+        })
+        .expect("size")
+    }
+
+    #[test]
+    fn composite_region_matches_a_fresh_compose_after_edits_undo_and_redo() {
+        // AC-01, AC-06: each step is presented (so the cache is warm) and
+        // must equal a fresh compose at zoom 1, whole canvas and a crop.
+        let handle = layered();
+        let steps = [
+            r#"{"type":"pencil_stroke","layer":2,"size":6,"color":[0,0,0,255],"opacity":1,"points":[[5,5],[30,20]],"stroke_id":9}"#,
+            r#"{"type":"pencil_stroke","layer":2,"size":6,"color":[0,0,0,255],"opacity":1,"points":[[30,20],[35,4]],"stroke_id":9}"#,
+            "undo",
+            "redo",
+            r#"{"type":"set_layer_opacity","index":1,"opacity":0.3}"#,
+            r#"{"type":"set_layer_blend_mode","index":1,"mode":"multiply"}"#,
+            r#"{"type":"set_layer_visible","index":0,"visible":false}"#,
+            "undo",
+            r#"{"type":"move_layer","from":0,"to":2}"#,
+            r#"{"type":"pencil_stroke","layer":0,"size":9,"color":[0,255,0,90],"opacity":1,"points":[[20,10]],"stroke_id":10}"#,
+            "undo",
+            "undo",
+            r#"{"type":"resize_canvas","width":33,"height":41}"#,
+            r#"{"type":"pencil_stroke","layer":1,"size":5,"color":[255,255,0,255],"opacity":1,"points":[[3,38]],"stroke_id":11}"#,
+            "undo",
+            "undo",
+        ];
+        composite_region(handle, 0, 0, 40, 30, 40, 30).expect("warm the cache");
+        for step in steps {
+            match step {
+                "undo" => assert!(undo(handle).expect("undo")),
+                "redo" => assert!(redo(handle).expect("redo")),
+                json => apply_command(handle, json).expect(json),
+            }
+            let (w, h) = canvas(handle);
+            let whole = composite_region(handle, 0, 0, w, h, w, h).expect("whole");
+            assert_eq!(whole.0, fresh_compose(handle, 0, 0, w, h), "after {step}");
+            let crop = composite_region(handle, 7, 3, 20, 11, 20, 11).expect("crop");
+            assert_eq!(crop.0, fresh_compose(handle, 7, 3, 20, 11), "after {step}");
+        }
+    }
+
+    #[test]
+    fn composite_region_below_zoom_one_samples_the_pyramid_of_a_fresh_compose() {
+        // AC-07: zoomed out, the presented pixels are the pyramid sample of
+        // the current document, also after edits and an undo.
+        let handle = layered();
+        let views = [
+            (0, 0, 40, 30, 13, 10),
+            (5, 4, 30, 20, 11, 7),
+            (0, 0, 40, 30, 39, 29),
+        ];
+        let fresh = |handle: u32, (x, y, w, h, ow, oh): (i32, i32, u32, u32, u32, u32)| {
+            with_bus(handle, |bus| {
+                let mut cache = pincel_image_core::RenderCache::new(&bus.document);
+                Ok(cache
+                    .region(&bus.document, Rect::new(x, y, w, h), ow, oh)
+                    .into_raw())
+            })
+            .expect("fresh pyramid")
+        };
+        let stroke = r#"{"type":"pencil_stroke","layer":2,"size":7,"color":[0,0,0,255],"opacity":1,"points":[[8,8],[33,22]],"stroke_id":5}"#;
+        for step in ["none", stroke, "undo"] {
+            match step {
+                "none" => {}
+                "undo" => assert!(undo(handle).expect("undo")),
+                json => apply_command(handle, json).expect(json),
+            }
+            for view @ (x, y, w, h, ow, oh) in views {
+                let shown = composite_region(handle, x, y, w, h, ow, oh).expect("shown");
+                assert_eq!(shown.0, fresh(handle, view), "{view:?} after {step}");
+            }
+        }
     }
 }
 
