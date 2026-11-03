@@ -8,9 +8,12 @@
   import { onMount } from 'svelte';
   import { t } from '../i18n/index.svelte';
   import type { KeymapId } from '../shell/keymap-state.svelte';
+  import { pickAndOpen, saveExport } from '../fs';
   import {
     bind,
     conflictFor,
+    exportKeymapJson,
+    importKeymapText,
     isCurrentChord,
     isOverridden,
     resetAllBindings,
@@ -37,6 +40,9 @@
   /** A captured chord another entry already uses, awaiting Replace / Cancel. */
   let conflict = $state<{ id: KeymapId; chord: Chord; owner: KeymapId } | null>(null);
 
+  /** Outcome of the last export / import: a notice, or an error. */
+  let message = $state<{ kind: 'status' | 'alert'; text: string } | null>(null);
+
   const rows = $derived(shortcutList(source));
   const sections = $derived(groupRows(filterRows(rows, query)));
 
@@ -51,6 +57,7 @@
 
   function startCapture(id: KeymapId): void {
     conflict = null;
+    message = null;
     capturing = id;
   }
 
@@ -75,6 +82,51 @@
   function replace(): void {
     if (conflict !== null) bind(conflict.id, conflict.chord);
     closeConflict();
+  }
+
+  function errText(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+  }
+
+  async function exportKeymap(): Promise<void> {
+    conflict = null;
+    message = null;
+    try {
+      await saveExport(new TextEncoder().encode(exportKeymapJson()), 'pincel-keymap.json', 'json');
+    } catch (err) {
+      message = { kind: 'alert', text: t('keys.exportFailed', { error: errText(err) }) };
+    }
+  }
+
+  async function importKeymap(): Promise<void> {
+    conflict = null;
+    message = null;
+    let text: string;
+    try {
+      const opened = await pickAndOpen('keymap');
+      if (!opened) return;
+      text = new TextDecoder().decode(opened.bytes);
+    } catch (err) {
+      message = { kind: 'alert', text: t('keys.importFailed', { error: errText(err) }) };
+      return;
+    }
+    const result = importKeymapText(text);
+    if (!result.ok) {
+      message = {
+        kind: 'alert',
+        text:
+          result.reason === 'duplicate'
+            ? t('keys.importDuplicate', { chord: chordLabel(result.chord) })
+            : t('keys.importInvalid'),
+      };
+      return;
+    }
+    const parts = [t('keys.imported')];
+    if (result.ignored === 1) parts.push(t('keys.importIgnoredOne'));
+    if (result.ignored > 1) parts.push(t('keys.importIgnoredMany', { n: result.ignored }));
+    if (result.replaced === 1) parts.push(t('keys.importReplacedOne'));
+    if (result.replaced > 1) parts.push(t('keys.importReplacedMany', { n: result.replaced }));
+    message = { kind: 'status', text: parts.join(' ') };
   }
 
   // Keys typed here (the filter above all) must not reach the editor's
@@ -122,6 +174,16 @@
         aria-label={t('keys.filter')}
       />
     </div>
+    {#if message !== null}
+      <p
+        class="shortcuts-noprint border-b border-pc-border px-4 py-2 text-sm"
+        class:text-pc-accent={message.kind === 'status'}
+        class:text-red-300={message.kind === 'alert'}
+        role={message.kind}
+      >
+        {message.text}
+      </p>
+    {/if}
     {#if conflict !== null}
       <div
         class="shortcuts-noprint flex flex-wrap items-center gap-2 border-b border-pc-border bg-pc-raised px-4 py-2 text-sm"
@@ -194,7 +256,15 @@
       {/each}
     </div>
     <div class="shortcuts-noprint flex flex-wrap justify-end gap-2 border-t border-pc-border px-4 py-2">
-      <button class="panel-btn" onclick={resetAllBindings}>{t('keys.resetAll')}</button>
+      <button class="panel-btn" onclick={() => void importKeymap()}>{t('keys.importKeymap')}</button>
+      <button class="panel-btn" onclick={() => void exportKeymap()}>{t('keys.exportKeymap')}</button>
+      <button
+        class="panel-btn"
+        onclick={() => {
+          message = null;
+          resetAllBindings();
+        }}>{t('keys.resetAll')}</button
+      >
     </div>
   </div>
 </div>

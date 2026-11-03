@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   createDocument,
@@ -69,6 +70,32 @@ async function menuHint(page: Page, top: string, label: string): Promise<string>
 async function stroke(page: Page, mode: Mode): Promise<void> {
   await drag(page, canvasOf(page, mode), [0.2, 0.5], [0.8, 0.5]);
   await expect(undoButton(page)).toBeEnabled();
+}
+
+// --- Export and import (AC-07 – AC-11, AC-16, AC-17) ---
+
+const U = { key: 'u', mod: true };
+
+function keymapFile(bindings: Record<string, unknown>): string {
+  return JSON.stringify({ format: 'pincel-keymap', version: 1, bindings });
+}
+
+/** Imports `text` as a JSON file through the dialog's Import button. */
+async function importKeymap(
+  page: Page,
+  dialog: Locator,
+  text: string,
+  button = 'Import…',
+): Promise<void> {
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    dialog.getByRole('button', { name: button, exact: true }).click(),
+  ]);
+  await chooser.setFiles({
+    name: 'keymap.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(text),
+  });
 }
 
 test('rebinding Undo moves the action, its hints, and survives a reload (AC-01, AC-02, AC-06)', async ({
@@ -224,6 +251,9 @@ test.describe('German', () => {
   test.use({ locale: 'de-DE' });
 
   test('the keymap editor speaks German (AC-15)', async ({ page }) => {
+    await page.addInitScript(() => {
+      delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker;
+    });
     await page.goto('./');
     await page.getByRole('button', { name: 'Neues Pixel-Sprite' }).click();
     await page
@@ -245,5 +275,129 @@ test.describe('German', () => {
     await expect(warning).toContainText('Wiederholen');
     await expect(warning.getByRole('button', { name: 'Ersetzen' })).toBeVisible();
     await expect(warning.getByRole('button', { name: 'Abbrechen' })).toBeVisible();
+    await warning.getByRole('button', { name: 'Abbrechen' }).click();
+
+    await expect(dialog.getByRole('button', { name: 'Exportieren…', exact: true })).toBeVisible();
+    await importKeymap(page, dialog, '{nope', 'Importieren…');
+    await expect(dialog.getByRole('alert')).toContainText('keine Pincel-Tastenbelegung');
+    await importKeymap(page, dialog, keymapFile({ undo: [U], warp: [] }), 'Importieren…');
+    await expect(dialog.getByRole('status')).toContainText('1 unbekannter Eintrag ignoriert');
+  });
+});
+
+test.describe('export and import', () => {
+  // Force the download / <input type=file> fallbacks (see palette.spec).
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as { showSaveFilePicker?: unknown; showOpenFilePicker?: unknown };
+      delete w.showSaveFilePicker;
+      delete w.showOpenFilePicker;
+    });
+  });
+
+  test('Export offers the overrides as JSON, with the neutral modifier (AC-07, AC-11)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const dialog = await openOverview(page);
+    await change(dialog, 'Undo');
+    await page.keyboard.press('Control+u');
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      dialog.getByRole('button', { name: 'Export…', exact: true }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.json$/);
+    const text = await readFile(await download.path(), 'utf8');
+    expect(JSON.parse(text)).toEqual({
+      format: 'pincel-keymap',
+      version: 1,
+      bindings: { undo: [U] },
+    });
+  });
+
+  test('an imported keymap becomes the effective one; defaults give way (AC-08, AC-17)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'image', { width: 32, height: 32 });
+    const dialog = await openOverview(page);
+    // Z is the Zoom tool's default key, a default the file doesn't name.
+    await importKeymap(page, dialog, keymapFile({ undo: [U], 'tool:lasso': [{ key: 'z' }] }));
+    await expect(dialog.getByRole('status')).toContainText('Keymap imported');
+    await expect(dialog.getByRole('status')).toContainText('1 default replaced');
+    expect(await chords(dialog, 'Undo')).toEqual(['Ctrl+U']);
+    expect(await chords(dialog, 'Lasso')).toEqual(['Z']);
+    expect(await chords(dialog, 'Zoom')).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    await page.keyboard.press('z');
+    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Lasso: Lasso');
+    await stroke(page, 'image');
+    await page.keyboard.press('Control+u');
+    await expect(undoButton(page)).toBeDisabled();
+    // An exported empty keymap imports as Reset all.
+    const again = await openOverview(page);
+    await importKeymap(page, again, keymapFile({}));
+    expect(await chords(again, 'Undo')).toEqual(['Ctrl+Z']);
+    expect(await chords(again, 'Zoom')).toEqual(['Z']);
+  });
+
+  test('a broken or foreign file is rejected and changes nothing (AC-09)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const dialog = await openOverview(page);
+    await change(dialog, 'Undo');
+    await page.keyboard.press('Control+u');
+    for (const text of [
+      '{nope',
+      JSON.stringify({ format: 'something-else', version: 1, bindings: {} }),
+      keymapFile({ undo: [{ key: 7 }] }),
+      keymapFile({ undo: 'Ctrl+Z' }),
+    ]) {
+      await importKeymap(page, dialog, text);
+      await expect(dialog.getByRole('alert')).toContainText('not a Pincel keymap');
+      expect(await chords(dialog, 'Undo')).toEqual(['Ctrl+U']);
+    }
+  });
+
+  test('unknown entries are ignored with a count (AC-10)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const dialog = await openOverview(page);
+    await importKeymap(
+      page,
+      dialog,
+      keymapFile({ undo: [U], frobnicate: [{ key: 'k' }], 'tool:warp': [{ key: 'j' }] }),
+    );
+    await expect(dialog.getByRole('status')).toContainText('2 unknown entries ignored');
+    expect(await chords(dialog, 'Undo')).toEqual(['Ctrl+U']);
+  });
+
+  test('a chord bound twice in the file rejects it, naming the chord (AC-16)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const dialog = await openOverview(page);
+    await importKeymap(page, dialog, keymapFile({ undo: [U], redo: [{ key: 'U', mod: true }] }));
+    await expect(dialog.getByRole('alert')).toContainText('Ctrl+U');
+    expect(await chords(dialog, 'Undo')).toEqual(['Ctrl+Z']);
+    expect(await chords(dialog, 'Redo')).toEqual(['Ctrl+Shift+Z', 'Ctrl+Y']);
+  });
+});
+
+test.describe('macOS', () => {
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+  });
+
+  test('a keymap made with Ctrl+U shows and works as ⌘U (AC-11)', async ({ page }) => {
+    await page.addInitScript(() => {
+      delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker;
+    });
+    await createDocument(page, 'pixel', { width: 32, height: 32 });
+    const dialog = await openOverview(page);
+    await importKeymap(page, dialog, keymapFile({ undo: [U] }));
+    expect(await chords(dialog, 'Undo')).toEqual(['⌘U']);
+    await page.keyboard.press('Escape');
+    await stroke(page, 'pixel');
+    await page.keyboard.press('Meta+u');
+    await expect(undoButton(page)).toBeDisabled();
   });
 });

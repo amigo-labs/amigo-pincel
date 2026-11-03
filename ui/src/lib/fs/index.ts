@@ -99,8 +99,8 @@ const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...ORA_TYPES, ...
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
 
-/** What a picker asks for: a document to edit, or a palette file. */
-export type PickKind = 'document' | 'gpl';
+/** What a picker asks for: a document to edit, a palette or a keymap file. */
+export type PickKind = 'document' | 'gpl' | 'keymap';
 
 const GPL_TYPES: FilePickerAcceptType[] = [
   { description: 'GIMP palette', accept: { 'text/plain': ['.gpl'] } },
@@ -128,6 +128,11 @@ const PICK: Record<
     types: GPL_TYPES,
     extensions: ['gpl'],
     filters: [{ name: 'GIMP palette', extensions: ['gpl'] }],
+  },
+  keymap: {
+    types: [{ description: 'Pincel keymap', accept: { 'application/json': ['.json'] } }],
+    extensions: ['json'],
+    filters: [{ name: 'Pincel keymap', extensions: ['json'] }],
   },
 };
 
