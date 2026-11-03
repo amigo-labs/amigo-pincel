@@ -13,7 +13,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [tilemaps](tilemaps.md), [slices](slices.md) |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-layers-frames](pixel-layers-frames.md), [tilemaps](tilemaps.md),  |
 | Both modes | [i18n](i18n.md) |
 | Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
@@ -74,11 +74,13 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
+- [pixel-palette](pixel-palette.md)
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-pressure](pixel-pressure.md)
 - [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [save-original-format](save-original-format.md)
+- [slices](slices.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs
