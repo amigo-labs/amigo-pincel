@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.6.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.5.0...v1.6.0) (2026-11-02)
+
+
+### Features
+
+* integrate the Vectorizer (pincel-trace + File ▸ Export ▸ SVG…) ([9a6ed31](https://github.com/amigo-labs/amigo-pincel/commit/9a6ed3169e8f93a65ad442e48b58f39bfd88bd32))
+* **pincel-image-wasm:** vectorizer over the composite for SVG export ([f2800ea](https://github.com/amigo-labs/amigo-pincel/commit/f2800ea302ae9e63ad75454f9ec906f8d9ed415f))
+* **pincel-trace:** pixel-exact mode and the SVG document (AC-12 – AC-14, AC-16, AC-17, AC-20) ([8c9286d](https://github.com/amigo-labs/amigo-pincel/commit/8c9286d4bf739fc0165976d494936c99248a3946))
+* **pincel-trace:** port the Vectorizer core (AC-02 – AC-11, AC-15, AC-18, AC-19) ([4ae67ad](https://github.com/amigo-labs/amigo-pincel/commit/4ae67adc8c51030ba3eb7e28f09df643d8f95dbc))
+* **pincel-trace:** read trace options from a flat wire vector ([22c7d62](https://github.com/amigo-labs/amigo-pincel/commit/22c7d62facee7cae96d7a08f3d0426e28e233507))
+* **pincel-wasm:** Vectorizer over a composed frame for SVG export ([aeb4797](https://github.com/amigo-labs/amigo-pincel/commit/aeb4797c39796cff202bcf4ff5312ddd78920a39))
+* **tauri:** Export as SVG… in the native File menu (AC-10) ([0abc73a](https://github.com/amigo-labs/amigo-pincel/commit/0abc73a12f5f18ab38d3e63ee9218ed33964d1dd))
+* **ui:** File ▸ Export ▸ SVG… in both editors (AC-01 – AC-09, AC-11) ([092dc60](https://github.com/amigo-labs/amigo-pincel/commit/092dc60020a70f69af05f3cd60709b9eb5cb73ab))
+* **ui:** paste the clipboard image as a new document ([2350eca](https://github.com/amigo-labs/amigo-pincel/commit/2350eca304f9cb6fe6326f1bdff7ba7e9a4705c9))
+* **ui:** paste the clipboard image as a new document (AC-22, AC-23, AC-24, AC-25, AC-26) ([f323697](https://github.com/amigo-labs/amigo-pincel/commit/f323697ef7773979f8be97372984990f911f8482))
+* **ui:** start image selections on the stage, deselect by click and Escape (AC-29, AC-30, AC-31, AC-32) ([9b852d4](https://github.com/amigo-labs/amigo-pincel/commit/9b852d4916770df28d1902556f4abc8d460e8408))
+* **ui:** start pixel selections on the stage beside the canvas (AC-01, AC-04, AC-07, AC-09, AC-12, AC-17, AC-18, AC-21, AC-22, AC-23, AC-24) ([a554af6](https://github.com/amigo-labs/amigo-pincel/commit/a554af6d0bf3866450326c4a68168ce8628cb56e))
+* **ui:** start selections on the stage beside the canvas ([14991b4](https://github.com/amigo-labs/amigo-pincel/commit/14991b4a7092cccd036eeaaacc161892f25c2806))
+
+
+### Bug Fixes
+
+* **pincel-trace:** reserve outline-sized buffers fallibly (AC-18) ([87ecaa4](https://github.com/amigo-labs/amigo-pincel/commit/87ecaa4548e835a4f210e1f79ac483a1f36723ea))
+* **pincel-trace:** share cached quantizations instead of copying them (AC-18) ([40498e5](https://github.com/amigo-labs/amigo-pincel/commit/40498e5bf61bcf99d841540ea4cafd4e1b21e0df))
+* **pincel-trace:** use as_chunks for RGBA pixels (clippy 1.99) ([cee3a28](https://github.com/amigo-labs/amigo-pincel/commit/cee3a28bb92a7526b818588e0a09355650a6960e))
+* **tauri:** stop the PWA service worker from freezing the desktop UI ([4c15c89](https://github.com/amigo-labs/amigo-pincel/commit/4c15c89a29e449195833b6fc0f125e80f0a349cc))
+* **tauri:** stop the PWA service worker from freezing the desktop UI ([a321a03](https://github.com/amigo-labs/amigo-pincel/commit/a321a03235eb48d3e02d9a140ebdfde956f4e8c0))
+* **ui:** drop a pixel gesture on pointercancel instead of committing it (AC-09, AC-21, AC-22, AC-23, AC-24, AC-29, AC-30, AC-31, AC-32) ([501fb42](https://github.com/amigo-labs/amigo-pincel/commit/501fb4260b0f5269e1ada2abf38a5cbe9031fd3f))
+* **ui:** keep the SVG export dialog modal for pointer and keyboard ([866fe91](https://github.com/amigo-labs/amigo-pincel/commit/866fe91eeac2bee8f274c1c49f302e6952ba8a52))
+* **ui:** let a key right after a marquee release see the new selection ([e756741](https://github.com/amigo-labs/amigo-pincel/commit/e75674126ec0696b4129a378f19c15c68b68015a))
+* **ui:** march Image-mode selection ants instead of blinking the outline ([3bcb5ca](https://github.com/amigo-labs/amigo-pincel/commit/3bcb5ca2ef0bda3c042465dbbe389f0cc3065f5c))
+* **ui:** march Image-mode selection ants instead of blinking the outline ([c8b134c](https://github.com/amigo-labs/amigo-pincel/commit/c8b134c10285ea6503baab405da462816becac76))
+* **ui:** snap both image-mode marquee corners to the pixel grid ([1819fda](https://github.com/amigo-labs/amigo-pincel/commit/1819fda248e08602b654fb2704773ff78b862e8d))
+* **ui:** tie the SVG tracer to the document it traces ([7257535](https://github.com/amigo-labs/amigo-pincel/commit/72575352dde5a76e5c6c973c84116ad48d43b1ec))
+
 ## [1.5.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.4.0...v1.5.0) (2026-10-30)
 
 
