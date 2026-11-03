@@ -52,7 +52,7 @@ use pincel_core::{
     RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
     SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
     TileImage, TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png,
-    export_frame_png, read_aseprite, read_gpl, write_aseprite, write_gpl,
+    export_frame_png_scaled, read_aseprite, read_gpl, write_aseprite, write_gpl,
 };
 use wasm_bindgen::prelude::*;
 
@@ -175,10 +175,20 @@ impl Document {
     /// `pincel-core` message: an out-of-range frame, or a sprite the
     /// renderer refuses (non-RGBA color mode, non-`Normal` blend mode,
     /// group layer, linked cel).
+    ///
+    /// `scale` (optional, default 1) upscales the PNG by an integer factor
+    /// 1–10 with nearest-neighbour (docs/specs/scaled-export.md); scale 1
+    /// and no scale give the same bytes. A scale outside 1–10 or an output
+    /// edge above 16384 px is an error naming the limit.
     #[wasm_bindgen(js_name = exportPng)]
-    pub fn export_png(&self, frame: u32) -> Result<Box<[u8]>, String> {
-        let bytes = export_frame_png(&self.sprite, &self.cels, FrameIndex::new(frame))
-            .map_err(|e| format!("failed to export PNG: {e}"))?;
+    pub fn export_png(&self, frame: u32, scale: Option<u32>) -> Result<Box<[u8]>, String> {
+        let bytes = export_frame_png_scaled(
+            &self.sprite,
+            &self.cels,
+            FrameIndex::new(frame),
+            scale.unwrap_or(1),
+        )
+        .map_err(|e| format!("failed to export PNG: {e}"))?;
         Ok(bytes.into_boxed_slice())
     }
 
@@ -198,14 +208,21 @@ impl Document {
     /// `meta.image` names `image_name` (default `"sheet.png"`). Errors
     /// surface the underlying `pincel-core` message: zero columns, an
     /// unknown tag, a frameless sprite, or anything the renderer refuses.
+    ///
+    /// `scale` (optional, default 1) upscales the sheet by an integer
+    /// factor 1–10 with nearest-neighbour; the manifest and the `--data`
+    /// JSON describe the scaled sheet (`meta.scale` stays `"1"`, as
+    /// Aseprite's `--scale`). A scale outside 1–10 or a sheet edge above
+    /// 16384 px is an error naming the limit (docs/specs/scaled-export.md).
     #[wasm_bindgen(js_name = exportAtlas)]
     pub fn export_atlas(
         &self,
         columns: u32,
         tag: Option<String>,
         image_name: Option<String>,
+        scale: Option<u32>,
     ) -> Result<AtlasExport, String> {
-        let mut opts = AtlasOptions::new(columns);
+        let mut opts = AtlasOptions::new(columns).with_scale(scale.unwrap_or(1));
         opts.tag = tag;
         let output = export_atlas_png(&self.sprite, &self.cels, &opts)
             .map_err(|e| format!("failed to export atlas: {e}"))?;
@@ -3826,7 +3843,7 @@ mod tests {
 
     // ---- PNG export surface tests --------------------------------------
 
-    use pincel_core::Tag;
+    use pincel_core::{Tag, export_frame_png};
 
     /// The eight-byte PNG file signature.
     const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
@@ -3850,7 +3867,7 @@ mod tests {
     #[test]
     fn export_png_returns_bytes_with_png_signature() {
         let doc = Document::new(4, 3).expect("dims");
-        let bytes = doc.export_png(0).expect("export ok");
+        let bytes = doc.export_png(0, None).expect("export ok");
         assert_eq!(&bytes[..8], &PNG_SIGNATURE);
     }
 
@@ -3860,29 +3877,29 @@ mod tests {
         let expected = export_frame_png(&doc.sprite, &doc.cels, FrameIndex::new(0))
             .expect("core export ok")
             .into_boxed_slice();
-        assert_eq!(doc.export_png(0).expect("export ok"), expected);
+        assert_eq!(doc.export_png(0, None).expect("export ok"), expected);
     }
 
     #[test]
     fn export_png_reflects_painted_pixels() {
         let mut doc = Document::new(4, 4).expect("dims");
-        let blank = doc.export_png(0).expect("export ok");
+        let blank = doc.export_png(0, None).expect("export ok");
         doc.apply_tool("pencil", 1, 1, 0xff00_00ff).expect("paint");
-        let painted = doc.export_png(0).expect("export ok");
+        let painted = doc.export_png(0, None).expect("export ok");
         assert_ne!(blank, painted);
     }
 
     #[test]
     fn export_png_rejects_unknown_frame() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = doc.export_png(9).expect_err("frame 9 does not exist");
+        let err = doc.export_png(9, None).expect_err("frame 9 does not exist");
         assert!(err.starts_with("failed to export PNG"), "message: {err}");
     }
 
     #[test]
     fn export_atlas_packs_every_frame_into_the_requested_grid() {
         let doc = doc_with_frames(4, 2, 3);
-        let atlas = doc.export_atlas(2, None, None).expect("export ok");
+        let atlas = doc.export_atlas(2, None, None, None).expect("export ok");
         assert_eq!(&atlas.png()[..8], &PNG_SIGNATURE);
         // 3 frames over 2 columns → 2 rows, so 8x4 pixels.
         let manifest = atlas.manifest();
@@ -3903,7 +3920,7 @@ mod tests {
     fn export_atlas_data_is_aseprite_sheet_json() {
         let doc = doc_with_frames(4, 2, 3);
         let atlas = doc
-            .export_atlas(3, None, Some("hero.png".into()))
+            .export_atlas(3, None, Some("hero.png".into()), None)
             .expect("export ok");
         let data = atlas.data();
         assert!(data.contains("\"filename\":\"hero 2\""), "data: {data}");
@@ -3911,11 +3928,80 @@ mod tests {
         assert!(data.contains("\"duration\":"), "data: {data}");
     }
 
+    // Scaled export (docs/specs/scaled-export.md).
+
+    #[test]
+    fn export_png_without_scale_matches_scale_one_and_core() {
+        let mut doc = Document::new(5, 3).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xff00_00ff).expect("paint");
+        let plain = doc.export_png(0, None).expect("export ok");
+        assert_eq!(doc.export_png(0, Some(1)).expect("export ok"), plain);
+        let core = export_frame_png(&doc.sprite, &doc.cels, FrameIndex::new(0)).expect("core");
+        assert_eq!(plain, core.into_boxed_slice());
+    }
+
+    #[test]
+    fn export_png_scale_4_of_4x4_is_16x16() {
+        let doc = Document::new(4, 4).expect("dims");
+        let bytes = doc.export_png(0, Some(4)).expect("export ok");
+        assert_eq!(&bytes[16..24], &[0, 0, 0, 16, 0, 0, 0, 16]);
+    }
+
+    #[test]
+    fn export_png_scale_out_of_range_returns_err_naming_range() {
+        let doc = Document::new(4, 4).expect("dims");
+        for scale in [0, 11] {
+            let err = doc.export_png(0, Some(scale)).expect_err("refused");
+            assert!(err.contains("1–10"), "message: {err}");
+        }
+    }
+
+    #[test]
+    fn export_png_scaled_past_16384_returns_err_naming_limit() {
+        let doc = Document::new(1639, 1).expect("dims");
+        let err = doc.export_png(0, Some(10)).expect_err("refused");
+        assert!(err.contains("16384"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_scale_scales_png_manifest_and_data() {
+        let doc = doc_with_frames(4, 2, 3);
+        let atlas = doc
+            .export_atlas(2, None, Some("hero.png".into()), Some(2))
+            .expect("export ok");
+        let png = atlas.png();
+        assert_eq!(&png[16..24], &[0, 0, 0, 16, 0, 0, 0, 8]);
+        let data = atlas.data();
+        assert!(
+            data.contains("\"size\":{\"w\":16,\"h\":8},\"scale\":\"1\""),
+            "data: {data}"
+        );
+        assert!(
+            data.contains("\"frame\":{\"x\":8,\"y\":0,\"w\":8,\"h\":4}"),
+            "data: {data}"
+        );
+        let err = doc
+            .export_atlas(2, None, None, Some(11))
+            .err()
+            .expect("refused");
+        assert!(err.contains("1–10"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_without_scale_matches_scale_one() {
+        let doc = doc_with_frames(4, 2, 3);
+        let plain = doc.export_atlas(2, None, None, None).expect("export ok");
+        let one = doc.export_atlas(2, None, None, Some(1)).expect("export ok");
+        assert_eq!(plain.png(), one.png());
+        assert_eq!(plain.manifest(), one.manifest());
+        assert_eq!(plain.data(), one.data());
+    }
+
     #[test]
     fn export_atlas_clamps_columns_to_frame_count() {
         let doc = Document::new(3, 3).expect("dims");
         let manifest = doc
-            .export_atlas(8, None, None)
+            .export_atlas(8, None, None, None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3931,7 +4017,7 @@ mod tests {
             .tags
             .push(Tag::new("walk", FrameIndex::new(1), FrameIndex::new(2)));
         let manifest = doc
-            .export_atlas(4, Some("walk".to_string()), None)
+            .export_atlas(4, Some("walk".to_string()), None, None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3951,7 +4037,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_zero_columns() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(0, None, None) {
+        let err = match doc.export_atlas(0, None, None, None) {
             Err(e) => e,
             Ok(_) => panic!("a zero column count should be rejected"),
         };
@@ -3961,7 +4047,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_unknown_tag() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(1, Some("nope".to_string()), None) {
+        let err = match doc.export_atlas(1, Some("nope".to_string()), None, None) {
             Err(e) => e,
             Ok(_) => panic!("an unknown tag name should be rejected"),
         };
@@ -4003,11 +4089,12 @@ mod tests {
         let view = doc.compose(1, 1).expect("compose");
         assert!(view.pixels.iter().any(|&b| b != 0), "onion skin is on");
 
-        let png = pincel_core::import_png(&doc.export_png(1).expect("export ok")).expect("png");
+        let png =
+            pincel_core::import_png(&doc.export_png(1, None).expect("export ok")).expect("png");
         assert_eq!((png.width, png.height), (2, 1));
         assert_eq!(png.rgba, [CLEAR, CLEAR].concat());
 
-        let atlas = doc.export_atlas(3, None, None).expect("export ok");
+        let atlas = doc.export_atlas(3, None, None, None).expect("export ok");
         let sheet = pincel_core::import_png(&atlas.png()).expect("png");
         assert_eq!((sheet.width, sheet.height), (6, 1));
         assert_eq!(sheet.rgba, [RED, CLEAR, CLEAR, CLEAR, CLEAR, BLUE].concat());
@@ -4017,8 +4104,8 @@ mod tests {
     fn export_atlas_of_a_single_frame_document_matches_frame_export() {
         // A 1x1 grid atlas is the same image as the single-frame export.
         let doc = Document::new(6, 4).expect("dims");
-        let atlas = doc.export_atlas(1, None, None).expect("export ok");
-        assert_eq!(atlas.png(), doc.export_png(0).expect("export ok"));
+        let atlas = doc.export_atlas(1, None, None, None).expect("export ok");
+        assert_eq!(atlas.png(), doc.export_png(0, None).expect("export ok"));
     }
 
     // ---- M13.2: layer reorder surface ---------------------------------
