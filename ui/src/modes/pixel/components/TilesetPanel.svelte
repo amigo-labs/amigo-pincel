@@ -244,9 +244,11 @@
           {#if rowError[ts.id]}
             <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
           {/if}
-          {#if doc && ts.tileCount > 0}
+          {#if doc && ts.tileCount > 1}
+            <!-- Tile 0 is the empty tile: never shown, never picked
+                 (tilemaps.md AC-07). -->
             <div class="flex flex-wrap gap-1" aria-label={t('tiles.tiles', { name: ts.name })}>
-              {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
+              {#each Array.from({ length: ts.tileCount - 1 }, (_, i) => i + 1) as tileId (tileId)}
                 {@const isSelected =
                   selectedTile?.tilesetId === ts.id && selectedTile?.tileId === tileId}
                 <button
