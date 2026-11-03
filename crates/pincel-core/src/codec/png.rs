@@ -20,6 +20,8 @@ use thiserror::Error;
 use crate::document::{CelMap, FrameIndex, Sprite};
 use crate::render::{ComposeRequest, RenderError, compose};
 
+use super::scale::{scaled_size, upscale_nearest};
+
 /// Errors raised by the PNG export path.
 #[derive(Debug, Error)]
 pub enum ExportError {
@@ -113,12 +115,26 @@ pub struct AtlasOptions {
     /// (inclusive of both endpoints). When `None`, export every frame of the
     /// sprite in playback order.
     pub tag: Option<String>,
+    /// Integer nearest-neighbour upscale of the sheet, `1..=10`
+    /// (docs/specs/scaled-export.md). `1` exports at the sprite's size.
+    pub scale: u32,
 }
 
 impl AtlasOptions {
-    /// Options for an every-frame atlas with the given column count.
+    /// Options for an every-frame atlas with the given column count, at
+    /// scale 1.
     pub fn new(columns: u32) -> Self {
-        Self { columns, tag: None }
+        Self {
+            columns,
+            tag: None,
+            scale: 1,
+        }
+    }
+
+    /// Upscale the sheet by `scale` (validated to `1..=10` on export).
+    pub fn with_scale(mut self, scale: u32) -> Self {
+        self.scale = scale;
+        self
     }
 
     /// Restrict the export to the frames of the named tag.
@@ -128,7 +144,8 @@ impl AtlasOptions {
     }
 }
 
-/// Where one frame landed in the atlas, in atlas pixel coordinates.
+/// Where one frame landed in the atlas, in atlas pixel coordinates (of the
+/// scaled sheet when [`AtlasManifest::scale`] is above 1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtlasFrame {
     /// Source frame index in `Sprite::frames`.
@@ -137,9 +154,11 @@ pub struct AtlasFrame {
     pub x: u32,
     /// Top edge of the frame's cell.
     pub y: u32,
-    /// Cell width — always the sprite's canvas width (no trimming).
+    /// Cell width — always the sprite's canvas width times the scale (no
+    /// trimming).
     pub w: u32,
-    /// Cell height — always the sprite's canvas height (no trimming).
+    /// Cell height — always the sprite's canvas height times the scale (no
+    /// trimming).
     pub h: u32,
     /// Name of the first tag whose range covers `frame`, if any.
     pub tag: Option<String>,
@@ -157,12 +176,15 @@ pub struct AtlasManifest {
     pub columns: u32,
     /// Derived row count, `ceil(frames.len() / columns)`.
     pub rows: u32,
-    /// Cell width — the sprite's canvas width.
+    /// Cell width — the sprite's canvas width times [`Self::scale`].
     pub frame_width: u32,
-    /// Cell height — the sprite's canvas height.
+    /// Cell height — the sprite's canvas height times [`Self::scale`].
     pub frame_height: u32,
     /// One entry per exported frame, in row-major placement order.
     pub frames: Vec<AtlasFrame>,
+    /// The integer upscale every size and position above already includes
+    /// (`1` for an unscaled sheet).
+    pub scale: u32,
 }
 
 impl AtlasManifest {
@@ -234,10 +256,35 @@ pub fn export_frame_png(
     cels: &CelMap,
     frame: FrameIndex,
 ) -> Result<Vec<u8>, ExportError> {
+    export_frame_png_scaled(sprite, cels, frame, 1)
+}
+
+/// [`export_frame_png`] upscaled by an integer `scale` (`1..=10`) with
+/// nearest-neighbour, so every sprite pixel becomes a `scale × scale`
+/// block of exactly its RGBA value (docs/specs/scaled-export.md). Scale 1
+/// gives the same bytes as [`export_frame_png`].
+///
+/// # Errors
+///
+/// [`ExportError::InvalidScale`] for a scale outside `1..=10`,
+/// [`ExportError::ScaledTooLarge`] when an edge of the output would exceed
+/// 16384 px, otherwise as [`export_frame_png`].
+pub fn export_frame_png_scaled(
+    sprite: &Sprite,
+    cels: &CelMap,
+    frame: FrameIndex,
+    scale: u32,
+) -> Result<Vec<u8>, ExportError> {
+    let (out_w, out_h) = scaled_size(sprite.width, sprite.height, scale)?;
     let request = ComposeRequest::full(frame, sprite.width, sprite.height);
     let mut pixels = Vec::new();
     let composed = compose(sprite, cels, &request, &mut pixels)?;
-    encode_png(&pixels, composed.width, composed.height)
+    if scale == 1 {
+        return encode_png(&pixels, composed.width, composed.height);
+    }
+    let mut scaled = Vec::new();
+    upscale_nearest(&pixels, composed.width, composed.height, scale, &mut scaled);
+    encode_png(&scaled, out_w, out_h)
 }
 
 /// Pack frames into a fixed-cell grid atlas and encode it as an RGBA8 PNG,
@@ -272,6 +319,8 @@ pub fn export_atlas_png(
     if opts.columns == 0 {
         return Err(ExportError::InvalidColumns);
     }
+    // Refuse a bad scale before composing anything.
+    scaled_size(1, 1, opts.scale)?;
     let selected = select_frames(sprite, opts.tag.as_deref())?;
     let count = u32::try_from(selected.len()).unwrap_or(u32::MAX);
     if count == 0 {
@@ -301,6 +350,8 @@ pub fn export_atlas_png(
         .and_then(|n| n.checked_mul(4))
         .and_then(|n| usize::try_from(n).ok())
         .ok_or_else(too_large)?;
+    let scale = opts.scale;
+    let (out_w, out_h) = scaled_size(width, height, scale)?;
 
     let mut atlas = vec![0u8; byte_len];
     let atlas_stride = (width as usize) * 4;
@@ -328,12 +379,13 @@ pub fn export_atlas_png(
             atlas[dst..dst + cell_stride].copy_from_slice(&cell[src..src + cell_stride]);
         }
 
+        // Within 16384 px by `scaled_size` above, so these cannot wrap.
         frames.push(AtlasFrame {
             frame,
-            x: origin_x,
-            y: origin_y,
-            w: cell_w,
-            h: cell_h,
+            x: origin_x * scale,
+            y: origin_y * scale,
+            w: cell_w * scale,
+            h: cell_h * scale,
             // An explicit tag filter names the atlas: every exported frame
             // belongs to the requested tag by construction. Falling back to
             // `tag_for_frame` here would label the frames with whichever tag
@@ -347,16 +399,24 @@ pub fn export_atlas_png(
         });
     }
 
+    let png = if scale == 1 {
+        encode_png(&atlas, width, height)?
+    } else {
+        let mut scaled = Vec::new();
+        upscale_nearest(&atlas, width, height, scale, &mut scaled);
+        encode_png(&scaled, out_w, out_h)?
+    };
     Ok(AtlasOutput {
-        png: encode_png(&atlas, width, height)?,
+        png,
         manifest: AtlasManifest {
-            width,
-            height,
+            width: out_w,
+            height: out_h,
             columns,
             rows,
-            frame_width: cell_w,
-            frame_height: cell_h,
+            frame_width: cell_w * scale,
+            frame_height: cell_h * scale,
             frames,
+            scale,
         },
     })
 }
@@ -1028,6 +1088,7 @@ mod tests {
     #[test]
     fn manifest_to_json_emits_camel_case_keys_and_null_tags() {
         let manifest = AtlasManifest {
+            scale: 1,
             width: 4,
             height: 2,
             columns: 2,
@@ -1171,5 +1232,143 @@ mod tests {
             import_png(&[1, 2, 3]),
             Err(ImportError::Decode(_))
         ));
+    }
+
+    // Scaled export (docs/specs/scaled-export.md).
+
+    /// A 2×2 sprite with four distinct pixels, one of them half transparent.
+    fn four_colour_sprite() -> (Sprite, CelMap) {
+        let sprite = Sprite::builder(2, 2)
+            .add_layer(Layer::image(LayerId::new(0), "art"))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        let mut buf = PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        buf.data.copy_from_slice(&[
+            255, 0, 0, 255, 0, 255, 0, 255, //
+            0, 0, 255, 128, 9, 8, 7, 255,
+        ]);
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), buf));
+        (sprite, cels)
+    }
+
+    /// `src` (`w × h`) upscaled by `n`, written independently of the
+    /// production helper.
+    fn blocks(src: &[u8], w: u32, h: u32, n: u32) -> Vec<u8> {
+        let mut out = Vec::new();
+        for y in 0..h * n {
+            for x in 0..w * n {
+                let i = (((y / n) * w + x / n) * 4) as usize;
+                out.extend_from_slice(&src[i..i + 4]);
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn export_frame_png_scaled_4x4_at_4_is_16x16() {
+        let (sprite, cels) = striped_sprite(4, 4, 1, Vec::new());
+        let png = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), 4).expect("export");
+        let (w, h, _) = decode(&png);
+        assert_eq!((w, h), (16, 16));
+        // IHDR width / height, bytes 16–23.
+        assert_eq!(&png[16..24], &[0, 0, 0, 16, 0, 0, 0, 16]);
+    }
+
+    #[test]
+    fn export_frame_png_scaled_turns_each_pixel_into_an_exact_block() {
+        let (sprite, cels) = four_colour_sprite();
+        let source = composed_pixels(&sprite, &cels, 0);
+        let png = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), 3).expect("export");
+        let (w, h, rgba) = decode(&png);
+        assert_eq!((w, h), (6, 6));
+        assert_eq!(rgba, blocks(&source, 2, 2, 3));
+        // No colour that is not in the unscaled export, alpha kept.
+        let colours: std::collections::BTreeSet<&[u8]> = source.chunks(4).collect();
+        assert!(rgba.chunks(4).all(|px| colours.contains(px)));
+        assert!(rgba.chunks(4).any(|px| px == [0, 0, 255, 128]));
+    }
+
+    #[test]
+    fn export_frame_png_scale_one_matches_the_unscaled_export() {
+        let (sprite, cels) = four_colour_sprite();
+        let plain = export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect("export");
+        let one = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), 1).expect("export");
+        assert_eq!(plain, one);
+        // The pre-feature path: compose at 1× and encode.
+        let reference = encode_png(&composed_pixels(&sprite, &cels, 0), 2, 2).expect("encode");
+        assert_eq!(plain, reference);
+    }
+
+    #[test]
+    fn export_frame_png_scaled_out_of_range_scale_returns_err_naming_range() {
+        let (sprite, cels) = four_colour_sprite();
+        for scale in [0, 11] {
+            let err = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), scale)
+                .expect_err("refused");
+            assert!(matches!(err, ExportError::InvalidScale { .. }));
+            assert!(err.to_string().contains("1–10"), "{err}");
+        }
+    }
+
+    #[test]
+    fn export_frame_png_scaled_above_16384_returns_err_naming_limit() {
+        let (sprite, cels) = striped_sprite(1639, 1, 1, Vec::new());
+        let err = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), 10)
+            .expect_err("16390 px refused");
+        assert!(matches!(err, ExportError::ScaledTooLarge { .. }));
+        assert!(err.to_string().contains("16384"), "{err}");
+        // Exactly 16384 px is exported.
+        let (sprite, cels) = striped_sprite(4096, 1, 1, Vec::new());
+        let png = export_frame_png_scaled(&sprite, &cels, FrameIndex::new(0), 4).expect("at limit");
+        assert_eq!(decode(&png).0, 16384);
+    }
+
+    #[test]
+    fn export_atlas_png_scaled_is_n_times_the_unscaled_sheet() {
+        let (sprite, cels) = striped_sprite(3, 2, 3, Vec::new());
+        let plain = export_atlas_png(&sprite, &cels, &AtlasOptions::new(2)).expect("atlas");
+        let scaled = export_atlas_png(&sprite, &cels, &AtlasOptions::new(2).with_scale(3))
+            .expect("scaled atlas");
+        let (pw, ph, prgba) = decode(&plain.png);
+        let (sw, sh, srgba) = decode(&scaled.png);
+        assert_eq!((pw, ph), (6, 4));
+        assert_eq!((sw, sh), (18, 12));
+        assert_eq!(srgba, blocks(&prgba, pw, ph, 3));
+        let m = &scaled.manifest;
+        assert_eq!(
+            (m.width, m.height, m.frame_width, m.frame_height),
+            (18, 12, 9, 6)
+        );
+        assert_eq!((m.columns, m.rows, m.scale), (2, 2, 3));
+        let f = &m.frames[1];
+        assert_eq!((f.x, f.y, f.w, f.h), (9, 0, 9, 6));
+        let f = &m.frames[2];
+        assert_eq!((f.x, f.y, f.w, f.h), (0, 6, 9, 6));
+    }
+
+    #[test]
+    fn export_atlas_png_scale_one_matches_the_unscaled_sheet() {
+        let (sprite, cels) = striped_sprite(3, 2, 3, Vec::new());
+        let plain = export_atlas_png(&sprite, &cels, &AtlasOptions::new(2)).expect("atlas");
+        let one =
+            export_atlas_png(&sprite, &cels, &AtlasOptions::new(2).with_scale(1)).expect("atlas");
+        assert_eq!(plain, one);
+        assert_eq!(plain.manifest.scale, 1);
+    }
+
+    #[test]
+    fn export_atlas_png_scaled_past_the_limit_returns_err() {
+        // 3000×1 at ×1 fits; ×6 is 18000 px wide.
+        let (sprite, cels) = striped_sprite(1000, 1, 3, Vec::new());
+        assert!(export_atlas_png(&sprite, &cels, &AtlasOptions::new(3)).is_ok());
+        let err = export_atlas_png(&sprite, &cels, &AtlasOptions::new(3).with_scale(6))
+            .expect_err("refused");
+        assert!(matches!(err, ExportError::ScaledTooLarge { .. }));
+        assert!(err.to_string().contains("16384"), "{err}");
+        let err = export_atlas_png(&sprite, &cels, &AtlasOptions::new(3).with_scale(11))
+            .expect_err("refused");
+        assert!(err.to_string().contains("1–10"), "{err}");
     }
 }

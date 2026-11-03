@@ -30,6 +30,6 @@ pub use error::CodecError;
 pub use gpl::{GplError, read_gpl, write_gpl};
 pub use png::{
     AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, ExportError, ImportError, ImportedImage,
-    encode_png, export_atlas_png, export_frame_png, import_png,
+    encode_png, export_atlas_png, export_frame_png, export_frame_png_scaled, import_png,
 };
 pub use sheet_data::aseprite_sheet_json;
