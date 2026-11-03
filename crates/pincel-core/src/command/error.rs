@@ -229,4 +229,22 @@ pub enum CommandError {
     /// [`crate::AddPaletteEntry`].
     #[error("the palette is full (256 entries)")]
     PaletteFull,
+
+    /// The grid does not fit the `.aseprite` header: cell size outside
+    /// 1–65535 or offset outside −32768–32767. Emitted by
+    /// [`crate::SetGrid`].
+    #[error(
+        "grid {width}x{height} at ({x}, {y}) is invalid: cell size must be 1–65535 \
+         and offset −32768–32767"
+    )]
+    InvalidGrid {
+        /// Requested x offset.
+        x: i32,
+        /// Requested y offset.
+        y: i32,
+        /// Requested cell width.
+        width: u32,
+        /// Requested cell height.
+        height: u32,
+    },
 }

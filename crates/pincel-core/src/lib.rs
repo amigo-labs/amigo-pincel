@@ -30,7 +30,7 @@ pub use command::{
     MoveSelectionContent, Orientation, PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush,
     PlaceTile, PutCel, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice,
     RemoveTag, ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration,
-    SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
+    SetGrid, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
     SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel,
     ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
 };

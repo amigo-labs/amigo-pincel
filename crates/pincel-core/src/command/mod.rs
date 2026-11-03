@@ -37,6 +37,7 @@ mod reorder_layer;
 mod replace_cel_pixels;
 mod scale_image;
 mod set_frame_duration;
+mod set_grid;
 mod set_layer_blend_mode;
 mod set_layer_editable;
 mod set_layer_name;
@@ -89,6 +90,7 @@ pub use reorder_layer::ReorderLayer;
 pub use replace_cel_pixels::ReplaceCelPixels;
 pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
+pub use set_grid::SetGrid;
 pub use set_layer_blend_mode::SetLayerBlendMode;
 pub use set_layer_editable::SetLayerEditable;
 pub use set_layer_name::SetLayerName;
@@ -164,6 +166,7 @@ pub enum AnyCommand {
     RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     SetFrameDuration(SetFrameDuration),
+    SetGrid(SetGrid),
     RemoveFrame(RemoveFrame),
     AddTag(AddTag),
     RemoveTag(RemoveTag),
@@ -227,6 +230,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::SetFrameDuration(c) => c.apply(doc, cels),
+            Self::SetGrid(c) => c.apply(doc, cels),
             Self::RemoveFrame(c) => c.apply(doc, cels),
             Self::AddTag(c) => c.apply(doc, cels),
             Self::RemoveTag(c) => c.apply(doc, cels),
@@ -286,6 +290,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::SetFrameDuration(c) => c.revert(doc, cels),
+            Self::SetGrid(c) => c.revert(doc, cels),
             Self::RemoveFrame(c) => c.revert(doc, cels),
             Self::AddTag(c) => c.revert(doc, cels),
             Self::RemoveTag(c) => c.revert(doc, cels),
@@ -374,6 +379,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::SetFrameDuration(c) => c.dirty_region(),
+            Self::SetGrid(c) => c.dirty_region(),
             Self::RemoveFrame(c) => c.dirty_region(),
             Self::AddTag(c) => c.dirty_region(),
             Self::RemoveTag(c) => c.dirty_region(),
@@ -411,6 +417,12 @@ impl AnyCommand {
             Self::Batch(c) => c.dirty_region(),
             Self::PasteLayer(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<SetGrid> for AnyCommand {
+    fn from(c: SetGrid) -> Self {
+        Self::SetGrid(c)
     }
 }
 
