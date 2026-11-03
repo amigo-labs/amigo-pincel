@@ -105,9 +105,15 @@
     }
   }
 
-  function setDuration(frame: number, value: string) {
-    const ms = Math.round(Number(value));
-    if (!doc || !Number.isFinite(ms) || ms < 1 || ms > 65535) return;
+  // A rejected entry (0, above 65535, not a number) puts the frame's
+  // duration back into the field, so it never shows a value the frame
+  // does not have.
+  function setDuration(field: HTMLInputElement, frame: number, current: number) {
+    const ms = Math.round(Number(field.value));
+    if (!doc || field.value.trim() === '' || !Number.isFinite(ms) || ms < 1 || ms > 65535) {
+      field.value = String(current);
+      return;
+    }
     const d = doc;
     run(t('tl.setDuration'), () => {
       d.setFrameDuration(frame, ms);
@@ -297,7 +303,7 @@
             max="65535"
             class="w-full rounded border border-pc-border bg-pc-panel px-0.5 text-center tabular-nums"
             value={ms}
-            onchange={(e) => setDuration(i, e.currentTarget.value)}
+            onchange={(e) => setDuration(e.currentTarget, i, ms)}
             aria-label={t('tl.frameDuration', { n: i + 1 })}
             title={t('tl.duration')}
           />
