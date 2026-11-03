@@ -1006,4 +1006,54 @@ mod effect_tests {
         assert_eq!(layer_pixel(handle, 1, 1), red());
         assert!(!can_undo(handle), "no undo step");
     }
+
+    /// Outline wire params: Outside, Square, thickness 1, blue at alpha 0x80.
+    const OUTLINE: [f64; 4] = [0.0, 1.0, 1.0, 0x0000_FF80 as f64];
+
+    fn blue() -> Color {
+        Color::rgba(0, 0, 255, 0x80)
+    }
+
+    #[test]
+    fn apply_effect_outline_is_one_undo_step_and_redo_reapplies_it() {
+        let handle = painted();
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        assert_eq!(layer_pixel(handle, 0, 0), blue(), "neighbour, exact colour");
+        assert_eq!(layer_pixel(handle, 2, 2), blue());
+        assert_eq!(
+            layer_pixel(handle, 3, 3),
+            Color::TRANSPARENT,
+            "not a neighbour"
+        );
+        assert_eq!(layer_pixel(handle, 1, 1), red());
+        assert!(undo(handle).expect("undo"));
+        assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT);
+        assert_eq!(layer_pixel(handle, 2, 2), Color::TRANSPARENT);
+        assert!(!can_undo(handle), "the outline was one undo step");
+        assert!(redo(handle).expect("redo"));
+        assert_eq!(layer_pixel(handle, 2, 2), blue());
+    }
+
+    #[test]
+    fn apply_effect_outline_blends_a_feathered_selection_by_coverage() {
+        let handle = painted();
+        with_bus(handle, |bus| {
+            let mut mask = SelectionMask::new_empty(4, 4);
+            mask.set(2, 1, 255);
+            mask.set(2, 2, 128);
+            bus.document.selection = Some(mask);
+            Ok(())
+        })
+        .expect("select");
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        assert_eq!(layer_pixel(handle, 2, 1), blue(), "fully selected");
+        // Rounded lerp from transparent at coverage 128 (masked_region).
+        let half = |c: u8| ((u32::from(c) * 128 + 127) / 255) as u8;
+        assert_eq!(
+            layer_pixel(handle, 2, 2),
+            Color::rgba(0, 0, half(255), half(0x80)),
+            "half selected"
+        );
+        assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT, "unselected");
+    }
 }

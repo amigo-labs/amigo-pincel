@@ -93,18 +93,18 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-02 | `apply_outside_at_the_edge_writes_only_inside_the_buffer`, `apply_alpha_1_counts_as_opaque`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_never_writes_outside_a_trimmed_cel` (`crates/pincel-wasm/src/effects.rs`) | built |        |
+| AC-03 | `apply_outside_square_single_pixel_colours_its_8_neighbours`, `apply_outside_square_thickness_3_colours_a_7x7_block`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
+| AC-04 | `apply_outside_circle_single_pixel_colours_its_4_edge_neighbours`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
+| AC-05 | `apply_matches_the_distance_definition_for_every_option`, `apply_inside_fully_opaque_thickness_1_recolours_the_border_ring`, `apply_alpha_1_counts_as_opaque` (`crates/pincel-effects/src/outline.rs`) | built |        |
+| AC-06 | `apply_outside_square_single_pixel_colours_its_8_neighbours` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
+| AC-07 | `apply_effect_outline_fills_the_selection_from_an_opaque_pixel_outside_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-09 | `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`, `crates/pincel-image-wasm/src/lib.rs`) | built |        |
+| AC-10 | `apply_effect_outline_on_an_indexed_sprite_errors_with_the_rgba_message` (`crates/pincel-wasm/src/effects.rs`) | built |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `from_params_outline_clamps_thickness_to_1_through_8`, `from_params_outline_wrong_arity_is_an_error`, `from_params_outline_color_not_a_u32_integer_is_an_error` (`crates/pincel-effects/src/spec.rs`); `apply_effect_outline_bad_color_or_arity_errors_and_changes_nothing` (`crates/pincel-wasm/src/effects.rs`) | built |        |
+| AC-13 | `apply_both_is_the_union_of_outside_and_inside`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
 
 ## Decisions
 
@@ -115,3 +115,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: Place Both (= Inside ∪ Outside, same thickness and metric) is in scope (AC-13), and a Decision Log entry moves Outline from §13.4 Phase 2 into Phase 1, removing it from §13.4 — §13.4 names "both", a feature spec shouldn't contradict the design spec, and Both is a union of two paths that already exist (owner accepted the recommendation).
 - 2026-10-29: In Pixel mode the outline clips at the cel's edge and never grows a trimmed cel (AC-02) — Phase 1 never auto-grows cels (`MoveSelectionContent`), and trimmed cels only come from imported files (owner accepted the recommendation).
 - 2026-10-29: No alpha threshold parameter; opaque stays alpha > 0 — pixel art has hard alpha and the parameter would only add UI; it can be added later as an extra slot (owner accepted the recommendation).
+- 2026-11-03 (build): The wire order is `outline: [place, shape, thickness, color]` with choice indices in the dialog's option order (place 0 = Outside, 1 = Inside, 2 = Both; shape 0 = Circle, 1 = Square) — it follows AC-01's field order like every other catalog entry.
+- 2026-11-03 (build): Distances come from a two-pass chamfer transform (exact for the city-block and chessboard metrics) instead of t dilation passes — it is O(w·h) whatever the thickness, which matters for large Image-mode layers.
+- 2026-11-03 (build): A colour slot that is not an integer in `0..=u32::MAX` is a new `EffectError::InvalidParam { effect, index, reason }` — `ParamCount` and `UnknownEffect` do not describe a bad value, and AC-12 needs an error, not a clamp.
+- 2026-11-03 (build): `pincel-wasm` and `pincel-image-wasm` needed no change: both already run an effect over the whole cel / layer and keep the result inside the selection, so an opaque pixel outside the selection still outlines into it (AC-07); their outline tests were red only against the effects crate without the outline (`unknown effect`).
