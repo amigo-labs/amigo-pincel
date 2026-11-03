@@ -94,34 +94,38 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-12 and the Pixel editor's own File ▸ Open…: an unknown file there falls through to the sprite decoder, and only the status bar reports the decoder's error — no dismissable notice naming the file. AC-12 does not say whether it covers this entry point (AC-09 lists the shell's, AC-11 the Pixel editor's own). The test covers the shell entry points only; should the Pixel editor's Open… also show the shell notice?
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | | open | |
+| AC-01 | `ui/e2e/shell.spec.ts › AC-01: the start screen offers New, Open… and About, with no editor mounted` | built | |
 | AC-02 | `ui/e2e/smoke.spec.ts › start screen: the New cards open in place, one at a time` | built | |
 | AC-03 | `ui/e2e/smoke.spec.ts › start screen: the New cards open in place, one at a time` | built | |
 | AC-04 | `ui/e2e/auto-new.spec.ts › a ticked New card opens its document on the next launch` | built | |
-| AC-05 | | open | |
-| AC-06 | | open | |
+| AC-05 | `ui/e2e/shell.spec.ts › AC-05: the New pixel sprite card opens a sprite of exactly the typed size` | built | |
+| AC-06 | `ui/e2e/shell.spec.ts › AC-06: an empty size falls back to the default, an out-of-range one is clamped`; `ui/e2e/large-image.spec.ts › image mode: the New dialog clamps an oversized canvas to the area limit` | built | |
 | AC-07 | `ui/e2e/auto-new.spec.ts › a ticked New card opens its document on the next launch`; `ui/e2e/auto-new.spec.ts › ticking one card clears the other` | built | |
-| AC-08 | | open | |
-| AC-09 | | open | |
-| AC-10 | | open | |
-| AC-11 | | open | |
-| AC-12 | | open | |
-| AC-13 | | open | |
-| AC-14 | | open | |
-| AC-15 | | open | |
-| AC-16 | | open | |
+| AC-08 | `ui/e2e/shell.spec.ts › AC-08: pixel: File ▸ New… preselects the mode, resets sizes and creates or cancels`; `ui/e2e/shell.spec.ts › AC-08: image: File ▸ New… preselects the mode, resets sizes and creates or cancels` | built | |
+| AC-09 | `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a sprite into the Pixel editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a png into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a jpeg into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a webp into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a bmp into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a tiff into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: start screen Open… puts a gif into the Image editor`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: Image mode File ▸ Open… routes a sprite to Pixel and an image to Image`; `ui/e2e/shell-open.spec.ts › input fallback › AC-09: a file dropped on the start screen opens in its editor`; `ui/e2e/shell-open.spec.ts › recent files › AC-09: Open Recent routes a sprite to Pixel and an image to Image`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` (OpenRaster) | built | |
+| AC-10 | `ui/e2e/shell-open.spec.ts › input fallback › AC-10: the leading bytes decide, the extension only without a signature` | built | |
+| AC-11 | `ui/e2e/shell-open.spec.ts › input fallback › AC-11: Pixel File ▸ Open… keeps sprites and PNGs, hands other images over` | built | |
+| AC-12 | `ui/e2e/shell-open.spec.ts › input fallback › AC-12: an unknown file is named in a dismissable notice and nothing changes` | built | |
+| AC-13 | `ui/e2e/shell.spec.ts › AC-13: a Pixel session mounts one editor and never fetches the image wasm`; `ui/e2e/smoke.spec.ts › image mode: a brush stroke is undoable and the pixel wasm is not loaded` | built | |
+| AC-14 | `ui/e2e/shell.spec.ts › AC-14: pixel: New… and Open… ask before discarding unsaved changes`; `ui/e2e/shell.spec.ts › AC-14: image: New… and Open… ask before discarding unsaved changes`; `ui/e2e/shell-open.spec.ts › recent files › AC-14: pixel: Open Recent asks before discarding unsaved changes`; `ui/e2e/shell-open.spec.ts › recent files › AC-14: image: Open Recent asks before discarding unsaved changes` | built | |
+| AC-15 | `ui/e2e/shell.spec.ts › AC-15: pixel: leaving the page asks only while there are unsaved changes`; `ui/e2e/shell.spec.ts › AC-15: image: leaving the page asks only while there are unsaved changes`; `ui/e2e/shell.spec.ts › AC-15: pixel: unsaved changes trigger the leave-page confirmation`; `ui/e2e/shell.spec.ts › AC-15: image: unsaved changes trigger the leave-page confirmation` | built | |
+| AC-16 | `ui/e2e/shell.spec.ts › AC-16: pixel: the top bar shows mode, name and an unsaved marker until saved`; `ui/e2e/shell.spec.ts › AC-16: image: the top bar shows mode, name and an unsaved marker until saved` | built | |
 | AC-17 | `ui/e2e/responsive.spec.ts › tools sit in a bottom strip, menus behind ☰, panels in a sheet`; `ui/e2e/responsive.spec.ts › the sidebar is a drawer toggled from the top bar` | built | |
-| AC-18 | | open | |
+| AC-18 | `ui/e2e/shell.spec.ts › AC-18: a hidden sidebar and a collapsed panel come back on remount and reload`; `ui/e2e/responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` | built | |
 | AC-19 | `ui/e2e/shortcuts.spec.ts › pixel mode: the shared keymap selects tools and cycles variants`; `ui/e2e/shortcuts.spec.ts › image mode: the shared keymap selects tools and cycles variants`; `ui/e2e/smoke.spec.ts › pixel mode: a pencil stroke is undoable` | built | |
-| AC-20 | | open | |
+| AC-20 | `ui/e2e/shell.spec.ts › AC-20: pixel: a focused text field keeps tool keys, undo and paste`; `ui/e2e/shell.spec.ts › AC-20: image: a focused text field keeps tool keys, undo and paste`; `ui/e2e/shell.spec.ts › AC-20: pixel: the New document dialog keeps tool keys and undo`; `ui/e2e/shell.spec.ts › AC-20: image: the New document dialog keeps tool keys and undo`; `ui/e2e/help.spec.ts › pixel mode: the About dialog holds the keyboard`; `ui/e2e/help.spec.ts › image mode: the About dialog holds the keyboard`; `ui/e2e/paste.spec.ts › a paste inside the shell New dialog does not reach the canvas` | built | |
 | AC-21 | `ui/e2e/help.spec.ts › pixel mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › image mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › the start screen reaches About without a menu bar` | built | |
-
-Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` asserts the unsaved marker appearing after an edit and disappearing after Save, not the mode badge or name; AC-01 — `smoke.spec.ts › start screen offers both modes` checks the two New cards only, Open… is clicked in `ora.spec.ts`, About in `help.spec.ts`; AC-13 — `smoke.spec.ts › image mode: a brush stroke is undoable and the pixel wasm is not loaded` asserts only the Image-mode direction; AC-14 — `recovery.spec.ts › a discarded document is not offered again, on New or after a reload` clicks Discard after File ▸ New… in Pixel mode; Cancel, Open and Image mode untested; AC-18 — `responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` covers collapse; the docked-sidebar toggle is untested; AC-20 — About (`help.spec.ts › … the About dialog holds the keyboard`) and paste in the New dialog (`paste.spec.ts › a paste inside the shell New dialog does not reach the canvas`) are covered; text-field focus and keys in the New dialog are not.
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
+- 2026-11-03: Test gaps closed for AC-01, AC-05, AC-06, AC-08 to AC-16, AC-18 and AC-20 (`ui/e2e/shell.spec.ts`, `ui/e2e/shell-open.spec.ts`). Each test that was green at once was run red against a deliberate break, then reverted: About hidden on the start screen (AC-01), sprite height forced to its width (AC-05), the New dialog keeping the size on a mode switch (AC-08), mode routing swapped (AC-09), name before signature (AC-10), PNG handed over from the Pixel editor (AC-11), an unknown file launched in Image mode (AC-12), the image wasm fetched in a Pixel session (AC-13), both unsaved guards skipped (AC-14), `beforeunload` never / always asking (AC-15), the unsaved tooltip dropped (AC-16), layout prefs not stored (AC-18), `isTypingTarget` false for text inputs and the New dialog not stopping key propagation (AC-20).
+- 2026-11-03: Bug (AC-06): the New card and New dialog forms used the inputs' min / max for native validation, so Create refused an out-of-range size instead of clamping it. Fixed with `novalidate` (`fix(ui): clamp an out-of-range New size instead of blocking Create`); the AC-06 test was red before.
+- 2026-11-03: Bug (AC-09): the Pixel editor's Open Recent parsed every recent as a sprite, so an image recorded by the Image editor failed with an Aseprite parse error. A non-sprite recent now goes to the shell (`fix(ui): route an Image-mode recent from the Pixel editor's Open Recent`); the Open Recent test was red before.
+- 2026-11-03: The Open Recent tests fake the File System Access picker and store the fake handle in IndexedDB as a marker, because headless Chromium crashes (SIGTRAP) when it reads a real `FileSystemFileHandle` back from IndexedDB.
