@@ -109,7 +109,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-11 | `ui/e2e/shortcuts-keymap.spec.ts` "export and import › Export offers the overrides as JSON, with the neutral modifier"; "macOS › a keymap made with Ctrl+U shows and works as ⌘U" | built |        |
 | AC-12 | `ui/e2e/shortcuts-keymap.spec.ts` "capture ignores bare modifiers and editor keys; Escape cancels it" | built |        |
 | AC-13 | `ui/e2e/shortcuts-keymap.spec.ts` "capture ignores bare modifiers and editor keys; Escape cancels it" | built |        |
-| AC-14 |      | open   |        |
+| AC-14 | manual sign-off open: rebind Undo (and an unexpressible chord) in the macOS desktop app; `set_menu_accelerators` in `src-tauri/src/main.rs`, `nativeAccelerators` / `nativeMenuOwns` in `ui/src/lib/shell/shortcuts.ts` | built |        |
 | AC-15 | `ui/e2e/shortcuts-keymap.spec.ts` "German › the keymap editor speaks German" | built |        |
 | AC-16 | `ui/e2e/shortcuts-keymap.spec.ts` "export and import › a chord bound twice in the file rejects it, naming the chord" | built |        |
 | AC-17 | `ui/e2e/shortcuts-keymap.spec.ts` "export and import › an imported keymap becomes the effective one; defaults give way" | built |        |
@@ -129,3 +129,6 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-03 (build): The keymap file is `{ "format": "pincel-keymap", "version": 1, "bindings": { "<id>": [chord, …] } }`, ids as in the overrides (`undo`, `tool:lasso`), chords as stored (`key`, optional `mod` / `shift` / `alt`) — the spec's assumption of an overrides-only file with a schema version, in the form the pref already uses.
 - 2026-11-03 (build): An import replaces all current overrides with the file's (then clears the file's chords from untouched defaults) rather than merging — AC-08 makes the file "the effective keymap", and an exported empty keymap then imports as Reset all.
 - 2026-11-03 (build): A file entry that is not an array of well-formed chords rejects the whole file as not matching the schema (AC-09); only an unknown id is skipped (AC-10).
+- 2026-11-03 (build): A rebound native-menu action whose chord Tauri's accelerator syntax can't name (e.g. `+` or a non-ASCII key) gets no native accelerator and stays with the editors (`nativeMenuOwns`) — otherwise on macOS the menu could not fire it and the editors would skip it, so the chord would do nothing.
+- 2026-11-03 (build): The renderer sends the rebound native items as a whole map on every keymap change (an empty one after Reset all) and Rust rebuilds the menu from it, like `set_menu_language` — reset items fall back to their defaults without a separate message.
+- 2026-11-03 (build): Conflict checks cover the keymap's actions and tool groups only; native-only accelerators that are not keymap actions (macOS File ▸ New ⌘N, View ▸ Zoom ⌘+ / ⌘- / ⌘0) are not checked — the spec's conflict scope is "another action or tool group".
