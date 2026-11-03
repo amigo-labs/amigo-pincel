@@ -1,6 +1,6 @@
 //! Layer-structure commands: `AddLayer`, `RemoveLayer`, `MoveLayer` (spec §7.3).
 
-use super::Command;
+use super::{Command, Damage};
 use crate::document::{Document, Layer};
 use crate::error::DocumentError;
 use std::any::Any;
@@ -49,6 +49,13 @@ impl Command for AddLayer {
 
     fn label(&self) -> &str {
         "Add Layer"
+    }
+
+    /// The inserted layer is fully transparent (redo restores the layer
+    /// captured on first apply, before anything was painted on it), and
+    /// compose skips transparent pixels, so the composite is unchanged.
+    fn damage(&self) -> Damage {
+        Damage::None
     }
 
     fn as_any(&self) -> &dyn Any {
