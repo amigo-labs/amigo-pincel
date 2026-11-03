@@ -96,9 +96,9 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC-02 | `pincel-image-core (tests/open_formats.rs): open_animated_gif_keeps_the_first_frame_only`, `open_sixteen_bit_png_converts_to_eight_bits_per_channel`, `open_jpeg_with_exif_drops_the_metadata` | built | |
 | AC-03 | `pincel-image-core (tests/codec_proptest.rs): png_round_trip_is_lossless`, `bmp_round_trip_is_lossless`; `pincel-image-core: codec::tests::webp_lossless_round_trip_is_pixel_exact`, `codec::tests::png_preserves_full_transparency`, `codec::tests::png_one_by_one_round_trips` | built | |
 | AC-04 | `pincel-image-core (tests/pencil_round_trip.rs): open_png_paint_pencil_export_png_is_pixel_correct`, `paint_then_undo_then_export_matches_original` | built | |
-| AC-05 |      | open   |        |
+| AC-05 | `ui/e2e/image-export.spec.ts › JPEG export asks for the quality first and is named after the opened file`, `› PNG and WebP export without a dialog as image.* and keep the unsaved state` | built | |
 | AC-06 | `pincel-image-core: codec::tests::jpeg_flattens_transparency_over_white`, `codec::tests::jpeg_round_trip_is_perceptually_close` | built | |
-| AC-07 |      | open   |        |
+| AC-07 | `ui/e2e/image-export.spec.ts › PNG and WebP export without a dialog as image.* and keep the unsaved state`, `› JPEG export asks for the quality first and is named after the opened file` | built | |
 | AC-08 | `pincel-image-core: codec::ora::tests::to_ora_bytes_stores_the_mimetype_first_and_uncompressed`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
 | AC-09 | `pincel-image-core: codec::ora::tests::to_ora_bytes_then_from_ora_bytes_round_trips_layers`; `pincel-image-wasm: project_tests::save_project_then_open_project_keeps_the_layers`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
 | AC-10 | `pincel-image-core: codec::ora::tests::to_ora_bytes_merged_image_is_the_visible_composite`, `codec::ora::tests::to_ora_bytes_thumbnail_fits_256_px_with_the_canvas_aspect` | built | |
@@ -107,10 +107,9 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC-13 | `pincel-image-core: codec::tests::decode_garbage_errors` | built | |
 | AC-14 | `pincel-image-core: document::canvas::tests::new_rejects_zero_dimension`, `document::canvas::tests::new_rejects_oversized_dimension`, `document::canvas::tests::new_accepts_boundary_values` | built | |
 | AC-15 | `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | built | |
-| AC-16 |      | open   |        |
-
-Partial coverage (status stays `open`): AC-05 — no e2e drives Export ▸ JPEG. AC-16 — `large-image.spec.ts › image mode: the New dialog clamps an oversized canvas to the area limit` covers the same clamp through the New dialog (owned by `app-shell`), not Resize Canvas / Scale Image.
+| AC-16 | `ui/e2e/image-export.spec.ts › Resize Canvas and Scale Image reduce an oversized request to the limits` | built | |
 
 ## Decisions
 
 - 2026-11-03: AC-01, AC-02 and AC-10 described existing behavior, so their new tests passed at once. Each was run red against a temporary, reverted break: the `from_pixels` layer named "Layer 1" (all of `open_formats.rs` failed on the name); `decode` taking a GIF's last frame, applying the EXIF orientation and keeping the low byte of 16-bit channels (the three AC-02 tests failed: wrong frame color, 2 × 4 instead of 4 × 2, `[255, 0, 0, 255, 52, …]`); `to_ora_bytes` storing the bottom layer as `mergedimage.png` and sizing the thumbnail by the shorter edge (both AC-10 tests failed). Opening is tested at the core level (`decode` + `Document::from_pixels`, exactly what `pincel-image-wasm::open_image` runs), with fixtures from the `image` crate's own encoders.
+- 2026-11-03: AC-05, AC-07 and AC-16 (`ui/e2e/image-export.spec.ts`) were also green at once; each test was run red against a temporary, reverted break: `runExport` skipping the JPEG dialog, `exportImage` marking the document saved and `clampCanvasSize` returning the request unchanged (all three tests failed: no dialog, no "unsaved changes" title, "16384 × 50" not shown); then the dialog defaulting to quality 80 and the export name keeping the extension (`image.ora.png`), which failed the first two again. The JPEG test also exports at quality 1 and checks the file is smaller than at 90, so the dialog's value reaches the encoder. AC-16 checks the edge rule through Resize Canvas (20000 × 50 → 16384 × 50) and the area rule through Scale Image (16384 × 8192 → 11585 × 5792, Nearest to keep the 64 M px scale fast).
