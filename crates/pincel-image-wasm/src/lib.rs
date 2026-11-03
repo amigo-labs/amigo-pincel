@@ -837,3 +837,61 @@ mod export_tests {
         }
     }
 }
+
+#[cfg(test)]
+mod effect_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    fn red() -> Color {
+        Color::rgba(255, 0, 0, 255)
+    }
+
+    /// 4×4 document with red at (1, 1) on its only layer.
+    fn painted() -> u32 {
+        let mut doc = Document::new(4, 4).expect("doc");
+        doc.active_layer_mut().pixels.set_pixel(1, 1, red());
+        insert(CommandBus::new(doc))
+    }
+
+    fn layer_pixel(handle: u32, x: u32, y: u32) -> Color {
+        with_bus(handle, |bus| {
+            Ok(bus.document.layers()[0]
+                .pixels
+                .get_pixel(x, y)
+                .expect("in bounds"))
+        })
+        .expect("read")
+    }
+
+    fn can_undo(handle: u32) -> bool {
+        with_bus(handle, |bus| Ok(bus.history.can_undo())).expect("read")
+    }
+
+    #[test]
+    fn preview_effect_shows_the_effect_and_leaves_document_and_history_untouched() {
+        let handle = painted();
+        let frame = preview_effect(handle, 0, "invert", &[]).expect("preview");
+        let i = (4 + 1) * 4;
+        assert_eq!(
+            &frame.0[i..i + 4],
+            &[0, 255, 255, 255],
+            "preview is inverted"
+        );
+        assert_eq!(layer_pixel(handle, 1, 1), red(), "document unchanged");
+        assert!(!can_undo(handle), "no undo step");
+    }
+
+    #[test]
+    fn apply_effect_with_an_empty_selection_changes_nothing() {
+        let handle = painted();
+        with_bus(handle, |bus| {
+            bus.document.selection = Some(SelectionMask::new_empty(4, 4));
+            Ok(())
+        })
+        .expect("select");
+        assert!(!apply_effect(handle, 0, "invert", &[]).expect("apply"));
+        assert_eq!(layer_pixel(handle, 1, 1), red());
+        assert!(!can_undo(handle), "no undo step");
+    }
+}
