@@ -780,6 +780,9 @@
       if (!ed.doc) return;
       try {
         ed.doc.renameLayer(layerId, name);
+        // The rename is an undo step: the Undo button and the unsaved
+        // marker read the mirrored depths.
+        syncMeta();
         ed.docRev += 1;
       } catch (err) {
         ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
