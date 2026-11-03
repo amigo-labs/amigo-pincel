@@ -86,7 +86,7 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 **Pixel mode** (`crates/pincel-wasm/src/effects.rs`): `effectNames()`, `Document.applyEffect(name, params) -> Result<bool, String>` and `previewEffect(name, params, zoom) -> ComposeFrame`; target = `edit_target_layer()` (errors on a locked layer) and its cel on `current_frame`; errors on a non-image cel and on `ColorMode` other than `Rgba`; selection = `sprite.selection` rect, per pixel `selection_mask.contains` for shaped selections (binary, no coverage); commits `ReplaceCelPixels` between two `bus.seal()` calls and emits a `dirty-rect` event. UI: `ui/src/modes/pixel/image-ops.ts` (`openEffect`, `previewEffectParams`, `applyEffectParams`, `cancelEffect`), status strings `px.effectApplied` / `px.effectOutside` / `px.effectFailed`.
 
-**Dialog** (`ui/src/lib/components/EffectDialog.svelte`): non-modal panel (`role="dialog"`, `aria-modal="false"`), preview re-run coalesced through `requestAnimationFrame`; an empty parameter vector means "preview off". Menus: `ui/src/lib/effects/menu.ts` `effectMenus(pick, disabled)`; labels translated via `lib/effects/labels.ts`.
+**Dialog** (`ui/src/lib/components/EffectDialog.svelte`): non-modal panel (`role="dialog"`, `aria-modal="false"`), preview re-run coalesced through `requestAnimationFrame`; `onPreview(null)` means "preview off" (an empty vector is the real parameter vector of Invert Colors and Sharpen). Menus: `ui/src/lib/effects/menu.ts` `effectMenus(pick, disabled)`; labels translated via `lib/effects/labels.ts`.
 
 ## Edge cases
 
@@ -103,31 +103,35 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- Image mode, locked layer (AC-12): confirming the dialog throws an uncaught `layer is locked` in the console, leaves the dialog open and shows no notice; Pixel mode closes the dialog and shows "<Effect> failed: …". The layer and the history stay unchanged in both, so AC-12 holds — should Image mode close the dialog and report the refusal like Pixel mode (an AC-11 / AC-12 wording change)?
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
+| AC-01 | `ui/e2e/effects.spec.ts › pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
+| AC-02 | `ui/e2e/effects.spec.ts › pixel: every effect dialog shows its parameters at their defaults; Reset restores them (AC-02)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
+| AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | built | |
 | AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | built | |
-| AC-05 |      | open   |        |
+| AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
 | AC-06 | `ui/e2e/effects.spec.ts › image mode: an effect stays inside the selection`; `pincel-image-core: selection::tests::masked_region_with_hard_mask_crops_to_the_selection`, `selection::tests::masked_region_mixes_partial_coverage` | built | |
 | AC-07 | `pincel-wasm: effects::tests::apply_effect_respects_the_marquee_selection` | built | |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-08 | `ui/e2e/effects.spec.ts › pixel: the dialog names its scope, selection or whole layer (AC-08)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
+| AC-09 | `ui/e2e/effects.spec.ts › image: an empty selection changes nothing and says so (AC-09)`, `ui/e2e/effects.spec.ts › pixel: a selection outside the active cel changes nothing and says so (AC-09)`; `pincel-image-wasm: effect_tests::apply_effect_with_an_empty_selection_changes_nothing`; `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` | built | |
 | AC-10 | `pincel-effects: spec::tests::from_params_unknown_name_is_an_error`, `spec::tests::from_params_wrong_arity_is_an_error`; `pincel-wasm: effects::tests::apply_effect_unknown_name_or_bad_arity_errors` | built | |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-11 | `pincel-wasm: effects::tests::apply_effect_on_an_indexed_sprite_errors_and_changes_nothing`, `effects::tests::apply_effect_without_a_cel_on_the_current_frame_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a layer without a cel on the current frame refuses the effect (AC-11)` | built | |
+| AC-12 | `pincel-wasm: effects::tests::apply_effect_on_a_locked_layer_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a locked layer stays unchanged and gains no undo step (AC-12)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
 | AC-13 | `pincel-effects: spec::tests::from_params_every_name_parses_with_its_documented_arity`, `adjust::brightness_contrast::tests::zero_is_identity_legacy`, `adjust::brightness_contrast::tests::zero_is_identity_enhanced`, `adjust::color_balance::tests::zero_balance_is_identity`, `adjust::curves::tests::curves_identity_is_a_no_op`, `adjust::levels::tests::levels_identity_is_a_no_op`, `adjust::hue_sat::tests::identity_on_gray_is_unchanged`, `blur::box_blur::tests::box_blur_1x1_returns_identity`, `blur::gaussian::tests::gaussian_blur_with_sigma_zero_returns_identity`, `blur::motion::tests::motion_blur_distance_one_is_identity`, `sharpen::unsharp_mask::tests::unsharp_amount_zero_is_identity`, `noise::add_noise::tests::add_noise_amount_zero_is_identity` | built | |
 | AC-14 | `pincel-effects: blur::gaussian::tests::gaussian_blur_of_solid_color_is_unchanged`, `blur::box_blur::tests::box_blur_of_solid_color_is_unchanged`, `blur::motion::tests::motion_blur_of_solid_color_is_unchanged`, `blur::radial::tests::radial_spin_of_solid_color_is_unchanged`, `blur::radial::tests::radial_zoom_of_solid_color_is_unchanged`, `sharpen::convolution::tests::sharpen_of_solid_color_is_unchanged`, `sharpen::unsharp_mask::tests::unsharp_of_solid_color_is_unchanged`, `distort::relief::tests::relief_of_solid_color_is_unchanged`, `noise::reduce_noise::tests::median_of_solid_is_unchanged`, `distort::edge_detect::tests::edge_detect_of_solid_is_black`, `distort::emboss::tests::emboss_of_solid_is_flat_gray` | built | |
 | AC-15 | `pincel-effects: spec::tests::run_invert_flips_rgb_and_keeps_alpha`, `adjust::invert::tests::invert_of_invert_is_identity`, `adjust::invert::tests::invert_preserves_alpha` | built | |
 | AC-16 | `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed`, `noise::add_noise::tests::different_seeds_differ`, `noise::add_noise::tests::add_noise_changes_pixels_and_preserves_alpha`, `noise::add_noise::tests::monochromatic_keeps_channels_equal_on_gray` | built | |
 | AC-17 | `pincel-effects: adjust::grayscale::tests::grayscale_output_channels_are_equal`, `adjust::threshold::tests::threshold_splits_by_luminance`, `adjust::posterize::tests::posterize_two_levels_snaps_to_black_or_white`, `adjust::posterize::tests::posterize_preserves_endpoints`, `adjust::curves::tests::red_channel_curve_leaves_others_untouched` | built | |
-| AC-18 |      | open   |        |
-
-Partial coverage (status stays `open`): AC-01 — `effects.spec.ts` opens Blur ▸ Gaussian Blur… and Levels… only; `pincel-wasm: effects::tests::effect_names_matches_the_effects_crate` checks the count of wire names, not the menus. AC-02 — `effects.spec.ts › image mode: effects and adjustments come from the shared catalog` checks the title and one default (Levels "Input white" 255); the other defaults and Reset are untested. AC-03 — `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` covers Pixel mode's core; Image mode's `preview_effect` and the Preview checkbox are untested. AC-08 — `effects.spec.ts › image mode: an effect stays inside the selection` checks "selection" in Image mode only. AC-09 — `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` covers Pixel mode's core (no undo step) without the notice; Image mode is untested. AC-18 — `pincel-effects: image::tests::premultiplied_transparent_pixel_has_zero_color_weight` covers the conversion helper, not an effect.
+| AC-18 | `pincel-effects: tests/transparent_neighbours.rs › spatial_effects_ignore_the_colour_of_transparent_pixels`, `spatial_effects_keep_gray_neighbours_of_transparent_red_pixels_gray` | built | |
 
 ## Decisions
 
-{Filled during revision and implementation — decision plus reason.}
+- 2026-11-03: Test gaps closed for behavior that already existed; each new test was shown to fail on a deliberate, reverted break: AC-01 (menu entries never disabled), AC-02 (Gaussian Radius default 3; Reset keeping the values), AC-05 (Escape applying instead of cancelling), AC-08 (scope line always "whole layer"), AC-09 (notices replaced by "<Effect> applied"; Image core ignoring the selection), AC-11 (Pixel failure status replaced; `applyEffect` swallowing errors), AC-12 (Pixel core targeting a locked layer; Image core without its lock check), AC-03 Image core (preview without the effect). AC-03's e2e and AC-18 were red on the unchanged code (the two bugs below).
+- 2026-11-03: Bug (AC-03): Preview off kept showing Invert Colors and Sharpen, because "preview off" was the empty parameter vector — also their real one. The dialog now sends `null` for "preview off" (`fix(ui)`).
+- 2026-11-03: Bug (AC-18): Emboss, Edge Detect and Relief read a straight-RGB luma field, and Reduce Noise took the median over every pixel of its window, so a transparent pixel's hidden colour shifted opaque neighbours. The distort height field is now premultiplied luma (luma · alpha), and the median skips fully transparent pixels (`fix(pincel-effects)`) — the smallest changes that make the result independent of invisible colour.
+- 2026-11-03: AC-11's indexed case is proven in the core only: the Aseprite reader refuses indexed files and no command converts a sprite to indexed, so no UI path reaches an indexed sprite today. The "<Effect> failed: …" status is proven with the no-cel case.
+- 2026-11-03: AC-09 in Pixel mode needs a cel smaller than the canvas; New and Paste create canvas-sized cels, so the e2e test opens a hand-built `.aseprite` with a 2 × 2 cel.
