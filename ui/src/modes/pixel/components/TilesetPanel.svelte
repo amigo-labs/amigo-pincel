@@ -159,7 +159,10 @@
   {/snippet}
 
   {#if formOpen}
-    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
+    <!-- novalidate: the form's own checks report every bad size in the UI
+         language; the browser's bubble would block the submit and leave
+         an earlier, stale message standing. -->
+    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" novalidate onsubmit={submitForm}>
       <label class="flex flex-col gap-1 text-xs text-pc-muted">
         <span>{t('layers.name')}</span>
         <input
