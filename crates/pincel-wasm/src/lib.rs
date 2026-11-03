@@ -4125,6 +4125,33 @@ mod tests {
         assert!(doc.import_gpl("nope").is_err());
     }
 
+    #[test]
+    fn import_gpl_invalid_file_returns_err_and_keeps_palette() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.add_palette_entry(0x1234_5680).expect("add");
+        let colors = |d: &Document| -> Vec<(u32, String)> {
+            (0..d.palette_count())
+                .map(|i| (d.palette_color(i).unwrap(), d.palette_name(i).unwrap()))
+                .collect()
+        };
+        let before = colors(&doc);
+        let too_many = format!("GIMP Palette\n{}", "1 2 3\n".repeat(257));
+        for text in [
+            "JASC-PAL\n0100\n1\n0 0 0\n",
+            "0 0 0 Black\n",
+            "GIMP Palette\n0 0 0 Black\n1 2\n",
+            "GIMP Palette\n0 0 300\n",
+            "GIMP Palette\nred green blue\n",
+            too_many.as_str(),
+        ] {
+            assert!(doc.import_gpl(text).is_err(), "accepted {text:?}");
+            assert_eq!(colors(&doc), before, "palette changed by {text:?}");
+        }
+        // Nothing reached the undo stack: undo takes back the add.
+        assert!(doc.undo());
+        assert_eq!(doc.palette_count(), 32);
+    }
+
     // ---- Drawing tools (docs/specs/pixel-drawing-tools.md) ----
 
     /// RGBA of `(x, y)` in the cel of `layer` on frame 0.
