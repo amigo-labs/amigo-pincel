@@ -535,6 +535,7 @@
       'menu:zoomIn': () => viewCommands.zoomIn(),
       'menu:zoomOut': () => viewCommands.zoomOut(),
       'menu:resetZoom': () => viewCommands.fit(),
+      'menu:shortcuts': openOverview,
     });
     return () => {
       autosave.close();

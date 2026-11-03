@@ -611,6 +611,7 @@
       'menu:zoomIn': zoomIn,
       'menu:zoomOut': zoomOut,
       'menu:resetZoom': resetView,
+      'menu:shortcuts': openOverview,
     });
     return () => {
       cancelled = true;

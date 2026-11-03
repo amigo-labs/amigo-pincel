@@ -34,7 +34,8 @@ export type EditorMenuId =
   | 'menu:redo'
   | 'menu:zoomIn'
   | 'menu:zoomOut'
-  | 'menu:resetZoom';
+  | 'menu:resetZoom'
+  | 'menu:shortcuts';
 
 export type EditorMenuHandlers = Partial<Record<EditorMenuId, MenuHandler>>;
 
