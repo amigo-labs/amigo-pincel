@@ -3871,6 +3871,51 @@ mod tests {
     }
 
     #[test]
+    fn exports_leave_out_onion_skin_and_hidden_layers() {
+        const RED: [u8; 4] = [255, 0, 0, 255];
+        const BLUE: [u8; 4] = [0, 0, 255, 255];
+        const CLEAR: [u8; 4] = [0; 4];
+        let buffer = |pixels: [[u8; 4]; 2]| {
+            let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
+            buf.data = pixels.concat();
+            buf
+        };
+        // Frame 0: red at (0, 0); frame 1: empty; frame 2: blue at (1, 0).
+        let mut doc = doc_with_frames(2, 1, 3);
+        for (frame, pixels) in [(0, [RED, CLEAR]), (2, [CLEAR, BLUE])] {
+            doc.cels.insert(Cel::image(
+                DEFAULT_LAYER_ID,
+                FrameIndex::new(frame),
+                buffer(pixels),
+            ));
+        }
+        // A hidden green layer over every frame.
+        let mut hidden = Layer::image(LayerId::new(1), "hidden");
+        hidden.visible = false;
+        doc.sprite.layers.push(hidden);
+        for frame in 0..3 {
+            doc.cels.insert(Cel::image(
+                LayerId::new(1),
+                FrameIndex::new(frame),
+                buffer([[0, 255, 0, 255]; 2]),
+            ));
+        }
+        doc.set_onion_skin(true, 1, 1, 255, 255);
+        // The editor view of frame 1 does show both neighbours.
+        let view = doc.compose(1, 1).expect("compose");
+        assert!(view.pixels.iter().any(|&b| b != 0), "onion skin is on");
+
+        let png = pincel_core::import_png(&doc.export_png(1).expect("export ok")).expect("png");
+        assert_eq!((png.width, png.height), (2, 1));
+        assert_eq!(png.rgba, [CLEAR, CLEAR].concat());
+
+        let atlas = doc.export_atlas(3, None, None).expect("export ok");
+        let sheet = pincel_core::import_png(&atlas.png()).expect("png");
+        assert_eq!((sheet.width, sheet.height), (6, 1));
+        assert_eq!(sheet.rgba, [RED, CLEAR, CLEAR, CLEAR, CLEAR, BLUE].concat());
+    }
+
+    #[test]
     fn export_atlas_of_a_single_frame_document_matches_frame_export() {
         // A 1x1 grid atlas is the same image as the single-frame export.
         let doc = Document::new(6, 4).expect("dims");

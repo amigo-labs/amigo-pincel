@@ -91,7 +91,7 @@ This spec records the behavior as built.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pincel-core: codec::png::tests::export_frame_png_1x1_round_trips_to_composed_pixels`, `export_frame_png_preserves_partial_alpha_and_layer_stack`, `export_exports_non_normal_blend_mode_like_compose`, `export_composes_group_layers_like_compose`, `export_atlas_png_composes_tilemap_layers_like_compose`; `pincel-wasm: tests::export_png_matches_core_export` | built | |
-| AC-02 |      | open   | |
+| AC-02 | `pincel-wasm: tests::exports_leave_out_onion_skin_and_hidden_layers` | built | |
 | AC-03 |      | open   | |
 | AC-04 | `pincel-core: codec::png::tests::export_frame_png_rejects_frame_past_end`; `pincel-wasm: tests::export_png_rejects_unknown_frame` | built | |
 | AC-05 | `pincel-core: codec::png::tests::export_rejects_non_rgba_color_mode_with_render_error` | built | |
@@ -110,7 +110,8 @@ This spec records the behavior as built.
 | AC-18 |      | open   | |
 | AC-19 |      | open   | |
 | AC-20 |      | open   | |
-| AC-21 |      | open   | |
+| AC-21 | `pincel-core: codec::png::tests::export_atlas_png_fails_whole_when_one_frame_cannot_be_composed` | built | |
 
 ## Decisions
 
+- 2026-11-03: AC-02 and AC-21 described existing behavior, so their new tests passed at once; each was run red against a temporary, reverted break. AC-21: `export_atlas_png` skipping a frame `compose()` refuses ("a sheet with a broken frame produced an image"). AC-02, tested on `pincel-wasm`'s `Document` because the onion skin is its view state: `exportPng` encoding the editor's `compose()` view (the onion pixels of frames 0 and 2 showed up), then `export_atlas_png` composing with `LayerFilter::All` (the hidden green layer showed up in every cell).
