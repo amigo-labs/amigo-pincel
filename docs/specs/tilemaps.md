@@ -69,7 +69,7 @@ Hints, not contracts — paths drift; grep for the names.
 
 **UI**: `ui/src/modes/pixel/components/TilesetPanel.svelte` (form, "+ Tile", "+ Layer", thumbnails; click = pick, double-click = edit), `TileThumbnail.svelte`, `TileEditor.svelte` (modal-like overlay, `ZOOM = 16`, pencil-only), Stamp tool in `ui/src/modes/pixel/pointer.ts` (`activeTilemapLayerForTileset`, `commitStamp`), hover grid in `overlay-painter.ts` (`paintTileGrid`), stale-pick cleanup in `doc-ops.ts` (`reconcileActiveLayerAndStamp`), tool entry `tools.ts` (`'tilemap-stamp'`, disabled without a pick). Strings `tiles.*`, `tool.stamp*`, `px.needTilemap` in `ui/src/lib/i18n/en.ts`.
 
-**e2e**: none for tilesets yet; `ui/e2e/helpers.ts` has `createDocument`, `drag`, `pixelCanvas`.
+**e2e**: `ui/e2e/tilemaps.spec.ts` (panel, Stamp tool, hover grid, Tile editor; composed pixels via the Eyedropper, tile pixels and the overlay sampled test-side).
 
 ## Edge cases
 
@@ -94,29 +94,32 @@ Hints, not contracts — paths drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel-wasm: tests::add_tileset_returns_zero_for_first_tileset_and_increments`, `tests::tileset_getters_round_trip_dimensions_and_name`, `tests::add_tileset_joins_undo_bus`; `pincel-core: command::add_tileset::tests::apply_appends_tileset`, `command::add_tileset::tests::revert_removes_inserted_tileset` | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 | `pincel-wasm: tests::add_tile_appends_transparent_tile`, `tests::add_tile_joins_undo_bus`; `pincel-core: command::add_tile::tests::apply_appends_transparent_tile_sized_to_tileset`, `command::add_tile::tests::revert_pops_appended_tile` | open   |        |
-| AC-05 |      | open   |        |
+| AC-01 | `pincel-wasm: tests::add_tileset_stores_transparent_tile_zero`, `tests::add_tileset_returns_zero_for_first_tileset_and_increments`, `tests::tileset_getters_round_trip_dimensions_and_name`, `tests::add_tileset_joins_undo_bus` (crates/pincel-wasm/src/lib.rs); `pincel-core: command::add_tileset::tests::apply_appends_tileset`, `command::add_tileset::tests::revert_removes_inserted_tileset`; e2e `the Add tileset form adds a tileset with an empty tile 0 and refuses bad input (AC-01, AC-02, AC-03)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-02 | e2e `the Add tileset form adds a tileset with an empty tile 0 and refuses bad input (AC-01, AC-02, AC-03)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-03 | e2e `the Add tileset form adds a tileset with an empty tile 0 and refuses bad input (AC-01, AC-02, AC-03)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-04 | `pincel-wasm: tests::add_tile_appends_transparent_tile`, `tests::add_tile_joins_undo_bus`; `pincel-core: command::add_tile::tests::apply_appends_transparent_tile_sized_to_tileset`, `command::add_tile::tests::revert_pops_appended_tile`; e2e `+ Tile appends transparent tiles from id 1, picks them and lists them as thumbnails (AC-04, AC-05, AC-07, AC-08, AC-09)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-05 | e2e `+ Tile appends transparent tiles from id 1, picks them and lists them as thumbnails (AC-04, AC-05, AC-07, AC-08, AC-09)` (ui/e2e/tilemaps.spec.ts) | built  |        |
 | AC-06 | `pincel-wasm: tests::add_tilemap_layer_creates_layer_and_seeds_cel_sized_to_canvas`, `tests::add_tilemap_layer_joins_undo_bus`; `pincel-core: command::add_tilemap_layer::tests::apply_inserts_layer_and_cels_together`, `command::add_tilemap_layer::tests::revert_removes_layer_and_seeded_cels` | built | |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-07 | e2e `+ Tile appends transparent tiles from id 1, picks them and lists them as thumbnails (AC-04, AC-05, AC-07, AC-08, AC-09)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-08 | e2e `+ Tile appends transparent tiles from id 1, picks them and lists them as thumbnails (AC-04, AC-05, AC-07, AC-08, AC-09)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-09 | e2e `+ Tile appends transparent tiles from id 1, picks them and lists them as thumbnails (AC-04, AC-05, AC-07, AC-08, AC-09)`, `undoing the picked tile clears the stamp pick (AC-20)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-10 | e2e `the Tile Stamp tool places the picked tile into the cell under the pointer (AC-10, AC-11)` (ui/e2e/tilemaps.spec.ts) | built  |        |
 | AC-11 | `pincel-core: command::place_tile::tests::apply_writes_tile_and_records_previous`, `command::place_tile::tests::revert_restores_previous_tile`; `pincel-wasm: tests::place_tile_routes_through_command_bus_and_emits_dirty_rect`, `tests::place_tile_joins_undo_bus` | built | |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | e2e `the Tile Stamp tool draws the tile grid and the hovered cell (AC-12)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-13 | e2e `stamping without a tilemap layer asks for one and changes nothing (AC-13)` (ui/e2e/tilemaps.spec.ts) | built  |        |
 | AC-14 | `pincel-wasm: tests::place_tile_rejects_out_of_grid_coords`; `pincel-core: command::place_tile::tests::out_of_bounds_coord_yields_error` | built | |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-15 | `pincel-wasm: tests::place_tile_refuses_a_locked_layer_or_one_in_a_locked_group` (crates/pincel-wasm/src/lib.rs) | built  |        |
+| AC-16 | e2e `the Tile editor paints the pixels of one tile, one undo step each (AC-16, AC-17)` (ui/e2e/tilemaps.spec.ts) | built  |        |
 | AC-17 | `pincel-wasm: tests::set_tile_pixel_joins_undo_bus`, `tests::set_tile_pixel_writes_and_emits_dirty_canvas`; `pincel-core: command::set_tile_pixel::tests::revert_restores_previous_pixel` | built | |
-| AC-18 |      | open   |        |
+| AC-18 | `pincel-wasm: tests::an_edited_tile_shows_in_every_cell_that_references_it` (crates/pincel-wasm/src/lib.rs) | built  |        |
 | AC-19 | `pincel-core: command::set_tile_pixel::tests::out_of_bounds_pixel_yields_error`, `command::set_tile_pixel::tests::unknown_tile_yields_error`, `command::set_tile_pixel::tests::unknown_tileset_yields_error` | built | |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-20 | e2e `undoing the picked tile clears the stamp pick (AC-20)` (ui/e2e/tilemaps.spec.ts) | built  |        |
+| AC-21 | `pincel-core: command::place_tile::tests::apply_on_a_frame_without_a_grid_creates_the_empty_grid_and_places`, `command::place_tile::tests::revert_removes_the_grid_apply_created`, `command::place_tile::tests::refused_placement_on_a_frame_without_a_grid_creates_nothing`, `command::place_tile::tests::frame_past_the_end_still_yields_missing_cel`; e2e `stamping on a frame added after the tilemap layer creates its grid in one undo step (AC-21)` (ui/e2e/tilemaps.spec.ts) | built  |        |
 
 ## Decisions
 
 - 2026-10-29: A tileset created in the UI starts with a stored transparent tile 0, "+ Tile" ids start at 1, and tile 0 is not shown as a pickable thumbnail; `Tileset::new` stays as is for the reader (AC-01, AC-04, AC-07 changed) — today the first user tile renders blank and is written to `.aseprite` as Aseprite's empty tile, which loses data (owner accepted the recommendation).
 - 2026-10-29: Stamping on a frame without a grid creates the empty grid for that layer and frame in the same undo step, while `AddFrame` stays unchanged (AC-21) — it matches Aseprite, where empty cels exist implicitly, and fixes the "missing cel" error at the point of use without writing empty cels to files (owner accepted the recommendation).
+- 2026-11-03: Test gaps closed (AC-01–05, 07–10, 12, 13, 15, 16, 18, 20, 21). Red runs: the wasm tile-0 test and the `place_tile` grid tests failed against the code as found; the e2e tests failed against the code as found for AC-01 (Undo stayed disabled after a first tileset), AC-02, AC-03, AC-07 and the German strings; every other new test was shown red against a temporary break that was then reverted — a Stamp pick not switching the tool (AC-05), a thumbnail click not picking (AC-08), the Stamp tool always enabled (AC-09), stamps always on frame 0 (AC-10, the AC-21 e2e), no hovered-cell outline (AC-12), no status message (AC-13), a lock check that ignores groups (AC-15), Tile editor zoom 8 (AC-16), compose reading the wrong tile (AC-18), no stamp-pick cleanup on undo (AC-20).
+- 2026-11-03: Bugs the tests found, fixed in their own commits: `addTileset` stored no tile 0 (AC-01, AC-04) and the panel showed tile 0 as a thumbnail (AC-07) — decided on 2026-10-29 but not built yet; `PlaceTile` refused a frame without a grid (AC-21); tileset edits did not refresh the undo depth, so Undo stayed disabled after a first tileset (AC-01); the tile size fields tripped the browser's own min / step validation, which blocked the submit and left a stale error standing (AC-03); the form kept earlier values on reopening (AC-02); "+ Tile", "+ Layer", the summary line and the thumbnail label were hard-coded English (now `tiles.plusTile`, `tiles.plusLayer`, `tiles.summary` / `tiles.summaryOne`, `tiles.thumb`; e2e `the Tilesets panel speaks the UI language`).
+- 2026-11-03: Read as built: the listed tile count is the stored count, tile 0 included (a new tileset reads "1 tile", matching AC-01's "holding one empty tile"); the Tile editor heading names the tileset by its id ("Editing tileset 0 · tile 1 · 4×3"), as the Stamp tool hint does (AC-16); every pointer event of a Tile editor drag is its own undo entry, so a pixel a drag passes twice takes two undos (AC-17).
