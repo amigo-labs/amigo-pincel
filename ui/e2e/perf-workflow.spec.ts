@@ -41,3 +41,16 @@ test('the performance workflow runs benches, browser script and budget check on 
   // The budget check's failure fails the workflow.
   expect(wf).not.toContain('continue-on-error');
 });
+
+// A GitHub-hosted runner label covers several CPU models. Comparing a run on
+// a slower CPU with a baseline from a faster one flags every metric as a
+// regression (nightly run 41422525935: +60 – 120 % on unchanged code), so
+// "the same runner" (AC-08) is OS, architecture and CPU model.
+test('the runner baseline is kept per CPU model (AC-08)', () => {
+  const wf = read(PERF);
+  expect(wf).toMatch(/\/proc\/cpuinfo/);
+  const key = /key: perf-baseline-\$\{\{ steps\.runner\.outputs\.id \}\}-\$\{\{ github\.run_id \}\}/;
+  expect(wf.match(new RegExp(key.source, 'g'))).toHaveLength(2);
+  expect(wf).toMatch(/restore-keys: perf-baseline-\$\{\{ steps\.runner\.outputs\.id \}\}-\s*$/m);
+  expect(wf).toMatch(/pnpm perf:check[^\n]*--runner "\$\{\{ steps\.runner\.outputs\.id \}\}"/);
+});

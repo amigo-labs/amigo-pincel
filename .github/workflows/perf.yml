@@ -103,22 +103,30 @@ jobs:
         working-directory: ui
         run: pnpm perf
 
+      # One runner label covers several CPU models; a baseline from a faster
+      # one flags every metric on a slower one (+60 – 120 % on unchanged
+      # code). The same runner (AC-08) is OS, architecture and CPU model.
+      - name: runner identity
+        id: runner
+        run: |
+          cpu="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | tr -cs 'A-Za-z0-9' '-' | sed 's/^-//; s/-$//')"
+          echo "id=$ImageOS-$RUNNER_ARCH-${cpu:-unknown}" >> "$GITHUB_OUTPUT"
       - name: restore runner baseline
         uses: actions/cache/restore@v6
         with:
           path: perf-baseline
-          key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
-          restore-keys: perf-baseline-${{ runner.os }}-${{ runner.arch }}-
+          key: perf-baseline-${{ steps.runner.outputs.id }}-${{ github.run_id }}
+          restore-keys: perf-baseline-${{ steps.runner.outputs.id }}-
       - name: budget check (baseline mode)
         working-directory: ui
         run: |
           mkdir -p "$BASELINE_DIR"
-          pnpm perf:check --mode baseline --runner "$ImageOS-$RUNNER_ARCH" --baseline "$BASELINE_DIR/baseline.json" --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md --write
+          pnpm perf:check --mode baseline --runner "${{ steps.runner.outputs.id }}" --baseline "$BASELINE_DIR/baseline.json" --criterion ../target/criterion --browser e2e-perf/results/browser.json --markdown e2e-perf/results/measurements.md --write
       - name: save runner baseline
         uses: actions/cache/save@v6
         with:
           path: perf-baseline
-          key: perf-baseline-${{ runner.os }}-${{ runner.arch }}-${{ github.run_id }}
+          key: perf-baseline-${{ steps.runner.outputs.id }}-${{ github.run_id }}
 
       - name: upload results
         if: always()
