@@ -81,23 +81,24 @@ Hints, not contracts — paths drift; grep for the names.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | built | |
-| AC-02 | | open | |
-| AC-03 | | open | |
-| AC-04 | | open | |
+| AC-02 | `ui/e2e/recovery.spec.ts › pixel: a clean or unchanged document is not snapshotted`; `ui/e2e/recovery.spec.ts › image: a clean or unchanged document is not snapshotted` | built | |
+| AC-03 | `ui/e2e/recovery.spec.ts › pixel: saving deletes the snapshot and it is not offered again`; `ui/e2e/recovery.spec.ts › image: saving deletes the snapshot and it is not offered again` | built | |
+| AC-04 | `ui/e2e/recovery.spec.ts › the dialog lists each document’s latest snapshot of its own mode, newest first` | built | |
 | AC-05 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | built | |
-| AC-06 | | open | |
-| AC-07 | | open | |
-| AC-08 | | open | |
+| AC-06 | `ui/e2e/recovery.spec.ts › pixel: a recovered document keeps its snapshot until it is saved`; `ui/e2e/recovery.spec.ts › image: a recovered document keeps its snapshot until it is saved` | built | |
+| AC-07 | `ui/e2e/recovery.spec.ts › a discarded snapshot is gone for good; discarding the last one closes the dialog` | built | |
+| AC-08 | `ui/e2e/recovery.spec.ts › "Not now" keeps the dialog away for the rest of the page load, not after a reload` | built | |
 | AC-09 | `ui/e2e/recovery.spec.ts › a discarded document is not offered again, on New or after a reload` | built | |
-| AC-10 | | open | |
-| AC-11 | | open | |
-| AC-12 | | open | |
-| AC-13 | | open | |
-| AC-14 | | open | |
-| AC-15 | | open | |
+| AC-10 | `ui/e2e/recovery.spec.ts › pixel: a snapshot that cannot be recovered shows its error and keeps the dialog`; `ui/e2e/recovery.spec.ts › image: a snapshot that cannot be recovered shows its error and keeps the dialog` | built | |
+| AC-11 | `ui/e2e/recovery.spec.ts › pixel: a failed snapshot write is reported and editing continues`; `ui/e2e/recovery.spec.ts › image: a failed snapshot write is reported and editing continues` | built | |
+| AC-12 | `ui/e2e/recovery.spec.ts › the last Pixel colors start the next session’s new documents` | built | |
+| AC-13 | `ui/e2e/recovery.spec.ts › without IndexedDB › both editors create, edit and save; storage is skipped silently` | built | |
+| AC-14 | `ui/e2e/recovery.spec.ts › installed web app › loads offline once cached and opens both editors` | built | |
+| AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` | built | |
 
-Partial coverage (status stays `open`): AC-04 — the dialog title and Recover button are asserted by the recovery tests, the listed name / time / size, the ordering and the mode filter are not. AC-07 — `recovery.spec.ts › discarding the last snapshot closes the dialog` asserts the dialog closing, not that the snapshot is gone after a reload. AC-08 — `recovery.spec.ts › "Not now" keeps the dialog away for the rest of the page load` covers the page-load half; re-offering after a reload is untested. AC-09 is marked `built` on the File ▸ New… path in Pixel mode; the Open… path and Image mode share the mechanism but have no test of their own.
+Partial coverage: AC-09 is marked `built` on the File ▸ New… path in Pixel mode; the Open… path and Image mode share the mechanism but have no test of their own.
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
+- 2026-11-03: Closed the test gaps of AC-02 – AC-04, AC-06 – AC-08 and AC-10 – AC-15. The listing (AC-04), discard (AC-07) and failed-recover (AC-10) tests seed `autosave_meta` / `autosave_snapshots` rows in IndexedDB the way an earlier page load leaves them, so names, times, sizes and broken payloads are exact; AC-11 makes every `autosave_snapshots` put throw a `QuotaExceededError`; AC-13 removes `window.indexedDB` before the app loads; AC-14 lets the service worker run (the suite blocks it otherwise) and goes offline with `context.setOffline`. The behavior existed, so each test was run red against a deliberate, reverted break: `tick()` without the unchanged-depth check (AC-02); `saved()` keeping the snapshot (AC-03); the probe's mode filter dropped (AC-04); `recover()` deleting the snapshot (AC-06); `discard()` skipping `removeSnapshots` (AC-07); `dismiss()` deleting the listed snapshots (AC-08); no row error on a failed recover (AC-10); a failed write not reported (AC-11); the stored background color not loaded (AC-12); `isIdbAvailable()` always `true` (AC-13); `.wasm` dropped from the precache `globPatterns` (AC-14); the manifest's `display` set to `browser` (AC-15).
