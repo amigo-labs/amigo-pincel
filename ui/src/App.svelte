@@ -40,6 +40,7 @@
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
   import { actionFor, isTypingTarget } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
+  import { loadKeymap } from './lib/shell/keymap';
 
   type EditorModule = { default: Component<EditorProps> };
   // Dynamic imports keep each editor (and its wasm package) in its own
@@ -266,6 +267,7 @@
 
   onMount(() => {
     void initLocale();
+    void loadKeymap();
     let cancelled = false;
     void loadAutoNew()
       .then((params) => {

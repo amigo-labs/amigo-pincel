@@ -96,19 +96,19 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-01 | `ui/e2e/shortcuts-keymap.spec.ts` "rebinding Undo moves the action, its hints, and survives a reload" | built |        |
+| AC-02 | `ui/e2e/shortcuts-keymap.spec.ts` "rebinding Undo moves the action, its hints, and survives a reload"; "a rebound tool key selects and cycles its group" (rail tooltip) | built |        |
+| AC-03 | `ui/e2e/shortcuts-keymap.spec.ts` "a rebound tool key selects and cycles its group" (pixel, image) | built |        |
+| AC-04 | `ui/e2e/shortcuts-keymap.spec.ts` "a taken chord warns, naming its owner; Cancel keeps, Replace moves it" | built |        |
+| AC-05 | `ui/e2e/shortcuts-keymap.spec.ts` "Reset restores a row, Reset all every binding" | built |        |
+| AC-06 | `ui/e2e/shortcuts-keymap.spec.ts` "rebinding Undo moves the action, its hints, and survives a reload" | built |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `ui/e2e/shortcuts-keymap.spec.ts` "capture ignores bare modifiers and editor keys; Escape cancels it" | built |        |
+| AC-13 | `ui/e2e/shortcuts-keymap.spec.ts` "capture ignores bare modifiers and editor keys; Escape cancels it" | built |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
 | AC-16 |      | open   |        |
@@ -122,3 +122,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): Unknown actions in an import are ignored with a notice — keymaps from newer or older versions still import.
 - 2026-10-29: Rebound native-menu actions are pushed to the macOS menu by a new Tauri command `set_menu_accelerators(map)` that rebuilds the menu as `set_menu_language` does, so the native menu shows the new chord (AC-14) — the rebuild path exists already, and the menu keeps showing correct hints (owner accepted the recommendation).
 - 2026-10-29: An import whose file binds one chord twice is rejected naming the chord (AC-16); a chord a remaining default uses is taken by the import as with Replace, with a notice counting replaced defaults (AC-17) — Pincel's own exports can't contain internal conflicts, and an imported keymap should win over defaults (owner accepted the recommendation).
+- 2026-11-03 (build): The overrides live in a small reactive store (`ui/src/lib/shell/keymap-state.svelte.ts`) that `shortcuts.ts` reads and `ui/src/lib/shell/keymap.ts` changes and stores — `shortcuts.ts` stays the one keymap module without an import cycle, and every hint already rendered in a template or `$derived` follows a rebinding.
+- 2026-11-03 (build): A captured chord keeps Shift only for letter keys, as `chordMatches` already enforces it only there — otherwise `Shift+=` and `+` would be two chords that match the same key press.
+- 2026-11-03 (build): A tool group bound to a bare key still ignores Shift, as the fixed keys always did; a group bound to a chord with modifiers matches it exactly.
+- 2026-11-03 (build): A row keeps showing while its entry is unbound (after a Replace), with no chord, so Reset can restore it; tooltips of an unbound action drop the empty "()".

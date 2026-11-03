@@ -5,11 +5,13 @@
 
 import type { ToolGroup } from '../components/layout/tools';
 import { t, type MessageKey } from '../i18n/index.svelte';
+import type { KeymapId } from './keymap-state.svelte';
 import {
   TOOL_GROUP_KEYS,
+  chordLabel,
   chordLabels,
+  effectiveChords,
   modifierLabel,
-  toolHint,
   type ShortcutAction,
 } from './shortcuts';
 
@@ -34,7 +36,7 @@ export interface ShortcutSource {
 /** One line of the overview. */
 export interface ShortcutRow {
   /** `undo`, `tool:lasso`, `gesture:spacePan`, … */
-  id: string;
+  id: KeymapId | `gesture:${string}`;
   section: ShortcutSection;
   label: string;
   /** Display chords, the primary one first. */
@@ -115,6 +117,36 @@ export const SECTION_LABEL: Record<ShortcutSection, MessageKey> = {
   frames: 'keys.section.frames',
 };
 
+/** Tool-group names for groups the current mode lacks (conflict warnings). */
+const TOOL_GROUP_LABEL: Record<string, MessageKey> = {
+  move: 'tool.move',
+  hand: 'tool.hand',
+  zoom: 'tool.zoom',
+  select: 'tool.marquee',
+  lasso: 'tool.lasso',
+  wand: 'tool.wand',
+  pencil: 'tool.pencil',
+  eraser: 'tool.eraser',
+  fill: 'tool.fill',
+  gradient: 'tool.gradient',
+  eyedropper: 'tool.eyedropper',
+  recolor: 'tool.recolor',
+  smudge: 'tool.smudge',
+  line: 'tool.line',
+  shapes: 'tool.shapes',
+  text: 'tool.text',
+};
+
+/** Display name of a keymap entry; a tool group as the current mode names it. */
+export function keymapLabel(id: KeymapId, groups: readonly ToolGroup[]): string {
+  if (!id.startsWith('tool:')) return t(ACTION_LABEL[id as ShortcutAction]);
+  const group = id.slice('tool:'.length);
+  const own = groups.find((g) => g.id === group);
+  if (own) return own.label;
+  const key = TOOL_GROUP_LABEL[group];
+  return key ? t(key) : group;
+}
+
 /** The pointer gestures both modes support (spec §9.4). */
 function gestureRows(): ShortcutRow[] {
   const drag = t('keys.drag');
@@ -163,9 +195,14 @@ export function shortcutList(source: ShortcutSource): ShortcutRow[] {
     chords: chordLabels(action),
   }));
   for (const g of source.groups) {
-    const key = toolHint(g.id);
-    if (key === undefined || TOOL_GROUP_KEYS[g.id] === undefined) continue;
-    const row: ShortcutRow = { id: `tool:${g.id}`, section: 'tools', label: g.label, chords: [key] };
+    // A group with a default key keeps its row while unbound, so it can be reset.
+    if (TOOL_GROUP_KEYS[g.id] === undefined) continue;
+    const row: ShortcutRow = {
+      id: `tool:${g.id}`,
+      section: 'tools',
+      label: g.label,
+      chords: effectiveChords(`tool:${g.id}`).map(chordLabel),
+    };
     if (g.tools.length > 1) {
       row.note = t('keys.cycle', { tools: g.tools.map((tool) => tool.label).join(', ') });
     }

@@ -250,3 +250,23 @@ export async function putClipboardImage(
     [width, height, color] as const,
   );
 }
+
+/**
+ * The value of IndexedDB pref `key` (`undefined` when unset). Pref writes
+ * are fire-and-forget: poll this before a reload that must see them.
+ */
+export async function storedPref(page: Page, key: string): Promise<unknown> {
+  return page.evaluate(
+    (k) =>
+      new Promise<unknown>((resolve) => {
+        const open = indexedDB.open('pincel');
+        open.onsuccess = () => {
+          const get = open.result.transaction('prefs').objectStore('prefs').get(k);
+          get.onsuccess = () => resolve((get.result as { value?: unknown } | undefined)?.value);
+          get.onerror = () => resolve(undefined);
+        };
+        open.onerror = () => resolve(undefined);
+      }),
+    key,
+  );
+}

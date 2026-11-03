@@ -4,6 +4,7 @@
 // tooltips print their hints from here, so labels never drift from keys.
 
 import { isMac } from '../platform';
+import { keymapState, type KeymapId } from './keymap-state.svelte';
 
 /** A key chord. `key` is matched case-insensitively against `KeyboardEvent.key`. */
 export interface Chord {
@@ -143,15 +144,45 @@ export function chordLabel(c: Chord): string {
   return parts.filter(Boolean).join('+');
 }
 
+/** Default chords of a keymap entry (an action, or a tool group's key). */
+export function defaultChords(id: KeymapId): Chord[] {
+  if (id.startsWith('tool:')) {
+    const key = TOOL_GROUP_KEYS[id.slice('tool:'.length)];
+    return key ? [{ key }] : [];
+  }
+  return SHORTCUTS[id as ShortcutAction] ?? [];
+}
+
+/**
+ * The chords an entry answers to: the user's override where there is one
+ * (docs/specs/power-user-shortcuts-keymap.md), else the defaults. Reads
+ * the reactive overrides, so callers in a `$derived` or template update.
+ */
+export function effectiveChords(id: KeymapId): Chord[] {
+  return keymapState.overrides[id] ?? defaultChords(id);
+}
+
+/** Every rebindable entry: all actions and all tool groups, both modes. */
+export const KEYMAP_IDS: readonly KeymapId[] = [
+  ...(Object.keys(SHORTCUTS) as ShortcutAction[]),
+  ...Object.keys(TOOL_GROUP_KEYS).map((g): KeymapId => `tool:${g}`),
+];
+
 /** Display label of an action's primary chord. */
 export function hint(action: ShortcutAction): string {
-  const c = SHORTCUTS[action][0];
+  const c = effectiveChords(action)[0];
   return c ? chordLabel(c) : '';
+}
+
+/** A tooltip: `label (chord)`, or just `label` while the action is unbound. */
+export function withHint(label: string, action: ShortcutAction): string {
+  const h = hint(action);
+  return h ? `${label} (${h})` : label;
 }
 
 /** Display labels of all of an action's chords, the primary (= `hint`) first. */
 export function chordLabels(action: ShortcutAction): string[] {
-  return SHORTCUTS[action].map(chordLabel);
+  return effectiveChords(action).map(chordLabel);
 }
 
 /** A modifier key's name in the platform's notation: `Shift`, or `⇧` on macOS. */
@@ -160,35 +191,58 @@ export function modifierLabel(modifier: 'shift' | 'alt'): string {
   return modifier === 'shift' ? 'Shift' : 'Alt';
 }
 
-/** Display label of a tool group's key, or `undefined`. */
+/** Display label of a tool group's key, or `undefined` (no key, or unbound). */
 export function toolHint(groupId: string): string | undefined {
-  const k = TOOL_GROUP_KEYS[groupId];
-  return k ? k.toUpperCase() : undefined;
+  const c = effectiveChords(`tool:${groupId}`)[0];
+  return c ? chordLabel(c) : undefined;
+}
+
+/** Shift only counts for letters: shifted punctuation (`+`, `_`) carries it anyway. */
+function shiftMatters(key: string): boolean {
+  return /^[a-z]$/i.test(key);
 }
 
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
   const mod = e.ctrlKey || e.metaKey;
   if (Boolean(c.mod) !== mod || Boolean(c.alt) !== e.altKey) return false;
-  // Shifted punctuation (`+`, `_`) arrives with shiftKey set; only enforce
-  // Shift for letter chords.
-  if (/^[a-z]$/i.test(c.key) && Boolean(c.shift) !== e.shiftKey) return false;
+  if (shiftMatters(c.key) && Boolean(c.shift) !== e.shiftKey) return false;
   return e.key.toLowerCase() === c.key.toLowerCase();
+}
+
+/** The chord a key press makes, in stored form (`mod`, Shift only for letters). */
+export function chordFromEvent(e: KeyboardEvent): Chord {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const c: Chord = { key };
+  if (e.ctrlKey || e.metaKey) c.mod = true;
+  if (e.shiftKey && shiftMatters(key)) c.shift = true;
+  if (e.altKey) c.alt = true;
+  return c;
+}
+
+/** True when two chords are the same key press. */
+export function sameChord(a: Chord, b: Chord): boolean {
+  if (a.key.toLowerCase() !== b.key.toLowerCase()) return false;
+  if (Boolean(a.mod) !== Boolean(b.mod) || Boolean(a.alt) !== Boolean(b.alt)) return false;
+  return !shiftMatters(a.key) || Boolean(a.shift) === Boolean(b.shift);
 }
 
 /** The action `e` triggers, if any. */
 export function actionFor(e: KeyboardEvent): ShortcutAction | null {
-  for (const [action, chords] of Object.entries(SHORTCUTS) as [ShortcutAction, Chord[]][]) {
-    if (chords.some((c) => chordMatches(e, c))) return action;
+  for (const action of Object.keys(SHORTCUTS) as ShortcutAction[]) {
+    if (effectiveChords(action).some((c) => chordMatches(e, c))) return action;
   }
   return null;
 }
 
-/** The tool group a bare key selects, if any. */
+/** The tool group a key selects, if any. A bare key ignores Shift, as it always has. */
 export function toolGroupForKey(e: KeyboardEvent): string | null {
-  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  const bare = !(e.ctrlKey || e.metaKey || e.altKey);
   const key = e.key.toLowerCase();
-  for (const [group, k] of Object.entries(TOOL_GROUP_KEYS)) {
-    if (k === key) return group;
+  for (const group of Object.keys(TOOL_GROUP_KEYS)) {
+    const hit = effectiveChords(`tool:${group}`).some((c) =>
+      c.mod || c.alt || c.shift ? chordMatches(e, c) : bare && c.key.toLowerCase() === key,
+    );
+    if (hit) return group;
   }
   return null;
 }
