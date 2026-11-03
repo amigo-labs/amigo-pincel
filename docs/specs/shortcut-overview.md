@@ -106,7 +106,7 @@ Rows list only what the mode binds. Each editor's `runShortcut` switch (`PixelEd
 | ----- | ---- | ------ | ------ |
 | AC-01 | `ui/e2e/shortcuts-overview.spec.ts` "Help ▸ Keyboard Shortcuts opens the overview" (pixel, image) | built |        |
 | AC-02 | `ui/e2e/shortcuts-overview.spec.ts` "Ctrl+/ opens the overview, focused on the filter" (pixel, image); "Ctrl+/ in a text field does not open the overview" | built |        |
-| AC-03 |      | open   |        |
+| AC-03 | manual sign-off open: Help ▸ Keyboard Shortcuts and ⌘/ in the macOS desktop app (`menu:shortcuts` in `src-tauri/src/main.rs`) | built |        |
 | AC-04 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
 | AC-05 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
 | AC-06 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
