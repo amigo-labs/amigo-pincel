@@ -34,11 +34,16 @@
   import { isIdbAvailable } from './lib/idb/db';
   import { getPref, setPref } from './lib/idb/prefs';
   import { listRecents, type RecentFile } from './lib/idb/recent-files';
-  import { syncRecentMenu, wireNativeMenu, type EditorMenuHandlers } from './lib/menu';
+  import {
+    syncMenuAccelerators,
+    syncRecentMenu,
+    wireNativeMenu,
+    type EditorMenuHandlers,
+  } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { t } from './lib/i18n/index.svelte';
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
-  import { actionFor, isTypingTarget } from './lib/shell/shortcuts';
+  import { actionFor, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
   import { loadKeymap } from './lib/shell/keymap';
 
@@ -253,6 +258,16 @@
 
   $effect(() => {
     if (session.mode === 'start') document.title = 'Pincel';
+  });
+
+  // The native macOS menu draws and fires its own accelerators: give it
+  // the user's rebound chords (power-user-shortcuts-keymap AC-14).
+  $effect(() => {
+    if (!tauriHost) return;
+    const map = nativeAccelerators();
+    syncMenuAccelerators(map).catch((err: unknown) => {
+      console.error('syncMenuAccelerators failed', err);
+    });
   });
 
   // While the start screen shows, the shell keeps the native Open Recent

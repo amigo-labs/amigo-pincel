@@ -127,6 +127,18 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'shortcuts',
 ]);
 
+/** The native menu item (src-tauri/src/main.rs) of each `NATIVE_MENU_ACTIONS` entry. */
+const NATIVE_MENU_IDS: Partial<Record<ShortcutAction, string>> = {
+  open: 'menu:open',
+  save: 'menu:save',
+  saveAs: 'menu:saveAs',
+  export: 'menu:exportPng',
+  exportSheet: 'menu:exportSheet',
+  undo: 'menu:undo',
+  redo: 'menu:redo',
+  shortcuts: 'menu:shortcuts',
+};
+
 const IS_MAC = isMac();
 
 function keyLabel(key: string): string {
@@ -245,6 +257,63 @@ export function toolGroupForKey(e: KeyboardEvent): string | null {
     if (hit) return group;
   }
   return null;
+}
+
+// Keys a native menu accelerator can name (Tauri's accelerator syntax).
+const ACCELERATOR_PUNCTUATION = new Set(['`', '\\', '[', ']', ',', '=', '-', '.', "'", ';', '/']);
+const ACCELERATOR_NAMES = new Set([
+  'Backspace',
+  'Enter',
+  'Tab',
+  'Delete',
+  'Escape',
+  'Home',
+  'End',
+  'Insert',
+  'PageUp',
+  'PageDown',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+]);
+
+/** `chord` as a native menu accelerator (`CmdOrCtrl+Shift+U`), or `null` if it can't be one. */
+export function menuAccelerator(c: Chord): string | null {
+  let key: string;
+  if (/^[a-z0-9]$/i.test(c.key)) key = c.key.toUpperCase();
+  else if (ACCELERATOR_PUNCTUATION.has(c.key) || ACCELERATOR_NAMES.has(c.key)) key = c.key;
+  else if (c.key === ' ') key = 'Space';
+  else if (/^F([1-9]|1[0-9]|2[0-4])$/.test(c.key)) key = c.key;
+  else return null;
+  const mods = [c.mod ? 'CmdOrCtrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : ''];
+  return [...mods.filter(Boolean), key].join('+');
+}
+
+/**
+ * True when the native menu (where `hasNativeMenu()` holds) fires `action`
+ * itself, so the editors must leave its key alone. A rebound chord the
+ * menu can't express as an accelerator stays with the editors instead.
+ */
+export function nativeMenuOwns(action: ShortcutAction): boolean {
+  if (!NATIVE_MENU_ACTIONS.has(action)) return false;
+  const first = effectiveChords(action)[0];
+  return first === undefined || menuAccelerator(first) !== null;
+}
+
+/**
+ * Accelerators of the native menu items whose action the user rebound
+ * (`menu:undo` → `CmdOrCtrl+U`; empty for none), for `set_menu_accelerators`.
+ * Items left out keep their default accelerator.
+ */
+export function nativeAccelerators(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [action, id] of Object.entries(NATIVE_MENU_IDS) as [ShortcutAction, string][]) {
+    if (keymapState.overrides[action] === undefined) continue;
+    const first = effectiveChords(action)[0];
+    out[id] = first ? (menuAccelerator(first) ?? '') : '';
+  }
+  return out;
 }
 
 /** True when keyboard input belongs to a text field, not the editor. */

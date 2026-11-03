@@ -22,10 +22,10 @@
   import ZoomControl from '../../lib/components/layout/ZoomControl.svelte';
   import { cycleGroup, groupOf } from '../../lib/components/layout/tools';
   import {
-    NATIVE_MENU_ACTIONS,
     actionFor,
     hint,
     isTypingTarget,
+    nativeMenuOwns,
     toolGroupForKey,
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
@@ -386,7 +386,7 @@
     // them here too would double-fire. Everywhere else they are ours.
     const action = actionFor(e);
     if (action !== null) {
-      if (nativeMenuHost && NATIVE_MENU_ACTIONS.has(action)) return;
+      if (nativeMenuHost && nativeMenuOwns(action)) return;
       if (runShortcut(action)) e.preventDefault();
       return;
     }

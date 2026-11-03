@@ -85,10 +85,10 @@
   import { effectMenus } from '../../lib/effects/menu';
   import type { EffectDef } from '../../lib/effects/catalog';
   import {
-    NATIVE_MENU_ACTIONS,
     actionFor,
     hint,
     isTypingTarget,
+    nativeMenuOwns,
     toolGroupForKey,
     toolHint,
     type ShortcutAction,
@@ -562,7 +562,7 @@
     const action = actionFor(e);
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.
-    if (action !== null && hasNativeMenu() && NATIVE_MENU_ACTIONS.has(action)) return;
+    if (action !== null && hasNativeMenu() && nativeMenuOwns(action)) return;
     if (action !== null && runShortcut(action)) {
       e.preventDefault();
       return;

@@ -71,6 +71,11 @@ export interface RecentMenuEntry {
   name: string;
 }
 
+/** Pushes the keymap's rebound native-menu accelerators (no-op without a native menu). */
+export async function syncMenuAccelerators(map: Record<string, string>): Promise<void> {
+  await invoke('set_menu_accelerators', { map });
+}
+
 export async function syncRecentMenu(items: RecentMenuEntry[]): Promise<void> {
   await invoke('set_recent_menu', { items });
 }
