@@ -92,10 +92,10 @@ This spec records the behavior as built.
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pincel-core: codec::png::tests::export_frame_png_1x1_round_trips_to_composed_pixels`, `export_frame_png_preserves_partial_alpha_and_layer_stack`, `export_exports_non_normal_blend_mode_like_compose`, `export_composes_group_layers_like_compose`, `export_atlas_png_composes_tilemap_layers_like_compose`; `pincel-wasm: tests::export_png_matches_core_export` | built | |
 | AC-02 | `pincel-wasm: tests::exports_leave_out_onion_skin_and_hidden_layers` | built | |
-| AC-03 |      | open   | |
+| AC-03 | `ui/e2e/export.spec.ts › PNG (current frame) is named after the document and frame and reports its size` | built | |
 | AC-04 | `pincel-core: codec::png::tests::export_frame_png_rejects_frame_past_end`; `pincel-wasm: tests::export_png_rejects_unknown_frame` | built | |
 | AC-05 | `pincel-core: codec::png::tests::export_rejects_non_rgba_color_mode_with_render_error` | built | |
-| AC-06 |      | open   | |
+| AC-06 | `ui/e2e/export.spec.ts › a failing export reports its reason in the status bar and saves nothing` | built | |
 | AC-07 | `pincel-core: codec::png::tests::export_atlas_png_packs_four_frames_into_two_by_two_grid`; `pincel-wasm: tests::export_atlas_packs_every_frame_into_the_requested_grid` | built | |
 | AC-08 | `pincel-core: codec::png::tests::export_atlas_png_leaves_unused_trailing_cells_transparent` | built | |
 | AC-09 | `pincel-wasm: tests::export_atlas_clamps_columns_to_frame_count` | built | |
@@ -104,14 +104,14 @@ This spec records the behavior as built.
 | AC-12 | `pincel-core: codec::sheet_data::tests::full_sheet_lists_frames_durations_tags_and_slices`; `pincel-wasm: tests::export_atlas_data_is_aseprite_sheet_json` | built | |
 | AC-13 | `pincel-core: codec::sheet_data::tests::tag_sheet_renumbers_tags_and_slice_keys` | built | |
 | AC-14 | `pincel-core: codec::png::tests::export_atlas_png_rejects_zero_columns`, `export_atlas_png_rejects_unknown_tag`, `export_atlas_png_rejects_tag_range_past_last_frame`, `export_atlas_png_rejects_sprite_without_frames`, `export_atlas_png_reports_too_large_instead_of_overflowing_the_byte_count` | built | |
-| AC-15 |      | open   | |
+| AC-15 | `ui/e2e/export.spec.ts › the sprite sheet dialog opens with every frame, the tags, √n columns and JSON on` | built | |
 | AC-16 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | built | |
 | AC-17 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | built | |
-| AC-18 |      | open   | |
-| AC-19 |      | open   | |
-| AC-20 |      | open   | |
+| AC-18 | `ui/e2e/export.spec.ts › a tag exports only its frames under <document name>-<tag>` | built | |
+| AC-19 | `ui/e2e/export.spec.ts › without the JSON checkbox only the PNG is saved` | built | |
+| AC-20 | `ui/e2e/export.spec.ts › Cancel and Escape close the sprite sheet dialog without exporting` | built | |
 | AC-21 | `pincel-core: codec::png::tests::export_atlas_png_fails_whole_when_one_frame_cannot_be_composed` | built | |
 
 ## Decisions
 
-- 2026-11-03: AC-02 and AC-21 described existing behavior, so their new tests passed at once; each was run red against a temporary, reverted break. AC-21: `export_atlas_png` skipping a frame `compose()` refuses ("a sheet with a broken frame produced an image"). AC-02, tested on `pincel-wasm`'s `Document` because the onion skin is its view state: `exportPng` encoding the editor's `compose()` view (the onion pixels of frames 0 and 2 showed up), then `export_atlas_png` composing with `LayerFilter::All` (the hidden green layer showed up in every cell).
+- 2026-11-03: AC-02 and AC-21 described existing behavior, so their new tests passed at once; each was run red against a temporary, reverted break. AC-21: `export_atlas_png` skipping a frame `compose()` refuses ("a sheet with a broken frame produced an image"). AC-02, tested on `pincel-wasm`'s `Document` because the onion skin is its view state: `exportPng` encoding the editor's `compose()` view (the onion pixels of frames 0 and 2 showed up), then `export_atlas_png` composing with `LayerFilter::All` (the hidden green layer showed up in every cell). The UI tests for AC-03, AC-06, AC-15, AC-18, AC-19 and AC-20 (`ui/e2e/export.spec.ts`) were run red the same way: `exportPng` reporting 0 bytes and swallowing its error, the sheet's file names without the tag and the JSON saved regardless of the checkbox (the AC-03, AC-06, AC-18 and AC-19 tests failed); then a 0-based frame suffix (`pincel-1.png` for frame 2), the sheet's error swallowed, the dialog defaulting to `frames` columns and Escape exporting instead of cancelling (the AC-03, AC-06, AC-15 and AC-20 tests failed); then the JSON checkbox starting unchecked (the AC-15 test failed). AC-06 needs a real failure: the test opens a hand-built `.aseprite` whose second frame holds a linked cel, which the reader keeps and `compose()` refuses.
