@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -38,27 +38,27 @@ This spec records the behavior as built.
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): An exported PNG frame decodes to an RGBA8 image of the canvas size whose pixels equal `compose()` of that frame at zoom 1 over the full canvas with the visible layers — partial alpha, every blend mode, group visibility and tilemap layers included.
-- [ ] AC-02 (state): While the onion skin is enabled or hidden layers exist, an exported PNG frame and every sprite-sheet cell contain neither onion-skin pixels nor hidden layers.
-- [ ] AC-03 (event): When File ▸ Export ▸ PNG (current frame) is chosen or Ctrl/Cmd+E is pressed, the current frame is saved as `<document name>.png` for a one-frame document, or `<document name>-<n>.png` with the 1-based frame number otherwise, and the status bar reports the export with its byte size.
-- [ ] AC-04 (error): If the frame index is past the last frame, then the PNG export fails with an error.
-- [ ] AC-05 (error): If the document's color mode is not RGBA, then the PNG frame export fails with the composer's `UnsupportedColorMode` error instead of writing an image.
-- [ ] AC-06 (error): If an export fails in the UI, then the status bar shows the failure with its reason and no file is saved.
-- [ ] AC-07 (always): A sprite sheet places the exported frames row-major in playback order into `columns` × `ceil(frames / columns)` cells, each cell the full canvas size, so the sheet is `columns · width` × `rows · height` pixels.
-- [ ] AC-08 (always): Cells after the last exported frame in the final row are fully transparent.
-- [ ] AC-09 (always): A requested column count larger than the number of exported frames is clamped down to that number.
-- [ ] AC-10 (option): Where a tag is selected, the sheet holds exactly the frames from the tag's first to its last frame, and every frame is labeled with that tag even when other tags overlap it.
-- [ ] AC-11 (always): The manifest lists sheet size, columns, rows, cell size and, per exported frame, its source frame index, cell rect and tag (`null` outside every tag) as JSON with camelCase keys and escaped tag names.
-- [ ] AC-12 (always): The sheet's data JSON follows Aseprite's `--data` array layout: per frame `filename` (`<image stem> <frame>`), `frame` rect, `rotated: false`, `trimmed: false`, `spriteSourceSize`, `sourceSize` and `duration` in ms; `meta` with `image`, `format: "RGBA8888"`, `size`, `scale: "1"`, `frameTags` (name, from, to, direction, color) and `slices` (name, color, keys with bounds and optional center and pivot).
-- [ ] AC-13 (option): Where the sheet holds one tag's frames, tag ranges in the data JSON are clipped and renumbered to sheet frame indices, tags outside the sheet are left out, and slice keys are re-emitted at the first sheet frame where their geometry applies.
-- [ ] AC-14 (error): If the column count is 0, the tag is unknown, a tag's frame range reaches past the last frame, the selection holds no frames, or the sheet would be too large to address, then the sprite-sheet export fails with the matching error and produces no image.
-- [ ] AC-15 (event): When File ▸ Export ▸ Sprite Sheet… is chosen or Ctrl/Cmd+Shift+E is pressed, the Export sprite sheet dialog opens with "All frames (n)" selected, one option per tag with its frame count, the columns field at `ceil(√frames)`, and the JSON checkbox checked.
-- [ ] AC-16 (state): While the dialog is open, it shows the resulting grid and size as `<columns> × <rows> cells · <W>×<H> px` for the current columns and frame selection.
-- [ ] AC-17 (event): When Export is pressed with the JSON checkbox checked, `<document name>.png` and `<document name>.json` are saved, and the JSON's `meta.image` names that PNG.
-- [ ] AC-18 (option): Where a tag is selected in the dialog, only its frames are exported and both file names become `<document name>-<tag>`.
-- [ ] AC-19 (option): Where the JSON checkbox is unchecked, only the PNG is saved.
-- [ ] AC-20 (event): When Cancel or Escape is pressed in the dialog, it closes and nothing is exported.
-- [ ] AC-21 (error): If any exported frame cannot be composed (non-RGBA color mode, linked cel, corrupt cel), then the whole sprite-sheet export fails with the composer's error and produces no image.
+- [x] AC-01 (always): An exported PNG frame decodes to an RGBA8 image of the canvas size whose pixels equal `compose()` of that frame at zoom 1 over the full canvas with the visible layers — partial alpha, every blend mode, group visibility and tilemap layers included.
+- [x] AC-02 (state): While the onion skin is enabled or hidden layers exist, an exported PNG frame and every sprite-sheet cell contain neither onion-skin pixels nor hidden layers.
+- [x] AC-03 (event): When File ▸ Export ▸ PNG (current frame) is chosen or Ctrl/Cmd+E is pressed, the current frame is saved as `<document name>.png` for a one-frame document, or `<document name>-<n>.png` with the 1-based frame number otherwise, and the status bar reports the export with its byte size.
+- [x] AC-04 (error): If the frame index is past the last frame, then the PNG export fails with an error.
+- [x] AC-05 (error): If the document's color mode is not RGBA, then the PNG frame export fails with the composer's `UnsupportedColorMode` error instead of writing an image.
+- [x] AC-06 (error): If an export fails in the UI, then the status bar shows the failure with its reason and no file is saved.
+- [x] AC-07 (always): A sprite sheet places the exported frames row-major in playback order into `columns` × `ceil(frames / columns)` cells, each cell the full canvas size, so the sheet is `columns · width` × `rows · height` pixels.
+- [x] AC-08 (always): Cells after the last exported frame in the final row are fully transparent.
+- [x] AC-09 (always): A requested column count larger than the number of exported frames is clamped down to that number.
+- [x] AC-10 (option): Where a tag is selected, the sheet holds exactly the frames from the tag's first to its last frame, and every frame is labeled with that tag even when other tags overlap it.
+- [x] AC-11 (always): The manifest lists sheet size, columns, rows, cell size and, per exported frame, its source frame index, cell rect and tag (`null` outside every tag) as JSON with camelCase keys and escaped tag names.
+- [x] AC-12 (always): The sheet's data JSON follows Aseprite's `--data` array layout: per frame `filename` (`<image stem> <frame>`), `frame` rect, `rotated: false`, `trimmed: false`, `spriteSourceSize`, `sourceSize` and `duration` in ms; `meta` with `image`, `format: "RGBA8888"`, `size`, `scale: "1"`, `frameTags` (name, from, to, direction, color) and `slices` (name, color, keys with bounds and optional center and pivot).
+- [x] AC-13 (option): Where the sheet holds one tag's frames, tag ranges in the data JSON are clipped and renumbered to sheet frame indices, tags outside the sheet are left out, and slice keys are re-emitted at the first sheet frame where their geometry applies.
+- [x] AC-14 (error): If the column count is 0, the tag is unknown, a tag's frame range reaches past the last frame, the selection holds no frames, or the sheet would be too large to address, then the sprite-sheet export fails with the matching error and produces no image.
+- [x] AC-15 (event): When File ▸ Export ▸ Sprite Sheet… is chosen or Ctrl/Cmd+Shift+E is pressed, the Export sprite sheet dialog opens with "All frames (n)" selected, one option per tag with its frame count, the columns field at `ceil(√frames)`, and the JSON checkbox checked.
+- [x] AC-16 (state): While the dialog is open, it shows the resulting grid and size as `<columns> × <rows> cells · <W>×<H> px` for the current columns and frame selection.
+- [x] AC-17 (event): When Export is pressed with the JSON checkbox checked, `<document name>.png` and `<document name>.json` are saved, and the JSON's `meta.image` names that PNG.
+- [x] AC-18 (option): Where a tag is selected in the dialog, only its frames are exported and both file names become `<document name>-<tag>`.
+- [x] AC-19 (option): Where the JSON checkbox is unchecked, only the PNG is saved.
+- [x] AC-20 (event): When Cancel or Escape is pressed in the dialog, it closes and nothing is exported.
+- [x] AC-21 (error): If any exported frame cannot be composed (non-RGBA color mode, linked cel, corrupt cel), then the whole sprite-sheet export fails with the composer's error and produces no image.
 
 ## Technical notes
 
@@ -82,6 +82,14 @@ This spec records the behavior as built.
 | Tag or slice name with quotes or backslashes | Escaped in both JSON outputs |
 | Save picker cancelled for the PNG | Nothing is saved, the JSON is not offered |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- PNG export of the current frame under `<document>-<frame>` with its size in the status bar; onion skin and hidden layers never reach the file; a failed export reports its reason and saves nothing
+- Sprite-sheet export packs the frames into a grid (√n columns by default, clamped), filters by tag, and writes the PNG plus the Aseprite `--data` JSON unless switched off
+- The Export Sprite Sheet dialog shows every frame, the tags and the translated grid line, and Cancel / Escape export nothing
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -90,27 +98,27 @@ This spec records the behavior as built.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel-core: codec::png::tests::export_frame_png_1x1_round_trips_to_composed_pixels`, `export_frame_png_preserves_partial_alpha_and_layer_stack`, `export_exports_non_normal_blend_mode_like_compose`, `export_composes_group_layers_like_compose`, `export_atlas_png_composes_tilemap_layers_like_compose`; `pincel-wasm: tests::export_png_matches_core_export` | built | |
-| AC-02 | `pincel-wasm: tests::exports_leave_out_onion_skin_and_hidden_layers` | built | |
-| AC-03 | `ui/e2e/export.spec.ts › PNG (current frame) is named after the document and frame and reports its size` | built | |
-| AC-04 | `pincel-core: codec::png::tests::export_frame_png_rejects_frame_past_end`; `pincel-wasm: tests::export_png_rejects_unknown_frame` | built | |
-| AC-05 | `pincel-core: codec::png::tests::export_rejects_non_rgba_color_mode_with_render_error` | built | |
-| AC-06 | `ui/e2e/export.spec.ts › a failing export reports its reason in the status bar and saves nothing` | built | |
-| AC-07 | `pincel-core: codec::png::tests::export_atlas_png_packs_four_frames_into_two_by_two_grid`; `pincel-wasm: tests::export_atlas_packs_every_frame_into_the_requested_grid` | built | |
-| AC-08 | `pincel-core: codec::png::tests::export_atlas_png_leaves_unused_trailing_cells_transparent` | built | |
-| AC-09 | `pincel-wasm: tests::export_atlas_clamps_columns_to_frame_count` | built | |
-| AC-10 | `pincel-core: codec::png::tests::export_atlas_png_with_tag_exports_only_that_tags_frames`, `export_atlas_png_with_overlapping_tags_labels_frames_with_the_requested_tag`; `pincel-wasm: tests::export_atlas_with_tag_exports_only_that_tags_frames` | built | |
-| AC-11 | `pincel-core: codec::png::tests::manifest_to_json_emits_camel_case_keys_and_null_tags`, `manifest_to_json_escapes_tag_names`, `export_atlas_png_untagged_frames_report_no_tag` | built | |
-| AC-12 | `pincel-core: codec::sheet_data::tests::full_sheet_lists_frames_durations_tags_and_slices`; `pincel-wasm: tests::export_atlas_data_is_aseprite_sheet_json` | built | |
-| AC-13 | `pincel-core: codec::sheet_data::tests::tag_sheet_renumbers_tags_and_slice_keys` | built | |
-| AC-14 | `pincel-core: codec::png::tests::export_atlas_png_rejects_zero_columns`, `export_atlas_png_rejects_unknown_tag`, `export_atlas_png_rejects_tag_range_past_last_frame`, `export_atlas_png_rejects_sprite_without_frames`, `export_atlas_png_reports_too_large_instead_of_overflowing_the_byte_count` | built | |
-| AC-15 | `ui/e2e/export.spec.ts › the sprite sheet dialog opens with every frame, the tags, √n columns and JSON on` | built | |
-| AC-16 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON`, `ui/e2e/export.spec.ts › the sprite sheet grid line follows the German language` | built | |
-| AC-17 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | built | |
-| AC-18 | `ui/e2e/export.spec.ts › a tag exports only its frames under <document name>-<tag>` | built | |
-| AC-19 | `ui/e2e/export.spec.ts › without the JSON checkbox only the PNG is saved` | built | |
-| AC-20 | `ui/e2e/export.spec.ts › Cancel and Escape close the sprite sheet dialog without exporting` | built | |
-| AC-21 | `pincel-core: codec::png::tests::export_atlas_png_fails_whole_when_one_frame_cannot_be_composed` | built | |
+| AC-01 | `pincel-core: codec::png::tests::export_frame_png_1x1_round_trips_to_composed_pixels`, `export_frame_png_preserves_partial_alpha_and_layer_stack`, `export_exports_non_normal_blend_mode_like_compose`, `export_composes_group_layers_like_compose`, `export_atlas_png_composes_tilemap_layers_like_compose`; `pincel-wasm: tests::export_png_matches_core_export` | verified | ba53299 |
+| AC-02 | `pincel-wasm: tests::exports_leave_out_onion_skin_and_hidden_layers` | verified | ba53299 |
+| AC-03 | `ui/e2e/export.spec.ts › PNG (current frame) is named after the document and frame and reports its size` | verified | 6aed618 |
+| AC-04 | `pincel-core: codec::png::tests::export_frame_png_rejects_frame_past_end`; `pincel-wasm: tests::export_png_rejects_unknown_frame` | verified | ba53299 |
+| AC-05 | `pincel-core: codec::png::tests::export_rejects_non_rgba_color_mode_with_render_error` | verified | 35f631c |
+| AC-06 | `ui/e2e/export.spec.ts › a failing export reports its reason in the status bar and saves nothing` | verified | 6aed618 |
+| AC-07 | `pincel-core: codec::png::tests::export_atlas_png_packs_four_frames_into_two_by_two_grid`; `pincel-wasm: tests::export_atlas_packs_every_frame_into_the_requested_grid` | verified | 35f631c |
+| AC-08 | `pincel-core: codec::png::tests::export_atlas_png_leaves_unused_trailing_cells_transparent` | verified | 9af6b69 |
+| AC-09 | `pincel-wasm: tests::export_atlas_clamps_columns_to_frame_count` | verified | 9a7f4f0 |
+| AC-10 | `pincel-core: codec::png::tests::export_atlas_png_with_tag_exports_only_that_tags_frames`, `export_atlas_png_with_overlapping_tags_labels_frames_with_the_requested_tag`; `pincel-wasm: tests::export_atlas_with_tag_exports_only_that_tags_frames` | verified | c43a845 |
+| AC-11 | `pincel-core: codec::png::tests::manifest_to_json_emits_camel_case_keys_and_null_tags`, `manifest_to_json_escapes_tag_names`, `export_atlas_png_untagged_frames_report_no_tag` | verified | 5dd2afe |
+| AC-12 | `pincel-core: codec::sheet_data::tests::full_sheet_lists_frames_durations_tags_and_slices`; `pincel-wasm: tests::export_atlas_data_is_aseprite_sheet_json` | verified | 22f5a52 |
+| AC-13 | `pincel-core: codec::sheet_data::tests::tag_sheet_renumbers_tags_and_slice_keys` | verified | 3678aba |
+| AC-14 | `pincel-core: codec::png::tests::export_atlas_png_rejects_zero_columns`, `export_atlas_png_rejects_unknown_tag`, `export_atlas_png_rejects_tag_range_past_last_frame`, `export_atlas_png_rejects_sprite_without_frames`, `export_atlas_png_reports_too_large_instead_of_overflowing_the_byte_count` | verified | 48b5d53 |
+| AC-15 | `ui/e2e/export.spec.ts › the sprite sheet dialog opens with every frame, the tags, √n columns and JSON on` | verified | 6aed618 |
+| AC-16 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON`, `ui/e2e/export.spec.ts › the sprite sheet grid line follows the German language` | verified | 35f631c |
+| AC-17 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | verified | b5e6482 |
+| AC-18 | `ui/e2e/export.spec.ts › a tag exports only its frames under <document name>-<tag>` | verified | 6aed618 |
+| AC-19 | `ui/e2e/export.spec.ts › without the JSON checkbox only the PNG is saved` | verified | 6aed618 |
+| AC-20 | `ui/e2e/export.spec.ts › Cancel and Escape close the sprite sheet dialog without exporting` | verified | 6aed618 |
+| AC-21 | `pincel-core: codec::png::tests::export_atlas_png_fails_whole_when_one_frame_cannot_be_composed` | verified | dff3361 |
 
 ## Decisions
 

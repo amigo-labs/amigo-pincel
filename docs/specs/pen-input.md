@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: both
@@ -34,27 +34,27 @@ Already decided in §17.4: Pixel-mode tools stay pressure-free; Image-mode Penci
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When two fingers spread apart on the Pixel-mode canvas, the zoom readout increases, and no pixel is painted and no undo entry is added.
-- [ ] AC-02 (event): When two fingers spread apart on the Image-mode canvas, the zoom readout increases, and no pixel is painted and no undo entry is added.
-- [ ] AC-03 (event): When a second finger touches down while the first finger's stroke is in progress, the edits that stroke made are rolled back.
-- [ ] AC-04 (state): While two fingers are down, moving them together pans the view by the movement of their midpoint, and pinching zooms about that midpoint so the document point under it stays under it.
-- [ ] AC-05 (state): While a pinch has run and at least one finger is still down, the remaining finger neither paints nor selects; touch input acts again once every finger has lifted.
-- [ ] AC-06 (always): Mouse and pen pointers never start a pinch, however many are down.
-- [ ] AC-07 (event): When the mouse wheel turns over the Pixel-mode canvas, the zoom steps in (wheel up) or out (wheel down) to the next integer zoom between 1× and 64×, and the sprite pixel under the cursor stays under the cursor; a purely horizontal wheel gesture does not zoom.
-- [ ] AC-08 (event): When the mouse wheel turns over the Image-mode canvas, the zoom changes smoothly between 2 % and 6400 %, and the document point under the cursor stays under the cursor.
-- [ ] AC-09 (event): When `+` or `=` is pressed the view zooms in, `-` or `_` zooms out, `0` fits the document to the view and `1` shows it at 1:1 — in both modes, while focus is not in a text field.
-- [ ] AC-10 (event): When Actual size is pressed on the floating zoom control, the zoom becomes 100 % (1:1), and Zoom out then lowers it.
-- [ ] AC-11 (event): When a document is created, opened or recovered, it is shown whole and centred: in Pixel mode at the largest integer zoom (1–64) that leaves at least 24 CSS px on every side, in Image mode at the largest zoom (up to 6400 %) that leaves 16 CSS px on every side.
-- [ ] AC-12 (state): While the Image-mode view is in fit mode, resizing the viewport fits the document again; any explicit zoom or pan leaves fit mode.
-- [ ] AC-13 (state): While Space is held (focus not in a text field), dragging on the canvas pans the view with any tool and changes no pixel; in Image mode a middle-button drag pans too.
-- [ ] AC-14 (option): Where pressure → Size is on, an Image-mode Pencil or Eraser stroke drawn with a light pen paints a smaller dab than the same stroke at full pressure, and a stroke at full pressure paints exactly what the same stroke without pressure readings paints.
-- [ ] AC-15 (option): Where pressure → Size is off, pen pressure does not change the painted pixels of an Image-mode stroke.
-- [ ] AC-16 (option): Where pressure → Opacity is on, a dab at pressure p paints with opacity p (alpha ≈ 128 at p = 0.5 on a transparent layer); where it is off, the dab opacity does not depend on pressure.
-- [ ] AC-17 (always): Mouse and touch strokes paint at full pressure in Image mode, whatever the pressure options are.
-- [ ] AC-18 (option): Where the tip is Flat and "Tilt turns the nib" is on, the nib follows the azimuth of a tilted pen per sample; where the option is off, or the pen is upright or reports no tilt, the nib keeps the Angle option.
-- [ ] AC-19 (event): When the Image-mode Pencil, Eraser, Recolor or Smudge tool is active, the options bar shows Pressure with a Size checkbox (on by default) and an Opacity checkbox (off by default), plus "Tilt turns the nib" (on by default) while the tip is Flat.
-- [ ] AC-20 (state): While only a mouse has been used on a desktop with a fine pointer, no Shift / Alt toggles are shown; once a touch or pen pointer touches the editor stage, or on a coarse-pointer device from the start, the Modifier keys group with Shift and Alt is shown.
-- [ ] AC-21 (event): When the on-screen Shift or Alt toggle is tapped, it latches (pressed) and acts as the held key for every following gesture until it is tapped again.
+- [x] AC-01 (event): When two fingers spread apart on the Pixel-mode canvas, the zoom readout increases, and no pixel is painted and no undo entry is added.
+- [x] AC-02 (event): When two fingers spread apart on the Image-mode canvas, the zoom readout increases, and no pixel is painted and no undo entry is added.
+- [x] AC-03 (event): When a second finger touches down while the first finger's stroke is in progress, the edits that stroke made are rolled back.
+- [x] AC-04 (state): While two fingers are down, moving them together pans the view by the movement of their midpoint, and pinching zooms about that midpoint so the document point under it stays under it.
+- [x] AC-05 (state): While a pinch has run and at least one finger is still down, the remaining finger neither paints nor selects; touch input acts again once every finger has lifted.
+- [x] AC-06 (always): Mouse and pen pointers never start a pinch, however many are down.
+- [x] AC-07 (event): When the mouse wheel turns over the Pixel-mode canvas, the zoom steps in (wheel up) or out (wheel down) to the next integer zoom between 1× and 64×, and the sprite pixel under the cursor stays under the cursor; a purely horizontal wheel gesture does not zoom.
+- [x] AC-08 (event): When the mouse wheel turns over the Image-mode canvas, the zoom changes smoothly between 2 % and 6400 %, and the document point under the cursor stays under the cursor.
+- [x] AC-09 (event): When `+` or `=` is pressed the view zooms in, `-` or `_` zooms out, `0` fits the document to the view and `1` shows it at 1:1 — in both modes, while focus is not in a text field.
+- [x] AC-10 (event): When Actual size is pressed on the floating zoom control, the zoom becomes 100 % (1:1), and Zoom out then lowers it.
+- [x] AC-11 (event): When a document is created, opened or recovered, it is shown whole and centred: in Pixel mode at the largest integer zoom (1–64) that leaves at least 24 CSS px on every side, in Image mode at the largest zoom (up to 6400 %) that leaves 16 CSS px on every side.
+- [x] AC-12 (state): While the Image-mode view is in fit mode, resizing the viewport fits the document again; any explicit zoom or pan leaves fit mode.
+- [x] AC-13 (state): While Space is held (focus not in a text field), dragging on the canvas pans the view with any tool and changes no pixel; in Image mode a middle-button drag pans too.
+- [x] AC-14 (option): Where pressure → Size is on, an Image-mode Pencil or Eraser stroke drawn with a light pen paints a smaller dab than the same stroke at full pressure, and a stroke at full pressure paints exactly what the same stroke without pressure readings paints.
+- [x] AC-15 (option): Where pressure → Size is off, pen pressure does not change the painted pixels of an Image-mode stroke.
+- [x] AC-16 (option): Where pressure → Opacity is on, a dab at pressure p paints with opacity p (alpha ≈ 128 at p = 0.5 on a transparent layer); where it is off, the dab opacity does not depend on pressure.
+- [x] AC-17 (always): Mouse and touch strokes paint at full pressure in Image mode, whatever the pressure options are.
+- [x] AC-18 (option): Where the tip is Flat and "Tilt turns the nib" is on, the nib follows the azimuth of a tilted pen per sample; where the option is off, or the pen is upright or reports no tilt, the nib keeps the Angle option.
+- [x] AC-19 (event): When the Image-mode Pencil, Eraser, Recolor or Smudge tool is active, the options bar shows Pressure with a Size checkbox (on by default) and an Opacity checkbox (off by default), plus "Tilt turns the nib" (on by default) while the tip is Flat.
+- [x] AC-20 (state): While only a mouse has been used on a desktop with a fine pointer, no Shift / Alt toggles are shown; once a touch or pen pointer touches the editor stage, or on a coarse-pointer device from the start, the Modifier keys group with Shift and Alt is shown.
+- [x] AC-21 (event): When the on-screen Shift or Alt toggle is tapped, it latches (pressed) and acts as the held key for every following gesture until it is tapped again.
 
 ## Technical notes
 
@@ -87,33 +87,42 @@ Already decided in §17.4: Pixel-mode tools stay pressure-free; Image-mode Penci
 | Wheel over the Pixel canvas with only horizontal delta | No zoom; the page may scroll |
 | Fit before the stage has been measured (Pixel) | Falls back to 8× |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- Image-mode pen pressure (size, opacity) and tilt for the pressure-aware brushes, with mouse and touch at full pressure and the options at their defaults
+- Two-finger pinch zoom and pan about the midpoint in both modes; the finger left after a pinch neither paints nor selects; mouse and pen never pinch
+- Wheel zoom about the cursor (integer steps in Pixel mode, smooth in Image mode), keyboard zoom keys, Space-drag and middle-button pan
+- New, opened and recovered documents are fitted and centred in the stage their panels leave (fixed for Pixel mode), and fit mode refits on resize until an explicit zoom or pan
+
 ## Open questions
 
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | built | |
-| AC-02 | `ui/e2e/pinch.spec.ts › image mode: two-finger pinch zooms in and paints nothing` | built | |
-| AC-03 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | built | |
-| AC-04 | `ui/e2e/pinch.spec.ts › pixel mode: two fingers pan by their midpoint and zoom about it`; `ui/e2e/pinch.spec.ts › image mode: two fingers pan by their midpoint and zoom about it` | built | |
-| AC-05 | `ui/e2e/pinch.spec.ts › pixel mode: the finger left after a pinch neither paints nor selects`; `ui/e2e/pinch.spec.ts › image mode: the finger left after a pinch neither paints nor selects` | built | |
-| AC-06 | `ui/e2e/pinch.spec.ts › pixel mode: a mouse and a pen down together never pinch`; `ui/e2e/pinch.spec.ts › image mode: a mouse and a pen down together never pinch` | built | |
-| AC-07 | `ui/e2e/viewport.spec.ts › pixel mode: the wheel steps integer zooms about the cursor, 1× to 64×` | built | |
-| AC-08 | `ui/e2e/viewport.spec.ts › image mode: the wheel zooms smoothly about the cursor, 2 % to 6400 %` | built | |
-| AC-09 | `ui/e2e/viewport.spec.ts › pixel mode: keys zoom in, out, to fit and to 1:1 outside text fields`; `ui/e2e/viewport.spec.ts › image mode: keys zoom in, out, to fit and to 1:1 outside text fields` | built | |
-| AC-10 | `ui/e2e/tools.spec.ts › image mode: the zoom buttons still work with the Zoom tool selected`; `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | built | |
-| AC-11 | `ui/e2e/viewport.spec.ts › pixel mode: a new document is fitted and centred`, `› pixel mode: an opened document is fitted and centred`, `› pixel mode: a recovered document is fitted and centred`; the same three for `image mode` | built | |
-| AC-12 | `ui/e2e/viewport.spec.ts › image mode: fit mode refits on resize until an explicit zoom or pan` | built | |
-| AC-13 | `ui/e2e/viewport.spec.ts › pixel mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: a middle-button drag pans and paints nothing` | built | |
-| AC-14 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one`; `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_light_pressure_paints_a_smaller_dab`, `tests::stroke_with_full_pressure_matches_plain_stroke` | built | |
-| AC-15 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one` | built | |
-| AC-16 | `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_pressure_opacity_lowers_alpha_only_when_enabled` | built | |
-| AC-17 | `ui/e2e/pressure.spec.ts › touch device › image mode: mouse and touch strokes paint at full pressure` | built | |
-| AC-18 | `ui/e2e/pressure.spec.ts › image mode: tilt turns a flat nib only while the option is on`; `crates/pincel-image-core/src/tools/mod.rs › tests::flat_brush_follows_azimuth_only_when_enabled` | built | |
-| AC-19 | `ui/e2e/pressure.spec.ts › image mode: brush tools show the pressure and tilt options with their defaults` | built | |
-| AC-20 | `ui/e2e/modifiers.spec.ts › a mouse-only desktop shows no modifier toggles`; `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key` | built | |
-| AC-21 | `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key`; `ui/e2e/modifiers.spec.ts › touch device › image mode: the latched Shift squares a shape like the Shift key` | built | |
+| AC-01 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | verified | ba53299 |
+| AC-02 | `ui/e2e/pinch.spec.ts › image mode: two-finger pinch zooms in and paints nothing` | verified | ba53299 |
+| AC-03 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | verified | 6aed618 |
+| AC-04 | `ui/e2e/pinch.spec.ts › pixel mode: two fingers pan by their midpoint and zoom about it`; `ui/e2e/pinch.spec.ts › image mode: two fingers pan by their midpoint and zoom about it` | verified | ba53299 |
+| AC-05 | `ui/e2e/pinch.spec.ts › pixel mode: the finger left after a pinch neither paints nor selects`; `ui/e2e/pinch.spec.ts › image mode: the finger left after a pinch neither paints nor selects` | verified | 35f631c |
+| AC-06 | `ui/e2e/pinch.spec.ts › pixel mode: a mouse and a pen down together never pinch`; `ui/e2e/pinch.spec.ts › image mode: a mouse and a pen down together never pinch` | verified | 6aed618 |
+| AC-07 | `ui/e2e/viewport.spec.ts › pixel mode: the wheel steps integer zooms about the cursor, 1× to 64×` | verified | 35f631c |
+| AC-08 | `ui/e2e/viewport.spec.ts › image mode: the wheel zooms smoothly about the cursor, 2 % to 6400 %` | verified | 9af6b69 |
+| AC-09 | `ui/e2e/viewport.spec.ts › pixel mode: keys zoom in, out, to fit and to 1:1 outside text fields`; `ui/e2e/viewport.spec.ts › image mode: keys zoom in, out, to fit and to 1:1 outside text fields` | verified | 9a7f4f0 |
+| AC-10 | `ui/e2e/tools.spec.ts › image mode: the zoom buttons still work with the Zoom tool selected`; `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | verified | c43a845 |
+| AC-11 | `ui/e2e/viewport.spec.ts › pixel mode: a new document is fitted and centred`, `› pixel mode: an opened document is fitted and centred`, `› pixel mode: a recovered document is fitted and centred`; the same three for `image mode` | verified | 5dd2afe |
+| AC-12 | `ui/e2e/viewport.spec.ts › image mode: fit mode refits on resize until an explicit zoom or pan` | verified | 22f5a52 |
+| AC-13 | `ui/e2e/viewport.spec.ts › pixel mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: a middle-button drag pans and paints nothing` | verified | 3678aba |
+| AC-14 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one`; `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_light_pressure_paints_a_smaller_dab`, `tests::stroke_with_full_pressure_matches_plain_stroke` | verified | 48b5d53 |
+| AC-15 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one` | verified | 6aed618 |
+| AC-16 | `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_pressure_opacity_lowers_alpha_only_when_enabled` | verified | 35f631c |
+| AC-17 | `ui/e2e/pressure.spec.ts › touch device › image mode: mouse and touch strokes paint at full pressure` | verified | b5e6482 |
+| AC-18 | `ui/e2e/pressure.spec.ts › image mode: tilt turns a flat nib only while the option is on`; `crates/pincel-image-core/src/tools/mod.rs › tests::flat_brush_follows_azimuth_only_when_enabled` | verified | 6aed618 |
+| AC-19 | `ui/e2e/pressure.spec.ts › image mode: brush tools show the pressure and tilt options with their defaults` | verified | 6aed618 |
+| AC-20 | `ui/e2e/modifiers.spec.ts › a mouse-only desktop shows no modifier toggles`; `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key` | verified | 6aed618 |
+| AC-21 | `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key`; `ui/e2e/modifiers.spec.ts › touch device › image mode: the latched Shift squares a shape like the Shift key` | verified | dff3361 |
 
 ## Decisions
 

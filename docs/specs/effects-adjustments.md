@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: both
@@ -32,24 +32,24 @@ Both editors offer the same twenty effects and adjustments — blurs, sharpening
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In both modes the Effects menu holds the submenus Blur (Gaussian Blur, Box Blur, Motion Blur, Radial Blur), Sharpen (Sharpen, Unsharp Mask), Distort (Emboss, Edge Detect, Relief) and Noise (Add Noise, Reduce Noise), and the Adjustments menu lists Brightness / Contrast, Hue / Saturation, Curves, Levels, Color Balance, Invert Colors, Grayscale, Posterize and Threshold; an entry with parameters ends in "…", and every entry is disabled while no document is open.
-- [ ] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown — or "This effect has no parameters."; Reset returns every parameter to its default.
-- [ ] AC-03 (state): While the effect dialog is open with Preview on, the canvas shows the active layer with the effect at the current parameters, and the document and its undo history stay unchanged; turning Preview off shows the image without the effect.
-- [ ] AC-04 (event): When the user confirms the dialog (OK or Enter), then the effect is applied to the active layer (Pixel mode: the active layer's cel on the current frame) as exactly one undo step that never merges with a neighbouring stroke, and the dialog closes; Pixel mode's status bar reads "<Effect> applied".
-- [ ] AC-05 (event): When the user cancels the dialog (Cancel or Escape), then it closes, the canvas shows the unchanged image and no undo step is added.
-- [ ] AC-06 (state): While a selection exists in Image mode, the effect changes only selected pixels, and a partially selected (feathered) pixel becomes the mix of its old and new value weighted by its selection coverage.
-- [ ] AC-07 (state): While a marquee selection exists in Pixel mode, the effect changes only the pixels inside it and the rest of the cel keeps its pixels.
-- [ ] AC-08 (state): While a selection exists, the dialog header names "selection" as the effect's scope; otherwise it names "whole layer".
-- [ ] AC-09 (error): If the selection is empty (Image mode) or lies entirely outside the active cel (Pixel mode), then confirming changes nothing, adds no undo step and shows "<Effect>: the selection is empty, nothing changed" (Image mode) or "<Effect>: selection is outside the layer, nothing changed" (Pixel mode).
-- [ ] AC-10 (error): If an effect is requested with an unknown name or the wrong number of parameters, then it is rejected with an error and the document and undo history are unchanged.
-- [ ] AC-11 (error): If the Pixel sprite is indexed or the active layer has no image cel on the current frame, then applying an effect fails with "<Effect> failed: …" in the status bar and nothing changes.
-- [ ] AC-12 (error): If the active layer is locked, then applying an effect leaves the layer unchanged and adds no undo step.
-- [ ] AC-13 (always): Every effect returns an image the size of its input, and at neutral settings leaves pixels unchanged: Brightness / Contrast 0 / 0 (plain and enhanced), Color Balance all 0, the identity Curve, identity Levels, Hue / Saturation on a gray pixel, Box Blur 1 × 1, Gaussian Blur radius 0, Motion Blur distance 1, Unsharp Mask amount 0, Add Noise amount 0.
-- [ ] AC-14 (always): A solid single-color area stays unchanged under Gaussian, Box, Motion and Radial (spin and zoom) Blur, Sharpen, Unsharp Mask, Relief and Reduce Noise; Edge Detect turns it black and Emboss flat gray.
-- [ ] AC-15 (always): Invert Colors flips each RGB channel (`255 − v`), keeps alpha, and applied twice restores the original.
-- [ ] AC-16 (always): Add Noise with the same parameters and seed produces identical pixels, a different seed produces different pixels, alpha is kept, and Monochromatic noise keeps the three channels of a gray pixel equal.
-- [ ] AC-17 (always): Grayscale makes the three channels of every pixel equal; Threshold turns every pixel black or white by its luminance; Posterize with 2 levels snaps channels to 0 or 255 and keeps 0 and 255 unchanged; a Curve on one channel leaves the other channels untouched.
-- [ ] AC-18 (always): A spatial effect (blur, sharpen, distort, reduce noise) never lets the color of a fully transparent pixel tint its opaque neighbours.
+- [x] AC-01 (always): In both modes the Effects menu holds the submenus Blur (Gaussian Blur, Box Blur, Motion Blur, Radial Blur), Sharpen (Sharpen, Unsharp Mask), Distort (Emboss, Edge Detect, Relief) and Noise (Add Noise, Reduce Noise), and the Adjustments menu lists Brightness / Contrast, Hue / Saturation, Curves, Levels, Color Balance, Invert Colors, Grayscale, Posterize and Threshold; an entry with parameters ends in "…", and every entry is disabled while no document is open.
+- [x] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown — or "This effect has no parameters."; Reset returns every parameter to its default.
+- [x] AC-03 (state): While the effect dialog is open with Preview on, the canvas shows the active layer with the effect at the current parameters, and the document and its undo history stay unchanged; turning Preview off shows the image without the effect.
+- [x] AC-04 (event): When the user confirms the dialog (OK or Enter), then the effect is applied to the active layer (Pixel mode: the active layer's cel on the current frame) as exactly one undo step that never merges with a neighbouring stroke, and the dialog closes; Pixel mode's status bar reads "<Effect> applied".
+- [x] AC-05 (event): When the user cancels the dialog (Cancel or Escape), then it closes, the canvas shows the unchanged image and no undo step is added.
+- [x] AC-06 (state): While a selection exists in Image mode, the effect changes only selected pixels, and a partially selected (feathered) pixel becomes the mix of its old and new value weighted by its selection coverage.
+- [x] AC-07 (state): While a marquee selection exists in Pixel mode, the effect changes only the pixels inside it and the rest of the cel keeps its pixels.
+- [x] AC-08 (state): While a selection exists, the dialog header names "selection" as the effect's scope; otherwise it names "whole layer".
+- [x] AC-09 (error): If the selection is empty (Image mode) or lies entirely outside the active cel (Pixel mode), then confirming changes nothing, adds no undo step and shows "<Effect>: the selection is empty, nothing changed" (Image mode) or "<Effect>: selection is outside the layer, nothing changed" (Pixel mode).
+- [x] AC-10 (error): If an effect is requested with an unknown name or the wrong number of parameters, then it is rejected with an error and the document and undo history are unchanged.
+- [x] AC-11 (error): If the Pixel sprite is indexed or the active layer has no image cel on the current frame, then applying an effect fails with "<Effect> failed: …" in the status bar and nothing changes.
+- [x] AC-12 (error): If the active layer is locked, then applying an effect leaves the layer unchanged and adds no undo step.
+- [x] AC-13 (always): Every effect returns an image the size of its input, and at neutral settings leaves pixels unchanged: Brightness / Contrast 0 / 0 (plain and enhanced), Color Balance all 0, the identity Curve, identity Levels, Hue / Saturation on a gray pixel, Box Blur 1 × 1, Gaussian Blur radius 0, Motion Blur distance 1, Unsharp Mask amount 0, Add Noise amount 0.
+- [x] AC-14 (always): A solid single-color area stays unchanged under Gaussian, Box, Motion and Radial (spin and zoom) Blur, Sharpen, Unsharp Mask, Relief and Reduce Noise; Edge Detect turns it black and Emboss flat gray.
+- [x] AC-15 (always): Invert Colors flips each RGB channel (`255 − v`), keeps alpha, and applied twice restores the original.
+- [x] AC-16 (always): Add Noise with the same parameters and seed produces identical pixels, a different seed produces different pixels, alpha is kept, and Monochromatic noise keeps the three channels of a gray pixel equal.
+- [x] AC-17 (always): Grayscale makes the three channels of every pixel equal; Threshold turns every pixel black or white by its luminance; Posterize with 2 levels snaps channels to 0 or 255 and keeps 0 and 255 unchanged; a Curve on one channel leaves the other channels untouched.
+- [x] AC-18 (always): A spatial effect (blur, sharpen, distort, reduce noise) never lets the color of a fully transparent pixel tint its opaque neighbours.
 
 ## Technical notes
 
@@ -99,6 +99,15 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | Grayscale sent with one parameter instead of four | Accepted; the channel-mixer weights default to 0.3 / 0.59 / 0.11 |
 | Curves with fewer than one control point or an odd coordinate count | Rejected as a wrong parameter count |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- The Effects and Adjustments menus list every entry in both modes and are disabled without a document
+- The effect dialog shows each parameter at its default, previews live without touching the document or its history, resets, applies on OK as one undo step, and closes on Cancel / Escape
+- Effects apply to the active layer or cel inside the selection; an empty selection, a missing cel, an indexed sprite or a locked layer change nothing and are reported in both modes
+- Spatial effects no longer take the hidden colour of fully transparent pixels into account (Emboss, Edge Detect, Relief, Reduce Noise); Preview off hides the preview of parameterless effects too
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -107,24 +116,24 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/effects.spec.ts › pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
-| AC-02 | `ui/e2e/effects.spec.ts › pixel: every effect dialog shows its parameters at their defaults; Reset restores them (AC-02)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
-| AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | built | |
-| AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | built | |
-| AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
-| AC-06 | `ui/e2e/effects.spec.ts › image mode: an effect stays inside the selection`; `pincel-image-core: selection::tests::masked_region_with_hard_mask_crops_to_the_selection`, `selection::tests::masked_region_mixes_partial_coverage` | built | |
-| AC-07 | `pincel-wasm: effects::tests::apply_effect_respects_the_marquee_selection` | built | |
-| AC-08 | `ui/e2e/effects.spec.ts › pixel: the dialog names its scope, selection or whole layer (AC-08)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
-| AC-09 | `ui/e2e/effects.spec.ts › image: an empty selection changes nothing and says so (AC-09)`, `ui/e2e/effects.spec.ts › pixel: a selection outside the active cel changes nothing and says so (AC-09)`; `pincel-image-wasm: effect_tests::apply_effect_with_an_empty_selection_changes_nothing`; `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` | built | |
-| AC-10 | `pincel-effects: spec::tests::from_params_unknown_name_is_an_error`, `spec::tests::from_params_wrong_arity_is_an_error`; `pincel-wasm: effects::tests::apply_effect_unknown_name_or_bad_arity_errors` | built | |
-| AC-11 | `pincel-wasm: effects::tests::apply_effect_on_an_indexed_sprite_errors_and_changes_nothing`, `effects::tests::apply_effect_without_a_cel_on_the_current_frame_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a layer without a cel on the current frame refuses the effect (AC-11)` | built | |
-| AC-12 | `pincel-wasm: effects::tests::apply_effect_on_a_locked_layer_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a locked layer stays unchanged and gains no undo step (AC-12)`, `ui/e2e/effects.spec.ts › image: …` (same title) | built | |
-| AC-13 | `pincel-effects: spec::tests::from_params_every_name_parses_with_its_documented_arity`, `adjust::brightness_contrast::tests::zero_is_identity_legacy`, `adjust::brightness_contrast::tests::zero_is_identity_enhanced`, `adjust::color_balance::tests::zero_balance_is_identity`, `adjust::curves::tests::curves_identity_is_a_no_op`, `adjust::levels::tests::levels_identity_is_a_no_op`, `adjust::hue_sat::tests::identity_on_gray_is_unchanged`, `blur::box_blur::tests::box_blur_1x1_returns_identity`, `blur::gaussian::tests::gaussian_blur_with_sigma_zero_returns_identity`, `blur::motion::tests::motion_blur_distance_one_is_identity`, `sharpen::unsharp_mask::tests::unsharp_amount_zero_is_identity`, `noise::add_noise::tests::add_noise_amount_zero_is_identity` | built | |
-| AC-14 | `pincel-effects: blur::gaussian::tests::gaussian_blur_of_solid_color_is_unchanged`, `blur::box_blur::tests::box_blur_of_solid_color_is_unchanged`, `blur::motion::tests::motion_blur_of_solid_color_is_unchanged`, `blur::radial::tests::radial_spin_of_solid_color_is_unchanged`, `blur::radial::tests::radial_zoom_of_solid_color_is_unchanged`, `sharpen::convolution::tests::sharpen_of_solid_color_is_unchanged`, `sharpen::unsharp_mask::tests::unsharp_of_solid_color_is_unchanged`, `distort::relief::tests::relief_of_solid_color_is_unchanged`, `noise::reduce_noise::tests::median_of_solid_is_unchanged`, `distort::edge_detect::tests::edge_detect_of_solid_is_black`, `distort::emboss::tests::emboss_of_solid_is_flat_gray` | built | |
-| AC-15 | `pincel-effects: spec::tests::run_invert_flips_rgb_and_keeps_alpha`, `adjust::invert::tests::invert_of_invert_is_identity`, `adjust::invert::tests::invert_preserves_alpha` | built | |
-| AC-16 | `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed`, `noise::add_noise::tests::different_seeds_differ`, `noise::add_noise::tests::add_noise_changes_pixels_and_preserves_alpha`, `noise::add_noise::tests::monochromatic_keeps_channels_equal_on_gray` | built | |
-| AC-17 | `pincel-effects: adjust::grayscale::tests::grayscale_output_channels_are_equal`, `adjust::threshold::tests::threshold_splits_by_luminance`, `adjust::posterize::tests::posterize_two_levels_snaps_to_black_or_white`, `adjust::posterize::tests::posterize_preserves_endpoints`, `adjust::curves::tests::red_channel_curve_leaves_others_untouched` | built | |
-| AC-18 | `pincel-effects: tests/transparent_neighbours.rs › spatial_effects_ignore_the_colour_of_transparent_pixels`, `spatial_effects_keep_gray_neighbours_of_transparent_red_pixels_gray` | built | |
+| AC-01 | `ui/e2e/effects.spec.ts › pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | ba53299 |
+| AC-02 | `ui/e2e/effects.spec.ts › pixel: every effect dialog shows its parameters at their defaults; Reset restores them (AC-02)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | ba53299 |
+| AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | verified | 6aed618 |
+| AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | verified | ba53299 |
+| AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 35f631c |
+| AC-06 | `ui/e2e/effects.spec.ts › image mode: an effect stays inside the selection`; `pincel-image-core: selection::tests::masked_region_with_hard_mask_crops_to_the_selection`, `selection::tests::masked_region_mixes_partial_coverage` | verified | 6aed618 |
+| AC-07 | `pincel-wasm: effects::tests::apply_effect_respects_the_marquee_selection` | verified | 35f631c |
+| AC-08 | `ui/e2e/effects.spec.ts › pixel: the dialog names its scope, selection or whole layer (AC-08)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 9af6b69 |
+| AC-09 | `ui/e2e/effects.spec.ts › image: an empty selection changes nothing and says so (AC-09)`, `ui/e2e/effects.spec.ts › pixel: a selection outside the active cel changes nothing and says so (AC-09)`; `pincel-image-wasm: effect_tests::apply_effect_with_an_empty_selection_changes_nothing`; `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` | verified | 9a7f4f0 |
+| AC-10 | `pincel-effects: spec::tests::from_params_unknown_name_is_an_error`, `spec::tests::from_params_wrong_arity_is_an_error`; `pincel-wasm: effects::tests::apply_effect_unknown_name_or_bad_arity_errors` | verified | c43a845 |
+| AC-11 | `pincel-wasm: effects::tests::apply_effect_on_an_indexed_sprite_errors_and_changes_nothing`, `effects::tests::apply_effect_without_a_cel_on_the_current_frame_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a layer without a cel on the current frame refuses the effect (AC-11)` | verified | 5dd2afe |
+| AC-12 | `pincel-wasm: effects::tests::apply_effect_on_a_locked_layer_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a locked layer stays unchanged and gains no undo step (AC-12)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 22f5a52 |
+| AC-13 | `pincel-effects: spec::tests::from_params_every_name_parses_with_its_documented_arity`, `adjust::brightness_contrast::tests::zero_is_identity_legacy`, `adjust::brightness_contrast::tests::zero_is_identity_enhanced`, `adjust::color_balance::tests::zero_balance_is_identity`, `adjust::curves::tests::curves_identity_is_a_no_op`, `adjust::levels::tests::levels_identity_is_a_no_op`, `adjust::hue_sat::tests::identity_on_gray_is_unchanged`, `blur::box_blur::tests::box_blur_1x1_returns_identity`, `blur::gaussian::tests::gaussian_blur_with_sigma_zero_returns_identity`, `blur::motion::tests::motion_blur_distance_one_is_identity`, `sharpen::unsharp_mask::tests::unsharp_amount_zero_is_identity`, `noise::add_noise::tests::add_noise_amount_zero_is_identity` | verified | 3678aba |
+| AC-14 | `pincel-effects: blur::gaussian::tests::gaussian_blur_of_solid_color_is_unchanged`, `blur::box_blur::tests::box_blur_of_solid_color_is_unchanged`, `blur::motion::tests::motion_blur_of_solid_color_is_unchanged`, `blur::radial::tests::radial_spin_of_solid_color_is_unchanged`, `blur::radial::tests::radial_zoom_of_solid_color_is_unchanged`, `sharpen::convolution::tests::sharpen_of_solid_color_is_unchanged`, `sharpen::unsharp_mask::tests::unsharp_of_solid_color_is_unchanged`, `distort::relief::tests::relief_of_solid_color_is_unchanged`, `noise::reduce_noise::tests::median_of_solid_is_unchanged`, `distort::edge_detect::tests::edge_detect_of_solid_is_black`, `distort::emboss::tests::emboss_of_solid_is_flat_gray` | verified | 48b5d53 |
+| AC-15 | `pincel-effects: spec::tests::run_invert_flips_rgb_and_keeps_alpha`, `adjust::invert::tests::invert_of_invert_is_identity`, `adjust::invert::tests::invert_preserves_alpha` | verified | 6aed618 |
+| AC-16 | `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed`, `noise::add_noise::tests::different_seeds_differ`, `noise::add_noise::tests::add_noise_changes_pixels_and_preserves_alpha`, `noise::add_noise::tests::monochromatic_keeps_channels_equal_on_gray` | verified | 35f631c |
+| AC-17 | `pincel-effects: adjust::grayscale::tests::grayscale_output_channels_are_equal`, `adjust::threshold::tests::threshold_splits_by_luminance`, `adjust::posterize::tests::posterize_two_levels_snaps_to_black_or_white`, `adjust::posterize::tests::posterize_preserves_endpoints`, `adjust::curves::tests::red_channel_curve_leaves_others_untouched` | verified | b5e6482 |
+| AC-18 | `pincel-effects: tests/transparent_neighbours.rs › spatial_effects_ignore_the_colour_of_transparent_pixels`, `spatial_effects_keep_gray_neighbours_of_transparent_red_pixels_gray` | verified | 6aed618 |
 
 ## Decisions
 
