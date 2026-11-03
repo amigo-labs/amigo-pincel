@@ -1593,17 +1593,17 @@ impl Document {
             .map(|k| k.center.is_some())
     }
 
-    /// Sprite-space `x` of the key's 9-patch center, or `0` when the
-    /// key has no center. Errors when `slice_id` or `key_index` is
-    /// out of range.
+    /// `x` of the key's 9-patch center, relative to the key's bounds
+    /// origin, or `0` when the key has no center. Errors when
+    /// `slice_id` or `key_index` is out of range.
     #[wasm_bindgen(js_name = sliceKeyCenterX)]
     pub fn slice_key_center_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
             .map(|k| k.center.map_or(0, |c| c.x))
     }
 
-    /// Sprite-space `y` of the key's 9-patch center, or `0` when the
-    /// key has no center.
+    /// `y` of the key's 9-patch center, relative to the key's bounds
+    /// origin, or `0` when the key has no center.
     #[wasm_bindgen(js_name = sliceKeyCenterY)]
     pub fn slice_key_center_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
@@ -1634,16 +1634,16 @@ impl Document {
             .map(|k| k.pivot.is_some())
     }
 
-    /// Sprite-space `x` of the key's pivot, or `0` when the key has
-    /// no pivot.
+    /// `x` of the key's pivot, relative to the key's bounds origin
+    /// (may be negative), or `0` when the key has no pivot.
     #[wasm_bindgen(js_name = sliceKeyPivotX)]
     pub fn slice_key_pivot_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
             .map(|k| k.pivot.map_or(0, |p| p.0))
     }
 
-    /// Sprite-space `y` of the key's pivot, or `0` when the key has
-    /// no pivot.
+    /// `y` of the key's pivot, relative to the key's bounds origin
+    /// (may be negative), or `0` when the key has no pivot.
     #[wasm_bindgen(js_name = sliceKeyPivotY)]
     pub fn slice_key_pivot_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
