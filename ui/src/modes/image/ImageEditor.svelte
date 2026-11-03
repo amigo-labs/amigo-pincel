@@ -967,8 +967,8 @@
       hasSelection={editor.hasSelection}
       onPreview={(params) => {
         if (!effectOpen) return;
-        // An empty vector means "preview off": show the real composite.
-        if (params.length === 0 && effectOpen.params.length > 0) clearEffectPreview();
+        // `null` means "preview off": show the real composite.
+        if (params === null) clearEffectPreview();
         else previewEffect(effectOpen.id, params);
       }}
       onApply={(params) => {

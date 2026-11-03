@@ -5,8 +5,9 @@
 
   // Parameter dialog for one effect / adjustment. Purely presentational:
   // the parent owns the wasm `Document`, runs `previewEffect` on every
-  // `onPreview(params)` and commits via `onApply(params)`. `onCancel`
-  // restores the un-previewed composite. Parameters are edited as a flat
+  // `onPreview(params)`, restores the un-previewed composite on
+  // `onPreview(null)` (Preview off) and commits via `onApply(params)`.
+  // `onCancel` restores the un-previewed composite too. Parameters are edited as a flat
   // value map keyed by `ParamDef.key`; `toParams` orders them for the wire.
   let {
     def,
@@ -17,7 +18,8 @@
   }: {
     def: EffectDef;
     hasSelection?: boolean;
-    onPreview: (params: number[]) => void;
+    /** `null` turns the preview off: show the image without the effect. */
+    onPreview: (params: number[] | null) => void;
     onApply: (params: number[]) => void;
     onCancel: () => void;
   } = $props();
@@ -39,16 +41,13 @@
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
       rafId = 0;
-      if (on) onPreview(p);
-      else onCancel_previewOnly();
+      // `null`, not `[]`: a parameterless effect previews with `[]`.
+      onPreview(on ? p : null);
     });
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
   });
-
-  // Turning preview off restores the composite without closing.
-  let onCancel_previewOnly = () => onPreview([]);
 
   function reset() {
     values = defaultValues(def);
