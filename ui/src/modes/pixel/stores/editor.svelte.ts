@@ -161,6 +161,8 @@ function dialogsInit() {
     effect: null as EffectDef | null,
     resize: null as ResizeMode | null,
     sheet: false,
+    /** View ▸ Grid Settings… is open (pixel-grid). */
+    grid: false,
     /** File ▸ Export ▸ Animation… is open. */
     animation: false,
     /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */

@@ -34,7 +34,16 @@
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
   import { isBrushTool, loadBrushPref, saveBrushPref, stepBrushSize } from './brush';
-  import { loadGridPref, toggleGrid, togglePixelGrid } from './grid';
+  import {
+    activeTileSize,
+    applyGridSettings,
+    gridSettingsInitial,
+    loadGridPref,
+    openGridSettings,
+    toggleGrid,
+    togglePixelGrid,
+  } from './grid';
+  import GridSettingsDialog from './components/GridSettingsDialog.svelte';
   import ResizeDialog from './components/ResizeDialog.svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
@@ -341,6 +350,7 @@
       toggleProbe,
       togglePixelGrid,
       toggleGrid,
+      openGridSettings,
       openShortcuts: openOverview,
     }),
   );
@@ -354,7 +364,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.grid || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
     if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -501,7 +511,7 @@
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
     const blocked = Boolean(
-      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
+      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.grid || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
     );
     onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
@@ -1192,6 +1202,15 @@
     frameHeight={ed.canvasH}
     onSubmit={(o) => void exportSheet(o)}
     onCancel={() => (dialogs.sheet = false)}
+  />
+{/if}
+
+{#if dialogs.grid && ed.doc}
+  <GridSettingsDialog
+    initial={gridSettingsInitial()}
+    tileSize={activeTileSize()}
+    onSubmit={applyGridSettings}
+    onCancel={() => (dialogs.grid = false)}
   />
 {/if}
 

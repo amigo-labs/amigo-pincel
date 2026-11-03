@@ -91,6 +91,7 @@ export interface PixelMenuContext {
   toggleProbe(): void;
   togglePixelGrid(): void;
   toggleGrid(): void;
+  openGridSettings(): void;
   /** Help ▸ Keyboard Shortcuts. */
   openShortcuts(): void;
 }
@@ -257,6 +258,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           run: c.togglePixelGrid,
         },
         { label: t('menu.showGrid'), shortcut: hint('toggleGrid'), checked: c.showGrid, run: c.toggleGrid },
+        { label: t('menu.gridSettings'), disabled: !c.hasDoc, run: c.openGridSettings },
         { kind: 'separator' },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
         reduceMotionMenuItem(),

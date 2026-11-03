@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, menu, pixelCanvas, storedPref } from './helpers';
+import {
+  createDocument,
+  gotoStart,
+  menu,
+  pixelCanvas,
+  storedPref,
+  waitForEditor,
+} from './helpers';
 
 // Pixel grid and custom grid (docs/specs/pixel-grid.md). Both are drawn on
 // the stage-sized grid canvas over the sprite; the specs read it test-side.
@@ -172,4 +179,183 @@ test('the show states survive a reload and are not written into the file (AC-11)
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   expect(await viewChecked(page, 'Show Grid')).toBe(true);
   expect(await viewChecked(page, 'Show Pixel Grid')).toBe(false);
+});
+
+const settings = (page: Page) => page.getByRole('dialog', { name: 'Grid Settings' });
+
+/** Opens View ▸ Grid Settings… and returns its four geometry fields' values. */
+async function openSettings(page: Page): Promise<string[]> {
+  await menu(page, 'View', 'Grid Settings…');
+  const d = settings(page);
+  await expect(d).toBeVisible();
+  return Promise.all(
+    ['Cell width', 'Cell height', 'Offset X', 'Offset Y'].map((l) => d.getByLabel(l).inputValue()),
+  );
+}
+
+/** Fills the open Grid Settings dialog; `undefined` leaves a field alone. */
+async function fillSettings(
+  page: Page,
+  v: { w?: number; h?: number; x?: number; y?: number; color?: string; opacity?: number },
+): Promise<void> {
+  const d = settings(page);
+  const fields: [string, number | string | undefined][] = [
+    ['Cell width', v.w],
+    ['Cell height', v.h],
+    ['Offset X', v.x],
+    ['Offset Y', v.y],
+    ['Line color', v.color],
+    ['Opacity (%)', v.opacity],
+  ];
+  for (const [label, value] of fields) {
+    if (value !== undefined) await d.getByLabel(label).fill(String(value));
+  }
+}
+
+/** Saves the document through the download fallback and returns the bytes. */
+async function saveBytes(page: Page): Promise<Buffer> {
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    menu(page, 'File', 'Save (download)'),
+  ]);
+  return readFile(await download.path());
+}
+
+test('Grid Settings starts at 16×16 / 0, 0 and redraws the grid with the new values (AC-07, AC-08)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 40, height: 40 });
+  await setZoom(page, 4);
+  await viewToggle(page, 'Show Pixel Grid');
+  await viewToggle(page, 'Show Grid');
+  expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
+  await fillSettings(page, { w: 10, h: 12, x: 4, y: 2, color: '#ff0000', opacity: 100 });
+  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await expect(settings(page)).toBeHidden();
+
+  const red = [255, 0, 0, 255];
+  for (const x of [4, 14, 24, 34]) await expect.poll(() => gridPixel(page, x, 5.5)).toEqual(red);
+  for (const y of [2, 14, 26, 38]) expect(await gridPixel(page, 5.5, y)).toEqual(red);
+  expect((await gridPixel(page, 16, 5.5))[3]).toBe(0);
+  expect((await gridPixel(page, 5.5, 16))[3]).toBe(0);
+  expect(await openSettings(page)).toEqual(['10', '12', '4', '2']);
+});
+
+test('undo restores the previous cell size and offset in one step, redo re-applies them (AC-10)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 40, height: 40 });
+  await viewToggle(page, 'Show Grid');
+  await openSettings(page);
+  await fillSettings(page, { w: 8, h: 5, x: 1, y: 3 });
+  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await expect(settings(page)).toBeHidden();
+  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.getByText('undo 0 / redo 1')).toBeVisible();
+  expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
+  await settings(page).getByRole('button', { name: 'Cancel' }).click();
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  expect(await openSettings(page)).toEqual(['8', '5', '1', '3']);
+});
+
+test('out-of-range cell size or offset is not applied (AC-13)', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await openSettings(page);
+  const d = settings(page);
+  for (const bad of [{ w: 0 }, { h: 65536 }, { x: 32768 }, { y: -32769 }, { w: 2.5 }]) {
+    await fillSettings(page, { w: 16, h: 16, x: 0, y: 0, ...bad });
+    await d.getByRole('button', { name: 'OK' }).click();
+    await expect(d.getByRole('alert')).toContainText('1–65535');
+    await expect(d).toBeVisible();
+  }
+  await d.getByRole('button', { name: 'Cancel' }).click();
+  expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
+  // Nothing reached the undo history.
+  await expect(page.getByText('undo 0 / redo 0')).toBeVisible();
+});
+
+test('a changed grid survives saving as .aseprite and reopening (AC-09)', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await openSettings(page);
+  await fillSettings(page, { w: 12, h: 8, x: 3, y: -5 });
+  await settings(page).getByRole('button', { name: 'OK' }).click();
+  const bytes = await saveBytes(page);
+
+  await gotoStart(page);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Open…' }).click(),
+  ]);
+  await chooser.setFiles({
+    name: 'grid.aseprite',
+    mimeType: 'application/octet-stream',
+    buffer: bytes,
+  });
+  await waitForEditor(page, 'pixel');
+  expect(await openSettings(page)).toEqual(['12', '8', '3', '-5']);
+});
+
+test('line colour and opacity persist per user and stay out of the file (AC-15)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  const before = await saveBytes(page);
+  await openSettings(page);
+  await fillSettings(page, { color: '#00ff00', opacity: 40 });
+  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await expect
+    .poll(() => storedPref(page, 'pixelGrid'))
+    .toMatchObject({ color: '#00ff00', opacity: 40 });
+  expect((await saveBytes(page)).equals(before)).toBe(true);
+
+  await page.reload();
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  await setZoom(page, 4);
+  await viewToggle(page, 'Show Pixel Grid');
+  await viewToggle(page, 'Show Grid');
+  await expect.poll(() => gridPixel(page, 16, 5.5)).toEqual([0, 255, 0, 102]);
+  await menu(page, 'View', 'Grid Settings…');
+  await expect(settings(page).getByLabel('Line color')).toHaveValue('#00ff00');
+  await expect(settings(page).getByLabel('Opacity (%)')).toHaveValue('40');
+});
+
+test('on a tilemap layer, Use tile size sets the cell size to the tile size at offset 0, 0 (AC-17)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  await openSettings(page);
+  await expect(settings(page).getByRole('button', { name: /^Use tile size/ })).toHaveCount(0);
+  await settings(page).getByRole('button', { name: 'Cancel' }).click();
+
+  const tilesets = page.getByRole('region', { name: 'Tilesets' });
+  await tilesets.getByRole('button', { name: 'Tilesets', exact: true }).click();
+  await tilesets.getByRole('button', { name: 'Add tileset' }).click();
+  await tilesets.getByLabel('Tile W').fill('8');
+  await tilesets.getByLabel('Tile H').fill('4');
+  await tilesets.getByRole('button', { name: 'Add', exact: true }).click();
+  const addLayer = tilesets.getByRole('button', { name: /^Add tilemap layer using / });
+  const tileset = ((await addLayer.getAttribute('aria-label')) ?? '').replace(
+    'Add tilemap layer using ',
+    '',
+  );
+  await addLayer.click();
+  // Make the new tilemap layer the active one.
+  const tilemapRow = page
+    .getByRole('list', { name: 'Layer list' })
+    .getByTitle(`${tileset} Layer`, { exact: true });
+  await tilemapRow.click();
+  await expect(tilemapRow).toHaveAttribute('aria-pressed', 'true');
+
+  await openSettings(page);
+  await fillSettings(page, { x: 3, y: 3 });
+  const d = settings(page);
+  await d.getByRole('button', { name: 'Use tile size (8×4)' }).click();
+  await expect(d.getByLabel('Cell width')).toHaveValue('8');
+  await expect(d.getByLabel('Cell height')).toHaveValue('4');
+  await expect(d.getByLabel('Offset X')).toHaveValue('0');
+  await expect(d.getByLabel('Offset Y')).toHaveValue('0');
+  await d.getByRole('button', { name: 'OK' }).click();
+  expect(await openSettings(page)).toEqual(['8', '4', '0', '0']);
 });

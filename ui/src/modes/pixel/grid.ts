@@ -8,7 +8,9 @@
 
 import { isIdbAvailable } from '../../lib/idb/db';
 import { getPref, setPref } from '../../lib/idb/prefs';
-import { ed, live, view } from './stores/editor.svelte';
+import { t } from '../../lib/i18n/index.svelte';
+import type { GridSettings } from './components/GridSettingsDialog.svelte';
+import { dialogs, ed, live, view } from './stores/editor.svelte';
 
 /** IndexedDB pref key of the grid view settings. */
 export const GRID_PREF = 'pixelGrid';
@@ -87,6 +89,57 @@ export function togglePixelGrid(): void {
 export function toggleGrid(): void {
   view.showGrid = !view.showGrid;
   saveGridPref();
+}
+
+/** View ▸ Grid Settings…. */
+export function openGridSettings(): void {
+  if (ed.doc) dialogs.grid = true;
+}
+
+/** What Grid Settings opens with: the sprite's grid plus the line pref. */
+export function gridSettingsInitial(): GridSettings {
+  const g = docGrid() ?? { x: 0, y: 0, w: 16, h: 16 };
+  return { ...g, color: view.gridColor, opacity: view.gridOpacity };
+}
+
+/** The active layer's tile size when it is a tilemap layer (AC-17). */
+export function activeTileSize(): { w: number; h: number } | null {
+  const d = ed.doc;
+  const id = ed.activeLayerId;
+  if (!d || id === null || d.layerKind(id) !== 'tilemap') return null;
+  const ts = d.layerTilesetId(id);
+  const w = d.tilesetTileWidth(ts);
+  const h = d.tilesetTileHeight(ts);
+  return w > 0 && h > 0 ? { w, h } : null;
+}
+
+/**
+ * Apply confirmed Grid Settings: a changed cell size or offset goes to the
+ * sprite as one undo step, colour and opacity to the user pref.
+ */
+export function applyGridSettings(s: GridSettings): void {
+  dialogs.grid = false;
+  const d = ed.doc;
+  if (!d) return;
+  const g = docGrid();
+  if (!g || g.x !== s.x || g.y !== s.y || g.w !== s.w || g.h !== s.h) {
+    try {
+      d.setGrid(s.x, s.y, s.w, s.h);
+    } catch (err) {
+      ed.status = t('status.failed', {
+        action: t('grid.title'),
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    ed.undoDepth = d.undoDepth;
+    ed.redoDepth = d.redoDepth;
+  }
+  if (s.color !== view.gridColor || s.opacity !== view.gridOpacity) {
+    view.gridColor = s.color;
+    view.gridOpacity = s.opacity;
+    saveGridPref();
+  }
 }
 
 /** The sprite's grid geometry in sprite pixels. */
