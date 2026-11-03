@@ -96,25 +96,27 @@ Already decided in §17.4: Pixel-mode tools stay pressure-free; Image-mode Penci
 | AC-01 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | built | |
 | AC-02 | `ui/e2e/pinch.spec.ts › image mode: two-finger pinch zooms in and paints nothing` | built | |
 | AC-03 | `ui/e2e/pinch.spec.ts › pixel mode: two-finger pinch zooms in and paints nothing` | built | |
-| AC-04 |  | open | |
-| AC-05 |  | open | |
-| AC-06 |  | open | |
-| AC-07 |  | open | |
-| AC-08 |  | open | |
-| AC-09 |  | open | |
+| AC-04 | `ui/e2e/pinch.spec.ts › pixel mode: two fingers pan by their midpoint and zoom about it`; `ui/e2e/pinch.spec.ts › image mode: two fingers pan by their midpoint and zoom about it` | built | |
+| AC-05 | `ui/e2e/pinch.spec.ts › pixel mode: the finger left after a pinch neither paints nor selects`; `ui/e2e/pinch.spec.ts › image mode: the finger left after a pinch neither paints nor selects` | built | |
+| AC-06 | `ui/e2e/pinch.spec.ts › pixel mode: a mouse and a pen down together never pinch`; `ui/e2e/pinch.spec.ts › image mode: a mouse and a pen down together never pinch` | built | |
+| AC-07 | `ui/e2e/viewport.spec.ts › pixel mode: the wheel steps integer zooms about the cursor, 1× to 64×` | built | |
+| AC-08 | `ui/e2e/viewport.spec.ts › image mode: the wheel zooms smoothly about the cursor, 2 % to 6400 %` | built | |
+| AC-09 | `ui/e2e/viewport.spec.ts › pixel mode: keys zoom in, out, to fit and to 1:1 outside text fields`; `ui/e2e/viewport.spec.ts › image mode: keys zoom in, out, to fit and to 1:1 outside text fields` | built | |
 | AC-10 | `ui/e2e/tools.spec.ts › image mode: the zoom buttons still work with the Zoom tool selected`; `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | built | |
-| AC-11 |  | open | |
-| AC-12 |  | open | |
-| AC-13 |  | open | |
+| AC-11 | `ui/e2e/viewport.spec.ts › pixel mode: a new document is fitted and centred`, `› pixel mode: an opened document is fitted and centred`, `› pixel mode: a recovered document is fitted and centred`; the same three for `image mode` | built | |
+| AC-12 | `ui/e2e/viewport.spec.ts › image mode: fit mode refits on resize until an explicit zoom or pan` | built | |
+| AC-13 | `ui/e2e/viewport.spec.ts › pixel mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: Space-drag pans with any tool and paints nothing`; `ui/e2e/viewport.spec.ts › image mode: a middle-button drag pans and paints nothing` | built | |
 | AC-14 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one`; `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_light_pressure_paints_a_smaller_dab`, `tests::stroke_with_full_pressure_matches_plain_stroke` | built | |
 | AC-15 | `ui/e2e/pressure.spec.ts › image mode: a light pen stroke is thinner than a firm one` | built | |
 | AC-16 | `crates/pincel-image-core/src/tools/mod.rs › tests::stroke_with_pressure_opacity_lowers_alpha_only_when_enabled` | built | |
-| AC-17 |  | open | |
+| AC-17 | `ui/e2e/pressure.spec.ts › touch device › image mode: mouse and touch strokes paint at full pressure` | built | |
 | AC-18 | `ui/e2e/pressure.spec.ts › image mode: tilt turns a flat nib only while the option is on`; `crates/pincel-image-core/src/tools/mod.rs › tests::flat_brush_follows_azimuth_only_when_enabled` | built | |
-| AC-19 |  | open | |
+| AC-19 | `ui/e2e/pressure.spec.ts › image mode: brush tools show the pressure and tilt options with their defaults` | built | |
 | AC-20 | `ui/e2e/modifiers.spec.ts › a mouse-only desktop shows no modifier toggles`; `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key` | built | |
 | AC-21 | `ui/e2e/modifiers.spec.ts › touch device › pixel mode: the latched Shift snaps a line like the Shift key`; `ui/e2e/modifiers.spec.ts › touch device › image mode: the latched Shift squares a shape like the Shift key` | built | |
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as it stands; inconsistencies between the two editors' viewports are not ACs — see the extraction report.
+- 2026-11-03: Closed the test gaps of AC-04 – AC-09, AC-11 – AC-13, AC-17 and AC-19. The behavior existed, so each new test was run red against a deliberate, reverted break: the pinch pan delta zeroed, and the pinch midpoint moved off the fingers (AC-04); `PinchTracker` suppression cleared on the first lift together with Pixel's `cancelGesture` leaving the stroke alive (AC-05 — removing the suppression alone stays green, because the cancelled gesture also keeps the remaining finger from painting); the touch-only check dropped from `PinchTracker.down` (AC-06); the cursor anchor removed from Pixel's `onWheel` (AC-07); Image's wheel anchored at the viewport centre (AC-08); `=` unbound from zoom in (AC-09); Image's fit padding 40 instead of 32 px (AC-11); the refit dropped from the `ResizeObserver`, and `zoomAround` no longer leaving fit mode (AC-12); Space pan off in both modes and the middle button no longer panning (AC-13); `pressureOf` reading mouse and touch pressure (AC-17); `tiltAngle` off by default (AC-19).
+- 2026-11-03: AC-11 found a bug: Pixel's fit on create, open and recover used the stage size bound through a `ResizeObserver`, which still held the size from before the document's panels filled in (the timeline's frame row), so a 64 × 48 sprite came up at 10× where only 9× leaves 24 px on every side. Fixed in `fix(ui): fit a new Pixel document to the stage its panels leave`: `fitView` measures the stage element, and `fitNewDocument` fits again once the DOM shows the new document.
