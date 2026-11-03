@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../../lib/i18n/index.svelte';
+  import { t, type MessageKey } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
@@ -205,11 +205,26 @@
   // error rather than calling wasm with a wrapped value.
   const UNSIGNED_FIELDS = new Set<keyof SliceRow>(['w', 'h', 'cw', 'ch']);
 
-  function onNumberCommit(row: SliceRow, field: keyof SliceRow, value: number) {
+  // The label of each numeric field, also used to name it in errors.
+  const FIELD_LABELS = {
+    x: 'slices.x',
+    y: 'slices.y',
+    w: 'slices.w',
+    h: 'slices.h',
+    cx: 'slices.cx',
+    cy: 'slices.cy',
+    cw: 'slices.cw',
+    ch: 'slices.ch',
+    px: 'slices.px',
+    py: 'slices.py',
+  } as const satisfies Partial<Record<keyof SliceRow, MessageKey>>;
+  type NumberField = keyof typeof FIELD_LABELS;
+
+  function onNumberCommit(row: SliceRow, field: NumberField, value: number) {
     if (!Number.isFinite(value)) return;
     const truncated = Math.trunc(value);
     if (UNSIGNED_FIELDS.has(field) && truncated < 1) {
-      rowError[row.id] = t('slices.mustBePositive', { field: String(field) });
+      rowError[row.id] = t('slices.mustBePositive', { field: t(FIELD_LABELS[field]) });
       return;
     }
     rowError[row.id] = null;
@@ -326,15 +341,16 @@
             </button>
           </div>
           <span class="text-xs text-pc-faint">
-            id {s.id} · {s.keyCount} key{s.keyCount === 1 ? '' : 's'} ·
-            frame 0
+            {s.keyCount === 1
+              ? t('slices.keyInfoOne', { id: s.id })
+              : t('slices.keyInfo', { id: s.id, count: s.keyCount })}
           </span>
 
           <fieldset class="flex flex-col gap-1">
-            <legend class="sr-only">Bounds for slice {s.name}</legend>
+            <legend class="sr-only">{t('slices.bounds', { name: s.name })}</legend>
             <div class="flex gap-1">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>X</span>
+                <span>{t(FIELD_LABELS.x)}</span>
                 <input
                   type="number"
                   step="1"
@@ -346,7 +362,7 @@
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>Y</span>
+                <span>{t(FIELD_LABELS.y)}</span>
                 <input
                   type="number"
                   step="1"
@@ -360,7 +376,7 @@
             </div>
             <div class="flex gap-1">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>W</span>
+                <span>{t(FIELD_LABELS.w)}</span>
                 <input
                   type="number"
                   min="1"
@@ -373,7 +389,7 @@
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>H</span>
+                <span>{t(FIELD_LABELS.h)}</span>
                 <input
                   type="number"
                   min="1"
@@ -402,7 +418,7 @@
               <legend class="sr-only">{t('slices.ninePatchCenter')}</legend>
               <div class="flex gap-1">
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cX</span>
+                  <span>{t(FIELD_LABELS.cx)}</span>
                   <input
                     type="number"
                     step="1"
@@ -414,7 +430,7 @@
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cY</span>
+                  <span>{t(FIELD_LABELS.cy)}</span>
                   <input
                     type="number"
                     step="1"
@@ -428,7 +444,7 @@
               </div>
               <div class="flex gap-1">
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cW</span>
+                  <span>{t(FIELD_LABELS.cw)}</span>
                   <input
                     type="number"
                     min="1"
@@ -441,7 +457,7 @@
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cH</span>
+                  <span>{t(FIELD_LABELS.ch)}</span>
                   <input
                     type="number"
                     min="1"
@@ -469,7 +485,7 @@
           {#if s.hasPivot}
             <div class="flex gap-1 pl-4">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>pX</span>
+                <span>{t(FIELD_LABELS.px)}</span>
                 <input
                   type="number"
                   step="1"
@@ -481,7 +497,7 @@
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>pY</span>
+                <span>{t(FIELD_LABELS.py)}</span>
                 <input
                   type="number"
                   step="1"
