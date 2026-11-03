@@ -88,6 +88,15 @@ function viewInit() {
     canvas: null as HTMLCanvasElement | null,
     /** Canvas2D overlay stacked over the base canvas. */
     overlay: null as HTMLCanvasElement | null,
+    /** Stage-sized canvas the pixel grid and custom grid draw on. */
+    gridCanvas: null as HTMLCanvasElement | null,
+    /** View ▸ Show Pixel Grid: on by default (pixel-grid AC-04). */
+    showPixelGrid: true,
+    /** View ▸ Show Grid: off by default (pixel-grid AC-16). */
+    showGrid: false,
+    /** Custom-grid line colour `#rrggbb` and opacity (%). */
+    gridColor: '#0000ff',
+    gridOpacity: 60,
   };
 }
 
@@ -183,6 +192,9 @@ function liveInit() {
     marchTicks: 0,
     colorPrefLoaded: false,
     brushPrefLoaded: false,
+    gridPrefLoaded: false,
+    /** What the grid canvas was last painted from (`grid.ts`). */
+    gridKey: '',
     /** The gesture in flight started on the right button. */
     useBg: false,
     painting: false,

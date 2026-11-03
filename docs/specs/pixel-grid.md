@@ -106,22 +106,22 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-01 | `fresh profile: Show Pixel Grid is on, Show Grid off, and each menu entry flips` (ui/e2e/grid.spec.ts) | built |        |
+| AC-02 | `the pixel grid shows from zoom 8 and hides below it` (ui/e2e/grid.spec.ts) | built |        |
+| AC-03 | `the pixel grid shows from zoom 8 and hides below it` (ui/e2e/grid.spec.ts) | built |        |
+| AC-04 | `fresh profile: Show Pixel Grid is on, Show Grid off, and each menu entry flips` (ui/e2e/grid.spec.ts) | built |        |
+| AC-05 | `fresh profile: Show Pixel Grid is on, Show Grid off, and each menu entry flips`, `the custom grid draws at offset + k × cell size in its colour and opacity, at any zoom` (ui/e2e/grid.spec.ts) | built |        |
+| AC-06 | `the custom grid draws at offset + k × cell size in its colour and opacity, at any zoom` (ui/e2e/grid.spec.ts) | built |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-11 | `the show states survive a reload and are not written into the file` (ui/e2e/grid.spec.ts) | built |        |
+| AC-12 | `Ctrl+' toggles Show Grid and Ctrl+Shift+' Show Pixel Grid` (ui/e2e/grid.spec.ts) | built |        |
 | AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-14 | manual check pending: lines 1 device px and crisp at every zoom and device pixel ratio, pixel grid in the faint theme colour, custom grid drawn over it (`paintGrid` in `ui/src/modes/pixel/grid.ts`) | open |        |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-16 | `fresh profile: Show Pixel Grid is on, Show Grid off, and each menu entry flips` (ui/e2e/grid.spec.ts) | built |        |
 | AC-17 |      | open   |        |
 
 ## Decisions
@@ -134,3 +134,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: The custom grid's line colour and opacity live in one IndexedDB `pixelGrid` user pref that applies to every document and is never written into the file (AC-15) — the header has no field for them, and a per-document store outside the file would need a new keyed registry for a cosmetic setting (owner accepted the recommendation).
 - 2026-10-29: Show Grid (the custom grid) is off on a fresh profile (AC-16) — it draws at every zoom and would clutter small sprites, Aseprite also defaults it to off, and §17.3 only mandates the pixel grid (owner accepted the recommendation).
 - 2026-10-29: Grid Settings offers a "Use tile size (W×H)" button when the active layer is a tilemap, setting the cell size to the tile size and the offset to 0, 0 (AC-17) — it takes a few lines, and aligning the grid to tiles is the main tilemap use (owner accepted the recommendation).
+- 2026-11-03 (spec-build): Both grids draw on their own stage-sized canvas (`data-testid="pixel-grid"`), not on the sprite-sized overlay — the overlay is CSS-upscaled, so a line on it would be a whole sprite pixel wide instead of one device pixel (AC-14).
+- 2026-11-03 (spec-build): The custom grid defaults to `#0000ff` at 60 % opacity and the pixel grid uses the theme's `--color-pc-faint` at 45 % — Aseprite's grid is blue too, and the faint token is the theme's low-contrast colour.
+- 2026-11-03 (spec-build): Shift counts for the `'` key in `shortcuts.ts`, and Ctrl+Shift+' also answers to Ctrl+`"` — a US layout types Shift+' as `"`, and without it Ctrl+' and Ctrl+Shift+' would be one chord.
+- 2026-11-03 (spec-build): Custom-grid lines are drawn for `0 ≤ offset + k × cell < size`; a line exactly on the far sprite edge is left out — it would fall outside the sprite.

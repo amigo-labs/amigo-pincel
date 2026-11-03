@@ -3,6 +3,7 @@
 import { Canvas2DRenderer } from '../../lib/render/canvas2d-renderer';
 import type { CanvasRenderer } from '../../lib/render/types';
 import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
+import { paintGridIfChanged } from './grid';
 import {
   type OverlayState,
   clearOverlay as clearOverlayLayer,
@@ -280,6 +281,9 @@ export function tick() {
       syncMeta();
     }
   }
+  // The grids repaint only when zoom, pan, size, settings or the
+  // sprite's grid changed (pixel-grid, grid.ts).
+  paintGridIfChanged();
   live.rafHandle = requestAnimationFrame(tick);
 }
 

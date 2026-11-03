@@ -39,6 +39,9 @@ export interface PixelMenuContext {
   currentFrame: number;
   playing: boolean;
   probeOn: boolean;
+  /** View ▸ Show Pixel Grid / Show Grid (pixel-grid). */
+  showPixelGrid: boolean;
+  showGrid: boolean;
 
   newDoc(): void;
   open(): void;
@@ -86,6 +89,8 @@ export interface PixelMenuContext {
   zoomFit(): void;
   zoomActual(): void;
   toggleProbe(): void;
+  togglePixelGrid(): void;
+  toggleGrid(): void;
   /** Help ▸ Keyboard Shortcuts. */
   openShortcuts(): void;
 }
@@ -244,6 +249,14 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.zoomOut'), shortcut: hint('zoomOut'), disabled: !c.hasDoc, run: c.zoomOut },
         { label: t('menu.zoomFit'), shortcut: hint('zoomFit'), disabled: !c.hasDoc, run: c.zoomFit },
         { label: t('menu.zoomActual'), shortcut: hint('zoomActual'), disabled: !c.hasDoc, run: c.zoomActual },
+        { kind: 'separator' },
+        {
+          label: t('menu.showPixelGrid'),
+          shortcut: hint('togglePixelGrid'),
+          checked: c.showPixelGrid,
+          run: c.togglePixelGrid,
+        },
+        { label: t('menu.showGrid'), shortcut: hint('toggleGrid'), checked: c.showGrid, run: c.toggleGrid },
         { kind: 'separator' },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
         reduceMotionMenuItem(),

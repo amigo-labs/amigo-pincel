@@ -34,6 +34,7 @@
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
   import { isBrushTool, loadBrushPref, saveBrushPref, stepBrushSize } from './brush';
+  import { loadGridPref, toggleGrid, togglePixelGrid } from './grid';
   import ResizeDialog from './components/ResizeDialog.svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
@@ -243,6 +244,8 @@
     'zoomOut',
     'zoomFit',
     'zoomActual',
+    'toggleGrid',
+    'togglePixelGrid',
     'shortcuts',
     'swapColors',
     'resetColors',
@@ -276,6 +279,8 @@
       currentFrame: ed.currentFrame,
       playing: play.playing,
       probeOn: probe.on,
+      showPixelGrid: view.showPixelGrid,
+      showGrid: view.showGrid,
       newDoc: openNewDialog,
       open: () => guardUnsaved(() => void openDoc()),
       openRecent: (r) => guardUnsaved(() => void openRecent(r)),
@@ -334,6 +339,8 @@
       zoomFit: resetView,
       zoomActual,
       toggleProbe,
+      togglePixelGrid,
+      toggleGrid,
       openShortcuts: openOverview,
     }),
   );
@@ -466,6 +473,12 @@
       case 'zoomActual':
         zoomActual();
         return true;
+      case 'toggleGrid':
+        toggleGrid();
+        return true;
+      case 'togglePixelGrid':
+        togglePixelGrid();
+        return true;
       case 'prevFrame':
       case 'nextFrame':
         stopPlayback();
@@ -584,6 +597,8 @@
     // Restore the shared Pencil / Eraser brush (defaults stand when the
     // pref is missing or IDB is unavailable).
     if (idbAvailable) void loadBrushPref().catch(() => undefined);
+    // Restore the grid view settings (pixel-grid AC-11, AC-15).
+    void loadGridPref();
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -1051,6 +1066,15 @@
               aria-hidden="true"
             ></canvas>
           </div>
+          <!-- Pixel grid and custom grid (docs/specs/pixel-grid.md): a
+               stage-sized canvas over the sprite, so lines stay one device
+               pixel at every zoom (grid.ts). -->
+          <canvas
+            bind:this={view.gridCanvas}
+            class="pointer-events-none absolute inset-0 h-full w-full"
+            data-testid="pixel-grid"
+            aria-hidden="true"
+          ></canvas>
           {#if ed.doc && dialogs.editingTile}
             <TileEditor
               doc={ed.doc}

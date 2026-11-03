@@ -287,6 +287,8 @@ export const en = {
   'menu.zoomOut': 'Zoom Out',
   'menu.zoomFit': 'Fit to Window',
   'menu.zoomActual': 'Actual Size',
+  'menu.showPixelGrid': 'Show Pixel Grid',
+  'menu.showGrid': 'Show Grid',
   'menu.probe': 'Frame-Time Probe',
   'menu.reduceMotion': 'Reduce Motion',
   'menu.reduceMotionSystem': 'Reduce Motion (on in system settings)',

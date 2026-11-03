@@ -36,6 +36,8 @@ export type ShortcutAction =
   | 'zoomOut'
   | 'zoomFit'
   | 'zoomActual'
+  | 'toggleGrid'
+  | 'togglePixelGrid'
   | 'swapColors'
   | 'resetColors'
   | 'brushSmaller'
@@ -74,6 +76,14 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   zoomOut: [{ key: '-' }, { key: '_' }],
   zoomFit: [{ key: '0' }],
   zoomActual: [{ key: '1' }],
+  // Pixel mode's grids (docs/specs/pixel-grid.md), as in Aseprite. Shift
+  // tells the two apart for `'` (see `shiftMatters`); a US layout types
+  // Shift+' as `"`, hence the alternate.
+  toggleGrid: [{ key: "'", mod: true }],
+  togglePixelGrid: [
+    { key: "'", mod: true, shift: true },
+    { key: '"', mod: true },
+  ],
   swapColors: [{ key: 'x' }],
   resetColors: [{ key: 'd' }],
   brushSmaller: [{ key: '[' }],
@@ -209,9 +219,13 @@ export function toolHint(groupId: string): string | undefined {
   return c ? chordLabel(c) : undefined;
 }
 
-/** Shift only counts for letters: shifted punctuation (`+`, `_`) carries it anyway. */
+/**
+ * Shift only counts for letters, and for `'`, whose Shift chord is a
+ * separate action (Ctrl+' / Ctrl+Shift+'): other shifted punctuation (`+`,
+ * `_`) carries it anyway.
+ */
 function shiftMatters(key: string): boolean {
-  return /^[a-z]$/i.test(key);
+  return /^[a-z']$/i.test(key);
 }
 
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
