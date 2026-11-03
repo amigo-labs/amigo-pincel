@@ -50,8 +50,8 @@ use pincel_core::{
     OnionSkin, Palette, PaletteEntry, PalettePreset, PixelBuffer, PlaceTile, Rect, RemoveLayer,
     RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
     SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
-    TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png,
-    read_aseprite, read_gpl, write_aseprite, write_gpl,
+    TileImage, TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png,
+    export_frame_png, read_aseprite, read_gpl, write_aseprite, write_gpl,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1077,9 +1077,10 @@ impl Document {
     /// stable across runs and monotonic. Returns the assigned id.
     ///
     /// Routes through the [`AddTileset`] command so the operation joins
-    /// the undo / redo bus. Tile-image content starts empty (Aseprite
-    /// convention: tile id `0` is the implicit empty tile); per-tile
-    /// edits land alongside the Tileset Editor in M8.7.
+    /// the undo / redo bus. The tileset starts with one stored, fully
+    /// transparent tile `0` (Aseprite's empty tile), so the first
+    /// [`Document::add_tile`] returns id `1` and no user tile is written
+    /// as the empty tile (docs/specs/tilemaps.md, Decisions 2026-10-29).
     ///
     /// Errors when `tile_w` or `tile_h` is zero, when the existing id
     /// space is exhausted (an existing tileset already uses `u32::MAX`),
@@ -1100,7 +1101,10 @@ impl Document {
             Some(u32::MAX) => return Err("tileset id space exhausted".to_string()),
             Some(m) => m + 1,
         };
-        let tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
+        let mut tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
+        tileset.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(tile_w, tile_h, ColorMode::Rgba),
+        });
         let cmd = AddTileset::new(tileset);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -3192,6 +3196,18 @@ mod tests {
     }
 
     #[test]
+    fn add_tileset_stores_transparent_tile_zero() {
+        // tilemaps.md AC-01: a tileset created in the UI holds one empty
+        // tile, id 0, fully transparent and of the tileset's tile size.
+        let mut doc = Document::new(4, 4).expect("dims");
+        let id = doc.add_tileset("ground", 3, 2).expect("addTileset");
+        assert_eq!(doc.tileset_tile_count(id), 1);
+        let bytes = doc.tile_pixels(id, 0).expect("tile 0 is stored");
+        assert_eq!(bytes.len(), 3 * 2 * 4);
+        assert!(bytes.iter().all(|b| *b == 0), "tile 0 is transparent");
+    }
+
+    #[test]
     fn add_tileset_rejects_zero_tile_size() {
         let mut doc = Document::new(4, 4).expect("dims");
         let err = doc.add_tileset("zero", 0, 8).unwrap_err();
@@ -3233,7 +3249,8 @@ mod tests {
         assert_eq!(doc.tileset_name(id), "ground");
         assert_eq!(doc.tileset_tile_width(id), 16);
         assert_eq!(doc.tileset_tile_height(id), 16);
-        assert_eq!(doc.tileset_tile_count(id), 0);
+        // The stored empty tile 0.
+        assert_eq!(doc.tileset_tile_count(id), 1);
     }
 
     #[test]
@@ -3313,27 +3330,23 @@ mod tests {
 
     #[test]
     fn tile_pixels_returns_rgba_buffer_for_stored_tile() {
-        use pincel_core::TileImage;
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        // Seed two distinct tiles directly on the underlying tileset.
-        // We use the raw `sprite.tilesets` field rather than `addTile`
-        // + `setTilePixel` so the assertions exercise the read path in
-        // isolation from those write methods.
+        // Tile 0 is the stored empty tile; seed tile 1 directly on the
+        // underlying tileset. We use the raw `sprite.tilesets` field
+        // rather than `addTile` + `setTilePixel` so the assertions
+        // exercise the read path in isolation from those write methods.
         let tileset = doc
             .sprite
             .tilesets
             .iter_mut()
             .find(|t| t.id.0 == ts_id)
             .expect("freshly added tileset is reachable");
-        let mut tile0 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
-        tile0.data.copy_from_slice(&[0u8; 16]);
         let mut tile1 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
         tile1.data.copy_from_slice(&[
             0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
             0xFF, 0xFF,
         ]);
-        tileset.tiles.push(TileImage { pixels: tile0 });
         tileset.tiles.push(TileImage { pixels: tile1 });
 
         let bytes0 = doc.tile_pixels(ts_id, 0).expect("tile 0 pixels");
@@ -3356,10 +3369,9 @@ mod tests {
     fn tile_pixels_rejects_tile_id_past_end() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("empty", 8, 8).expect("addTileset");
-        // Freshly added tileset stores zero tiles (Aseprite convention:
-        // tile 0 is implicit empty and not stored), so any tile_id is
+        // A fresh tileset stores only the empty tile 0, so tile 1 is
         // past the end.
-        let err = doc.tile_pixels(ts_id, 0).unwrap_err();
+        let err = doc.tile_pixels(ts_id, 1).unwrap_err();
         assert!(err.contains("out of range"), "got: {err}");
     }
 
@@ -3470,10 +3482,12 @@ mod tests {
     fn add_tile_appends_transparent_tile() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
-        let tile_id = doc.add_tile(ts_id).expect("addTile");
-        assert_eq!(tile_id, 0);
         assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        // Ids count up from 1; tile 0 is the stored empty tile.
+        let tile_id = doc.add_tile(ts_id).expect("addTile");
+        assert_eq!(tile_id, 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
+        assert_eq!(doc.add_tile(ts_id).expect("addTile"), 2);
         let bytes = doc.tile_pixels(ts_id, tile_id).expect("tilePixels");
         assert_eq!(bytes.len(), 2 * 2 * 4);
         assert!(bytes.iter().all(|b| *b == 0));
@@ -3486,27 +3500,27 @@ mod tests {
         let depth = doc.undo_depth();
         doc.add_tile(ts_id).expect("addTile");
         assert_eq!(doc.undo_depth(), depth + 1);
-        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
         assert!(doc.undo());
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
-        assert!(doc.redo().expect("redo"));
         assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
     }
 
     #[test]
     fn add_tile_clears_redo_stack() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        doc.add_tile(ts_id).expect("addTile 0");
+        doc.add_tile(ts_id).expect("addTile 1");
         assert!(doc.undo(), "undo the first tile");
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
         // A fresh execute must drop the pending redo entry.
         doc.add_tile(ts_id).expect("addTile again");
         assert!(
             !doc.redo().expect("redo"),
             "redo stack cleared by the new command"
         );
-        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
     }
 
     // ---- M9.4 slice surface ------------------------------------------
