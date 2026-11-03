@@ -91,7 +91,7 @@
       />
     </label>
     <p class="text-xs text-pc-muted" aria-live="polite">
-      {cols} × {rows} cells · {cols * frameWidth}×{rows * frameHeight} px
+      {t('sheet.grid', { cols, rows, w: cols * frameWidth, h: rows * frameHeight })}
     </p>
     <label class="flex items-center gap-2 text-xs text-pc-text">
       <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />

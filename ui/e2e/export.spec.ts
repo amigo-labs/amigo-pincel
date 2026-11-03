@@ -293,3 +293,17 @@ test('Cancel and Escape close the sprite sheet dialog without exporting', async 
   await expect(status(page, /^exported sprite sheet/)).toBeVisible();
   expect(downloads.map((d) => d.suggestedFilename())).toEqual(['pincel.png', 'pincel.json']);
 });
+
+// The grid line of the sprite sheet dialog is translated like the rest of
+// the dialog (AGENTS.md §5.4, docs/specs/pixel-export.md AC-16).
+test('the sprite sheet grid line follows the German language', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: 8, height: 8 });
+  await page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Add frame' }).click();
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Language' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await menu(page, 'Datei', 'Exportieren', 'Sprite-Sheet…');
+  const dialog = page.getByRole('dialog', { name: 'Sprite-Sheet exportieren' });
+  await dialog.getByLabel('Spalten').fill('2');
+  await expect(dialog.getByText('2 × 1 Zellen · 16×8 px')).toBeVisible();
+});

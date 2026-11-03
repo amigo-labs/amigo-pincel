@@ -105,7 +105,7 @@ This spec records the behavior as built.
 | AC-13 | `pincel-core: codec::sheet_data::tests::tag_sheet_renumbers_tags_and_slice_keys` | built | |
 | AC-14 | `pincel-core: codec::png::tests::export_atlas_png_rejects_zero_columns`, `export_atlas_png_rejects_unknown_tag`, `export_atlas_png_rejects_tag_range_past_last_frame`, `export_atlas_png_rejects_sprite_without_frames`, `export_atlas_png_reports_too_large_instead_of_overflowing_the_byte_count` | built | |
 | AC-15 | `ui/e2e/export.spec.ts › the sprite sheet dialog opens with every frame, the tags, √n columns and JSON on` | built | |
-| AC-16 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | built | |
+| AC-16 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON`, `ui/e2e/export.spec.ts › the sprite sheet grid line follows the German language` | built | |
 | AC-17 | `ui/e2e/export.spec.ts › sprite sheet export writes the PNG and the Aseprite JSON` | built | |
 | AC-18 | `ui/e2e/export.spec.ts › a tag exports only its frames under <document name>-<tag>` | built | |
 | AC-19 | `ui/e2e/export.spec.ts › without the JSON checkbox only the PNG is saved` | built | |

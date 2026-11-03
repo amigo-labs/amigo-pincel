@@ -579,6 +579,7 @@ export const en = {
   'slices.ninePatchCenter': '9-patch center rectangle',
   'slices.pivot': 'Pivot',
   'sheet.title': 'Export sprite sheet',
+  'sheet.grid': '{cols} × {rows} cells · {w}×{h} px',
   'sheet.frames': 'Frames',
   'sheet.columns': 'Columns',
   'sheet.json': 'Write JSON data',

@@ -586,6 +586,7 @@ export const de: Record<MessageKey, string> = {
   'slices.ninePatchCenter': '9-Patch-Mittelrechteck',
   'slices.pivot': 'Drehpunkt',
   'sheet.title': 'Sprite-Sheet exportieren',
+  'sheet.grid': '{cols} × {rows} Zellen · {w}×{h} px',
   'sheet.frames': 'Frames',
   'sheet.columns': 'Spalten',
   'sheet.json': 'JSON-Daten schreiben',
