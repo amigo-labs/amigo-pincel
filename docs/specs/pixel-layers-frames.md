@@ -110,27 +110,29 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-08: the inline rename field opens without keyboard focus (its `autofocus` has no effect on a field mounted after page load), so the user has to click into it before typing. AC-08 does not say whether the field takes focus when the rename button is pressed; should it?
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pincel-wasm: tests::add_layer_appends_and_returns_monotonic_id`, `tests::add_layer_is_undoable`; `pincel-core: command::add_layer::tests::apply_appends_layer_when_no_index_given`, `command::add_layer::tests::revert_removes_inserted_layer` | built | |
-| AC-02 |      | open   |        |
+| AC-02 | `ui/e2e/layers.spec.ts › pixel: a new layer is named by the stack size, becomes active and takes the next stroke (AC-02)` | built | |
 | AC-03 | `pincel-wasm: tests::pencil_paints_into_active_layer_cel`, `tests::paint_target_resolves_active_image_layer`, `tests::paint_target_falls_back_for_non_image_or_unknown_active` | built | |
 | AC-04 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out` | built | |
 | AC-05 | `pincel-core: command::remove_layer::tests::remove_leaf_layer_and_restore_it`, `command::remove_layer::tests::remove_layer_drops_its_cels_across_frames_and_revert_restores`, `command::remove_layer::tests::removing_a_group_takes_its_whole_subtree`; `pincel-wasm: tests::remove_layer_drops_it_clears_active_and_undoes` | built | |
-| AC-06 |      | open   |        |
+| AC-06 | `ui/e2e/layers.spec.ts › pixel: Delete is unavailable while the stack holds one layer (AC-06)` | built | |
 | AC-07 | `ui/e2e/layers.spec.ts › pixel: Layer ▸ Rename… renames the active layer` | built | |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-08 | `ui/e2e/layers.spec.ts › pixel: inline rename commits the trimmed name on Enter; Escape, blank and unchanged do nothing (AC-08)` | built | |
+| AC-09 | `ui/e2e/layers.spec.ts › pixel: the panel lists the layer tree top-most first, indented, with kind badges (AC-09)` | built | |
 | AC-10 | `ui/e2e/layers.spec.ts › pixel: drag the grip to reorder layers`; `pincel-wasm: layer_ops::tests::reorder_layer_is_one_undo_step` | built | |
 | AC-11 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out`; `pincel-core: command::move_layer_to::tests::move_into_group_makes_it_the_top_child_and_undo_restores`, `command::move_layer_to::tests::move_out_of_group_above_a_root_layer` | built | |
-| AC-12 |      | open   |        |
+| AC-12 | `ui/e2e/layers.spec.ts › pixel: arrow keys on a grip move the layer, Alt+→ / Alt+← in and out of a group (AC-12)` | built | |
 | AC-13 | `pincel-core: command::move_layer::tests::moving_a_group_carries_its_children`, `command::move_layer_to::tests::a_group_moves_with_its_children_into_another_group`, `command::reorder_layer::tests::apply_moves_down_past_a_group_as_a_block` | built | |
 | AC-14 | `pincel-core: command::move_layer_to::tests::moving_into_own_subtree_or_a_non_group_errs_without_change`; `pincel-wasm: layer_ops::tests::move_layer_into_a_new_group_and_back_out_undoes_in_one_step_each` | built | |
 | AC-15 | `pincel-wasm: tests::set_layer_visible_toggles_and_undoes`; `pincel-core: render::compose::tests::invisible_layer_is_skipped`, `render::compose::tests::hidden_group_hides_child_layers`, `render::compose::tests::hidden_grandparent_hides_nested_child` | built | |
 | AC-16 | `ui/e2e/layers.spec.ts › pixel: a locked layer refuses paint`; `pincel-wasm: layer_ops::tests::locked_layer_refuses_paint_until_unlocked` | built | |
-| AC-17 |      | open   |        |
+| AC-17 | `ui/e2e/layers.spec.ts › pixel: a locked group locks its layers without setting their own flag (AC-17)` | built | |
 | AC-18 | `pincel-wasm: layer_ops::tests::set_layer_opacity_round_trips_and_merges_slider_ticks`; `pincel-core: command::set_layer_opacity::tests::consecutive_edits_merge_into_one_undo_entry_restoring_the_first_prior` | built | |
 | AC-19 | `pincel-wasm: layer_ops::tests::set_layer_blend_mode_by_name_and_reject_unknown`, `layer_ops::tests::blend_mode_names_lists_all_modes` | built | |
 | AC-20 | `pincel-core: command::duplicate_layer::tests::apply_inserts_copy_above_source_with_cels_and_revert_removes_it`; `pincel-wasm: layer_ops::tests::duplicate_layer_returns_new_id_and_copies_pixels` | built | |
@@ -140,21 +142,24 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-24 | `pincel-core: command::flatten_image::tests::apply_leaves_one_layer_with_the_visible_composite_per_frame`, `command::flatten_image::tests::undo_restores_layers_and_cels_exactly_and_redo_reflattens`; `pincel-wasm: layer_ops::tests::flatten_image_leaves_one_layer_with_the_composite` | built | |
 | AC-25 | `pincel-wasm: layer_ops::tests::layer_thumbnail_fits_and_shows_hidden_layers` | built | |
 | AC-26 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: tests::add_frame_appends_and_is_undoable`, `tests::paint_auto_creates_cel_on_a_fresh_frame` | built | |
-| AC-27 |      | open   |        |
+| AC-27 | `ui/e2e/timeline.spec.ts › selecting a frame shows it, reads frame n/total and takes the next stroke (AC-27)` | built | |
 | AC-28 | `pincel-core: command::remove_frame::tests::apply_middle_frame_shifts_later_cels_down`, `command::remove_frame::tests::apply_adjusts_tags_and_drops_single_frame_tag`, `command::remove_frame::tests::apply_shifts_slice_keys_and_keeps_the_removed_frames_key`, `command::remove_frame::tests::revert_restores_frames_and_cels_exactly`; `pincel-wasm: timeline::tests::remove_frame_clamps_the_current_frame`; `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | built | |
 | AC-29 | `pincel-core: command::remove_frame::tests::apply_last_remaining_frame_returns_err`; `pincel-wasm: timeline::tests::remove_last_remaining_frame_errors` | built | |
 | AC-30 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::set_frame_duration_round_trips_through_undo` | built | |
-| AC-31 |      | open   |        |
-| AC-32 |      | open   |        |
+| AC-31 | `ui/e2e/timeline.spec.ts › a duration of 0, above 65535 or not a number keeps the previous one (AC-31)` | built | |
+| AC-32 | `ui/e2e/timeline.spec.ts › a new tag covers the current frame, plays forward, takes the next colour and opens its editor (AC-32)` | built | |
 | AC-33 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::tag_lifecycle_through_the_surface`; `pincel-core: command::tag_ops::tests::set_tag_range_applies_and_reverts`, `command::tag_ops::tests::set_tag_name_applies_and_reverts`, `command::tag_ops::tests::set_tag_direction_applies_and_reverts`, `command::tag_ops::tests::remove_tag_round_trips` | built | |
-| AC-34 |      | open   |        |
+| AC-34 | `ui/e2e/timeline.spec.ts › a tag name that is not identifier-like warns but is kept (AC-34)` | built | |
 | AC-35 | `pincel-core: command::tag_ops::tests::set_tag_name_empty_returns_err`, `command::tag_ops::tests::set_tag_range_inverted_returns_err`, `command::tag_ops::tests::add_tag_with_range_past_last_frame_returns_err`, `command::tag_ops::tests::add_tag_with_empty_name_returns_err` | built | |
 | AC-36 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | built | |
-| AC-37 |      | open   |        |
-| AC-38 |      | open   |        |
+| AC-37 | `ui/e2e/playback.spec.ts › a forward tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a reverse tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a pingpong tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a pingpong_reverse tag plays its frames in that order (AC-37)` | built | |
+| AC-38 | `ui/e2e/timeline.spec.ts › Play is unavailable while the document has fewer than two frames (AC-38)` | built | |
 | AC-39 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::onion_skin_toggles_and_composes`; `pincel-core: render::onion::tests::previous_frame_shows_red_tinted_under_a_hole`, `render::onion::tests::next_frame_is_blue_tinted_at_next_alpha` | built | |
-| AC-40 |      | open   |        |
-| AC-41 |      | open   |        |
+| AC-40 | `ui/e2e/timeline.spec.ts › onion-skin settings add no undo step and leave the document unchanged (AC-40)` | built | |
+| AC-41 | `ui/e2e/playback.spec.ts › each frame stays on screen for its own duration (AC-41)`; `ui/e2e/playback.spec.ts › a late frame skips ahead to keep wall-clock time (AC-41)` | built | |
 
 ## Decisions
 
+- 2026-11-03: Test gaps closed for AC-02, AC-06, AC-08, AC-09, AC-12, AC-17, AC-27, AC-31, AC-32, AC-34, AC-37, AC-38, AC-40 and AC-41 (`ui/e2e/layers.spec.ts`, `ui/e2e/timeline.spec.ts`, `ui/e2e/playback.spec.ts`; the playback tests drive a paused page clock). Each test that was green at once was run red against a deliberate break, then reverted: new layers named `Layer {count}` (AC-02), Delete enabled with one layer (AC-06), no group badge (AC-09), Alt+→ dropping above the group (AC-12), no "Locked by its group" hint (AC-17), `.` unbound (AC-27), a five-colour tag cycle (AC-32), spaces and `-` taken as identifier-like (AC-34), wrong wrap and bounce frames in `advance` (AC-37), Play enabled with one frame (AC-38), onion changes marking the document unsaved (AC-40), every frame timed by the first one and the clock restarting at each change (AC-41).
+- 2026-11-03: Bug (AC-08): the inline rename was an undo step in the document, but the editor did not mirror the undo depth, so the Undo button, the status bar and the unsaved marker missed it (`fix(ui): count a Pixel inline layer rename as an undo step in the UI`); the AC-08 test was red before.
+- 2026-11-03: Bug (AC-31): a rejected duration left the typed value in the field, so the timeline showed a duration the frame did not have; the field now shows the kept duration (`fix(ui): show the kept duration after a rejected frame duration entry`); the AC-31 test was red before.
