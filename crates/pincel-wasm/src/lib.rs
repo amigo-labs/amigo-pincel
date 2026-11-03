@@ -3523,6 +3523,89 @@ mod tests {
         assert_eq!(doc.tileset_tile_count(ts_id), 2);
     }
 
+    /// The tile id at grid cell `(x, y)` of a tilemap cel.
+    fn grid_tile(doc: &Document, layer: u32, frame: u32, x: u32, y: u32) -> u32 {
+        let cel = doc
+            .cels
+            .get(LayerId::new(layer), FrameIndex::new(frame))
+            .expect("tilemap cel");
+        let CelData::Tilemap { grid_w, tiles, .. } = &cel.data else {
+            panic!("expected tilemap cel");
+        };
+        tiles[(y * grid_w + x) as usize].tile_id
+    }
+
+    #[test]
+    fn place_tile_refuses_a_locked_layer_or_one_in_a_locked_group() {
+        // tilemaps.md AC-15.
+        let mut doc = Document::new(8, 8).expect("dims");
+        let ts = doc.add_tileset("t", 4, 4).expect("addTileset");
+        let tile = doc.add_tile(ts).expect("addTile");
+        let layer = doc.add_tilemap_layer("tm", ts).expect("addTilemapLayer");
+        let group = doc.add_group("g").expect("addGroup");
+        doc.move_layer_to(layer, group, "into").expect("into group");
+        let _ = doc.drain_events();
+
+        let refused = |doc: &mut Document| {
+            let depth = doc.undo_depth();
+            let err = doc.place_tile(layer, 0, 1, 1, tile).unwrap_err();
+            assert!(err.contains("locked"), "got: {err}");
+            assert_eq!(grid_tile(doc, layer, 0, 1, 1), 0, "cell unchanged");
+            assert_eq!(doc.undo_depth(), depth, "no undo entry");
+            assert!(doc.drain_events().is_empty(), "nothing repaints");
+        };
+
+        doc.set_layer_editable(layer, false).expect("lock layer");
+        refused(&mut doc);
+        doc.set_layer_editable(layer, true).expect("unlock layer");
+        doc.set_layer_editable(group, false).expect("lock group");
+        refused(&mut doc);
+        doc.set_layer_editable(group, true).expect("unlock group");
+        doc.place_tile(layer, 0, 1, 1, tile)
+            .expect("unlocked: placed");
+        assert_eq!(grid_tile(&doc, layer, 0, 1, 1), tile);
+    }
+
+    #[test]
+    fn an_edited_tile_shows_in_every_cell_that_references_it() {
+        // tilemaps.md AC-18: two tilemap layers on one tileset, two
+        // frames, the tile placed in a different cell of each layer and
+        // frame; one pixel edit of the tile reaches all four places.
+        let mut doc = Document::new(8, 8).expect("dims");
+        let ts = doc.add_tileset("t", 4, 4).expect("addTileset");
+        let tile = doc.add_tile(ts).expect("addTile");
+        doc.add_frame(100).expect("addFrame");
+        let lower = doc.add_tilemap_layer("lower", ts).expect("lower");
+        let upper = doc.add_tilemap_layer("upper", ts).expect("upper");
+        let places = [
+            (lower, 0, 0, 0),
+            (upper, 0, 1, 1),
+            (lower, 1, 1, 0),
+            (upper, 1, 0, 1),
+        ];
+        for (layer, frame, gx, gy) in places {
+            doc.place_tile(layer, frame, gx, gy, tile)
+                .expect("placeTile");
+        }
+        for (_, frame, gx, gy) in places {
+            let (x, y) = (gx as i32 * 4 + 2, gy as i32 * 4 + 3);
+            assert_eq!(doc.pick_color(frame, x, y).expect("pick"), 0);
+        }
+
+        doc.set_tile_pixel(ts, tile, 2, 3, 0xFF00_00FF)
+            .expect("setTilePixel");
+        for (_, frame, gx, gy) in places {
+            let (x, y) = (gx as i32 * 4 + 2, gy as i32 * 4 + 3);
+            assert_eq!(
+                doc.pick_color(frame, x, y).expect("pick"),
+                0xFF00_00FF,
+                "frame {frame} cell ({gx}, {gy})"
+            );
+        }
+        // A cell without the tile stays empty.
+        assert_eq!(doc.pick_color(0, 4 + 2, 3).expect("pick"), 0);
+    }
+
     // ---- M9.4 slice surface ------------------------------------------
 
     #[test]
