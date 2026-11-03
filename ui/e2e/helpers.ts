@@ -251,36 +251,6 @@ export async function putClipboardImage(
   );
 }
 
-/**
- * The stored value of IndexedDB pref `key` (database `pincel`, store
- * `prefs`); `undefined` while unset. Prefs are written fire-and-forget:
- * poll this before a reload that must see a new value.
- */
-export async function storedPref(page: Page, key: string): Promise<unknown> {
-  return page.evaluate(
-    (k) =>
-      new Promise<unknown>((resolve, reject) => {
-        const open = indexedDB.open('pincel');
-        open.onerror = () => reject(new Error(String(open.error)));
-        open.onsuccess = () => {
-          const db = open.result;
-          if (!db.objectStoreNames.contains('prefs')) {
-            db.close();
-            resolve(undefined);
-            return;
-          }
-          const get = db.transaction('prefs', 'readonly').objectStore('prefs').get(k);
-          get.onerror = () => reject(new Error(String(get.error)));
-          get.onsuccess = () => {
-            db.close();
-            resolve((get.result as { value?: unknown } | undefined)?.value);
-          };
-        };
-      }),
-    key,
-  );
-}
-
 /** Raster formats the Image editor opens (besides OpenRaster). */
 export type RasterKind = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'gif';
 
@@ -336,7 +306,10 @@ function tiffFile(): Buffer {
 }
 
 /** A 1×1 GIF. */
-const GIF_FILE = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+const GIF_FILE = Buffer.from(
+  'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+  'base64',
+);
 
 /** Encodes an 8×6 test image in the browser (PNG / JPEG / WebP). */
 async function canvasFile(page: Page, mime: string): Promise<Buffer> {
