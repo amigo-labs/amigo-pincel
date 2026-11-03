@@ -13,6 +13,7 @@
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
+  import { rgbaOf } from '../../lib/effects/catalog';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
@@ -1218,6 +1219,7 @@
   {#key dialogs.effect.id}
     <EffectDialog
       def={dialogs.effect}
+      foreground={rgbaOf(colors.color, colors.alpha)}
       hasSelection={ed.selection !== null}
       onPreview={previewEffectParams}
       onApply={applyEffectParams}

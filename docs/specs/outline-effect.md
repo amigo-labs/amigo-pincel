@@ -92,17 +92,17 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `pixel: Effects ▸ Outline… opens with Place, Shape, Thickness and Color at their defaults (AC-01)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`); `pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `image: …` (`ui/e2e/effects.spec.ts`) | built |        |
 | AC-02 | `apply_outside_at_the_edge_writes_only_inside_the_buffer`, `apply_alpha_1_counts_as_opaque`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_never_writes_outside_a_trimmed_cel` (`crates/pincel-wasm/src/effects.rs`) | built |        |
 | AC-03 | `apply_outside_square_single_pixel_colours_its_8_neighbours`, `apply_outside_square_thickness_3_colours_a_7x7_block`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
 | AC-04 | `apply_outside_circle_single_pixel_colours_its_4_edge_neighbours`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
 | AC-05 | `apply_matches_the_distance_definition_for_every_option`, `apply_inside_fully_opaque_thickness_1_recolours_the_border_ring`, `apply_alpha_1_counts_as_opaque` (`crates/pincel-effects/src/outline.rs`) | built |        |
 | AC-06 | `apply_outside_square_single_pixel_colours_its_8_neighbours` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
 | AC-07 | `apply_effect_outline_fills_the_selection_from_an_opaque_pixel_outside_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
-| AC-08 |      | open   |        |
-| AC-09 | `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`, `crates/pincel-image-wasm/src/lib.rs`) | built |        |
+| AC-08 | `pixel: the canvas previews the outline live; Cancel leaves the layer unchanged (AC-08)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | built |        |
+| AC-09 | `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`, `crates/pincel-image-wasm/src/lib.rs`); `pixel: the outline applies as one undo step and redo brings it back (AC-09)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | built |        |
 | AC-10 | `apply_effect_outline_on_an_indexed_sprite_errors_with_the_rgba_message` (`crates/pincel-wasm/src/effects.rs`) | built |        |
-| AC-11 |      | open   |        |
+| AC-11 | `pixel: a hex that is not #RRGGBB or #RRGGBBAA is marked invalid and not used (AC-11)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | built |        |
 | AC-12 | `from_params_outline_clamps_thickness_to_1_through_8`, `from_params_outline_wrong_arity_is_an_error`, `from_params_outline_color_not_a_u32_integer_is_an_error` (`crates/pincel-effects/src/spec.rs`); `apply_effect_outline_bad_color_or_arity_errors_and_changes_nothing` (`crates/pincel-wasm/src/effects.rs`) | built |        |
 | AC-13 | `apply_both_is_the_union_of_outside_and_inside`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | built |        |
 
@@ -119,3 +119,6 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-11-03 (build): Distances come from a two-pass chamfer transform (exact for the city-block and chessboard metrics) instead of t dilation passes — it is O(w·h) whatever the thickness, which matters for large Image-mode layers.
 - 2026-11-03 (build): A colour slot that is not an integer in `0..=u32::MAX` is a new `EffectError::InvalidParam { effect, index, reason }` — `ParamCount` and `UnknownEffect` do not describe a bad value, and AC-12 needs an error, not a clamp.
 - 2026-11-03 (build): `pincel-wasm` and `pincel-image-wasm` needed no change: both already run an effect over the whole cel / layer and keep the result inside the selection, so an opaque pixel outside the selection still outlines into it (AC-07); their outline tests were red only against the effects crate without the outline (`unknown effect`).
+- 2026-11-03 (build): Outline sits directly in the Effects menu after a separator below the Blur / Sharpen / Distort / Noise submenus (catalog group `effects`) — AC-01 names it Effects ▸ Outline…, not a submenu entry; `effects.spec.ts`'s AC-01 test of `effects-adjustments.md` now expects that row after the submenus.
+- 2026-11-03 (build): The hex field shows `#rrggbb` for an opaque colour and `#rrggbbaa` otherwise, accepts at most 9 characters, and the native colour input changes only RGB and keeps the alpha — the native input has no alpha, and the shorter form matches the foreground hex field.
+- 2026-11-03 (build): The colour default is Pixel mode's foreground with its alpha slider value and Image mode's foreground as opaque — Image mode has no foreground alpha yet (`color-picker.md` adds it).

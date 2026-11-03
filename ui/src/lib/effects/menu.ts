@@ -1,6 +1,7 @@
 // The Effects and Adjustments menus both modes show (spec §9.2, §15
 // 2026-10-11 "One effect wire format"): Effects groups its entries into
-// Blur ▸ / Sharpen ▸ / Distort ▸ / Noise ▸ submenus, Adjustments is flat.
+// Blur ▸ / Sharpen ▸ / Distort ▸ / Noise ▸ submenus followed by its direct
+// entries (Outline…), Adjustments is flat.
 
 import type { MenuDef } from '../components/layout/menu';
 import { t } from '../i18n/index.svelte';
@@ -18,12 +19,16 @@ export function effectMenus(pick: (def: EffectDef) => void, disabled: boolean): 
     {
       id: 'effects',
       label: t('menu.effects'),
-      items: EFFECT_MENU_GROUPS.map((g) => ({
-        kind: 'submenu' as const,
-        label: groupLabel(g, GROUP_LABELS[g]),
-        disabled,
-        items: EFFECTS.filter((e) => e.group === g).map(item),
-      })),
+      items: [
+        ...EFFECT_MENU_GROUPS.map((g) => ({
+          kind: 'submenu' as const,
+          label: groupLabel(g, GROUP_LABELS[g]),
+          disabled,
+          items: EFFECTS.filter((e) => e.group === g).map(item),
+        })),
+        { kind: 'separator' as const },
+        ...EFFECTS.filter((e) => e.group === 'effects').map(item),
+      ],
     },
     {
       id: 'adjustments',

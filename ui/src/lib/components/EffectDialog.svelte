@@ -1,5 +1,11 @@
 <script lang="ts">
-  import { defaultValues, toParams, type EffectDef } from '../effects/catalog';
+  import {
+    defaultValues,
+    formatHexColor,
+    parseHexColor,
+    toParams,
+    type EffectDef,
+  } from '../effects/catalog';
   import { effectLabel, fxText } from '../effects/labels';
   import { t } from '../i18n/index.svelte';
 
@@ -12,12 +18,15 @@
   let {
     def,
     hasSelection = false,
+    foreground,
     onPreview,
     onApply,
     onCancel,
   }: {
     def: EffectDef;
     hasSelection?: boolean;
+    /** The foreground colour as 0xRRGGBBAA, the default of colour params. */
+    foreground?: number;
     /** `null` turns the preview off: show the image without the effect. */
     onPreview: (params: number[] | null) => void;
     onApply: (params: number[]) => void;
@@ -27,7 +36,30 @@
   // The parent remounts this dialog per effect (`{#key def.id}`), so the
   // initial snapshot of `def` is the only one this instance ever sees.
   // svelte-ignore state_referenced_locally
-  let values = $state<Record<string, number>>(defaultValues(def));
+  let values = $state<Record<string, number>>(defaultValues(def, { foreground }));
+  // Hex text the user typed per colour param; without an entry the field
+  // shows the colour itself. Only a valid `#RRGGBB[AA]` reaches `values`;
+  // anything else marks the field invalid and keeps the last good colour.
+  let hexEdits = $state<Record<string, string>>({});
+
+  function hexText(key: string, fallback: number): string {
+    return hexEdits[key] ?? formatHexColor(values[key] ?? fallback);
+  }
+
+  function onHexInput(key: string, text: string) {
+    hexEdits[key] = text;
+    const rgba = parseHexColor(text);
+    if (rgba !== null) values[key] = rgba;
+  }
+
+  /** The native input picks RGB only; the colour keeps its alpha. */
+  function onSwatchInput(key: string, rgbHex: string) {
+    const rgb = parseHexColor(rgbHex);
+    if (rgb === null) return;
+    const rgba = (rgb - 0xff + ((values[key] ?? 0xff) & 0xff)) >>> 0;
+    values[key] = rgba;
+    delete hexEdits[key];
+  }
   let preview = $state(true);
 
   const params = $derived(toParams(def, values));
@@ -50,7 +82,8 @@
   });
 
   function reset() {
-    values = defaultValues(def);
+    values = defaultValues(def, { foreground });
+    hexEdits = {};
   }
 
   function onKeydown(e: KeyboardEvent) {
@@ -127,6 +160,34 @@
           />
           <span>{fxText(p.label)}</span>
         </label>
+      {:else if p.kind === 'color'}
+        {@const text = hexText(p.key, p.default)}
+        {@const invalid = parseHexColor(text) === null}
+        <div class="flex items-center justify-between gap-2 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <span class="flex items-center gap-2">
+            <input
+              type="color"
+              value={formatHexColor(values[p.key] ?? p.default).slice(0, 7)}
+              oninput={(e) => onSwatchInput(p.key, e.currentTarget.value)}
+              class="swatch h-6 w-8"
+              aria-label={fxText(p.label)}
+              title={fxText(p.label)}
+            />
+            <input
+              type="text"
+              value={text}
+              oninput={(e) => onHexInput(p.key, e.currentTarget.value)}
+              spellcheck="false"
+              maxlength="9"
+              class="opt-field w-24 font-mono"
+              class:invalid
+              aria-invalid={invalid}
+              aria-label={t('effectDlg.hex', { label: fxText(p.label) })}
+              title={invalid ? t('effectDlg.hexInvalid') : undefined}
+            />
+          </span>
+        </div>
       {:else}
         <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
           <span>{fxText(p.label)}</span>
@@ -159,3 +220,27 @@
     </footer>
   </form>
 </div>
+
+<style>
+  .swatch {
+    cursor: pointer;
+    border-radius: 0.25rem;
+    border: 1px solid var(--color-pc-border);
+    padding: 0;
+    background: transparent;
+  }
+  .swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .swatch::-webkit-color-swatch {
+    border: none;
+    border-radius: 0.125rem;
+  }
+  .swatch::-moz-color-swatch {
+    border: none;
+    border-radius: 0.125rem;
+  }
+  .invalid {
+    outline: 1px solid #f87171;
+  }
+</style>

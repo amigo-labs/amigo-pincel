@@ -145,6 +145,8 @@ const EFFECT_MENUS: [string, string[]][] = [
   ['Distort', ['Emboss…', 'Edge Detect…', 'Relief…']],
   ['Noise', ['Add Noise…', 'Reduce Noise…']],
 ];
+/** The Effects menu's own rows: the submenus, then Outline… (outline-effect.md AC-01). */
+const EFFECT_TOP = [...EFFECT_MENUS.map(([group]) => group), 'Outline…'];
 const ADJUSTMENTS = [
   'Brightness / Contrast…',
   'Hue / Saturation…',
@@ -178,7 +180,7 @@ for (const mode of MODES) {
     await page.getByRole('button', { name }).click();
     await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
     await bar.getByRole('menuitem', { name: 'Effects', exact: true }).click();
-    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_MENUS.map(([group]) => group));
+    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_TOP);
     for (const item of await effects.getByRole('menuitem').all()) await expect(item).toBeDisabled();
     await page.keyboard.press('Escape');
     await bar.getByRole('menuitem', { name: 'Adjustments', exact: true }).click();
@@ -192,7 +194,8 @@ for (const mode of MODES) {
     await page.unroute('**/*.wasm');
 
     await bar.getByRole('menuitem', { name: 'Effects', exact: true }).click();
-    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_MENUS.map(([group]) => group));
+    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_TOP);
+    await expect(effects.getByRole('menuitem', { name: 'Outline…', exact: true })).toBeEnabled();
     for (const [group, entries] of EFFECT_MENUS) {
       await effects.getByRole('menuitem', { name: group, exact: true }).click();
       const sub = page.getByRole('menu', { name: group, exact: true }).getByRole('menuitem');

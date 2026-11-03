@@ -83,7 +83,7 @@
   import { tidy, type MenuDef } from '../../lib/components/layout/menu';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
-  import type { EffectDef } from '../../lib/effects/catalog';
+  import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import {
     actionFor,
     hint,
@@ -1017,6 +1017,7 @@
   {#key effectOpen.id}
     <EffectDialog
       def={effectOpen}
+      foreground={rgbaOf(tool.foreground)}
       hasSelection={editor.hasSelection}
       onPreview={(params) => {
         if (!effectOpen) return;
