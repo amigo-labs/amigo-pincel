@@ -13,7 +13,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-layers-frames](pixel-layers-frames.md), [tilemaps](tilemaps.md),  |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-layers-frames](pixel-layers-frames.md), [tilemaps](tilemaps.md) |
 | Both modes | [i18n](i18n.md) |
 | Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
