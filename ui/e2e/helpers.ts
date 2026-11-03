@@ -250,3 +250,123 @@ export async function putClipboardImage(
     [width, height, color] as const,
   );
 }
+
+/**
+ * The stored value of IndexedDB pref `key` (database `pincel`, store
+ * `prefs`); `undefined` while unset. Prefs are written fire-and-forget:
+ * poll this before a reload that must see a new value.
+ */
+export async function storedPref(page: Page, key: string): Promise<unknown> {
+  return page.evaluate(
+    (k) =>
+      new Promise<unknown>((resolve, reject) => {
+        const open = indexedDB.open('pincel');
+        open.onerror = () => reject(new Error(String(open.error)));
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains('prefs')) {
+            db.close();
+            resolve(undefined);
+            return;
+          }
+          const get = db.transaction('prefs', 'readonly').objectStore('prefs').get(k);
+          get.onerror = () => reject(new Error(String(get.error)));
+          get.onsuccess = () => {
+            db.close();
+            resolve((get.result as { value?: unknown } | undefined)?.value);
+          };
+        };
+      }),
+    key,
+  );
+}
+
+/** Raster formats the Image editor opens (besides OpenRaster). */
+export type RasterKind = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'gif';
+
+/** A 24-bit 4×3 BMP, bottom-up rows padded to 4 bytes. */
+function bmpFile(): Buffer {
+  const [w, h] = [4, 3];
+  const row = Math.ceil((w * 3) / 4) * 4;
+  const buf = Buffer.alloc(54 + row * h);
+  buf.write('BM', 0, 'latin1');
+  buf.writeUInt32LE(buf.length, 2);
+  buf.writeUInt32LE(54, 10);
+  buf.writeUInt32LE(40, 14);
+  buf.writeInt32LE(w, 18);
+  buf.writeInt32LE(h, 22);
+  buf.writeUInt16LE(1, 26);
+  buf.writeUInt16LE(24, 28);
+  buf.writeUInt32LE(row * h, 34);
+  for (let i = 54; i < buf.length; i += 1) buf[i] = 0x80;
+  return buf;
+}
+
+/** An uncompressed 8-bit grayscale 4×3 TIFF (little endian). */
+function tiffFile(): Buffer {
+  const [w, h] = [4, 3];
+  const entries: [number, number, number, number][] = [
+    // tag, type (3 = SHORT, 4 = LONG), count, value
+    [256, 3, 1, w],
+    [257, 3, 1, h],
+    [258, 3, 1, 8],
+    [259, 3, 1, 1],
+    [262, 3, 1, 1],
+    [273, 4, 1, 0], // strip offset, patched below
+    [277, 3, 1, 1],
+    [278, 3, 1, h],
+    [279, 4, 1, w * h],
+  ];
+  const dataAt = 8 + 2 + entries.length * 12 + 4;
+  const buf = Buffer.alloc(dataAt + w * h, 0x60);
+  buf.write('II*\0', 0, 'latin1');
+  buf.writeUInt32LE(8, 4);
+  buf.writeUInt16LE(entries.length, 8);
+  entries.forEach(([tag, type, count, value], i) => {
+    const o = 10 + i * 12;
+    buf.writeUInt16LE(tag, o);
+    buf.writeUInt16LE(type, o + 2);
+    buf.writeUInt32LE(count, o + 4);
+    const v = tag === 273 ? dataAt : value;
+    if (type === 3) buf.writeUInt16LE(v, o + 8);
+    else buf.writeUInt32LE(v, o + 8);
+  });
+  buf.writeUInt32LE(0, 10 + entries.length * 12);
+  return buf;
+}
+
+/** A 1×1 GIF. */
+const GIF_FILE = Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64');
+
+/** Encodes an 8×6 test image in the browser (PNG / JPEG / WebP). */
+async function canvasFile(page: Page, mime: string): Promise<Buffer> {
+  const bytes = await page.evaluate(async (type) => {
+    const canvas = new OffscreenCanvas(8, 6);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+    ctx.fillStyle = '#c03030';
+    ctx.fillRect(0, 0, 8, 6);
+    ctx.fillStyle = '#3050c0';
+    ctx.fillRect(2, 1, 4, 3);
+    const blob = await canvas.convertToBlob({ type, quality: 0.9 });
+    return Array.from(new Uint8Array(await blob.arrayBuffer()));
+  }, mime);
+  return Buffer.from(bytes);
+}
+
+export const RASTER_MIME: Record<RasterKind, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  tiff: 'image/tiff',
+  gif: 'image/gif',
+};
+
+/** A small sample file of a raster format the Image editor opens. */
+export async function rasterFile(page: Page, kind: RasterKind): Promise<Buffer> {
+  if (kind === 'bmp') return bmpFile();
+  if (kind === 'tiff') return tiffFile();
+  if (kind === 'gif') return GIF_FILE;
+  return canvasFile(page, RASTER_MIME[kind]);
+}
