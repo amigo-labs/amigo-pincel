@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: M
 mode: both
@@ -45,21 +45,21 @@ The colour parameter kind is not part of this spec: `outline-effect` specifies i
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): The Effects menu lists its submenus in the order Artistic, Blurs, Color, Distort, Noise, Object, Photo, Render, Stylize, and shows a submenu only when it has at least one entry in the current mode; the Adjustments menu stays a flat list.
-- [ ] AC-02 (always): In Image mode every entry of this spec's mapping table appears in the submenu the table gives: Blurs (Gaussian Blur, Motion Blur, Radial Blur, Square Blur), Noise (Add Noise, Reduce Noise), Photo (Sharpen, Unsharp Mask), Stylize (Edge Detect, Emboss, Relief) and the Adjustments menu (Brightness / Contrast, Color Balance, Curves, Grayscale, Hue / Saturation, Invert Colors, Levels, Posterize, Threshold); the follow-up effect specs add entries and rename Grayscale, which this AC does not forbid.
-- [ ] AC-03 (always): Pixel mode's menus show exactly the entries whose catalog modes include Pixel mode — of this spec's entries, Noise ▸ Add Noise and the nine adjustments; no blur, sharpen, Edge Detect, Emboss, Relief or Reduce Noise entry appears anywhere in Pixel mode's menus.
-- [ ] AC-04 (always): Inside each submenu and in the Adjustments menu the entries are sorted alphabetically by the name shown in the current UI language, compared with that language's collation rules, and switching the UI language re-sorts them (in English Brightness / Contrast sorts before Color Balance, in German Farbbalance before Helligkeit / Kontrast).
-- [ ] AC-05 (always): An entry with parameters ends in "…"; every entry is disabled while no document is open (unchanged from `effects-adjustments`).
-- [ ] AC-06 (option): Where the UI language is German, the submenus read Künstlerisch, Weichzeichnen, Farbe, Verzerren, Rauschen, Objekt, Foto, Rendern, Stilisieren, and Square Blur reads "Quadratisches Weichzeichnen".
-- [ ] AC-07 (always): For every entry that existed before this spec, the parameter vector sent at its default values, and after changing each parameter once, equals the vector the catalog sent before this spec for the same control values (a test pins the vectors of the previous catalog); so every applied effect gives the same pixels as before (a later spec that adds a parameter to an entry updates that entry's pin).
-- [ ] AC-08 (always): The Pixel-mode core and its agent tools still accept every effect name in the wire format, including the effects AC-03 hides from Pixel mode's menus.
-- [ ] AC-09 (state): While the effect dialog shows an angle parameter (Motion Blur Angle, Emboss Angle, Relief Angle), the user can set it both by pointing — a round dial whose handle points in the angle's direction — and by typing degrees in a number field; dragging the handle sets the angle to the direction from the dial's centre to the pointer, rounded to whole degrees in 0–359, in the effects' own convention (0° points right, 90° points down, as the image's y axis runs); typing a number moves the handle; a typed value outside 0–360 wraps around (370 becomes 10, −10 becomes 350).
-- [ ] AC-10 (state): While the effect dialog shows a point parameter (Radial Blur Center), it shows X and Y as number fields in percent of the image area (0–100 % each, default 50 / 50, the centre — today's default), and the effect acts around that point.
-- [ ] AC-11 (event): When the user presses the point parameter's "Pick on canvas" button and then presses a mouse, pen or single touch on the canvas, then the point is set to the pressed position (percent of the image area, rounded to 0.1, clamped to 0–100) and follows the pointer until it is released, the preview updates, and no tool stroke or document edit happens; picking then ends. Escape or a second press of the button ends picking without a change and keeps the dialog open; OK or Enter while picking applies the current values. Panning (Space-drag, middle button, two fingers) still pans while picking is armed.
-- [ ] AC-12 (state): While the effect dialog shows a random-seed parameter (Add Noise Seed), it shows the seed number and a "Reseed" button; pressing Reseed sets a new seed different from the current one, in the parameter's range, and the preview updates; the same seed always gives the same pixels.
-- [ ] AC-13 (state): While the effect dialog shows a linked pair (Square Blur Width and Height), it shows both values and a link toggle that is on by default; while linked, changing either value sets the other to the same value; while unlinked, each changes alone.
-- [ ] AC-14 (event): When the user presses Reset, then every parameter returns to its default, including the angle, point, seed and link toggle.
-- [ ] AC-15 (always): Every new control (dial, point fields, Pick on canvas, Reseed, link toggle) is reachable and operable by keyboard and has an accessible name in the UI language; the dial's number field accepts arrow keys like every number field.
+- [x] AC-01 (always): The Effects menu lists its submenus in the order Artistic, Blurs, Color, Distort, Noise, Object, Photo, Render, Stylize, and shows a submenu only when it has at least one entry in the current mode; the Adjustments menu stays a flat list.
+- [x] AC-02 (always): In Image mode every entry of this spec's mapping table appears in the submenu the table gives: Blurs (Gaussian Blur, Motion Blur, Radial Blur, Square Blur), Noise (Add Noise, Reduce Noise), Photo (Sharpen, Unsharp Mask), Stylize (Edge Detect, Emboss, Relief) and the Adjustments menu (Brightness / Contrast, Color Balance, Curves, Grayscale, Hue / Saturation, Invert Colors, Levels, Posterize, Threshold); the follow-up effect specs add entries and rename Grayscale, which this AC does not forbid.
+- [x] AC-03 (always): Pixel mode's menus show exactly the entries whose catalog modes include Pixel mode — of this spec's entries, Noise ▸ Add Noise and the nine adjustments; no blur, sharpen, Edge Detect, Emboss, Relief or Reduce Noise entry appears anywhere in Pixel mode's menus.
+- [x] AC-04 (always): Inside each submenu and in the Adjustments menu the entries are sorted alphabetically by the name shown in the current UI language, compared with that language's collation rules, and switching the UI language re-sorts them (in English Brightness / Contrast sorts before Color Balance, in German Farbbalance before Helligkeit / Kontrast).
+- [x] AC-05 (always): An entry with parameters ends in "…"; every entry is disabled while no document is open (unchanged from `effects-adjustments`).
+- [x] AC-06 (option): Where the UI language is German, the submenus read Künstlerisch, Weichzeichnen, Farbe, Verzerren, Rauschen, Objekt, Foto, Rendern, Stilisieren, and Square Blur reads "Quadratisches Weichzeichnen".
+- [x] AC-07 (always): For every entry that existed before this spec, the parameter vector sent at its default values, and after changing each parameter once, equals the vector the catalog sent before this spec for the same control values (a test pins the vectors of the previous catalog); so every applied effect gives the same pixels as before (a later spec that adds a parameter to an entry updates that entry's pin).
+- [x] AC-08 (always): The Pixel-mode core and its agent tools still accept every effect name in the wire format, including the effects AC-03 hides from Pixel mode's menus.
+- [x] AC-09 (state): While the effect dialog shows an angle parameter (Motion Blur Angle, Emboss Angle, Relief Angle), the user can set it both by pointing — a round dial whose handle points in the angle's direction — and by typing degrees in a number field; dragging the handle sets the angle to the direction from the dial's centre to the pointer, rounded to whole degrees in 0–359, in the effects' own convention (0° points right, 90° points down, as the image's y axis runs); typing a number moves the handle; a typed value outside 0–360 wraps around (370 becomes 10, −10 becomes 350).
+- [x] AC-10 (state): While the effect dialog shows a point parameter (Radial Blur Center), it shows X and Y as number fields in percent of the image area (0–100 % each, default 50 / 50, the centre — today's default), and the effect acts around that point.
+- [x] AC-11 (event): When the user presses the point parameter's "Pick on canvas" button and then presses a mouse, pen or single touch on the canvas, then the point is set to the pressed position (percent of the image area, rounded to 0.1, clamped to 0–100) and follows the pointer until it is released, the preview updates, and no tool stroke or document edit happens; picking then ends. Escape or a second press of the button ends picking without a change and keeps the dialog open; OK or Enter while picking applies the current values. Panning (Space-drag, middle button, two fingers) still pans while picking is armed.
+- [x] AC-12 (state): While the effect dialog shows a random-seed parameter (Add Noise Seed), it shows the seed number and a "Reseed" button; pressing Reseed sets a new seed different from the current one, in the parameter's range, and the preview updates; the same seed always gives the same pixels.
+- [x] AC-13 (state): While the effect dialog shows a linked pair (Square Blur Width and Height), it shows both values and a link toggle that is on by default; while linked, changing either value sets the other to the same value; while unlinked, each changes alone.
+- [x] AC-14 (event): When the user presses Reset, then every parameter returns to its default, including the angle, point, seed and link toggle.
+- [x] AC-15 (always): Every new control (dial, point fields, Pick on canvas, Reseed, link toggle) is reachable and operable by keyboard and has an accessible name in the UI language; the dial's number field accepts arrow keys like every number field.
 
 ## Technical notes
 
@@ -119,21 +119,30 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/effect-menus.spec.ts` › image mode: paint.net submenus with the Image-mode entries, sorted; `ui/e2e/effect-catalog.spec.ts` › submenus in paint.net order with English and German names | built |        |
-| AC-02 | `ui/e2e/effect-menus.spec.ts` › image mode: paint.net submenus with the Image-mode entries, sorted | built |        |
-| AC-03 | `ui/e2e/effect-menus.spec.ts` › pixel mode: only per-pixel effects, no neighbourhood effect | built |        |
-| AC-04 | `ui/e2e/effect-menus.spec.ts` › switching the UI language re-sorts and renames the entries; › image mode: paint.net submenus … sorted | built |        |
-| AC-05 | `ui/e2e/effect-menus.spec.ts` › every effect entry is disabled until the document is loaded; › image mode: paint.net submenus … ("…" on entries with parameters, none on Sharpen / Invert Colors) | built |        |
-| AC-06 | `ui/e2e/effect-catalog.spec.ts` › submenus in paint.net order with English and German names; `ui/e2e/effect-menus.spec.ts` › switching the UI language re-sorts and renames the entries | built |        |
-| AC-07 | `ui/e2e/effect-catalog.spec.ts` › every catalog entry has pinned vectors of the previous catalog; › `<id>`: wire vectors equal the previous catalog's (20 tests) | built |        |
-| AC-08 | `pincel-wasm: effects::tests::apply_effect_knows_every_effect_name_on_a_pixel_document`; `pincel-agent: tests::draw::effect_apply_accepts_every_effect_on_a_pixel_document` | built |        |
-| AC-09 | `ui/e2e/effect-params.spec.ts` › angle: the dial and the degree field set the same angle (AC-09); `ui/e2e/effect-catalog.spec.ts` › wrapAngle wraps typed angles outside 0–360 | built |        |
-| AC-10 | `ui/e2e/effect-params.spec.ts` › point: X / Y in percent, default centre, the effect follows it (AC-10); `ui/e2e/effect-catalog.spec.ts` › radial_blur: wire vectors equal the previous catalog's | built |        |
-| AC-11 | `ui/e2e/effect-params.spec.ts` › point: Pick on canvas sets the point without a tool stroke (AC-11); › point: a picked point updates the preview (AC-11); › touch device › pen and single touch pick the point; two fingers still pinch (AC-11) | built |        |
-| AC-12 | `ui/e2e/effect-params.spec.ts` › seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12); `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed` | built |        |
-| AC-13 | `ui/e2e/effect-params.spec.ts` › linked pair: Square Blur width and height move together while linked (AC-13) | built |        |
-| AC-14 | `ui/e2e/effect-params.spec.ts` › Reset returns angle, point, seed and link to their defaults (AC-14) | built |        |
-| AC-15 | `ui/e2e/effect-params.spec.ts` › the new controls work from the keyboard (AC-15); › German UI › the new controls are named in German (AC-15) | built |        |
+| AC-01 | `ui/e2e/effect-menus.spec.ts` › image mode: paint.net submenus with the Image-mode entries, sorted; › pixel mode: only per-pixel effects, no neighbourhood effect; `ui/e2e/effect-catalog.spec.ts` › submenus in paint.net order with English and German names | verified | a0b314e |
+| AC-02 | `ui/e2e/effect-menus.spec.ts` › image mode: paint.net submenus with the Image-mode entries, sorted | verified | a0b314e |
+| AC-03 | `ui/e2e/effect-menus.spec.ts` › pixel mode: only per-pixel effects, no neighbourhood effect | verified | a0b314e |
+| AC-04 | `ui/e2e/effect-menus.spec.ts` › switching the UI language re-sorts and renames the entries; › image mode: paint.net submenus with the Image-mode entries, sorted | verified | a0b314e |
+| AC-05 | `ui/e2e/effect-menus.spec.ts` › every effect entry is disabled until the document is loaded; › image mode: paint.net submenus with the Image-mode entries, sorted | verified | a0b314e |
+| AC-06 | `ui/e2e/effect-catalog.spec.ts` › submenus in paint.net order with English and German names; `ui/e2e/effect-menus.spec.ts` › switching the UI language re-sorts and renames the entries | verified | a0b314e |
+| AC-07 | `ui/e2e/effect-catalog.spec.ts` › every catalog entry has pinned vectors of the previous catalog; › `<id>`: wire vectors equal the previous catalog's (20 tests) | verified | a0b314e |
+| AC-08 | `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_knows_every_effect_name_on_a_pixel_document; `crates/pincel-agent/src/tests/draw.rs` tests::draw::effect_apply_accepts_every_effect_on_a_pixel_document | verified | 3bffadc |
+| AC-09 | `ui/e2e/effect-params.spec.ts` › angle: the dial and the degree field set the same angle (AC-09); `ui/e2e/effect-catalog.spec.ts` › wrapAngle wraps typed angles outside 0–360 | verified | a0b314e |
+| AC-10 | `ui/e2e/effect-params.spec.ts` › point: X / Y in percent, default centre, the effect follows it (AC-10); `ui/e2e/effect-catalog.spec.ts` › radial_blur: wire vectors equal the previous catalog's | verified | a0b314e |
+| AC-11 | `ui/e2e/effect-params.spec.ts` › point: Pick on canvas sets the point without a tool stroke (AC-11); › point: a picked point updates the preview (AC-11); › touch device › pen and single touch pick the point; two fingers still pinch (AC-11) | verified | a0b314e |
+| AC-12 | `ui/e2e/effect-params.spec.ts` › seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12); `crates/pincel-effects` noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed | verified | a0b314e |
+| AC-13 | `ui/e2e/effect-params.spec.ts` › linked pair: Square Blur width and height move together while linked (AC-13) | verified | a0b314e |
+| AC-14 | `ui/e2e/effect-params.spec.ts` › Reset returns angle, point, seed and link to their defaults (AC-14) | verified | a0b314e |
+| AC-15 | `ui/e2e/effect-params.spec.ts` › the new controls work from the keyboard (AC-15); › German UI › the new controls are named in German (AC-15) | verified | a0b314e |
+
+## Summary
+
+> Completed: 2026-11-04
+
+- Effects menu restructured into paint.net's nine submenus (Artistic … Stylize, empty ones hidden) plus a flat Adjustments menu; entries sorted by their translated name with the UI language's collation; Box Blur shown as Square Blur
+- Per-mode filter via `EffectDef.modes`: Pixel mode shows only Add Noise and the nine adjustments; both cores and the agent tools still accept every effect name
+- New parameter kinds in the effect dialog: angle (SVG dial + wrapping degree field), point (X / Y in percent with Pick on canvas, routed through `canvasPick` in Image mode's `MainCanvas`), random seed with Reseed, linked pair with a link toggle; Reset restores all of them
+- Wire vectors of all 20 existing entries pinned against the previous catalog; Space taps on focused buttons / checkboxes no longer swallowed by Space-pan in either editor
 
 ## Decisions
 
