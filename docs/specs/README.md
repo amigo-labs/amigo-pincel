@@ -66,7 +66,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
 | 46 | [effect-panel](effect-panel.md) | both | M | effect-catalog-v2 | Effect controls docked in the sidebar instead of over the canvas; resizable sidebar |
 | 47 | [document-tabs](document-tabs.md) | both | L | unsaved-changes-prompt | Several documents in tabs within one mode; other mode replaces the session. Revises app-shell AC-08 / AC-16, autosave-recovery AC-05 |
-| 48 | [adjustments-paintnet](adjustments-paintnet.md) | both | M | effect-catalog-v2 | Auto-Level, Exposure, Highlights / Shadows, Invert Alpha, Sepia, Temperature and Tint; Grayscale → Black and White |
 | 49 | [effects-blurs](effects-blurs.md) | Image | L | effect-catalog-v2 | Bokeh, Fragment, Median, Sketch, Surface, Zoom Blur; Motion Blur Centered |
 | 50 | [effects-distort](effects-distort.md) | both | L | effect-catalog-v2 | Nine distortions; Morphology and Pixelate also in Pixel mode |
 | 51 | [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md) | both | M | effect-catalog-v2, outline-effect | Drop Shadow, Stylize Outline, Quantize, Reduce Noise rebuilt |
@@ -75,6 +74,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 ## Done
 
+- [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
 - [mcp-headless-image](mcp-headless-image.md)

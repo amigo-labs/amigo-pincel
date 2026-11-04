@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: M
 mode: both
@@ -44,19 +44,19 @@ All of them are per-pixel colour operations, so they appear in both modes (Decis
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In both modes the Adjustments menu contains Auto-Level, Black and White…, Exposure…, Highlights / Shadows…, Invert Alpha, Sepia… and Temperature and Tint… alongside the existing entries, sorted as `effect-catalog-v2` AC-04 specifies, and no entry named Grayscale remains.
-- [ ] AC-02 (event): When the user opens Exposure, Highlights / Shadows, Sepia or Temperature and Tint, then the effect dialog shows exactly the parameters of the table with their ranges and defaults; Auto-Level and Invert Alpha show "This effect has no parameters."
-- [ ] AC-03 (always): Exposure, Highlights / Shadows, Sepia and Temperature and Tint at their neutral settings leave every pixel unchanged.
-- [ ] AC-04 (always): Every adjustment of this spec except Invert Alpha leaves every pixel's alpha unchanged; Invert Alpha leaves every pixel's colour channels unchanged and sets alpha to 255 − alpha, so applying it twice without a selection restores the target.
-- [ ] AC-05 (always): After Auto-Level on a gray target (R = G = B) with at least two different values, its darkest pixel is 0 ± 1 and its brightest 255 ± 1; a target whose opaque pixels all have the same luma (including one colour), or with no opaque pixel, is unchanged.
-- [ ] AC-06 (always): Exposure +1 EV on mid-gray (128, 128, 128) gives a lighter gray (all channels equal, > 128); −1 EV gives a darker gray; +5 EV on mid-gray gives (255, 255, 255).
-- [ ] AC-07 (always): Highlights / Shadows with Shadows 100 raises the luma of a dark pixel (luma 40) by more than it raises a bright pixel (luma 215); Highlights 100 lowers the bright pixel's luma by more than the dark pixel's.
-- [ ] AC-08 (always): Sepia at Intensity 100 maps every pixel to a colour with R ≥ G ≥ B, and any two pixels with the same luma to the same colour.
-- [ ] AC-09 (always): Temperature 100 on mid-gray gives R > 128 > B; Temperature −100 gives B > 128 > R; Tint 100 gives G below both R and B; Tint −100 gives G above both.
-- [ ] AC-10 (always): Each adjustment changes only pixels of the target: pixels outside the selection, other layers and other cels are unchanged, and applying it is one undo step (as `effects-adjustments` specifies for every effect).
-- [ ] AC-11 (error): If a wire call names one of the new adjustments with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-12 (option): Where the UI language is German, the names and parameter labels are the German ones of the table.
-- [ ] AC-13 (error): If the Pixel-mode document is not RGBA (indexed or grayscale), then the new adjustments are refused with the same message as every other effect and the document is unchanged.
+- [x] AC-01 (always): In both modes the Adjustments menu contains Auto-Level, Black and White…, Exposure…, Highlights / Shadows…, Invert Alpha, Sepia… and Temperature and Tint… alongside the existing entries, sorted as `effect-catalog-v2` AC-04 specifies, and no entry named Grayscale remains.
+- [x] AC-02 (event): When the user opens Exposure, Highlights / Shadows, Sepia or Temperature and Tint, then the effect dialog shows exactly the parameters of the table with their ranges and defaults; Auto-Level and Invert Alpha show "This effect has no parameters."
+- [x] AC-03 (always): Exposure, Highlights / Shadows, Sepia and Temperature and Tint at their neutral settings leave every pixel unchanged.
+- [x] AC-04 (always): Every adjustment of this spec except Invert Alpha leaves every pixel's alpha unchanged; Invert Alpha leaves every pixel's colour channels unchanged and sets alpha to 255 − alpha, so applying it twice without a selection restores the target.
+- [x] AC-05 (always): After Auto-Level on a gray target (R = G = B) with at least two different values, its darkest pixel is 0 ± 1 and its brightest 255 ± 1; a target whose opaque pixels all have the same luma (including one colour), or with no opaque pixel, is unchanged.
+- [x] AC-06 (always): Exposure +1 EV on mid-gray (128, 128, 128) gives a lighter gray (all channels equal, > 128); −1 EV gives a darker gray; +5 EV on mid-gray gives (255, 255, 255).
+- [x] AC-07 (always): Highlights / Shadows with Shadows 100 raises the luma of a dark pixel (luma 40) by more than it raises a bright pixel (luma 215); Highlights 100 lowers the bright pixel's luma by more than the dark pixel's.
+- [x] AC-08 (always): Sepia at Intensity 100 maps every pixel to a colour with R ≥ G ≥ B, and any two pixels with the same luma to the same colour.
+- [x] AC-09 (always): Temperature 100 on mid-gray gives R > 128 > B; Temperature −100 gives B > 128 > R; Tint 100 gives G below both R and B; Tint −100 gives G above both.
+- [x] AC-10 (always): Each adjustment changes only pixels of the target: pixels outside the selection, other layers and other cels are unchanged, and applying it is one undo step (as `effects-adjustments` specifies for every effect).
+- [x] AC-11 (error): If a wire call names one of the new adjustments with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-12 (option): Where the UI language is German, the names and parameter labels are the German ones of the table.
+- [x] AC-13 (error): If the Pixel-mode document is not RGBA (indexed or grayscale), then the new adjustments are refused with the same message as every other effect and the document is unchanged.
 
 ## Technical notes
 
@@ -88,23 +88,32 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-11-04
+
+- Six paint.net adjustments in `pincel-effects` (Auto-Level, Exposure, Highlights / Shadows, Invert Alpha, Sepia, Temperature and Tint), wired through `EffectSpec` / `EFFECT_NAMES` with parameter-count checks and clamping
+- `EffectSpec::run_in` passes the host's selection as the target, so Auto-Level reads its luma range from the selection in both cores and the agent tools
+- Both modes' Adjustments menu lists the new entries with en / de names and parameter labels; Grayscale is shown as Black and White (wire id `grayscale` unchanged)
+- Agent (MCP) catalog exposes the new adjustments with the same keys and ranges
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `both modes list the paint.net adjustments, sorted, without Grayscale (AC-01)` (ui/e2e/adjustments-paintnet.spec.ts); `effect-menus.spec.ts` (Black and White in both modes) | built |  |
-| AC-02 | `the dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/adjustments-paintnet.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |  |
-| AC-03 | `neutral_settings_leave_every_pixel_unchanged` (crates/pincel-effects/tests/adjustments_paintnet.rs); `exposure_zero_is_the_identity_lut` (crates/pincel-effects/src/adjust/exposure.rs) | built |  |
-| AC-04 | `every_adjustment_of_the_spec_except_invert_alpha_keeps_alpha` (includes Black and White), `invert_alpha_flips_alpha_keeps_colour_and_twice_restores` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
-| AC-05 | `auto_level_stretches_a_gray_target_to_the_full_range`, `auto_level_ignores_transparent_pixels_for_its_range`, `auto_level_without_a_luma_range_changes_nothing`, `auto_level_takes_its_range_from_the_target_pixels` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_auto_level_takes_its_range_from_the_selection` (crates/pincel-wasm/src/effects.rs); `apply_effect_auto_level_stretches_the_selection_only` (crates/pincel-image-wasm/src/lib.rs) | built |  |
-| AC-06 | `exposure_scales_mid_gray_in_linear_light` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
-| AC-07 | `highlights_shadows_act_on_their_tonal_range` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
-| AC-08 | `sepia_at_full_intensity_is_a_function_of_luma` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
-| AC-09 | `temperature_and_tint_shift_mid_gray` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
-| AC-10 | `apply_effect_paintnet_adjustments_change_only_the_target_in_one_undo_step` (crates/pincel-wasm/src/effects.rs); `paintnet_adjustments_match_the_editor_inside_the_selection` (crates/pincel-agent/src/tests/image_draw.rs); `apply_effect_auto_level_stretches_the_selection_only` (crates/pincel-image-wasm/src/lib.rs); `image mode: every new adjustment applies as one undo step (AC-10)`, `pixel mode: every new adjustment applies (AC-10)` (ui/e2e/adjustments-paintnet.spec.ts) | built |  |
-| AC-11 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_paintnet_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |  |
-| AC-12 | `German names and parameter labels (AC-12)` (ui/e2e/adjustments-paintnet.spec.ts) | built |  |
-| AC-13 | `apply_effect_paintnet_on_an_indexed_document_is_refused` (crates/pincel-wasm/src/effects.rs) | built |  |
+| AC-01 | `both modes list the paint.net adjustments, sorted, without Grayscale (AC-01)` (ui/e2e/adjustments-paintnet.spec.ts); `effect-menus.spec.ts` (Black and White in both modes) | verified | d4ea8a9 |
+| AC-02 | `the dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/adjustments-paintnet.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | verified | d4ea8a9 |
+| AC-03 | `neutral_settings_leave_every_pixel_unchanged` (crates/pincel-effects/tests/adjustments_paintnet.rs); `exposure_zero_is_the_identity_lut` (crates/pincel-effects/src/adjust/exposure.rs) | verified | 868d4d6 |
+| AC-04 | `every_adjustment_of_the_spec_except_invert_alpha_keeps_alpha` (includes Black and White), `invert_alpha_flips_alpha_keeps_colour_and_twice_restores` (crates/pincel-effects/tests/adjustments_paintnet.rs) | verified | 868d4d6 |
+| AC-05 | `auto_level_stretches_a_gray_target_to_the_full_range`, `auto_level_ignores_transparent_pixels_for_its_range`, `auto_level_without_a_luma_range_changes_nothing`, `auto_level_takes_its_range_from_the_target_pixels` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_auto_level_takes_its_range_from_the_selection` (crates/pincel-wasm/src/effects.rs); `apply_effect_auto_level_stretches_the_selection_only` (crates/pincel-image-wasm/src/lib.rs) | verified | 868d4d6 |
+| AC-06 | `exposure_scales_mid_gray_in_linear_light` (crates/pincel-effects/tests/adjustments_paintnet.rs) | verified | 868d4d6 |
+| AC-07 | `highlights_shadows_act_on_their_tonal_range` (crates/pincel-effects/tests/adjustments_paintnet.rs) | verified | 868d4d6 |
+| AC-08 | `sepia_at_full_intensity_is_a_function_of_luma` (crates/pincel-effects/tests/adjustments_paintnet.rs) | verified | 868d4d6 |
+| AC-09 | `temperature_and_tint_shift_mid_gray` (crates/pincel-effects/tests/adjustments_paintnet.rs) | verified | 868d4d6 |
+| AC-10 | `apply_effect_paintnet_adjustments_change_only_the_target_in_one_undo_step` (crates/pincel-wasm/src/effects.rs); `paintnet_adjustments_match_the_editor_inside_the_selection` (crates/pincel-agent/src/tests/image_draw.rs); `apply_effect_auto_level_stretches_the_selection_only` (crates/pincel-image-wasm/src/lib.rs); `image mode: every new adjustment applies as one undo step (AC-10)`, `pixel mode: every new adjustment applies (AC-10)` (ui/e2e/adjustments-paintnet.spec.ts) | verified | 9c5b9b9 |
+| AC-11 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_paintnet_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | verified | 868d4d6 |
+| AC-12 | `German names and parameter labels (AC-12)` (ui/e2e/adjustments-paintnet.spec.ts) | verified | d4ea8a9 |
+| AC-13 | `apply_effect_paintnet_on_an_indexed_document_is_refused` (crates/pincel-wasm/src/effects.rs) | verified | 9c5b9b9 |
 
 ## Decisions
 
