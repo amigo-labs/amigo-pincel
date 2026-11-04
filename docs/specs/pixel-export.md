@@ -40,7 +40,7 @@ This spec records the behavior as built.
 
 - [x] AC-01 (always): An exported PNG frame decodes to an RGBA8 image of the canvas size whose pixels equal `compose()` of that frame at zoom 1 over the full canvas with the visible layers — partial alpha, every blend mode, group visibility and tilemap layers included.
 - [x] AC-02 (state): While the onion skin is enabled or hidden layers exist, an exported PNG frame and every sprite-sheet cell contain neither onion-skin pixels nor hidden layers.
-- [x] AC-03 (event): When File ▸ Export ▸ PNG (current frame) is chosen or Ctrl/Cmd+E is pressed, the current frame is saved as `<document name>.png` for a one-frame document, or `<document name>-<n>.png` with the 1-based frame number otherwise, and the status bar reports the export with its byte size.
+- [x] AC-03 (event): When File ▸ Export ▸ PNG (current frame) is chosen or Ctrl/Cmd+E is pressed and the export is confirmed (the Scale dialog of `scaled-export` comes first), the current frame is saved as `<document name>.png` for a one-frame document, or `<document name>-<n>.png` with the 1-based frame number otherwise, and the status bar reports the export with its byte size.
 - [x] AC-04 (error): If the frame index is past the last frame, then the PNG export fails with an error.
 - [x] AC-05 (error): If the document's color mode is not RGBA, then the PNG frame export fails with the composer's `UnsupportedColorMode` error instead of writing an image.
 - [x] AC-06 (error): If an export fails in the UI, then the status bar shows the failure with its reason and no file is saved.
@@ -121,5 +121,7 @@ This spec records the behavior as built.
 | AC-21 | `pincel-core: codec::png::tests::export_atlas_png_fails_whole_when_one_frame_cannot_be_composed` | verified | dff3361 |
 
 ## Decisions
+
+- 2026-11-04 — AC-03 names the confirmation step: since `scaled-export` (AC-01) the PNG frame export opens the Scale dialog first; file name, status line and the unscaled bytes are unchanged. The AC-03 e2e test confirms through the dialog.
 
 - 2026-11-03: AC-02 and AC-21 described existing behavior, so their new tests passed at once; each was run red against a temporary, reverted break. AC-21: `export_atlas_png` skipping a frame `compose()` refuses ("a sheet with a broken frame produced an image"). AC-02, tested on `pincel-wasm`'s `Document` because the onion skin is its view state: `exportPng` encoding the editor's `compose()` view (the onion pixels of frames 0 and 2 showed up), then `export_atlas_png` composing with `LayerFilter::All` (the hidden green layer showed up in every cell). The UI tests for AC-03, AC-06, AC-15, AC-18, AC-19 and AC-20 (`ui/e2e/export.spec.ts`) were run red the same way: `exportPng` reporting 0 bytes and swallowing its error, the sheet's file names without the tag and the JSON saved regardless of the checkbox (the AC-03, AC-06, AC-18 and AC-19 tests failed); then a 0-based frame suffix (`pincel-1.png` for frame 2), the sheet's error swallowed, the dialog defaulting to `frames` columns and Escape exporting instead of cancelling (the AC-03, AC-06, AC-15 and AC-20 tests failed); then the JSON checkbox starting unchecked (the AC-15 test failed). AC-06 needs a real failure: the test opens a hand-built `.aseprite` whose second frame holds a linked cel, which the reader keeps and `compose()` refuses.
