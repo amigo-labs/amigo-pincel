@@ -66,6 +66,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
 | 45 | [effect-catalog-v2](effect-catalog-v2.md) | both | M | — | paint.net submenus, per-mode filter (Pixel: hard-edged effects only), angle / point / seed / linked-pair controls. Supersedes effects-adjustments AC-01 |
 | 46 | [effect-panel](effect-panel.md) | both | M | effect-catalog-v2 | Effect controls docked in the sidebar instead of over the canvas; resizable sidebar |
+| 47 | [document-tabs](document-tabs.md) | both | L | unsaved-changes-prompt | Revised 2026-11-04: tabs mix Pixel and Image documents; within-mode tabs are built |
 | 48 | [adjustments-paintnet](adjustments-paintnet.md) | both | M | effect-catalog-v2 | Auto-Level, Exposure, Highlights / Shadows, Invert Alpha, Sepia, Temperature and Tint; Grayscale → Black and White |
 | 49 | [effects-blurs](effects-blurs.md) | Image | L | effect-catalog-v2 | Bokeh, Fragment, Median, Sketch, Surface, Zoom Blur; Motion Blur Centered |
 | 50 | [effects-distort](effects-distort.md) | both | L | effect-catalog-v2 | Nine distortions; Morphology and Pixelate also in Pixel mode |
@@ -75,7 +76,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 ## Done
 
-- [document-tabs](document-tabs.md)
 - [animated-export](animated-export.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)

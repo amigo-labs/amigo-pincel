@@ -36,7 +36,7 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [ ] AC-01 (state): While a document has edits that are not saved, the editor writes a snapshot of it to browser storage every 30 seconds, in both modes; a reload after that offers it for recovery.
 - [ ] AC-02 (always): A document whose undo depth equals its depth at the last save or open is never snapshotted, and a document that did not change since its last snapshot is not written again.
 - [ ] AC-03 (event): When the user saves a document, then its snapshot is deleted and it is no longer offered for recovery.
-- [ ] AC-04 (event): When an editor of a mode mounts for the first time in a page load and snapshots of that mode exist, then the "Recover unsaved work?" dialog lists each document's latest snapshot with its name, time and size, newest first; snapshots of the other mode are not listed.
+- [ ] AC-04 (event): When the first editor mounts in a page load and snapshots exist, then the "Recover unsaved work?" dialog lists each document's latest snapshot of both modes with its name, mode, time and size, newest first; recovering one opens it as a tab of its mode (`document-tabs` AC-15).
 - [ ] AC-05 (event): When the user clicks Recover on a listed snapshot, then that document opens as a new tab and becomes active (`document-tabs` AC-15), reads as unsaved (unsaved marker shown), and the dialog stays open while other snapshots remain; it closes after the last one is recovered or discarded.
 - [ ] AC-06 (state): While a recovered document has not been saved, its snapshot stays, so closing the tab right after recovering loses nothing.
 - [ ] AC-07 (event): When the user clicks Discard on a listed snapshot, then that snapshot is deleted for good; discarding the last listed snapshot closes the dialog.
@@ -102,3 +102,4 @@ Partial coverage (status stays `open`): AC-04 — the dialog title and Recover b
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
 - 2026-11-04: AC-05 reworded for `document-tabs`: Recover opens a tab instead of replacing the document, and the dialog stays open for the remaining snapshots; back to `open`.
+- 2026-11-04: AC-04 reworded for mixed-mode tabs: the dialog lists the snapshots of both modes at the first editor start; back to `open`.
