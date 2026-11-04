@@ -294,6 +294,8 @@ A new Pixel-mode document starts with the **DB32** palette (DawnBringer 32, Asep
 
 The Palette panel also loads a **preset** — DB32, DB16, PICO-8, Game Boy (four greens), NES (54-colour 2C02 table) — and imports / exports the **GIMP palette** format (`.gpl`: `GIMP Palette` header, optional `Name:` / `Columns:`, `#` comments, `R G B name` rows, at most 256 entries). Both replace the whole palette through one undoable `ReplacePalette`, refused on indexed sprites for the same reason as remove / reorder.
 
+Shift+click in the Palette panel selects the contiguous range from the selected entry to the clicked one as the Pencil's shading ramp. The range is transient UI state, never part of the document: a plain click, adding / removing / moving an entry and a preset or import clear it, a recolour keeps it (`shading-ink.md`).
+
 ---
 
 ## 4. Render Pipeline
@@ -415,6 +417,7 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 | Tool | Behavior |
 |------|----------|
 | Pencil | Freehand stroke with a square or round brush of size 1–8 (`[` / `]`), hold Shift = constrain to 0/45/90°, optional pixel-perfect (drops L-corner pixels at size 1, off by default); one stroke is one `PencilStroke` undo entry |
+| Pencil ink | Simple (paints the color) or Shading: each touched pixel whose color before the stroke is exactly ramp entry *i* becomes entry *i* + 1 (left button) or *i* − 1 (right button), clamped to the ramp, once per stroke; other colors stay. The ramp is the Palette panel's Shift+click range, else the whole palette (§3.7). A fresh session starts Simple (`shading-ink.md`) |
 | Eraser | Clears to transparent (RGBA) or transparent-index (Indexed); shares the Pencil's size, shape and pixel-perfect setting |
 | Bucket | Paint-fill, contiguous (default) or all-matching, tolerance 0 in MVP |
 | Gradient | Shares the Bucket's `G` group. A drag fills the selection (or the target cel, never grown) with a ramp from the foreground color at the start to the background color at the end — linear or radial, dithered with a Bayer 2×2 / 4×4 / 8×8 threshold or split hard at the middle — so only those two colors are written; one `DrawDitherGradient` undo entry. The `t` math is shared with Image mode through `pincel-effects` (`dithered-gradient.md`) |
