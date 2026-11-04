@@ -161,6 +161,21 @@ function playInit() {
   };
 }
 
+/** Preview panel zoom: an integer factor or the largest fit. */
+export type PreviewZoom = 1 | 2 | 4 | 'fit';
+
+function previewInit() {
+  return {
+    /** The preview's own playback (docs/specs/animation-preview.md). */
+    playing: false,
+    /** Frame the preview shows while it plays. */
+    frame: 0,
+    zoom: 1 as PreviewZoom,
+    /** Bumped whenever the main canvas recomposes, so the preview does too. */
+    contentRev: 0,
+  };
+}
+
 function fileInit() {
   return {
     saveTarget: { name: DEFAULT_FILE_NAME, handle: null, path: null } as SaveTarget,
@@ -209,6 +224,7 @@ function liveInit() {
     needsRecompose: false,
     rafHandle: null as number | null,
     playHandle: null as number | null,
+    previewHandle: null as number | null,
     composeSamples: [] as number[],
     lastTickTs: 0,
     marchTicks: 0,
@@ -257,6 +273,8 @@ export const toolState = $state(toolInit());
 export const colors = $state(colorsInit());
 /** Timeline playback and onion skin. */
 export const play = $state(playInit());
+/** Preview panel playback and zoom. */
+export const preview = $state(previewInit());
 /** On-disk identity and recents. */
 export const file = $state(fileInit());
 /** Which dialog is open. */
@@ -273,6 +291,7 @@ export function resetPixelStore(): void {
   Object.assign(toolState, toolInit());
   Object.assign(colors, colorsInit());
   Object.assign(play, playInit());
+  Object.assign(preview, previewInit());
   Object.assign(file, fileInit());
   Object.assign(dialogs, dialogsInit());
   Object.assign(probe, probeInit());

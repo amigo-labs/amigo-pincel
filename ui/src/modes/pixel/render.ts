@@ -11,7 +11,7 @@ import {
   paintOverlays as paintOverlayLayer,
 } from './overlay-painter';
 import { motion } from '../../lib/motion.svelte';
-import { colors, ed, live, probe, toolState, view } from './stores/editor.svelte';
+import { colors, ed, live, preview, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
 
 // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
@@ -266,6 +266,8 @@ export function tick() {
     }
     if (live.needsRecompose) {
       live.needsRecompose = false;
+      // The Preview panel recomposes whenever the main canvas does.
+      preview.contentRev += 1;
       const t0 = probe.on ? performance.now() : 0;
       if (dirtyKind === 'rect' && canRecomposeDirty()) {
         recomposeDirty({

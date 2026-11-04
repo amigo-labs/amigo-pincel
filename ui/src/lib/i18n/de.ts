@@ -820,6 +820,7 @@ export const de: Record<MessageKey, string> = {
   'panel.colors': 'Farben',
   'panel.palette': 'Palette',
   'panel.layers': 'Ebenen',
+  'panel.preview': 'Vorschau',
   'panel.tilesets': 'Tilesets',
   'panel.slices': 'Slices',
   'panel.timeline': 'Zeitleiste',
@@ -829,6 +830,11 @@ export const de: Record<MessageKey, string> = {
 
   // Palette presets and .gpl
   'palette.more': 'Palettenoptionen',
+  'preview.play': 'Vorschau abspielen',
+  'preview.pause': 'Vorschau anhalten',
+  'preview.zoom': 'Vorschau-Zoom',
+  'preview.fit': 'Einpassen',
+  'preview.canvas': 'Animationsvorschau',
   'palette.presets': 'Vorlagen',
   'palette.preset.db32': 'DawnBringer 32',
   'palette.preset.db16': 'DawnBringer 16',

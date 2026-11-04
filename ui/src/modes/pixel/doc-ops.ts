@@ -13,6 +13,7 @@ import {
 import { syncMeta, syncSelection } from './render';
 import { colors, dialogs, ed, live, play, toolState } from './stores/editor.svelte';
 import { fitNewDocument } from './view-ops';
+import { stopPreview } from './preview';
 
 /** A Select-menu command. */
 export type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
@@ -226,6 +227,7 @@ export function togglePlay() {
 // meaningless against the new one and are dropped.
 export function resetDocViewState() {
   stopPlayback();
+  stopPreview();
   play.loopTag = null;
   applyOnion(play.onion);
   live.needsRecompose = true;

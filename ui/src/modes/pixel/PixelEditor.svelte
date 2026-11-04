@@ -12,6 +12,7 @@
   import AnimationExportDialog from './components/AnimationExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
+  import PreviewPanel from './components/PreviewPanel.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
   import { rgbaOf } from '../../lib/effects/catalog';
   import ColorPair from '../../lib/components/ColorPair.svelte';
@@ -233,7 +234,9 @@
     if (!ed.doc || id === null) return false;
     for (let i = 1; i < ed.doc.layerCount; i += 1) {
       if (ed.doc.layerIdAt(i) !== id) continue;
-      return ed.doc.layerKind(id) === 'image' && ed.doc.layerKind(ed.doc.layerIdAt(i - 1)) === 'image';
+      return (
+        ed.doc.layerKind(id) === 'image' && ed.doc.layerKind(ed.doc.layerIdAt(i - 1)) === 'image'
+      );
     }
     return false;
   });
@@ -377,7 +380,18 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.png || dialogs.grid || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
+    if (
+      dialogs.effect ||
+      toolState.textAnchor ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.animation ||
+      dialogs.svg ||
+      autosave.snapshots.length > 0
+    )
+      return;
     if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -524,19 +538,19 @@
   function dialogOpen(): boolean {
     return Boolean(
       dialogs.confirm ||
-        dialogs.effect ||
-        dialogs.resize ||
-        dialogs.sheet ||
-        dialogs.png ||
-        dialogs.grid ||
-        dialogs.animation ||
-        dialogs.svg ||
-        dialogs.renaming ||
-        dialogs.selectionRadius ||
-        dialogs.editingTile ||
-        dialogs.paste ||
-        toolState.textAnchor ||
-        autosave.snapshots.length > 0,
+      dialogs.effect ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.animation ||
+      dialogs.svg ||
+      dialogs.renaming ||
+      dialogs.selectionRadius ||
+      dialogs.editingTile ||
+      dialogs.paste ||
+      toolState.textAnchor ||
+      autosave.snapshots.length > 0,
     );
   }
 
@@ -544,7 +558,14 @@
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
     const blocked = Boolean(
-      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.png || dialogs.grid || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
+      dialogs.effect ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.svg ||
+      dialogs.selectionRadius ||
+      dialogs.paste,
     );
     onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
@@ -803,6 +824,10 @@
     }}
   />
 {/snippet}
+{#snippet previewBody()}
+  <PreviewPanel />
+{/snippet}
+
 {#snippet layersBody()}
   <LayersPanel
     doc={ed.doc}
@@ -822,7 +847,10 @@
         ed.doc.setLayerVisible(layerId, visible);
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerVisibility'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerVisibility'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onToggleLocked={(layerId, editable) => {
@@ -833,7 +861,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerLock'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerLock'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onReorder={(layerId, targetId) => {
@@ -844,7 +875,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerReorder'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerReorder'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onRename={(layerId, name) => {
@@ -856,7 +890,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerRename'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onAddLayer={addLayer}
@@ -871,7 +908,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerOpacity'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerOpacity'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onSetBlendMode={(layerId, mode) => {
@@ -882,7 +922,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerBlendMode'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerBlendMode'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onDuplicate={duplicateLayer}
@@ -958,6 +1001,13 @@
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
+    {
+      id: 'preview',
+      title: t('panel.preview'),
+      icon: 'play',
+      body: previewBody,
+      defaultCollapsed: true,
+    },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
     {
       id: 'tilesets',
@@ -966,19 +1016,52 @@
       body: tilesetsBody,
       defaultCollapsed: true,
     },
-    { id: 'slices', title: t('panel.slices'), icon: 'slice', body: slicesBody, defaultCollapsed: true },
-    { id: 'timeline', title: t('panel.timeline'), icon: 'film', body: timelineBody, placement: 'bottom' },
+    {
+      id: 'slices',
+      title: t('panel.slices'),
+      icon: 'slice',
+      body: slicesBody,
+      defaultCollapsed: true,
+    },
+    {
+      id: 'timeline',
+      title: t('panel.timeline'),
+      icon: 'film',
+      body: timelineBody,
+      placement: 'bottom',
+    },
   ]}
 >
   {#snippet quick()}
-    <IconButton icon="undo" label={t('menu.undo')} hint={hint('undo')} disabled={ed.undoDepth === 0} onclick={undo} />
-    <IconButton icon="redo" label={t('menu.redo')} hint={hint('redo')} disabled={ed.redoDepth === 0} onclick={redo} />
+    <IconButton
+      icon="undo"
+      label={t('menu.undo')}
+      hint={hint('undo')}
+      disabled={ed.undoDepth === 0}
+      onclick={undo}
+    />
+    <IconButton
+      icon="redo"
+      label={t('menu.redo')}
+      hint={hint('redo')}
+      disabled={ed.redoDepth === 0}
+      onclick={redo}
+    />
   {/snippet}
   {#snippet tools(orientation)}
-    <ToolRail groups={railGroups} active={toolState.tool} onSelect={(next) => (toolState.tool = next)} {orientation} />
+    <ToolRail
+      groups={railGroups}
+      active={toolState.tool}
+      onSelect={(next) => (toolState.tool = next)}
+      {orientation}
+    />
   {/snippet}
   {#snippet options()}
-    <ToolVariants groups={railGroups} active={toolState.tool} onSelect={(next) => (toolState.tool = next)} />
+    <ToolVariants
+      groups={railGroups}
+      active={toolState.tool}
+      onSelect={(next) => (toolState.tool = next)}
+    />
     {#if toolState.tool === 'selection-wand'}
       <label class="opt">
         {t('opt.tolerance')}
@@ -992,7 +1075,11 @@
         />
       </label>
       <label class="opt">
-        <input type="checkbox" bind:checked={toolState.wandContiguous} aria-label={t('opt.contiguous')} />
+        <input
+          type="checkbox"
+          bind:checked={toolState.wandContiguous}
+          aria-label={t('opt.contiguous')}
+        />
         {t('opt.contiguous')}
       </label>
       <label class="opt">
@@ -1098,24 +1185,24 @@
     {/if}
   {/snippet}
   {#snippet viewport()}
-        <!-- The stage takes the pointer, not just the canvas, so a selection
+    <!-- The stage takes the pointer, not just the canvas, so a selection
              gesture can start beside the canvas (spec §9.4); `onPointerDown`
              lets only selection and view gestures start there. -->
-        <div
-          class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
-          bind:this={view.stage}
-          bind:clientWidth={view.stageW}
-          bind:clientHeight={view.stageH}
-          role="presentation"
-          oncontextmenu={(e) => e.preventDefault()}
-          onpointerdown={onPointerDown}
-          onpointermove={onPointerMove}
-          onpointerup={onPointerUp}
-          onpointercancel={onPointerCancel}
-          onpointerleave={onPointerLeave}
-          ondblclick={onDoubleClick}
-        >
-    <!--
+    <div
+      class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
+      bind:this={view.stage}
+      bind:clientWidth={view.stageW}
+      bind:clientHeight={view.stageH}
+      role="presentation"
+      oncontextmenu={(e) => e.preventDefault()}
+      onpointerdown={onPointerDown}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerCancel}
+      onpointerleave={onPointerLeave}
+      ondblclick={onDoubleClick}
+    >
+      <!--
             Stacked render surfaces (spec §4.4, M12.5): the base canvas
             shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
             or Canvas2D) and the overlay canvas, sitting exactly on top with
@@ -1126,71 +1213,71 @@
             via `h-full w-full` and CSS upscales their sprite-sized backing
             stores (`image-rendering: pixelated`).
           -->
-          <div
-            class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
-            style:width="{ed.canvasW * view.zoom}px"
-            style:height="{ed.canvasH * view.zoom}px"
-            style:transform="translate({view.panX}px, {view.panY}px)"
-          >
-            <canvas
-              bind:this={view.canvas}
-              class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
-              style:cursor={view.panning
-                ? 'grabbing'
-                : toolState.moveSelStart
-                  ? 'move'
-                  : toolState.tool === 'move' && ed.selection && !view.spaceDown
-                    ? 'move'
-                    : toolState.tool === 'move' || view.spaceDown
-                      ? 'grab'
-                      : 'crosshair'}
-              aria-label="Pincel canvas"
-              data-ready={ed.ready}
-            ></canvas>
-            <canvas
-              bind:this={view.overlay}
-              class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
-              width={ed.canvasW}
-              height={ed.canvasH}
-              aria-hidden="true"
-            ></canvas>
-          </div>
-          <!-- Pixel grid and custom grid (docs/specs/pixel-grid.md): a
+      <div
+        class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
+        style:width="{ed.canvasW * view.zoom}px"
+        style:height="{ed.canvasH * view.zoom}px"
+        style:transform="translate({view.panX}px, {view.panY}px)"
+      >
+        <canvas
+          bind:this={view.canvas}
+          class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
+          style:cursor={view.panning
+            ? 'grabbing'
+            : toolState.moveSelStart
+              ? 'move'
+              : toolState.tool === 'move' && ed.selection && !view.spaceDown
+                ? 'move'
+                : toolState.tool === 'move' || view.spaceDown
+                  ? 'grab'
+                  : 'crosshair'}
+          aria-label="Pincel canvas"
+          data-ready={ed.ready}
+        ></canvas>
+        <canvas
+          bind:this={view.overlay}
+          class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
+          width={ed.canvasW}
+          height={ed.canvasH}
+          aria-hidden="true"
+        ></canvas>
+      </div>
+      <!-- Pixel grid and custom grid (docs/specs/pixel-grid.md): a
                stage-sized canvas over the sprite, so lines stay one device
                pixel at every zoom (grid.ts). -->
-          <canvas
-            bind:this={view.gridCanvas}
-            class="pointer-events-none absolute inset-0 h-full w-full"
-            data-testid="pixel-grid"
-            aria-hidden="true"
-          ></canvas>
-          {#if ed.doc && dialogs.editingTile}
-            <TileEditor
-              doc={ed.doc}
-              tilesetId={dialogs.editingTile.tilesetId}
-              tileId={dialogs.editingTile.tileId}
-              color={colors.color}
-              rev={ed.docRev}
-              onClose={() => (dialogs.editingTile = null)}
-              onChange={() => {
-                ed.docRev += 1;
-                live.needsRecompose = true;
-                syncMeta();
-              }}
-            />
-          {/if}
-          {#if ed.doc}
-            <ZoomControl
-              label={`${view.zoom}×`}
-              onZoomIn={zoomIn}
-              onZoomOut={zoomOut}
-              onFit={resetView}
-              onActual={zoomActual}
-              canZoomIn={view.zoom < MAX_ZOOM}
-              canZoomOut={view.zoom > MIN_ZOOM}
-            />
-          {/if}
-        </div>
+      <canvas
+        bind:this={view.gridCanvas}
+        class="pointer-events-none absolute inset-0 h-full w-full"
+        data-testid="pixel-grid"
+        aria-hidden="true"
+      ></canvas>
+      {#if ed.doc && dialogs.editingTile}
+        <TileEditor
+          doc={ed.doc}
+          tilesetId={dialogs.editingTile.tilesetId}
+          tileId={dialogs.editingTile.tileId}
+          color={colors.color}
+          rev={ed.docRev}
+          onClose={() => (dialogs.editingTile = null)}
+          onChange={() => {
+            ed.docRev += 1;
+            live.needsRecompose = true;
+            syncMeta();
+          }}
+        />
+      {/if}
+      {#if ed.doc}
+        <ZoomControl
+          label={`${view.zoom}×`}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onFit={resetView}
+          onActual={zoomActual}
+          canZoomIn={view.zoom < MAX_ZOOM}
+          canZoomOut={view.zoom > MIN_ZOOM}
+        />
+      {/if}
+    </div>
   {/snippet}
   {#snippet statusbar()}
     {#if ed.doc}
@@ -1255,7 +1342,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerRename'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
   />
@@ -1368,14 +1458,15 @@
     aria-modal="true"
     aria-label={t('shell.unsavedChanges')}
   >
-    <div class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl">
+    <div
+      class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    >
       <p>{dialogs.confirm.message}</p>
       <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (dialogs.confirm = null)}>{t('common.cancel')}</button>
-        <button
-          class="panel-btn border-red-800 text-red-300"
-          onclick={confirmDiscard}
+        <button class="panel-btn" onclick={() => (dialogs.confirm = null)}
+          >{t('common.cancel')}</button
         >
+        <button class="panel-btn border-red-800 text-red-300" onclick={confirmDiscard}>
           {t('shell.discard')}
         </button>
       </div>

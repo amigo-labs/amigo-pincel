@@ -812,6 +812,7 @@ export const en = {
   'panel.colors': 'Colors',
   'panel.palette': 'Palette',
   'panel.layers': 'Layers',
+  'panel.preview': 'Preview',
   'panel.tilesets': 'Tilesets',
   'panel.slices': 'Slices',
   'panel.timeline': 'Timeline',
@@ -821,6 +822,11 @@ export const en = {
 
   // Palette presets and .gpl
   'palette.more': 'Palette options',
+  'preview.play': 'Play preview',
+  'preview.pause': 'Pause preview',
+  'preview.zoom': 'Preview zoom',
+  'preview.fit': 'Fit',
+  'preview.canvas': 'Animation preview',
   'palette.presets': 'Presets',
   'palette.preset.db32': 'DawnBringer 32',
   'palette.preset.db16': 'DawnBringer 16',
