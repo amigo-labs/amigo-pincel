@@ -18,7 +18,7 @@ mod transform;
 
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
-pub use merge::{FlattenImage, MergeDown, MergeVisible};
+pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::{PixelEdit, SetPixels};
 pub use properties::{

@@ -23,10 +23,10 @@ pub mod transform;
 pub use color::{BlendMode, Color};
 pub use command::{
     AddGroup, AddLayer, Anchor, CanvasRotation, Command, CommandBus, CropToSelection,
-    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer,
-    MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90,
-    ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels,
-    SetSelection, TransformLayer, UndoStack,
+    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
+    MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
+    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
+    SetPixels, SetSelection, TransformLayer, UndoStack,
 };
 pub use document::{
     CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,
