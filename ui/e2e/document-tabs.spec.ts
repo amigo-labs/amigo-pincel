@@ -22,7 +22,7 @@ import {
 // and the save picker is a stub whose answers each test queues: write,
 // cancel, or hold until the test releases it.
 
-type PickerMode = 'write' | 'cancel' | 'hold';
+type PickerMode = 'write' | 'cancel' | 'fail' | 'hold';
 
 interface PickerStub {
   /** Answers for the next picker calls; `write` once the queue is empty. */
@@ -57,14 +57,17 @@ test.beforeEach(async ({ page }) => {
         queryPermission: async () => 'granted',
         requestPermission: async () => 'granted',
         isSameEntry: async () => false,
-        createWritable: async () => ({
-          write: async () => {
-            if (mode === 'hold') await new Promise<void>((resolve) => (stub.release = resolve));
-          },
-          close: async () => {
-            stub.written.push(name);
-          },
-        }),
+        createWritable: async () => {
+          if (mode === 'fail') throw new Error('disk full');
+          return {
+            write: async () => {
+              if (mode === 'hold') await new Promise<void>((resolve) => (stub.release = resolve));
+            },
+            close: async () => {
+              stub.written.push(name);
+            },
+          };
+        },
       };
     };
   });
@@ -284,6 +287,8 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('Control+z');
     await expectDirty(page, name('b'), false);
     await expectDirty(page, name('a'), true);
+    const redo = page.getByRole('button', { name: 'Redo', exact: true });
+    await expect(redo).toBeEnabled();
 
     // Back in `a`: zoom, selection and history as they were.
     await tab(page, name('a')).click();
@@ -295,6 +300,7 @@ for (const mode of ['pixel', 'image'] as const) {
     ).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+    await expect(redo).toBeDisabled();
   });
 
   test(`${mode}: closing a clean tab activates its right-hand neighbour; the last one shows the start screen (AC-07, AC-09)`, async ({
@@ -441,6 +447,25 @@ for (const mode of ['pixel', 'image'] as const) {
       DEFAULT_NAME[mode],
       name('a'),
     ]);
+  });
+
+  test(`${mode}: a failed save in Save All aborts the action and keeps the rest unsaved (AC-11)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await paint(page, mode);
+    await openTabs(page, mode, ['a']);
+    await paint(page, mode);
+    await queuePicker(page, ['fail']);
+    await dropFiles(page, [await otherFile(mode, 'other')]);
+    await prompt(page).getByRole('button', { name: 'Save All' }).click();
+    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    await expect(prompt(page)).toHaveCount(0);
+    await waitForEditor(page, mode);
+    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a')]);
+    await expectDirty(page, DEFAULT_NAME[mode], true);
+    await expectDirty(page, name('a'), true);
+    expect((await picker(page)).calls).toBe(1);
   });
 
   test(`${mode}: Don't Save in the list prompt discards every unsaved tab (AC-11, AC-12)`, async ({
@@ -661,6 +686,13 @@ for (const mode of ['pixel', 'image'] as const)
       await expect(bar).toBeVisible();
       const active = tab(page, `golf-long-name.${EXT[mode]}`);
       await expect(active).toBeInViewport();
+      // The bar sits between the options bar and the canvas.
+      const options = await page.getByRole('toolbar', { name: 'Tool options' }).boundingBox();
+      const barBox = await bar.boundingBox();
+      const stage = await canvas(page, mode).boundingBox();
+      if (!options || !barBox || !stage) throw new Error('editor frame not laid out');
+      expect(barBox.y).toBeGreaterThanOrEqual(options.y + options.height - 1);
+      expect(stage.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
       if (width < 1280) {
         expect(await bar.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
       }
@@ -765,6 +797,11 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(footer).toContainText(size);
     const swatches = page.getByRole('group', { name: 'Palette colors' }).getByRole('button');
     const paletteFirst = mode === 'pixel' ? await swatches.count() : 0;
+    // The Layers panel: one more layer in this tab.
+    const layerRows = page.getByRole('list', { name: 'Layer list' }).getByRole('listitem');
+    await page.getByRole('button', { name: 'Add layer', exact: true }).click();
+    await expect(layerRows).toHaveCount(2);
+    const layersFirst = await layerRows.allInnerTexts();
     // Keep focus away from the zoom control: its ring is in the screenshot.
     await page.mouse.move(0, 0);
     const first = await canvas(page, mode).screenshot();
@@ -777,10 +814,12 @@ for (const mode of ['pixel', 'image'] as const) {
       // The fixture brings its own palette.
       expect(await swatches.count()).not.toBe(paletteFirst);
     }
+    expect(await layerRows.allInnerTexts()).not.toEqual(layersFirst);
 
     await tab(page, DEFAULT_NAME[mode]).click();
     await expect(footer).toContainText(size);
     if (mode === 'pixel') expect(await swatches.count()).toBe(paletteFirst);
+    await expect.poll(() => layerRows.allInnerTexts()).toEqual(layersFirst);
     await page.mouse.move(0, 0);
     await expect.poll(async () => (await canvas(page, mode).screenshot()).equals(first)).toBe(true);
     await expectActive(page, DEFAULT_NAME[mode]);
