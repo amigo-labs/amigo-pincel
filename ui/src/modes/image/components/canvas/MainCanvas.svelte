@@ -4,6 +4,7 @@
   import {
     editor,
     tool,
+    ui,
     view,
     viewCommands,
     MIN_ZOOM,
@@ -170,6 +171,14 @@
         viewport.setPointerCapture(e.pointerId);
         return;
       }
+    }
+    // While an effect (or another editor dialog) is open the canvas only
+    // zooms and pans: the press never reaches the tool dispatcher; the
+    // middle-button pan below still gets it (effect-panel AC-03).
+    if (ui.modalOpen && e.button !== 1 && !onInteractiveTarget(e)) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
     }
     gestureUndoDepth = editor.undoDepth;
   }

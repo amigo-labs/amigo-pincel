@@ -167,8 +167,8 @@ test('point: Pick on canvas sets the point without a tool stroke (AC-11)', async
   await undo.click();
   await expect(undo).toBeDisabled();
 
-  // A second press of the button ends picking; the canvas goes back to
-  // the active tool (the Pencil paints a stroke, the point stays).
+  // A second press of the button ends picking; the point stays, and while
+  // the effect is open the canvas takes no tool input (effect-panel AC-03).
   const again = await open(page, 'Blurs', 'Radial Blur…');
   const pickAgain = again.getByRole('button', { name: 'Pick on canvas' });
   await pickAgain.click();
@@ -176,11 +176,9 @@ test('point: Pick on canvas sets the point without a tool stroke (AC-11)', async
   await expect(pickAgain).toHaveAttribute('aria-pressed', 'false');
   await drag(page, canvas, [0.2, 0.2], [0.4, 0.4]);
   await expect(again.getByLabel('Center X in percent')).toHaveValue('50');
-  await expect(undo).toBeEnabled();
-  await again.getByRole('button', { name: 'Cancel' }).click();
-  await undo.click();
   await expect(undo).toBeDisabled();
-  // Cancel while armed: later presses reach the tool too.
+  await again.getByRole('button', { name: 'Cancel' }).click();
+  // Cancel while armed: later presses reach the tool again.
   const third = await open(page, 'Blurs', 'Radial Blur…');
   await third.getByRole('button', { name: 'Pick on canvas' }).click();
   await third.getByRole('button', { name: 'Cancel' }).click();

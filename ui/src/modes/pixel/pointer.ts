@@ -4,7 +4,7 @@ import { packColor, unpackColor } from '../../lib/color';
 import { t } from '../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
 import { constrainedEndpoint, syncMeta, syncSelection } from './render';
-import { type SelectionMode, colors, ed, live, toolState, view } from './stores/editor.svelte';
+import { type SelectionMode, colors, dialogs, ed, live, toolState, view } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
@@ -289,6 +289,18 @@ export function onPointerDown(e: PointerEvent) {
     return;
   }
   if (live.pinch.suppressing) return;
+  // Middle-button drag pans, like a Space drag (and as in Image mode).
+  if (e.button === 1) {
+    e.preventDefault();
+    stage.setPointerCapture(e.pointerId);
+    view.panning = true;
+    live.panStartClient = { x: e.clientX, y: e.clientY };
+    live.panStartOffset = { x: view.panX, y: view.panY };
+    return;
+  }
+  // While an effect is open the canvas only zooms and pans; no tool sees
+  // the press (effect-panel AC-03).
+  if (dialogs.effect && !view.spaceDown) return;
   // Right button: the painting tools use the background color
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(toolState.tool)) return;
@@ -556,7 +568,7 @@ export function commitPolygon() {
 // reliable click count in every engine, so the `dblclick` event is the
 // signal (pixel-selection-move AC-04).
 export function onDoubleClick(e: MouseEvent) {
-  if (!fromStage(e)) return;
+  if (!fromStage(e) || dialogs.effect) return;
   if (toolState.polyPoints) commitPolygon();
 }
 
