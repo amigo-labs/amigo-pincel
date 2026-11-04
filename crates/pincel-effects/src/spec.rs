@@ -25,6 +25,7 @@ use crate::effect::Effect;
 use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
+use crate::object::{Outline, OutlinePlace, OutlineShape};
 use crate::sharpen::{Sharpen, UnsharpMask};
 
 /// Every effect and adjustment the crate ships, with typed parameters.
@@ -171,6 +172,11 @@ pub enum EffectSpec {
         center_x: f32,
         center_y: f32,
     },
+    /// `outline`: `[place, shape, thickness, color]` with `place`
+    /// `0` = outside, `1` = inside, `2` = both, `shape` `0` = circle,
+    /// `1` = square, `thickness` in `1..=8` and `color` one `0xRRGGBBAA`
+    /// slot (an integer, Decision Log 2026-10-29).
+    Outline(Outline),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -207,6 +213,7 @@ pub const EFFECT_NAMES: &[&str] = &[
     "sketch_blur",
     "surface_blur",
     "zoom_blur",
+    "outline",
 ];
 
 fn expect_len(name: &str, params: &[f64], expected: usize) -> Result<(), EffectError> {
@@ -236,6 +243,20 @@ fn u(v: f64) -> u32 {
 /// A finite number clamped to `lo..=hi`; non-finite reads as 0 first.
 fn clamped(v: f64, lo: f32, hi: f32) -> f32 {
     f(v).clamp(lo, hi)
+}
+
+/// A colour slot: an integer `0xRRGGBBAA` in `0..=u32::MAX`, as RGBA bytes.
+/// Anything else (fractional, out of range, non-finite) is an error.
+fn color(name: &str, p: &[f64], slot: usize) -> Result<[u8; 4], EffectError> {
+    let v = p[slot];
+    if v.is_finite() && v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&v) {
+        Ok((v as u32).to_be_bytes())
+    } else {
+        Err(EffectError::ColorSlot {
+            effect: name.to_owned(),
+            slot,
+        })
+    }
 }
 
 fn b(v: f64) -> bool {
@@ -498,6 +519,20 @@ impl EffectSpec {
                     center_y: clamped(p[2], 0.0, 1.0),
                 }
             }
+            "outline" => {
+                expect_len(name, p, 4)?;
+                let place = match u(p[0]) {
+                    1 => OutlinePlace::Inside,
+                    2 => OutlinePlace::Both,
+                    _ => OutlinePlace::Outside,
+                };
+                let shape = if u(p[1]) == 0 {
+                    OutlineShape::Circle
+                } else {
+                    OutlineShape::Square
+                };
+                Self::Outline(Outline::new(place, shape, u(p[2]), color(name, p, 3)?))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -621,6 +656,7 @@ impl EffectSpec {
                 center_x,
                 center_y,
             } => radial(src, *amount, *center_x, *center_y, RadialKind::Zoom),
+            Self::Outline(e) => e.apply(src),
         }
     }
 
@@ -659,6 +695,7 @@ impl EffectSpec {
             Self::SketchBlur(_) => "Sketch Blur",
             Self::SurfaceBlur(_) => "Surface Blur",
             Self::ZoomBlur { .. } => "Zoom Blur",
+            Self::Outline(_) => "Outline Object",
         }
     }
 }
@@ -726,6 +763,7 @@ mod tests {
             ("sketch_blur", &[10.0, 1.0]),
             ("surface_blur", &[6.0, 25.0]),
             ("zoom_blur", &[10.0, 0.5, 0.5]),
+            ("outline", &[0.0, 1.0, 1.0, 255.0]),
         ];
         for (name, params) in cases {
             let spec =

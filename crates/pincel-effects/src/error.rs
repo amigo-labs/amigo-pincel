@@ -30,4 +30,12 @@ pub enum EffectError {
         expected: usize,
         got: usize,
     },
+
+    /// [`crate::EffectSpec::from_params`] got a colour slot that is not an
+    /// integer in `0..=u32::MAX` (a `0xRRGGBBAA` value; Decision Log
+    /// 2026-10-29).
+    #[error(
+        "effect `{effect}` parameter {slot} must be a colour 0xRRGGBBAA (an integer 0–4294967295)"
+    )]
+    ColorSlot { effect: String, slot: usize },
 }
