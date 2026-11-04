@@ -499,7 +499,22 @@ impl Document {
     /// Output dimensions are `width * zoom` × `height * zoom` and the
     /// pixel buffer is row-major non-premultiplied RGBA8.
     pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
-        self.compose_impl(frame, zoom, None)
+        self.compose_frame(frame, zoom, true)
+    }
+
+    /// [`Document::compose`] with the onion skin chosen per call: `onion =
+    /// true` applies the configured onion skin (the same bytes as
+    /// `compose`), `onion = false` leaves it out whatever
+    /// [`Document::set_onion_skin`] says — for an animation preview that
+    /// must never show ghosts (docs/specs/animation-preview.md).
+    #[wasm_bindgen(js_name = composeFrame)]
+    pub fn compose_frame(
+        &self,
+        frame: u32,
+        zoom: u32,
+        onion: bool,
+    ) -> Result<ComposeFrame, String> {
+        self.compose_impl(frame, zoom, None, onion)
     }
 
     /// Composite a sub-rect of the sprite at the given integer zoom.
@@ -524,17 +539,18 @@ impl Document {
         dw: u32,
         dh: u32,
     ) -> Result<ComposeFrame, String> {
-        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)))
+        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)), true)
     }
 
-    /// Shared body of [`Document::compose`] / [`Document::compose_dirty`]:
+    /// Shared body of [`Document::compose_frame`] / [`Document::compose_dirty`]:
     /// a full-canvas request at `zoom`, optionally narrowed by a
-    /// `dirty_hint` rect.
+    /// `dirty_hint` rect, with or without the configured onion skin.
     fn compose_impl(
         &self,
         frame: u32,
         zoom: u32,
         dirty_hint: Option<Rect>,
+        onion: bool,
     ) -> Result<ComposeFrame, String> {
         let mut request = ComposeRequest::full(
             FrameIndex::new(frame),
@@ -543,7 +559,7 @@ impl Document {
         );
         request.zoom = zoom;
         request.dirty_hint = dirty_hint;
-        request.onion_skin = self.onion_skin;
+        request.onion_skin = if onion { self.onion_skin } else { None };
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
@@ -4138,6 +4154,30 @@ mod tests {
         let sheet = pincel_core::import_png(&atlas.png()).expect("png");
         assert_eq!((sheet.width, sheet.height), (6, 1));
         assert_eq!(sheet.rgba, [RED, CLEAR, CLEAR, CLEAR, CLEAR, BLUE].concat());
+    }
+
+    #[test]
+    fn compose_frame_without_onion_ignores_onion_settings() {
+        const RED: [u8; 4] = [255, 0, 0, 255];
+        const BLUE: [u8; 4] = [0, 0, 255, 255];
+        const CLEAR: [u8; 4] = [0; 4];
+        // Frame 0: red at (0, 0); frame 1: blue at (1, 0).
+        let mut doc = doc_with_frames(2, 1, 2);
+        for (frame, pixels) in [(0, [RED, CLEAR]), (1, [CLEAR, BLUE])] {
+            let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
+            buf.data = pixels.concat();
+            doc.cels
+                .insert(Cel::image(DEFAULT_LAYER_ID, FrameIndex::new(frame), buf));
+        }
+        let plain = doc.compose(1, 2).expect("compose").pixels;
+        doc.set_onion_skin(true, 1, 1, 255, 255);
+        let onion = doc.compose(1, 2).expect("compose").pixels;
+        assert_ne!(onion, plain, "compose applies the onion skin");
+        let with = doc.compose_frame(1, 2, true).expect("compose").pixels;
+        assert_eq!(with, onion, "composeFrame(onion = true) equals compose");
+        let without = doc.compose_frame(1, 2, false).expect("compose");
+        assert_eq!((without.width, without.height), (4, 2));
+        assert_eq!(without.pixels, plain, "no ghosts without onion");
     }
 
     #[test]
