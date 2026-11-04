@@ -9,10 +9,6 @@ use super::compose::MAX_ZOOM;
 /// Errors raised by [`compose`](fn@super::compose).
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RenderError {
-    /// The sprite uses a color mode the renderer cannot yet handle.
-    #[error("unsupported color mode: {mode:?}")]
-    UnsupportedColorMode { mode: ColorMode },
-
     /// `zoom` was outside the supported range `1..=64`.
     #[error("invalid zoom: {zoom} (expected 1..={MAX_ZOOM})")]
     InvalidZoom { zoom: u32 },

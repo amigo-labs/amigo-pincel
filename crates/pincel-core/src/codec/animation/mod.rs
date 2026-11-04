@@ -214,7 +214,6 @@ mod tests {
     use super::test_support::{sprite_from, three_frames};
     use super::*;
     use crate::document::{ColorMode, Frame, Layer, LayerId};
-    use crate::render::RenderError;
 
     #[test]
     fn animation_info_counts_the_sequence_frames() {
@@ -307,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn export_animation_indexed_sprite_returns_render_error() {
+    fn export_animation_indexed_sprite_encodes_frames() {
         let sprite = Sprite::builder(2, 2)
             .color_mode(ColorMode::Indexed {
                 transparent_index: 0,
@@ -316,16 +315,13 @@ mod tests {
             .add_frame(Frame::new(100))
             .build()
             .expect("sprite builds");
-        let err = export_animation(
+        let out = export_animation(
             &sprite,
             &CelMap::new(),
             &AnimationOptions::new(AnimationFormat::Apng),
         )
-        .expect_err("indexed refused");
-        assert!(matches!(
-            err,
-            ExportError::Render(RenderError::UnsupportedColorMode { .. })
-        ));
+        .expect("indexed sprite composes");
+        assert!(!out.is_empty());
     }
 
     #[test]

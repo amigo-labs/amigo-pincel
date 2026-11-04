@@ -241,11 +241,11 @@ pub struct AtlasOutput {
 ///
 /// # Limitations
 ///
-/// Inherited from `compose()`: the sprite must use [`crate::ColorMode::Rgba`].
-/// Indexed or grayscale color and linked cels fail with
-/// [`ExportError::Render`] carrying the underlying [`RenderError`]. Image and
-/// tilemap layers both compose, under every blend mode. Export does not work
-/// around these limits — it widens automatically as `compose()` does.
+/// Inherited from `compose()`: linked cels fail with [`ExportError::Render`]
+/// carrying the underlying [`RenderError`]. Every color mode (indexed and
+/// grayscale through `compose()`'s conversion to RGBA), image and tilemap
+/// layers, and every blend mode compose. Export does not work around these
+/// limits — it widens automatically as `compose()` does.
 ///
 /// # Errors
 ///
@@ -299,8 +299,8 @@ pub fn export_frame_png_scaled(
 /// # Limitations
 ///
 /// Same as [`export_frame_png`] — every frame goes through `compose()`, so a
-/// sprite it refuses (non-RGBA color mode, non-`Normal` blend mode, group
-/// layer, linked cel) fails the whole atlas with [`ExportError::Render`]. No
+/// sprite it refuses (linked cel) fails the whole atlas with
+/// [`ExportError::Render`]. No
 /// trimming, no rotation, and no bin-packing: the grid is the contract.
 ///
 /// # Errors
@@ -957,22 +957,6 @@ mod tests {
                 Ok(_) => panic!("a sheet with a broken frame produced an image"),
             }
         }
-
-        // A non-RGBA sprite fails the sheet the same way.
-        let sprite = Sprite::builder(2, 2)
-            .color_mode(ColorMode::Indexed {
-                transparent_index: 0,
-            })
-            .add_layer(Layer::image(LayerId::new(0), "art"))
-            .add_frame(Frame::new(100))
-            .add_frame(Frame::new(100))
-            .build()
-            .expect("sprite builds");
-        match export_atlas_png(&sprite, &CelMap::new(), &AtlasOptions::new(2)) {
-            Err(ExportError::Render(RenderError::UnsupportedColorMode { .. })) => {}
-            Err(err) => panic!("unexpected error: {err}"),
-            Ok(_) => panic!("an indexed sheet produced an image"),
-        }
     }
 
     #[test]
@@ -1002,28 +986,29 @@ mod tests {
     }
 
     #[test]
-    fn export_rejects_non_rgba_color_mode_with_render_error() {
-        let sprite = Sprite::builder(2, 2)
-            .color_mode(ColorMode::Indexed {
-                transparent_index: 0,
-            })
+    fn export_indexed_sprite_like_compose() {
+        // `compose()` renders indexed sprites through the palette, so export
+        // inherits that rather than refusing the sprite.
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let sprite = Sprite::builder(2, 1)
+            .color_mode(mode)
+            .palette(crate::document::Palette::db32())
             .add_layer(Layer::image(LayerId::new(0), "art"))
             .add_frame(Frame::new(100))
             .build()
             .expect("sprite builds");
-        let err = export_frame_png(&sprite, &CelMap::new(), FrameIndex::new(0))
-            .expect_err("indexed color refused");
-        assert!(
-            matches!(
-                err,
-                ExportError::Render(RenderError::UnsupportedColorMode {
-                    mode: ColorMode::Indexed {
-                        transparent_index: 0
-                    }
-                })
-            ),
-            "unexpected error: {err}"
-        );
+        let mut buf = PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![0, 5];
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), buf));
+
+        let png = export_frame_png(&sprite, &cels, FrameIndex::new(0)).expect("frame exports");
+        let (_, _, pixels) = decode(&png);
+        assert_eq!(pixels, composed_pixels(&sprite, &cels, 0));
+        assert_eq!(&pixels[0..4], &[0, 0, 0, 0]);
+        assert_eq!(pixels[7], 255);
     }
 
     #[test]

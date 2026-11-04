@@ -1,20 +1,22 @@
 //! `compose()` — the single composition entry point. See `docs/specs/pincel.md` §4.
 //!
-//! Composites visible image and tilemap layers in z-order, RGBA color mode
-//! only. Per-layer blending lives in [`super::blend`], the two cel paths in
-//! [`super::image_layer`] and [`super::tilemap_layer`]. Group layers hold
+//! Composites visible image and tilemap layers in z-order, in every color
+//! mode: indexed and grayscale pixels turn into RGBA as they are read (see
+//! [`super::source`]). Per-layer blending lives in [`super::blend`], the two
+//! cel paths in [`super::image_layer`] and [`super::tilemap_layer`]. Group layers hold
 //! no pixels and are skipped (their visibility gates their children — see
 //! [`effectively_visible`]). Onion skin (spec §4.2) composites the
 //! neighbouring frames under the current one — see [`super::onion`].
-//! Indexed color, linked cels and overlays still return [`RenderError`].
+//! Linked cels and overlays still return [`RenderError`].
 
-use crate::document::{CelData, CelMap, ColorMode, FrameIndex, Layer, LayerKind, Sprite};
+use crate::document::{CelData, CelMap, FrameIndex, Layer, LayerKind, Sprite};
 use crate::geometry::Rect;
 
 use super::blend::mul_u8;
 use super::error::RenderError;
 use super::image_layer::composite_image_cel;
 use super::request::{ComposeRequest, ComposeResult, LayerFilter, Overlays};
+use super::source::{Paint, SpriteDecoders};
 use super::tilemap_layer::composite_tilemap_cel;
 
 /// Maximum supported zoom factor (per spec §4.1).
@@ -39,11 +41,6 @@ pub fn compose(
     request: &ComposeRequest,
     out: &mut Vec<u8>,
 ) -> Result<ComposeResult, RenderError> {
-    if sprite.color_mode != ColorMode::Rgba {
-        return Err(RenderError::UnsupportedColorMode {
-            mode: sprite.color_mode,
-        });
-    }
     if request.zoom == 0 || request.zoom > MAX_ZOOM {
         return Err(RenderError::InvalidZoom { zoom: request.zoom });
     }
@@ -129,17 +126,30 @@ fn composite_frame(
     request: &ComposeRequest,
     viewport: Rect,
 ) -> Result<(), RenderError> {
+    let decoders = SpriteDecoders::new(sprite.color_mode, &sprite.palette);
+    let scene = Scene {
+        sprite,
+        cels,
+        decoders: &decoders,
+    };
     if let Some(onion) = request.onion_skin {
-        super::onion::composite_onion_skin(dst, sprite, cels, request, onion, viewport)?;
+        super::onion::composite_onion_skin(dst, &scene, request, onion, viewport)?;
     }
     composite_visible_layers(
         dst,
-        sprite,
-        cels,
+        &scene,
         &request.include_layers,
         request.frame,
         viewport,
     )
+}
+
+/// What one compose reads: the document plus the pixel decoders built
+/// for it once per call.
+pub(super) struct Scene<'a> {
+    pub(super) sprite: &'a Sprite,
+    pub(super) cels: &'a CelMap,
+    pub(super) decoders: &'a SpriteDecoders,
 }
 
 /// Composite every selected layer at `frame` into `dst`, which is
@@ -150,12 +160,12 @@ fn composite_frame(
 /// below.
 pub(super) fn composite_visible_layers(
     dst: &mut [u8],
-    sprite: &Sprite,
-    cels: &CelMap,
+    scene: &Scene<'_>,
     filter: &LayerFilter,
     frame: FrameIndex,
     viewport: Rect,
 ) -> Result<(), RenderError> {
+    let Scene { sprite, cels, .. } = *scene;
     for layer in sprite.layers.iter() {
         if !layer_included(layer, sprite, filter) {
             continue;
@@ -170,6 +180,11 @@ pub(super) fn composite_visible_layers(
         }
         let Some(cel) = cels.get(layer.id, frame) else {
             continue;
+        };
+        let paint = Paint {
+            decode: scene.decoders.for_layer(layer),
+            opacity: mul_u8(layer.opacity, cel.opacity),
+            blend_mode: layer.blend_mode,
         };
         match (&layer.kind, &cel.data) {
             (LayerKind::Image, CelData::Image(pixels)) => {
@@ -186,14 +201,7 @@ pub(super) fn composite_visible_layers(
                         frame,
                     });
                 }
-                composite_image_cel(
-                    dst,
-                    viewport,
-                    cel.position,
-                    pixels,
-                    mul_u8(layer.opacity, cel.opacity),
-                    layer.blend_mode,
-                );
+                composite_image_cel(dst, viewport, cel.position, pixels, paint);
             }
             (
                 LayerKind::Tilemap { tileset_id },
@@ -219,9 +227,7 @@ pub(super) fn composite_visible_layers(
                     tileset,
                     layer.id,
                     frame,
-                    sprite.color_mode,
-                    mul_u8(layer.opacity, cel.opacity),
-                    layer.blend_mode,
+                    paint,
                 )?;
             }
             (_, CelData::Linked(_)) => {
@@ -324,7 +330,8 @@ fn effectively_visible(sprite: &Sprite, layer: &Layer) -> bool {
 mod tests {
     use super::*;
     use crate::document::{
-        Cel, CelData, Frame, FrameIndex, Layer, LayerId, PixelBuffer, TilesetId,
+        Cel, CelData, ColorMode, Frame, FrameIndex, Layer, LayerId, Palette, PaletteEntry,
+        PixelBuffer, Rgba, TilesetId,
     };
 
     use super::super::test_support::{
@@ -400,23 +407,26 @@ mod tests {
     }
 
     #[test]
-    fn rejects_indexed_color_mode() {
-        let sprite = Sprite::builder(1, 1)
-            .color_mode(ColorMode::Indexed {
-                transparent_index: 0,
-            })
+    fn compose_indexed_color_mode_renders_palette_colour() {
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let sprite = Sprite::builder(2, 1)
+            .color_mode(mode)
+            .palette(Palette::from_entries(vec![
+                PaletteEntry::new(Rgba::BLACK),
+                PaletteEntry::new(Rgba::new(1, 2, 3, 255)),
+            ]))
+            .add_layer(Layer::image(LayerId::new(0), "art"))
             .add_frame(Frame::default())
             .build()
             .unwrap();
-        let cels = CelMap::new();
-        assert_eq!(
-            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
-            RenderError::UnsupportedColorMode {
-                mode: ColorMode::Indexed {
-                    transparent_index: 0
-                }
-            }
-        );
+        let mut buf = PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![0, 1];
+        let mut cels = CelMap::new();
+        cels.insert(Cel::image(LayerId::new(0), FrameIndex::new(0), buf));
+        let r = compose_owned(&sprite, &cels, &full_req(2, 1)).unwrap();
+        assert_eq!(r.pixels, vec![0, 0, 0, 0, 1, 2, 3, 255]);
     }
 
     #[test]

@@ -95,18 +95,18 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-01 | `compose_indexed_renders_palette_entry_with_its_alpha_under_opacities` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-02 | `compose_indexed_transparent_index_on_normal_layer_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-03 | `compose_indexed_transparent_index_on_background_layer_renders_entry` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-04 | `compose_grayscale_renders_value_value_value_alpha` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-05 | `compose_indexed_and_grayscale_equal_their_rgba_expansion` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-06 | `compose_indexed_and_grayscale_tilemaps_follow_image_rules` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-07 | `compose_indexed_follows_palette_recolour_and_its_undo` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-08 | `export_indexed_and_grayscale_frames_equal_compose` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-09 | `compose_cel_or_tile_in_another_color_mode_fails_with_mismatch` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-10 | `compose_malformed_indexed_or_grayscale_buffer_fails` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-11 | `compose_accepts_every_color_mode` in `crates/pincel-core/tests/render_color_modes.rs` (the `RenderError::UnsupportedColorMode` variant is removed) | built |        |
+| AC-12 | `compose_indexed_index_past_palette_end_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
 
 ## Decisions
 
@@ -115,3 +115,6 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 - The SetPixel payload question from the old prompt is not decided here — rendering does not depend on it, and indexed painting is Phase 2.
 - 2026-10-29: A Decision Log entry pulls Indexed and Grayscale *rendering* into Phase 1 (`compose()` palette lookup, transparent index, background flag; Grayscale as (V, V, V, A)) while painting, codec support and conversion stay Phase 2, and `pincel.md` §3.1's Grayscale comment becomes "rendering Phase 1, editing Phase 2"; AC-04 stays — §4.2 already prescribes conversion at composite time, Grayscale rendering is one pure expansion, and it removes the last `UnsupportedColorMode` and unblocks the codec work (owner accepted the recommendation).
 - 2026-10-29: An Indexed pixel whose index is at or past the palette's end (and not the transparent index) renders transparent (AC-12) — the reader already pads palette gaps with transparent entries, so the rule is consistent, keeps a file with one stray index viewable, and leaves corruption checks to the codec (owner accepted the recommendation).
+- 2026-11-04: AC-05 is checked by a deterministic xorshift-driven test (400 random sprites × 4 requests) instead of `proptest` — `pincel-core` has no `proptest` dev-dependency, and adding one is a dependency change the spec does not need.
+- 2026-11-04: `RenderError::UnsupportedColorMode` is removed rather than left dead — no mode can raise it any more (AC-11), and the 2026-10-11 onion-skin entry removed `OnionSkinUnsupported` the same way; it is a breaking change of `pincel-core`'s public enum, used nowhere outside the crate.
+- 2026-11-04: The palette is turned into two 256-entry RGBA tables per compose call (non-background and background layers; transparent index and indexes past the end map to transparent), so the per-pixel work is one table read.

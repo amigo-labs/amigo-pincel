@@ -1,10 +1,11 @@
 //! The tilemap-cel composition path. See `docs/specs/pincel.md` §4 and §8.
 
-use crate::document::{BlendMode, ColorMode, FrameIndex, LayerId, PixelBuffer, TileRef, Tileset};
+use crate::document::{FrameIndex, LayerId, PixelBuffer, TileRef, Tileset};
 use crate::geometry::Rect;
 
 use super::blend::{blend_pixel_into, mul_u8};
 use super::error::RenderError;
+use super::source::Paint;
 
 /// Composite a tilemap cel into the viewport buffer. Iterates the grid in
 /// row-major order, looks each tile up in `tileset`, and rasterizes the tile
@@ -25,9 +26,7 @@ pub(super) fn composite_tilemap_cel(
     tileset: &Tileset,
     layer_id: LayerId,
     frame: FrameIndex,
-    sprite_color_mode: ColorMode,
-    combined_opacity: u8,
-    blend_mode: BlendMode,
+    paint: Paint<'_>,
 ) -> Result<(), RenderError> {
     let (tile_w, tile_h) = tileset.tile_size;
     if tile_w == 0 || tile_h == 0 {
@@ -69,7 +68,7 @@ pub(super) fn composite_tilemap_cel(
                     frame,
                     tile_id: tile_ref.tile_id,
                 })?;
-            if tile.pixels.color_mode != sprite_color_mode {
+            if tile.pixels.color_mode != paint.decode.color_mode() {
                 return Err(RenderError::CelColorModeMismatch {
                     layer: layer_id,
                     frame,
@@ -97,8 +96,7 @@ pub(super) fn composite_tilemap_cel(
                 (tile_x, tile_y),
                 &tile.pixels,
                 tile_ref,
-                combined_opacity,
-                blend_mode,
+                paint,
             );
         }
     }
@@ -116,10 +114,9 @@ fn composite_transformed_tile(
     tile_pos: (i32, i32),
     src: &PixelBuffer,
     tile_ref: TileRef,
-    combined_opacity: u8,
-    blend_mode: BlendMode,
+    paint: Paint<'_>,
 ) {
-    if combined_opacity == 0 {
+    if paint.opacity == 0 {
         return;
     }
 
@@ -149,7 +146,7 @@ fn composite_transformed_tile(
         return;
     }
 
-    let src_stride = (w as usize) * 4;
+    let src_w = w as usize;
     let dst_stride = (viewport.width as usize) * 4;
     let w_minus_1 = w.saturating_sub(1);
     let h_minus_1 = h.saturating_sub(1);
@@ -178,17 +175,12 @@ fn composite_transformed_tile(
                 sx = new_sx;
                 sy = new_sy;
             }
-            let s = (sy as usize) * src_stride + (sx as usize) * 4;
+            let [r, g, b, a] = paint
+                .decode
+                .rgba(&src.data, (sy as usize) * src_w + sx as usize);
             let d = dst_row + (x - vp_x) as usize * 4;
-            let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_pixel_into(
-                blend_mode,
-                &mut dst[d..d + 4],
-                src.data[s],
-                src.data[s + 1],
-                src.data[s + 2],
-                sa,
-            );
+            let sa = mul_u8(a, paint.opacity);
+            blend_pixel_into(paint.blend_mode, &mut dst[d..d + 4], r, g, b, sa);
         }
     }
 }
@@ -197,7 +189,7 @@ fn composite_transformed_tile(
 mod tests {
     use super::*;
     use crate::document::{
-        Cel, CelData, CelMap, Frame, Layer, LayerId, Sprite, TileImage, TilesetId,
+        Cel, CelData, CelMap, ColorMode, Frame, Layer, LayerId, Sprite, TileImage, TilesetId,
     };
 
     use super::super::test_support::{
@@ -624,9 +616,7 @@ mod tests {
             &tileset,
             LayerId::new(0),
             FrameIndex::new(0),
-            ColorMode::Rgba,
-            255,
-            BlendMode::Normal,
+            Paint::rgba(255, crate::document::BlendMode::Normal),
         )
         .expect_err("an overflowing grid is a corrupt cel");
         assert_eq!(

@@ -1,23 +1,24 @@
 //! The image-cel composition path. See `docs/specs/pincel.md` §4.
 
-use crate::document::{BlendMode, PixelBuffer};
+use crate::document::PixelBuffer;
 use crate::geometry::Rect;
 
 use super::blend::{blend_pixel_into, mul_u8};
+use super::source::Paint;
 
 /// Composite one image cel into the viewport buffer. `dst` is sized to
 /// `viewport.width * viewport.height * 4` bytes; only the intersection of
-/// the cel rect and the viewport is touched. `combined_opacity` is the
-/// layer opacity already folded with the cel opacity.
+/// the cel rect and the viewport is touched. `paint` carries the decoding
+/// of `src` (which must be a well-formed buffer in its color mode), the
+/// layer opacity already folded with the cel opacity, and the blend mode.
 pub(crate) fn composite_image_cel(
     dst: &mut [u8],
     viewport: Rect,
     cel_pos: (i32, i32),
     src: &PixelBuffer,
-    combined_opacity: u8,
-    blend_mode: BlendMode,
+    paint: Paint<'_>,
 ) {
-    if combined_opacity == 0 {
+    if paint.opacity == 0 {
         return;
     }
 
@@ -41,24 +42,17 @@ pub(crate) fn composite_image_cel(
         return;
     }
 
-    let src_stride = (src.width as usize) * 4;
+    let src_w = src.width as usize;
     let dst_stride = (viewport.width as usize) * 4;
 
     for y in y_start..y_end {
-        let src_row = (y - cel_y) as usize * src_stride;
+        let src_row = (y - cel_y) as usize * src_w;
         let dst_row = (y - vp_y) as usize * dst_stride;
         for x in x_start..x_end {
-            let s = src_row + (x - cel_x) as usize * 4;
+            let [r, g, b, a] = paint.decode.rgba(&src.data, src_row + (x - cel_x) as usize);
             let d = dst_row + (x - vp_x) as usize * 4;
-            let sa = mul_u8(src.data[s + 3], combined_opacity);
-            blend_pixel_into(
-                blend_mode,
-                &mut dst[d..d + 4],
-                src.data[s],
-                src.data[s + 1],
-                src.data[s + 2],
-                sa,
-            );
+            let sa = mul_u8(a, paint.opacity);
+            blend_pixel_into(paint.blend_mode, &mut dst[d..d + 4], r, g, b, sa);
         }
     }
 }
