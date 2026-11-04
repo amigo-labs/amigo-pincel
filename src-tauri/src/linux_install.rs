@@ -21,6 +21,7 @@ const MIME_TYPES: &[&str] = &[
     "image/bmp",
     "image/gif",
     "image/tiff",
+    "image/vnd.adobe.photoshop",
 ];
 
 /// shared-mime-info knows every type above except Aseprite's.

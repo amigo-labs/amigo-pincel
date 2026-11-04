@@ -119,6 +119,15 @@
         "description": "TIFF image",
         "role": "Editor",
         "mimeType": "image/tiff"
+      },
+      {
+        "ext": [
+          "psd"
+        ],
+        "name": "Photoshop Image",
+        "description": "Photoshop image",
+        "role": "Viewer",
+        "mimeType": "image/vnd.adobe.photoshop"
       }
     ],
     "windows": {
