@@ -8,6 +8,7 @@ import {
   imageCanvas,
   menu,
   pixelCanvas,
+  putClipboardImage,
   waitForEditor,
 } from './helpers';
 
@@ -76,7 +77,10 @@ const PNG_1X1 = Buffer.from(
 );
 
 const SPRITE = readFile(
-  join(import.meta.dirname, '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite'),
+  join(
+    import.meta.dirname,
+    '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite',
+  ),
 );
 
 const DEFAULT_NAME = { pixel: 'pincel.aseprite', image: 'image.ora' } as const;
@@ -105,7 +109,9 @@ async function dropFiles(page: Page, files: DropFile[]): Promise<void> {
       for (const f of list) dt.items.add(new File([new Uint8Array(f.data)], f.name));
       const target = document.querySelector('canvas') ?? document.body;
       for (const type of ['dragenter', 'dragover', 'drop']) {
-        target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        target.dispatchEvent(
+          new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }),
+        );
       }
     },
     files.map((f) => ({ name: f.name, data: Array.from(f.bytes) })),
@@ -212,7 +218,10 @@ for (const mode of ['pixel', 'image'] as const) {
     // A drop, and File ▸ New… in the current mode.
     await openTabs(page, mode, ['a']);
     await menu(page, 'File', 'New…');
-    await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
+    await page
+      .getByRole('dialog', { name: 'New document' })
+      .getByRole('button', { name: 'Create' })
+      .click();
     await expect(tabs(page)).toHaveCount(3);
     await expect(tabs(page).nth(2)).toHaveAttribute('aria-selected', 'true');
     await expect(prompt(page)).toHaveCount(0);
@@ -263,7 +272,9 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(await zoomLabel(page).textContent()).not.toBe(zoomA);
     await expect(eraser).toHaveAttribute('aria-pressed', 'true');
     await page.getByRole('menubar').getByRole('menuitem', { name: 'Select', exact: true }).click();
-    await expect(page.getByRole('menu', { name: 'Select' }).getByRole('menuitem', { name: 'Deselect' })).toBeDisabled();
+    await expect(
+      page.getByRole('menu', { name: 'Select' }).getByRole('menuitem', { name: 'Deselect' }),
+    ).toBeDisabled();
     await page.keyboard.press('Escape');
 
     // An edit and its undo in `b` leave `a` alone (AC-06).
@@ -279,7 +290,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await expectActive(page, name('a'));
     await expect(zoomLabel(page)).toHaveText(zoomA ?? '');
     await page.getByRole('menubar').getByRole('menuitem', { name: 'Select', exact: true }).click();
-    await expect(page.getByRole('menu', { name: 'Select' }).getByRole('menuitem', { name: 'Deselect' })).toBeEnabled();
+    await expect(
+      page.getByRole('menu', { name: 'Select' }).getByRole('menuitem', { name: 'Deselect' }),
+    ).toBeEnabled();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   });
@@ -289,9 +302,11 @@ for (const mode of ['pixel', 'image'] as const) {
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
     await openTabs(page, mode, ['a', 'b', 'c']);
-    // Close button on `a` (inactive): the active tab stays.
+    // Close button on the active tab `a`: its right-hand neighbour follows.
     await tab(page, name('a')).click();
-    await tabBar(page).getByRole('button', { name: `Close ${name('a')}` }).click();
+    await tabBar(page)
+      .getByRole('button', { name: `Close ${name('a')}` })
+      .click();
     expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('b'), name('c')]);
     await expectActive(page, name('b'));
     // Middle-click on the last tab: its left neighbour becomes active.
@@ -308,7 +323,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(tabBar(page)).toHaveCount(0);
   });
 
-  test(`${mode}: closing a tab with unsaved changes asks about that document (AC-08)`, async ({ page }) => {
+  test(`${mode}: closing a tab with unsaved changes asks about that document (AC-08)`, async ({
+    page,
+  }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
     await openTabs(page, mode, ['a']);
     await tab(page, DEFAULT_NAME[mode]).click();
@@ -341,7 +358,9 @@ for (const mode of ['pixel', 'image'] as const) {
 
     // Don't Save closes without saving.
     await paint(page, mode);
-    await tabBar(page).getByRole('button', { name: `Close ${name('a')}` }).click();
+    await tabBar(page)
+      .getByRole('button', { name: `Close ${name('a')}` })
+      .click();
     await prompt(page).getByRole('button', { name: "Don't Save" }).click();
     await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
     expect((await picker(page)).written).toHaveLength(1);
@@ -417,10 +436,16 @@ for (const mode of ['pixel', 'image'] as const) {
     const next = mode === 'pixel' ? 'image' : 'pixel';
     await waitForEditor(page, next);
     expect(await tabNames(page)).toEqual([other.name]);
-    expect((await picker(page)).written).toEqual([DEFAULT_NAME[mode], DEFAULT_NAME[mode], name('a')]);
+    expect((await picker(page)).written).toEqual([
+      DEFAULT_NAME[mode],
+      DEFAULT_NAME[mode],
+      name('a'),
+    ]);
   });
 
-  test(`${mode}: Don't Save in the list prompt discards every unsaved tab (AC-11, AC-12)`, async ({ page }) => {
+  test(`${mode}: Don't Save in the list prompt discards every unsaved tab (AC-11, AC-12)`, async ({
+    page,
+  }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
     await paint(page, mode);
     await openTabs(page, mode, ['a']);
@@ -433,7 +458,9 @@ for (const mode of ['pixel', 'image'] as const) {
     expect((await picker(page)).calls).toBe(0);
   });
 
-  test(`${mode}: closing tabs and leaving the editor frees their documents (AC-16)`, async ({ page }) => {
+  test(`${mode}: closing tabs and leaving the editor frees their documents (AC-16)`, async ({
+    page,
+  }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
     expect(await openDocuments(page, mode)).toBe(1);
     await openTabs(page, mode, ['a', 'b']);
@@ -460,7 +487,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('Control+s');
     await page.waitForFunction(() => (window as unknown as StubWindow).__picker.release !== null);
     // Closing the saving tab does nothing, by any means.
-    await tabBar(page).getByRole('button', { name: `Close ${DEFAULT_NAME[mode]}` }).click();
+    await tabBar(page)
+      .getByRole('button', { name: `Close ${DEFAULT_NAME[mode]}` })
+      .click();
     await page.keyboard.press('Alt+w');
     await expect(tabs(page)).toHaveCount(2);
     await expect(prompt(page)).toHaveCount(0);
@@ -490,7 +519,9 @@ for (const mode of ['pixel', 'image'] as const) {
     ]);
     await expectActive(page, name('b'));
     expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), name('b')]);
-    await expect(page.getByText('1 dropped file(s) of the other mode were not opened')).toBeVisible();
+    await expect(
+      page.getByText('1 dropped file(s) of the other mode were not opened'),
+    ).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
 
     // Only the other mode's files: the first one replaces the session.
@@ -499,7 +530,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await dropFiles(page, [x, y]);
     await waitForEditor(page, mode === 'pixel' ? 'image' : 'pixel');
     expect(await tabNames(page)).toEqual([x.name]);
-    await expect(page.getByText('1 dropped file(s) of the other mode were not opened')).toBeVisible();
+    await expect(
+      page.getByText('1 dropped file(s) of the other mode were not opened'),
+    ).toBeVisible();
   });
 }
 
@@ -547,7 +580,9 @@ test('the leave-page warning counts an unsaved tab in the background (AC-13)', a
   expect(await asked).toBe('beforeunload');
 });
 
-test('each unsaved tab is autosaved and recovered into its own tab (AC-14, AC-15)', async ({ page }) => {
+test('each unsaved tab is autosaved and recovered into its own tab (AC-14, AC-15)', async ({
+  page,
+}) => {
   await page.clock.install();
   await createDocument(page, 'image', { width: 16, height: 16 });
   await paint(page, 'image');
@@ -604,26 +639,35 @@ test('the recovery dialog stays open while snapshots remain; each Recover opens 
   await dialog.getByRole('button', { name: 'Recover' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(tabs(page)).toHaveCount(3);
-  for (const i of [1, 2]) await expect(tabs(page).nth(i).getByText('unsaved changes')).toHaveCount(1);
+  for (const i of [1, 2])
+    await expect(tabs(page).nth(i).getByText('unsaved changes')).toHaveCount(1);
 });
 
-test('the tab bar scrolls and keeps the active tab in view at every width (AC-01)', async ({ page }) => {
-  for (const width of [1280, 800, 390]) {
-    await page.setViewportSize({ width, height: 800 });
-    await createDocument(page, 'image', { width: 16, height: 16 });
-    await openTabs(page, 'image', ['alpha-long-name', 'bravo-long-name', 'charlie-long-name', 'delta-long-name']);
-    await openTabs(page, 'image', ['echo-long-name', 'foxtrot-long-name', 'golf-long-name']);
-    const bar = tabBar(page);
-    await expect(bar).toBeVisible();
-    const active = tab(page, 'golf-long-name.png');
-    await expect(active).toBeInViewport();
-    if (width < 1280) {
-      expect(await bar.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+for (const mode of ['pixel', 'image'] as const)
+  test(`${mode}: the tab bar scrolls and keeps the active tab in view at every width (AC-01)`, async ({
+    page,
+  }) => {
+    for (const width of [1280, 800, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await createDocument(page, mode, { width: 16, height: 16 });
+      await openTabs(page, mode, [
+        'alpha-long-name',
+        'bravo-long-name',
+        'charlie-long-name',
+        'delta-long-name',
+      ]);
+      await openTabs(page, mode, ['echo-long-name', 'foxtrot-long-name', 'golf-long-name']);
+      const bar = tabBar(page);
+      await expect(bar).toBeVisible();
+      const active = tab(page, `golf-long-name.${EXT[mode]}`);
+      await expect(active).toBeInViewport();
+      if (width < 1280) {
+        expect(await bar.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+      }
+      await page.keyboard.press('Alt+PageDown');
+      await expect(tab(page, DEFAULT_NAME[mode])).toBeInViewport();
     }
-    await page.keyboard.press('Alt+PageDown');
-    await expect(tab(page, 'image.ora')).toBeInViewport();
-  }
-});
+  });
 
 test.describe('German', () => {
   test.use({ locale: 'de-DE' });
@@ -631,7 +675,10 @@ test.describe('German', () => {
   test('the tab bar, the list prompt and File ▸ Close speak German (AC-18)', async ({ page }) => {
     await page.goto('./');
     await page.getByRole('button', { name: 'Neues Bild' }).click();
-    await page.getByRole('form', { name: 'Neues Bild' }).getByRole('button', { name: 'Erstellen' }).click();
+    await page
+      .getByRole('form', { name: 'Neues Bild' })
+      .getByRole('button', { name: 'Erstellen' })
+      .click();
     await waitForEditor(page, 'image');
     await paint(page, 'image');
     await dropFiles(page, [await fileOf('image', 'a')]);
@@ -642,7 +689,9 @@ test.describe('German', () => {
       /^Schließen/,
     );
     await page.getByRole('menubar').getByRole('menuitem', { name: 'Datei', exact: true }).click();
-    await expect(page.getByRole('menu', { name: 'Datei' }).getByRole('menuitem', { name: 'Schließen' })).toBeVisible();
+    await expect(
+      page.getByRole('menu', { name: 'Datei' }).getByRole('menuitem', { name: 'Schließen' }),
+    ).toBeVisible();
     await page.keyboard.press('Escape');
     await dropFiles(page, [await fileOf('pixel', 'x')]);
     const dialog = page.getByRole('alertdialog', { name: 'Ungespeicherte Änderungen' });
@@ -685,3 +734,108 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(prompt(page)).toHaveCount(0);
   });
 }
+
+/** The pan transform of the active tab's canvas stage. */
+async function panTransform(page: Page, mode: 'pixel' | 'image'): Promise<string> {
+  return canvas(page, mode).evaluate((el) => {
+    for (let at: HTMLElement | null = el as HTMLElement; at; at = at.parentElement) {
+      if (at.style.transform.includes('translate')) return at.style.transform;
+    }
+    return '';
+  });
+}
+
+/** The brush size the options bar shows. */
+function brushSize(page: Page, mode: 'pixel' | 'image'): Locator {
+  return mode === 'pixel'
+    ? page.getByLabel('Brush size', { exact: true })
+    : page.getByRole('toolbar', { name: 'Tool options' }).getByRole('slider').first();
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  const name = (stem: string) => `${stem}.${EXT[mode]}`;
+
+  test(`${mode}: the canvas, status bar and palette show the active tab's document (AC-04)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await paint(page, mode);
+    const footer = page.locator('footer');
+    const size = mode === 'pixel' ? '16×16' : '16 × 16 · sRGB';
+    await expect(footer).toContainText(size);
+    const swatches = page.getByRole('group', { name: 'Palette colors' }).getByRole('button');
+    const paletteFirst = mode === 'pixel' ? await swatches.count() : 0;
+    // Keep focus away from the zoom control: its ring is in the screenshot.
+    await page.mouse.move(0, 0);
+    const first = await canvas(page, mode).screenshot();
+
+    await openTabs(page, mode, ['a']);
+    await expect(footer).not.toContainText(size);
+    await page.mouse.move(0, 0);
+    expect(await canvas(page, mode).screenshot()).not.toEqual(first);
+    if (mode === 'pixel') {
+      // The fixture brings its own palette.
+      expect(await swatches.count()).not.toBe(paletteFirst);
+    }
+
+    await tab(page, DEFAULT_NAME[mode]).click();
+    await expect(footer).toContainText(size);
+    if (mode === 'pixel') expect(await swatches.count()).toBe(paletteFirst);
+    await page.mouse.move(0, 0);
+    await expect.poll(async () => (await canvas(page, mode).screenshot()).equals(first)).toBe(true);
+    await expectActive(page, DEFAULT_NAME[mode]);
+    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a')]);
+  });
+
+  test(`${mode}: each tab keeps its scroll position; tool options and colours are shared (AC-05)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 64, height: 64 });
+    await openTabs(page, mode, ['a']);
+    await tab(page, DEFAULT_NAME[mode]).click();
+    // Scroll the first tab with Space + drag.
+    await page.keyboard.down('Space');
+    await drag(page, canvas(page, mode), [0.5, 0.5], [0.8, 0.7]);
+    await page.keyboard.up('Space');
+    const scrolled = await panTransform(page, mode);
+    // A brush option and the colours.
+    await page.keyboard.press('b');
+    await page.keyboard.press(']');
+    await page.keyboard.press(']');
+    const sizeValue = await brushSize(page, mode).inputValue();
+    await page.keyboard.press('x');
+    const hex = page.getByLabel('Foreground color hex value');
+    const fg = await hex.inputValue();
+
+    await tab(page, name('a')).click();
+    await expectActive(page, name('a'));
+    expect(await panTransform(page, mode)).not.toBe(scrolled);
+    await expect(brushSize(page, mode)).toHaveValue(sizeValue);
+    await expect(hex).toHaveValue(fg);
+
+    await tab(page, DEFAULT_NAME[mode]).click();
+    expect(await panTransform(page, mode)).toBe(scrolled);
+    await expect(brushSize(page, mode)).toHaveValue(sizeValue);
+    await expect(hex).toHaveValue(fg);
+  });
+}
+
+test.describe('clipboard', () => {
+  test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+  test('image: Paste as New Image opens a tab after the unsaved one, without a prompt (AC-02)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await paint(page, 'image');
+    await putClipboardImage(page, 24, 12, '#00ff00');
+    await page.keyboard.press('ControlOrMeta+Alt+v');
+    await expectActive(page, 'Pasted image.png');
+    expect(await tabNames(page)).toEqual(['image.ora', 'Pasted image.png']);
+    await expect(page.locator('footer')).toContainText('24 × 12 · sRGB');
+    await expectDirty(page, 'image.ora', true);
+    await expect(prompt(page)).toHaveCount(0);
+    await tab(page, 'image.ora').click();
+    await expect(page.locator('footer')).toContainText('16 × 16 · sRGB');
+  });
+});

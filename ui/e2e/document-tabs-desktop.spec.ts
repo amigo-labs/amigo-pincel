@@ -19,7 +19,8 @@ import {
 const UA = {
   windows:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-  linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  linux:
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
   mac: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
 } as const;
 
@@ -61,14 +62,22 @@ async function start(page: Page, mode: 'pixel' | 'image'): Promise<void> {
 
 async function paint(page: Page, mode: 'pixel' | 'image'): Promise<void> {
   if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
-  await drag(page, mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page), [0.3, 0.5], [0.7, 0.5]);
+  await drag(
+    page,
+    mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page),
+    [0.3, 0.5],
+    [0.7, 0.5],
+  );
 }
 
 /** File ▸ New… in the current mode: a new tab. */
 async function newTab(page: Page): Promise<void> {
   const before = await tabs(page).count();
   await menu(page, 'File', 'New…');
-  await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
+  await page
+    .getByRole('dialog', { name: 'New document' })
+    .getByRole('button', { name: 'Create' })
+    .click();
   await expect(tabs(page)).toHaveCount(before + 1);
 }
 
@@ -86,7 +95,13 @@ async function handOver(page: Page, path: string, name: string): Promise<void> {
 async function pressOptionW(page: Page): Promise<void> {
   await page.evaluate(() => {
     window.dispatchEvent(
-      new KeyboardEvent('keydown', { key: '∑', code: 'KeyW', altKey: true, bubbles: true, cancelable: true }),
+      new KeyboardEvent('keydown', {
+        key: '∑',
+        code: 'KeyW',
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
     );
   });
 }
@@ -102,7 +117,8 @@ test.describe('desktop app', () => {
 
     test('the same path opens no second tab, whatever its case (AC-03)', async ({ page }) => {
       await start(page, 'image');
-      for (const path of ['C:/docs/Photo.png', 'c:/DOCS/photo.PNG']) await putFile(page, path, PNG_1X1);
+      for (const path of ['C:/docs/Photo.png', 'c:/DOCS/photo.PNG'])
+        await putFile(page, path, PNG_1X1);
       await handOver(page, 'C:/docs/Photo.png', 'Photo.png');
       await paint(page, 'image');
       await tabs(page).first().click();
@@ -118,6 +134,46 @@ test.describe('desktop app', () => {
       await expect(prompt(page)).toHaveCount(0);
     });
 
+    for (const mode of ['pixel', 'image'] as const) {
+      test(`${mode}: Open Recent of a closed file of this mode opens it as a tab, without a prompt (AC-02)`, async ({
+        page,
+      }) => {
+        const ext = mode === 'pixel' ? 'aseprite' : 'ora';
+        await start(page, mode);
+        await paint(page, mode);
+        // A second tab saved to a path (a recent), then closed.
+        await newTab(page);
+        await paint(page, mode);
+        await setMock(page, { savePick: `/docs/second.${ext}` });
+        await page.keyboard.press('Control+s');
+        if (mode === 'image') {
+          await expect(page.getByTitle(`second.${ext}`, { exact: true })).toBeVisible();
+        }
+        await expect(tab(page, `second.${ext}`)).toBeVisible();
+        await page.keyboard.press('Control+w');
+        await expect(tabs(page)).toHaveCount(1);
+        // Pixel mode reopens it itself, Image mode through the shell.
+        await page
+          .getByRole('menubar')
+          .getByRole('menuitem', { name: 'File', exact: true })
+          .click();
+        await page
+          .getByRole('menu', { name: 'File', exact: true })
+          .getByRole('menuitem', { name: 'Open Recent' })
+          .click();
+        await page
+          .getByRole('menu', { name: 'Open Recent', exact: true })
+          .getByRole('menuitem', { name: `second.${ext}`, exact: true })
+          .first()
+          .click();
+        await expect(tab(page, `second.${ext}`)).toHaveAttribute('aria-selected', 'true');
+        await expect(tabs(page)).toHaveCount(2);
+        await expect(prompt(page)).toHaveCount(0);
+        // The first tab kept its unsaved changes.
+        await expect(tabs(page).first().getByText('unsaved changes')).toHaveCount(1);
+      });
+    }
+
     test('Ctrl+Tab, Ctrl+Shift+Tab and Ctrl+W switch and close tabs; File ▸ Close names Ctrl+W (AC-04, AC-07, AC-20)', async ({
       page,
     }) => {
@@ -132,9 +188,9 @@ test.describe('desktop app', () => {
       await page.keyboard.press('Alt+PageUp');
       await expectActive(page, 1);
       await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-      await expect(page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ })).toContainText(
-        'Ctrl+W',
-      );
+      await expect(
+        page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ }),
+      ).toContainText('Ctrl+W');
       await page.keyboard.press('Escape');
       await page.keyboard.press('Control+w');
       await expect(tabs(page)).toHaveCount(2);
@@ -174,7 +230,9 @@ test.describe('desktop app', () => {
       await expect.poll(() => destroyed(page)).toBe(1);
     });
 
-    test('a close during a running save waits for it, then asks about the rest (AC-17)', async ({ page }) => {
+    test('a close during a running save waits for it, then asks about the rest (AC-17)', async ({
+      page,
+    }) => {
       await start(page, 'pixel');
       await paint(page, 'pixel');
       await newTab(page);
@@ -215,7 +273,9 @@ test.describe('desktop app', () => {
   test.describe('on macOS', () => {
     test.use({ userAgent: UA.mac });
 
-    test('⌃Tab, ⇧⌘[ / ], ⌥⇟ and ⌥W work by physical key; the menu owns ⌘W (AC-20)', async ({ page }) => {
+    test('⌃Tab, ⇧⌘[ / ], ⌥⇟ and ⌥W work by physical key; the menu owns ⌘W (AC-20)', async ({
+      page,
+    }) => {
       await start(page, 'image');
       await newTab(page);
       await newTab(page);
@@ -235,9 +295,9 @@ test.describe('desktop app', () => {
         'Close (⌘W)',
       );
       await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-      await expect(page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ })).toContainText(
-        '⌘W',
-      );
+      await expect(
+        page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ }),
+      ).toContainText('⌘W');
       await page.keyboard.press('Escape');
       // ⌘W is the native menu's accelerator: the key itself closes nothing,
       // the menu item does.
@@ -256,10 +316,15 @@ test.describe('web build', () => {
   test.describe('on macOS', () => {
     test.use({ userAgent: UA.mac });
 
-    test('⌥⇟ / ⌥⇞ / ⌥W, named with macOS symbols; no Control or ⌘ chords (AC-20)', async ({ page }) => {
+    test('⌥⇟ / ⌥⇞ / ⌥W, named with macOS symbols; no Control or ⌘ chords (AC-20)', async ({
+      page,
+    }) => {
       await page.goto('./');
       await page.getByRole('button', { name: 'New image' }).click();
-      await page.getByRole('form', { name: 'New image' }).getByRole('button', { name: 'Create' }).click();
+      await page
+        .getByRole('form', { name: 'New image' })
+        .getByRole('button', { name: 'Create' })
+        .click();
       await waitForEditor(page, 'image');
       await newTab(page);
       await page.keyboard.press('Control+Tab');
@@ -283,10 +348,15 @@ test.describe('web build', () => {
   test.describe('on Windows', () => {
     test.use({ userAgent: UA.windows });
 
-    test('Alt+Page Down / Up / Alt+W; Ctrl+Tab and Ctrl+W stay the browser’s (AC-20)', async ({ page }) => {
+    test('Alt+Page Down / Up / Alt+W; Ctrl+Tab and Ctrl+W stay the browser’s (AC-20)', async ({
+      page,
+    }) => {
       await page.goto('./');
       await page.getByRole('button', { name: 'New pixel sprite' }).click();
-      await page.getByRole('form', { name: 'New pixel sprite' }).getByRole('button', { name: 'Create' }).click();
+      await page
+        .getByRole('form', { name: 'New pixel sprite' })
+        .getByRole('button', { name: 'Create' })
+        .click();
       await waitForEditor(page, 'pixel');
       await newTab(page);
       await page.keyboard.press('Control+Tab');
@@ -297,9 +367,9 @@ test.describe('web build', () => {
       await page.keyboard.press('Alt+PageDown');
       await expectActive(page, 0);
       await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-      await expect(page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ })).toContainText(
-        'Alt+W',
-      );
+      await expect(
+        page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ }),
+      ).toContainText('Alt+W');
       await page.keyboard.press('Escape');
       await page.keyboard.press('Alt+w');
       await expect(tabs(page)).toHaveCount(1);
