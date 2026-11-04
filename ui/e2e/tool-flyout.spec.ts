@@ -1,6 +1,6 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas } from './helpers';
+import { createDocument, drag, pixelCanvas, waitForEditor } from './helpers';
 
 // Tool-variant flyout on the tool rail (docs/specs/tool-variant-flyout.md):
 // a right-click, a long press or Shift+F10 on a group button lists the
@@ -457,6 +457,22 @@ function tinyPng(): Buffer {
   ]);
 }
 
+/** A 1×1 24-bit BMP: a file only Image mode opens. */
+function tinyBmp(): Buffer {
+  const b = Buffer.alloc(58);
+  b.write('BM', 0, 'latin1');
+  b.writeUInt32LE(58, 2);
+  b.writeUInt32LE(54, 10);
+  b.writeUInt32LE(40, 14);
+  b.writeInt32LE(1, 18);
+  b.writeInt32LE(1, 22);
+  b.writeUInt16LE(1, 26);
+  b.writeUInt16LE(24, 28);
+  b.writeUInt32LE(4, 34);
+  b.set([0, 0, 255, 0], 54);
+  return b;
+}
+
 test.describe('closing from outside', () => {
   test.use({ viewport: { width: 1280, height: 500 } });
 
@@ -503,6 +519,25 @@ test.describe('closing from outside', () => {
     await expect(page.getByText('opened dot.png · 1×1')).toBeVisible();
     await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(activeTool(page)).toHaveAttribute('aria-label', 'Pencil');
+  });
+
+  test('pixel mode: closing the editor closes its flyout (AC-14)', async ({ page }) => {
+    await page.addInitScript(() => {
+      delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker;
+    });
+    await createDocument(page, 'pixel', { width: 32, height: 32 });
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Open…' }).click();
+    const picker = await chooser;
+    await groupButton(page, 'shapes').focus();
+    await page.keyboard.press('Shift+F10');
+    await expect(flyout(page)).toBeVisible();
+    // A BMP belongs to Image mode: the shell closes the Pixel editor.
+    await picker.setFiles({ name: 'dot.bmp', mimeType: 'image/bmp', buffer: tinyBmp() });
+    await waitForEditor(page, 'image');
+    await expect(pixelCanvas(page)).toHaveCount(0);
+    await expect(page.getByRole('menu')).toHaveCount(0);
   });
 });
 
