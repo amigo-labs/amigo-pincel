@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: L
 mode: both
@@ -46,21 +46,21 @@ Following the per-mode rule of `effect-catalog-v2`, **Morphology** and **Pixelat
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In Image mode the Distort submenu lists all nine entries of the table, sorted as `effect-catalog-v2` AC-04 specifies; in Pixel mode it lists only Morphology… and Pixelate….
-- [ ] AC-02 (event): When the user opens a distortion, then the effect dialog shows exactly its parameters from the table with their ranges and defaults (Pixelate's Colour starts at the current mode's default), using the angle, point and random-seed controls of `effect-catalog-v2` where the table says so.
-- [ ] AC-03 (always): Each distortion returns an image of the same size as its input, and Bulge, Dents and Twist at their neutral settings leave the layer unchanged.
-- [ ] AC-04 (always): Morphology never produces a colour that is not already in the target (every output pixel equals some input pixel or is fully transparent), in every operation, shape and radius.
-- [ ] AC-05 (always): Morphology Dilate makes the set of opaque pixels grow (every pixel opaque before stays opaque); Erode makes it shrink (every pixel transparent before stays transparent); a single opaque pixel on transparency becomes a 3 × 3 square under Dilate Square radius 1 and a plus shape under Dilate Circle radius 1, and disappears under Erode radius 1.
-- [ ] AC-06 (always): After Pixelate, every Cell-size square of the grid (squares at the layer's right and bottom edge may be smaller) holds exactly one colour; with Colour Centre that colour is the square's centre pixel, so a Pixel-mode sprite pixelated with Centre gains no new colours.
-- [ ] AC-07 (always): Bulge with Amount > 0 makes a centred checkerboard's centre squares larger than its edge squares; with Amount < 0 smaller.
-- [ ] AC-08 (always): Twist leaves the pixels outside its circle unchanged and rotates those inside; the centre pixel is unchanged.
-- [ ] AC-09 (always): Crystalize, Dents and Frosted Glass give the same pixels on every run for the same seed and parameters, and different pixels for a different seed on a non-uniform layer; on a noisy layer with Cell size 8, every Crystalize output pixel has at least one 4-neighbour of the same colour.
-- [ ] AC-10 (always): Frosted Glass output pixels are all taken from the input (no colour mixing), each from within Amount px of its position.
-- [ ] AC-11 (option): Where Edge behaviour is Transparent, positions mapped outside the layer give fully transparent pixels; Wrap reads the opposite edge; Reflect reads the mirrored position; Clamp reads the nearest edge pixel.
-- [ ] AC-12 (always): A solid single-colour opaque layer stays unchanged under every distortion except with Edge behaviour Transparent (where mapped-out pixels become transparent).
-- [ ] AC-13 (error): If a wire call names a distortion with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-14 (error): If the Pixel-mode document is not RGBA, then Morphology and Pixelate are refused with the same message as every other effect and the document is unchanged.
-- [ ] AC-15 (option): Where the UI language is German, the names, parameter labels and edge-behaviour options are German.
+- [x] AC-01 (always): In Image mode the Distort submenu lists all nine entries of the table, sorted as `effect-catalog-v2` AC-04 specifies; in Pixel mode it lists only Morphology… and Pixelate….
+- [x] AC-02 (event): When the user opens a distortion, then the effect dialog shows exactly its parameters from the table with their ranges and defaults (Pixelate's Colour starts at the current mode's default), using the angle, point and random-seed controls of `effect-catalog-v2` where the table says so.
+- [x] AC-03 (always): Each distortion returns an image of the same size as its input, and Bulge, Dents and Twist at their neutral settings leave the layer unchanged.
+- [x] AC-04 (always): Morphology never produces a colour that is not already in the target (every output pixel equals some input pixel or is fully transparent), in every operation, shape and radius.
+- [x] AC-05 (always): Morphology Dilate makes the set of opaque pixels grow (every pixel opaque before stays opaque); Erode makes it shrink (every pixel transparent before stays transparent); a single opaque pixel on transparency becomes a 3 × 3 square under Dilate Square radius 1 and a plus shape under Dilate Circle radius 1, and disappears under Erode radius 1.
+- [x] AC-06 (always): After Pixelate, every Cell-size square of the grid (squares at the layer's right and bottom edge may be smaller) holds exactly one colour; with Colour Centre that colour is the square's centre pixel, so a Pixel-mode sprite pixelated with Centre gains no new colours.
+- [x] AC-07 (always): Bulge with Amount > 0 makes a centred checkerboard's centre squares larger than its edge squares; with Amount < 0 smaller.
+- [x] AC-08 (always): Twist leaves the pixels outside its circle unchanged and rotates those inside; the centre pixel is unchanged.
+- [x] AC-09 (always): Crystalize, Dents and Frosted Glass give the same pixels on every run for the same seed and parameters, and different pixels for a different seed on a non-uniform layer; on a noisy layer with Cell size 8, every Crystalize output pixel has at least one 4-neighbour of the same colour.
+- [x] AC-10 (always): Frosted Glass output pixels are all taken from the input (no colour mixing), each from within Amount px of its position.
+- [x] AC-11 (option): Where Edge behaviour is Transparent, positions mapped outside the layer give fully transparent pixels; Wrap reads the opposite edge; Reflect reads the mirrored position; Clamp reads the nearest edge pixel.
+- [x] AC-12 (always): A solid single-colour opaque layer stays unchanged under every distortion except with Edge behaviour Transparent (where mapped-out pixels become transparent).
+- [x] AC-13 (error): If a wire call names a distortion with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-14 (error): If the Pixel-mode document is not RGBA, then Morphology and Pixelate are refused with the same message as every other effect and the document is unchanged.
+- [x] AC-15 (option): Where the UI language is German, the names, parameter labels and edge-behaviour options are German.
 
 ## Technical notes
 
@@ -92,25 +92,34 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-11-04
+
+- paint.net's nine distortions (Bulge, Crystalize, Dents, Frosted Glass, Morphology, Pixelate, Polar Inversion, Tile Reflection, Twist) in `crates/pincel-effects/src/distort/`, on the shared wire format, with a shared `EdgeBehavior` (Clamp / Wrap / Reflect / Transparent) and bilinear premultiplied resampling
+- Morphology and Pixelate in both modes; the other seven in Image mode only; Pixelate's colour defaults per mode (catalog `modeDefaults`, Pixel: Centre)
+- `EffectSpec::run_at` anchors Pixelate's grid to the canvas origin for trimmed Pixel-mode cels (Pixel core and agent tools)
+- Agent tools take the distortions with named parameters; en + de names, labels and edge-behaviour options
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `image mode lists the nine distortions, sorted; pixel mode Morphology and Pixelate (AC-01)` (ui/e2e/effects-distort.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
-| AC-02 | `the distortion dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-distort.spec.ts); `pixelate: each mode starts at its own colour default` and pinned wire vectors (ui/e2e/effect-catalog.spec.ts) | built |        |
-| AC-03 | `every_distortion_keeps_the_size`, `bulge_dents_and_twist_at_their_neutral_setting_change_nothing` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-04 | `morphology_only_picks_existing_colours` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-05 | `morphology_dilate_grows_and_erode_shrinks_the_opaque_pixels`, `morphology_on_a_single_pixel` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-06 | `pixelate_fills_every_square_with_one_colour`, `pixelate_centre_takes_the_square_centre_pixel_and_adds_no_colour`, `pixelate_grid_starts_at_the_canvas_origin` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_pixelate_aligns_a_trimmed_cel_to_the_canvas_grid` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-07 | `bulge_magnifies_or_pinches_the_centre` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-08 | `twist_rotates_inside_its_circle_only` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-09 | `seeded_distortions_are_reproducible_per_seed`, `crystalize_cells_have_no_single_pixels` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-10 | `frosted_glass_copies_input_pixels_from_within_amount` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-11 | `edge_behaviour_decides_what_a_position_outside_reads`, `edge_behaviour_transparent_clears_only_positions_outside` (crates/pincel-effects/tests/effects_distort.rs); `sample_edge_behaviours_read_outside_positions` (crates/pincel-effects/src/distort/edge.rs) | built |        |
-| AC-12 | `a_solid_opaque_layer_stays_unchanged`, `morphology_on_a_solid_layer_changes_only_pixels_near_the_edge` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-13 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_distortions_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-14 | `apply_effect_distortions_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-15 | `German names, parameter labels and edge-behaviour options (AC-15)` (ui/e2e/effects-distort.spec.ts) | built |        |
+| AC-01 | `image mode lists the nine distortions, sorted; pixel mode Morphology and Pixelate (AC-01)` (ui/e2e/effects-distort.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | verified | f49ed76 |
+| AC-02 | `the distortion dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-distort.spec.ts); `pixelate: each mode starts at its own colour default` and pinned wire vectors (ui/e2e/effect-catalog.spec.ts) | verified | f49ed76 |
+| AC-03 | `every_distortion_keeps_the_size`, `bulge_dents_and_twist_at_their_neutral_setting_change_nothing` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-04 | `morphology_only_picks_existing_colours` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-05 | `morphology_dilate_grows_and_erode_shrinks_the_opaque_pixels`, `morphology_on_a_single_pixel` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-06 | `pixelate_fills_every_square_with_one_colour`, `pixelate_centre_takes_the_square_centre_pixel_and_adds_no_colour`, `pixelate_grid_starts_at_the_canvas_origin` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_pixelate_aligns_a_trimmed_cel_to_the_canvas_grid` (crates/pincel-wasm/src/effects.rs) | verified | cdfb309 |
+| AC-07 | `bulge_magnifies_or_pinches_the_centre` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-08 | `twist_rotates_inside_its_circle_only` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-09 | `seeded_distortions_are_reproducible_per_seed`, `crystalize_cells_have_no_single_pixels` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-10 | `frosted_glass_copies_input_pixels_from_within_amount` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-11 | `edge_behaviour_decides_what_a_position_outside_reads`, `edge_behaviour_transparent_clears_only_positions_outside` (crates/pincel-effects/tests/effects_distort.rs); `sample_edge_behaviours_read_outside_positions` (crates/pincel-effects/src/distort/edge.rs) | verified | cdfb309 |
+| AC-12 | `a_solid_opaque_layer_stays_unchanged`, `morphology_on_a_solid_layer_changes_only_pixels_near_the_edge` (crates/pincel-effects/tests/effects_distort.rs) | verified | cdfb309 |
+| AC-13 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_distortions_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | verified | e4365fc |
+| AC-14 | `apply_effect_distortions_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | verified | e4365fc |
+| AC-15 | `German names, parameter labels and edge-behaviour options (AC-15)` (ui/e2e/effects-distort.spec.ts) | verified | f49ed76 |
 
 ## Decisions
 
