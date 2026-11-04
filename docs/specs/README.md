@@ -47,8 +47,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 35 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
 | 36 | [more-languages](more-languages.md) | both | L | — | |
 | 37 | [first-run-tutorial](first-run-tutorial.md) | both | M | — | Better after more-languages if the tour ships translated |
-| 38 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | both | M | — | |
-| 39 | [power-user-shortcuts-palette](power-user-shortcuts-palette.md) | both | M | — | Command palette; no open questions |
 | 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
 | 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
@@ -80,6 +78,8 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-pressure](pixel-pressure.md)
 - [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
+- [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md)
+- [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
 - [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
