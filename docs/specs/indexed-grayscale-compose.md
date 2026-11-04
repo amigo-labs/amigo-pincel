@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -43,18 +43,18 @@ Already decided: blend modes are computed in u8 sRGB and Aseprite pixel-exact pa
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When an Indexed sprite is composed, then every pixel whose index differs from the transparent index renders as its palette entry's RGBA — including the entry's alpha — before layer opacity, cel opacity and the layer's blend mode are applied.
-- [ ] AC-02 (event): When an Indexed sprite is composed, then a pixel equal to the transparent index on a layer that is not flagged as background contributes nothing to the output.
-- [ ] AC-03 (event): When an Indexed sprite is composed, then a pixel equal to the transparent index on a layer flagged as background renders as that index's palette entry.
-- [ ] AC-04 (event): When a Grayscale sprite is composed, then every pixel with value V and alpha A renders as RGBA (V, V, V, A) before layer opacity, cel opacity and blend mode are applied.
-- [ ] AC-05 (always): For an Indexed or Grayscale sprite, `compose()` returns the same output as for an RGBA sprite with the same structure whose cels hold the per-pixel RGBA values that AC-01 … AC-04 define — for every blend mode, opacity, zoom, viewport, dirty hint and onion-skin setting.
-- [ ] AC-06 (event): When an Indexed or Grayscale sprite has a tilemap layer, then its tiles render with the same per-pixel rules as image cels, and tile id 0 stays empty.
-- [ ] AC-07 (event): When a palette entry of an Indexed sprite is recoloured and the sprite is composed again, then pixels with that index show the new colour, and after undo they show the old colour again.
-- [ ] AC-08 (event): When a frame of an Indexed or Grayscale sprite is exported as PNG or as part of an atlas, then the export succeeds and its pixels equal `compose()`'s output for that frame.
-- [ ] AC-09 (error): If a cel's or tile's pixel buffer uses a color mode other than the sprite's, then `compose()` fails with `RenderError::CelColorModeMismatch` naming the layer and frame.
-- [ ] AC-10 (error): If a cel's or tile's pixel buffer length doesn't match its dimensions for the sprite's color mode (1 byte per pixel Indexed, 2 Grayscale), then `compose()` fails with `RenderError::MalformedCelBuffer` naming the layer and frame, as for RGBA.
-- [ ] AC-11 (always): `compose()` no longer returns `RenderError::UnsupportedColorMode` for any color mode the document model can represent.
-- [ ] AC-12 (event): When an Indexed pixel's index is at or past the palette's end and is not the transparent index, then it contributes nothing to the output.
+- [x] AC-01 (event): When an Indexed sprite is composed, then every pixel whose index differs from the transparent index renders as its palette entry's RGBA — including the entry's alpha — before layer opacity, cel opacity and the layer's blend mode are applied.
+- [x] AC-02 (event): When an Indexed sprite is composed, then a pixel equal to the transparent index on a layer that is not flagged as background contributes nothing to the output.
+- [x] AC-03 (event): When an Indexed sprite is composed, then a pixel equal to the transparent index on a layer flagged as background renders as that index's palette entry.
+- [x] AC-04 (event): When a Grayscale sprite is composed, then every pixel with value V and alpha A renders as RGBA (V, V, V, A) before layer opacity, cel opacity and blend mode are applied.
+- [x] AC-05 (always): For an Indexed or Grayscale sprite, `compose()` returns the same output as for an RGBA sprite with the same structure whose cels hold the per-pixel RGBA values that AC-01 … AC-04 define — for every blend mode, opacity, zoom, viewport, dirty hint and onion-skin setting.
+- [x] AC-06 (event): When an Indexed or Grayscale sprite has a tilemap layer, then its tiles render with the same per-pixel rules as image cels, and tile id 0 stays empty.
+- [x] AC-07 (event): When a palette entry of an Indexed sprite is recoloured and the sprite is composed again, then pixels with that index show the new colour, and after undo they show the old colour again.
+- [x] AC-08 (event): When a frame of an Indexed or Grayscale sprite is exported as PNG or as part of an atlas, then the export succeeds and its pixels equal `compose()`'s output for that frame.
+- [x] AC-09 (error): If a cel's or tile's pixel buffer uses a color mode other than the sprite's, then `compose()` fails with `RenderError::CelColorModeMismatch` naming the layer and frame.
+- [x] AC-10 (error): If a cel's or tile's pixel buffer length doesn't match its dimensions for the sprite's color mode (1 byte per pixel Indexed, 2 Grayscale), then `compose()` fails with `RenderError::MalformedCelBuffer` naming the layer and frame, as for RGBA.
+- [x] AC-11 (always): `compose()` no longer returns `RenderError::UnsupportedColorMode` for any color mode the document model can represent.
+- [x] AC-12 (event): When an Indexed pixel's index is at or past the palette's end and is not the transparent index, then it contributes nothing to the output.
 
 ## Technical notes
 
@@ -87,6 +87,13 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | On a background layer the transparent index renders as its palette colour | The format reference scopes the transparent index to "non-background layers" and says nothing more about background layers | Low–medium: Aseprite's renderer might special-case it further; no Aseprite reference fixture exists to check |
 | Grayscale renders as (V, V, V, A) with no gamma or palette step | The format reference defines the pixel as Value, Alpha and nothing else | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- Pixel-mode `compose()` renders indexed sprites through the palette (with the background-layer rule for the transparent index) and grayscale sprites as value / value / value / alpha, equal to their RGBA expansion, for image cels and tilemaps alike
+- Exports equal the compose output; mismatched or malformed buffers and indexes past the palette end fail or contribute nothing as specified
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -95,18 +102,18 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `compose_indexed_renders_palette_entry_with_its_alpha_under_opacities` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-02 | `compose_indexed_transparent_index_on_normal_layer_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-03 | `compose_indexed_transparent_index_on_background_layer_renders_entry` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-04 | `compose_grayscale_renders_value_value_value_alpha` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-05 | `compose_indexed_and_grayscale_equal_their_rgba_expansion` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-06 | `compose_indexed_and_grayscale_tilemaps_follow_image_rules` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-07 | `compose_indexed_follows_palette_recolour_and_its_undo` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-08 | `export_indexed_and_grayscale_frames_equal_compose` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-09 | `compose_cel_or_tile_in_another_color_mode_fails_with_mismatch` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-10 | `compose_malformed_indexed_or_grayscale_buffer_fails` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
-| AC-11 | `compose_accepts_every_color_mode` in `crates/pincel-core/tests/render_color_modes.rs` (the `RenderError::UnsupportedColorMode` variant is removed) | built |        |
-| AC-12 | `compose_indexed_index_past_palette_end_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | built |        |
+| AC-01 | `compose_indexed_renders_palette_entry_with_its_alpha_under_opacities` in `crates/pincel-core/tests/render_color_modes.rs` | verified | ba53299 |
+| AC-02 | `compose_indexed_transparent_index_on_normal_layer_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | verified | ba53299 |
+| AC-03 | `compose_indexed_transparent_index_on_background_layer_renders_entry` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 6aed618 |
+| AC-04 | `compose_grayscale_renders_value_value_value_alpha` in `crates/pincel-core/tests/render_color_modes.rs` | verified | ba53299 |
+| AC-05 | `compose_indexed_and_grayscale_equal_their_rgba_expansion` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 35f631c |
+| AC-06 | `compose_indexed_and_grayscale_tilemaps_follow_image_rules` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 6aed618 |
+| AC-07 | `compose_indexed_follows_palette_recolour_and_its_undo` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 35f631c |
+| AC-08 | `export_indexed_and_grayscale_frames_equal_compose` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 9af6b69 |
+| AC-09 | `compose_cel_or_tile_in_another_color_mode_fails_with_mismatch` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 9a7f4f0 |
+| AC-10 | `compose_malformed_indexed_or_grayscale_buffer_fails` in `crates/pincel-core/tests/render_color_modes.rs` | verified | c43a845 |
+| AC-11 | `compose_accepts_every_color_mode` in `crates/pincel-core/tests/render_color_modes.rs` (the `RenderError::UnsupportedColorMode` variant is removed) | verified | 5dd2afe |
+| AC-12 | `compose_indexed_index_past_palette_end_contributes_nothing` in `crates/pincel-core/tests/render_color_modes.rs` | verified | 22f5a52 |
 
 ## Decisions
 

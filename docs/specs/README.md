@@ -37,14 +37,8 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 18 |  | both | M | — | Adds a color param kind to effects |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
-| 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
-| 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
 | 23 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
-| 24 | [image-layer-groups](image-layer-groups.md) | Image | L | — | |
-| 25 | [image-layer-groups-ora](image-layer-groups-ora.md) | Image | M | image-layer-groups | Fixes ORA group opacity / visibility lost on open |
 | 26 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
-| 27 | [dithered-gradient](dithered-gradient.md) | Pixel | M | — | |
-| 28 | [shading-ink](shading-ink.md) | Pixel | M | pixel-pencil | |
 | 29 | [rotsprite](rotsprite.md) | Pixel | L | — | |
 | 30 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
 | 31 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
@@ -65,9 +59,14 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
+- [dithered-gradient](dithered-gradient.md)
 - [effects-adjustments](effects-adjustments.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
+- [image-layer-groups-ora](image-layer-groups-ora.md)
+- [image-layer-groups](image-layer-groups.md)
+- [indexed-grayscale-compose](indexed-grayscale-compose.md)
+- [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [outline-effect](outline-effect.md)
@@ -83,6 +82,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-undo-history](pixel-undo-history.md)
 - [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
+- [shading-ink](shading-ink.md)
 - [slices](slices.md)
 - [tilemaps](tilemaps.md)
 - [wasm-npm-api](wasm-npm-api.md)

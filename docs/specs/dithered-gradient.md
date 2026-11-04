@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: Pixel
@@ -40,21 +40,21 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 
 ## Acceptance criteria
 
-- [ ] AC-01 (option): Where the kind is linear, after a drag from P0 to P1 every changed pixel whose centre projects onto the drag line at or before P0 has the foreground color, and every one that projects at or beyond P1 has the background color.
-- [ ] AC-02 (option): Where the kind is radial, after a drag from P0 to P1 the pixel at P0 has the foreground color and every changed pixel at a distance of at least |P1 − P0| from P0 has the background color.
-- [ ] AC-03 (always): Every pixel the gradient writes has exactly the foreground or exactly the background color; no other color is created.
-- [ ] AC-04 (option): Where a Bayer n×n matrix (n = 2, 4 or 8) is chosen, a pixel at (x, y) gets the foreground color exactly when its gradient position t (0 at P0, 1 at P1, clamped) is below the n×n Bayer threshold for (x mod n, y mod n), normalized into (0, 1).
-- [ ] AC-05 (option): Where a Bayer n×n matrix is chosen, along a horizontal linear gradient the number of foreground pixels per block of n consecutive columns starting at a multiple of n never increases from the start block to the end block.
-- [ ] AC-06 (option): Where the matrix is none, the result is two hard bands: foreground where t < 0.5, background elsewhere.
-- [ ] AC-07 (state): While a selection exists, the gradient changes only pixels inside the selection; every pixel outside keeps its value.
-- [ ] AC-08 (always): One gradient drag is one undo entry; undo restores every pixel of the target to its value from before the drag, and redo reproduces the identical result.
-- [ ] AC-09 (state): While the gradient drag is in progress, a preview line from the drag start to the pointer is shown, and the document stays unchanged until release.
-- [ ] AC-10 (event): When the user presses `G`, the tool selection cycles through the fill group, which contains Bucket and Gradient.
-- [ ] AC-11 (event): When the Gradient tool becomes active, the options bar shows a Kind control (linear / radial) and a Dither control (none / Bayer 2×2 / Bayer 4×4 / Bayer 8×8).
-- [ ] AC-12 (error): If the drag starts and ends on the same point, then nothing changes and no undo entry is added.
-- [ ] AC-13 (error): If the target layer is locked, the document has no paintable image layer, or the sprite is indexed or grayscale, then nothing changes and no undo entry is added.
-- [ ] AC-14 (always): Image mode's gradient results stay identical after its parameter math is shared with Pixel mode.
-- [ ] AC-15 (state): While no selection exists, the gradient writes every pixel of the target cel; it never grows the cel.
+- [x] AC-01 (option): Where the kind is linear, after a drag from P0 to P1 every changed pixel whose centre projects onto the drag line at or before P0 has the foreground color, and every one that projects at or beyond P1 has the background color.
+- [x] AC-02 (option): Where the kind is radial, after a drag from P0 to P1 the pixel at P0 has the foreground color and every changed pixel at a distance of at least |P1 − P0| from P0 has the background color.
+- [x] AC-03 (always): Every pixel the gradient writes has exactly the foreground or exactly the background color; no other color is created.
+- [x] AC-04 (option): Where a Bayer n×n matrix (n = 2, 4 or 8) is chosen, a pixel at (x, y) gets the foreground color exactly when its gradient position t (0 at P0, 1 at P1, clamped) is below the n×n Bayer threshold for (x mod n, y mod n), normalized into (0, 1).
+- [x] AC-05 (option): Where a Bayer n×n matrix is chosen, along a horizontal linear gradient the number of foreground pixels per block of n consecutive columns starting at a multiple of n never increases from the start block to the end block.
+- [x] AC-06 (option): Where the matrix is none, the result is two hard bands: foreground where t < 0.5, background elsewhere.
+- [x] AC-07 (state): While a selection exists, the gradient changes only pixels inside the selection; every pixel outside keeps its value.
+- [x] AC-08 (always): One gradient drag is one undo entry; undo restores every pixel of the target to its value from before the drag, and redo reproduces the identical result.
+- [x] AC-09 (state): While the gradient drag is in progress, a preview line from the drag start to the pointer is shown, and the document stays unchanged until release.
+- [x] AC-10 (event): When the user presses `G`, the tool selection cycles through the fill group, which contains Bucket and Gradient.
+- [x] AC-11 (event): When the Gradient tool becomes active, the options bar shows a Kind control (linear / radial) and a Dither control (none / Bayer 2×2 / Bayer 4×4 / Bayer 8×8).
+- [x] AC-12 (error): If the drag starts and ends on the same point, then nothing changes and no undo entry is added.
+- [x] AC-13 (error): If the target layer is locked, the document has no paintable image layer, or the sprite is indexed or grayscale, then nothing changes and no undo entry is added.
+- [x] AC-14 (always): Image mode's gradient results stay identical after its parameter math is shared with Pixel mode.
+- [x] AC-15 (state): While no selection exists, the gradient writes every pixel of the target cel; it never grows the cel.
 
 ## Technical notes
 
@@ -96,6 +96,14 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 | The tool starts with kind linear and matrix Bayer 4×4 | The plan names linear first and tests Bayer 4×4; it gives no defaults | Low |
 | A zero-length drag changes nothing | Image mode's gradient returns no command for it | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- `DrawDitherGradient` in `pincel-core`: linear or radial from P0 to P1, only foreground or background pixels, Bayer 2 / 4 / 8 thresholds per pixel or two hard bands, clipped to the selection, one undo step
+- The Gradient tool in Pixel mode's Fill group (G cycles Bucket and Gradient) with Kind and Dither options and a line preview while dragging; zero-length drags, locked layers and indexed or grayscale sprites change nothing
+- The gradient parameter math is shared with Image mode through `pincel-effects`
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -104,21 +112,21 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `linear_before_start_is_foreground_and_past_end_is_background`, `linear_sixteen_wide_row_starts_foreground_and_ends_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-02 | `radial_start_is_foreground_and_beyond_the_radius_is_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-03 | `every_written_pixel_is_exactly_foreground_or_background`, `equal_colors_paint_every_target_pixel_that_color` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-04 | `bayer_threshold_decides_every_pixel`, `bayer_matrices_are_the_standard_ones`, `bayer8_on_a_small_sprite_uses_the_matching_part_of_the_matrix` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-05 | `bayer_block_foreground_counts_never_increase_along_a_horizontal_ramp` (`crates/pincel-core/src/command/draw_dither_gradient.rs`) | built |        |
-| AC-06 | `none_matrix_splits_into_two_hard_bands_at_half` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-07 | `gradient_respects_selection_mask`, `gradient_respects_selection_rect` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-08 | `apply_gradient_paints_fg_to_bg_as_one_undo_entry` (crates/pincel-wasm/src/gradient.rs); `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-09 | "pixel mode: a gradient drag previews a line, then fills foreground to background as one undo step" (ui/e2e/pixel-tools.spec.ts) | built | |
-| AC-10 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither", "pixel mode: single keys select the drawing tools and cycle the shapes" (ui/e2e/pixel-tools.spec.ts) | built | |
-| AC-11 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither" (ui/e2e/pixel-tools.spec.ts) | built | |
-| AC-12 | `new_zero_length_drag_returns_none` (crates/pincel-core/src/command/draw_dither_gradient.rs); `apply_gradient_zero_length_drag_changes_nothing` (crates/pincel-wasm/src/gradient.rs); "pixel mode: a gradient drag previews a line, …" (ui/e2e/pixel-tools.spec.ts) | built | |
-| AC-13 | `apply_gradient_on_locked_layer_errs_without_undo_entry`, `apply_gradient_without_image_layer_errs`, `apply_gradient_on_indexed_or_grayscale_sprite_errs_without_change` (crates/pincel-wasm/src/gradient.rs); `indexed_or_grayscale_sprite_is_refused_without_an_undo_entry` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-14 | `draw_every_kind_matches_the_pinned_output` (crates/pincel-image-core/src/tools/gradient.rs) | built | |
-| AC-15 | `without_selection_every_cel_pixel_on_the_canvas_is_written_and_the_cel_keeps_its_size` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-01 | `linear_before_start_is_foreground_and_past_end_is_background`, `linear_sixteen_wide_row_starts_foreground_and_ends_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | ba53299 |
+| AC-02 | `radial_start_is_foreground_and_beyond_the_radius_is_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | ba53299 |
+| AC-03 | `every_written_pixel_is_exactly_foreground_or_background`, `equal_colors_paint_every_target_pixel_that_color` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 6aed618 |
+| AC-04 | `bayer_threshold_decides_every_pixel`, `bayer_matrices_are_the_standard_ones`, `bayer8_on_a_small_sprite_uses_the_matching_part_of_the_matrix` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | ba53299 |
+| AC-05 | `bayer_block_foreground_counts_never_increase_along_a_horizontal_ramp` (`crates/pincel-core/src/command/draw_dither_gradient.rs`) | verified | 35f631c |
+| AC-06 | `none_matrix_splits_into_two_hard_bands_at_half` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 6aed618 |
+| AC-07 | `gradient_respects_selection_mask`, `gradient_respects_selection_rect` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 35f631c |
+| AC-08 | `apply_gradient_paints_fg_to_bg_as_one_undo_entry` (crates/pincel-wasm/src/gradient.rs); `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 9af6b69 |
+| AC-09 | "pixel mode: a gradient drag previews a line, then fills foreground to background as one undo step" (ui/e2e/pixel-tools.spec.ts) | verified | 9a7f4f0 |
+| AC-10 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither", "pixel mode: single keys select the drawing tools and cycle the shapes" (ui/e2e/pixel-tools.spec.ts) | verified | c43a845 |
+| AC-11 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither" (ui/e2e/pixel-tools.spec.ts) | verified | 5dd2afe |
+| AC-12 | `new_zero_length_drag_returns_none` (crates/pincel-core/src/command/draw_dither_gradient.rs); `apply_gradient_zero_length_drag_changes_nothing` (crates/pincel-wasm/src/gradient.rs); "pixel mode: a gradient drag previews a line, …" (ui/e2e/pixel-tools.spec.ts) | verified | 22f5a52 |
+| AC-13 | `apply_gradient_on_locked_layer_errs_without_undo_entry`, `apply_gradient_without_image_layer_errs`, `apply_gradient_on_indexed_or_grayscale_sprite_errs_without_change` (crates/pincel-wasm/src/gradient.rs); `indexed_or_grayscale_sprite_is_refused_without_an_undo_entry` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 3678aba |
+| AC-14 | `draw_every_kind_matches_the_pinned_output` (crates/pincel-image-core/src/tools/gradient.rs) | verified | 48b5d53 |
+| AC-15 | `without_selection_every_cel_pixel_on_the_canvas_is_written_and_the_cel_keeps_its_size` (crates/pincel-core/src/command/draw_dither_gradient.rs) | verified | 6aed618 |
 
 ## Decisions
 

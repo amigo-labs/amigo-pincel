@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Image
@@ -36,26 +36,26 @@ Already decided: Pixel mode has groups (`LayerKind::Group`, `parent`, contiguous
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses Layer ▸ New Group in Image mode, then an empty group appears in the layers panel and becomes the active layer, and one Undo removes it again.
-- [ ] AC-02 (event): When the user drags a layer row onto a group row, then the layer becomes a child of that group and its row is shown indented below the group's row; when the user drags a child row above or below a row outside the group, then it leaves the group. Each drag is one undo step.
-- [ ] AC-03 (event): When the user presses Alt+→ on a focused layer row, then the layer moves into the nearest group row listed above it at the same depth (as in Pixel mode); Alt+← on a child row moves it out of its group to the parent's level. Each is one undo step.
-- [ ] AC-04 (error): If a group is moved into itself or into one of its descendants, then the move is refused and the layer tree is unchanged.
-- [ ] AC-05 (event): When a group is moved, deleted or duplicated, then its whole subtree is moved, deleted or duplicated with it, in one undo step, and the duplicate is an independent copy (editing it leaves the original unchanged).
-- [ ] AC-06 (always): Every sequence of layer add / remove / move / duplicate / merge operations and their undos leaves a well-formed tree: every child's parent exists and is a group, no layer is its own ancestor, each group's descendants are listed directly beneath it, and undoing the whole sequence restores the original tree.
-- [ ] AC-07 (state): While a group is hidden, none of its descendants contribute to the composite, whatever their own visibility; their own visibility flags are unchanged and take effect again when the group is shown.
-- [ ] AC-08 (always): A group's opacity applies once to the composite of its children, not to each child: two overlapping fully opaque children in a group at 50 % opacity give 50 % coverage in the overlap (not 75 %).
-- [ ] AC-09 (always): A group composites in isolation: its children blend only with each other, starting from transparent, and the result blends into the layers below with the group's blend mode — a Multiply child inside a Normal group does not multiply with layers below the group, and a group set to Multiply multiplies its whole composite with the layers below.
-- [ ] AC-10 (always): A document without groups composes exactly as before this feature (byte-identical composite for the existing compose tests).
-- [ ] AC-11 (state): While a group is locked, painting, fill and effects on any of its descendants are refused with the locked-layer notice, and the descendants' rows show the inherited lock.
-- [ ] AC-12 (error): If a painting tool, fill, effect or Move selected pixels targets a group layer itself, then it is refused with the same status-bar notice as for a locked layer and the document is unchanged.
-- [ ] AC-13 (error): If Merge Down is invoked when the active layer or the layer below it is a group, or the two layers have different parents, then it is refused and the document is unchanged.
-- [ ] AC-14 (event): When the user chooses Layer ▸ Merge Group with a group active, then the group and its subtree are replaced by one raster layer at the group's position, the document composite is the same before and after, and one Undo restores the group and its subtree.
-- [ ] AC-15 (event): When Merge Visible or Flatten Image runs on a document with groups, then the resulting composite equals the composite before the merge, with each group's visibility, opacity and blend mode applied.
-- [ ] AC-16 (event): When the user changes visibility, lock, opacity or blend mode on a group row with the same controls a raster layer has, then the change is stored on the group, acts on its whole subtree, and is one undo step.
-- [ ] AC-17 (event): When the user collapses a group row, then its descendant rows are hidden in the layers panel and the composite is unchanged; expanding the group shows them again. The collapse is not an undo step and is not saved with the document.
-- [ ] AC-18 (state): While a group is active, Move (layer) and layer flips / rotations transform all its raster descendants in one undo step.
-- [ ] AC-19 (event): When the user pastes with a group active, then the new layer is inserted directly above the group, at the group's level.
-- [ ] AC-20 (error): If deleting a layer or group would leave no raster layer, then it is refused and the tree is unchanged.
+- [x] AC-01 (event): When the user chooses Layer ▸ New Group in Image mode, then an empty group appears in the layers panel and becomes the active layer, and one Undo removes it again.
+- [x] AC-02 (event): When the user drags a layer row onto a group row, then the layer becomes a child of that group and its row is shown indented below the group's row; when the user drags a child row above or below a row outside the group, then it leaves the group. Each drag is one undo step.
+- [x] AC-03 (event): When the user presses Alt+→ on a focused layer row, then the layer moves into the nearest group row listed above it at the same depth (as in Pixel mode); Alt+← on a child row moves it out of its group to the parent's level. Each is one undo step.
+- [x] AC-04 (error): If a group is moved into itself or into one of its descendants, then the move is refused and the layer tree is unchanged.
+- [x] AC-05 (event): When a group is moved, deleted or duplicated, then its whole subtree is moved, deleted or duplicated with it, in one undo step, and the duplicate is an independent copy (editing it leaves the original unchanged).
+- [x] AC-06 (always): Every sequence of layer add / remove / move / duplicate / merge operations and their undos leaves a well-formed tree: every child's parent exists and is a group, no layer is its own ancestor, each group's descendants are listed directly beneath it, and undoing the whole sequence restores the original tree.
+- [x] AC-07 (state): While a group is hidden, none of its descendants contribute to the composite, whatever their own visibility; their own visibility flags are unchanged and take effect again when the group is shown.
+- [x] AC-08 (always): A group's opacity applies once to the composite of its children, not to each child: two overlapping fully opaque children in a group at 50 % opacity give 50 % coverage in the overlap (not 75 %).
+- [x] AC-09 (always): A group composites in isolation: its children blend only with each other, starting from transparent, and the result blends into the layers below with the group's blend mode — a Multiply child inside a Normal group does not multiply with layers below the group, and a group set to Multiply multiplies its whole composite with the layers below.
+- [x] AC-10 (always): A document without groups composes exactly as before this feature (byte-identical composite for the existing compose tests).
+- [x] AC-11 (state): While a group is locked, painting, fill and effects on any of its descendants are refused with the locked-layer notice, and the descendants' rows show the inherited lock.
+- [x] AC-12 (error): If a painting tool, fill, effect or Move selected pixels targets a group layer itself, then it is refused with the same status-bar notice as for a locked layer and the document is unchanged.
+- [x] AC-13 (error): If Merge Down is invoked when the active layer or the layer below it is a group, or the two layers have different parents, then it is refused and the document is unchanged.
+- [x] AC-14 (event): When the user chooses Layer ▸ Merge Group with a group active, then the group and its subtree are replaced by one raster layer at the group's position, the document composite is the same before and after, and one Undo restores the group and its subtree.
+- [x] AC-15 (event): When Merge Visible or Flatten Image runs on a document with groups, then the resulting composite equals the composite before the merge, with each group's visibility, opacity and blend mode applied.
+- [x] AC-16 (event): When the user changes visibility, lock, opacity or blend mode on a group row with the same controls a raster layer has, then the change is stored on the group, acts on its whole subtree, and is one undo step.
+- [x] AC-17 (event): When the user collapses a group row, then its descendant rows are hidden in the layers panel and the composite is unchanged; expanding the group shows them again. The collapse is not an undo step and is not saved with the document.
+- [x] AC-18 (state): While a group is active, Move (layer) and layer flips / rotations transform all its raster descendants in one undo step.
+- [x] AC-19 (event): When the user pastes with a group active, then the new layer is inserted directly above the group, at the group's level.
+- [x] AC-20 (error): If deleting a layer or group would leave no raster layer, then it is refused and the tree is unchanged.
 
 ## Technical notes
 
@@ -106,6 +106,14 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | Group layers count toward the 999-layer limit | The plan mirrors pincel-core's flat Vec, where a group header occupies one entry | Low — only matters at the limit |
 | New Group places the group like Pixel mode does (top of the root stack, named `Group N`) | The plan says to mirror Pixel mode and reuse its i18n keys | Low — placement above the active layer would match Image mode's Add Layer better |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- Image mode gains layer groups: New Group, drag or Alt+arrow into and out of groups, a tree that never nests a layer into its own subtree, and delete / duplicate / move of a whole subtree
+- Groups composite in isolation with their own opacity and blend mode; hidden or locked groups affect every descendant; pixel edits on a group are refused while move and flip transform its content
+- Merge rules: Merge Down refuses groups and crossings, Merge Group flattens a group in place, Merge Visible and Flatten keep the composite; paste lands above the active group; a collapse toggle in the shared layers panel
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -114,26 +122,26 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `image: Layer ▸ New Group adds an active empty group; Undo removes it (AC-01)` (`ui/e2e/image-layer-groups.spec.ts`); `add_group_adds_empty_group_on_top_active_and_undo_removes_it` (`crates/pincel-image-core/src/command/layers.rs`) | built |        |
-| AC-02 | `image: drag a layer into a group and back out, one undo step each (AC-02)` (`ui/e2e/image-layer-groups.spec.ts`); `move_layer_to_into_group_and_back_out_are_one_undo_step_each` (`command/layers.rs`) | built |        |
-| AC-03 | `image: Alt+→ moves a layer into the group above, Alt+← out again (AC-03)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-04 | `move_layer_to_into_own_subtree_is_refused_and_tree_unchanged` (`command/layers.rs`); `move_subtree_into_own_descendant_is_refused_and_tree_unchanged` (`crates/pincel-image-core/src/document/tree.rs`) | built |        |
-| AC-05 | `move_layer_to_carries_the_group_subtree_in_one_undo_step`, `remove_layer_on_group_removes_subtree_and_one_undo_restores_it`, `duplicate_layer_on_group_copies_an_independent_subtree`, `duplicate_group_beyond_the_layer_limit_is_refused_as_a_whole` (`command/layers.rs`); `image: deleting a group deletes its subtree in one undo step (AC-05, AC-20)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-06 | `layer_tree_stays_well_formed_and_undo_restores_it` (`crates/pincel-image-core/tests/layer_tree_proptest.rs`) | built |        |
-| AC-07 | `hidden_group_hides_children` (`crates/pincel-image-core/src/render/mod.rs`); `image: hiding a group hides its children from the composite (AC-07, AC-16)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-08 | `group_opacity_applies_once_to_composite_not_per_child`, `nested_group_opacities_multiply_level_by_level` (`render/mod.rs`) | built |        |
-| AC-09 | `group_children_blend_in_isolation_from_layers_below`, `group_blend_mode_blends_composite`, `compose_region_with_groups_matches_the_sub_rect_of_compose` (`render/mod.rs`) | built |        |
-| AC-10 | `fast_kernel_is_byte_identical_to_the_float_path` (`render/mod.rs`, compose vs. the flat per-layer fold); `crates/pincel-image-core/tests/compose_snapshots.rs` | built |        |
-| AC-11 | `locked_group_refuses_edits_on_its_descendants` (`crates/pincel-image-core/src/command/spec.rs`); `layer_infos_report_kind_depth_parent_and_inherited_lock` (`crates/pincel-image-wasm/src/lib.rs`); `image: a locked group refuses paint on its children and a group refuses paint (AC-11, AC-12)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-12 | `pixel_edits_on_a_group_are_refused` (`command/spec.rs`); `image: a locked group refuses paint on its children and a group refuses paint (AC-11, AC-12)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-13 | `merge_down_with_a_group_or_across_parents_is_refused` (`crates/pincel-image-core/src/command/merge.rs`) | built |        |
-| AC-14 | `merge_group_matches_composite`, `merge_group_of_a_nested_group_keeps_its_place_and_undo_restores_it` (`command/merge.rs`); `image: Layer ▸ Merge Group keeps the composite; Undo restores the group (AC-14)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-15 | `merge_visible_with_groups_preserves_composite`, `flatten_image_with_groups_preserves_composite` (`command/merge.rs`) | built |        |
-| AC-16 | `image: hiding a group hides its children from the composite (AC-07, AC-16)` (visibility, opacity; `ui/e2e/image-layer-groups.spec.ts`); lock: AC-11's e2e; blend: `group_blend_mode_blends_composite` (`render/mod.rs`) | built |        |
-| AC-17 | `image: collapsing a group hides its rows only, without an undo step (AC-17)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
-| AC-18 | `move_and_flip_on_a_group_transform_all_raster_descendants_in_one_undo_step`, `move_on_a_group_with_a_locked_descendant_is_refused` (`command/spec.rs`) | built |        |
-| AC-19 | `paste_with_a_group_active_inserts_above_the_group_at_its_level` (`crates/pincel-image-core/src/command/paste.rs`) | built |        |
-| AC-20 | `remove_layer_leaving_no_raster_layer_is_refused` (`command/layers.rs`); `remove_subtree_refuses_removing_the_last_raster_layer` (`document/tree.rs`); `image: deleting a group deletes its subtree in one undo step (AC-05, AC-20)` (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
+| AC-01 | `image: Layer ▸ New Group adds an active empty group; Undo removes it (AC-01)` (`ui/e2e/image-layer-groups.spec.ts`); `add_group_adds_empty_group_on_top_active_and_undo_removes_it` (`crates/pincel-image-core/src/command/layers.rs`) | verified | ba53299 |
+| AC-02 | `image: drag a layer into a group and back out, one undo step each (AC-02)` (`ui/e2e/image-layer-groups.spec.ts`); `move_layer_to_into_group_and_back_out_are_one_undo_step_each` (`command/layers.rs`) | verified | ba53299 |
+| AC-03 | `image: Alt+→ moves a layer into the group above, Alt+← out again (AC-03)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 6aed618 |
+| AC-04 | `move_layer_to_into_own_subtree_is_refused_and_tree_unchanged` (`command/layers.rs`); `move_subtree_into_own_descendant_is_refused_and_tree_unchanged` (`crates/pincel-image-core/src/document/tree.rs`) | verified | ba53299 |
+| AC-05 | `move_layer_to_carries_the_group_subtree_in_one_undo_step`, `remove_layer_on_group_removes_subtree_and_one_undo_restores_it`, `duplicate_layer_on_group_copies_an_independent_subtree`, `duplicate_group_beyond_the_layer_limit_is_refused_as_a_whole` (`command/layers.rs`); `image: deleting a group deletes its subtree in one undo step (AC-05, AC-20)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 35f631c |
+| AC-06 | `layer_tree_stays_well_formed_and_undo_restores_it` (`crates/pincel-image-core/tests/layer_tree_proptest.rs`) | verified | 6aed618 |
+| AC-07 | `hidden_group_hides_children` (`crates/pincel-image-core/src/render/mod.rs`); `image: hiding a group hides its children from the composite (AC-07, AC-16)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 35f631c |
+| AC-08 | `group_opacity_applies_once_to_composite_not_per_child`, `nested_group_opacities_multiply_level_by_level` (`render/mod.rs`) | verified | 9af6b69 |
+| AC-09 | `group_children_blend_in_isolation_from_layers_below`, `group_blend_mode_blends_composite`, `compose_region_with_groups_matches_the_sub_rect_of_compose` (`render/mod.rs`) | verified | 9a7f4f0 |
+| AC-10 | `fast_kernel_is_byte_identical_to_the_float_path` (`render/mod.rs`, compose vs. the flat per-layer fold); `crates/pincel-image-core/tests/compose_snapshots.rs` | verified | c43a845 |
+| AC-11 | `locked_group_refuses_edits_on_its_descendants` (`crates/pincel-image-core/src/command/spec.rs`); `layer_infos_report_kind_depth_parent_and_inherited_lock` (`crates/pincel-image-wasm/src/lib.rs`); `image: a locked group refuses paint on its children and a group refuses paint (AC-11, AC-12)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 5dd2afe |
+| AC-12 | `pixel_edits_on_a_group_are_refused` (`command/spec.rs`); `image: a locked group refuses paint on its children and a group refuses paint (AC-11, AC-12)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 22f5a52 |
+| AC-13 | `merge_down_with_a_group_or_across_parents_is_refused` (`crates/pincel-image-core/src/command/merge.rs`) | verified | 3678aba |
+| AC-14 | `merge_group_matches_composite`, `merge_group_of_a_nested_group_keeps_its_place_and_undo_restores_it` (`command/merge.rs`); `image: Layer ▸ Merge Group keeps the composite; Undo restores the group (AC-14)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 48b5d53 |
+| AC-15 | `merge_visible_with_groups_preserves_composite`, `flatten_image_with_groups_preserves_composite` (`command/merge.rs`) | verified | 6aed618 |
+| AC-16 | `image: hiding a group hides its children from the composite (AC-07, AC-16)` (visibility, opacity; `ui/e2e/image-layer-groups.spec.ts`); lock: AC-11's e2e; blend: `group_blend_mode_blends_composite` (`render/mod.rs`) | verified | 35f631c |
+| AC-17 | `image: collapsing a group hides its rows only, without an undo step (AC-17)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | b5e6482 |
+| AC-18 | `move_and_flip_on_a_group_transform_all_raster_descendants_in_one_undo_step`, `move_on_a_group_with_a_locked_descendant_is_refused` (`command/spec.rs`) | verified | 6aed618 |
+| AC-19 | `paste_with_a_group_active_inserts_above_the_group_at_its_level` (`crates/pincel-image-core/src/command/paste.rs`) | verified | 6aed618 |
+| AC-20 | `remove_layer_leaving_no_raster_layer_is_refused` (`command/layers.rs`); `remove_subtree_refuses_removing_the_last_raster_layer` (`document/tree.rs`); `image: deleting a group deletes its subtree in one undo step (AC-05, AC-20)` (`ui/e2e/image-layer-groups.spec.ts`) | verified | 6aed618 |
 
 ## Decisions
 
