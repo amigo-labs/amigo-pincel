@@ -101,19 +101,19 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-01 | `shading_steps_one_entry_toward_end` (crates/pincel-core/src/command/pencil_stroke.rs); `shading_stroke_steps_each_pixel_once_as_one_undo_entry` (crates/pincel-wasm/src/stroke.rs) | built | |
+| AC-02 | `shading_right_button_steps_toward_start` (crates/pincel-core/src/command/pencil_stroke.rs); `shading_stroke_backwards_steps_toward_the_start` (crates/pincel-wasm/src/stroke.rs) | built | |
+| AC-03 | `shading_ignores_colors_outside_ramp` (crates/pincel-core/src/command/pencil_stroke.rs) | built | |
+| AC-04 | `shading_clamps_at_ramp_end` (crates/pincel-core/src/command/pencil_stroke.rs) | built | |
+| AC-05 | `shading_same_pixel_twice_in_one_stroke_steps_once`, `shading_pixel_perfect_restores_a_pruned_corner_to_its_prior_value` (crates/pincel-core/src/command/pencil_stroke.rs) | built | |
+| AC-06 | `shading_size_3_shades_every_stamped_pixel` (crates/pincel-core/src/command/pencil_stroke.rs) | built | |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-11 | `shading_stroke_is_one_undo_entry_that_restores_every_pixel` (crates/pincel-core/src/command/pencil_stroke.rs); `shading_stroke_steps_each_pixel_once_as_one_undo_entry` (crates/pincel-wasm/src/stroke.rs) | built | |
 | AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-13 | `shading_stroke_on_locked_layer_errs_without_undo_entry`, `shading_stroke_without_image_layer_errs` (crates/pincel-wasm/src/stroke.rs) | built | |
 | AC-14 |      | open   |        |
 
 ## Decisions
@@ -122,6 +122,8 @@ This is part B of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 - The ramp is a contiguous palette range chosen with Shift+click in the Palette panel, the whole palette without one — because it needs no new panel and keeps the ramp in palette order (legacy plan).
 - The range is transient UI state in the Pixel colors state, not document content (legacy plan).
 - The ink is an option of the Pencil stroke, not a separate tool — because it reuses the stroke's stamping, sizes and undo (legacy plan).
+- 2026-11-04 (spec-build): `PencilStroke` takes the ink through `with_ink(Ink)` rather than a new `new` argument, and the wasm boundary gets `beginShadingStroke(ramp: Uint32Array, step: ±1, size, shape, pixelPerfect)` next to `beginStroke` — another positional argument on either would need a new `too_many_arguments` suppression, and the Simple ink keeps every existing caller unchanged.
+- 2026-11-04 (spec-build): A pixel the shading ink leaves alone (no ramp match, or clamped at a ramp end) is not written and not counted in the stroke's dirty region; its prior value is still recorded so pixel-perfect pruning and undo stay uniform.
 - 2026-10-29: The Decision Log records that the Pixel Pencil gets an Ink option (Simple / Shading), that the shading ramp is a Shift+click contiguous palette range (transient UI state, the whole palette without one) and that each pixel steps once per stroke; §5.2 gets the Ink row and §3.7 the range selection — `Ink` is a new public stroke field on the npm-facing API (owner accepted the recommendation).
 - 2026-10-29: Indexed-sprite shading is left for later; v1 matches exact RGBA on RGBA sprites only — CLAUDE.md §9 forbids mixing Phase 2 work in, and paint commands reject indexed cels today (owner accepted the recommendation).
 - 2026-10-29: Adding, removing or reordering entries, or replacing the palette by a preset or import, clears the selected range; recoloring an entry keeps it (AC-14) — it is predictable, and after a structural change the old index span has no meaning left (owner accepted the recommendation).

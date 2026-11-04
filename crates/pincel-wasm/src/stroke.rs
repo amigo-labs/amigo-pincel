@@ -1,21 +1,24 @@
 //! Pencil / Eraser gesture API: `beginStroke` / `strokeTo` / `endStroke`
 //! drive one [`PencilStroke`] per press-drag-release (spec §9.3, Decision
-//! Log 2026-10-29). `applyTool` stays for single pixels.
+//! Log 2026-10-29). `beginShadingStroke` starts the Pencil with the
+//! Shading ink (`docs/specs/shading-ink.md`). `applyTool` stays for single
+//! pixels.
 
-use pincel_core::{BrushShape, FrameIndex, LayerId, PencilStroke, PixelBrush, Point, Rgba};
+use pincel_core::{BrushShape, FrameIndex, Ink, LayerId, PencilStroke, PixelBrush, Point, Rgba};
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
 use crate::events::Event;
 
 /// Parameters of the gesture between `beginStroke` and `endStroke`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct LiveStroke {
     layer: LayerId,
     frame: FrameIndex,
     color: Rgba,
     brush: PixelBrush,
     pixel_perfect: bool,
+    ink: Ink,
     /// A `PencilStroke` for this gesture is on the bus.
     started: bool,
 }
@@ -48,23 +51,46 @@ impl Document {
             "eraser" => Rgba::TRANSPARENT,
             _ => return Err(format!("unknown tool: {tool}")),
         };
-        let shape = match shape {
-            "square" => BrushShape::Square,
-            "round" => BrushShape::Round,
-            _ => return Err(format!("unknown brush shape: {shape}")),
+        self.start_stroke(color, size, shape, pixel_perfect, Ink::Simple)
+    }
+
+    /// Start a Pencil gesture with the Shading ink: every pixel the stroke
+    /// touches whose color before the stroke is exactly entry `i` of `ramp`
+    /// becomes entry `i + step`, clamped to the ramp; other colors stay.
+    /// Each pixel changes at most once per gesture. Continue it with
+    /// [`Self::stroke_to`] and close it with `endStroke` like any stroke.
+    ///
+    /// - `ramp`: the colors in palette order (`0xRRGGBBAA`), at least one.
+    /// - `step`: `1` (left button, toward the end) or `-1` (right button,
+    ///   toward the start).
+    /// - `size`, `shape`, `pixel_perfect`: as in [`Self::begin_stroke`].
+    ///
+    /// Errors (and starts nothing) for an empty ramp, another step, an
+    /// unknown shape, a locked target layer, or a document without a
+    /// paintable image layer.
+    #[wasm_bindgen(js_name = beginShadingStroke)]
+    pub fn begin_shading_stroke(
+        &mut self,
+        ramp: &[u32],
+        step: i32,
+        size: u32,
+        shape: &str,
+        pixel_perfect: bool,
+    ) -> Result<(), String> {
+        self.stroke = None;
+        if ramp.is_empty() {
+            return Err("the shading ramp is empty".to_string());
+        }
+        let step = match step {
+            1 => 1,
+            -1 => -1,
+            _ => return Err(format!("shading step must be 1 or -1, got {step}")),
         };
-        let layer = self.edit_target_layer()?;
-        let size = u8::try_from(size).unwrap_or(u8::MAX);
-        self.bus.seal();
-        self.stroke = Some(LiveStroke {
-            layer,
-            frame: self.current_frame,
-            color,
-            brush: PixelBrush::new(size, shape),
-            pixel_perfect,
-            started: false,
-        });
-        Ok(())
+        let ink = Ink::Shading {
+            ramp: ramp.iter().map(|&c| Rgba::from_u32(c)).collect(),
+            step,
+        };
+        self.start_stroke(Rgba::TRANSPARENT, size, shape, pixel_perfect, ink)
     }
 
     /// Extend the gesture to sprite-space `(x, y)`: the first call stamps
@@ -79,7 +105,7 @@ impl Document {
     /// interpolated linearly between consecutive points.
     #[wasm_bindgen(js_name = strokeTo)]
     pub fn stroke_to(&mut self, x: i32, y: i32, pressure: Option<f32>) -> Result<(), String> {
-        let Some(live) = self.stroke else {
+        let Some(live) = self.stroke.clone() else {
             return Err("no stroke in progress: call beginStroke first".to_string());
         };
         let to = Point::new(x, y);
@@ -102,7 +128,8 @@ impl Document {
                 live.pixel_perfect,
                 to,
                 pressure,
-            );
+            )
+            .with_ink(live.ink.clone());
             self.bus
                 .execute(cmd.into(), &mut self.sprite, &mut self.cels)
                 .map_err(|e| format!("failed to paint: {e}"))?;
@@ -114,6 +141,39 @@ impl Document {
         if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
             self.events.push(ev);
         }
+        Ok(())
+    }
+}
+
+impl Document {
+    /// Shared tail of [`Self::begin_stroke`] and
+    /// [`Self::begin_shading_stroke`]: resolve the target and arm the
+    /// gesture.
+    fn start_stroke(
+        &mut self,
+        color: Rgba,
+        size: u32,
+        shape: &str,
+        pixel_perfect: bool,
+        ink: Ink,
+    ) -> Result<(), String> {
+        let shape = match shape {
+            "square" => BrushShape::Square,
+            "round" => BrushShape::Round,
+            _ => return Err(format!("unknown brush shape: {shape}")),
+        };
+        let layer = self.edit_target_layer()?;
+        let size = u8::try_from(size).unwrap_or(u8::MAX);
+        self.bus.seal();
+        self.stroke = Some(LiveStroke {
+            layer,
+            frame: self.current_frame,
+            color,
+            brush: PixelBrush::new(size, shape),
+            pixel_perfect,
+            ink,
+            started: false,
+        });
         Ok(())
     }
 }
@@ -414,5 +474,98 @@ mod tests {
         assert!(covered(&doc, 12, 12).is_empty(), "whole stroke undone");
         assert!(doc.redo().expect("redo"));
         assert_eq!(covered(&doc, 12, 12), after);
+    }
+
+    // Shading ink (docs/specs/shading-ink.md).
+
+    const R0: u32 = 0x0a00_00ff;
+    const R1: u32 = 0x1400_00ff;
+    const R2: u32 = 0x1e00_00ff;
+
+    /// A 6×1 document painted R0 R1 R2 R0 R1 R2 with the pencil.
+    fn ramp_doc() -> Document {
+        let mut doc = Document::new(6, 1).expect("dims");
+        for (x, c) in [R0, R1, R2, R0, R1, R2].into_iter().enumerate() {
+            doc.begin_stroke("pencil", c, 1, "square", false)
+                .expect("begin");
+            doc.stroke_to(x as i32, 0, None).expect("paint");
+            doc.end_stroke();
+        }
+        doc
+    }
+
+    fn shading_gesture(doc: &mut Document, step: i32, pts: &[(i32, i32)]) -> Result<(), String> {
+        doc.begin_shading_stroke(&[R0, R1, R2], step, 1, "square", false)?;
+        for &(x, y) in pts {
+            doc.stroke_to(x, y, None)?;
+        }
+        doc.end_stroke();
+        Ok(())
+    }
+
+    fn row(doc: &Document) -> Vec<u32> {
+        (0..6).map(|x| px(doc, x, 0)).collect()
+    }
+
+    #[test]
+    fn shading_stroke_steps_each_pixel_once_as_one_undo_entry() {
+        let mut doc = ramp_doc();
+        let depth = doc.undo_depth();
+        shading_gesture(&mut doc, 1, &[(0, 0), (5, 0), (0, 0)]).expect("shade");
+        assert_eq!(row(&doc), [R1, R2, R2, R1, R2, R2]);
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert!(doc.undo());
+        assert_eq!(row(&doc), [R0, R1, R2, R0, R1, R2]);
+    }
+
+    #[test]
+    fn shading_stroke_backwards_steps_toward_the_start() {
+        let mut doc = ramp_doc();
+        shading_gesture(&mut doc, -1, &[(0, 0), (5, 0)]).expect("shade");
+        assert_eq!(row(&doc), [R0, R0, R1, R0, R0, R1]);
+    }
+
+    #[test]
+    fn shading_stroke_on_locked_layer_errs_without_undo_entry() {
+        let mut doc = ramp_doc();
+        doc.set_layer_editable(0, false).expect("lock");
+        let depth = doc.undo_depth();
+        let err = shading_gesture(&mut doc, 1, &[(0, 0)]).expect_err("locked");
+        assert!(err.contains("locked"), "{err}");
+        assert_eq!(doc.undo_depth(), depth);
+        assert_eq!(row(&doc), [R0, R1, R2, R0, R1, R2]);
+    }
+
+    #[test]
+    fn shading_stroke_without_image_layer_errs() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite.layers.clear();
+        doc.sprite
+            .layers
+            .push(Layer::group(LayerId::new(7), "folder"));
+        let err = shading_gesture(&mut doc, 1, &[(0, 0)]).expect_err("nothing to paint");
+        assert!(err.contains("no paintable image layer"));
+        assert_eq!(doc.undo_depth(), 0);
+    }
+
+    #[test]
+    fn begin_shading_stroke_rejects_bad_step_and_empty_ramp() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        assert!(
+            doc.begin_shading_stroke(&[R0], 2, 1, "square", false)
+                .is_err()
+        );
+        assert!(
+            doc.begin_shading_stroke(&[R0], 0, 1, "square", false)
+                .is_err()
+        );
+        assert!(
+            doc.begin_shading_stroke(&[], 1, 1, "square", false)
+                .is_err()
+        );
+        assert!(
+            doc.begin_shading_stroke(&[R0], 1, 1, "oval", false)
+                .is_err()
+        );
     }
 }
