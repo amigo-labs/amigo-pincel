@@ -131,18 +131,18 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-17 | `ui/e2e/clipboard-new.spec.ts › the New image card takes the clipboard image size`; `ui/e2e/clipboard-new.spec.ts › File ▸ New… takes the clipboard image size` | built | |
 | AC-18 | `ui/e2e/smoke.spec.ts › start screen: the New cards open in place, one at a time` | built | |
 | AC-19 | `ui/e2e/file-access.spec.ts › clipboard sizing › AC-19: a size typed before the clipboard read finishes is kept` | built | |
-| AC-20 | | open | |
-| AC-21 | | open | |
-| AC-22 | | open | |
-| AC-23 | | open | |
-| AC-24 | | open | |
-| AC-25 | | open | |
-| AC-26 | | open | |
-| AC-27 | | open | |
-| AC-28 | | open | |
+| AC-20 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
+| AC-21 | `ui/e2e/editor-drop.spec.ts › AC-21: pixel: Add as layer stacks the files above the active layer, one undo step each`; `ui/e2e/editor-drop.spec.ts › AC-21: image: Add as layer stacks the files above the active layer, one undo step each` | built | |
+| AC-22 | `ui/e2e/editor-drop.spec.ts › AC-22: pixel: a drop with a non-PNG file cannot be added as layers` | built | |
+| AC-23 | `ui/e2e/editor-drop.spec.ts › AC-23: pixel: Open as document opens the first file after the unsaved-changes guard`; `ui/e2e/editor-drop.spec.ts › AC-23: image: Open as document opens the first file after the unsaved-changes guard` | built | |
+| AC-24 | `ui/e2e/editor-drop.spec.ts › AC-24: pixel: a project file in a drop opens without the dialog`; `ui/e2e/editor-drop.spec.ts › AC-24: image: a project file in a drop opens without the dialog` | built | |
+| AC-25 | `ui/e2e/editor-drop.spec.ts › AC-25: Don't ask again remembers the choice; File ▸ Dropped Images changes it` | built | |
+| AC-26 | `ui/e2e/editor-drop.spec.ts › AC-26: pixel: unsupported and broken files get a notice, the others proceed`; `ui/e2e/editor-drop.spec.ts › AC-26: image: unsupported and broken files get a notice, the others proceed` | built | |
+| AC-27 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
+| AC-28 | `ui/e2e/editor-drop.spec.ts › AC-28: a remembered Add as Layer asks when the drop cannot be added` | built | |
 | AC-29 | | open | |
 
-Still `open`: AC-09 and AC-29 are manual checks on the desktop app; AC-20 – AC-28 (dropping files onto an open editor, revision 2026-10-30) have no implementation yet, so there is no behavior to test.
+Still `open`: AC-09 and AC-29 are manual checks on the desktop app. AC-29's code path is built — `watchFileDrops` in `ui/src/lib/fs/drop.ts` listens to Tauri's `onDragDropEvent` and reads the dropped paths with `read_file_bytes`, feeding the same shell flow as a browser drop — and waits for a sign-off on the desktop app (`manual: {who} checked {what}, {date}`).
 
 ## Decisions
 
@@ -157,3 +157,10 @@ Still `open`: AC-09 and AC-29 are manual checks on the desktop app; AC-20 – AC
 - 2026-11-04: Test gaps closed in `ui/e2e/file-access.spec.ts`. The File System Access pickers are faked (`fakeFileHandles` in `ui/e2e/helpers.ts`, now with a fake save picker, an in-page disk and per-file permission denial and read failures); the desktop host is a stubbed Tauri bridge (`invoke` answering `plugin:dialog|open` / `|save`, `read_file_bytes`, `write_file_bytes`). Each test that was green at once was run red against a deliberate break, then reverted: `.ora` dropped from the open types (AC-01), a cancelled FSA picker or `<input>` treated as an error (AC-03), the download named `x<name>` (AC-04), the in-place write skipped for a handle and for a Tauri path (AC-05, AC-06), a denied write permission ignored (AC-07), Pixel's Save always labelled "Save" (AC-08). AC-01 reads "restricted" as the picker's types: the browser's own "All files" choice is not excluded, as with `<input accept>`. Further breaks: a re-opened recent given a new id (AC-10), a path-only target not recorded (AC-10 desktop), `MAX_RECENTS` 9 (AC-11), Open Recent listed while the registry is unavailable (AC-12), every recent badged Pixel (AC-13), the shell notice for a denied permission and a failed pick dropped (AC-14, AC-16), the drop highlight never set (AC-15), the clipboard prefill ignoring typed values in the New card and the New dialog (AC-19).
 - 2026-11-04: Bug (AC-14, AC-16): the Pixel editor's own File ▸ Open… and File ▸ Open Recent reported a failed read or a denied read permission only in the status bar ("recent <name>: permission denied"), not as an error notice. They now raise the shell's dismissable notice through a new `EditorProps.onNotice` (`fix(ui): show the shell notice when the Pixel editor cannot read a file`); the Pixel parts of the AC-14 and AC-16 tests were red before.
 - 2026-11-04: Bug (settles the open question on a cancelled save): a cancelled Save / Save As picker or dialog leaves the document unsaved in both modes. Pixel mode marked it saved because `saveBytes` handed back the old target; Pixel's `save()` now calls `writeTarget` and stops on `null`, and `saveBytes` is gone. Test: `ui/e2e/file-access.spec.ts › File System Access › pixel: a cancelled Save or Save As leaves the document unsaved` (red before the fix); its Image-mode twin was green already (`writeTarget` resolved `null` there).
+- 2026-11-04: The shell owns drops onto an open editor (AC-20 – AC-28): `App.svelte` sorts the drop (`planDrop`, `ui/src/lib/shell/editor-drop.ts`), shows the dialog (`DropDialog.svelte`), runs the unsaved-changes guard and opens documents, and keeps the remembered choice (`drop-choice.svelte.ts`, IndexedDB pref `droppedImages`); the editor only adds layers through a new `EditorProps.registerDropTarget(DropTarget | null)` (`accepts()`, `layerFormats`, `addLayer(file)`) — because file → mode routing, the guard and the notice already live in the shell, and AGENTS.md §5.4 keeps editors talking to it through `EditorProps` only.
+- 2026-11-04: One window-level watcher, `watchFileDrops` in `ui/src/lib/fs/drop.ts`, serves the start screen and the editors in both hosts (Decision Log 2026-10-30); the start screen lost its own drag handlers and takes a `dropHover` prop — because two listeners on one drop would both act on it. A file drag is always kept from the browser's default, also when the drop is ignored, because the default navigates away to the file.
+- 2026-11-04: A dropped layer is placed and named like a pasted image (the core's next "Layer n"), not after its file — because AC-21 makes the drop a paste.
+- 2026-11-04: Every notice of one drop (unsupported or unreadable files, failed layers, "Only <name> was opened") shows in the one shell notice, a line each — because the shell has a single dismissable notice.
+- 2026-11-04: File ▸ Dropped Images sits right after Open… / Open Recent in both modes — because it is about how files come in.
+- 2026-11-04: A drop that arrives while the layers of an earlier drop are still being added (a larger-image dialog is open) is ignored like any drop under a modal dialog — because the dialog owns the input.
+- 2026-11-04: "Don't ask again" ticked with Cancel stores nothing (AC-20), and Escape in the drop dialog is Cancel — because only a confirmed action can be remembered.

@@ -5,6 +5,7 @@
 import { effectMenus } from '../../lib/effects/menu';
 import { helpMenus } from '../../lib/help/menu';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
@@ -118,6 +119,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.new'), disabled: c.busy, run: c.newDoc },
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
         ...recentMenuItems(c.recents, c.openRecent, c.busy),
+        droppedImagesMenu(),
         { kind: 'separator' },
         {
           label: c.canSaveInPlace ? t('menu.save') : t('menu.saveDownload'),

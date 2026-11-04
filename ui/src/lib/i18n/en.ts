@@ -17,6 +17,22 @@ export const en = {
   'shell.editorFailed': 'Failed to load the {mode} editor: {error}',
   'shell.dismiss': 'Dismiss',
 
+  // Files dropped onto an open editor (file-access AC-20 – AC-28)
+  'drop.overlay': 'Drop to add or open',
+  'drop.title': 'Dropped images',
+  'drop.prompt': 'Add the dropped images as layers, or open the first as a document?',
+  'drop.addLayer': 'Add as layer',
+  'drop.openDocument': 'Open as document',
+  'drop.dontAsk': "Don't ask again",
+  'drop.pngOnly': 'Pixel mode adds PNG files only',
+  'drop.onlyFirst': 'Only {name} was opened',
+  'drop.readFailed': '{name}: could not be read ({error})',
+  'drop.layerFailed': '{name}: could not be added as a layer ({error})',
+  'menu.droppedImages': 'Dropped Images',
+  'menu.droppedAsk': 'Ask',
+  'menu.droppedLayer': 'Add as Layer',
+  'menu.droppedDocument': 'Open as Document',
+
   // Generic buttons
   'common.cancel': 'Cancel',
   'common.ok': 'OK',

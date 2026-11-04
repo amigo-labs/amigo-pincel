@@ -57,7 +57,14 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
-  import { onPaste, pasteAsNewImage, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
+  import {
+    answerPaste,
+    onPaste,
+    pasteAsNewImage,
+    pasteFile,
+    pasteFromClipboard,
+    runCopy,
+  } from './clipboard-ops';
   import {
     addFrame,
     addGroup,
@@ -173,6 +180,7 @@
     onOpenFile,
     onDirtyChange,
     onNotice,
+    registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -512,6 +520,26 @@
     }
   }
 
+  // True while any editor dialog (or the tile editor) owns the input.
+  function dialogOpen(): boolean {
+    return Boolean(
+      dialogs.confirm ||
+        dialogs.effect ||
+        dialogs.resize ||
+        dialogs.sheet ||
+        dialogs.png ||
+        dialogs.grid ||
+        dialogs.animation ||
+        dialogs.svg ||
+        dialogs.renaming ||
+        dialogs.selectionRadius ||
+        dialogs.editingTile ||
+        dialogs.paste ||
+        toolState.textAnchor ||
+        autosave.snapshots.length > 0,
+    );
+  }
+
   // Ctrl+V / ⌘V arrives as the browser's `paste` event (spec §5.4); not
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
@@ -630,6 +658,13 @@
     // Recovery probe and the autosave timer. A tick before `loadCore`
     // resolves is a no-op (no document yet).
     autosave.start();
+    // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
+    // AC-28): the shell asks and opens documents; Pixel mode adds PNGs.
+    registerDropTarget({
+      accepts: () => ed.ready && ed.doc !== null && !file.busy && !dialogOpen(),
+      layerFormats: ['png'],
+      addLayer: (opened) => pasteFile(opened.bytes),
+    });
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
@@ -651,6 +686,9 @@
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
       autosave.close();
+      // A drop waiting on the larger-image dialog ends with the editor.
+      answerPaste(null);
+      registerDropTarget(null);
       registerMenuHandlers(null);
       closeShortcuts();
       window.removeEventListener('keydown', onKeyDown);
@@ -1195,9 +1233,9 @@
     width={paste.width}
     height={paste.height}
     canExpand={paste.canExpand}
-    onExpand={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, true)}
-    onKeep={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, false)}
-    onCancel={() => (dialogs.paste = null)}
+    onExpand={() => answerPaste('expand')}
+    onKeep={() => answerPaste('keep')}
+    onCancel={() => answerPaste(null)}
   />
 {/if}
 

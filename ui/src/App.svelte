@@ -19,9 +19,13 @@
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
+  import DropDialog from './lib/shell/DropDialog.svelte';
+  import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
+  import { planDrop, type DroppedImage } from './lib/shell/editor-drop';
+  import { watchFileDrops, type DroppedFile } from './lib/fs/drop';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
-  import type { EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
+  import type { DropTarget, EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
   import {
     ensureReadPermission,
     formatFromName,
@@ -82,6 +86,19 @@
   let booting = $state(true);
   // Native-menu items the mounted editor serves (Tauri only).
   let editorMenu: EditorMenuHandlers | null = null;
+  // How the mounted editor takes dropped files (file-access AC-20 – AC-28).
+  let dropTarget: DropTarget | null = null;
+  // A file drag is over the window and a drop would be taken now.
+  let dropHover = $state(false);
+  // Dropped images awaiting "Add as layer" / "Open as document".
+  let dropDialog = $state<{
+    images: DroppedImage[];
+    others: number;
+    notices: string[];
+    canAddLayers: boolean;
+  } | null>(null);
+  // Dropped images are being added as layers, one after another.
+  let addingLayers = false;
 
   const currentMode = $derived<EditorMode>(session.mode === 'image' ? 'image' : 'pixel');
 
@@ -210,17 +227,94 @@
     void clipboardImage().then(openPasted);
   }
 
-  async function onDropFile(file: File) {
-    if (busy) return;
-    busy = true;
-    try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openFile({ name: file.name, bytes, mime: file.type, handle: null, path: null });
-    } catch (err) {
-      shellError = t('shell.dropFailed', { error: errText(err) });
-    } finally {
-      busy = false;
+  // Shows `lines` (one per file or event) in the shell's notice.
+  function notify(lines: readonly string[]): void {
+    if (lines.length > 0) shellError = lines.join('\n');
+  }
+
+  // Whether a file drop would be taken now: always on the start screen
+  // (AC-15), on an editor only while its document is loaded and no dialog
+  // is open (AC-27).
+  function dropTaken(): boolean {
+    if (busy) return false;
+    if (session.mode === 'start') return true;
+    if (addingLayers || confirmState || newDialog || dropDialog || fileAssocOpen) return false;
+    return !helpDialogOpen() && (dropTarget?.accepts() ?? false);
+  }
+
+  function onDropHover(active: boolean): boolean {
+    const taken = dropTaken();
+    dropHover = active && taken;
+    return taken;
+  }
+
+  function onDropFiles(files: DroppedFile[]): void {
+    if (session.mode === 'start') {
+      // The start screen opens the first file only (AC-15).
+      const first = files[0];
+      if (!first) return;
+      if (first.file) openFile(first.file);
+      else shellError = t('shell.dropFailed', { error: first.error ?? '' });
+      return;
     }
+    const { plan, notices } = planDrop(files);
+    notify(notices);
+    if (plan.kind === 'project') {
+      openDropped(plan.file, plan.others, notices);
+      return;
+    }
+    const target = dropTarget;
+    if (plan.kind !== 'images' || !target) return;
+    const canAddLayers = plan.images.every((i) => target.layerFormats.includes(i.format));
+    if (dropChoice.value === 'layer' && canAddLayers) {
+      void addLayers(plan.images, notices);
+    } else if (dropChoice.value === 'document') {
+      openDropped(plan.images[0]?.file ?? null, plan.others, notices);
+    } else {
+      dropDialog = { images: plan.images, others: plan.others, notices, canAddLayers };
+    }
+  }
+
+  // "Open as document" (AC-23, AC-24): like a drop on the start screen,
+  // after the unsaved-changes guard.
+  function openDropped(file: OpenedFile | null, others: number, notices: string[]): void {
+    if (!file) return;
+    guard(() => {
+      openFile(file);
+      notify(others > 0 ? [...notices, t('drop.onlyFirst', { name: file.name })] : notices);
+    });
+  }
+
+  // "Add as layer" (AC-21, AC-26): one file after another, each asking
+  // like a paste when larger than the canvas; a failure names the file and
+  // the rest go on.
+  async function addLayers(images: DroppedImage[], notices: string[]): Promise<void> {
+    const target = dropTarget;
+    if (!target) return;
+    const lines = [...notices];
+    addingLayers = true;
+    try {
+      for (const { file } of images) {
+        if (dropTarget !== target) break;
+        try {
+          await target.addLayer(file);
+        } catch (err) {
+          lines.push(t('drop.layerFailed', { name: file.name, error: errText(err) }));
+          notify(lines);
+        }
+      }
+    } finally {
+      addingLayers = false;
+    }
+  }
+
+  function chooseDrop(action: 'layer' | 'document', dontAsk: boolean): void {
+    const pending = dropDialog;
+    dropDialog = null;
+    if (!pending) return;
+    if (dontAsk) setDropChoice(action);
+    if (action === 'layer') void addLayers(pending.images, pending.notices);
+    else openDropped(pending.images[0]?.file ?? null, pending.others, pending.notices);
   }
 
   async function refreshRecents() {
@@ -285,6 +379,8 @@
     void initLocale();
     void initMotion();
     void loadKeymap();
+    void loadDropChoice();
+    const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
     void loadAutoNew()
       .then((params) => {
@@ -344,6 +440,7 @@
     }
     return () => {
       cancelled = true;
+      stopDrops();
       if (unlistenMenu) unlistenMenu();
       if (unlistenOpenFile) unlistenOpenFile();
     };
@@ -361,7 +458,7 @@
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => void openRecent(r)}
-    onDropFile={(f) => void onDropFile(f)}
+    {dropHover}
   />
 {:else}
   {#key session.seq}
@@ -381,6 +478,7 @@
         onDirtyChange={(dirty) => (session.dirty = dirty)}
         onOpenRecent={(r) => guard(() => void openRecent(r))}
         onNotice={(message) => (shellError = message)}
+        registerDropTarget={(d) => (dropTarget = d)}
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}
@@ -389,6 +487,23 @@
       </div>
     {/await}
   {/key}
+{/if}
+
+{#if dropHover && session.mode !== 'start'}
+  <div
+    class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center border-4 border-dashed border-pc-accent bg-black/40"
+  >
+    <p class="rounded bg-pc-panel px-4 py-2 text-sm text-pc-text shadow-xl">{t('drop.overlay')}</p>
+  </div>
+{/if}
+
+{#if dropDialog}
+  <DropDialog
+    names={dropDialog.images.map((i) => i.file.name)}
+    canAddLayers={dropDialog.canAddLayers}
+    onChoose={chooseDrop}
+    onCancel={() => (dropDialog = null)}
+  />
 {/if}
 
 {#if newDialog}
@@ -441,7 +556,7 @@
     class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-pc-panel px-3 py-2 text-xs text-red-200 shadow-xl"
     role="alert"
   >
-    <span>{shellError}</span>
+    <span class="whitespace-pre-line">{shellError}</span>
     <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}

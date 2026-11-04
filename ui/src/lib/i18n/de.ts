@@ -19,6 +19,22 @@ export const de: Record<MessageKey, string> = {
   'shell.editorFailed': 'Der {mode}-Editor konnte nicht geladen werden: {error}',
   'shell.dismiss': 'Schließen',
 
+  // Auf einen offenen Editor abgelegte Dateien (file-access AC-20 – AC-28)
+  'drop.overlay': 'Zum Hinzufügen oder Öffnen ablegen',
+  'drop.title': 'Abgelegte Bilder',
+  'drop.prompt': 'Die abgelegten Bilder als Ebenen hinzufügen oder das erste als Dokument öffnen?',
+  'drop.addLayer': 'Als Ebene hinzufügen',
+  'drop.openDocument': 'Als Dokument öffnen',
+  'drop.dontAsk': 'Nicht mehr fragen',
+  'drop.pngOnly': 'Der Pixel-Modus fügt nur PNG-Dateien hinzu',
+  'drop.onlyFirst': 'Nur {name} wurde geöffnet',
+  'drop.readFailed': '{name}: konnte nicht gelesen werden ({error})',
+  'drop.layerFailed': '{name}: konnte nicht als Ebene hinzugefügt werden ({error})',
+  'menu.droppedImages': 'Abgelegte Bilder',
+  'menu.droppedAsk': 'Fragen',
+  'menu.droppedLayer': 'Als Ebene hinzufügen',
+  'menu.droppedDocument': 'Als Dokument öffnen',
+
   // Generic buttons
   'common.cancel': 'Abbrechen',
   'common.ok': 'OK',

@@ -7,6 +7,7 @@
     tool,
     ui,
     resetColors,
+    savePrompt,
     swapColors,
     view,
     viewCommands,
@@ -102,6 +103,7 @@
   import { helpMenus } from '../../lib/help/menu';
   import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+  import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
   import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
@@ -122,6 +124,7 @@
     onDirtyChange,
     onOpenRecent,
     onOpenFile,
+    registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -134,6 +137,7 @@
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
+  // `resolve` is set for a dropped file, whose caller places the layer.
   let pasteDialog = $state<{
     handle: number;
     bytes: Uint8Array;
@@ -142,7 +146,11 @@
     width: number;
     height: number;
     canExpand: boolean;
+    resolve?: (answer: PasteAnswer) => void;
   } | null>(null);
+
+  /** The larger-image dialog's answer; `null` is Cancel. */
+  type PasteAnswer = 'expand' | 'keep' | null;
 
   /** Source tag of the in-app copy record; handles are never reused. */
   const docSource = (handle: number): string => `image:${handle}`;
@@ -205,6 +213,52 @@
       height: size.height,
       canExpand: cw === w && ch === h,
     };
+  }
+
+  /** Closes the larger-image dialog with the user's answer. */
+  function answerPaste(answer: PasteAnswer): void {
+    const p = pasteDialog;
+    if (!p) return;
+    pasteDialog = null;
+    if (p.resolve) p.resolve(answer);
+    else if (answer !== null) runPaste(p.handle, p.bytes, p.x, p.y, answer === 'expand');
+  }
+
+  // A raster file dropped onto the editor (docs/specs/file-access.md
+  // AC-21): a new layer placed like a paste of another image, one undo
+  // step. Resolves once added or skipped (the larger-image dialog's
+  // Cancel); throws when the core cannot decode it.
+  async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
+    const handle = editor.handle;
+    if (handle === null) return;
+    const size = await imageSize(new Blob([bytes.slice()], { type: mime || 'image/png' }));
+    if (editor.handle !== handle) return;
+    const canvas = { width: editor.width, height: editor.height };
+    const at = size
+      ? pastePosition({ x: -view.panX / view.zoom, y: -view.panY / view.zoom }, size, canvas)
+      : { x: 0, y: 0 };
+    let expand = false;
+    if (size && (size.width > canvas.width || size.height > canvas.height)) {
+      const w = Math.max(canvas.width, at.x + size.width);
+      const h = Math.max(canvas.height, at.y + size.height);
+      const [cw, ch] = clampCanvasSize(w, h);
+      const answer = await new Promise<PasteAnswer>((resolve) => {
+        pasteDialog = {
+          handle,
+          bytes,
+          x: at.x,
+          y: at.y,
+          width: size.width,
+          height: size.height,
+          canExpand: cw === w && ch === h,
+          resolve,
+        };
+      });
+      if (answer === null || editor.handle !== handle) return;
+      expand = answer === 'expand';
+    }
+    pasteImage(bytes, at.x, at.y, expand);
+    editor.notice = null;
   }
 
   function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
@@ -538,6 +592,19 @@
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     autosave.start();
     void refreshRecents();
+    // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
+    // AC-28): the shell asks and opens documents; Image mode adds every
+    // raster format its core decodes.
+    registerDropTarget({
+      accepts: () =>
+        editor.handle !== null &&
+        !ui.modalOpen &&
+        renaming === null &&
+        savePrompt.value === null &&
+        autosave.snapshots.length === 0,
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
+      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+    });
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -552,6 +619,9 @@
     });
     return () => {
       autosave.close();
+      // A drop waiting on the larger-image dialog ends with the editor.
+      answerPaste(null);
+      registerDropTarget(null);
       registerMenuHandlers(null);
       closeShortcuts();
     };
@@ -690,6 +760,7 @@
         { label: t('menu.new'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
+        droppedImagesMenu(),
         { kind: 'separator' },
         {
           label: t('menu.save'),
@@ -1059,14 +1130,11 @@
   <Modal
     title={t('paste.largerTitle')}
     applyLabel={paste.canExpand ? t('paste.expand') : t('paste.keep')}
-    onApply={() => runPaste(paste.handle, paste.bytes, paste.x, paste.y, paste.canExpand)}
+    onApply={() => answerPaste(paste.canExpand ? 'expand' : 'keep')}
     secondary={paste.canExpand
-      ? {
-          label: t('paste.keep'),
-          onClick: () => runPaste(paste.handle, paste.bytes, paste.x, paste.y, false),
-        }
+      ? { label: t('paste.keep'), onClick: () => answerPaste('keep') }
       : undefined}
-    onClose={() => (pasteDialog = null)}
+    onClose={() => answerPaste(null)}
   >
     <p class="mb-4 text-pc-muted">
       {t(paste.canExpand ? 'paste.larger' : 'paste.tooLarge', { w: paste.width, h: paste.height })}
