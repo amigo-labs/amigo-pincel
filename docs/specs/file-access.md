@@ -112,14 +112,14 @@ Hints, not contracts — paths drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | | open | |
+| AC-01 | `ui/e2e/file-access.spec.ts › File System Access › AC-01: Open… shows the picker restricted to the document types` | built | |
 | AC-02 | `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
-| AC-03 | | open | |
-| AC-04 | | open | |
-| AC-05 | | open | |
-| AC-06 | | open | |
-| AC-07 | | open | |
-| AC-08 | | open | |
+| AC-03 | `ui/e2e/file-access.spec.ts › File System Access › AC-03: a cancelled open picker changes nothing and shows no error`; `ui/e2e/file-access.spec.ts › without File System Access › AC-03: a cancelled file chooser changes nothing and shows no error` | built | |
+| AC-04 | `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers`; `ui/e2e/file-access.spec.ts › without File System Access › AC-04: pixel: Save downloads the sprite under its name and it reads as saved` | built | |
+| AC-05 | `ui/e2e/file-access.spec.ts › File System Access › AC-05: pixel: Save writes back to the opened file, Save As asks for a location`; `ui/e2e/file-access.spec.ts › File System Access › AC-05: image: Save writes back to the opened file, Save As asks for a location`; `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-05: pixel: Save writes back to the opened path, Save As asks for a location`; `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-05: image: Save writes back to the opened path, Save As asks for a location` | built | |
+| AC-06 | `ui/e2e/file-access.spec.ts › File System Access › AC-06: pixel: the first Save offers the picker, later Saves write to the chosen file`; `ui/e2e/file-access.spec.ts › File System Access › AC-06: image: the first Save offers the picker, later Saves write to the chosen file` | built | |
+| AC-07 | `ui/e2e/file-access.spec.ts › File System Access › AC-07: pixel: a denied write permission falls back to the save picker`; `ui/e2e/file-access.spec.ts › File System Access › AC-07: image: a denied write permission falls back to the save picker` | built | |
+| AC-08 | `ui/e2e/file-access.spec.ts › without File System Access › AC-08: pixel: Save reads "Save (download)" and there is no Save As…`; `ui/e2e/file-access.spec.ts › AC-08: pixel: with File System Access, Save and Save As… are listed` | built | |
 | AC-09 | | open | |
 | AC-10 | | open | |
 | AC-11 | | open | |
@@ -142,7 +142,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-28 | | open | |
 | AC-29 | | open | |
 
-Partial coverage (status stays `open`): AC-04 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` covers Image mode (`image.ora`, unsaved marker cleared); the Pixel `.aseprite` download is untested. AC-12 — the empty / disabled half is covered by `recents.spec.ts › pixel mode: File lists Open Recent, disabled while empty` and `› image mode: …`; the absent-when-unavailable half is not.
+Partial coverage (status stays `open`): AC-12 — the empty / disabled half is covered by `recents.spec.ts › pixel mode: File lists Open Recent, disabled while empty` and `› image mode: …`; the absent-when-unavailable half is not.
 
 ## Decisions
 
@@ -154,3 +154,4 @@ Partial coverage (status stays `open`): AC-04 — `ora.spec.ts › image mode: S
 - 2026-10-30: The desktop app takes drops through Tauri's native drag-drop event with file paths (Decision Log 2026-10-30) — because a path lets Save write back to the dropped file and Open Recent find it again.
 - 2026-10-30: Clarification — the dialog with "Don't ask again" is the owner's choice because they want to decide per drop until a habit settles; dialog buttons are written in sentence case, the File ▸ Dropped Images menu items in title case like every menu item.
 - 2026-10-30: Browser drops open without a file handle, as on the start screen today, so they save through the picker or a download and are not recorded in the recent files — because the drop path reads `File` objects; `DataTransferItem.getAsFileSystemHandle()` could add a handle later.
+- 2026-11-04: Test gaps closed in `ui/e2e/file-access.spec.ts`. The File System Access pickers are faked (`fakeFileHandles` in `ui/e2e/helpers.ts`, now with a fake save picker, an in-page disk and per-file permission denial and read failures); the desktop host is a stubbed Tauri bridge (`invoke` answering `plugin:dialog|open` / `|save`, `read_file_bytes`, `write_file_bytes`). Every test was green at once and was run red against a deliberate break, then reverted: `.ora` dropped from the open types (AC-01), a cancelled FSA picker or `<input>` treated as an error (AC-03), the download named `x<name>` (AC-04), the in-place write skipped for a handle and for a Tauri path (AC-05, AC-06), a denied write permission ignored (AC-07), Pixel's Save always labelled "Save" (AC-08). AC-01 reads "restricted" as the picker's types: the browser's own "All files" choice is not excluded, as with `<input accept>`.
