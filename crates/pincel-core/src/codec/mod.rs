@@ -8,6 +8,8 @@
 //! of `compose()`. It is write-only by design: `.aseprite` stays the project
 //! format, PNG is what leaves the app for a game engine.
 //!
+//! [`gpl`] and [`palette_formats`] read and write palette files (spec §3.7).
+//!
 //! [`animation`] adds the animated export (APNG, GIF) on the same path,
 //! sharing the nearest-neighbour upscale in `scale` (spec §7.5).
 
@@ -16,6 +18,7 @@ mod aseprite_read;
 mod aseprite_write;
 mod error;
 mod gpl;
+mod palette_formats;
 mod png;
 mod scale;
 mod sheet_data;
@@ -28,6 +31,10 @@ pub use aseprite_read::{AsepriteReadOutput, read_aseprite};
 pub use aseprite_write::write_aseprite;
 pub use error::CodecError;
 pub use gpl::{GplError, read_gpl, write_gpl};
+pub use palette_formats::{
+    PaletteFormat, PaletteFormatError, detect_palette_format, palette_from_png, palette_to_png,
+    read_hex, read_jasc_pal, read_palette, write_hex, write_jasc_pal,
+};
 pub use png::{
     AtlasFrame, AtlasManifest, AtlasOptions, AtlasOutput, ExportError, ImportError, ImportedImage,
     encode_png, export_atlas_png, export_frame_png, export_frame_png_scaled, import_png,
