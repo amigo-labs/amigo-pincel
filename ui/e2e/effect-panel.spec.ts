@@ -175,6 +175,46 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: keys on the menu or a panel button do what that control does (AC-04, AC-05)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 32, height: 32 });
+    const invert = effectPanel(page, 'Invert Colors');
+    const levels = effectPanel(page, 'Levels');
+    const menuItem = (top: string, name: string) =>
+      page
+        .getByRole('menu', { name: top, exact: true })
+        .getByRole('menuitem', { name, exact: true });
+    const openMenu = (top: string) =>
+      page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
+
+    // Enter on another effect's menu entry restarts with that effect; the
+    // open one is cancelled, not applied (AC-05).
+    await menu(page, 'Adjustments', 'Invert Colors');
+    await expect(invert).toBeVisible();
+    await openMenu('Adjustments');
+    await menuItem('Adjustments', 'Levels…').focus();
+    await page.keyboard.press('Enter');
+    await expect(levels).toBeVisible();
+    await expect(invert).toHaveCount(0);
+    await expect(undoButton(page)).toBeDisabled();
+
+    // Escape with a menu open closes the menu only.
+    await openMenu('Adjustments');
+    await expect(page.getByRole('menu', { name: 'Adjustments', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Adjustments', exact: true })).toHaveCount(0);
+    await expect(levels).toBeVisible();
+
+    // Enter on a focused Cancel cancels (AC-04).
+    await levels.getByRole('button', { name: 'Cancel' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(levels).toHaveCount(0);
+    await expect(undoButton(page)).toBeDisabled();
+  });
+}
+
 test('a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)', async ({
   page,
 }) => {

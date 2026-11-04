@@ -128,7 +128,19 @@
     session.reset();
   }
 
+  // Controls Enter activates on its own: a menu entry, Cancel, ×, Reset
+  // keep their meaning instead of turning into OK (effect-panel AC-04,
+  // AC-05). Multi-line fields take Enter as a line break.
+  const OWNS_ENTER =
+    'button, a[href], summary, textarea, [role="button"], [role="link"], [role^="menuitem"], [role="tab"], [role="option"]';
+
+  function ownsEnter(target: EventTarget | null): boolean {
+    return target instanceof Element && target.closest(OWNS_ENTER) !== null;
+  }
+
   function onKeydown(e: KeyboardEvent) {
+    // Taken by another handler already (an open menu closes on Escape).
+    if (e.defaultPrevented) return;
     if (e.key === 'Escape' && picking !== null) {
       // Escape ends picking only; the dialog stays open.
       e.preventDefault();
@@ -136,7 +148,9 @@
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
-    } else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
+    } else if (e.key === 'Enter' && (picking !== null || !ownsEnter(e.target))) {
+      // Enter while picking applies even from the armed Pick button
+      // (effect-catalog-v2 AC-11).
       e.preventDefault();
       onApply(params);
     }
