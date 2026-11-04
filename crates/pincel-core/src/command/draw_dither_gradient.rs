@@ -534,6 +534,44 @@ mod tests {
     }
 
     #[test]
+    fn bayer_block_foreground_counts_never_increase_along_a_horizontal_ramp() {
+        // docs/specs/dithered-gradient.md AC-05: per block of n columns
+        // starting at a multiple of n, for ramps of several lengths, starts
+        // and heights (a height not a multiple of n included).
+        for matrix in [
+            DitherMatrix::Bayer2,
+            DitherMatrix::Bayer4,
+            DitherMatrix::Bayer8,
+        ] {
+            let n = matrix.size() as i32;
+            for (w, h, x0, x1) in [(32, 8, 0, 31), (40, 5, 3, 37), (64, 16, 8, 50)] {
+                let (mut s, mut c) = fixture(w, h);
+                draw(
+                    &mut s,
+                    &mut c,
+                    (x0, 0),
+                    (x1, 0),
+                    GradientKind::Linear,
+                    matrix,
+                );
+                let counts: Vec<usize> = (0..w as i32 / n)
+                    .map(|b| {
+                        (b * n..(b + 1) * n)
+                            .flat_map(|x| (0..h as i32).map(move |y| (x, y)))
+                            .filter(|&(x, y)| px(&s, &c, x, y) == FG)
+                            .count()
+                    })
+                    .collect();
+                assert!(
+                    counts.windows(2).all(|p| p[1] <= p[0]),
+                    "{matrix:?} {w}x{h} {x0}..{x1}: {counts:?}"
+                );
+                assert!(counts[0] > *counts.last().expect("at least one block"));
+            }
+        }
+    }
+
+    #[test]
     fn bayer8_on_a_small_sprite_uses_the_matching_part_of_the_matrix() {
         let (mut s, mut c) = fixture(4, 4);
         draw(

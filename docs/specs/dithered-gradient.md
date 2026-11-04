@@ -44,7 +44,7 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 - [ ] AC-02 (option): Where the kind is radial, after a drag from P0 to P1 the pixel at P0 has the foreground color and every changed pixel at a distance of at least |P1 − P0| from P0 has the background color.
 - [ ] AC-03 (always): Every pixel the gradient writes has exactly the foreground or exactly the background color; no other color is created.
 - [ ] AC-04 (option): Where a Bayer n×n matrix (n = 2, 4 or 8) is chosen, a pixel at (x, y) gets the foreground color exactly when its gradient position t (0 at P0, 1 at P1, clamped) is below the n×n Bayer threshold for (x mod n, y mod n), normalized into (0, 1).
-- [ ] AC-05 (option): Where a Bayer matrix is chosen, along a horizontal linear gradient the number of foreground pixels per column never increases from the start column to the end column.
+- [ ] AC-05 (option): Where a Bayer n×n matrix is chosen, along a horizontal linear gradient the number of foreground pixels per block of n consecutive columns starting at a multiple of n never increases from the start block to the end block.
 - [ ] AC-06 (option): Where the matrix is none, the result is two hard bands: foreground where t < 0.5, background elsewhere.
 - [ ] AC-07 (state): While a selection exists, the gradient changes only pixels inside the selection; every pixel outside keeps its value.
 - [ ] AC-08 (always): One gradient drag is one undo entry; undo restores every pixel of the target to its value from before the drag, and redo reproduces the identical result.
@@ -100,8 +100,6 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- AC-05 contradicts AC-04 (found by spec-build, 2026-11-04). With AC-04's per-pixel rule, column x's foreground count is the number of thresholds in matrix column `x mod n` above that column's `t`, and the threshold sets differ from one matrix column to the next. A 16-wide Bayer 4×4 ramp from column 0 to 15 on a 4-row sprite counts 4, 4, 3, **4**, … foreground pixels in columns 0–3 (matrix column 2 holds the indices {2, 14, 1, 13}, column 3 {10, 6, 9, 5}); for Bayer 2, 4 and 8 every such ramp longer than about 8 columns breaks "never increases". AC-04 is the decided rule (legacy plan), so AC-05 is skipped. A wording that holds: "the number of foreground pixels per block of n consecutive columns starting at a multiple of n never increases", or a density measured over whole n × n tiles.
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -110,7 +108,7 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 | AC-02 | `radial_start_is_foreground_and_beyond_the_radius_is_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-03 | `every_written_pixel_is_exactly_foreground_or_background`, `equal_colors_paint_every_target_pixel_that_color` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-04 | `bayer_threshold_decides_every_pixel`, `bayer_matrices_are_the_standard_ones`, `bayer8_on_a_small_sprite_uses_the_matching_part_of_the_matrix` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-05 |      | open   |        |
+| AC-05 | `bayer_block_foreground_counts_never_increase_along_a_horizontal_ramp` (`crates/pincel-core/src/command/draw_dither_gradient.rs`) | built |        |
 | AC-06 | `none_matrix_splits_into_two_hard_bands_at_half` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-07 | `gradient_respects_selection_mask`, `gradient_respects_selection_rect` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-08 | `apply_gradient_paints_fg_to_bg_as_one_undo_entry` (crates/pincel-wasm/src/gradient.rs); `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
@@ -123,6 +121,8 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 | AC-15 | `without_selection_every_cel_pixel_on_the_canvas_is_written_and_the_cel_keeps_its_size` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 
 ## Decisions
+
+- 2026-11-04 — AC-05 revised: under AC-04's per-pixel rule a single column's foreground count depends on which thresholds sit in matrix column `x mod n`, so "per column never increases" cannot hold (a 16-wide Bayer 4×4 ramp counts 4, 4, 3, 4 in columns 0–3). Counting per block of n columns starting at a multiple of n keeps the intent and follows from AC-04: each matrix cell's t only grows from one block to the next, so a cell that is foreground in a later block is foreground in every earlier one. The test passed at once (the behaviour existed) and failed when the comparison was inverted.
 
 - The linear / radial parameter math moves into `pincel-effects` and both cores call it — because `pincel-core` must not depend on `pincel-image-core` (Decision Log 2026-09-06) and `pincel-effects` already serves both (legacy plan).
 - Ordered (Bayer) dithering with a per-pixel threshold — because it is deterministic and creates no new colors (legacy plan).
