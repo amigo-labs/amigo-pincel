@@ -39,14 +39,14 @@
     {
       feature: 'openSource',
       pincel: { mark: '✅', note: 'mitApache' },
-      aseprite: { mark: '✅', note: 'eula' },
+      aseprite: { mark: '🟡', note: 'sourceAvailable' },
       piskel: { mark: '✅', note: 'apache' },
     },
     {
       feature: 'active',
       pincel: '✅',
       aseprite: '✅',
-      piskel: { mark: '🟡', note: 'modernizing' },
+      piskel: { mark: '🟡', note: 'noRelease' },
     },
   ];
 </script>

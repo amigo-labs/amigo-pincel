@@ -130,9 +130,9 @@ export const de: Messages = {
       nwjs: 'über NW.js, veraltet',
       phase2: 'Phase 2',
       mitApache: 'MIT/Apache',
-      eula: 'EULA-beschränkt',
+      sourceAvailable: 'Quelltext einsehbar, EULA verbietet Weitergabe',
       apache: 'Apache 2.0',
-      modernizing: 'Modernisierung läuft',
+      noRelease: 'kein getaggtes Release seit 0.15.0 (2018); master bekommt noch Fixes',
     },
   },
   home: {

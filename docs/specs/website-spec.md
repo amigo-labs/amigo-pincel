@@ -187,8 +187,8 @@ A small comparison table. Honest about where Aseprite is still ahead. No "vs Ase
 | Lua scripting / extensions | ❌ Phase 2 | ✅ | ❌ |
 | Custom brushes | ❌ Phase 2 | ✅ | ✅ |
 | Price | Free | Paid | Free |
-| Open source | ✅ MIT/Apache | ✅ EULA-restricted | ✅ Apache 2.0 |
-| Active development | ✅ | ✅ | 🟡 modernization in progress |
+| Open source | ✅ MIT/Apache | 🟡 source-available, EULA forbids redistribution | ✅ Apache 2.0 |
+| Active development | ✅ | ✅ | 🟡 no tagged release since 0.15.0 (2018); master still gets fixes |
 
 The footer of the table reads: *"Pincel is new and Aseprite has 14 years of features. We're catching up where it matters for game-dev workflows. Where it doesn't, we're not."*
 

@@ -75,8 +75,8 @@ Hints that drift — the code is the truth.
 | Lua scripting / extensions | ❌ Phase 2 | ✅ | ❌ |
 | Custom brushes | ❌ Phase 2 | ✅ | ✅ |
 | Price | Free | Paid | Free |
-| Open source | ✅ MIT/Apache | ✅ EULA-restricted | ✅ Apache 2.0 |
-| Active development | ✅ | ✅ | 🟡 modernization in progress |
+| Open source | ✅ MIT/Apache | 🟡 source-available, EULA forbids redistribution | ✅ Apache 2.0 |
+| Active development | ✅ | ✅ | 🟡 no tagged release since 0.15.0 (2018); master still gets fixes |
 
 **Platform detection** (`src/lib/platform.ts`, `detectPlatform`): `null` for `userAgentData.mobile`, Android / iPhone / iPad / iPod, a Mac UA with `maxTouchPoints > 1`, ChromeOS and `aarch64` / `arm64` / `armv` Linux; Windows on ARM gets the x64 build. Runs in the browser only; on the Download page the button appears only once a system is detected.
 
@@ -134,3 +134,4 @@ Hints that drift — the code is the truth.
 - 2026-11-04: Apart from that bug this spec pins behavior that already ships, so its tests were green on their first run; they were checked against deliberate breakage instead (a weakened iPad / ARM-Linux rule in `platform.ts` failed six AC-10 cases) — a reverse-engineered spec has no red phase for existing behavior.
 - 2026-11-04: The website e2e preview port is `PINCEL_SITE_E2E_PORT` (default 4174), not the editor's `PINCEL_E2E_PORT` / 4173 — with `reuseExistingServer` a shared port would let one suite silently test the other's build (AGENTS.md Gotchas).
 - 2026-11-04: AC-05 stubs `/app/` with `page.route` — `vite preview` of the site has no editor (`scripts/cf-build.sh` copies it in at deploy), and the test proves a full document load by a window marker that a client-side navigation would keep.
+- 2026-11-04: `website-comparison` AC-06 / AC-07 revised two cells of the pinned table (Technical notes, AC-09 test): Aseprite's license is 🟡 "source-available, EULA forbids redistribution", Piskel's activity 🟡 "no tagged release since 0.15.0 (2018); master still gets fixes" — as the 2026-10-29 Decision foresaw.

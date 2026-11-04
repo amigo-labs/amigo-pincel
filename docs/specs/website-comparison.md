@@ -90,6 +90,9 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- 2026-11-04 (spec-build): **AC-05 lists Pincel gaps that have since shipped.** `pixel-pencil` (pixel-perfect option), `animated-export` (APNG / GIF) and `pixel-pressure` (pen pressure in Pixel mode) are `status: implemented`, and PSD import (8-bit RGB, Image mode) is built in this branch with `psd-import` still `todo`; §18.2 already shows Pincel PSD as "~ read, 8-bit RGB". AC-05 demands ❌ / 🟡 "Image mode only" for these cells, which the honesty rule (AC-04, website-spec §4.1.4) forbids for shipped features. Should these four cells show what ships now (✅, PSD 🟡 "read, 8-bit RGB" or similar, with §18.2 / §18.5 updated), and does PSD count as shipped before `psd-import` is accepted? Blocks AC-01 – AC-03, AC-05 and AC-08 (the two tables, their rows and their per-table footnotes); the "RGBA only" and indexed-painting ❌ cells still hold (the reader still returns `UnsupportedColorMode`).
+- 2026-11-04 (spec-build): **Required rows need facts §18 does not hold.** AC-02 / AC-03 require rows whose competitor cells §18 marks `?` or `*` or does not cover at all: Pixel art — Pixelorama slices `?`; Piskel pixel-perfect `?`, pen pressure `?`, tags `✗*`, indexed `✗*`, `.aseprite` `✗*`, scripting `✗*`, embeddable `✗*`; custom brushes and animated export have no §18 column for any competitor. Image editing — Pinta pen pressure `?`, PSD `?`, groups `✗*`; Paint.NET blend `✓*`, PSD `~*`; Photopea groups / blend / magic wand `✓*`; offline use has no §18 column. AC-04 allows only re-checking (with a §18 update) or dropping the row, but these rows are mandatory. Who re-checks them against §18.6's sources before the tables are built — the owner (AC-04 is manual) or spec-build from the web, with the owner reviewing the §18 diff?
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -99,8 +102,8 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-06 | `website/e2e/comparison.spec.ts`: "website-comparison AC-06: Aseprite is source-available, not open source" | built |        |
+| AC-07 | `website/e2e/comparison.spec.ts`: "website-comparison AC-07: Piskel has had no tagged release since 0.15.0" | built |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
@@ -117,3 +120,6 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - 2026-10-29: AC-01 – AC-03 and AC-05 – AC-10 become Playwright e2e checks on `@playwright/test` 1.64.1 (exact pin, Apache-2.0) as a `website/` devDependency, shared with the `website` spec (`depends_on: [website]`); AC-04 and AC-12 stay manual — one decision covers both website specs, and facts and tone need a human (owner accepted the recommendation).
 - 2026-10-29: No LibreSprite or Resprite column; the four columns stay and the Sources disclosure names both — a fifth column hurts the 390 px layout, and §18 marks many of their cells `?` / `*` (owner accepted the recommendation).
 - 2026-10-29: The "Aseprite file format (read + write)" row shows Pincel 🟡 "RGBA only", §18.2's Pincel Indexed cell is corrected in the same change, and the cell flips back when `indexed-grayscale-compose` ships — the reader refuses indexed and grayscale files (`UnsupportedColorMode`), and the honesty rule (AC-04, AC-05) forbids claiming what the code refuses (owner accepted the recommendation).
+- 2026-11-04 (spec-build): AC-06 and AC-07 are built on today's three-column table, ahead of the two new tables that the open questions hold back — both cells are settled facts from §18.1 (Aseprite "source-available EULA"; Piskel "0.15.0, 2018 (master still gets fixes)") and independent of AC-05.
+- 2026-11-04 (spec-build): Aseprite's license cell is 🟡 "source-available, EULA forbids redistribution" — not ✅ (AC-06) and not ❌, because the source can be read and built for one's own use while the EULA forbids redistribution, which is what keeps it from being OSI open source.
+- 2026-11-04 (spec-build): The copy keys became `sourceAvailable` and `noRelease` (replacing `eula` and `modernizing`), and `website.md`'s pinned table, its AC-09 test and website-spec §4.1.4 follow the two cells — `website.md`'s 2026-10-29 Decision lets this spec revise its AC-09.
