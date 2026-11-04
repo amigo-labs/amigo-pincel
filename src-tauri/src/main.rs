@@ -85,6 +85,7 @@ struct Labels {
     no_recent: &'static str,
     save: &'static str,
     save_as: &'static str,
+    close: &'static str,
     export_png: &'static str,
     export_sheet: &'static str,
     export_animation: &'static str,
@@ -120,6 +121,7 @@ const LABELS_EN: Labels = Labels {
     no_recent: "(no recent files)",
     save: "Save",
     save_as: "Save As\u{2026}",
+    close: "Close",
     export_png: "Export as PNG\u{2026}",
     export_sheet: "Export Sprite Sheet\u{2026}",
     export_animation: "Export Animation\u{2026}",
@@ -152,6 +154,7 @@ const LABELS_DE: Labels = Labels {
     no_recent: "(keine zuletzt ge\u{f6}ffneten Dateien)",
     save: "Speichern",
     save_as: "Speichern unter\u{2026}",
+    close: "Schlie\u{df}en",
     export_png: "Als PNG exportieren\u{2026}",
     export_sheet: "Sprite-Sheet exportieren\u{2026}",
     export_animation: "Animation exportieren\u{2026}",
@@ -299,6 +302,11 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let save_as_item = MenuItemBuilder::with_id("menu:saveAs", l.save_as)
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
+    // File ▸ Close closes the active tab; the menu owns Cmd+W on macOS
+    // (docs/specs/document-tabs.md "Tab keys").
+    let close_item = MenuItemBuilder::with_id("menu:close", l.close)
+        .accelerator("CmdOrCtrl+W")
+        .build(app)?;
 
     // Export items: the mounted editor serves them (Pixel mode both,
     // Image mode the PNG export); unserved ids are ignored by the shell.
@@ -324,6 +332,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&new_item)
         .item(&open_item)
         .item(&recent_submenu)
+        .separator()
+        .item(&close_item)
         .separator()
         .item(&save_item)
         .item(&save_as_item)
