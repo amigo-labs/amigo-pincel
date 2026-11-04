@@ -7,6 +7,7 @@ pub use blend::blend_channel;
 pub use cache::RenderCache;
 
 use crate::color::{BlendMode, Color};
+use crate::document::tree::subtree_end;
 use crate::document::{ImageBuffer, Layer};
 use crate::geometry::Rect;
 use std::sync::OnceLock;
@@ -34,22 +35,54 @@ fn linear_to_srgb(c: f32) -> f32 {
 /// Each layer's opacity is applied to its alpha before blending; blend math is
 /// performed in linear light per the W3C compositing model. Hidden layers and
 /// fully transparent layers are skipped. The output is the size of the first
-/// layer (all layers are canvas-sized); an empty slice yields a 0×0 buffer.
+/// raster layer (all raster layers are canvas-sized); a slice without one
+/// yields a 0×0 buffer.
+///
+/// Groups composite in isolation (spec §4.2, docs/specs/image-layer-groups.md):
+/// a group's children blend into a transparent buffer of their own, which
+/// then blends into the layers below with the group's opacity and blend
+/// mode; a hidden group hides its whole subtree. A group whose entry is not
+/// in `layers` counts as the root, so any run of whole subtrees composes.
 pub fn compose(layers: &[Layer]) -> ImageBuffer {
-    let Some(first) = layers.first() else {
+    let Some((w, h)) = canvas_size(layers) else {
         return ImageBuffer::new_transparent(0, 0);
     };
-    let w = first.pixels.width();
-    let h = first.pixels.height();
     let mut out = ImageBuffer::new_transparent(w, h);
-
-    for layer in layers {
-        if !layer.visible || layer.opacity <= 0.0 {
-            continue;
-        }
-        composite_layer(&mut out, layer, 0, 0);
-    }
+    composite_run(&mut out, layers, 0, 0);
     out
+}
+
+/// The size of the first raster layer, which every raster layer shares.
+fn canvas_size(layers: &[Layer]) -> Option<(u32, u32)> {
+    layers
+        .iter()
+        .find(|l| !l.is_group())
+        .map(|l| (l.pixels.width(), l.pixels.height()))
+}
+
+/// Blends a run of whole subtrees onto `dst`, which covers the canvas from
+/// `(ox, oy)`. Without groups this is exactly the flat bottom-to-top loop.
+fn composite_run(dst: &mut ImageBuffer, layers: &[Layer], ox: u32, oy: u32) {
+    let mut i = 0;
+    while let Some(layer) = layers.get(i) {
+        let end = subtree_end(layers, i);
+        if layer.visible && layer.opacity > 0.0 {
+            if layer.is_group() {
+                let mut isolated = ImageBuffer::new_transparent(dst.width(), dst.height());
+                composite_run(&mut isolated, &layers[i + 1..end], ox, oy);
+                let folded = Layer {
+                    pixels: isolated,
+                    ..Layer::from_pixels(String::new(), ImageBuffer::new_transparent(0, 0))
+                }
+                .with_opacity(layer.opacity)
+                .with_blend_mode(layer.blend_mode);
+                composite_layer(dst, &folded, 0, 0);
+            } else {
+                composite_layer(dst, layer, ox, oy);
+            }
+        }
+        i = end;
+    }
 }
 
 /// Composites only `region` of the visible layers (spec §6.1), yielding a
@@ -58,21 +91,16 @@ pub fn compose(layers: &[Layer]) -> ImageBuffer {
 /// region, which is what lets the UI render just the visible part of a
 /// large canvas. A region outside the canvas yields a 0×0 buffer.
 pub fn compose_region(layers: &[Layer], region: Rect) -> ImageBuffer {
-    let Some(first) = layers.first() else {
+    let Some((cw, ch)) = canvas_size(layers) else {
         return ImageBuffer::new_transparent(0, 0);
     };
-    let (cw, ch) = (first.pixels.width() as i64, first.pixels.height() as i64);
+    let (cw, ch) = (i64::from(cw), i64::from(ch));
     let x0 = i64::from(region.x).clamp(0, cw);
     let y0 = i64::from(region.y).clamp(0, ch);
     let x1 = (i64::from(region.x) + i64::from(region.w)).clamp(0, cw);
     let y1 = (i64::from(region.y) + i64::from(region.h)).clamp(0, ch);
     let mut out = ImageBuffer::new_transparent((x1 - x0) as u32, (y1 - y0) as u32);
-    for layer in layers {
-        if !layer.visible || layer.opacity <= 0.0 {
-            continue;
-        }
-        composite_layer(&mut out, layer, x0 as u32, y0 as u32);
-    }
+    composite_run(&mut out, layers, x0 as u32, y0 as u32);
     out
 }
 
@@ -344,6 +372,122 @@ mod tests {
             }
         }
         Layer::from_pixels("l", buf)
+    }
+
+    /// A group entry with `children` placed into it (their `parent` set).
+    fn grouped(group: Layer, children: Vec<Layer>) -> Vec<Layer> {
+        let id = group.id;
+        let mut out = vec![group];
+        out.extend(children.into_iter().map(|c| {
+            if c.parent.is_none() {
+                c.with_parent(Some(id))
+            } else {
+                c
+            }
+        }));
+        out
+    }
+
+    #[test]
+    fn hidden_group_hides_children() {
+        let bg = solid_layer(2, 2, Color::rgba(0, 0, 255, 255));
+        let child = solid_layer(2, 2, Color::rgba(255, 0, 0, 255));
+        let mut layers = vec![bg.clone()];
+        layers.extend(grouped(
+            Layer::new_group("G").with_visible(false),
+            vec![child],
+        ));
+        assert_eq!(compose(&layers), compose(std::slice::from_ref(&bg)));
+        // The child's own flag is untouched; showing the group brings it back.
+        assert!(layers[2].visible);
+        layers[1].visible = true;
+        assert_eq!(
+            compose(&layers).get_pixel(0, 0),
+            Some(Color::rgba(255, 0, 0, 255))
+        );
+    }
+
+    #[test]
+    fn group_opacity_applies_once_to_composite_not_per_child() {
+        let a = solid_layer(1, 1, Color::rgba(255, 0, 0, 255));
+        let b = solid_layer(1, 1, Color::rgba(255, 0, 0, 255));
+        let layers = grouped(Layer::new_group("G").with_opacity(0.5), vec![a, b]);
+        let out = compose(&layers);
+        assert_eq!((out.width(), out.height()), (1, 1));
+        // 50 % coverage (128), not the 75 % (191) of two 50 % layers.
+        assert_eq!(out.get_pixel(0, 0).map(|c| c.a), Some(128));
+    }
+
+    #[test]
+    fn group_children_blend_in_isolation_from_layers_below() {
+        let bg = solid_layer(1, 1, Color::rgba(0, 0, 255, 255));
+        let child =
+            solid_layer(1, 1, Color::rgba(255, 0, 0, 255)).with_blend_mode(BlendMode::Multiply);
+        let mut layers = vec![bg];
+        layers.extend(grouped(Layer::new_group("G"), vec![child]));
+        // Inside the group the Multiply child starts from transparent, so it
+        // lands as plain red over the blue background instead of black.
+        assert_eq!(
+            compose(&layers).get_pixel(0, 0),
+            Some(Color::rgba(255, 0, 0, 255))
+        );
+    }
+
+    #[test]
+    fn group_blend_mode_blends_composite() {
+        let bg = solid_layer(1, 1, Color::rgba(255, 255, 0, 255));
+        let child = solid_layer(1, 1, Color::rgba(255, 0, 255, 255));
+        let mut grouped_layers = vec![bg.clone()];
+        grouped_layers.extend(grouped(
+            Layer::new_group("G").with_blend_mode(BlendMode::Multiply),
+            vec![child.clone()],
+        ));
+        let flat = [bg, child.with_blend_mode(BlendMode::Multiply)];
+        // Yellow × magenta = red, exactly as a Multiply layer gives.
+        assert_eq!(compose(&grouped_layers), compose(&flat));
+        assert_eq!(
+            compose(&grouped_layers).get_pixel(0, 0),
+            Some(Color::rgba(255, 0, 0, 255))
+        );
+    }
+
+    #[test]
+    fn nested_group_opacities_multiply_level_by_level() {
+        let child = solid_layer(1, 1, Color::rgba(0, 0, 0, 255));
+        let inner = grouped(Layer::new_group("H").with_opacity(0.5), vec![child]);
+        let mut layers = grouped(Layer::new_group("G").with_opacity(0.5), vec![]);
+        let gid = layers[0].id;
+        let mut inner = inner;
+        inner[0].parent = Some(gid);
+        layers.extend(inner);
+        // 0.5 × 0.5 of an opaque pixel: 25 % coverage.
+        assert_eq!(compose(&layers).get_pixel(0, 0).map(|c| c.a), Some(64));
+    }
+
+    #[test]
+    fn compose_region_with_groups_matches_the_sub_rect_of_compose() {
+        let mut a = ImageBuffer::new_transparent(4, 3);
+        for y in 0..3 {
+            for x in 0..4 {
+                a.set_pixel(x, y, Color::rgba(x as u8 * 60, 90, y as u8 * 80, 200));
+            }
+        }
+        let bg = solid_layer(4, 3, Color::rgba(20, 200, 40, 255));
+        let mut layers = vec![Layer::new_group("empty"), bg];
+        layers.extend(grouped(
+            Layer::new_group("G")
+                .with_opacity(0.6)
+                .with_blend_mode(BlendMode::Screen),
+            vec![Layer::from_pixels("a", a).with_blend_mode(BlendMode::Overlay)],
+        ));
+        let full = compose(&layers);
+        assert_eq!((full.width(), full.height()), (4, 3));
+        let region = compose_region(&layers, Rect::new(1, 1, 3, 2));
+        for y in 0..2 {
+            for x in 0..3 {
+                assert_eq!(region.get_pixel(x, y), full.get_pixel(x + 1, y + 1));
+            }
+        }
     }
 
     #[test]
