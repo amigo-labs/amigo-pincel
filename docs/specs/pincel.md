@@ -795,7 +795,6 @@ User defines a brush from a selection rect. Brush is stored on the document (Ase
 
 ### 13.4 Filters
 
-- Outline (configurable thickness, inside/outside/both)
 - Drop Shadow
 - Hue/Saturation/Lightness shift
 - Color replace
