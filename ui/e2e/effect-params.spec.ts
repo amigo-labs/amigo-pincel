@@ -189,6 +189,20 @@ test('point: Pick on canvas sets the point without a tool stroke (AC-11)', async
   await expect(undo).toBeEnabled();
 });
 
+test('point: a picked point updates the preview (AC-11)', async ({ page }) => {
+  await scene(page);
+  const dialog = await open(page, 'Blurs', 'Radial Blur…');
+  await dialog.getByLabel('Amount value').fill('60');
+  const canvas = imageCanvas(page);
+  await page.waitForTimeout(300);
+  const centred = await canvas.screenshot();
+  await dialog.getByRole('button', { name: 'Pick on canvas' }).click();
+  await pressAt(page, canvas, 0.05, 0.95);
+  await page.mouse.up();
+  await expect(dialog.getByLabel('Center X in percent')).toHaveValue('5');
+  await expect.poll(async () => (await canvas.screenshot()).equals(centred)).toBe(false);
+});
+
 test.describe('touch device', () => {
   test.use({ hasTouch: true });
 

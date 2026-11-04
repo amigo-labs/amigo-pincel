@@ -129,7 +129,7 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | AC-08 | `pincel-wasm: effects::tests::apply_effect_knows_every_effect_name_on_a_pixel_document`; `pincel-agent: tests::draw::effect_apply_accepts_every_effect_on_a_pixel_document` | built |        |
 | AC-09 | `ui/e2e/effect-params.spec.ts` › angle: the dial and the degree field set the same angle (AC-09); `ui/e2e/effect-catalog.spec.ts` › wrapAngle wraps typed angles outside 0–360 | built |        |
 | AC-10 | `ui/e2e/effect-params.spec.ts` › point: X / Y in percent, default centre, the effect follows it (AC-10); `ui/e2e/effect-catalog.spec.ts` › radial_blur: wire vectors equal the previous catalog's | built |        |
-| AC-11 | `ui/e2e/effect-params.spec.ts` › point: Pick on canvas sets the point without a tool stroke (AC-11); › touch device › pen and single touch pick the point; two fingers still pinch (AC-11) | built |        |
+| AC-11 | `ui/e2e/effect-params.spec.ts` › point: Pick on canvas sets the point without a tool stroke (AC-11); › point: a picked point updates the preview (AC-11); › touch device › pen and single touch pick the point; two fingers still pinch (AC-11) | built |        |
 | AC-12 | `ui/e2e/effect-params.spec.ts` › seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12); `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed` | built |        |
 | AC-13 | `ui/e2e/effect-params.spec.ts` › linked pair: Square Blur width and height move together while linked (AC-13) | built |        |
 | AC-14 | `ui/e2e/effect-params.spec.ts` › Reset returns angle, point, seed and link to their defaults (AC-14) | built |        |
