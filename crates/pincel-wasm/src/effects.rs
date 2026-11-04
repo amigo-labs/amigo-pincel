@@ -67,7 +67,7 @@ impl Document {
         let whole = !sprite.has_selection();
         let (cx, cy) = cel.position;
         let out = spec
-            .run_in(&src, |x, y| {
+            .run_at(&src, (cx, cy), |x, y| {
                 whole || sprite.selection_contains(cx + x as i32, cy + y as i32)
             })
             .into_raw();
@@ -521,6 +521,132 @@ mod tests {
             .iter()
             .chain(&[("radial_blur", &[10.0, 0.5, 0.5, 1.0][..])])
         {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
+    /// effects-distort: the distortions with their table defaults (Pixelate
+    /// with Pixel mode's Centre).
+    const DISTORTIONS: [(&str, &[f64]); 9] = [
+        ("bulge", &[45.0, 0.5, 0.5, 0.0]),
+        ("crystalize", &[8.0, 1.0]),
+        ("dents", &[25.0, 50.0, 10.0, 1.0, 0.0]),
+        ("frosted_glass", &[10.0, 1.0]),
+        ("morphology", &[0.0, 0.0, 1.0]),
+        ("pixelate", &[8.0, 1.0]),
+        ("polar_inversion", &[1.0, 0.5, 0.5, 1.0]),
+        ("tile_reflection", &[40.0, 30.0, 8.0, 0.0]),
+        ("twist", &[30.0, 100.0, 0.5, 0.5, 0.0]),
+    ];
+
+    /// effects-distort: Pixel mode's two distortions change the target as
+    /// one undo step.
+    #[test]
+    fn apply_effect_morphology_and_pixelate_run_on_a_pixel_document() {
+        for (name, params) in [
+            ("morphology", &[0.0, 0.0, 1.0][..]),
+            ("pixelate", &[2.0, 1.0]),
+        ] {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            assert!(doc.apply_effect(name, params).expect(name), "{name}");
+            assert_eq!(doc.undo_depth(), depth + 1, "{name}: one undo step");
+            assert_ne!(cel_pixels(&doc, 0, 0), before, "{name} changed nothing");
+        }
+    }
+
+    /// effects-distort AC-06: Pixelate's grid starts at the canvas origin,
+    /// also for a trimmed cel, so Centre adds no colour.
+    #[test]
+    fn apply_effect_pixelate_aligns_a_trimmed_cel_to_the_canvas_grid() {
+        let mut doc = Document::new(8, 8).expect("doc");
+        let (w, h) = (5u32, 5u32);
+        let mut buf = pincel_core::PixelBuffer::empty(w, h, ColorMode::Rgba);
+        for (i, px) in buf.data.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            px.copy_from_slice(&[(i * 10) as u8, (i * 3) as u8, 200, 255]);
+        }
+        let before = buf.data.clone();
+        let mut cel = pincel_core::Cel::image(crate::DEFAULT_LAYER_ID, FrameIndex::new(0), buf);
+        cel.position = (3, 1);
+        doc.cels.insert(cel);
+        assert!(doc.apply_effect("pixelate", &[4.0, 1.0]).expect("pixelate"));
+        let after = cel_pixels(&doc, 0, 0);
+        let at = |data: &[u8], x: usize, y: usize| {
+            let o = (y * w as usize + x) * 4;
+            data[o..o + 4].to_vec()
+        };
+        // Canvas squares 0..4 and 4..8: cel columns 0 | 1..5 (canvas x 3 |
+        // 4..8), cel rows 0..3 | 3..5 (canvas y 1..4 | 4..6).
+        for (xs, ys, centre) in [
+            (0..1, 0..3, (0, 1)),
+            (1..5, 0..3, (2, 1)),
+            (0..1, 3..5, (0, 3)),
+            (1..5, 3..5, (2, 3)),
+        ] {
+            for y in ys.clone() {
+                for x in xs.clone() {
+                    assert_eq!(
+                        at(&after, x, y),
+                        at(&before, centre.0, centre.1),
+                        "cel pixel ({x}, {y})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// effects-distort AC-13: a wrong parameter count is refused and changes
+    /// nothing.
+    #[test]
+    fn apply_effect_distortions_wrong_parameter_count_changes_nothing() {
+        for (name, params) in DISTORTIONS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            for wrong in [vec![1.0; params.len() + 1], vec![1.0; params.len() - 1]] {
+                let err = doc.apply_effect(name, &wrong).expect_err(name);
+                assert!(err.contains("expects"), "{name}: {err}");
+                assert!(
+                    doc.preview_effect(name, &wrong, 1).is_err(),
+                    "{name} preview"
+                );
+            }
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+        }
+    }
+
+    /// effects-distort AC-14: an indexed document refuses Morphology and
+    /// Pixelate (and every other distortion) with the message every other
+    /// effect gives.
+    #[test]
+    fn apply_effect_distortions_on_an_indexed_document_are_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in DISTORTIONS {
             assert_eq!(
                 doc.apply_effect(name, params),
                 Err(expected.clone()),

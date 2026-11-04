@@ -101,15 +101,15 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-03 | `every_distortion_keeps_the_size`, `bulge_dents_and_twist_at_their_neutral_setting_change_nothing` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-04 | `morphology_only_picks_existing_colours` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-05 | `morphology_dilate_grows_and_erode_shrinks_the_opaque_pixels`, `morphology_on_a_single_pixel` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-06 | `pixelate_fills_every_square_with_one_colour`, `pixelate_centre_takes_the_square_centre_pixel_and_adds_no_colour`, `pixelate_grid_starts_at_the_canvas_origin` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
+| AC-06 | `pixelate_fills_every_square_with_one_colour`, `pixelate_centre_takes_the_square_centre_pixel_and_adds_no_colour`, `pixelate_grid_starts_at_the_canvas_origin` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_pixelate_aligns_a_trimmed_cel_to_the_canvas_grid` (crates/pincel-wasm/src/effects.rs) | built |        |
 | AC-07 | `bulge_magnifies_or_pinches_the_centre` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-08 | `twist_rotates_inside_its_circle_only` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-09 | `seeded_distortions_are_reproducible_per_seed`, `crystalize_cells_have_no_single_pixels` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-10 | `frosted_glass_copies_input_pixels_from_within_amount` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-11 | `edge_behaviour_decides_what_a_position_outside_reads`, `edge_behaviour_transparent_clears_only_positions_outside` (crates/pincel-effects/tests/effects_distort.rs); `sample_edge_behaviours_read_outside_positions` (crates/pincel-effects/src/distort/edge.rs) | built |        |
 | AC-12 | `a_solid_opaque_layer_stays_unchanged`, `morphology_on_a_solid_layer_changes_only_pixels_near_the_edge` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-13 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_distortions_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
+| AC-14 | `apply_effect_distortions_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |        |
 | AC-15 |      | open   |        |
 
 ## Decisions
@@ -124,3 +124,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-04 (spec-build): Crystalize gives a pixel that shares its cell with none of its 4-neighbours the cell of its first neighbour (left, up, right, down) — because the Voronoi diagram of jittered points can leave a lone pixel on a cell corner, which AC-09's "at least one 4-neighbour of the same colour" forbids; joining never leaves another pixel alone.
 - 2026-11-04 (spec-build): Pixelate averages all pixels of a square (clipped to the buffer), not only the target's; the host still writes only target pixels. Its grid origin reaches the effect through the new `EffectSpec::run_at(src, origin, in_target)`; `run_in` is `run_at` at (0, 0). Sketch Blur's SplitMix64 position hash moved to `crate::random` and serves Crystalize, Dents and Frosted Glass (the table's "seeded generator"; per-position hashing keeps results independent of visiting order).
 - 2026-11-04 (spec-build): New public API: `EffectSpec::run_at`; `EffectSpec::{Bulge, Crystalize, Dents, FrostedGlass, Morphology, Pixelate, PolarInversion, TileReflection, Twist}`; `distort::{Bulge, Crystalize, Dents, EdgeBehavior, FrostedGlass, Morphology, MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, TileReflection, Twist}`. The new wire names follow `zoom_blur` at the end of `EFFECT_NAMES`.
+- 2026-11-04 (spec-build): AC-13 ("changes nothing") and AC-14 are proven in the Pixel core (`pincel-wasm`), where the document and the RGBA refusal live; both tests were green at once, because the refusal and the parameter-count error run before any effect and every new name already parsed in `pincel-effects` (whose tests were red first). The Pixel core and the agent's Pixel tools now run effects through `run_at` with the cel position (the trimmed-cel test was red before).
+- 2026-11-04 (spec-build): The agent catalog names choices as lower-case words (`edge`: clamp / wrap / reflect / transparent; `operation`: dilate / erode / open / close; `shape`: square / circle; `color`: average / centre). It serves both modes with one table, so Pixelate's agent default is Centre — Pixel mode's, the one that never adds a colour; an agent passes `"color": "average"` for Image mode's look.
