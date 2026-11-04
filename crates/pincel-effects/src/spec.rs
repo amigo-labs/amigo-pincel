@@ -35,7 +35,8 @@ pub enum EffectSpec {
     BoxBlur { width: u32, height: u32 },
     /// `motion_blur`: `[distance, angle_degrees]`.
     MotionBlur { distance: f32, angle: f32 },
-    /// `radial_blur`: `[amount, center_x, center_y, kind]` with `kind`
+    /// `radial_blur`: `[amount, center_x, center_y, kind]` with the centre
+    /// as a fraction of the image (0..1, 0.5 = middle) and `kind`
     /// `0` = spin, `1` = zoom.
     RadialBlur {
         amount: f32,
@@ -396,7 +397,13 @@ impl EffectSpec {
                 center_x,
                 center_y,
                 kind,
-            } => RadialBlur::new(*amount, *center_x, *center_y, *kind).apply(src),
+            } => {
+                // The wire carries the centre as a fraction of the image;
+                // `RadialBlur` works in pixel coordinates.
+                let cx = center_x * src.width().saturating_sub(1) as f32;
+                let cy = center_y * src.height().saturating_sub(1) as f32;
+                RadialBlur::new(*amount, cx, cy, *kind).apply(src)
+            }
             Self::Sharpen => Sharpen.apply(src),
             Self::UnsharpMask {
                 amount,
@@ -593,5 +600,34 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A 9x9 black / white checkerboard, so any resampling shows.
+    fn checker9() -> EffectImage {
+        let mut data = Vec::with_capacity(9 * 9 * 4);
+        for y in 0..9u8 {
+            for x in 0..9u8 {
+                let v = if (x + y) % 2 == 0 { 255 } else { 0 };
+                data.extend_from_slice(&[v, v, v, 255]);
+            }
+        }
+        EffectImage::from_rgba8(9, 9, data).unwrap()
+    }
+
+    fn px(img: &EffectImage, x: usize, y: usize) -> [u8; 4] {
+        let o = (y * img.width() as usize + x) * 4;
+        let d = img.data();
+        [d[o], d[o + 1], d[o + 2], d[o + 3]]
+    }
+
+    #[test]
+    fn radial_blur_center_is_a_fraction_of_the_image() {
+        // The catalog and the agent tools send the centre as 0..1 of the
+        // image; 0.5 / 0.5 must spin around the middle pixel, not (0.5, 0.5) px.
+        let src = checker9();
+        let spec = EffectSpec::from_params("radial_blur", &[40.0, 0.5, 0.5, 0.0]).unwrap();
+        let out = spec.run(&src);
+        assert_eq!(px(&out, 4, 4), px(&src, 4, 4), "centre pixel must stay");
+        assert_ne!(px(&out, 0, 4), px(&src, 0, 4), "edge pixel must spin");
     }
 }
