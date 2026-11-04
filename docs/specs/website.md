@@ -117,14 +117,14 @@ Hints that drift — the code is the truth.
 | AC-03 | `website/e2e/pages.spec.ts`: "AC-03: … switches to … on the same page" (all ten pages) | built |        |
 | AC-04 | `website/e2e/pages.spec.ts`: "AC-04: links on … stay in …", "AC-04: copy links on the home page follow its language" | built |        |
 | AC-05 | `website/e2e/pages.spec.ts`: "AC-05: the header / hero / final call to action link loads /app/ as a new document" | built |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-06 | `website/e2e/seo.spec.ts`: "AC-06: … carries title, description, canonical, hreflang, Open Graph and Twitter tags" (all ten pages), "AC-06: the Open Graph image is a 1200×630 PNG" | built |        |
+| AC-07 | `website/e2e/seo.spec.ts`: "AC-07: the en / de home page carries SoftwareApplication JSON-LD" | built |        |
+| AC-08 | `website/e2e/seo.spec.ts`: "AC-08: sitemap.xml lists every page with its language alternates", "AC-08: robots.txt allows crawling, keeps out /app and names the sitemap" | built |        |
+| AC-09 | `website/e2e/comparison.spec.ts`: "AC-09: the home page compares Pincel, Aseprite and Piskel in 14 rows" | built |        |
+| AC-10 | `website/e2e/download.spec.ts`: "AC-10: the en / de hero offers …" and "AC-10: the Download page shows a system button only once one is detected" per visitor (Windows, Windows on ARM, macOS, x64 Linux, iPhone, Android, iPad with a macOS UA, ChromeOS, ARM Linux), "AC-10: the en / de hero links to the Download page" (without JavaScript) | built |        |
+| AC-11 | `website/e2e/download.spec.ts`: "AC-11: the en / de Download page lists every release file" | built |        |
+| AC-12 | `website/e2e/crt.spec.ts`: "AC-12: the CRT effect is on without a stored choice", "AC-12: switched off, the CRT effect stays off on later visits", "AC-12: with storage blocked the effect is on and toggles for the visit" | built |        |
+| AC-13 | manual (Cloudflare deployment): `static/404.html` and `not_found_handling = "404-page"` are unchanged; sign-off open | open |        |
 
 ## Decisions
 
