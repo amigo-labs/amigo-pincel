@@ -1,7 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { hasNativeMenu, isTauri } from '../src/lib/platform';
-import { drag, gotoStart, imageCanvas, pixelCanvas, storedPref, waitForEditor } from './helpers';
+import {
+  clearClipboard,
+  copiedImage,
+  drag,
+  gotoStart,
+  imageCanvas,
+  pixelCanvas,
+  pixelOf,
+  storedPref,
+  waitForEditor,
+  type ClipImage,
+} from './helpers';
 
 // The desktop shell as the shared UI sees it (docs/specs/desktop-app.md).
 // src-tauri cannot run here, so a stand-in Tauri 2 bridge
@@ -406,7 +417,7 @@ test.describe('desktop on Windows', () => {
 // (docs/specs/power-user-shortcuts-coverage.md AC-08); a browser tab keeps
 // them for reload (shortcuts-coverage.spec.ts checks the empty hints).
 test.describe('desktop rotation keys', () => {
-  test.use({ userAgent: LINUX_UA });
+  test.use({ userAgent: LINUX_UA, permissions: ['clipboard-read', 'clipboard-write'] });
 
   test('Ctrl+R and Ctrl+Shift+R rotate the image 90° (power-user-shortcuts-coverage AC-08)', async ({
     page,
@@ -423,16 +434,46 @@ test.describe('desktop rotation keys', () => {
 
     await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
     const imageMenu = page.getByRole('menu', { name: 'Image', exact: true });
-    await expect(imageMenu.getByRole('menuitem', { name: 'Rotate 90° CW' })).toContainText('Ctrl+R');
+    await expect(imageMenu.getByRole('menuitem', { name: 'Rotate 90° CW' })).toContainText(
+      'Ctrl+R',
+    );
     await expect(imageMenu.getByRole('menuitem', { name: 'Rotate 90° CCW' })).toContainText(
       'Ctrl+Shift+R',
     );
     await page.keyboard.press('Escape');
 
+    // A mark in the top-left corner shows the direction of each turn.
+    await page.keyboard.press('b');
+    await drag(page, imageCanvas(page), [0.02, 0.04], [0.06, 0.04]);
+    const image = async (): Promise<ClipImage> => {
+      await page.keyboard.press('ControlOrMeta+a');
+      await clearClipboard(page);
+      await page.keyboard.press('ControlOrMeta+c');
+      await page.keyboard.press('ControlOrMeta+d');
+      return copiedImage(page);
+    };
+    const opaque = (img: ClipImage, x: number, y: number) => (pixelOf(img, x, y)[3] ?? 0) > 0;
+    expect(opaque(await image(), 0, 0)).toBe(true);
+
+    // Clockwise: the top-left corner goes to the top-right.
     await page.keyboard.press('Control+r');
     await expect(size).toContainText('16 × 32');
+    const cw = await image();
+    expect(opaque(cw, cw.width - 1, 0)).toBe(true);
+    expect(opaque(cw, 0, 0)).toBe(false);
+
+    // Counter-clockwise turns it back.
     await page.keyboard.press('Control+Shift+R');
     await expect(size).toContainText('32 × 16');
+    const back = await image();
+    expect(opaque(back, 0, 0)).toBe(true);
+
+    // Counter-clockwise once more: the top-left corner goes to the bottom-left.
+    await page.keyboard.press('Control+Shift+R');
+    await expect(size).toContainText('16 × 32');
+    const ccw = await image();
+    expect(opaque(ccw, 0, ccw.height - 1)).toBe(true);
+    expect(opaque(ccw, 0, 0)).toBe(false);
   });
 });
 
