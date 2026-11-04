@@ -25,7 +25,7 @@ test('Ctrl+V on the start screen opens the clipboard image as a new Image docume
   await page.keyboard.press('ControlOrMeta+v');
   await waitForEditor(page, 'image');
   await expect(imageSize(page, 40, 30)).toBeVisible();
-  await expect(page.getByText('Pasted image.png')).toBeVisible();
+  await expect(page.getByTitle('Pasted image.png', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(1);
 });
 
@@ -75,7 +75,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('ControlOrMeta+Alt+v');
     await waitForEditor(page, 'image');
     await expect(imageSize(page, 24, 12)).toBeVisible();
-    await expect(page.getByText('Pasted image.png')).toBeVisible();
+    await expect(page.getByTitle('Pasted image.png', { exact: true })).toBeVisible();
   });
 
   test(`${mode}: Paste as New Image with no image shows a notice and keeps the document (AC-25)`, async ({

@@ -1,7 +1,18 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Document, loadCore } from '../../lib/core';
+  import { loadCore } from '../../lib/core';
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
+  import { RecoveryOffer } from '../../lib/idb/autosave-session.svelte';
+  import type { TabItem } from '../../lib/components/layout/TabBar.svelte';
+  import {
+    bindTabHooks,
+    detachAllTabs,
+    isTabDirty,
+    requestCloseTab,
+    runningSave,
+    saveTab,
+  } from './tab-session';
+  import { activateTab, neighbourTab, tabById } from './tabs.svelte';
   import TileEditor from './components/TileEditor.svelte';
   import TilesetPanel from './components/TilesetPanel.svelte';
   import SlicesPanel from './components/SlicesPanel.svelte';
@@ -52,7 +63,6 @@
     applyOnion,
     deleteSelectionPixels,
     deselect,
-    disposeDoc,
     duplicateLayer,
     flattenLayers,
     mergeDownLayer,
@@ -71,9 +81,9 @@
     undo,
   } from './doc-ops';
   import {
-    autosave,
     bindShell,
     closeSvgDialog,
+    createTab,
     describeAnimation,
     exportAnimation,
     exportSvg,
@@ -82,21 +92,17 @@
     exportPng,
     exportSheet,
     fsAccessAvailable,
-    guardUnsaved,
     idbAvailable,
     importPngLayer,
-    initAutosave,
-    isDocDirty,
     openDoc,
     openNewDialog,
     openOpened,
     openRecent,
+    openRecovered,
     nativeMenuHost,
     openAnimationDialog,
     openSheetDialog,
     recentsAvailable,
-    runningSave,
-    save,
     tauriHost,
   } from './file-ops';
   import {
@@ -126,7 +132,6 @@
   import {
     MAX_ZOOM,
     MIN_ZOOM,
-    fitView,
     onWheel,
     resetView,
     zoomActual,
@@ -143,6 +148,7 @@
     play,
     probe,
     resetPixelStore,
+    tabs,
     toolState,
     view,
   } from './stores/editor.svelte';
@@ -157,8 +163,10 @@
     onRequestNew,
     onOpenForeign,
     onOpenFile,
-    confirmUnsaved,
+    confirmClose,
     registerDocument,
+    registerSession,
+    onEmpty,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -168,16 +176,52 @@
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
     openFile: (opened) => onOpenFile(opened),
-    confirmUnsaved: (action) => confirmUnsaved(action),
   });
-  initAutosave();
+  bindTabHooks({
+    registerDocument: (doc) => registerDocument(doc),
+    confirmClose: (doc, close) => confirmClose(doc, close),
+    onEmpty: () => onEmpty(),
+  });
+
+  // Autosave recovery: Recover opens the snapshot as a tab (document-tabs AC-15).
+  const recovery = new RecoveryOffer({
+    mode: 'pixel',
+    busy: () => file.busy,
+    open: async (bytes, meta) => openRecovered(bytes, meta.name, meta.docId),
+    report: (action, error) => {
+      ed.status = t('status.failed', {
+        action: t(action === 'recover' ? 'act.recover' : 'act.discard'),
+        error,
+      });
+    },
+  });
+
+  /** The tab bar's tabs (document-tabs AC-01). */
+  const tabItems: TabItem[] = $derived(
+    tabs.list.map((tab) => ({ id: tab.id, name: tab.file.saveTarget.name, dirty: isTabDirty(tab) })),
+  );
+
+  /** Make the tab with `id` active (AC-04). */
+  function selectTab(id: number) {
+    const tab = tabById(id);
+    if (tab) activateTab(tab);
+  }
+
+  function stepTab(step: 1 | -1) {
+    const tab = neighbourTab(step);
+    if (tab) activateTab(tab);
+  }
+
+  function save(forceAs = false): Promise<boolean> {
+    return saveTab(tabs.active, forceAs);
+  }
 
   // Release version stamped in by the release workflow; `dev` locally.
   const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
 
   // "Modified since last save" — drives the footer dot, the tab title,
-  // and the beforeunload warning.
-  const isDirty = $derived(isDocDirty());
+  // and the window title.
+  const isDirty = $derived(isTabDirty(tabs.active));
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
   const COLOR_PREF = 'lastColor';
@@ -242,9 +286,11 @@
       playing: play.playing,
       probeOn: probe.on,
       newDoc: openNewDialog,
-      open: () => guardUnsaved(() => void openDoc()),
+      open: () => void openDoc(),
       openRecent: (r) => void openRecent(r),
-      save: (asNew) => void save({ forceAs: asNew }),
+      save: (asNew) => void save(asNew),
+      close: () => requestCloseTab(),
+      saving: runningSave() !== null,
       importPng: () => void importPngLayer(),
       exportPng: () => void exportPng(),
       exportSheet: openSheetDialog,
@@ -311,7 +357,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || recovery.snapshots.length > 0) return;
     if (dialogs.selectionRadius || dialogs.paste || help.about) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -364,11 +410,18 @@
   function runShortcut(action: ShortcutAction): boolean {
     switch (action) {
       case 'open':
-        guardUnsaved(() => void openDoc());
+        void openDoc();
         return true;
       case 'save':
       case 'saveAs':
-        void save({ forceAs: action === 'saveAs' });
+        void save(action === 'saveAs');
+        return true;
+      case 'nextTab':
+      case 'prevTab':
+        stepTab(action === 'nextTab' ? 1 : -1);
+        return true;
+      case 'closeTab':
+        requestCloseTab();
         return true;
       case 'export':
         void exportPng();
@@ -476,25 +529,24 @@
           live.renderer = r;
           ed.backend = r.backend;
         }
-        const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.width ?? 64)));
-        const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.height ?? 64)));
-        ed.doc = new Document(w, h);
-        syncMeta();
-        fitView();
-        syncSelection();
-        live.needsRecompose = true;
-        ed.lastSavedUndoDepth = ed.doc.undoDepth;
-        ed.status = t('px.ready');
         live.rafHandle = requestAnimationFrame(tick);
-        // The shell hands over a file it already read (start screen,
-        // drag-and-drop, file association, Open Recent).
+        // The first tab: a file the shell already read (start screen,
+        // drag-and-drop, file association, Open Recent), or a blank sprite.
         if (initialFile) {
           file.busy = true;
+          let opened: boolean;
           try {
-            await openOpened(initialFile);
+            opened = await openOpened(initialFile);
           } finally {
             file.busy = false;
           }
+          // Nothing to show: the start screen names the error.
+          if (!opened) {
+            if (!cancelled) onEmpty(ed.status);
+            return;
+          }
+        } else {
+          createTab({ width: initialNew?.width ?? 64, height: initialNew?.height ?? 64 });
         }
         // Queued behind the `tick` above, so the document has composed
         // by the time the canvas reports ready.
@@ -512,7 +564,6 @@
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('paste', onWindowPaste);
     window.addEventListener('blur', onWindowBlur);
-    window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
     // Wheel zoom is registered imperatively (not via `onwheel`) so the
     // listener is non-passive and `preventDefault()` actually suppresses
@@ -552,23 +603,27 @@
           console.error('listRecents failed', err);
         });
     }
-    // Recovery probe and the autosave timer. A tick before `loadCore`
-    // resolves is a no-op (no document yet).
-    autosave.start();
-    // The document as the shell's unsaved-changes prompt and close guard
-    // see it (docs/specs/unsaved-changes-prompt.md).
-    const unregisterDocument = registerDocument({
-      name: () => file.saveTarget.name,
-      dirty: isDocDirty,
-      save: () => save(),
-      running: runningSave,
-      discard: () => autosave.finish(),
+    // Recovery probe; each tab runs its own autosave timer.
+    recovery.probe();
+    // Same-mode documents the shell routes here open as tabs.
+    const unregisterSession = registerSession({
+      open: async (opened) => {
+        if (file.busy) return false;
+        file.busy = true;
+        try {
+          return await openOpened(opened);
+        } finally {
+          file.busy = false;
+        }
+      },
+      create: (params) => createTab(params),
     });
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
+      'menu:close': () => requestCloseTab(),
       'menu:save': () => void save(),
-      'menu:saveAs': () => void save({ forceAs: true }),
+      'menu:saveAs': () => void save(true),
       'menu:exportPng': () => void exportPng(),
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
@@ -583,19 +638,18 @@
       cancelled = true;
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
-      autosave.close();
-      unregisterDocument();
+      recovery.stop();
+      unregisterSession();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('paste', onWindowPaste);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
-      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       view.canvas?.removeEventListener('wheel', onWheel);
       live.renderer?.destroy();
       live.renderer = null;
-      disposeDoc();
+      detachAllTabs();
     };
   });
 
@@ -625,15 +679,6 @@
     document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
   });
 
-  // Warn before the tab closes with unsaved edits. Autosave (30 s
-  // cadence) softens the loss, but the user should still get the
-  // browser's "leave site?" prompt.
-  function onBeforeUnload(e: BeforeUnloadEvent) {
-    if (!isDirty) return;
-    e.preventDefault();
-    // Chrome still requires returnValue to be set.
-    e.returnValue = '';
-  }
 
   // Push the current recents list to the Rust-side `Open Recent`
   // submenu so the native menu stays in sync with the in-memory list.
@@ -836,6 +881,13 @@
   {menus}
   title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
+  tabs={{
+    tabs: tabItems,
+    active: tabs.active?.id ?? null,
+    closeHint: hint('closeTab'),
+    onSelect: selectTab,
+    onClose: (id) => requestCloseTab(tabById(id)),
+  }}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
@@ -1052,13 +1104,13 @@
   {/snippet}
 </EditorFrame>
 
-{#if autosave.snapshots.length > 0}
+{#if recovery.snapshots.length > 0}
   <RecoveryDialog
-    snapshots={autosave.snapshots}
-    errors={autosave.errors}
-    onRecover={(snap) => void autosave.recover(snap)}
-    onDiscard={(id) => void autosave.discard(id)}
-    onDismiss={() => autosave.dismiss()}
+    snapshots={recovery.snapshots}
+    errors={recovery.errors}
+    onRecover={(snap) => void recovery.recover(snap)}
+    onDiscard={(id) => void recovery.discard(id)}
+    onDismiss={() => recovery.dismiss()}
   />
 {/if}
 

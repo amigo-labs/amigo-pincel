@@ -1,92 +1,25 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
+import {
+  closeWindow,
+  destroyed,
+  emit,
+  installTauriMock,
+  putFile,
+  releaseWrite,
+  setMock,
+  type MockWindow,
+} from './tauri-mock';
 
 // Desktop close guard and the OS hand-over of the unsaved-changes prompt
-// (docs/specs/unsaved-changes-prompt.md AC-01, AC-08 – AC-11), against a
-// mocked Tauri bridge: `__TAURI_INTERNALS__` answers the IPC calls the UI
-// makes (event listen, window destroy, native dialogs, file reads and
-// writes over a virtual disk) and lets the test emit events. The real
-// window behavior on each OS stays a manual check (AC-09, AC-10).
-
-type WriteMode = 'write' | 'fail' | 'hold';
-
-interface TauriMock {
-  emit(event: string, payload: unknown): void;
-  destroyed: number;
-  writeMode: WriteMode;
-  release: (() => void) | null;
-  savePick: string | null;
-  disk: Record<string, number[]>;
-}
-
-type MockWindow = Window & { __mock: TauriMock };
+// (docs/specs/unsaved-changes-prompt.md AC-01, AC-08 – AC-11), against the
+// mocked Tauri bridge of `tauri-mock.ts`. The real window behavior on each
+// OS stays a manual check (AC-09, AC-10).
 
 test.beforeEach(async ({ page }) => {
   // A reload with unsaved work asks the browser's leave-page question.
   page.on('dialog', (d) => void d.accept());
-  await page.addInitScript(() => {
-    type Callback = (payload: unknown) => void;
-    const callbacks = new Map<number, Callback>();
-    const listeners = new Map<string, number[]>();
-    let nextId = 1;
-    const mock: TauriMock = {
-      emit(event, payload) {
-        for (const id of listeners.get(event) ?? []) callbacks.get(id)?.({ event, id, payload });
-      },
-      destroyed: 0,
-      writeMode: 'write',
-      release: null,
-      savePick: '/docs/sprite.aseprite',
-      disk: {},
-    };
-    const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
-      switch (cmd) {
-        case 'plugin:event|listen': {
-          const event = String(args.event);
-          const handler = Number(args.handler);
-          listeners.set(event, [...(listeners.get(event) ?? []), handler]);
-          return handler;
-        }
-        case 'plugin:window|destroy':
-          mock.destroyed += 1;
-          return null;
-        case 'plugin:dialog|save':
-          return mock.savePick;
-        case 'read_file_bytes': {
-          const bytes = mock.disk[String(args.path)];
-          if (!bytes) throw new Error('No such file or directory');
-          return bytes;
-        }
-        case 'write_file_bytes':
-          if (mock.writeMode === 'hold') {
-            await new Promise<void>((resolve) => (mock.release = resolve));
-          }
-          if (mock.writeMode === 'fail') throw new Error('disk full');
-          mock.disk[String(args.path)] = args.bytes as number[];
-          return null;
-        default:
-          return null;
-      }
-    };
-    Object.assign(window, {
-      __mock: mock,
-      __TAURI_INTERNALS__: {
-        metadata: {
-          currentWindow: { label: 'main' },
-          currentWebview: { windowLabel: 'main', label: 'main' },
-        },
-        invoke,
-        transformCallback: (cb: Callback) => {
-          const id = nextId++;
-          callbacks.set(id, cb);
-          return id;
-        },
-        unregisterCallback: (id: number) => callbacks.delete(id),
-        convertFileSrc: (path: string) => path,
-      },
-      __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: () => undefined },
-    });
-  });
+  await installTauriMock(page);
 });
 
 /** A valid 1×1 PNG. */
@@ -97,45 +30,6 @@ const PNG_1X1 = Buffer.from(
 
 function prompt(page: Page): Locator {
   return page.getByRole('alertdialog', { name: 'Unsaved changes' });
-}
-
-async function emit(page: Page, event: string, payload: unknown = null): Promise<void> {
-  await page.evaluate(([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p), [
-    event,
-    payload,
-  ]);
-}
-
-async function closeWindow(page: Page): Promise<void> {
-  await emit(page, 'tauri://close-requested');
-}
-
-async function destroyed(page: Page): Promise<number> {
-  return page.evaluate(() => (window as unknown as MockWindow).__mock.destroyed);
-}
-
-async function setMock(page: Page, patch: Partial<Pick<TauriMock, 'writeMode' | 'savePick'>>): Promise<void> {
-  await page.evaluate((p) => Object.assign((window as unknown as MockWindow).__mock, p), patch);
-}
-
-async function putFile(page: Page, path: string, bytes: Buffer | null): Promise<void> {
-  await page.evaluate(
-    ([p, b]) => {
-      const disk = (window as unknown as MockWindow).__mock.disk;
-      if (b === null) delete disk[p as string];
-      else disk[p as string] = b as number[];
-    },
-    [path, bytes === null ? null : Array.from(bytes)] as const,
-  );
-}
-
-async function releaseWrite(page: Page): Promise<void> {
-  await page.waitForFunction(() => (window as unknown as MockWindow).__mock.release !== null);
-  await page.evaluate(() => {
-    const mock = (window as unknown as MockWindow).__mock;
-    mock.release?.();
-    mock.release = null;
-  });
 }
 
 /** Opens the app (past the first-launch file-association note). */
@@ -299,6 +193,26 @@ test('a handed-over file that cannot be read shows its error and no prompt (AC-1
   await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
 });
 
+/** Clicks the first File ▸ Open Recent entry named `name` (a recent
+ *  re-opened through the shell is listed again under a new id). */
+async function openRecentEntry(page: Page, name: string): Promise<void> {
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+  await page.getByRole('menu', { name: 'File', exact: true }).getByRole('menuitem', { name: 'Open Recent' }).click();
+  await page
+    .getByRole('menu', { name: 'Open Recent', exact: true })
+    .getByRole('menuitem', { name, exact: true })
+    .first()
+    .click();
+}
+
+/** File ▸ New… of the other mode: Create replaces the session. */
+async function newOfOtherMode(page: Page, mode: 'pixel' | 'image'): Promise<void> {
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  await dialog.getByRole('radio', { name: mode === 'image' ? /^Image/ : /^Pixel sprite/ }).click();
+  await dialog.getByRole('button', { name: 'Create' }).click();
+}
+
 test('Open Recent asks first, from both editors; a missing recent shows its error (AC-01, AC-11)', async ({
   page,
 }) => {
@@ -310,40 +224,33 @@ test('Open Recent asks first, from both editors; a missing recent shows its erro
   await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
   await paint(page, 'pixel');
 
-  // Pixel mode's own File ▸ Open Recent.
+  // Pixel mode's own File ▸ Open Recent of the file in the open tab: that
+  // tab stays active with its changes, no prompt (document-tabs AC-03).
   await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
-  await expect(prompt(page)).toBeVisible();
-  await prompt(page).getByRole('button', { name: "Don't Save" }).click();
-  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+  await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(1);
 
   // Image mode routes Open Recent through the shell.
-  await menu(page, 'File', 'New…');
-  const dialog = page.getByRole('dialog', { name: 'New document' });
-  await dialog.getByRole('radio', { name: /^Image/ }).click();
-  await dialog.getByRole('button', { name: 'Create' }).click();
+  await newOfOtherMode(page, 'image');
+  await prompt(page).getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, 'image');
   await paint(page, 'image');
-  await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
+  await openRecentEntry(page, 'sprite.aseprite');
   await expect(prompt(page)).toBeVisible();
   await prompt(page).getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, 'pixel');
   await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
 
   // A recent whose file is gone: error, no prompt.
-  await paint(page, 'pixel');
+  await newOfOtherMode(page, 'image');
+  await waitForEditor(page, 'image');
+  await paint(page, 'image');
   await putFile(page, '/docs/sprite.aseprite', null);
-  // A recent re-opened through the shell is listed again under a new id
-  // (as before this spec); either row points at the missing file.
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-  await page.getByRole('menu', { name: 'File', exact: true }).getByRole('menuitem', { name: 'Open Recent' }).click();
-  await page
-    .getByRole('menu', { name: 'Open Recent', exact: true })
-    .getByRole('menuitem', { name: 'sprite.aseprite', exact: true })
-    .first()
-    .click();
+  await openRecentEntry(page, 'sprite.aseprite');
   await expect(page.getByText(/sprite\.aseprite.*No such file/)).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
+  await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
 });
 
 test('a clean document opens a handed-over file and a recent at once (AC-07)', async ({ page }) => {
@@ -353,10 +260,10 @@ test('a clean document opens a handed-over file and a recent at once (AC-07)', a
   await page.keyboard.press('Control+s');
   await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
 
-  // Pixel mode's own Open Recent.
+  // Pixel mode's own Open Recent of the open file activates its tab.
   await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
-  await expect(page.getByText(/opened sprite\.aseprite/)).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(1);
 
   // The OS hands over a file.
   await putFile(page, '/docs/dot.png', PNG_1X1);
@@ -366,13 +273,7 @@ test('a clean document opens a handed-over file and a recent at once (AC-07)', a
   await expect(prompt(page)).toHaveCount(0);
 
   // Image mode's Open Recent, through the shell.
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-  await page.getByRole('menu', { name: 'File', exact: true }).getByRole('menuitem', { name: 'Open Recent' }).click();
-  await page
-    .getByRole('menu', { name: 'Open Recent', exact: true })
-    .getByRole('menuitem', { name: 'sprite.aseprite', exact: true })
-    .first()
-    .click();
+  await openRecentEntry(page, 'sprite.aseprite');
   await waitForEditor(page, 'pixel');
   await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);

@@ -315,6 +315,36 @@ export interface SaveTarget {
   path: string | null;
 }
 
+/** Where a document's file lives: an FSA handle (browser) or a path
+ *  (desktop app). */
+export type FileLocation = Pick<SaveTarget, 'handle' | 'path'>;
+
+/** Paths name the same file regardless of case on Windows and macOS. */
+function foldsPathCase(): boolean {
+  return typeof navigator !== 'undefined' && /Win|Mac/i.test(navigator.userAgent);
+}
+
+/**
+ * Whether `a` and `b` are the same file (docs/specs/document-tabs.md
+ * "Same file"): in the desktop app the same path — case-insensitive on
+ * Windows and macOS, exact on Linux, links not resolved; in the browser
+ * two handles the File System Access API reports as the same entry. A
+ * document without a path or handle is never the same file as another.
+ */
+export async function sameFile(a: FileLocation, b: FileLocation): Promise<boolean> {
+  if (a.path !== null && b.path !== null) {
+    return foldsPathCase() ? a.path.toLowerCase() === b.path.toLowerCase() : a.path === b.path;
+  }
+  if (a.handle !== null && b.handle !== null) {
+    try {
+      return await a.handle.isSameEntry(b.handle);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 /** True when the current browser exposes `window.showOpenFilePicker`,
  *  i.e. supports in-place save. Used to drive UI labels. */
 export function hasFsAccess(): boolean {

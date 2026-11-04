@@ -15,8 +15,9 @@ export interface NewDocParams {
   height: number;
 }
 
-/** The mounted editor's document, as the shell's unsaved-changes prompt
- *  and the desktop close guard see it (docs/specs/unsaved-changes-prompt.md). */
+/** One open document (a tab) of the mounted editor, as the shell's
+ *  unsaved-changes prompt and the desktop close guard see it
+ *  (docs/specs/unsaved-changes-prompt.md, docs/specs/document-tabs.md). */
 export interface EditorDocument {
   /** The name the top bar shows, with its extension. */
   name(): string;
@@ -32,11 +33,27 @@ export interface EditorDocument {
   /** Drop the document's autosave snapshot and stop autosaving: the app
    *  is about to close without saving. */
   discard(): Promise<void>;
+  /** Make this document's tab the active one (the prompt asks about it,
+   *  or Save All saves it). */
+  activate(): void;
+}
+
+/** The mounted editor's tabs, which the shell routes same-mode documents
+ *  to instead of remounting (docs/specs/document-tabs.md AC-02, AC-03). */
+export interface EditorSession {
+  /** Open an already-read file as a new tab, or activate the tab that
+   *  holds the same file; resolves `false` when it could not be opened
+   *  (the editor reports why, the active tab stays). */
+  open(file: OpenedFile): Promise<boolean>;
+  /** Create a blank document as a new tab. */
+  create(params: NewDocParams): void;
 }
 
 /** Props every editor component accepts. The shell mounts exactly one
  *  editor at a time and remounts it per session, so `initialFile` /
- *  `initialNew` are consumed once, right after the editor's core loaded. */
+ *  `initialNew` (the first tab) are consumed once, right after the
+ *  editor's core loaded; later same-mode documents arrive through the
+ *  registered `EditorSession`. */
 export interface EditorProps {
   /** File to open on mount (bytes already read), or `null`. */
   initialFile: OpenedFile | null;
@@ -50,17 +67,25 @@ export interface EditorProps {
    *  PNGs and only hands foreign formats over via `onOpenForeign`.) */
   onRequestOpen: () => void;
   /** The editor opened a file that belongs to the other mode; the shell
-   *  re-routes it (after its own unsaved-changes guard). */
+   *  re-routes it (replacing the session after its unsaved-changes guard). */
   onOpenForeign: (file: OpenedFile) => void;
   /** Open a document the editor was handed (Paste as New Image): the shell
-   *  runs its unsaved-changes guard, then routes it like Open…. */
+   *  routes it like Open… — a tab in this mode, else a new session. */
   onOpenFile: (file: OpenedFile) => void;
-  /** Run `action` (an in-editor Open / Open Recent that replaces the
-   *  document) once the shell's unsaved-changes prompt allows it. */
-  confirmUnsaved: (action: () => void) => void;
-  /** Hand the shell the editor's document on mount; returns the
-   *  unregister function the editor calls on unmount. */
+  /** Run `close` (closing `doc`'s tab) once the shell's unsaved-changes
+   *  prompt about that one document allows it (document-tabs AC-08). */
+  confirmClose: (doc: EditorDocument, close: () => void) => void;
+  /** Hand the shell one of the editor's documents (each tab, in opening
+   *  order); returns the unregister function the editor calls when the tab
+   *  closes or the editor unmounts. */
   registerDocument: (doc: EditorDocument) => () => void;
+  /** Hand the shell the editor's tabs on mount; returns the unregister
+   *  function the editor calls on unmount. */
+  registerSession: (session: EditorSession) => () => void;
+  /** The last tab was closed, or the first document could not be opened
+   *  (`error` names why): the shell shows the start screen (document-tabs
+   *  AC-09, edge cases). */
+  onEmpty: (error?: string) => void;
   /** Re-open a recent through the shell, which reads the file (FSA handle
    *  or Tauri path), runs the unsaved-changes guard and routes it to the
    *  mode the format belongs to. */

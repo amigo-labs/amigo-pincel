@@ -1,4 +1,7 @@
 // Reactive editor state (Svelte 5 runes). One store per concern (CLAUDE.md §5.4).
+// The document and view stores are per tab (docs/specs/document-tabs.md):
+// their per-document keys forward to the active tab (`lib/shell/tab-store`).
+import { tabStore } from '../../../lib/shell/tab-store';
 import type {
   BrushShape,
   DashPattern,
@@ -11,36 +14,83 @@ import type {
   ShapeMode,
   TextAlign,
 } from '../core/wasm';
-import type { DocSaveFormat } from '../core/document-file';
+import type { DocSaveFormat, DocumentFile } from '../core/document-file';
 
-/** The open document and its derived state. `handle` is the Rust-side index. */
-export const editor = $state({
-  handle: null as number | null,
-  width: 0,
-  height: 0,
-  activeLayer: 0,
-  canUndo: false,
-  canRedo: false,
-  /** Entries on the undo stack (mirrored from the core). */
-  undoDepth: 0,
-  /** `undoDepth` at the last save / open: the document is dirty while
-   *  the two differ. */
-  savedUndoDepth: 0,
-  /** Layers ordered bottom (index 0) to top, mirrored from the core. */
-  layers: [] as LayerInfo[],
-  /** Whether a selection is currently active (mirrored from the core). */
-  hasSelection: false,
-  /** Bumped after every mutation so the canvas and thumbnails refresh. */
-  revision: 0,
-  /** A live effect preview composite that overrides the canvas while an effect
-   * dialog is open; `null` shows the real composite (spec §11 live preview). */
-  previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
-  /** The document's file name, as Save writes it (mirrored from
-   *  `core/document-file.ts` for the editor title). */
-  fileName: 'image.ora',
-  /** One-line notice for the status bar (e.g. painting on a locked layer). */
-  notice: null as string | null,
+/** A tab's document state: what the editor mirrors from its core handle. */
+export function docInit() {
+  return {
+    /** The Rust-side document index; `null` while no document is open. */
+    handle: null as number | null,
+    width: 0,
+    height: 0,
+    activeLayer: 0,
+    canUndo: false,
+    canRedo: false,
+    /** Entries on the undo stack (mirrored from the core). */
+    undoDepth: 0,
+    /** `undoDepth` at the last save / open: the document is dirty while
+     *  the two differ. */
+    savedUndoDepth: 0,
+    /** Layers ordered bottom (index 0) to top, mirrored from the core. */
+    layers: [] as LayerInfo[],
+    /** Whether a selection is currently active (mirrored from the core). */
+    hasSelection: false,
+    /** The document's file name, as Save writes it (mirrored from
+     *  `core/document-file.ts` for the editor title). */
+    fileName: 'image.ora',
+  };
+}
+
+/** One tab's document state. */
+export type DocState = ReturnType<typeof docInit>;
+
+/** A tab's canvas view transform (spec §6.4). `fit` re-centres/-scales to
+ * the viewport until the user zooms or pans. Zoom is display px per
+ * document px. */
+export function viewInit() {
+  return { zoom: 1, panX: 0, panY: 0, fit: true };
+}
+
+/** One tab's view state. */
+export type ViewState = ReturnType<typeof viewInit>;
+
+/** One open document (docs/specs/document-tabs.md): its core state, view
+ *  and file. `id` is unique for the page load. */
+export interface ImageTab {
+  id: number;
+  doc: DocState;
+  view: ViewState;
+  file: DocumentFile;
+}
+
+/** The open tabs in opening order, and the active one. */
+export const tabs = $state({
+  list: [] as ImageTab[],
+  active: null as ImageTab | null,
 });
+
+// Stand-ins read while no tab is open (before the first document loads).
+const idleDoc = $state(docInit());
+const idleView = $state(viewInit());
+
+const DOC_KEYS = Object.keys(docInit()) as (keyof DocState)[];
+const VIEW_KEYS = Object.keys(viewInit()) as (keyof ViewState)[];
+
+// The state all tabs share.
+const sharedEditor = $state({
+    /** Bumped after every mutation (and on a tab switch) so the canvas
+     *  and thumbnails refresh. */
+    revision: 0,
+    /** A live effect preview composite that overrides the canvas while an
+     * effect dialog is open; `null` shows the real composite (spec §11). */
+    previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+    /** One-line notice for the status bar (e.g. painting on a locked layer). */
+    notice: null as string | null,
+});
+
+/** The active tab's document and its derived state, plus the state all
+ *  tabs share. */
+export const editor = tabStore(sharedEditor, DOC_KEYS, () => tabs.active?.doc ?? idleDoc);
 
 /** Transient UI chrome state (not document state). */
 export const ui = $state({
@@ -74,14 +124,9 @@ export interface FlattenChoice {
 /** The Save flow's open prompt, `null` while none is shown. */
 export const savePrompt = $state({ value: null as SavePrompt | null });
 
-/** Canvas view transform (spec §6.4). `fit` re-centres/-scales to the viewport
- * until the user zooms or pans. Zoom is display px per document px. */
-export const view = $state({
-  zoom: 1,
-  panX: 0,
-  panY: 0,
-  fit: true,
-});
+/** The active tab's canvas view transform. */
+const sharedView = $state({});
+export const view = tabStore(sharedView, VIEW_KEYS, () => tabs.active?.view ?? idleView);
 
 /** Largest canvas edge the UI lets the user create / resize / scale to.
  * The renderer only ever draws the visible rect into a viewport-sized

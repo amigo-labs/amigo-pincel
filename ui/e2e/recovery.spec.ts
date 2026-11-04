@@ -54,12 +54,15 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   await page.clock.fastForward(31_000);
   await page.waitForTimeout(500);
 
+  // A New document of the other mode replaces the session (document-tabs
+  // AC-10): the prompt comes after the New dialog.
   await menu(page, 'File', 'New…');
-  await page.getByRole('button', { name: "Don't Save" }).click();
   const newDialog = page.getByRole('dialog', { name: 'New document' });
+  await newDialog.getByRole('radio', { name: /^Image/ }).click();
   await newDialog.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('button', { name: "Don't Save" }).click();
   await expect(newDialog).toBeHidden();
-  await waitForEditor(page, 'pixel');
+  await waitForEditor(page, 'image');
   const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
   // The probe is async; give it time to (not) open the dialog.
   await page.waitForTimeout(500);

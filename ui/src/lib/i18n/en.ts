@@ -7,6 +7,9 @@ export const en = {
   'shell.saveChangesTo': 'Save changes to "{name}"?',
   'shell.save': 'Save',
   'shell.dontSave': "Don't Save",
+  'shell.saveAll': 'Save All',
+  'shell.unsavedIn': 'Unsaved changes in {n} images:',
+  'shell.dropSkipped': '{n} dropped file(s) of the other mode were not opened',
   'shell.unsupported':
     '{name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Open failed: {error}',
@@ -95,6 +98,10 @@ export const en = {
   'frame.variant': '{group} variant',
   'frame.togglePanels': 'Toggle panels',
   'frame.closePanels': 'Close panels',
+  'tabs.label': 'Open documents',
+  'tabs.close': 'Close',
+  'tabs.closeNamed': 'Close {name}',
+  'tabs.unsaved': 'unsaved changes',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -202,6 +209,7 @@ export const en = {
   'menu.save': 'Save',
   'menu.saveDownload': 'Save (download)',
   'menu.saveAs': 'Save As…',
+  'menu.close': 'Close',
   'menu.importPng': 'Import PNG as Layer…',
   'menu.export': 'Export',
   'menu.exportPngFrame': 'PNG (current frame)',

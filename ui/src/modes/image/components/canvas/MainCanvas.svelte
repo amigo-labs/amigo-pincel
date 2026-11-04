@@ -354,7 +354,9 @@
   });
 
   // Recompose whenever the document mutates or the view moves (only the
-  // visible rect is composited); fit a freshly opened document.
+  // visible rect is composited); fit a freshly opened document. A tab
+  // switched back to keeps its own zoom and scroll (document-tabs AC-05):
+  // only a view still in fit mode is re-fitted.
   let lastHandle: number | null = null;
   // A document is open, fitted and drawn — the canvas takes input.
   // Published as `data-ready` on the surface.
@@ -367,7 +369,7 @@
     void view.panY;
     if (editor.handle !== lastHandle) {
       lastHandle = editor.handle;
-      if (editor.handle !== null) {
+      if (editor.handle !== null && view.fit) {
         fitView();
       }
     }

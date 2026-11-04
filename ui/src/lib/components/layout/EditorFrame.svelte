@@ -23,6 +23,7 @@
   import { t } from '../../i18n/index.svelte';
   import { modifiers, notePointer } from '../../shell/modifiers.svelte';
   import ModifierBar from './ModifierBar.svelte';
+  import TabBar, { type TabBarProps } from './TabBar.svelte';
 
   interface Props {
     /** Mode badge and the key layout prefs are stored under. */
@@ -42,9 +43,22 @@
     quick?: Snippet;
     /** Status bar content. */
     statusbar?: Snippet;
+    /** The open documents, drawn as a tab bar above the canvas. */
+    tabs?: TabBarProps;
   }
-  const { mode, menus, panels, title, dirty = false, tools, options, viewport: stage, quick, statusbar }: Props =
-    $props();
+  const {
+    mode,
+    menus,
+    panels,
+    title,
+    dirty = false,
+    tools,
+    options,
+    viewport: stage,
+    quick,
+    statusbar,
+    tabs,
+  }: Props = $props();
 
   let layout = $state<FrameLayout>({ collapsed: {}, sidebar: true });
   // Drawer (medium) and bottom sheet (narrow) are per-session, not stored.
@@ -162,6 +176,9 @@
         >
           {@render options()}
         </div>
+      {/if}
+      {#if tabs}
+        <TabBar {...tabs} />
       {/if}
       <main class="relative min-h-0 flex-1 overflow-hidden" onpointerdowncapture={notePointer}>
         {@render stage()}

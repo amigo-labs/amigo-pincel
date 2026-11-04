@@ -12,6 +12,7 @@ import initWasm, {
   get_selection_bounds,
   save_project,
   close_document,
+  document_count,
   composite,
   composite_region,
   apply_command,
@@ -34,6 +35,7 @@ import initWasm, {
   type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
+import { publishDocumentCount } from '../../../lib/diagnostics';
 
 export type { Vectorizer };
 
@@ -394,6 +396,7 @@ export async function initCore(): Promise<void> {
     initialized = initWasm({ module_or_path: wasmUrl });
   }
   await initialized;
+  publishDocumentCount('image', document_count);
 }
 
 export const core = {

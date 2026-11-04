@@ -1,0 +1,144 @@
+import type { Page } from '@playwright/test';
+
+// A mocked Tauri bridge for e2e specs of the desktop paths: an init script
+// sets `__TAURI_INTERNALS__`, which answers the IPC calls the UI makes
+// (event listen, window destroy, native dialogs, file reads and writes over
+// a virtual disk) and lets the test emit events. The real window behavior
+// on each OS stays a manual check.
+
+export type WriteMode = 'write' | 'fail' | 'hold';
+
+export interface TauriMock {
+  emit(event: string, payload: unknown): void;
+  destroyed: number;
+  writeMode: WriteMode;
+  release: (() => void) | null;
+  savePick: string | null;
+  /** The path the native open dialog answers with; `null` is a cancel. */
+  openPick: string | null;
+  disk: Record<string, number[]>;
+}
+
+export type MockWindow = Window & { __mock: TauriMock };
+
+/** Installs the mocked bridge before the app's scripts run. */
+export async function installTauriMock(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type Callback = (payload: unknown) => void;
+    const callbacks = new Map<number, Callback>();
+    const listeners = new Map<string, number[]>();
+    let nextId = 1;
+    const mock: TauriMock = {
+      emit(event, payload) {
+        for (const id of listeners.get(event) ?? []) callbacks.get(id)?.({ event, id, payload });
+      },
+      destroyed: 0,
+      writeMode: 'write',
+      release: null,
+      savePick: '/docs/sprite.aseprite',
+      openPick: null,
+      disk: {},
+    };
+    const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
+      switch (cmd) {
+        case 'plugin:event|listen': {
+          const event = String(args.event);
+          const handler = Number(args.handler);
+          listeners.set(event, [...(listeners.get(event) ?? []), handler]);
+          return handler;
+        }
+        case 'plugin:window|destroy':
+          mock.destroyed += 1;
+          return null;
+        case 'plugin:dialog|save':
+          return mock.savePick;
+        case 'plugin:dialog|open':
+          return mock.openPick;
+        case 'read_file_bytes': {
+          const bytes = mock.disk[String(args.path)];
+          if (!bytes) throw new Error('No such file or directory');
+          return bytes;
+        }
+        case 'write_file_bytes':
+          if (mock.writeMode === 'hold') {
+            await new Promise<void>((resolve) => (mock.release = resolve));
+          }
+          if (mock.writeMode === 'fail') throw new Error('disk full');
+          mock.disk[String(args.path)] = args.bytes as number[];
+          return null;
+        default:
+          return null;
+      }
+    };
+    Object.assign(window, {
+      __mock: mock,
+      __TAURI_INTERNALS__: {
+        metadata: {
+          currentWindow: { label: 'main' },
+          currentWebview: { windowLabel: 'main', label: 'main' },
+        },
+        invoke,
+        transformCallback: (cb: Callback) => {
+          const id = nextId++;
+          callbacks.set(id, cb);
+          return id;
+        },
+        unregisterCallback: (id: number) => callbacks.delete(id),
+        convertFileSrc: (path: string) => path,
+      },
+      __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: () => undefined },
+    });
+  });
+}
+
+/** Emits a Tauri event to the UI's listeners. */
+export async function emit(page: Page, event: string, payload: unknown = null): Promise<void> {
+  await page.evaluate(([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p), [
+    event,
+    payload,
+  ]);
+}
+
+/** The window's close button (title-bar ×, Alt+F4, the taskbar). */
+export async function closeWindow(page: Page): Promise<void> {
+  await emit(page, 'tauri://close-requested');
+}
+
+/** How often the UI destroyed the window (closed the app). */
+export async function destroyed(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as MockWindow).__mock.destroyed);
+}
+
+export async function setMock(
+  page: Page,
+  patch: Partial<Pick<TauriMock, 'writeMode' | 'savePick' | 'openPick'>>,
+): Promise<void> {
+  await page.evaluate((p) => Object.assign((window as unknown as MockWindow).__mock, p), patch);
+}
+
+/** Puts `bytes` on the virtual disk at `path`; `null` removes the file. */
+export async function putFile(page: Page, path: string, bytes: Buffer | null): Promise<void> {
+  await page.evaluate(
+    ([p, b]) => {
+      const disk = (window as unknown as MockWindow).__mock.disk;
+      if (b === null) delete disk[p as string];
+      else disk[p as string] = b as number[];
+    },
+    [path, bytes === null ? null : Array.from(bytes)] as const,
+  );
+}
+
+/** The paths written to the virtual disk. */
+export async function diskPaths(page: Page): Promise<string[]> {
+  return page.evaluate(() => Object.keys((window as unknown as MockWindow).__mock.disk));
+}
+
+/** Lets a held write (`writeMode: 'hold'`) finish. */
+export async function releaseWrite(page: Page): Promise<void> {
+  await page.waitForFunction(() => (window as unknown as MockWindow).__mock.release !== null);
+  await page.evaluate(() => {
+    const mock = (window as unknown as MockWindow).__mock;
+    mock.release?.();
+    mock.release = null;
+  });
+}

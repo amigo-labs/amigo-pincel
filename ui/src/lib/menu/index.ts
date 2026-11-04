@@ -24,6 +24,7 @@ export type RecentHandler = (id: string) => void | Promise<void>;
 
 /** Menu items served by whichever editor is mounted. */
 export type EditorMenuId =
+  | 'menu:close'
   | 'menu:save'
   | 'menu:saveAs'
   | 'menu:exportPng'

@@ -11,6 +11,7 @@ import init, {
   Document,
   blendModeNames,
   effectNames,
+  openDocumentCount,
   registerFont,
   type ComposeFrame,
   type Event as PincelEvent,
@@ -23,6 +24,7 @@ import init, {
 // fires inside the wasm-pack-generated entry. Both work in dev; the
 // explicit form is unambiguous and survives bundling.
 import wasmUrl from '@amigo-labs/pincel-wasm/pincel_wasm_bg.wasm?url';
+import { publishDocumentCount } from '../diagnostics';
 
 export type { ComposeFrame, PincelEvent, VectorizeResult, Vectorizer };
 export { Document, blendModeNames, effectNames, registerFont };
@@ -35,7 +37,9 @@ let initPromise: Promise<void> | null = null;
  */
 export function loadCore(): Promise<void> {
   if (!initPromise) {
-    initPromise = init({ module_or_path: wasmUrl }).then(() => undefined);
+    initPromise = init({ module_or_path: wasmUrl }).then(() => {
+      publishDocumentCount('pixel', openDocumentCount);
+    });
   }
   return initPromise;
 }

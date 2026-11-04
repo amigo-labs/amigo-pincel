@@ -16,14 +16,16 @@
   import { requestClose, wireCloseGuard } from './lib/shell/close-guard';
   import {
     answerUnsaved,
+    guardDocument,
     guardUnsaved,
+    hasUnsaved,
     promptBusy,
     registerDocument,
     unsaved,
   } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
-  import type { EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
+  import type { EditorMode, EditorProps, EditorSession, NewDocParams } from './lib/shell/types';
   import {
     ensureReadPermission,
     formatFromName,
@@ -75,6 +77,8 @@
   let booting = $state(true);
   // Native-menu items the mounted editor serves (Tauri only).
   let editorMenu: EditorMenuHandlers | null = null;
+  // The mounted editor's tabs: same-mode documents open there.
+  let editorSession: EditorSession | null = null;
 
   const currentMode = $derived<EditorMode>(session.mode === 'image' ? 'image' : 'pixel');
 
@@ -83,39 +87,78 @@
   }
 
   function requestNew(mode: EditorMode) {
+    if (promptBusy()) return;
     newDialog = mode;
   }
 
-  function createNew(params: NewDocParams) {
-    newDialog = null;
-    launch(params.mode, { file: null, create: params });
+  // The mounted editor's mode, or `null` on the start screen.
+  function mountedMode(): EditorMode | null {
+    return session.mode === 'start' || editorSession === null ? null : session.mode;
   }
 
-  // Route an already-read file to the editor its format belongs to. Its
-  // format is recognized first, so only a file that can be opened asks
-  // about unsaved changes (unsaved-changes-prompt AC-01, AC-11); `guarded`
-  // is false where the prompt already ran (Open…, before its picker).
-  function openFile(opened: OpenedFile, guarded = true) {
-    shellError = null;
+  // Create in the mounted editor's mode adds a tab; another mode replaces
+  // the session after the unsaved-changes prompt (document-tabs AC-02,
+  // AC-10 – AC-12, app-shell AC-08).
+  function createNew(params: NewDocParams) {
+    newDialog = null;
+    if (params.mode === mountedMode()) {
+      editorSession?.create(params);
+      return;
+    }
+    void guardUnsaved(() => launch(params.mode, { file: null, create: params }));
+  }
+
+  // The mode an already-read file belongs to, or `null` (with its error
+  // shown) when it is not a supported format.
+  function modeOf(opened: OpenedFile): EditorMode | null {
     const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
     if (format === null) {
       shellError = t('shell.unsupported', { name: opened.name });
-      return;
+      return null;
     }
-    guardIf(guarded, () => launch(detectMode(format), { file: opened, create: null }));
+    return detectMode(format);
   }
 
-  function guardIf(guarded: boolean, action: () => void) {
-    if (guarded) guardUnsaved(action);
-    else action();
+  // Route an already-read file: a document of the mounted editor's mode
+  // opens as a tab without asking (document-tabs AC-02, AC-03); another
+  // mode's document replaces the session once the unsaved-changes prompt
+  // allows it. Its format is recognized first, so only a file that can be
+  // opened asks (unsaved-changes-prompt AC-01, AC-11; document-tabs AC-12).
+  // Ignored while the prompt is busy (unsaved-changes-prompt AC-08).
+  async function openFile(opened: OpenedFile): Promise<void> {
+    if (promptBusy()) return;
+    shellError = null;
+    const mode = modeOf(opened);
+    if (mode === null) return;
+    if (mode === mountedMode() && editorSession) {
+      await editorSession.open(opened);
+      return;
+    }
+    await guardUnsaved(() => launch(mode, { file: opened, create: null }));
+  }
+
+  function registerSession(s: EditorSession): () => void {
+    editorSession = s;
+    return () => {
+      if (editorSession === s) editorSession = null;
+    };
+  }
+
+  // The last tab closed, or the editor could not open its first document:
+  // back to the start screen (document-tabs AC-09, edge cases).
+  function showStart(error?: string) {
+    if (error) shellError = error;
+    editorSession = null;
+    session.pending = null;
+    session.mode = 'start';
   }
 
   async function openFromPicker() {
-    if (busy) return;
+    if (busy || promptBusy()) return;
     busy = true;
     try {
       const opened = await pickAndOpen();
-      if (opened) openFile(opened, false);
+      if (opened) await openFile(opened);
     } catch (err) {
       shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
@@ -135,7 +178,7 @@
     try {
       const bytes = await readPath(path);
       const name = path.replace(/^.*[/\\]/, '');
-      openFile({ name, bytes, mime: mimeFromName(name), handle: null, path });
+      await openFile({ name, bytes, mime: mimeFromName(name), handle: null, path });
     } catch (err) {
       shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
@@ -149,7 +192,7 @@
     try {
       if (tauriHost && r.path) {
         const bytes = await readPath(r.path);
-        openFile({ name: r.name, bytes, mime: mimeFromName(r.name), handle: null, path: r.path });
+        await openFile({ name: r.name, bytes, mime: mimeFromName(r.name), handle: null, path: r.path });
       } else if (r.handle) {
         if (!(await ensureReadPermission(r.handle))) {
           shellError = t('shell.permissionDenied', { name: r.name });
@@ -157,7 +200,7 @@
         }
         const file = await r.handle.getFile();
         const bytes = new Uint8Array(await file.arrayBuffer());
-        openFile({ name: file.name, bytes, mime: file.type, handle: r.handle, path: null });
+        await openFile({ name: file.name, bytes, mime: file.type, handle: r.handle, path: null });
       } else {
         shellError = t('shell.noHandle', { name: r.name });
       }
@@ -179,7 +222,7 @@
 
   async function openPasted(system: Blob | null): Promise<void> {
     const bytes = await newImageBytes(system);
-    if (bytes) openFile(pastedImageFile(bytes, system?.type ?? 'image/png'));
+    if (bytes) await openFile(pastedImageFile(bytes, system?.type ?? 'image/png'));
   }
 
   function onShellPaste(e: ClipboardEvent) {
@@ -202,23 +245,69 @@
 
   function onWindowDrop(e: DragEvent) {
     if (session.mode === 'start' || e.defaultPrevented) return;
-    const file = e.dataTransfer?.files[0];
-    if (!file) return;
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
     e.preventDefault();
-    void onDropFile(file);
+    void onDropFiles(files);
   }
 
+  async function readDropped(file: File): Promise<OpenedFile> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    return { name: file.name, bytes, mime: file.type, handle: null, path: null };
+  }
+
+  // A file dropped on the start screen.
   async function onDropFile(file: File) {
-    if (busy) return;
+    if (busy || promptBusy()) return;
     busy = true;
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      openFile({ name: file.name, bytes, mime: file.type, handle: null, path: null });
+      await openFile(await readDropped(file));
     } catch (err) {
       shellError = t('shell.dropFailed', { error: errText(err) });
     } finally {
       busy = false;
     }
+  }
+
+  // Files dropped onto an open editor (document-tabs AC-19): each one of
+  // the mounted editor's mode opens as a tab, in drop order; the other
+  // mode's are skipped with a notice, unless every file is of the other
+  // mode — then the first one replaces the session.
+  async function onDropFiles(files: File[]) {
+    if (busy || promptBusy()) return;
+    busy = true;
+    try {
+      const read = await Promise.all(files.map(readDropped));
+      shellError = null;
+      const own: OpenedFile[] = [];
+      const other: OpenedFile[] = [];
+      for (const opened of read) {
+        const mode = modeOf(opened);
+        if (mode !== null) (mode === mountedMode() ? own : other).push(opened);
+      }
+      const unsupported = shellError;
+      for (const opened of own) await openFile(opened);
+      const first = other[0];
+      if (own.length === 0 && first) {
+        other.shift();
+        await openFile(first);
+      }
+      if (other.length > 0) shellError = t('shell.dropSkipped', { n: other.length });
+      else if (unsupported !== null) shellError = unsupported;
+    } catch (err) {
+      shellError = t('shell.dropFailed', { error: errText(err) });
+    } finally {
+      busy = false;
+    }
+  }
+
+  // Warn before the page closes or reloads while any tab has unsaved
+  // changes (app-shell AC-15, document-tabs AC-13).
+  function onBeforeUnload(e: BeforeUnloadEvent) {
+    if (session.mode === 'start' || !hasUnsaved()) return;
+    e.preventDefault();
+    // Chrome still requires returnValue to be set.
+    e.returnValue = '';
   }
 
   async function refreshRecents() {
@@ -284,8 +373,8 @@
           console.error('close guard failed', err);
         });
       wireNativeMenu({
-        'menu:new': () => guardUnsaved(() => requestNew(currentMode)),
-        'menu:open': () => guardUnsaved(() => void openFromPicker()),
+        'menu:new': () => requestNew(currentMode),
+        'menu:open': () => void openFromPicker(),
         'menu:quit': () => requestClose(),
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
@@ -343,6 +432,7 @@
   onkeydown={onShellKeydown}
   ondragover={onWindowDragOver}
   ondrop={onWindowDrop}
+  onbeforeunload={onBeforeUnload}
 />
 
 {#if session.mode === 'start' && booting}
@@ -367,13 +457,15 @@
       <Editor
         initialFile={session.pending?.file ?? null}
         initialNew={session.pending?.create ?? null}
-        onRequestNew={() => guardUnsaved(() => requestNew(currentMode))}
-        onRequestOpen={() => guardUnsaved(() => void openFromPicker())}
-        onOpenForeign={(f) => openFile(f, false)}
-        onOpenFile={(f) => openFile(f)}
+        onRequestNew={() => requestNew(currentMode)}
+        onRequestOpen={() => void openFromPicker()}
+        onOpenForeign={(f) => void openFile(f)}
+        onOpenFile={(f) => void openFile(f)}
         onOpenRecent={(r) => void openRecent(r)}
-        confirmUnsaved={guardUnsaved}
+        confirmClose={guardDocument}
         {registerDocument}
+        registerSession={registerSession}
+        onEmpty={showStart}
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}
@@ -395,7 +487,7 @@
 {/if}
 
 {#if unsaved.prompt}
-  <UnsavedPrompt name={unsaved.prompt.name} onAnswer={(a) => void answerUnsaved(a)} />
+  <UnsavedPrompt names={unsaved.prompt.names} onAnswer={(a) => void answerUnsaved(a)} />
 {/if}
 
 {#if fileAssocOpen}

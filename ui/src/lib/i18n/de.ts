@@ -9,6 +9,9 @@ export const de: Record<MessageKey, string> = {
   'shell.saveChangesTo': 'Änderungen an „{name}“ speichern?',
   'shell.save': 'Speichern',
   'shell.dontSave': 'Nicht speichern',
+  'shell.saveAll': 'Alle speichern',
+  'shell.unsavedIn': 'Ungespeicherte Änderungen in {n} Bildern:',
+  'shell.dropSkipped': '{n} abgelegte Datei(en) des anderen Modus wurden nicht geöffnet',
   'shell.unsupported':
     '{name}: kein unterstütztes Format (Sprite, OpenRaster oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
@@ -102,6 +105,10 @@ export const de: Record<MessageKey, string> = {
   'frame.variant': '{group}-Variante',
   'frame.togglePanels': 'Bedienfelder ein/aus',
   'frame.closePanels': 'Bedienfelder schließen',
+  'tabs.label': 'Geöffnete Dokumente',
+  'tabs.close': 'Schließen',
+  'tabs.closeNamed': '„{name}“ schließen',
+  'tabs.unsaved': 'ungespeicherte Änderungen',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -209,6 +216,7 @@ export const de: Record<MessageKey, string> = {
   'menu.save': 'Speichern',
   'menu.saveDownload': 'Speichern (Download)',
   'menu.saveAs': 'Speichern unter…',
+  'menu.close': 'Schließen',
   'menu.importPng': 'PNG als Ebene importieren…',
   'menu.export': 'Exportieren',
   'menu.exportPngFrame': 'PNG (aktueller Frame)',
