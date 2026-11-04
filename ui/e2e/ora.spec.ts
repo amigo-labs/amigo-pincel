@@ -41,3 +41,38 @@ test('image mode: Save writes an OpenRaster file that reopens with its layers', 
   await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(2);
 });
+
+test('image mode: a saved group reopens with its child indented (image-layer-groups-ora AC-06)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 40, height: 30 });
+  await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
+  const list = page.getByRole('list', { name: 'Layer list' });
+  const grip = list.getByRole('button', { name: /^Drag to reorder / });
+  await expect(grip).toHaveCount(1);
+  const layer = ((await grip.getAttribute('aria-label')) ?? '').replace('Drag to reorder ', '');
+  const row = (name: string) =>
+    list.locator('li', {
+      has: page.getByRole('button', { name: `Drag to reorder ${name}`, exact: true }),
+    });
+  await menu(page, 'Layer', 'New Group');
+  await expect(row('Group 1')).toBeVisible();
+  // Alt+→ on the layer's grip: into the group listed above it.
+  await page.getByRole('button', { name: `Drag to reorder ${layer}`, exact: true }).focus();
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(row(layer)).toHaveAttribute('data-depth', '1');
+
+  const [download] = await Promise.all([page.waitForEvent('download'), menu(page, 'File', 'Save')]);
+  const bytes = await readFile(await download.path());
+
+  await gotoStart(page);
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByRole('button', { name: 'Open…' }).click(),
+  ]);
+  await chooser.setFiles({ name: 'image.ora', mimeType: 'image/openraster', buffer: bytes });
+  await waitForEditor(page, 'image');
+  await expect(row('Group 1')).toHaveAttribute('data-depth', '0');
+  await expect(row('Group 1')).toContainText('group');
+  await expect(row(layer)).toHaveAttribute('data-depth', '1');
+});

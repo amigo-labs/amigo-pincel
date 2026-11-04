@@ -74,13 +74,13 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-01 | `from_ora_bytes_keeps_nested_stack_attributes`, `from_ora_bytes_recovers_unbalanced_stacks`, `from_ora_bytes_over_the_layer_limit_fails` (`crates/pincel-image-core/src/codec/ora.rs`) | built |        |
+| AC-02 | `from_ora_bytes_keeps_nested_stack_attributes` (hidden stack), `from_ora_bytes_composites_a_half_opaque_stack_as_a_whole` (`codec/ora.rs`) | built |        |
+| AC-03 | `to_ora_bytes_writes_groups_as_nested_isolated_stacks` (`codec/ora.rs`) | built |        |
+| AC-04 | `to_ora_bytes_then_from_ora_bytes_keeps_the_layer_tree` (`codec/ora.rs`) | built |        |
+| AC-05 | `from_ora_bytes_reads_a_flat_stack_at_the_root`, `to_ora_bytes_then_from_ora_bytes_round_trips_layers` (`codec/ora.rs`) | built |        |
+| AC-06 | `image mode: a saved group reopens with its child indented (image-layer-groups-ora AC-06)` (`ui/e2e/ora.spec.ts`) | built |        |
+| AC-07 | `to_ora_bytes_merged_image_applies_groups_in_isolation`, `to_ora_bytes_merged_image_is_the_visible_composite` (`codec/ora.rs`) | built |        |
 
 ## Decisions
 
@@ -88,3 +88,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - Groups are written with `isolation="isolate"` — because Image-mode groups composite isolated (spec `image-layer-groups`), and the attribute tells other ORA readers to do the same.
 - 2026-10-29: A group's lock is written as `edit-locked="true"` on `<stack>` and read back, exactly as for `<layer>` (AC-01, AC-03, AC-04) — otherwise a locked group loses its lock on every save, and it is one attribute through the existing scanner (owner accepted the recommendation).
 - 2026-10-29: Unbalanced `<stack>` tags are recovered best-effort: open stacks close at the end of `stack.xml`, a stray `</stack>` is ignored, and no notice is shown — the reader is already lenient (an attribute scanner, not a validating parser), and the layers and pixels are intact (owner accepted the recommendation).
+- 2026-11-04 (spec-build): A `stack.xml` whose nested stacks hold no `<layer>` at all opens as a blank document (one transparent layer) — because a document needs a raster layer (image-layer-groups AC-20) and there are no pixels to keep.
+- 2026-11-04 (spec-build): A group's `x` / `y` on `<stack>` are ignored and Pincel writes none — because groups have no pixels of their own and the spec maps only name, opacity, visibility, blend mode and lock.
+- 2026-11-04 (spec-build): A stack without a `name` opens as `Group N` (N counting the groups read so far), like a nameless layer opens as `Layer N` — because every layer needs a name in the panel.
+- 2026-11-04 (spec-build): The AC-06 e2e was written after the codec change, so it never ran red; the codec tests ran red first (nested stacks were flattened, and writing a group failed on its 0×0 buffer).
