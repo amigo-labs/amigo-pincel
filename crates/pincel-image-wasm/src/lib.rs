@@ -853,6 +853,94 @@ mod effect_tests {
 }
 
 #[cfg(test)]
+mod outline_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    const COLOR: [u8; 4] = [0xFF, 0x80, 0x10, 0xC0];
+    const OUTLINE: [f64; 4] = [0.0, 1.0, 1.0, 0xFF80_10C0_u32 as f64];
+
+    fn px(bus: &CommandBus, x: u32, y: u32) -> [u8; 4] {
+        let p = &bus.document.layers()[0].pixels;
+        let o = ((y * p.width() + x) * 4) as usize;
+        let d = p.data();
+        [d[o], d[o + 1], d[o + 2], d[o + 3]]
+    }
+
+    /// One opaque pixel at (2, 1) on a 6 × 3 layer.
+    fn dot() -> CommandBus {
+        let mut data = vec![0; 6 * 3 * 4];
+        data[(6 + 2) * 4..(6 + 2) * 4 + 4].copy_from_slice(&[10, 20, 30, 255]);
+        let mut bus = CommandBus::new(Document::new(6, 3).expect("doc"));
+        bus.apply(Box::new(SetPixels::new(
+            0,
+            Rect::new(0, 0, 6, 3),
+            ImageBuffer::from_raw(6, 3, data).expect("buf"),
+        )))
+        .expect("paint");
+        bus
+    }
+
+    /// outline-effect AC-03 / AC-06 / AC-09 in Image mode: the neighbours
+    /// take the colour exactly, in one undo step that redo repeats.
+    #[test]
+    fn apply_effect_outline_colours_neighbours_and_undoes_in_one_step() {
+        let bus = dot();
+        let before = bus.document.layers()[0].pixels.clone();
+        let depth = bus.history.undo_depth();
+        let handle = insert(bus);
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        with_bus(handle, |bus| {
+            assert_eq!(bus.history.undo_depth(), depth + 1);
+            for (x, y) in [(1, 0), (3, 2), (1, 1), (3, 1)] {
+                assert_eq!(px(bus, x, y), COLOR, "({x}, {y})");
+            }
+            assert_eq!(px(bus, 2, 1), [10, 20, 30, 255]);
+            assert_eq!(px(bus, 4, 1), [0, 0, 0, 0]);
+            Ok(())
+        })
+        .expect("bus");
+        assert!(undo(handle).expect("undo"));
+        with_bus(handle, |bus| {
+            assert_eq!(bus.document.layers()[0].pixels, before, "undo restores");
+            Ok(())
+        })
+        .expect("bus");
+        assert!(redo(handle).expect("redo"));
+        with_bus(handle, |bus| {
+            assert_eq!(px(bus, 3, 1), COLOR, "redo repeats");
+            Ok(())
+        })
+        .expect("bus");
+    }
+
+    /// outline-effect AC-07 in Image mode: only the selection changes, an
+    /// opaque pixel outside it outlines into it, and a partly selected
+    /// pixel blends the outline by its coverage.
+    #[test]
+    fn apply_effect_outline_blends_a_feathered_selection_by_coverage() {
+        let mut bus = dot();
+        let mut mask = SelectionMask::rectangle(6, 3, Rect::new(3, 0, 3, 3));
+        mask.set(3, 0, 128);
+        bus.document.selection = Some(mask);
+        let handle = insert(bus);
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        with_bus(handle, |bus| {
+            assert_eq!(px(bus, 3, 1), COLOR, "fully selected: exact colour");
+            assert_eq!(px(bus, 3, 2), COLOR);
+            // 0 + (c - 0) * 128 / 255, rounded.
+            let half = COLOR.map(|c| ((u32::from(c) * 128 + 127) / 255) as u8);
+            assert_eq!(px(bus, 3, 0), half, "coverage 128 blends");
+            for y in 0..3 {
+                assert_eq!(px(bus, 1, y), [0, 0, 0, 0], "(1, {y}) outside");
+            }
+            Ok(())
+        })
+        .expect("bus");
+    }
+}
+
+#[cfg(test)]
 mod region_tests {
     use super::*;
 
