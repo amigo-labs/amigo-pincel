@@ -275,28 +275,37 @@ test('pixel: opening a file while an effect is open cancels the effect (AC-17)',
   await expect(undoButton(page)).toBeDisabled();
 });
 
-test('image: an autosave while an effect is open stores the document without the preview (AC-17)', async ({
-  page,
-}) => {
-  await page.clock.install();
-  await createDocument(page, 'image', { width: 16, height: 16 });
-  await fill(page, 'image');
-  await openInvert(page);
-  await page.clock.fastForward(31_000);
-  // Let the IndexedDB write settle before leaving the page.
-  await page.waitForTimeout(500);
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: an autosave while an effect is open stores the document without the preview (AC-17)`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await fill(page, mode);
+    // The fill colour as the document holds it, before any preview.
+    await clearClipboard(page);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Control+c');
+    const fillColor = pixelOf(await copiedImage(page), 8, 8);
+    await page.keyboard.press('Control+d');
+    await openInvert(page);
+    await page.clock.fastForward(31_000);
+    // Let the IndexedDB write settle before leaving the page.
+    await page.waitForTimeout(500);
 
-  await page.reload();
-  await createDocument(page, 'image', { width: 8, height: 8 });
-  const dialog = page.getByRole('dialog', { name: 'Recover unsaved work?' });
-  await dialog.getByRole('button', { name: 'Recover' }).first().click();
-  await expect(dialog).toHaveCount(0);
-  await waitForEditor(page, 'image');
-  await clearClipboard(page);
-  await page.keyboard.press('Control+a');
-  await page.keyboard.press('Control+c');
-  const img = await copiedImage(page);
-  expect(img.width).toBe(16);
-  // The fill (opaque black), not its inverted preview.
-  expect(pixelOf(img, 8, 8)).toEqual([0, 0, 0, 255]);
-});
+    await page.reload();
+    await createDocument(page, mode, { width: 8, height: 8 });
+    const dialog = page.getByRole('dialog', { name: 'Recover unsaved work?' });
+    await dialog.getByRole('button', { name: 'Recover' }).first().click();
+    await expect(dialog).toHaveCount(0);
+    await waitForEditor(page, mode);
+    await clearClipboard(page);
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Control+c');
+    const img = await copiedImage(page);
+    expect(img.width).toBe(16);
+    // The fill, not its inverted preview.
+    expect(fillColor[3]).toBe(255);
+    expect(pixelOf(img, 8, 8)).toEqual(fillColor);
+  });
+}
