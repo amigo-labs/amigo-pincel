@@ -14,8 +14,12 @@
   import PanelHost from './PanelHost.svelte';
   import type { MenuDef } from './menu';
   import {
+    SIDEBAR_DEFAULT_WIDTH,
+    SIDEBAR_MIN_WIDTH,
     loadLayout,
     saveLayout,
+    sidebarMaxWidth,
+    sidebarWidth,
     type FrameLayout,
     type PanelDef,
   } from './panels.svelte';
@@ -80,6 +84,53 @@
     } else {
       sheetTab = sheetTab === null ? (panels[0]?.id ?? null) : null;
     }
+  }
+
+  // Docked sidebar width (effect-panel AC-07 – AC-11): the stored width,
+  // clamped to what the window allows; the stored value only changes when
+  // the user moves the splitter.
+  const asideWidth = $derived(sidebarWidth(layout.sidebarWidth, viewport.width));
+  const asideMax = $derived(sidebarMaxWidth(viewport.width));
+  const SPLITTER_STEP = 16;
+  let splitDrag: { pointer: number; x: number; width: number } | null = null;
+
+  function setSidebarWidth(width: number): void {
+    layout.sidebarWidth = sidebarWidth(width, viewport.width);
+  }
+
+  function onSplitterDown(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    splitDrag = { pointer: e.pointerId, x: e.clientX, width: asideWidth };
+  }
+
+  function onSplitterMove(e: PointerEvent): void {
+    if (splitDrag?.pointer !== e.pointerId) return;
+    // The splitter is the sidebar's left edge: moving left widens it.
+    setSidebarWidth(splitDrag.width + (splitDrag.x - e.clientX));
+  }
+
+  // Release, cancel or lost capture: keep the width the drag last set.
+  function onSplitterEnd(e: PointerEvent): void {
+    if (splitDrag?.pointer !== e.pointerId) return;
+    splitDrag = null;
+    saveLayout(mode, layout);
+  }
+
+  function onSplitterKey(e: KeyboardEvent): void {
+    const step = e.key === 'ArrowLeft' ? SPLITTER_STEP : e.key === 'ArrowRight' ? -SPLITTER_STEP : 0;
+    if (step === 0) return;
+    // The editors' arrow-key shortcuts are not for the splitter.
+    e.preventDefault();
+    e.stopPropagation();
+    setSidebarWidth(asideWidth + step);
+    saveLayout(mode, layout);
+  }
+
+  function resetSidebarWidth(): void {
+    layout.sidebarWidth = SIDEBAR_DEFAULT_WIDTH;
+    saveLayout(mode, layout);
   }
 
   const panelsShown = $derived(
@@ -217,8 +268,27 @@
     </div>
 
     {#if size === 'wide' && layout.sidebar}
+      <!-- Splitter: the sidebar's draggable left edge (effect-panel AC-07). -->
+      <div
+        class="w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:bg-pc-accent focus-visible:outline-none"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('frame.sidebarWidth')}
+        aria-valuenow={asideWidth}
+        aria-valuemin={SIDEBAR_MIN_WIDTH}
+        aria-valuemax={asideMax}
+        tabindex="0"
+        onpointerdown={onSplitterDown}
+        onpointermove={onSplitterMove}
+        onpointerup={onSplitterEnd}
+        onpointercancel={onSplitterEnd}
+        onlostpointercapture={onSplitterEnd}
+        ondblclick={resetSidebarWidth}
+        onkeydown={onSplitterKey}
+      ></div>
       <aside
-        class="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel"
+        class="flex shrink-0 flex-col overflow-y-auto bg-pc-panel"
+        style:width="{asideWidth}px"
         aria-label={t('frame.panels')}
       >
         {@render sidebarBody()}

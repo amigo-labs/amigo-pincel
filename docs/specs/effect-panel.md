@@ -97,11 +97,11 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-07 | `dragging the splitter resizes the sidebar within its limits (AC-07)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
+| AC-08 | `a double-click on the splitter restores the default width (AC-08)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
+| AC-09 | `the splitter is a focusable separator the arrow keys move (AC-09)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
+| AC-10 | `the width survives a reload, per mode (AC-10)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
+| AC-11 | `a missing, broken or out-of-range stored width falls back silently (AC-11)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |

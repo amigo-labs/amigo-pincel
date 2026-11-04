@@ -7,8 +7,8 @@
 /** `wide` ≥ 1024 px, `medium` 640–1023 px, `narrow` < 640 px. */
 export type LayoutSize = 'wide' | 'medium' | 'narrow';
 
-/** Reactive window size class; updated by `watchViewport`. */
-export const viewport = $state({ size: 'wide' as LayoutSize });
+/** Reactive window size class and width in CSS px; updated by `watchViewport`. */
+export const viewport = $state({ size: 'wide' as LayoutSize, width: 1280 });
 
 function classify(): LayoutSize {
   if (typeof window === 'undefined') return 'wide';
@@ -20,12 +20,16 @@ function classify(): LayoutSize {
 /** Start tracking the window; returns the cleanup. */
 export function watchViewport(): () => void {
   viewport.size = classify();
+  viewport.width = window.innerWidth;
   const queries = ['(min-width: 1024px)', '(min-width: 640px)'].map((q) =>
     window.matchMedia(q),
   );
   const update = () => (viewport.size = classify());
+  const resize = () => (viewport.width = window.innerWidth);
   for (const q of queries) q.addEventListener('change', update);
+  window.addEventListener('resize', resize);
   return () => {
     for (const q of queries) q.removeEventListener('change', update);
+    window.removeEventListener('resize', resize);
   };
 }

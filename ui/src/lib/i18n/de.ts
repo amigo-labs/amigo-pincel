@@ -101,6 +101,7 @@ export const de: Record<MessageKey, string> = {
   'frame.variant': '{group}-Variante',
   'frame.togglePanels': 'Bedienfelder ein/aus',
   'frame.closePanels': 'Bedienfelder schließen',
+  'frame.sidebarWidth': 'Breite der Seitenleiste',
 
   // Zoom
   'zoom.label': 'Zoom',

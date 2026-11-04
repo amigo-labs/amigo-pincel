@@ -94,6 +94,7 @@ export const en = {
   'frame.variant': '{group} variant',
   'frame.togglePanels': 'Toggle panels',
   'frame.closePanels': 'Close panels',
+  'frame.sidebarWidth': 'Sidebar width',
 
   // Zoom
   'zoom.label': 'Zoom',
