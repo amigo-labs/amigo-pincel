@@ -224,6 +224,10 @@ test.describe('overlay', () => {
   async function exportFrame(page: Page): Promise<Buffer> {
     const download = page.waitForEvent('download');
     await menu(page, 'File', 'Export', 'PNG (current frame)');
+    await page
+      .getByRole('dialog', { name: 'Export PNG' })
+      .getByRole('button', { name: 'Export' })
+      .click();
     return readFile(await (await download).path());
   }
 

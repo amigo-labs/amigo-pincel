@@ -44,6 +44,8 @@
     togglePixelGrid,
   } from './grid';
   import GridSettingsDialog from './components/GridSettingsDialog.svelte';
+  import PngExportDialog from './components/PngExportDialog.svelte';
+  import { loadExportScale } from './export-scale';
   import ResizeDialog from './components/ResizeDialog.svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
@@ -106,6 +108,7 @@
     nativeMenuHost,
     openAnimationDialog,
     openSheetDialog,
+    openPngDialog,
     recentsAvailable,
     save,
     tauriHost,
@@ -295,7 +298,7 @@
       openRecent: (r) => guardUnsaved(() => void openRecent(r)),
       save: (asNew) => void save({ forceAs: asNew }),
       importPng: () => void importPngLayer(),
-      exportPng: () => void exportPng(),
+      exportPng: openPngDialog,
       exportSheet: openSheetDialog,
       exportAnimation: openAnimationDialog,
       exportSvg: openSvgDialog,
@@ -364,7 +367,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.grid || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.png || dialogs.grid || dialogs.animation || dialogs.svg || autosave.snapshots.length > 0) return;
     if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -428,7 +431,7 @@
         void save({ forceAs: action === 'saveAs' });
         return true;
       case 'export':
-        void exportPng();
+        openPngDialog();
         return true;
       case 'exportSheet':
         openSheetDialog();
@@ -511,7 +514,7 @@
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
     const blocked = Boolean(
-      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.grid || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
+      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.png || dialogs.grid || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
     );
     onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
@@ -609,6 +612,8 @@
     if (idbAvailable) void loadBrushPref().catch(() => undefined);
     // Restore the grid view settings (pixel-grid AC-11, AC-15).
     void loadGridPref();
+    // The last used export scale (scaled-export AC-10).
+    void loadExportScale();
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -628,7 +633,7 @@
     registerMenuHandlers({
       'menu:save': () => save(),
       'menu:saveAs': () => save({ forceAs: true }),
-      'menu:exportPng': () => void exportPng(),
+      'menu:exportPng': openPngDialog,
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
       'menu:exportSvg': openSvgDialog,
@@ -1200,8 +1205,19 @@
     tags={sheetTags}
     frameWidth={ed.canvasW}
     frameHeight={ed.canvasH}
+    scale={file.exportScale}
     onSubmit={(o) => void exportSheet(o)}
     onCancel={() => (dialogs.sheet = false)}
+  />
+{/if}
+
+{#if dialogs.png && ed.doc}
+  <PngExportDialog
+    frameWidth={ed.canvasW}
+    frameHeight={ed.canvasH}
+    scale={file.exportScale}
+    onSubmit={(scale) => void exportPng(scale)}
+    onCancel={() => (dialogs.png = false)}
   />
 {/if}
 

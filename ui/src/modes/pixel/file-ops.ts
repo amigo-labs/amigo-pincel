@@ -28,6 +28,7 @@ import type {
 } from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { disposeDoc, resetDocViewState } from './doc-ops';
+import { rememberExportScale } from './export-scale';
 import { afterImageCommand } from './image-ops';
 import { dialogs, ed, file } from './stores/editor.svelte';
 
@@ -325,12 +326,21 @@ export async function importPngLayer() {
   }
 }
 
-// Export the current frame's visible composite as a PNG (spec §7.3).
-export async function exportPng() {
+// File ▸ Export ▸ PNG (current frame) asks for the scale first
+// (docs/specs/scaled-export.md).
+export function openPngDialog() {
+  if (ed.doc && !file.busy) dialogs.png = true;
+}
+
+// Export the current frame's visible composite as a PNG (spec §7.3),
+// upscaled by `scale` (1–10).
+export async function exportPng(scale: number) {
+  dialogs.png = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(scale);
   file.busy = true;
   try {
-    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame));
+    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame, scale));
     const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
     const suffix = ed.frameCount > 1 ? `-${ed.currentFrame + 1}` : '';
     if (await saveExport(bytes, `${base}${suffix}.png`)) {
@@ -462,12 +472,18 @@ export function openSheetDialog() {
 export async function exportSheet(options: SpriteSheetOptions) {
   dialogs.sheet = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(options.scale);
   file.busy = true;
   try {
     const base =
       file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '') +
       (options.tag ? `-${options.tag}` : '');
-    const atlas = ed.doc.exportAtlas(options.columns, options.tag ?? undefined, `${base}.png`);
+    const atlas = ed.doc.exportAtlas(
+      options.columns,
+      options.tag ?? undefined,
+      `${base}.png`,
+      options.scale,
+    );
     let png: Uint8Array<ArrayBuffer>;
     let data: string;
     try {

@@ -34,6 +34,18 @@ async function download(
   return { name: d.suggestedFilename(), bytes: await readFile(await d.path()) };
 }
 
+/**
+ * Opens the PNG export dialog with `open` and confirms it at the
+ * preselected scale (docs/specs/scaled-export.md AC-01).
+ */
+async function confirmPng(page: Page, open: () => Promise<void>): Promise<void> {
+  await open();
+  await page
+    .getByRole('dialog', { name: 'Export PNG' })
+    .getByRole('button', { name: 'Export' })
+    .click();
+}
+
 /** Width and height from a PNG's IHDR. */
 function pngSize(png: Buffer): [number, number] {
   return [png.readUInt32BE(16), png.readUInt32BE(20)];
@@ -165,7 +177,9 @@ test('PNG (current frame) is named after the document and frame and reports its 
   await createDocument(page, 'pixel', { width: 8, height: 8 });
 
   // One frame: `<document name>.png`, from the menu.
-  const single = await download(page, () => menu(page, 'File', 'Export', 'PNG (current frame)'));
+  const single = await download(page, () =>
+    confirmPng(page, () => menu(page, 'File', 'Export', 'PNG (current frame)')),
+  );
   expect(single.name).toBe('pincel.png');
   expect(pngSize(single.bytes)).toEqual([8, 8]);
   await expect(status(page, `exported PNG · ${single.bytes.length} bytes`)).toBeVisible();
@@ -175,12 +189,16 @@ test('PNG (current frame) is named after the document and frame and reports its 
   await timeline.getByRole('button', { name: 'Add frame' }).click();
   await timeline.getByRole('button', { name: 'Add frame' }).click();
   await timeline.getByRole('button', { name: 'Frame 2', exact: true }).click();
-  const second = await download(page, () => page.keyboard.press('Control+e'));
+  const second = await download(page, () =>
+    confirmPng(page, () => page.keyboard.press('Control+e')),
+  );
   expect(second.name).toBe('pincel-2.png');
   await expect(status(page, `exported PNG · ${second.bytes.length} bytes`)).toBeVisible();
 
   await timeline.getByRole('button', { name: 'Frame 3', exact: true }).click();
-  const third = await download(page, () => menu(page, 'File', 'Export', 'PNG (current frame)'));
+  const third = await download(page, () =>
+    confirmPng(page, () => menu(page, 'File', 'Export', 'PNG (current frame)')),
+  );
   expect(third.name).toBe('pincel-3.png');
 });
 
@@ -204,7 +222,7 @@ test('a failing export reports its reason in the status bar and saves nothing', 
     .getByRole('button', { name: 'Frame 2', exact: true })
     .click();
 
-  await menu(page, 'File', 'Export', 'PNG (current frame)');
+  await confirmPng(page, () => menu(page, 'File', 'Export', 'PNG (current frame)'));
   await expect(status(page, /^Export failed: .*linked cel/)).toBeVisible();
 
   await menu(page, 'File', 'Export', 'Sprite Sheet…');
@@ -298,7 +316,10 @@ test('Cancel and Escape close the sprite sheet dialog without exporting', async 
 // the dialog (AGENTS.md §5.4, docs/specs/pixel-export.md AC-16).
 test('the sprite sheet grid line follows the German language', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  await page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Add frame' }).click();
+  await page
+    .getByRole('region', { name: 'Timeline' })
+    .getByRole('button', { name: 'Add frame' })
+    .click();
   await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Language' }).click();
   await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();

@@ -151,6 +151,8 @@ function fileInit() {
     /** An async open / save / recover is in flight. */
     busy: false,
     recents: [] as RecentFile[],
+    /** Scale both export dialogs preselect: the last one used (scaled-export). */
+    exportScale: 1,
   };
 }
 
@@ -161,6 +163,8 @@ function dialogsInit() {
     effect: null as EffectDef | null,
     resize: null as ResizeMode | null,
     sheet: false,
+    /** File ▸ Export ▸ PNG (current frame) is open (scaled-export). */
+    png: false,
     /** View ▸ Grid Settings… is open (pixel-grid). */
     grid: false,
     /** File ▸ Export ▸ Animation… is open. */
@@ -195,6 +199,7 @@ function liveInit() {
     colorPrefLoaded: false,
     brushPrefLoaded: false,
     gridPrefLoaded: false,
+    exportScalePrefLoaded: false,
     /** What the grid canvas was last painted from (`grid.ts`). */
     gridKey: '',
     /** The gesture in flight started on the right button. */
