@@ -73,7 +73,8 @@ async function fiveFramesTwoTags(page: Page): Promise<void> {
 }
 
 /** A 4 × 4 RGBA `.aseprite` with one layer and two frames: frame 1 holds
- *  an opaque cel, frame 2 a cel linked to it, which `compose()` refuses. */
+ *  an opaque cel, frame 2 a cel linked to its own frame — a broken link
+ *  `compose()` refuses (linked-cels-group-compose.md AC-06). */
 function asepriteWithLinkedCel(): Buffer {
   const chunk = (type: number, data: Buffer) => {
     const head = Buffer.alloc(6);
@@ -96,7 +97,8 @@ function asepriteWithLinkedCel(): Buffer {
   const raw = Buffer.alloc(4 + 4 * 4 * 4, 0xc0);
   raw.writeUInt16LE(4, 0);
   raw.writeUInt16LE(4, 2);
-  const link = Buffer.alloc(2); // frame position 0
+  const link = Buffer.alloc(2);
+  link.writeUInt16LE(1, 0); // frame position 1: the linking frame itself
   const frame = (chunks: Buffer[]) => {
     const body = Buffer.concat(chunks);
     const head = Buffer.alloc(16);
