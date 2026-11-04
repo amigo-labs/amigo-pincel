@@ -452,6 +452,89 @@ mod tests {
         assert_eq!(cel_pixels(&doc, 0, 0), before);
     }
 
+    /// effects-blurs: the new blurs and Motion Blur with Centered off, at
+    /// settings that change something.
+    const BLURS: [(&str, &[f64]); 7] = [
+        ("bokeh", &[2.0, 50.0]),
+        ("fragment", &[3.0, 1.0, 0.0]),
+        ("median", &[1.0, 100.0]),
+        ("sketch_blur", &[3.0, 5.0]),
+        ("surface_blur", &[1.0, 100.0]),
+        ("zoom_blur", &[100.0, 0.0, 0.0]),
+        ("motion_blur", &[3.0, 0.0, 0.0]),
+    ];
+
+    /// effects-blurs: the new blurs run in the Pixel core (no menu entry,
+    /// but the wire accepts them) as one undo step.
+    #[test]
+    fn apply_effect_blurs_run_on_a_pixel_document() {
+        for (name, params) in BLURS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            assert!(doc.apply_effect(name, params).expect(name), "{name}");
+            assert_eq!(doc.undo_depth(), depth + 1, "{name}: one undo step");
+            assert_ne!(cel_pixels(&doc, 0, 0), before, "{name} changed nothing");
+        }
+    }
+
+    /// effects-blurs AC-14: a wrong parameter count is refused and changes
+    /// nothing.
+    #[test]
+    fn apply_effect_blurs_wrong_parameter_count_changes_nothing() {
+        for (name, params) in BLURS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            // Motion Blur accepts two or three slots; four is wrong.
+            let wrong = vec![1.0; params.len() + 1];
+            let err = doc.apply_effect(name, &wrong).expect_err(name);
+            assert!(err.contains("expects"), "{name}: {err}");
+            assert!(
+                doc.preview_effect(name, &wrong, 1).is_err(),
+                "{name} preview"
+            );
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+        }
+    }
+
+    /// effects-blurs AC-16: an indexed document refuses the blurs with the
+    /// message every other effect gives.
+    #[test]
+    fn apply_effect_blurs_on_an_indexed_document_are_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in BLURS
+            .iter()
+            .chain(&[("radial_blur", &[10.0, 0.5, 0.5, 1.0][..])])
+        {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
     #[test]
     fn preview_effect_honours_zoom() {
         let doc = Document::new(2, 3).expect("dims");

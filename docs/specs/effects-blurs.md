@@ -110,9 +110,9 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-11 | `motion_blur_uncentered_spreads_to_one_side_only`, `motion_blur_centered_spreads_symmetrically` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-12 |      | open   |        |
 | AC-13 | `existing_wire_calls_keep_working` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-14 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
+| AC-14 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_blurs.rs); `apply_effect_blurs_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |  |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-16 | `apply_effect_blurs_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |  |
 
 ## Decisions
 
@@ -123,3 +123,4 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-04 (spec-build): Formulas the table leaves open: Bokeh weights a pixel by `1 + 100 · (h / 100) · l⁴` (l = premultiplied luma 0–1) over the disc `dx² + dy² ≤ r²`, using row prefix sums (O(r) per pixel); Fragment shifts copies with bilinear sampling, Distance 0 returns the layer as is; Median takes the value at rank `round(p / 100 · (n − 1))` and keeps the pixel's colour when its neighbourhood has no opaque pixel; Sketch Blur draws direction and length (0..Radius) per pixel from SplitMix64 of (seed, x, y) and averages a line centred on the pixel; Surface Blur compares premultiplied RGBA (so a transparent neighbour never counts as close to an opaque pixel) over the square window, O(r²) per pixel — speed is `performance-background-jobs`' concern.
 - 2026-11-04 (spec-build): Clamping per AC-14: radii, Fragments, Seed and Threshold are rounded to whole numbers; Fragment's Rotation wraps into 0–360 like the angle dial instead of clamping (370 → 10); Zoom Blur's centre clamps to 0–1. Motion Blur's two existing slots keep their old unclamped reading (AC-13); its Centered slot is a boolean like every other switch.
 - 2026-11-04 (spec-build): New wire names follow `temperature_tint` at the end of `EFFECT_NAMES` (bokeh, fragment, median, sketch_blur, surface_blur, zoom_blur); `EffectSpec::MotionBlur` gains `centered`, `MotionBlur` gains `centered` / `with_centered`, and `blur::{Bokeh, Fragment, Median, SketchBlur, SurfaceBlur}` and `EffectSpec::{Bokeh, Fragment, Median, SketchBlur, SurfaceBlur, ZoomBlur}` are new public API.
+- 2026-11-04 (spec-build): AC-14 ("changes nothing") and AC-16 are proven in the Pixel core (`pincel-wasm`), where the document and the RGBA refusal live; both tests were green at once, because the refusal and the parameter-count error run before any effect and every new name already parsed in `pincel-effects` (whose tests were red first). The agent catalog gained the new blurs because its tests require it to mirror `EFFECT_NAMES`.
