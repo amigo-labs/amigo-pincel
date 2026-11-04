@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: M
 mode: both
@@ -35,23 +35,23 @@ Decision Log 2026-11-04 ("The effect UI becomes a docked panel") records this; i
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses an Effects or Adjustments entry in a window at least 1024 px wide, then the effect panel appears as the topmost panel of the docked sidebar, titled with the effect's name, with the same controls, Preview checkbox and Reset / Cancel / OK buttons as before plus a close button (×) in its header; nothing of the effect UI overlaps the canvas area — in Pixel and in Image mode. (Topmost because it sits next to the menu bar the effect was chosen from, where the eye already is.)
-- [ ] AC-02 (event): When the sidebar was hidden at the moment an effect opens, then the sidebar is shown for as long as the effect is open and hidden again after OK or Cancel; the stored sidebar visibility does not change.
-- [ ] AC-03 (state): While an effect is open, every other panel — in the sidebar and docked under the canvas (timeline) — stays visible but inert: its controls cannot be focused, and a click on another layer in the Layers panel does not change the active layer; the canvas does not react to drawing tools, and shortcuts stay blocked as today except Space; zooming and panning the canvas (wheel, pinch, zoom control, dragging with Space held or with the middle button) still work, and the preview stays shown at the new view.
-- [ ] AC-04 (event): When the user presses OK (or Enter outside a multi-line field), then the effect is applied as before, the effect panel disappears and the sidebar returns to the panels it showed before; when the user presses Cancel, the panel's close button or Escape, then the document is unchanged and the panel disappears the same way.
-- [ ] AC-05 (event): When the user chooses an Effects or Adjustments entry while an effect is open — another one or the same one again — then the open effect is cancelled (no change to the document, its preview removed) and the panel shows the chosen effect at its defaults, with focus on its first control.
-- [ ] AC-06 (event): When the effect panel opens, then keyboard focus moves to its first control, or to OK when the effect has no parameters (so Enter applies it at once, as in a confirmation dialog); when it closes, focus moves to the canvas area — the menu entry that opened it no longer exists.
-- [ ] AC-07 (event): When the user drags the splitter, then the docked sidebar's width follows the pointer, limited to at least 240 px and at most 560 px or half the window width, whichever is smaller; the canvas area takes the remaining width.
-- [ ] AC-08 (event): When the user double-clicks the splitter, then the sidebar returns to its default width of 288 px.
-- [ ] AC-09 (event): When the splitter has keyboard focus and the user presses Arrow Left / Arrow Right, then the sidebar grows / shrinks by 16 px within the same limits (fine enough to tune, coarse enough to cross the range in about 20 presses); the splitter is a focusable element with the accessible role "separator", vertical orientation, and its current, minimum and maximum width in px as value, value minimum and value maximum.
-- [ ] AC-10 (event): When the user changes the sidebar width and reloads the app, then the sidebar opens at that width again in the same mode; the other mode keeps its own width.
-- [ ] AC-11 (error): If a stored sidebar width is missing or not a finite number, then the sidebar uses the default width; if it lies outside the limits for the current window — on load or because the window is resized — then the sidebar uses the nearest limit while the stored value stays unchanged until the user changes the width; no error is shown in either case.
-- [ ] AC-12 (event): When an effect opens in a window 640–1023 px wide, then the drawer opens with the effect panel as its topmost panel, and closes again after OK or Cancel if it was closed before.
-- [ ] AC-13 (event): When an effect opens in a window narrower than 640 px, then the bottom sheet opens with an extra tab named after the effect, selected, showing the effect panel; the tab disappears after OK or Cancel, and the sheet returns to the tab it showed before (or closes if it was closed).
-- [ ] AC-14 (event): When the window is resized across a layout boundary while an effect is open, then the effect stays open with its current values and the panel moves to the new layout's sidebar, drawer or bottom sheet; when the effect then ends, the current layout's sidebar, drawer or sheet returns to the state it had before the effect opened (closed again if it was opened only for the effect).
-- [ ] AC-16 (error): If the effect fails while previewing or on OK, then the panel stays open with its values, the error is shown where each mode shows errors today (status bar in Pixel mode, notice in Image mode), and the document is unchanged.
-- [ ] AC-17 (always): The preview is never part of the document: an autosave or a save while an effect is open writes the document without the preview, and an action that triggers the unsaved-changes prompt or replaces the document cancels the open effect first.
-- [ ] AC-15 (option): Where the UI language is German, the panel's close button, the splitter's accessible name and the effect sheet tab are German.
+- [x] AC-01 (event): When the user chooses an Effects or Adjustments entry in a window at least 1024 px wide, then the effect panel appears as the topmost panel of the docked sidebar, titled with the effect's name, with the same controls, Preview checkbox and Reset / Cancel / OK buttons as before plus a close button (×) in its header; nothing of the effect UI overlaps the canvas area — in Pixel and in Image mode. (Topmost because it sits next to the menu bar the effect was chosen from, where the eye already is.)
+- [x] AC-02 (event): When the sidebar was hidden at the moment an effect opens, then the sidebar is shown for as long as the effect is open and hidden again after OK or Cancel; the stored sidebar visibility does not change.
+- [x] AC-03 (state): While an effect is open, every other panel — in the sidebar and docked under the canvas (timeline) — stays visible but inert: its controls cannot be focused, and a click on another layer in the Layers panel does not change the active layer; the canvas does not react to drawing tools, and shortcuts stay blocked as today except Space; zooming and panning the canvas (wheel, pinch, zoom control, dragging with Space held or with the middle button) still work, and the preview stays shown at the new view.
+- [x] AC-04 (event): When the user presses OK (or Enter outside a multi-line field), then the effect is applied as before, the effect panel disappears and the sidebar returns to the panels it showed before; when the user presses Cancel, the panel's close button or Escape, then the document is unchanged and the panel disappears the same way.
+- [x] AC-05 (event): When the user chooses an Effects or Adjustments entry while an effect is open — another one or the same one again — then the open effect is cancelled (no change to the document, its preview removed) and the panel shows the chosen effect at its defaults, with focus on its first control.
+- [x] AC-06 (event): When the effect panel opens, then keyboard focus moves to its first control, or to OK when the effect has no parameters (so Enter applies it at once, as in a confirmation dialog); when it closes, focus moves to the canvas area — the menu entry that opened it no longer exists.
+- [x] AC-07 (event): When the user drags the splitter, then the docked sidebar's width follows the pointer, limited to at least 240 px and at most 560 px or half the window width, whichever is smaller; the canvas area takes the remaining width.
+- [x] AC-08 (event): When the user double-clicks the splitter, then the sidebar returns to its default width of 288 px.
+- [x] AC-09 (event): When the splitter has keyboard focus and the user presses Arrow Left / Arrow Right, then the sidebar grows / shrinks by 16 px within the same limits (fine enough to tune, coarse enough to cross the range in about 20 presses); the splitter is a focusable element with the accessible role "separator", vertical orientation, and its current, minimum and maximum width in px as value, value minimum and value maximum.
+- [x] AC-10 (event): When the user changes the sidebar width and reloads the app, then the sidebar opens at that width again in the same mode; the other mode keeps its own width.
+- [x] AC-11 (error): If a stored sidebar width is missing or not a finite number, then the sidebar uses the default width; if it lies outside the limits for the current window — on load or because the window is resized — then the sidebar uses the nearest limit while the stored value stays unchanged until the user changes the width; no error is shown in either case.
+- [x] AC-12 (event): When an effect opens in a window 640–1023 px wide, then the drawer opens with the effect panel as its topmost panel, and closes again after OK or Cancel if it was closed before.
+- [x] AC-13 (event): When an effect opens in a window narrower than 640 px, then the bottom sheet opens with an extra tab named after the effect, selected, showing the effect panel; the tab disappears after OK or Cancel, and the sheet returns to the tab it showed before (or closes if it was closed).
+- [x] AC-14 (event): When the window is resized across a layout boundary while an effect is open, then the effect stays open with its current values and the panel moves to the new layout's sidebar, drawer or bottom sheet; when the effect then ends, the current layout's sidebar, drawer or sheet returns to the state it had before the effect opened (closed again if it was opened only for the effect).
+- [x] AC-16 (error): If the effect fails while previewing or on OK, then the panel stays open with its values, the error is shown where each mode shows errors today (status bar in Pixel mode, notice in Image mode), and the document is unchanged.
+- [x] AC-17 (always): The preview is never part of the document: an autosave or a save while an effect is open writes the document without the preview, and an action that triggers the unsaved-changes prompt or replaces the document cancels the open effect first.
+- [x] AC-15 (option): Where the UI language is German, the panel's close button, the splitter's accessible name and the effect sheet tab are German.
 
 ## Technical notes
 
@@ -91,23 +91,32 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pixel: …` / `image: the effect panel is the topmost sidebar panel, clear of the canvas (AC-01)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-02 | `a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-03 | `pixel: …` / `image: other panels are inert and the canvas only zooms and pans (AC-03)` — `ui/e2e/effect-panel-input.spec.ts`; `pixel: …` / `image: a two-finger pinch zooms while an effect is open and paints nothing (AC-03)` — `ui/e2e/effect-panel-touch.spec.ts`; `point: Pick on canvas sets the point without a tool stroke (AC-11)` — `ui/e2e/effect-params.spec.ts` | built |        |
-| AC-04 | `pixel: …` / `image: OK applies and Cancel, × and Escape leave the document alone (AC-04)` — `ui/e2e/effect-panel.spec.ts`; `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-05 | `pixel: …` / `image: choosing an effect while one is open restarts at the defaults (AC-05)` — `ui/e2e/effect-panel.spec.ts`; `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-06 | `pixel: …` / `image: focus goes to the first control, or OK, and back to the canvas area (AC-06)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-07 | `dragging the splitter resizes the sidebar within its limits (AC-07)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-08 | `a double-click on the splitter restores the default width (AC-08)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-09 | `the splitter is a focusable separator the arrow keys move (AC-09)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-10 | `the width survives a reload, per mode (AC-10)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-11 | `a missing, broken or out-of-range stored width falls back silently (AC-11)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-12 | `tablet › the drawer opens with the effect panel on top and closes again (AC-12)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-13 | `phone › the bottom sheet gets a selected tab for the effect (AC-13)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-14 | `resizing across layouts keeps the effect and its values (AC-14)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-15 | `German UI › close button, splitter and sheet tab are German (AC-15)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-16 | `pixel: …` / `image: a failing effect keeps the panel and its values (AC-16)` (OK) — `ui/e2e/effect-panel-input.spec.ts`; `pixel: a failing preview keeps the panel open with its values (AC-16)`, `image mode › a failing preview keeps the panel open with its values (AC-16)` — `ui/e2e/effect-panel-failure.spec.ts` | built |        |
-| AC-17 | `pixel: …` / `image: a save while an effect is open writes the document without the preview (AC-17)`; `pixel: …` / `image: the unsaved-changes prompt cancels the open effect first (AC-17)`; `pixel: opening a file while an effect is open cancels the effect (AC-17)`; `pixel: …` / `image: an autosave while an effect is open stores the document without the preview (AC-17)` — `ui/e2e/effect-panel-input.spec.ts` | built |        |
+| AC-01 | `pixel: …` / `image: the effect panel is the topmost sidebar panel, clear of the canvas (AC-01)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-02 | `a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-03 | `pixel: …` / `image: other panels are inert and the canvas only zooms and pans (AC-03)` — `ui/e2e/effect-panel-input.spec.ts`; `pixel: …` / `image: a two-finger pinch zooms while an effect is open and paints nothing (AC-03)` — `ui/e2e/effect-panel-touch.spec.ts`; `point: Pick on canvas sets the point without a tool stroke (AC-11)` — `ui/e2e/effect-params.spec.ts` | verified | a009345 |
+| AC-04 | `pixel: …` / `image: OK applies and Cancel, × and Escape leave the document alone (AC-04)` — `ui/e2e/effect-panel.spec.ts`; `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-05 | `pixel: …` / `image: choosing an effect while one is open restarts at the defaults (AC-05)` — `ui/e2e/effect-panel.spec.ts`; `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-06 | `pixel: …` / `image: focus goes to the first control, or OK, and back to the canvas area (AC-06)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-07 | `dragging the splitter resizes the sidebar within its limits (AC-07)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
+| AC-08 | `a double-click on the splitter restores the default width (AC-08)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
+| AC-09 | `the splitter is a focusable separator the arrow keys move (AC-09)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
+| AC-10 | `the width survives a reload, per mode (AC-10)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
+| AC-11 | `a missing, broken or out-of-range stored width falls back silently (AC-11)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
+| AC-12 | `tablet › the drawer opens with the effect panel on top and closes again (AC-12)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-13 | `phone › the bottom sheet gets a selected tab for the effect (AC-13)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-14 | `resizing across layouts keeps the effect and its values (AC-14)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-15 | `German UI › close button, splitter and sheet tab are German (AC-15)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
+| AC-16 | `pixel: …` / `image: a failing effect keeps the panel and its values (AC-16)` (OK) — `ui/e2e/effect-panel-input.spec.ts`; `pixel: a failing preview keeps the panel open with its values (AC-16)`, `image mode › a failing preview keeps the panel open with its values (AC-16)` — `ui/e2e/effect-panel-failure.spec.ts` | verified | a7bcb71 |
+| AC-17 | `pixel: …` / `image: a save while an effect is open writes the document without the preview (AC-17)`; `pixel: …` / `image: the unsaved-changes prompt cancels the open effect first (AC-17)`; `pixel: opening a file while an effect is open cancels the effect (AC-17)`; `pixel: …` / `image: an autosave while an effect is open stores the document without the preview (AC-17)` — `ui/e2e/effect-panel-input.spec.ts` | verified | a7bcb71 |
+
+## Summary
+
+> Completed: 2026-11-04
+
+- The floating effect box is replaced by a docked effect panel (`ui/src/lib/components/EffectPanel.svelte`) on top of the sidebar, drawer or an extra bottom-sheet tab, in both modes; its values live in an `EffectSession` so they survive layout changes.
+- While an effect is open the other panels are inert and the canvas only zooms and pans (wheel, pinch, zoom control, Space and middle-button drag); Pixel mode gained middle-button pan.
+- The docked sidebar has a focusable splitter (240–560 px or half the window, default 288 px, arrow keys in 16 px steps, double-click reset) whose width persists per mode in the IndexedDB layout prefs and clamps silently.
+- Failed previews and applies keep the panel open with the error in the status bar / notice; unsaved-changes prompts and document switches cancel the open effect first, and saves / autosaves never contain the preview.
 
 ## Decisions
 
