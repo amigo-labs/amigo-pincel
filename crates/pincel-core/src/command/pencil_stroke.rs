@@ -9,11 +9,21 @@
 //! gesture is live the bus extends the command on its undo top
 //! ([`super::Bus::continue_stroke`]) instead of merging per-pixel writes:
 //! pixel-perfect needs the whole stroke in one command. Out-of-cel pixels
-//! are skipped silently, like [`super::DrawLine`].
+//! are skipped silently, like [`super::DrawLine`], unless they lie on the
+//! canvas: then the stroke grows the cel to cover them and its undo record
+//! restores the cel's old bounds.
+//!
+//! Symmetry ([`Mirror`]) and tiled mode ([`Wrap`]) act on the stamped
+//! pixels (`docs/specs/symmetry-tiled-mode.md`): every stamped pixel is
+//! also stamped at its mirror images, then each one is wrapped into the
+//! canvas along the wrapped axes. Both happen here so the stroke stays one
+//! undo entry and Bresenham segments stay continuous across a seam.
 
 use std::collections::HashMap;
 
-use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, PixelBuffer, Rgba, Sprite};
+use crate::document::{
+    Cel, CelData, CelMap, ColorMode, FrameIndex, LayerId, PixelBuffer, Rgba, Sprite,
+};
 use crate::geometry::Point;
 
 use super::Command;
@@ -136,6 +146,29 @@ impl Ink {
     }
 }
 
+/// Symmetry axes of a stroke, in half pixels from the left / top canvas
+/// edge: with the vertical axis at `A`, column `x` mirrors to `A − 1 − x`
+/// (an even `A` lies on a pixel edge, an odd one through a pixel centre);
+/// rows mirror across `axis_y2` the same way. `None` turns that axis off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Mirror {
+    /// Vertical axis (left–right symmetry), or `None`.
+    pub axis_x2: Option<i32>,
+    /// Horizontal axis (top–bottom symmetry), or `None`.
+    pub axis_y2: Option<i32>,
+}
+
+/// Canvas edges a stroke wraps across (tiled mode): along a wrapped axis
+/// the stamped coordinates are taken modulo the canvas size instead of
+/// being skipped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Wrap {
+    /// Wrap across the left and right edges.
+    pub x: bool,
+    /// Wrap across the top and bottom edges.
+    pub y: bool,
+}
+
 /// One Pixel-mode Pencil / Eraser stroke (one undo entry).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PencilStroke {
@@ -147,6 +180,10 @@ pub struct PencilStroke {
     pixel_perfect: bool,
     /// What the stroke does to the pixels it touches.
     ink: Ink,
+    /// Symmetry axes, if any.
+    mirror: Option<Mirror>,
+    /// Tiled-mode wrapping.
+    wrap: Wrap,
     /// Input samples in order. Never empty; `apply` replays them.
     samples: Vec<Point>,
     /// Pen pressure per sample in `[0, 1]`, parallel to `samples`; a
@@ -164,6 +201,20 @@ pub struct PencilStroke {
     prior: HashMap<(i32, i32), Rgba>,
     /// Replay state: sprite-space bbox of `prior`'s keys.
     bounds: Bounds,
+    /// Replay state: the canvas size, read from the sprite on apply.
+    canvas: (i32, i32),
+    /// Replay state: the cel's position and size before the stroke first
+    /// grew it; `revert` crops the cel back to it.
+    grown_from: Option<CelRect>,
+}
+
+/// A cel's sprite-space position and size.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CelRect {
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
 }
 
 /// Inclusive sprite-space bbox, empty until the first pixel is added.
@@ -189,10 +240,38 @@ impl Bounds {
 /// The image buffer a stroke paints into, plus its sprite-space origin.
 struct Target<'a> {
     buffer: &'a mut PixelBuffer,
-    position: (i32, i32),
+    position: &'a mut (i32, i32),
 }
 
 impl Target<'_> {
+    fn rect(&self) -> CelRect {
+        CelRect {
+            x: self.position.0,
+            y: self.position.1,
+            w: self.buffer.width,
+            h: self.buffer.height,
+        }
+    }
+
+    /// Move the buffer to cover exactly `r`, keeping the pixels both
+    /// rects share; new pixels are transparent.
+    fn reshape(&mut self, r: CelRect) {
+        let old = self.rect();
+        let mut out = PixelBuffer::empty(r.w, r.h, self.buffer.color_mode);
+        let x0 = old.x.max(r.x);
+        let x1 = (old.x + old.w as i32).min(r.x + r.w as i32);
+        if x0 < x1 {
+            let len = (x1 - x0) as usize * 4;
+            for y in old.y.max(r.y)..(old.y + old.h as i32).min(r.y + r.h as i32) {
+                let src = ((y - old.y) as usize * old.w as usize + (x0 - old.x) as usize) * 4;
+                let dst = ((y - r.y) as usize * r.w as usize + (x0 - r.x) as usize) * 4;
+                out.data[dst..dst + len].copy_from_slice(&self.buffer.data[src..src + len]);
+            }
+        }
+        *self.buffer = out;
+        *self.position = (r.x, r.y);
+    }
+
     /// Byte offset of sprite pixel `(x, y)`, or `None` outside the buffer.
     fn offset(&self, x: i32, y: i32) -> Option<usize> {
         let lx = i64::from(x) - i64::from(self.position.0);
@@ -225,8 +304,8 @@ fn target(
     let cel = cels
         .get_mut(layer, frame)
         .ok_or(CommandError::MissingCel { layer, frame })?;
-    let position = cel.position;
-    let CelData::Image(buffer) = &mut cel.data else {
+    let Cel { position, data, .. } = cel;
+    let CelData::Image(buffer) = data else {
         return Err(CommandError::NotAnImageCel { layer, frame });
     };
     if !matches!(buffer.color_mode, ColorMode::Rgba) {
@@ -280,12 +359,16 @@ impl PencilStroke {
             brush,
             pixel_perfect,
             ink: Ink::Simple,
+            mirror: None,
+            wrap: Wrap::default(),
             samples: vec![start],
             pressure: vec![clamp_pressure(pressure)],
             path: Vec::new(),
             coverage: HashMap::new(),
             prior: HashMap::new(),
             bounds: Bounds::default(),
+            canvas: (0, 0),
+            grown_from: None,
         }
     }
 
@@ -293,6 +376,23 @@ impl PencilStroke {
     /// stroke is applied.
     pub fn with_ink(mut self, ink: Ink) -> Self {
         self.ink = ink;
+        self
+    }
+
+    /// The stroke mirrored across `mirror`'s axes (symmetry); set it
+    /// before the stroke is applied. Pixel-perfect pruning runs on the
+    /// primary path and its mirror images follow it.
+    pub fn with_mirror(mut self, mirror: Mirror) -> Self {
+        self.mirror = Some(mirror);
+        self
+    }
+
+    /// The stroke wrapping across the canvas edges `wrap` names (tiled
+    /// mode); set it before the stroke is applied. Samples may then lie
+    /// outside the canvas: the line between them is traced unwrapped and
+    /// each stamped pixel is wrapped.
+    pub fn with_wrap(mut self, wrap: Wrap) -> Self {
+        self.wrap = wrap;
         self
     }
 
@@ -365,23 +465,101 @@ impl PencilStroke {
             return;
         }
         let b = self.path.remove(n - 2);
-        let count = self.coverage.entry((b.x, b.y)).or_insert(1);
-        *count -= 1;
-        if *count > 0 {
+        for (x, y) in self.images(b.x, b.y) {
+            let count = self.coverage.entry((x, y)).or_insert(1);
+            *count -= 1;
+            if *count > 0 {
+                continue;
+            }
+            self.coverage.remove(&(x, y));
+            if let (Some(off), Some(&before)) = (t.offset(x, y), self.prior.get(&(x, y))) {
+                t.write(off, before);
+                seg.add(x, y);
+            }
+        }
+    }
+
+    /// Where stamping pixel `(x, y)` writes: the pixel and its mirror
+    /// images, each wrapped along the wrapped axes, without duplicates.
+    fn images(&self, x: i32, y: i32) -> Vec<(i32, i32)> {
+        let m = self.mirror.unwrap_or_default();
+        let xs = [Some(x), m.axis_x2.map(|a| a - 1 - x)];
+        let ys = [Some(y), m.axis_y2.map(|b| b - 1 - y)];
+        let (w, h) = self.canvas;
+        let mut out = Vec::with_capacity(4);
+        for &mx in xs.iter().flatten() {
+            for &my in ys.iter().flatten() {
+                let wx = if self.wrap.x && w > 0 {
+                    mx.rem_euclid(w)
+                } else {
+                    mx
+                };
+                let wy = if self.wrap.y && h > 0 {
+                    my.rem_euclid(h)
+                } else {
+                    my
+                };
+                if !out.contains(&(wx, wy)) {
+                    out.push((wx, wy));
+                }
+            }
+        }
+        out
+    }
+
+    /// Grow the cel so it covers every pixel of `pixels` that lies on the
+    /// canvas — along a wrapped axis to the full canvas extent — and
+    /// remember its bounds from before the stroke's first growth.
+    fn cover(&mut self, t: &mut Target, pixels: &[(i32, i32)]) {
+        let (w, h) = self.canvas;
+        let old = t.rect();
+        let (mut x0, mut y0) = (old.x, old.y);
+        let (mut x1, mut y1) = (old.x + old.w as i32, old.y + old.h as i32);
+        let mut grow = false;
+        for &(x, y) in pixels {
+            let on_canvas = x >= 0 && y >= 0 && x < w && y < h;
+            if !on_canvas || t.offset(x, y).is_some() {
+                continue;
+            }
+            grow = true;
+            x0 = x0.min(x);
+            y0 = y0.min(y);
+            x1 = x1.max(x + 1);
+            y1 = y1.max(y + 1);
+        }
+        if !grow {
             return;
         }
-        self.coverage.remove(&(b.x, b.y));
-        if let (Some(off), Some(&before)) = (t.offset(b.x, b.y), self.prior.get(&(b.x, b.y))) {
-            t.write(off, before);
-            seg.add(b.x, b.y);
+        if self.wrap.x {
+            x0 = x0.min(0);
+            x1 = x1.max(w);
         }
+        if self.wrap.y {
+            y0 = y0.min(0);
+            y1 = y1.max(h);
+        }
+        self.grown_from.get_or_insert(old);
+        t.reshape(CelRect {
+            x: x0,
+            y: y0,
+            w: (x1 - x0) as u32,
+            h: (y1 - y0) as u32,
+        });
     }
 
     /// Stamp the brush shape at size `size` centred on `p`. The one
     /// stamping routine every stroke variant goes through.
     fn stamp(&mut self, t: &mut Target, p: Point, size: u8, seg: &mut Bounds) {
+        let mut pixels: Vec<(i32, i32)> = Vec::new();
         for (dx, dy) in PixelBrush::new(size, self.brush.shape()).offsets() {
-            let (x, y) = (p.x + dx, p.y + dy);
+            for px in self.images(p.x + dx, p.y + dy) {
+                if !pixels.contains(&px) {
+                    pixels.push(px);
+                }
+            }
+        }
+        self.cover(t, &pixels);
+        for (x, y) in pixels {
             if self.pixel_perfect {
                 *self.coverage.entry((x, y)).or_insert(0) += 1;
             }
@@ -408,11 +586,16 @@ impl PencilStroke {
 }
 
 impl Command for PencilStroke {
-    fn apply(&mut self, _doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
+    fn apply(&mut self, doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
         self.path.clear();
         self.coverage.clear();
         self.prior.clear();
         self.bounds = Bounds::default();
+        self.grown_from = None;
+        self.canvas = (
+            i32::try_from(doc.width).unwrap_or(i32::MAX),
+            i32::try_from(doc.height).unwrap_or(i32::MAX),
+        );
         let mut t = target(cels, self.layer, self.frame)?;
         let samples = std::mem::take(&mut self.samples);
         let mut seg = Bounds::default();
@@ -434,6 +617,9 @@ impl Command for PencilStroke {
             if let Some(off) = t.offset(x, y) {
                 t.write(off, c);
             }
+        }
+        if let Some(r) = self.grown_from {
+            t.reshape(r);
         }
     }
 
@@ -1261,5 +1447,465 @@ mod tests {
         let s = stroke(BLUE, 2, BrushShape::Round, false, &pts).with_ink(Ink::Simple);
         run(&mut bus2, &mut sprite2, &mut cels2, s, &rest);
         assert_eq!(snapshot(&mut cels), snapshot(&mut cels2));
+    }
+}
+
+#[cfg(test)]
+mod aid_tests {
+    //! Symmetry and tiled-mode wrapping (`docs/specs/symmetry-tiled-mode.md`).
+
+    use super::*;
+    use crate::command::Bus;
+    use crate::document::{Cel, Frame, Layer};
+    use std::collections::BTreeSet;
+
+    const RED: Rgba = Rgba::new(255, 0, 0, 255);
+    const BLUE: Rgba = Rgba::new(0, 0, 255, 255);
+    const L: LayerId = LayerId::new(1);
+    const F: FrameIndex = FrameIndex::new(0);
+
+    /// Stroke options under test.
+    #[derive(Clone, Copy)]
+    struct Aid {
+        size: u8,
+        pp: bool,
+        mirror: Option<Mirror>,
+        wrap: Wrap,
+    }
+
+    const PLAIN: Aid = Aid {
+        size: 1,
+        pp: false,
+        mirror: None,
+        wrap: Wrap { x: false, y: false },
+    };
+
+    fn mirror(axis_x2: Option<i32>, axis_y2: Option<i32>) -> Aid {
+        Aid {
+            mirror: Some(Mirror { axis_x2, axis_y2 }),
+            ..PLAIN
+        }
+    }
+
+    fn wrap(x: bool, y: bool) -> Aid {
+        Aid {
+            wrap: Wrap { x, y },
+            ..PLAIN
+        }
+    }
+
+    /// A `w`×`h` sprite whose one cel spans `cel` (`x, y, w, h`), filled
+    /// with `fill`.
+    fn doc(w: u32, h: u32, cel: (i32, i32, u32, u32), fill: Rgba) -> (Sprite, CelMap) {
+        let sprite = Sprite::builder(w, h)
+            .add_layer(Layer::image(L, "bg"))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite builds");
+        let mut buffer = PixelBuffer::empty(cel.2, cel.3, ColorMode::Rgba);
+        for px in buffer.data.as_chunks_mut::<4>().0 {
+            *px = [fill.r, fill.g, fill.b, fill.a];
+        }
+        let mut c = Cel::image(L, F, buffer);
+        c.position = (cel.0, cel.1);
+        let mut cels = CelMap::new();
+        cels.insert(c);
+        (sprite, cels)
+    }
+
+    /// A `w`×`h` sprite with a transparent canvas-sized cel.
+    fn canvas(w: u32, h: u32) -> (Sprite, CelMap) {
+        doc(w, h, (0, 0, w, h), Rgba::TRANSPARENT)
+    }
+
+    /// The cel's position, size and bytes.
+    fn cel_state(cels: &CelMap) -> ((i32, i32), u32, u32, Vec<u8>) {
+        let cel = cels.get(L, F).expect("cel");
+        let CelData::Image(b) = &cel.data else {
+            panic!("image cel");
+        };
+        (cel.position, b.width, b.height, b.data.clone())
+    }
+
+    /// Every sprite pixel inside the cel equal to `c`.
+    fn painted(cels: &CelMap, c: Rgba) -> BTreeSet<(i32, i32)> {
+        let ((px, py), w, h, data) = cel_state(cels);
+        let mut out = BTreeSet::new();
+        for y in 0..h as i32 {
+            for x in 0..w as i32 {
+                let i = ((y as usize) * (w as usize) + x as usize) * 4;
+                if data[i..i + 4] == [c.r, c.g, c.b, c.a] {
+                    out.insert((px + x, py + y));
+                }
+            }
+        }
+        out
+    }
+
+    fn set(pts: &[(i32, i32)]) -> BTreeSet<(i32, i32)> {
+        pts.iter().copied().collect()
+    }
+
+    /// Run one stroke through a bus like the wasm gesture API does.
+    fn run(bus: &mut Bus, sprite: &mut Sprite, cels: &mut CelMap, aid: Aid, pts: &[(i32, i32)]) {
+        let (x, y) = pts[0];
+        let mut s = PencilStroke::new(
+            L,
+            F,
+            RED,
+            PixelBrush::new(aid.size, BrushShape::Square),
+            aid.pp,
+            Point::new(x, y),
+            1.0,
+        )
+        .with_wrap(aid.wrap);
+        if let Some(m) = aid.mirror {
+            s = s.with_mirror(m);
+        }
+        bus.seal();
+        bus.execute(s.into(), sprite, cels).expect("stroke applies");
+        for &(x, y) in &pts[1..] {
+            assert!(
+                bus.continue_stroke(Point::new(x, y), 1.0, cels)
+                    .expect("segment applies"),
+                "stroke stays live on the bus"
+            );
+        }
+        bus.seal();
+    }
+
+    /// The red pixels of one stroke on a fresh transparent `w`×`h` canvas.
+    fn stroke_on(w: u32, h: u32, aid: Aid, pts: &[(i32, i32)]) -> BTreeSet<(i32, i32)> {
+        let (mut sprite, mut cels) = canvas(w, h);
+        run(&mut Bus::new(), &mut sprite, &mut cels, aid, pts);
+        painted(&cels, RED)
+    }
+
+    // --- Symmetry (AC-01 – AC-07) ---
+
+    #[test]
+    fn mirror_x_even_width_axis_on_edge() {
+        // Width 8, default axis A = 8 half pixels: column x mirrors to 7 − x.
+        assert_eq!(
+            stroke_on(8, 4, mirror(Some(8), None), &[(1, 2)]),
+            set(&[(1, 2), (6, 2)])
+        );
+        // A pixel next to the edge axis lands on the neighbouring column.
+        assert_eq!(
+            stroke_on(8, 4, mirror(Some(8), None), &[(3, 0)]),
+            set(&[(3, 0), (4, 0)])
+        );
+    }
+
+    #[test]
+    fn mirror_x_odd_width_axis_through_centre_pixel() {
+        // Width 15, A = 15: column 7 mirrors onto itself, 2 onto 12.
+        assert_eq!(
+            stroke_on(15, 2, mirror(Some(15), None), &[(7, 0)]),
+            set(&[(7, 0)])
+        );
+        assert_eq!(
+            stroke_on(15, 2, mirror(Some(15), None), &[(2, 1)]),
+            set(&[(2, 1), (12, 1)])
+        );
+    }
+
+    #[test]
+    fn mirror_y_stamps_across_horizontal_axis() {
+        assert_eq!(
+            stroke_on(4, 8, mirror(None, Some(8)), &[(3, 1)]),
+            set(&[(3, 1), (3, 6)])
+        );
+        // An off-centre axis (B = 5, through the centre of row 2).
+        assert_eq!(
+            stroke_on(4, 8, mirror(None, Some(5)), &[(0, 0), (0, 1)]),
+            set(&[(0, 0), (0, 1), (0, 4), (0, 3)])
+        );
+    }
+
+    #[test]
+    fn mirror_xy_stamps_four_points() {
+        assert_eq!(
+            stroke_on(8, 6, mirror(Some(8), Some(6)), &[(1, 0)]),
+            set(&[(1, 0), (6, 0), (1, 5), (6, 5)])
+        );
+    }
+
+    #[test]
+    fn mirror_image_outside_canvas_is_skipped() {
+        // Axis at the right edge region (A = 14 on width 8): (1, 0)
+        // mirrors to 12, beyond the canvas; (6, 0) mirrors to 7.
+        assert_eq!(
+            stroke_on(8, 2, mirror(Some(14), None), &[(1, 0)]),
+            set(&[(1, 0)])
+        );
+        assert_eq!(
+            stroke_on(8, 2, mirror(Some(14), None), &[(6, 0)]),
+            set(&[(6, 0), (7, 0)])
+        );
+    }
+
+    #[test]
+    fn mirror_stroke_is_one_undo_step() {
+        let (mut sprite, mut cels) = doc(8, 8, (0, 0, 8, 8), BLUE);
+        let before = cel_state(&cels);
+        let mut bus = Bus::new();
+        let aid = Aid {
+            size: 3,
+            ..mirror(Some(8), Some(8))
+        };
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            aid,
+            &[(1, 1), (3, 2), (2, 5)],
+        );
+        let after = cel_state(&cels);
+        assert_ne!(after, before);
+        assert_eq!(bus.undo_depth(), 1, "one stroke, one entry");
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!(cel_state(&cels), before, "every touched pixel restored");
+        assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+        assert_eq!(cel_state(&cels), after, "redo reproduces the stroke");
+    }
+
+    #[test]
+    fn mirror_with_pixel_perfect_follows_primary_path() {
+        // A staircase: the L-corners (1, 0) and (2, 1) are dropped, and
+        // so are their mirror images.
+        let pts = [(0, 0), (1, 0), (1, 1), (2, 1), (2, 2)];
+        let aid = Aid {
+            pp: true,
+            ..mirror(Some(8), None)
+        };
+        assert_eq!(
+            stroke_on(8, 4, aid, &pts),
+            set(&[(0, 0), (1, 1), (2, 2), (7, 0), (6, 1), (5, 2)])
+        );
+    }
+
+    /// The primary stroke alone, painted into a cel far larger than the
+    /// canvas so nothing it stamps is clipped.
+    fn primary(aid: Aid, pts: &[(i32, i32)]) -> BTreeSet<(i32, i32)> {
+        let (mut sprite, mut cels) = doc(10, 9, (-30, -30, 70, 70), Rgba::TRANSPARENT);
+        let aid = Aid {
+            mirror: None,
+            ..aid
+        };
+        run(&mut Bus::new(), &mut sprite, &mut cels, aid, pts);
+        painted(&cels, RED)
+    }
+
+    #[test]
+    fn mirror_random_strokes_paint_primary_plus_mirror_images() {
+        let mut seed = 0x5eed_u64;
+        let mut next = |m: i32| -> i32 {
+            seed = seed
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((seed >> 33) % m as u64) as i32
+        };
+        for case in 0..300 {
+            let ax = (next(3) > 0).then(|| next(21));
+            let ay = (next(3) > 0).then(|| next(19));
+            let aid = Aid {
+                size: 1 + next(3) as u8,
+                pp: case % 2 == 0,
+                ..mirror(ax, ay)
+            };
+            let len = 1 + next(7) as usize;
+            let pts: Vec<(i32, i32)> = (0..len).map(|_| (next(14) - 2, next(13) - 2)).collect();
+            let k = primary(aid, &pts);
+            let mut want = BTreeSet::new();
+            for &(x, y) in &k {
+                let xs = [Some(x), ax.map(|a| a - 1 - x)];
+                let ys = [Some(y), ay.map(|b| b - 1 - y)];
+                for &mx in xs.iter().flatten() {
+                    for &my in ys.iter().flatten() {
+                        if (0..10).contains(&mx) && (0..9).contains(&my) {
+                            want.insert((mx, my));
+                        }
+                    }
+                }
+            }
+            assert_eq!(
+                stroke_on(10, 9, aid, &pts),
+                want,
+                "case {case}: {aid_x:?} {aid_y:?} {pts:?}",
+                aid_x = ax,
+                aid_y = ay
+            );
+        }
+    }
+
+    // --- Tiled mode (AC-15 – AC-17, AC-19) ---
+
+    #[test]
+    fn wrap_x_stroke_across_right_edge_continues_on_left() {
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, false), &[(5, 1), (10, 1)]),
+            set(&[(5, 1), (6, 1), (7, 1), (0, 1), (1, 1), (2, 1)])
+        );
+        // One jump across the seam keeps the diagonal unbroken.
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, false), &[(6, 0), (9, 3)]),
+            set(&[(6, 0), (7, 1), (0, 2), (1, 3)])
+        );
+        // And across the left edge.
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, true), &[(1, 2), (-2, 2)]),
+            set(&[(1, 2), (0, 2), (7, 2), (6, 2)])
+        );
+    }
+
+    #[test]
+    fn wrap_y_stroke_across_bottom_edge_continues_on_top() {
+        assert_eq!(
+            stroke_on(3, 6, wrap(false, true), &[(1, 4), (1, 7)]),
+            set(&[(1, 4), (1, 5), (1, 0), (1, 1)])
+        );
+    }
+
+    #[test]
+    fn wrap_x_press_on_copy_paints_canvas_pixel() {
+        // A press on the right-hand copy: column 10 is canvas column 2.
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, false), &[(10, 3)]),
+            set(&[(2, 3)])
+        );
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, true), &[(-1, -1)]),
+            set(&[(7, 3)])
+        );
+    }
+
+    #[test]
+    fn wrap_both_size_8_stamp_at_corner_reaches_all_corners() {
+        let aid = Aid {
+            size: 8,
+            ..wrap(true, true)
+        };
+        let span: Vec<i32> = (12..16).chain(0..4).collect();
+        let want = span
+            .iter()
+            .flat_map(|&y| span.iter().map(move |&x| (x, y)))
+            .collect();
+        assert_eq!(stroke_on(16, 16, aid, &[(0, 0)]), want);
+    }
+
+    #[test]
+    fn wrap_off_skips_out_of_bounds() {
+        // No wrap, and wrap along the other axis only: the part beyond
+        // the right edge is skipped.
+        for aid in [PLAIN, wrap(false, true)] {
+            assert_eq!(
+                stroke_on(8, 4, aid, &[(5, 1), (10, 1)]),
+                set(&[(5, 1), (6, 1), (7, 1)])
+            );
+        }
+        assert_eq!(
+            stroke_on(8, 4, wrap(true, false), &[(2, 2), (2, 6)]),
+            set(&[(2, 2), (2, 3)])
+        );
+    }
+
+    #[test]
+    fn wrap_stroke_is_one_undo_entry() {
+        let (mut sprite, mut cels) = doc(8, 8, (0, 0, 8, 8), BLUE);
+        let before = cel_state(&cels);
+        let mut bus = Bus::new();
+        let aid = Aid {
+            size: 2,
+            ..wrap(true, true)
+        };
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            aid,
+            &[(6, 6), (10, 9), (-3, 1)],
+        );
+        let after = cel_state(&cels);
+        assert!(painted(&cels, RED).contains(&(0, 0)), "wrapped part");
+        assert!(painted(&cels, RED).contains(&(6, 6)), "unwrapped part");
+        assert_eq!(bus.undo_depth(), 1);
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!(cel_state(&cels), before);
+        assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+        assert_eq!(cel_state(&cels), after);
+    }
+
+    #[test]
+    fn mirror_image_beyond_canvas_wraps_in_tiled_mode() {
+        // A = 12 on width 8: (1, 0) mirrors to 10, which wraps to 2.
+        let aid = Aid {
+            wrap: Wrap { x: true, y: false },
+            ..mirror(Some(12), None)
+        };
+        assert_eq!(stroke_on(8, 2, aid, &[(1, 0)]), set(&[(1, 0), (2, 0)]));
+    }
+
+    // --- Cel growth (AC-21) ---
+
+    #[test]
+    fn stroke_outside_small_cel_grows_it_and_undo_restores_it() {
+        let (mut sprite, mut cels) = doc(32, 32, (2, 2, 4, 4), BLUE);
+        let before = cel_state(&cels);
+        let mut bus = Bus::new();
+        run(&mut bus, &mut sprite, &mut cels, PLAIN, &[(3, 3), (10, 3)]);
+        let after = cel_state(&cels);
+        let red = painted(&cels, RED);
+        assert!(red.contains(&(10, 3)), "painted beyond the old cel");
+        assert_eq!(red.len(), 8);
+        let blue = painted(&cels, BLUE);
+        assert_eq!(blue.len(), 16 - 3, "old pixels kept, three overpainted");
+        assert_eq!(bus.undo_depth(), 1);
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!(cel_state(&cels), before, "bounds and pixels restored");
+        assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+        assert_eq!(cel_state(&cels), after);
+    }
+
+    #[test]
+    fn mirror_image_outside_small_cel_grows_it() {
+        let (mut sprite, mut cels) = doc(16, 16, (0, 0, 4, 4), Rgba::TRANSPARENT);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            mirror(Some(16), None),
+            &[(1, 1)],
+        );
+        assert_eq!(painted(&cels, RED), set(&[(1, 1), (14, 1)]));
+    }
+
+    #[test]
+    fn wrapped_stroke_grows_cel_to_full_canvas_extent_on_wrapped_axis() {
+        let (mut sprite, mut cels) = doc(32, 32, (0, 0, 4, 4), BLUE);
+        let before = cel_state(&cels);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            wrap(true, false),
+            &[(2, 1), (-2, 1)],
+        );
+        let ((x, _), w, h, _) = cel_state(&cels);
+        assert_eq!((x, w), (0, 32), "full canvas width");
+        assert_eq!(h, 4, "rows unchanged");
+        assert!(painted(&cels, RED).contains(&(30, 1)));
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!(cel_state(&cels), before);
+    }
+
+    #[test]
+    fn stroke_outside_canvas_and_cel_does_not_grow_the_cel() {
+        let (mut sprite, mut cels) = doc(8, 8, (0, 0, 4, 4), Rgba::TRANSPARENT);
+        let before = cel_state(&cels);
+        run(&mut Bus::new(), &mut sprite, &mut cels, PLAIN, &[(-3, -3)]);
+        assert_eq!(cel_state(&cels), before);
     }
 }
