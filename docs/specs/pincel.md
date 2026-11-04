@@ -674,6 +674,32 @@ A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, s
 
 Mouse and pen input is captured with the full `PointerEvent` API (pressure, tilt, pointer-type) on the stage — the canvas and the editor area around it — so a selection gesture can start beside the canvas and still reach its edge pixels; tools that change pixels ignore a press that starts off the canvas (`pixel-selection-move` AC-21 – AC-24, `image-editing` AC-29 – AC-32). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. Help ▸ Keyboard Shortcuts and `Ctrl+/` (⌘/ on macOS) open an overview of every shortcut and pointer gesture of the current mode, generated from the same map plus the actions and tool groups the editor binds, so it can't drift from the keys (`ui/src/lib/shell/shortcut-list.ts`, feature spec `shortcut-overview`). The same dialog rebinds any action or tool-group key (Change, Reset, Reset all, JSON export / import; feature spec `power-user-shortcuts-keymap`): user overrides sit on top of the defaults in the IndexedDB pref `keymap`, stored with the platform-neutral `mod`, and every hint, tooltip and key handler reads the effective map; rebound native-menu actions reach the macOS menu through `set_menu_accelerators`. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo / the shortcut overview) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
 
+Default keymap (Ctrl is ⌘ on macOS; feature specs `power-user-shortcuts-coverage`, `shortcut-overview`, `pixel-grid`). No default is a chord a browser tab cannot capture (Ctrl+N / T / W with or without Shift, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+R, F5); keys only the desktop app can take are bound only there. Chords whose typed character depends on the layout (Shift+digit, Alt+[ / ], Alt+N, Ctrl+Alt+E, which Windows reports as AltGr) match the physical key (`KeyboardEvent.code`). Action chords are matched before tool keys, so Shift+N / H / V never select a tool group.
+
+| Area | Action | Keys | Modes |
+| ---- | ------ | ---- | ----- |
+| File | Open / Save / Save As | Ctrl+O / Ctrl+S / Ctrl+Shift+S | both |
+| File | Export (PNG) / Export Sprite Sheet | Ctrl+E / Ctrl+Alt+E | both / Pixel |
+| Edit | Undo / Redo | Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y | both |
+| Edit | Cut / Copy / Paste / Paste as New Image | Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+Alt+V | both |
+| Edit | Delete selection | Delete, Backspace | both |
+| Select | Select All / Deselect / Invert | Ctrl+A / Ctrl+D / Ctrl+Shift+I | both |
+| Layer | New / Duplicate / Delete layer | Shift+N / Ctrl+J / Ctrl+Shift+Delete | both |
+| Layer | Merge Down | Ctrl+Shift+E | both |
+| Layer | Select layer above / below | Alt+↑ / Alt+↓ | both |
+| Layer | Flip layer horizontally / vertically | Shift+H / Shift+V | both |
+| Image | Rotate image 90° CW / CCW | Ctrl+R / Ctrl+Shift+R (desktop app only) | both |
+| Frame | New frame / previous / next / play | Alt+N / `,` / `.` / Enter | Pixel |
+| View | Zoom in / out / fit / 1:1 | `+` / `-` / `0` / `1` | both |
+| View | Grid / pixel grid | Ctrl+' / Ctrl+Shift+' | Pixel |
+| View | Toggle UI (tool rail, options bar, panels) | Tab while the canvas stage has focus | both |
+| Help | Keyboard Shortcuts | Ctrl+/ | both |
+| Colors | Swap / default colors | X / D | both |
+| Colors | Next / previous palette color | Alt+] / Alt+[ | Pixel |
+| Brush | Smaller / larger | `[` / `]` | both |
+| Brush | Opacity 10 % … 90 % / 100 % | Shift+1 … Shift+9 / Shift+0 | Image |
+| Tools | Tool groups | the letters above | per mode |
+
 Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes, snaps lines and Pixel-mode Pencil / Eraser strokes to 45°, adds to a selection; Alt subtracts; both intersect.
 
 Pincel honours "reduce motion" (Decision Log 2026-10-29, feature spec `reduced-motion.md`): while the system asks for `prefers-reduced-motion: reduce` (followed live) or View ▸ Reduce Motion is checked (an IndexedDB pref that can only add the request, never force motion on), the selection outline and the other marching outlines stand still and UI transitions and animations finish instantly; frame playback and the animation preview are content and keep running. Both editors and the shell read one flag, `motion.reduced` in `ui/src/lib/motion.svelte.ts`.
