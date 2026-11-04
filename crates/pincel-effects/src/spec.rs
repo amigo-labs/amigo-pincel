@@ -16,7 +16,10 @@ use crate::adjust::{
     GrayscaleMethod, HighlightsShadows, HueSaturation, Invert, InvertAlpha, Levels, LevelsChannel,
     Posterize, Sepia, TemperatureTint, Threshold,
 };
-use crate::blur::{BoxBlur, GaussianBlur, MotionBlur, RadialBlur, RadialKind};
+use crate::blur::{
+    Bokeh, BoxBlur, Fragment, GaussianBlur, Median, MotionBlur, RadialBlur, RadialKind, SketchBlur,
+    SurfaceBlur,
+};
 use crate::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
 use crate::effect::Effect;
 use crate::error::EffectError;
@@ -34,8 +37,13 @@ pub enum EffectSpec {
     GaussianBlur { radius: f32 },
     /// `box_blur`: `[width, height]`.
     BoxBlur { width: u32, height: u32 },
-    /// `motion_blur`: `[distance, angle_degrees]`.
-    MotionBlur { distance: f32, angle: f32 },
+    /// `motion_blur`: `[distance, angle_degrees]` or `[distance,
+    /// angle_degrees, centered]`; without the third slot it is centred.
+    MotionBlur {
+        distance: f32,
+        angle: f32,
+        centered: bool,
+    },
     /// `radial_blur`: `[amount, center_x, center_y, kind]` with the centre
     /// as a fraction of the image (0..1, 0.5 = middle) and `kind`
     /// `0` = spin, `1` = zoom.
@@ -144,6 +152,25 @@ pub enum EffectSpec {
     Sepia(Sepia),
     /// `temperature_tint`: `[temperature, tint]`, each `-100..=100`.
     TemperatureTint(TemperatureTint),
+    /// `bokeh`: `[radius, highlights]` (`1..=100`, `0..=100`).
+    Bokeh(Bokeh),
+    /// `fragment`: `[fragments, distance, rotation_degrees]` (`2..=50`,
+    /// `0..=100` px, wrapped into `0..360`).
+    Fragment(Fragment),
+    /// `median`: `[radius, percentile]` (`1..=200`, `0..=100`).
+    Median(Median),
+    /// `sketch_blur`: `[radius, seed]` (`1..=100`, `0..=9999`).
+    SketchBlur(SketchBlur),
+    /// `surface_blur`: `[radius, threshold]` (`1..=100`, `1..=100` % of 255).
+    SurfaceBlur(SurfaceBlur),
+    /// `zoom_blur`: `[amount, center_x, center_y]` with `amount` in
+    /// `1..=100` and the centre as a fraction of the image (`0..=1`) — the
+    /// zoom kind of Radial Blur as its own entry.
+    ZoomBlur {
+        amount: f32,
+        center_x: f32,
+        center_y: f32,
+    },
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -174,6 +201,12 @@ pub const EFFECT_NAMES: &[&str] = &[
     "invert_alpha",
     "sepia",
     "temperature_tint",
+    "bokeh",
+    "fragment",
+    "median",
+    "sketch_blur",
+    "surface_blur",
+    "zoom_blur",
 ];
 
 fn expect_len(name: &str, params: &[f64], expected: usize) -> Result<(), EffectError> {
@@ -200,6 +233,11 @@ fn u(v: f64) -> u32 {
     }
 }
 
+/// A finite number clamped to `lo..=hi`; non-finite reads as 0 first.
+fn clamped(v: f64, lo: f32, hi: f32) -> f32 {
+    f(v).clamp(lo, hi)
+}
+
 fn b(v: f64) -> bool {
     v.is_finite() && v != 0.0
 }
@@ -223,10 +261,17 @@ impl EffectSpec {
                 }
             }
             "motion_blur" => {
-                expect_len(name, p, 2)?;
+                if p.len() != 2 && p.len() != 3 {
+                    return Err(EffectError::ParamCount {
+                        effect: name.to_owned(),
+                        expected: 3,
+                        got: p.len(),
+                    });
+                }
                 Self::MotionBlur {
                     distance: f(p[0]),
                     angle: f(p[1]),
+                    centered: p.get(2).is_none_or(|&v| b(v)),
                 }
             }
             "radial_blur" => {
@@ -425,6 +470,34 @@ impl EffectSpec {
                 expect_len(name, p, 2)?;
                 Self::TemperatureTint(TemperatureTint::new(f(p[0]), f(p[1])))
             }
+            "bokeh" => {
+                expect_len(name, p, 2)?;
+                Self::Bokeh(Bokeh::new(f(p[0]), f(p[1])))
+            }
+            "fragment" => {
+                expect_len(name, p, 3)?;
+                Self::Fragment(Fragment::new(f(p[0]), f(p[1]), f(p[2])))
+            }
+            "median" => {
+                expect_len(name, p, 2)?;
+                Self::Median(Median::new(f(p[0]), f(p[1])))
+            }
+            "sketch_blur" => {
+                expect_len(name, p, 2)?;
+                Self::SketchBlur(SketchBlur::new(f(p[0]), f(p[1])))
+            }
+            "surface_blur" => {
+                expect_len(name, p, 2)?;
+                Self::SurfaceBlur(SurfaceBlur::new(f(p[0]), f(p[1])))
+            }
+            "zoom_blur" => {
+                expect_len(name, p, 3)?;
+                Self::ZoomBlur {
+                    amount: clamped(p[0], 1.0, 100.0),
+                    center_x: clamped(p[1], 0.0, 1.0),
+                    center_y: clamped(p[2], 0.0, 1.0),
+                }
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -445,19 +518,19 @@ impl EffectSpec {
         match self {
             Self::GaussianBlur { radius } => GaussianBlur::new(*radius).apply(src),
             Self::BoxBlur { width, height } => BoxBlur::new(*width, *height).apply(src),
-            Self::MotionBlur { distance, angle } => MotionBlur::new(*distance, *angle).apply(src),
+            Self::MotionBlur {
+                distance,
+                angle,
+                centered,
+            } => MotionBlur::new(*distance, *angle)
+                .with_centered(*centered)
+                .apply(src),
             Self::RadialBlur {
                 amount,
                 center_x,
                 center_y,
                 kind,
-            } => {
-                // The wire carries the centre as a fraction of the image;
-                // `RadialBlur` works in pixel coordinates.
-                let cx = center_x * src.width().saturating_sub(1) as f32;
-                let cy = center_y * src.height().saturating_sub(1) as f32;
-                RadialBlur::new(*amount, cx, cy, *kind).apply(src)
-            }
+            } => radial(src, *amount, *center_x, *center_y, *kind),
             Self::Sharpen => Sharpen.apply(src),
             Self::UnsharpMask {
                 amount,
@@ -538,6 +611,16 @@ impl EffectSpec {
             Self::InvertAlpha => InvertAlpha.apply(src),
             Self::Sepia(e) => e.apply(src),
             Self::TemperatureTint(e) => e.apply(src),
+            Self::Bokeh(e) => e.apply(src),
+            Self::Fragment(e) => e.apply(src),
+            Self::Median(e) => e.apply(src),
+            Self::SketchBlur(e) => e.apply(src),
+            Self::SurfaceBlur(e) => e.apply(src),
+            Self::ZoomBlur {
+                amount,
+                center_x,
+                center_y,
+            } => radial(src, *amount, *center_x, *center_y, RadialKind::Zoom),
         }
     }
 
@@ -570,8 +653,28 @@ impl EffectSpec {
             Self::InvertAlpha => "Invert Alpha",
             Self::Sepia(_) => "Sepia",
             Self::TemperatureTint(_) => "Temperature and Tint",
+            Self::Bokeh(_) => "Bokeh",
+            Self::Fragment(_) => "Fragment",
+            Self::Median(_) => "Median",
+            Self::SketchBlur(_) => "Sketch Blur",
+            Self::SurfaceBlur(_) => "Surface Blur",
+            Self::ZoomBlur { .. } => "Zoom Blur",
         }
     }
+}
+
+/// Radial Blur with the wire's centre (a fraction of the image) converted to
+/// the pixel coordinates `RadialBlur` works in.
+fn radial(
+    src: &EffectImage,
+    amount: f32,
+    center_x: f32,
+    center_y: f32,
+    kind: RadialKind,
+) -> EffectImage {
+    let cx = center_x * src.width().saturating_sub(1) as f32;
+    let cy = center_y * src.height().saturating_sub(1) as f32;
+    RadialBlur::new(amount, cx, cy, kind).apply(src)
 }
 
 #[cfg(test)]
@@ -616,6 +719,13 @@ mod tests {
             ("invert_alpha", &[]),
             ("sepia", &[100.0]),
             ("temperature_tint", &[30.0, -30.0]),
+            ("motion_blur", &[5.0, 45.0, 0.0]),
+            ("bokeh", &[10.0, 25.0]),
+            ("fragment", &[4.0, 8.0, 0.0]),
+            ("median", &[10.0, 50.0]),
+            ("sketch_blur", &[10.0, 1.0]),
+            ("surface_blur", &[6.0, 25.0]),
+            ("zoom_blur", &[10.0, 0.5, 0.5]),
         ];
         for (name, params) in cases {
             let spec =

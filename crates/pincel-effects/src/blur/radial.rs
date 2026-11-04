@@ -9,7 +9,8 @@ use crate::image::EffectImage;
 pub enum RadialKind {
     /// Rotate samples about the centre (circular streaks).
     Spin,
-    /// Scale samples toward/away from the centre (zoom streaks).
+    /// Average along the line from each pixel toward the centre (zoom
+    /// streaks, longer farther out).
     Zoom,
 }
 
@@ -76,7 +77,10 @@ impl Effect for RadialBlur {
                             )
                         }
                         RadialKind::Zoom => {
-                            let scale = 1.0 + frac * strength * ZOOM_MAX;
+                            // From the pixel toward the centre
+                            // (docs/specs/effects-blurs.md): scale 1 down
+                            // to 1 - strength * ZOOM_MAX.
+                            let scale = 1.0 - (frac + 0.5) * strength * ZOOM_MAX;
                             (self.center_x + vx * scale, self.center_y + vy * scale)
                         }
                     };
