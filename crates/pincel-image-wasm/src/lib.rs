@@ -5,6 +5,7 @@
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
 use pincel_effects::{EffectImage, EffectSpec};
+use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::{
     to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
@@ -117,6 +118,40 @@ pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
     let doc =
         pincel_image_core::codec::from_ora_bytes(data).map_err(|e| JsError::new(&e.to_string()))?;
     Ok(insert(CommandBus::new(doc)))
+}
+
+/// What [`open_psd`] hands back: the new document's handle and what the
+/// import left out or changed (docs/specs/psd-import.md).
+#[derive(Debug, Serialize)]
+struct PsdOpened {
+    handle: u32,
+    notices: Vec<PsdNotice>,
+}
+
+/// Opens a PSD into the arena, refusing a canvas over `max_dim` per edge
+/// or `max_area` pixels before decoding any pixel.
+fn open_psd_document(data: &[u8], max_dim: u32, max_area: u32) -> Result<PsdOpened, String> {
+    let limits = PsdLimits {
+        max_dim,
+        max_area: u64::from(max_area),
+    };
+    let import = from_psd_bytes(data, limits).map_err(|e| e.to_string())?;
+    Ok(PsdOpened {
+        handle: insert(CommandBus::new(import.document)),
+        notices: import.notices,
+    })
+}
+
+/// Opens a Photoshop (`.psd`) file — 8-bit RGB, its layers and groups, or
+/// its flattened composite — and returns `{ handle, notices }`; `notices`
+/// lists what the import left out or changed (`kind`-tagged objects, see
+/// `PsdNotice`). Fails, opening nothing, for PSB, other depths and color
+/// modes, a canvas over `max_dim` per edge or `max_area` pixels, or a file
+/// that cannot be read (docs/specs/psd-import.md).
+#[wasm_bindgen]
+pub fn open_psd(data: &[u8], max_dim: u32, max_area: u32) -> Result<JsValue, JsError> {
+    let opened = open_psd_document(data, max_dim, max_area).map_err(|e| JsError::new(&e))?;
+    serde_wasm_bindgen::to_value(&opened).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Pastes an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a new layer above
@@ -725,6 +760,41 @@ mod project_tests {
         })
         .expect("read");
         assert_eq!(names, vec!["Layer 1".to_string(), "Top".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod psd_tests {
+    use super::*;
+
+    const SAMPLE: &[u8] = include_bytes!("../../pincel-image-core/tests/fixtures/sample.psd");
+
+    #[test]
+    fn open_psd_document_opens_layers_and_reports_notices() {
+        let opened = open_psd_document(SAMPLE, 16384, 8192 * 8192).expect("opens");
+        let names: Vec<String> = with_bus(opened.handle, |bus| {
+            Ok(bus
+                .document
+                .layers()
+                .iter()
+                .map(|l| l.name.clone())
+                .collect())
+        })
+        .expect("read");
+        assert_eq!(names, ["Base", "Folder", "Ink", "Title"]);
+        assert!(opened.notices.contains(&PsdNotice::Adjustment {
+            layer: "Curves".into()
+        }));
+    }
+
+    #[test]
+    fn open_psd_document_over_the_canvas_limits_opens_nothing() {
+        let before = DOCUMENTS.with(|d| d.borrow().len());
+        let err = open_psd_document(SAMPLE, 39, 8192 * 8192).expect_err("too wide");
+        assert!(err.contains("40 × 30"), "{err}");
+        let err = open_psd_document(SAMPLE, 16384, 1199).expect_err("too large");
+        assert!(err.contains("size limit"), "{err}");
+        assert_eq!(DOCUMENTS.with(|d| d.borrow().len()), before);
     }
 }
 
