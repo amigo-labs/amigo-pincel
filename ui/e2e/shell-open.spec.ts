@@ -4,6 +4,8 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   RASTER_MIME,
   drag,
+  fakeFileHandles,
+  fakeFs,
   gotoStart,
   imageCanvas,
   menu,
@@ -86,63 +88,10 @@ async function dropOnStart(page: Page, name: string, buffer: Buffer): Promise<vo
   );
 }
 
-/**
- * Fakes the File System Access open picker with handles to `files`, so an
- * opened file lands in the recent-files registry and Open Recent can read
- * it again. Headless Chromium crashes when it reads a real file handle back
- * from IndexedDB, so a fake handle is stored as a `{ fakeHandle: name }`
- * marker and turned back into a handle when IndexedDB hands it out.
- * `window.pick` names the file the next picker call returns.
- */
-async function fakeFileHandles(page: Page, files: Record<string, Buffer>): Promise<void> {
-  const bytes = Object.fromEntries(Object.entries(files).map(([n, b]) => [n, Array.from(b)]));
-  await page.addInitScript((all: Record<string, number[]>) => {
-    type Marker = { fakeHandle: string };
-    const handle = (name: string) => ({
-      kind: 'file',
-      name,
-      fakeHandle: name,
-      getFile: async () => new File([new Uint8Array(all[name] ?? [])], name),
-      queryPermission: async () => 'granted',
-      requestPermission: async () => 'granted',
-    });
-    const plain = (v: unknown): v is Record<string, unknown> =>
-      typeof v === 'object' && v !== null && Object.getPrototypeOf(v) === Object.prototype;
-    const map = (v: unknown, f: (o: Record<string, unknown>) => unknown): unknown => {
-      if (Array.isArray(v)) return v.map((x) => map(x, f));
-      if (!plain(v)) return v;
-      const hit = f(v);
-      if (hit !== undefined) return hit;
-      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x, f)]));
-    };
-    const toMarker = (o: Record<string, unknown>): Marker | undefined =>
-      typeof o.getFile === 'function' && typeof o.fakeHandle === 'string'
-        ? { fakeHandle: o.fakeHandle }
-        : undefined;
-    const fromMarker = (o: Record<string, unknown>) =>
-      typeof o.fakeHandle === 'string' && typeof o.getFile !== 'function'
-        ? handle(o.fakeHandle)
-        : undefined;
-    const put = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
-      return put.call(this, map(value, toMarker), key);
-    };
-    const result = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'result');
-    Object.defineProperty(IDBRequest.prototype, 'result', {
-      configurable: true,
-      get(this: IDBRequest) {
-        return map(result?.get?.call(this), fromMarker);
-      },
-    });
-    const w = window as unknown as { pick: string; showOpenFilePicker: () => Promise<unknown[]> };
-    w.showOpenFilePicker = async () => [handle(w.pick)];
-  }, bytes);
-}
-
 /** Opens `name` through the start screen's Open… and the fake picker. */
 async function pickFromStart(page: Page, name: string): Promise<void> {
   await gotoStart(page);
-  await page.evaluate((n) => ((window as unknown as { pick: string }).pick = n), name);
+  await fakeFs(page, { pick: name });
   await page.getByRole('button', { name: 'Open…' }).click();
 }
 

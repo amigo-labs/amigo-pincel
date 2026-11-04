@@ -343,3 +343,147 @@ export async function rasterFile(page: Page, kind: RasterKind): Promise<Buffer> 
   if (kind === 'gif') return GIF_FILE;
   return canvasFile(page, RASTER_MIME[kind]);
 }
+
+/** A picker call the fake File System Access API saw (`fakeFileHandles`). */
+export interface PickerCall {
+  picker: 'open' | 'save';
+  suggestedName?: string;
+  multiple?: boolean;
+  types?: { description?: string; accept: Record<string, string[]> }[];
+}
+
+/** Knobs of the fake File System Access API, set with `fakeFs`. */
+export interface FakeFsControl {
+  /** Name the next open picker returns; `null` cancels it (AbortError). */
+  pick: string | null;
+  /** Name the next save picker returns; `null` cancels it (AbortError). */
+  savePick: string | null;
+  /** Files whose handle is refused read (and so write) permission. */
+  denyRead: string[];
+  /** Files whose handle is refused write permission only. */
+  denyWrite: string[];
+  /** Files whose `getFile()` rejects. */
+  failRead: string[];
+}
+
+/**
+ * Fakes the File System Access open and save pickers with handles to an
+ * in-page disk that starts with `files`, so an opened or saved file lands in
+ * the recent-files registry, Open Recent can read it again and a Save writes
+ * back to it. Headless Chromium crashes when it reads a real file handle back
+ * from IndexedDB, so a fake handle is stored as a `{ fakeHandle: name }`
+ * marker and turned back into a handle when IndexedDB hands it out. Steer the
+ * pickers and permissions with `fakeFs`, read what happened with `fakeFsLog`.
+ */
+export async function fakeFileHandles(page: Page, files: Record<string, Buffer>): Promise<void> {
+  const bytes = Object.fromEntries(Object.entries(files).map(([n, b]) => [n, Array.from(b)]));
+  await page.addInitScript((all: Record<string, number[]>) => {
+    type Marker = { fakeHandle: string };
+    const fs = {
+      pick: null as string | null,
+      savePick: null as string | null,
+      denyRead: [] as string[],
+      denyWrite: [] as string[],
+      failRead: [] as string[],
+      pickers: [] as unknown[],
+      writes: [] as string[],
+      files: all,
+    };
+    (window as unknown as { fakeFs: typeof fs }).fakeFs = fs;
+    const denied = (name: string, mode: string) =>
+      fs.denyRead.includes(name) || (mode === 'readwrite' && fs.denyWrite.includes(name));
+    const handle = (name: string) => ({
+      kind: 'file',
+      name,
+      fakeHandle: name,
+      getFile: async () => {
+        if (fs.failRead.includes(name)) throw new DOMException(`${name} is gone`, 'NotFoundError');
+        return new File([new Uint8Array(fs.files[name] ?? [])], name);
+      },
+      queryPermission: async ({ mode }: { mode: string }) =>
+        denied(name, mode) ? 'prompt' : 'granted',
+      requestPermission: async ({ mode }: { mode: string }) =>
+        denied(name, mode) ? 'denied' : 'granted',
+      createWritable: async () => {
+        let data: number[] = [];
+        return {
+          write: async (chunk: Uint8Array) => {
+            data = Array.from(chunk);
+          },
+          close: async () => {
+            fs.files[name] = data;
+            fs.writes.push(name);
+          },
+        };
+      },
+    });
+    const plain = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null && Object.getPrototypeOf(v) === Object.prototype;
+    const map = (v: unknown, f: (o: Record<string, unknown>) => unknown): unknown => {
+      if (Array.isArray(v)) return v.map((x) => map(x, f));
+      if (!plain(v)) return v;
+      const hit = f(v);
+      if (hit !== undefined) return hit;
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, map(x, f)]));
+    };
+    const toMarker = (o: Record<string, unknown>): Marker | undefined =>
+      typeof o.getFile === 'function' && typeof o.fakeHandle === 'string'
+        ? { fakeHandle: o.fakeHandle }
+        : undefined;
+    const fromMarker = (o: Record<string, unknown>) =>
+      typeof o.fakeHandle === 'string' && typeof o.getFile !== 'function'
+        ? handle(o.fakeHandle)
+        : undefined;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      return put.call(this, map(value, toMarker), key);
+    };
+    const result = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'result');
+    Object.defineProperty(IDBRequest.prototype, 'result', {
+      configurable: true,
+      get(this: IDBRequest) {
+        return map(result?.get?.call(this), fromMarker);
+      },
+    });
+    const cancel = () => new DOMException('The user aborted a request.', 'AbortError');
+    const w = window as unknown as {
+      showOpenFilePicker: (opts?: object) => Promise<unknown[]>;
+      showSaveFilePicker: (opts?: object) => Promise<unknown>;
+    };
+    w.showOpenFilePicker = async (opts = {}) => {
+      fs.pickers.push(JSON.parse(JSON.stringify({ picker: 'open', ...opts })));
+      if (fs.pick === null) throw cancel();
+      return [handle(fs.pick)];
+    };
+    w.showSaveFilePicker = async (opts = {}) => {
+      fs.pickers.push(JSON.parse(JSON.stringify({ picker: 'save', ...opts })));
+      if (fs.savePick === null) throw cancel();
+      return handle(fs.savePick);
+    };
+  }, bytes);
+}
+
+/** Sets knobs of the fake pickers (`fakeFileHandles`). */
+export async function fakeFs(page: Page, control: Partial<FakeFsControl>): Promise<void> {
+  await page.evaluate((c) => {
+    Object.assign((window as unknown as { fakeFs: object }).fakeFs, c);
+  }, control);
+}
+
+/** The picker calls and in-place writes the fake saw, oldest first. */
+export async function fakeFsLog(page: Page): Promise<{ pickers: PickerCall[]; writes: string[] }> {
+  return page.evaluate(() => {
+    const fs = (window as unknown as { fakeFs: { pickers: PickerCall[]; writes: string[] } })
+      .fakeFs;
+    return { pickers: fs.pickers, writes: fs.writes };
+  });
+}
+
+/** The bytes of `name` on the fake disk (`fakeFileHandles`). */
+export async function fakeFsFile(page: Page, name: string): Promise<Buffer> {
+  const bytes = await page.evaluate(
+    (n) => (window as unknown as { fakeFs: { files: Record<string, number[]> } }).fakeFs.files[n],
+    name,
+  );
+  return Buffer.from(bytes ?? []);
+}
