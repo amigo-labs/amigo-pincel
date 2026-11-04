@@ -84,6 +84,9 @@ export type EffectDef = {
    *  effect in both cores regardless. */
   modes: readonly EffectMode[];
   params: ParamDef[];
+  /** Parameter defaults that differ per mode, by parameter key (Pixelate's
+   *  Colour: Centre in Pixel mode). `entriesFor` applies them. */
+  modeDefaults?: Partial<Record<EffectMode, Record<string, number>>>;
   /** Build the wire parameter vector from the current values. Defaults to
    *  the params in declared order; Curves overrides to interleave the
    *  fixed x positions. */
@@ -140,6 +143,11 @@ const center = (): ParamDef => ({
   yLabel: 'Center Y',
   default: { x: 50, y: 50 },
 });
+
+/** The resampling distortions' edge behaviour (one wire slot, the option
+ *  index; docs/specs/effects-distort.md). */
+const edge = (def = 0): ParamDef =>
+  choice('edge', 'Edge behavior', ['Clamp', 'Wrap', 'Reflect', 'Transparent'], def);
 
 /** Radial Blur's amount and centre as wire slots: the amount, then the
  *  centre as two fractions (the point kind's encoding in `toParams`). */
@@ -451,6 +459,96 @@ export const EFFECTS: EffectDef[] = [
     modes: IMAGE,
     params: [num('amount', 'Amount', 1, 100, 10), center()],
   },
+  // docs/specs/effects-distort.md: paint.net's Distort menu. Morphology and
+  // Pixelate keep pixels hard-edged, so Pixel mode shows them too.
+  {
+    id: 'bulge',
+    label: 'Bulge',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', -200, 100, 45), center(), edge()],
+  },
+  {
+    id: 'crystalize',
+    label: 'Crystalize',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('cell_size', 'Cell size', 2, 250, 8), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'dents',
+    label: 'Dents',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('scale', 'Scale', 1, 200, 25),
+      num('refraction', 'Refraction', 0, 200, 50),
+      num('roughness', 'Roughness', 0, 100, 10),
+      seed('seed', 'Seed', 0, 9999, 1),
+      edge(),
+    ],
+  },
+  {
+    id: 'frosted_glass',
+    label: 'Frosted Glass',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', 1, 200, 10), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'morphology',
+    label: 'Morphology',
+    group: 'distort',
+    modes: BOTH,
+    params: [
+      choice('operation', 'Operation', ['Dilate', 'Erode', 'Open', 'Close']),
+      choice('shape', 'Shape', ['Square', 'Circle']),
+      num('radius', 'Radius', 1, 100, 1),
+    ],
+  },
+  {
+    id: 'pixelate',
+    label: 'Pixelate',
+    group: 'distort',
+    modes: BOTH,
+    params: [
+      num('cell_size', 'Cell size', 2, 200, 8),
+      choice('color', 'Color', ['Average', 'Center']),
+    ],
+    // Centre picks an existing pixel: no new colours in a Pixel-mode sprite.
+    modeDefaults: { pixel: { color: 1 } },
+  },
+  {
+    id: 'polar_inversion',
+    label: 'Polar Inversion',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', -4, 4, 1, 0.01), center(), edge(1)],
+  },
+  {
+    id: 'tile_reflection',
+    label: 'Tile Reflection',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('tile_size', 'Tile size', 2, 200, 40),
+      angle('angle', 'Angle', 30),
+      num('curvature', 'Curvature', -100, 100, 8),
+      edge(),
+    ],
+  },
+  {
+    id: 'twist',
+    label: 'Twist',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('amount', 'Amount', -100, 100, 30),
+      num('size', 'Size %', 1, 200, 100),
+      center(),
+      edge(),
+    ],
+  },
 ];
 
 /** English fallback names of the Effects submenus (`effect.group.<id>`). */
@@ -470,9 +568,25 @@ export function effectById(id: string): EffectDef | undefined {
   return EFFECTS.find((e) => e.id === id);
 }
 
-/** Entries of `group` that `mode`'s menus show, in catalog order. */
+/** The definition as `mode` shows it: its `modeDefaults` for that mode
+ *  become the parameters' defaults. */
+export function forMode(def: EffectDef, mode: EffectMode): EffectDef {
+  const overrides = def.modeDefaults?.[mode];
+  if (!overrides) return def;
+  const params = def.params.map((p): ParamDef => {
+    const v = overrides[p.key];
+    if (v === undefined || p.kind === 'bool' || p.kind === 'point') return p;
+    return { ...p, default: v };
+  });
+  return { ...def, params };
+}
+
+/** Entries of `group` that `mode`'s menus show, in catalog order, with
+ *  that mode's defaults. */
 export function entriesFor(group: EffectGroup, mode: EffectMode): EffectDef[] {
-  return EFFECTS.filter((e) => e.group === group && e.modes.includes(mode));
+  return EFFECTS.filter((e) => e.group === group && e.modes.includes(mode)).map((e) =>
+    forMode(e, mode),
+  );
 }
 
 /** Wraps a typed angle into the dial's range: 0–360 stays, anything

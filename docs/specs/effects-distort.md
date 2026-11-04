@@ -96,8 +96,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `image mode lists the nine distortions, sorted; pixel mode Morphology and Pixelate (AC-01)` (ui/e2e/effects-distort.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
+| AC-02 | `the distortion dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-distort.spec.ts); `pixelate: each mode starts at its own colour default` and pinned wire vectors (ui/e2e/effect-catalog.spec.ts) | built |        |
 | AC-03 | `every_distortion_keeps_the_size`, `bulge_dents_and_twist_at_their_neutral_setting_change_nothing` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-04 | `morphology_only_picks_existing_colours` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-05 | `morphology_dilate_grows_and_erode_shrinks_the_opaque_pixels`, `morphology_on_a_single_pixel` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
@@ -110,7 +110,7 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-12 | `a_solid_opaque_layer_stays_unchanged`, `morphology_on_a_solid_layer_changes_only_pixels_near_the_edge` (crates/pincel-effects/tests/effects_distort.rs) | built |        |
 | AC-13 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_distort.rs); `apply_effect_distortions_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
 | AC-14 | `apply_effect_distortions_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-15 |      | open   |        |
+| AC-15 | `German names, parameter labels and edge-behaviour options (AC-15)` (ui/e2e/effects-distort.spec.ts) | built |        |
 
 ## Decisions
 
@@ -126,3 +126,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-04 (spec-build): New public API: `EffectSpec::run_at`; `EffectSpec::{Bulge, Crystalize, Dents, FrostedGlass, Morphology, Pixelate, PolarInversion, TileReflection, Twist}`; `distort::{Bulge, Crystalize, Dents, EdgeBehavior, FrostedGlass, Morphology, MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, TileReflection, Twist}`. The new wire names follow `zoom_blur` at the end of `EFFECT_NAMES`.
 - 2026-11-04 (spec-build): AC-13 ("changes nothing") and AC-14 are proven in the Pixel core (`pincel-wasm`), where the document and the RGBA refusal live; both tests were green at once, because the refusal and the parameter-count error run before any effect and every new name already parsed in `pincel-effects` (whose tests were red first). The Pixel core and the agent's Pixel tools now run effects through `run_at` with the cel position (the trimmed-cel test was red before).
 - 2026-11-04 (spec-build): The agent catalog names choices as lower-case words (`edge`: clamp / wrap / reflect / transparent; `operation`: dilate / erode / open / close; `shape`: square / circle; `color`: average / centre). It serves both modes with one table, so Pixelate's agent default is Centre — Pixel mode's, the one that never adds a colour; an agent passes `"color": "average"` for Image mode's look.
+- 2026-11-04 (spec-build): Pixelate's per-mode default is a new optional catalog field `EffectDef.modeDefaults` (parameter key → default per mode), applied by the new `forMode(def, mode)` that `entriesFor` now runs — because the menus hand the dialog the definition, so the dialog (and its Reset) picks up the mode's default without changes to `EffectDialog.svelte`, which `effect-panel` reworks in parallel. `effectById` and `defaultValues` keep the catalog's own defaults (Image mode's Average).
+- 2026-11-04 (spec-build): Labels the table leaves open: Edge behavior / Randverhalten with Clamp / Rand wiederholen, Wrap / Kacheln, Reflect / Spiegeln, Transparent / Transparent; Cell size / Zellgröße, Scale / Skalierung, Refraction / Brechung, Roughness / Rauheit, Operation / Operation (Dilate / Ausdehnen, Erode / Abtragen, Open / Öffnen, Close / Schließen), Shape / Form (Square / Quadrat, Circle / Kreis), Color / Farbe (Average / Durchschnitt, Center / Mitte), Tile size / Kachelgröße, Curvature / Krümmung, Size % / Größe %; Amount, Radius, Seed, Angle and Center reuse the existing strings. English labels use US spelling like the rest of the UI. Polar Inversion's Amount steps by 0.01, every other number by 1.
