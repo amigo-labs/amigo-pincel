@@ -417,6 +417,7 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 | Pencil | Freehand stroke with a square or round brush of size 1–8 (`[` / `]`), hold Shift = constrain to 0/45/90°, optional pixel-perfect (drops L-corner pixels at size 1, off by default); one stroke is one `PencilStroke` undo entry |
 | Eraser | Clears to transparent (RGBA) or transparent-index (Indexed); shares the Pencil's size, shape and pixel-perfect setting |
 | Bucket | Paint-fill, contiguous (default) or all-matching, tolerance 0 in MVP |
+| Gradient | Shares the Bucket's `G` group. A drag fills the selection (or the target cel, never grown) with a ramp from the foreground color at the start to the background color at the end — linear or radial, dithered with a Bayer 2×2 / 4×4 / 8×8 threshold or split hard at the middle — so only those two colors are written; one `DrawDitherGradient` undo entry. The `t` math is shared with Image mode through `pincel-effects` (`dithered-gradient.md`) |
 | Line | Bresenham line between press and release |
 | Rectangle | Outline + filled variants, hold Shift = square |
 | Ellipse | Midpoint algorithm, outline + filled, hold Shift = circle |
