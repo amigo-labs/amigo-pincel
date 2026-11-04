@@ -3,17 +3,19 @@
 //! Composites visible image and tilemap layers in z-order, in every color
 //! mode: indexed and grayscale pixels turn into RGBA as they are read (see
 //! [`super::source`]). Per-layer blending lives in [`super::blend`], the two
-//! cel paths in [`super::image_layer`] and [`super::tilemap_layer`]. Group layers hold
-//! no pixels and are skipped (their visibility gates their children — see
-//! [`effectively_visible`]). Onion skin (spec §4.2) composites the
+//! cel paths in [`super::image_layer`] and [`super::tilemap_layer`]. Group
+//! layers hold no pixels: their visibility gates their children (see
+//! [`effectively_visible`]) and their opacity and blend mode fold the
+//! children's composite (see [`composite_visible_layers`]). Onion skin
+//! (spec §4.2) composites the
 //! neighbouring frames under the current one — see [`super::onion`].
 //! Linked cels render their target frame's cel ([`resolve_cel`]); overlays
 //! still return [`RenderError`].
 
-use crate::document::{Cel, CelData, CelMap, FrameIndex, Layer, LayerKind, Sprite};
+use crate::document::{BlendMode, Cel, CelData, CelMap, FrameIndex, Layer, LayerKind, Sprite};
 use crate::geometry::Rect;
 
-use super::blend::mul_u8;
+use super::blend::{blend_pixel_into, mul_u8};
 use super::error::RenderError;
 use super::image_layer::composite_image_cel;
 use super::request::{ComposeRequest, ComposeResult, LayerFilter, Overlays};
@@ -157,8 +159,14 @@ pub(super) struct Scene<'a> {
 /// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
 /// under its own blend mode (see
 /// [`blend_pixel_into`](super::blend::blend_pixel_into)); broken links and
-/// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
-/// below.
+/// mismatched cel kinds raise [`RenderError`] — see [`composite_layer_cel`].
+///
+/// Group layers fold (spec §4.2, Decision Log 2026-10-29): a group at
+/// opacity 255 with blend mode Normal passes its children through onto the
+/// layers below it; any other group composites its children into a cleared
+/// viewport-sized scratch buffer and blends that onto the layers below with
+/// its own opacity and blend mode. Which groups fold follows the filter —
+/// see [`LayerTree`].
 pub(super) fn composite_visible_layers(
     dst: &mut [u8],
     scene: &Scene<'_>,
@@ -166,85 +174,251 @@ pub(super) fn composite_visible_layers(
     frame: FrameIndex,
     viewport: Rect,
 ) -> Result<(), RenderError> {
+    let tree = LayerTree::new(scene.sprite, filter);
+    let mut pass = Pass {
+        scene,
+        tree: &tree,
+        frame,
+        viewport,
+        scratch: Vec::new(),
+    };
+    pass.children(dst, None, 0)
+}
+
+/// The drawn layers of one compose as a tree: a layer the filter draws
+/// hangs under its nearest *drawn* ancestor group, or at the top when it
+/// has none. Under [`LayerFilter::Visible`] and [`LayerFilter::All`] that is
+/// the layer's own parent group; under [`LayerFilter::Only`] a group folds
+/// only when it is selected itself, so a selected child of an unselected
+/// group renders as if it had no parent group.
+///
+/// A parent id that names no layer ends the walk (the layer is top-level),
+/// and the walk is capped at the layer count so a parent cycle terminates;
+/// groups that parent each other are never reached from the top.
+struct LayerTree<'a> {
+    sprite: &'a Sprite,
+    filter: &'a LayerFilter,
+    /// Per layer index: whether the filter draws it. Empty when the
+    /// sprite has no group layer — then nothing is precomputed (no
+    /// allocation) and every layer is top-level.
+    included: Vec<bool>,
+    /// Per layer index: its nearest drawn ancestor group. Empty as above.
+    parent: Vec<Option<usize>>,
+}
+
+impl<'a> LayerTree<'a> {
+    fn new(sprite: &'a Sprite, filter: &'a LayerFilter) -> Self {
+        let layers = &sprite.layers;
+        if !layers.iter().any(|l| matches!(l.kind, LayerKind::Group)) {
+            return Self {
+                sprite,
+                filter,
+                included: Vec::new(),
+                parent: Vec::new(),
+            };
+        }
+        let included: Vec<bool> = layers
+            .iter()
+            .map(|l| layer_included(l, sprite, filter))
+            .collect();
+        let parent = (0..layers.len())
+            .map(|i| folding_parent(layers, &included, i))
+            .collect();
+        Self {
+            sprite,
+            filter,
+            included,
+            parent,
+        }
+    }
+
+    fn included(&self, index: usize) -> bool {
+        match self.included.get(index) {
+            Some(&included) => included,
+            None => layer_included(&self.sprite.layers[index], self.sprite, self.filter),
+        }
+    }
+
+    fn parent(&self, index: usize) -> Option<usize> {
+        self.parent.get(index).copied().flatten()
+    }
+}
+
+/// The index of the nearest ancestor of `layers[index]` that is a drawn
+/// group, or `None` for a top-level layer — see [`LayerTree`].
+fn folding_parent(layers: &[Layer], included: &[bool], index: usize) -> Option<usize> {
+    let mut next = layers[index].parent;
+    for _ in 0..layers.len() {
+        let id = next?;
+        let at = layers.iter().position(|l| l.id == id)?;
+        if included[at] && matches!(layers[at].kind, LayerKind::Group) {
+            return Some(at);
+        }
+        next = layers[at].parent;
+    }
+    None
+}
+
+/// One walk of a [`LayerTree`] for one frame, with the scratch buffers of
+/// isolating groups (one per nesting level, reused across siblings).
+struct Pass<'a> {
+    scene: &'a Scene<'a>,
+    tree: &'a LayerTree<'a>,
+    frame: FrameIndex,
+    viewport: Rect,
+    scratch: Vec<Vec<u8>>,
+}
+
+impl Pass<'_> {
+    /// Composite the drawn children of `parent` (the top level for `None`)
+    /// into `dst`, bottom-first in sprite order.
+    fn children(
+        &mut self,
+        dst: &mut [u8],
+        parent: Option<usize>,
+        depth: usize,
+    ) -> Result<(), RenderError> {
+        let (scene, tree) = (self.scene, self.tree);
+        let layers = &scene.sprite.layers;
+        for (index, layer) in layers.iter().enumerate() {
+            if tree.parent(index) != parent || !tree.included(index) {
+                continue;
+            }
+            if !matches!(layer.kind, LayerKind::Group) {
+                composite_layer_cel(dst, scene, layer, self.frame, self.viewport)?;
+                continue;
+            }
+            // The layers reachable from the top form a tree, so `depth`
+            // stays below the layer count; the guard only stops a corrupt
+            // hierarchy from recursing without end.
+            if depth >= layers.len() {
+                continue;
+            }
+            if layer.opacity == 255 && layer.blend_mode == BlendMode::Normal {
+                self.children(dst, Some(index), depth + 1)?;
+            } else if layer.opacity > 0 {
+                self.isolated_group(dst, index, depth)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Composite the group at `index` in isolation: its children into the
+    /// cleared scratch buffer of `depth`, then that buffer onto `dst` under
+    /// the group's opacity and blend mode.
+    fn isolated_group(
+        &mut self,
+        dst: &mut [u8],
+        index: usize,
+        depth: usize,
+    ) -> Result<(), RenderError> {
+        if self.scratch.len() <= depth {
+            self.scratch.resize_with(depth + 1, Vec::new);
+        }
+        let mut buf = std::mem::take(&mut self.scratch[depth]);
+        buf.clear();
+        buf.resize(dst.len(), 0);
+        let result = self.children(&mut buf, Some(index), depth + 1);
+        if result.is_ok() {
+            let group = &self.scene.sprite.layers[index];
+            for (d, s) in dst
+                .as_chunks_mut::<4>()
+                .0
+                .iter_mut()
+                .zip(buf.as_chunks::<4>().0)
+            {
+                if s[3] == 0 {
+                    continue;
+                }
+                blend_pixel_into(
+                    group.blend_mode,
+                    d,
+                    s[0],
+                    s[1],
+                    s[2],
+                    mul_u8(s[3], group.opacity),
+                );
+            }
+        }
+        self.scratch[depth] = buf;
+        result
+    }
+}
+
+/// Composite `layer`'s cel at `frame` (following a link) into `dst`.
+fn composite_layer_cel(
+    dst: &mut [u8],
+    scene: &Scene<'_>,
+    layer: &Layer,
+    frame: FrameIndex,
+    viewport: Rect,
+) -> Result<(), RenderError> {
     let Scene { sprite, cels, .. } = *scene;
-    for layer in sprite.layers.iter() {
-        if !layer_included(layer, sprite, filter) {
-            continue;
-        }
-        if let LayerKind::Group = layer.kind {
-            // A group holds no pixels of its own — its children are separate
-            // entries in the flat z-ordered Vec and composite on their own.
-            // Group visibility gates children via `effectively_visible`;
-            // group opacity / blend mode are NOT folded into children in
-            // Phase 1 (spec §4 defers the fold-into-temp-buffer behavior).
-            continue;
-        }
-        let Some(cel) = resolve_cel(sprite, cels, layer, frame)? else {
-            continue;
-        };
-        let paint = Paint {
-            decode: scene.decoders.for_layer(layer),
-            opacity: mul_u8(layer.opacity, cel.opacity),
-            blend_mode: layer.blend_mode,
-        };
-        match (&layer.kind, &cel.data) {
-            (LayerKind::Image, CelData::Image(pixels)) => {
-                if pixels.color_mode != sprite.color_mode {
-                    return Err(RenderError::CelColorModeMismatch {
-                        layer: layer.id,
-                        frame,
-                        mode: pixels.color_mode,
-                    });
-                }
-                if !pixels.is_well_formed() {
-                    return Err(RenderError::MalformedCelBuffer {
-                        layer: layer.id,
-                        frame,
-                    });
-                }
-                composite_image_cel(dst, viewport, cel.position, pixels, paint);
-            }
-            (
-                LayerKind::Tilemap { tileset_id },
-                CelData::Tilemap {
-                    grid_w,
-                    grid_h,
-                    tiles,
-                },
-            ) => {
-                let tileset = sprite
-                    .tileset(*tileset_id)
-                    .ok_or(RenderError::TilesetNotFound {
-                        layer: layer.id,
-                        tileset: *tileset_id,
-                    })?;
-                composite_tilemap_cel(
-                    dst,
-                    viewport,
-                    cel.position,
-                    *grid_w,
-                    *grid_h,
-                    tiles,
-                    tileset,
-                    layer.id,
+    let Some(cel) = resolve_cel(sprite, cels, layer, frame)? else {
+        return Ok(());
+    };
+    let paint = Paint {
+        decode: scene.decoders.for_layer(layer),
+        opacity: mul_u8(layer.opacity, cel.opacity),
+        blend_mode: layer.blend_mode,
+    };
+    match (&layer.kind, &cel.data) {
+        (LayerKind::Image, CelData::Image(pixels)) => {
+            if pixels.color_mode != sprite.color_mode {
+                return Err(RenderError::CelColorModeMismatch {
+                    layer: layer.id,
                     frame,
-                    paint,
-                )?;
+                    mode: pixels.color_mode,
+                });
             }
-            (_, CelData::Linked(_)) => {
-                unreachable!("resolve_cel follows links one hop and refuses chains");
-            }
-            (LayerKind::Image, CelData::Tilemap { .. })
-            | (LayerKind::Tilemap { .. }, CelData::Image(_)) => {
-                return Err(RenderError::CelTypeMismatch {
+            if !pixels.is_well_formed() {
+                return Err(RenderError::MalformedCelBuffer {
                     layer: layer.id,
                     frame,
                 });
             }
-            (LayerKind::Group, _) => {
-                // Group layers are skipped above before the cel lookup.
-                unreachable!("group layers handled before cel lookup");
-            }
+            composite_image_cel(dst, viewport, cel.position, pixels, paint);
+        }
+        (
+            LayerKind::Tilemap { tileset_id },
+            CelData::Tilemap {
+                grid_w,
+                grid_h,
+                tiles,
+            },
+        ) => {
+            let tileset = sprite
+                .tileset(*tileset_id)
+                .ok_or(RenderError::TilesetNotFound {
+                    layer: layer.id,
+                    tileset: *tileset_id,
+                })?;
+            composite_tilemap_cel(
+                dst,
+                viewport,
+                cel.position,
+                *grid_w,
+                *grid_h,
+                tiles,
+                tileset,
+                layer.id,
+                frame,
+                paint,
+            )?;
+        }
+        (_, CelData::Linked(_)) => {
+            unreachable!("resolve_cel follows links one hop and refuses chains");
+        }
+        (LayerKind::Image, CelData::Tilemap { .. })
+        | (LayerKind::Tilemap { .. }, CelData::Image(_)) => {
+            return Err(RenderError::CelTypeMismatch {
+                layer: layer.id,
+                frame,
+            });
+        }
+        (LayerKind::Group, _) => {
+            // A cel stored on a group layer (a corrupt document) is ignored;
+            // the group tree never asks for one.
         }
     }
     Ok(())
@@ -329,8 +503,8 @@ fn layer_included(layer: &Layer, sprite: &Sprite, filter: &LayerFilter) -> bool 
 
 /// A layer renders under [`LayerFilter::Visible`] only when it *and every
 /// ancestor group* are visible — hiding a group hides its whole subtree,
-/// matching Aseprite. Only visibility propagates; group opacity and blend
-/// mode are not folded into children in Phase 1. `LayerFilter::All` and
+/// matching Aseprite. Group opacity and blend mode fold separately (see
+/// [`composite_visible_layers`]). `LayerFilter::All` and
 /// `LayerFilter::Only` bypass this walk (All means "everything", Only is an
 /// explicit override).
 ///

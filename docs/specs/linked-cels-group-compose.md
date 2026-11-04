@@ -112,19 +112,19 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | AC-05 | `compose_linked_cel_with_missing_target_fails_naming_frames` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
 | AC-06 | `compose_chained_or_self_linked_cel_fails_without_looping` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
 | AC-07 | `compose_linked_target_of_wrong_kind_fails_with_type_mismatch` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-08 | `compose_hides_layers_inside_hidden_group_at_any_depth` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-09 | `compose_group_opacity_composites_children_first` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-10 | `compose_group_blend_mode_applies_to_children_composite` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-11 | `compose_isolated_group_child_blends_against_group_content` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-12 | `compose_pass_through_groups_with_normal_children_match_ungrouped_layers` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-13 | `compose_nested_groups_apply_each_level` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-14 | `compose_group_at_zero_opacity_contributes_nothing` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-15 | `compose_all_layers_filter_folds_hidden_groups` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-16 | `compose_only_filter_folds_selected_groups_only` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-17 | `compose_subviewport_and_dirty_hint_match_full_frame_with_groups_and_links` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-18 | `nested_groups_compose_the_same_after_aseprite_round_trip` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-19 | `compose_inconsistent_hierarchy_returns_without_panicking` in `crates/pincel-core/tests/render_groups.rs` | built |        |
+| AC-20 | `compose_pass_through_group_lets_multiply_child_reach_backdrop` in `crates/pincel-core/tests/render_groups.rs` | built |        |
 
 ## Decisions
 
@@ -137,3 +137,8 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 - 2026-10-29: A group at 255 / Normal passes its children through to the backdrop; only opacity < 255 or a non-Normal blend mode isolates (AC-20) — existing files keep their look, AC-12 already assumes it, and it matches Aseprite's renderer as far as known (a reference fixture should confirm); Image mode stays always-isolated by design (owner accepted the recommendation).
 - 2026-11-04: AC-05 / AC-06 raise two new `RenderError` variants, `LinkedCelTargetMissing { layer, frame, target }` and `LinkedCelChained { layer, frame, target }`, and `LinkedCelUnsupported` is removed — the ACs ask for structured errors naming all three, and no link is refused any more.
 - 2026-11-04: A link whose target holds the wrong data kind (AC-07), or a buffer in the wrong color mode, reports the *linking* frame in its error — that is the frame being composed, as for an unlinked cel.
+- 2026-11-04: Under an explicit layer selection a drawn layer hangs under its nearest *selected* ancestor group, not only its direct parent — AC-16 settles the direct case ("as if it had no parent group"), and skipping an unselected middle group the same way keeps a selected grandparent's fold.
+- 2026-11-04: Groups that parent each other (a cycle) are never reached from the top level, so they and their children render nothing; a parent id naming no layer makes the layer top-level (AC-19) — the walk is capped at the layer count either way, and the writer refuses both documents.
+- 2026-11-04: Isolating groups reuse one viewport-sized scratch buffer per nesting level for the whole compose call; a sprite without group layers allocates nothing extra, so the `zoom == 1` path stays allocation-free for it (§4.1).
+- 2026-11-04: AC-12 / AC-17 / AC-18 use deterministic xorshift-driven tests instead of `proptest`, which `pincel-core` does not depend on (adding it is a dependency change).
+- 2026-11-04: AC-12, AC-19 and AC-20 were green before the fold was built — the old code rendered every group as pass-through and already survived a cycle. A temporary break that isolated every group (no pass-through) turned AC-20 red (`[255, 0, 0, 255]` vs `[128, 0, 0, 255]`) and was restored; AC-12 stays green under that break by design (isolation of Normal layers differs by at most 1).
