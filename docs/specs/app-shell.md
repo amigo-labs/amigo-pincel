@@ -55,7 +55,7 @@ Already decided: "Two cores, one shell" (Decision Log 2026-09-06); "Open like th
 - [ ] AC-11 (event): When the user opens a file through the Pixel editor's own File ▸ Open…, then a sprite or PNG stays in Pixel mode (a PNG becomes a one-layer sprite) and any other supported format is handed to the Image editor.
 - [ ] AC-12 (error): If the opened file is neither a known signature nor a known extension, then a dismissable error notice names the file and the start screen or open document stays as it was.
 - [ ] AC-13 (always): Exactly one editor is mounted at a time, and a session in one mode never downloads the other mode's wasm module.
-- [ ] AC-14 (state): While the open document has unsaved changes, File ▸ New…, File ▸ Open… and Open Recent first ask "Discard changes" / "Cancel"; Discard proceeds with the action, Cancel keeps the document unchanged.
+- ~~AC-14 (state): While the open document has unsaved changes, File ▸ New…, File ▸ Open… and Open Recent first ask "Discard changes" / "Cancel"; Discard proceeds with the action, Cancel keeps the document unchanged.~~ dropped: superseded by [unsaved-changes-prompt](unsaved-changes-prompt.md) (Save / Don't Save / Cancel, also before closing the desktop app).
 - [ ] AC-15 (state): While the open document has unsaved changes, closing or reloading the page triggers the browser's leave-page confirmation; with no unsaved changes it does not.
 - [ ] AC-16 (always): The editor top bar shows the mode badge, the document name and, while there are unsaved changes, an unsaved marker whose tooltip reads "<name> — unsaved changes"; after a successful save the marker disappears.
 - [ ] AC-17 (state): While the window is at least 1024 px wide, menus are a menu bar, tools a vertical rail and panels a docked sidebar; at 640–1023 px the panels are a drawer over the canvas toggled from the top bar; below 640 px every menu sits behind one ☰ sheet, tools are a horizontal strip at the bottom and panels open as a bottom sheet with one tab per panel.
@@ -111,7 +111,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-11 | | open | |
 | AC-12 | | open | |
 | AC-13 | | open | |
-| AC-14 | | open | |
+| AC-14 | | dropped | |
 | AC-15 | | open | |
 | AC-16 | | open | |
 | AC-17 | `ui/e2e/responsive.spec.ts › tools sit in a bottom strip, menus behind ☰, panels in a sheet`; `ui/e2e/responsive.spec.ts › the sidebar is a drawer toggled from the top bar` | built | |
@@ -125,3 +125,4 @@ Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: S
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
+- 2026-11-04: AC-14 dropped — the unsaved-changes guard moves to `unsaved-changes-prompt`, which adds Save to the prompt and asks before the desktop app closes.
