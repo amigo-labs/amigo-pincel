@@ -91,21 +91,21 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `pixel: …` / `image: the effect panel is the topmost sidebar panel, clear of the canvas (AC-01)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-02 | `a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-04 | `pixel: …` / `image: OK applies and Cancel, × and Escape leave the document alone (AC-04)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-05 | `pixel: …` / `image: choosing an effect while one is open restarts at the defaults (AC-05)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-06 | `pixel: …` / `image: focus goes to the first control, or OK, and back to the canvas area (AC-06)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-07 | `dragging the splitter resizes the sidebar within its limits (AC-07)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
 | AC-08 | `a double-click on the splitter restores the default width (AC-08)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
 | AC-09 | `the splitter is a focusable separator the arrow keys move (AC-09)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
 | AC-10 | `the width survives a reload, per mode (AC-10)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
 | AC-11 | `a missing, broken or out-of-range stored width falls back silently (AC-11)` — `ui/e2e/sidebar-splitter.spec.ts` | built |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-12 | `tablet › the drawer opens with the effect panel on top and closes again (AC-12)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-13 | `phone › the bottom sheet gets a selected tab for the effect (AC-13)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-14 | `resizing across layouts keeps the effect and its values (AC-14)` — `ui/e2e/effect-panel.spec.ts` | built |        |
+| AC-15 | `German UI › close button, splitter and sheet tab are German (AC-15)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
 
@@ -113,3 +113,10 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 - 2026-11-04: The owner chose "docked side panel" over a draggable / resizable floating window. Written without a further dialogue while the owner's goal "all planned specs implemented" was active; thresholds and the inert-panels rule are recorded as assumptions.
 - 2026-11-04: Clarification pass settled without a dialogue: bottom-docked panels are inert too; a close button (×) is new; focus goes to the canvas area on close; re-choosing the same effect restarts it; stored widths outside the limits clamp without being overwritten; effect failures keep the panel open (AC-16); the preview never reaches the document (AC-17). The inert-panels rule stays an assumption the owner can revisit.
+- 2026-11-04 (spec-build): The panel keeps `role="dialog"` (`aria-modal="false"`) named after the effect — a non-modal dialog docked in the sidebar — so assistive tech and the existing effect e2e specs find it by name as before.
+- 2026-11-04 (spec-build): The open effect's values live in an `EffectSession` (`ui/src/lib/effects/session.svelte.ts`) the editor owns, not in the panel component: the frame re-mounts the panel when the window crosses a layout boundary, and AC-14 needs the values to survive that. A new session per opening (its `token` keys the panel) is what restarts a re-chosen effect at its defaults (AC-05).
+- 2026-11-04 (spec-build): `EditorFrame` takes the panel as an `effectPanel` prop and only *shows* the sidebar / drawer / sheet for it (derived from its own state OR the open effect) instead of changing that state, so each layout returns to exactly what it had when the effect ends (AC-02, AC-12 – AC-14). To keep that state stable, the top-bar panels toggle is disabled while an effect is open, and in the bottom sheet the other tabs are disabled and the sheet's own close button is hidden — Cancel, × or OK end the effect.
+- 2026-11-04 (spec-build): The sheet's effect tab comes first in the tab row (it is the "topmost" panel there too) and uses the existing `wand` icon; the panel's × is labelled with the shared `common.close` string ("Close" / "Schließen").
+- 2026-11-04 (spec-build): On close, focus goes to the frame's `<main>` canvas area (`tabindex="-1"`), the one element both editors share.
+- 2026-11-04 (spec-build): The splitter is a 4 px strip that replaces the sidebar's 1 px left border. Its input lives in a Svelte attachment (`ui/src/lib/components/layout/splitter.ts`): a focusable `role="separator"` is a widget in WAI-ARIA's window-splitter pattern, but Svelte's a11y check counts `separator` as non-interactive and flags `tabindex` / handlers on it in markup; the attachment avoids a suppression without dropping the role AC-09 asks for.
+- 2026-11-04 (spec-build): The width limits follow `window.innerWidth` (tracked in `viewport.svelte.ts`); half the window is floored to whole px.

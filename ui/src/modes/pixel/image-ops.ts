@@ -2,6 +2,7 @@
 
 import type { EffectDef } from '../../lib/effects/catalog';
 import { effectLabel } from '../../lib/effects/labels';
+import { EffectSession } from '../../lib/effects/session.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { ResizeResult } from './components/ResizeDialog.svelte';
 import type { TransformOp } from './menus';
@@ -16,19 +17,23 @@ export type ImageAction =
   | 'canvas:scale'
   | 'canvas:crop';
 
+/** Opens `def` at its defaults in the effect panel; an effect already
+ *  open is cancelled first, even the same one (effect-panel AC-05). */
 export function openEffect(def: EffectDef) {
   if (!ed.doc) return;
-  dialogs.effect = def;
+  if (dialogs.effect) recompose();
+  dialogs.effect = new EffectSession(def);
 }
 
 export function previewEffectParams(params: number[]) {
   if (!ed.doc || !live.renderer || !dialogs.effect) return;
-  if (params.length === 0 && dialogs.effect.params.length > 0) {
+  const def = dialogs.effect.def;
+  if (params.length === 0 && def.params.length > 0) {
     recompose();
     return;
   }
   try {
-    const frame = ed.doc.previewEffect(dialogs.effect.id, Float64Array.from(params), 1);
+    const frame = ed.doc.previewEffect(def.id, Float64Array.from(params), 1);
     try {
       live.renderer.draw(frame);
     } finally {
@@ -45,7 +50,7 @@ export function previewEffectParams(params: number[]) {
 
 export function applyEffectParams(params: number[]) {
   if (!ed.doc || !dialogs.effect) return;
-  const def = dialogs.effect;
+  const def = dialogs.effect.def;
   dialogs.effect = null;
   try {
     if (ed.doc.applyEffect(def.id, Float64Array.from(params))) {

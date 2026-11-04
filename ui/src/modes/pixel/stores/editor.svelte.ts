@@ -9,7 +9,7 @@
 import type { Document } from '../../../lib/core';
 import type { SaveTarget } from '../../../lib/fs';
 import type { RecentFile } from '../../../lib/idb/recent-files';
-import type { EffectDef } from '../../../lib/effects/catalog';
+import type { EffectSession } from '../../../lib/effects/session.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
 import type { CanvasRenderer, RenderBackend } from '../../../lib/render/types';
 import { PinchTracker } from '../../../lib/view/pinch';
@@ -146,7 +146,7 @@ function dialogsInit() {
   return {
     /** Unsaved-changes confirmation awaiting an answer. */
     confirm: null as { message: string; run: () => void } | null,
-    effect: null as EffectDef | null,
+    effect: null as EffectSession | null,
     resize: null as ResizeMode | null,
     sheet: false,
     /** File ▸ Export ▸ Animation… is open. */

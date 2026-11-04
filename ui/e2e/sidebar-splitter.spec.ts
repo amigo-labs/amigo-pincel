@@ -78,7 +78,9 @@ test('dragging the splitter resizes the sidebar within its limits (AC-07)', asyn
   await dragSplitter(page, -100);
   expect(await sidebarWidth(page)).toBe(388);
   // The canvas area takes the remaining width.
-  expect(Math.round((await canvasArea.boundingBox())?.width ?? 0)).toBe(Math.round(areaBefore - 100));
+  expect(Math.round((await canvasArea.boundingBox())?.width ?? 0)).toBe(
+    Math.round(areaBefore - 100),
+  );
 
   // 1280 px window: the maximum is 560 px (less than half the window).
   await dragSplitter(page, -600);

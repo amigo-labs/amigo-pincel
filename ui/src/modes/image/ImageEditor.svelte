@@ -75,7 +75,7 @@
   import { core } from './core/wasm';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
-  import EffectDialog from '../../lib/components/EffectDialog.svelte';
+  import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
@@ -84,6 +84,7 @@
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
   import type { EffectDef } from '../../lib/effects/catalog';
+  import { EffectSession } from '../../lib/effects/session.svelte';
   import {
     NATIVE_MENU_ACTIONS,
     actionFor,
@@ -127,7 +128,8 @@
   /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
   let svgOpen = $state(false);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
-  let effectOpen = $state<EffectDef | null>(null);
+  // The open effect (effect-panel spec), shown in the frame's sidebar.
+  let effectOpen = $state<EffectSession | null>(null);
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
@@ -626,6 +628,18 @@
 
   const hasDoc = $derived(editor.handle !== null);
 
+  /** Opens `def` at its defaults; an effect already open is cancelled
+   *  first, even the same one (effect-panel AC-05). */
+  function openEffect(def: EffectDef): void {
+    if (effectOpen) clearEffectPreview();
+    effectOpen = new EffectSession(def);
+  }
+
+  function closeEffect(): void {
+    clearEffectPreview();
+    effectOpen = null;
+  }
+
   // Menu bar (spec §9.2): the same menus, order and labels as Pixel mode;
   // entries Image mode lacks are simply absent.
   const menus: MenuDef[] = $derived([
@@ -804,7 +818,7 @@
         { label: t('menu.rotate180'), disabled: !hasDoc, run: () => transformLayer('rotate_180') },
       ],
     },
-    ...effectMenus((def) => (effectOpen = def), !hasDoc, 'image'),
+    ...effectMenus(openEffect, !hasDoc, 'image'),
     {
       id: 'view',
       label: t('menu.view'),
@@ -853,6 +867,29 @@
 <svelte:window onkeydown={onKeydown} onpaste={onPaste} onbeforeunload={onBeforeUnload} />
 
 {#snippet colorsBody()}<ColorsPanel />{/snippet}
+{#snippet effectBody()}
+  {#if effectOpen}
+    {@const session = effectOpen}
+    {#key session.token}
+      <EffectPanel
+        {session}
+        hasSelection={editor.hasSelection}
+        onPreview={(params) => {
+          // An empty vector means "preview off": show the real composite.
+          if (params.length === 0 && session.def.params.length > 0) clearEffectPreview();
+          else previewEffect(session.def.id, params);
+        }}
+        onApply={(params) => {
+          if (!applyEffect(session.def.id, params)) {
+            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(session.def) });
+          }
+          effectOpen = null;
+        }}
+        onCancel={closeEffect}
+      />
+    {/key}
+  {/if}
+{/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
 
 <EditorFrame
@@ -860,6 +897,7 @@
   {menus}
   title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
+  effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
@@ -958,31 +996,6 @@
     }}
     onClose={() => (transformDialog = null)}
   />
-{/if}
-
-{#if effectOpen}
-  {#key effectOpen.id}
-    <EffectDialog
-      def={effectOpen}
-      hasSelection={editor.hasSelection}
-      onPreview={(params) => {
-        if (!effectOpen) return;
-        // An empty vector means "preview off": show the real composite.
-        if (params.length === 0 && effectOpen.params.length > 0) clearEffectPreview();
-        else previewEffect(effectOpen.id, params);
-      }}
-      onApply={(params) => {
-        if (effectOpen && !applyEffect(effectOpen.id, params)) {
-          editor.notice = t('fx.selectionEmpty', { effect: effectLabel(effectOpen) });
-        }
-        effectOpen = null;
-      }}
-      onCancel={() => {
-        clearEffectPreview();
-        effectOpen = null;
-      }}
-    />
-  {/key}
 {/if}
 
 {#if pasteDialog}

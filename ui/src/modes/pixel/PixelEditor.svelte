@@ -12,7 +12,8 @@
   import AnimationExportDialog from './components/AnimationExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
-  import EffectDialog from '../../lib/components/EffectDialog.svelte';
+  import EffectPanel from '../../lib/components/EffectPanel.svelte';
+  import { effectLabel } from '../../lib/effects/labels';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
@@ -837,11 +838,26 @@
   />
 {/snippet}
 
+{#snippet effectBody()}
+  {#if dialogs.effect}
+    {#key dialogs.effect.token}
+      <EffectPanel
+        session={dialogs.effect}
+        hasSelection={ed.selection !== null}
+        onPreview={previewEffectParams}
+        onApply={applyEffectParams}
+        onCancel={cancelEffect}
+      />
+    {/key}
+  {/if}
+{/snippet}
+
 <EditorFrame
   mode="pixel"
   {menus}
   title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
+  effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
@@ -1169,17 +1185,6 @@
   />
 {/if}
 
-{#if dialogs.effect}
-  {#key dialogs.effect.id}
-    <EffectDialog
-      def={dialogs.effect}
-      hasSelection={ed.selection !== null}
-      onPreview={previewEffectParams}
-      onApply={applyEffectParams}
-      onCancel={cancelEffect}
-    />
-  {/key}
-{/if}
 
 {#if dialogs.confirm}
   <div
