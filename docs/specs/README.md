@@ -13,9 +13,9 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-layers-frames](pixel-layers-frames.md), [tilemaps](tilemaps.md) |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
 | Both modes | [i18n](i18n.md) |
-| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [desktop-app](desktop-app.md) |
+| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -36,7 +36,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
-| 18 | [outline-effect](outline-effect.md) | both | M | — | Adds a color param kind to effects |
+| 18 |  | both | M | — | Adds a color param kind to effects |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
 | 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
@@ -64,16 +64,19 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 ## Done
 
 - [animated-export](animated-export.md)
+- [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
 - [effects-adjustments](effects-adjustments.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [outline-effect](outline-effect.md)
 - [pen-input](pen-input.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
+- [pixel-layers-frames](pixel-layers-frames.md)
 - [pixel-palette](pixel-palette.md)
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-pressure](pixel-pressure.md)
@@ -81,6 +84,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-undo-history](pixel-undo-history.md)
 - [save-original-format](save-original-format.md)
 - [slices](slices.md)
+- [tilemaps](tilemaps.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs
