@@ -28,7 +28,10 @@ type Mode = 'pixel' | 'image';
 /** A 32 × 24 sprite (the writer's compatibility fixture). */
 const sprite = () =>
   readFile(
-    join(import.meta.dirname, '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite'),
+    join(
+      import.meta.dirname,
+      '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite',
+    ),
   );
 
 /** Every extension Open… accepts (AC-01). */
@@ -64,7 +67,12 @@ const unsaved = (page: Page, name: string) => page.getByTitle(`${name} — unsav
 /** One edit that makes the document dirty. */
 async function edit(page: Page, mode: Mode): Promise<void> {
   if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
-  await drag(page, mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
+  await drag(
+    page,
+    mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page),
+    [0.2, 0.5],
+    [0.8, 0.5],
+  );
 }
 
 /** Opens `name` through the start screen's Open… and the fake picker. */
@@ -230,7 +238,10 @@ test.describe('File System Access', () => {
       await fakeFs(page, { savePick: null });
       await menu(page, 'File', 'Save As…');
       if (mode === 'image') {
-        await page.getByRole('dialog', { name: 'Save As' }).getByRole('button', { name: 'Save' }).click();
+        await page
+          .getByRole('dialog', { name: 'Save As' })
+          .getByRole('button', { name: 'Save' })
+          .click();
       }
       await expect.poll(async () => (await pickerCalls(page, 'save')).length).toBe(1);
       expect(await writes(page)).toEqual([file]);
@@ -279,7 +290,10 @@ test.describe('File System Access', () => {
 
       await menu(page, 'File', 'Save As…');
       if (mode === 'image') {
-        await page.getByRole('dialog', { name: 'Save As' }).getByRole('button', { name: 'Save' }).click();
+        await page
+          .getByRole('dialog', { name: 'Save As' })
+          .getByRole('button', { name: 'Save' })
+          .click();
       }
       await expect.poll(async () => (await pickerCalls(page, 'save')).length).toBe(2);
       await expect(unsaved(page, name)).toBeVisible();
@@ -339,9 +353,9 @@ test.describe('recent files', () => {
     await edit(page, 'pixel');
     await menu(page, 'File', 'Save');
     await expect.poll(() => writes(page)).toEqual(['hero.aseprite']);
-    await expect.poll(async () => (await recentRows(page))[0]?.openedAt).toBeGreaterThan(
-      opened?.openedAt ?? Infinity,
-    );
+    await expect
+      .poll(async () => (await recentRows(page))[0]?.openedAt)
+      .toBeGreaterThan(opened?.openedAt ?? Infinity);
     expect(await recentNames(page)).toEqual([
       'hero.aseprite/pixel',
       'villain.aseprite/pixel',
@@ -406,11 +420,15 @@ test.describe('recent files', () => {
       /^photo\.png\s*Image$/,
       /^hero\.aseprite\s*Pixel$/,
     ]);
-    await recentList(page).getByRole('button', { name: /^photo\.png/ }).click();
+    await recentList(page)
+      .getByRole('button', { name: /^photo\.png/ })
+      .click();
     await waitForEditor(page, 'image');
     await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
     await gotoStart(page);
-    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await recentList(page)
+      .getByRole('button', { name: /^hero\.aseprite/ })
+      .click();
     await waitForEditor(page, 'pixel');
     await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
   });
@@ -431,14 +449,18 @@ test.describe('recent files', () => {
     // The start screen's Recent list.
     await gotoStart(page);
     await fakeFs(page, { denyRead: ['hero.aseprite'] });
-    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await recentList(page)
+      .getByRole('button', { name: /^hero\.aseprite/ })
+      .click();
     await expect(notice(page, denied)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Pincel', exact: true })).toBeVisible();
     await expect(pixelCanvas(page)).toHaveCount(0);
     await dismiss(page, denied);
 
     // Image mode's File ▸ Open Recent.
-    await recentList(page).getByRole('button', { name: /^photo\.png/ }).click();
+    await recentList(page)
+      .getByRole('button', { name: /^photo\.png/ })
+      .click();
     await waitForEditor(page, 'image');
     await menu(page, 'File', 'Open Recent', 'hero.aseprite');
     await expect(notice(page, denied)).toBeVisible();
@@ -520,7 +542,9 @@ test.describe('start screen', () => {
     await dismiss(page, picked);
 
     // A recent on the start screen.
-    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await recentList(page)
+      .getByRole('button', { name: /^hero\.aseprite/ })
+      .click();
     await expect(notice(page, recent)).toBeVisible();
     await expect(start).toBeVisible();
     await dismiss(page, recent);
@@ -535,7 +559,9 @@ test.describe('start screen', () => {
       };
       const data = new DataTransfer();
       data.items.add(new File([new Uint8Array([1, 2, 3])], 'broken.png'));
-      el.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+      el.dispatchEvent(
+        new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }),
+      );
     });
     const dropped = 'Drop failed: broken.png is unreadable';
     await expect(notice(page, dropped)).toBeVisible();
@@ -577,12 +603,14 @@ test.describe('clipboard sizing', () => {
     await page.addInitScript(() => {
       const w = window as unknown as {
         releaseClipboard: () => void;
+        heldReads: () => number;
         prefillReady: number;
       };
       const held: (() => void)[] = [];
       const read = navigator.clipboard.read.bind(navigator.clipboard);
       navigator.clipboard.read = () => new Promise<void>((r) => held.push(r)).then(read);
       w.releaseClipboard = () => held.splice(0).forEach((r) => r());
+      w.heldReads = () => held.length;
       w.prefillReady = 0;
       const decode = window.createImageBitmap.bind(window);
       window.createImageBitmap = ((...args: Parameters<typeof createImageBitmap>) =>
@@ -594,8 +622,17 @@ test.describe('clipboard sizing', () => {
   async function releaseClipboard(page: Page): Promise<void> {
     const ready = () =>
       page.evaluate(() => (window as unknown as { prefillReady: number }).prefillReady);
+    // The app starts its read asynchronously after the card opens: wait
+    // until it is held, or the release would come first and free nothing.
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as unknown as { heldReads: () => number }).heldReads()),
+      )
+      .toBeGreaterThan(0);
     const before = await ready();
-    await page.evaluate(() => (window as unknown as { releaseClipboard: () => void }).releaseClipboard());
+    await page.evaluate(() =>
+      (window as unknown as { releaseClipboard: () => void }).releaseClipboard(),
+    );
     await expect.poll(ready).toBeGreaterThan(before);
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
   }
@@ -734,7 +771,9 @@ test.describe('without File System Access', () => {
     await createDocument(page, 'pixel');
     await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
     const file = page.getByRole('menu', { name: 'File', exact: true });
-    await expect(file.getByRole('menuitem', { name: 'Save (download)', exact: true })).toBeVisible();
+    await expect(
+      file.getByRole('menuitem', { name: 'Save (download)', exact: true }),
+    ).toBeVisible();
     await expect(file.getByRole('menuitem', { name: 'Save', exact: true })).toHaveCount(0);
     await expect(file.getByRole('menuitem', { name: 'Save As…', exact: true })).toHaveCount(0);
   });
@@ -801,7 +840,10 @@ async function stubTauri(page: Page, files: Record<string, Buffer>): Promise<voi
 }
 
 /** Sets the answers of the stubbed desktop dialogs (`stubTauri`). */
-async function tauriDialogs(page: Page, answers: { pick?: string | null; savePick?: string | null }) {
+async function tauriDialogs(
+  page: Page,
+  answers: { pick?: string | null; savePick?: string | null },
+) {
   await page.evaluate((a) => {
     Object.assign((window as unknown as { fakeTauri: object }).fakeTauri, a);
   }, answers);
@@ -855,7 +897,10 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
 
       await menu(page, 'File', 'Save As…');
       if (mode === 'image') {
-        await page.getByRole('dialog', { name: 'Save As' }).getByRole('button', { name: 'Save' }).click();
+        await page
+          .getByRole('dialog', { name: 'Save As' })
+          .getByRole('button', { name: 'Save' })
+          .click();
       }
       await expect.poll(async () => (await tauriCalls(page, 'plugin:dialog|save')).length).toBe(1);
       expect(await tauriCalls(page, 'write_file_bytes')).toHaveLength(1);
@@ -879,18 +924,16 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
     const [opened] = await recentRows(page);
     await edit(page, 'pixel');
     await menu(page, 'File', 'Save');
-    await expect.poll(async () => (await recentRows(page))[0]?.openedAt).toBeGreaterThan(
-      opened?.openedAt ?? Infinity,
-    );
+    await expect
+      .poll(async () => (await recentRows(page))[0]?.openedAt)
+      .toBeGreaterThan(opened?.openedAt ?? Infinity);
     expect(await rows()).toEqual([`hero.aseprite/pixel/${hero}`]);
 
     await gotoDesktopStart(page);
     await tauriDialogs(page, { pick: photo });
     await page.getByRole('button', { name: 'Open…' }).click();
     await waitForEditor(page, 'image');
-    await expect
-      .poll(rows)
-      .toEqual([`photo.png/image/${photo}`, `hero.aseprite/pixel/${hero}`]);
+    await expect.poll(rows).toEqual([`photo.png/image/${photo}`, `hero.aseprite/pixel/${hero}`]);
   });
 });
 
