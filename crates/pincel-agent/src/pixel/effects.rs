@@ -70,6 +70,17 @@ const fn choice(key: &'static str, options: &'static [&'static str]) -> Param {
     }
 }
 
+/// A choice whose default is not the first option.
+const fn choice_at(key: &'static str, options: &'static [&'static str], default: usize) -> Param {
+    Param {
+        key,
+        kind: Kind::Choice { options, default },
+    }
+}
+
+/// The edge behaviour of the resampling distortions (effects-distort).
+const EDGES: &[&str] = &["clamp", "wrap", "reflect", "transparent"];
+
 const fn plain(id: &'static str, params: &'static [Param]) -> EffectDef {
     EffectDef {
         id,
@@ -280,6 +291,84 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("amount", 1.0, 100.0, 10.0),
             num("center_x", 0.0, 1.0, 0.5),
             num("center_y", 0.0, 1.0, 0.5),
+        ],
+    ),
+    // docs/specs/effects-distort.md: paint.net's Distort menu.
+    plain(
+        "bulge",
+        &[
+            num("amount", -200.0, 100.0, 45.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "crystalize",
+        &[
+            num("cell_size", 2.0, 250.0, 8.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "dents",
+        &[
+            num("scale", 1.0, 200.0, 25.0),
+            num("refraction", 0.0, 200.0, 50.0),
+            num("roughness", 0.0, 100.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "frosted_glass",
+        &[
+            num("amount", 1.0, 200.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "morphology",
+        &[
+            choice("operation", &["dilate", "erode", "open", "close"]),
+            choice("shape", &["square", "circle"]),
+            num("radius", 1.0, 100.0, 1.0),
+        ],
+    ),
+    plain(
+        "pixelate",
+        &[
+            num("cell_size", 2.0, 200.0, 8.0),
+            // Pixel mode's default: the centre pixel adds no colour.
+            choice_at("color", &["average", "centre"], 1),
+        ],
+    ),
+    plain(
+        "polar_inversion",
+        &[
+            num("amount", -4.0, 4.0, 1.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice_at("edge", EDGES, 1),
+        ],
+    ),
+    plain(
+        "tile_reflection",
+        &[
+            num("tile_size", 2.0, 200.0, 40.0),
+            num("angle", 0.0, 360.0, 30.0),
+            num("curvature", -100.0, 100.0, 8.0),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "twist",
+        &[
+            num("amount", -100.0, 100.0, 30.0),
+            num("size", 1.0, 200.0, 100.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice("edge", EDGES),
         ],
     ),
 ];

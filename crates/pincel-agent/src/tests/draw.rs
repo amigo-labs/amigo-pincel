@@ -331,6 +331,80 @@ fn effect_apply_new_blurs_match_the_editor() {
     }
 }
 
+/// effects-distort: the distortions take named parameters (choices by
+/// name) and give the editor's pixels; Pixelate defaults to Pixel mode's
+/// Centre.
+#[test]
+fn effect_apply_distortions_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "bulge",
+            json!({ "amount": -60, "center_x": 0.3, "edge": "reflect" }),
+            &[-60.0, 0.3, 0.5, 2.0],
+        ),
+        (
+            "crystalize",
+            json!({ "cell_size": 3, "seed": 4 }),
+            &[3.0, 4.0],
+        ),
+        (
+            "dents",
+            json!({ "scale": 3, "refraction": 120, "edge": "wrap" }),
+            &[3.0, 120.0, 10.0, 1.0, 1.0],
+        ),
+        (
+            "frosted_glass",
+            json!({ "amount": 2, "seed": 8 }),
+            &[2.0, 8.0],
+        ),
+        (
+            "morphology",
+            json!({ "operation": "erode", "shape": "circle", "radius": 1 }),
+            &[1.0, 1.0, 1.0],
+        ),
+        ("pixelate", json!({ "cell_size": 3 }), &[3.0, 1.0]),
+        (
+            "pixelate",
+            json!({ "cell_size": 2, "color": "average" }),
+            &[2.0, 0.0],
+        ),
+        (
+            "polar_inversion",
+            json!({ "amount": 0.5 }),
+            &[0.5, 0.5, 0.5, 1.0],
+        ),
+        (
+            "tile_reflection",
+            json!({ "tile_size": 4, "angle": 15, "curvature": 20, "edge": "transparent" }),
+            &[4.0, 15.0, 20.0, 3.0],
+        ),
+        (
+            "twist",
+            json!({ "amount": -40, "size": 150 }),
+            &[-40.0, 150.0, 0.5, 0.5, 0.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
 #[test]
 fn effect_apply_matches_the_editor_effect() {
     let mut s = S::new();
