@@ -37,10 +37,12 @@ const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
   openFile: (opened: OpenedFile) => void;
+  notice: (message: string) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
+  notice: () => {},
 };
 
 /** Hand a document to the shell, which guards unsaved changes and opens it. */
@@ -112,8 +114,8 @@ export async function openDocInner() {
   try {
     opened = await pickAndOpen();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('status.failed', { action: t('act.open'), error: msg });
+    // A file that cannot be read gets the shell's notice (file-access AC-16).
+    shell.notice(t('shell.openFailed', { error: err instanceof Error ? err.message : String(err) }));
     return;
   }
   if (!opened) return;
@@ -258,7 +260,7 @@ export async function openRecent(r: RecentFile) {
       // Read access is enough to open. The next save will prompt
       // for write via `saveBytes` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
-        ed.status = t('px.recentDenied', { name: r.name });
+        shell.notice(t('shell.permissionDenied', { name: r.name }));
         return;
       }
       const file = await r.handle.getFile();
@@ -266,7 +268,7 @@ export async function openRecent(r: RecentFile) {
       name = file.name;
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
-      ed.status = t('px.recentNoHandle', { name: r.name });
+      shell.notice(t('shell.noHandle', { name: r.name }));
       return;
     }
     // The registry also lists Image-mode files: anything that is not a
@@ -295,7 +297,7 @@ export async function openRecent(r: RecentFile) {
     await recordRecent();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    shell.notice(t('shell.recentFailed', { name: r.name, error: msg }));
   } finally {
     file.busy = false;
   }

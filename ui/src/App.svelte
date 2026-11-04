@@ -380,6 +380,7 @@
         onOpenFile={(f) => guard(() => openFile(f))}
         onDirtyChange={(dirty) => (session.dirty = dirty)}
         onOpenRecent={(r) => guard(() => void openRecent(r))}
+        onNotice={(message) => (shellError = message)}
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}

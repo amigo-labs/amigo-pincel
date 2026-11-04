@@ -172,6 +172,7 @@
     onOpenForeign,
     onOpenFile,
     onDirtyChange,
+    onNotice,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -181,6 +182,7 @@
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
     openFile: (opened) => onOpenFile(opened),
+    notice: (message) => onNotice(message),
   });
   initAutosave();
 

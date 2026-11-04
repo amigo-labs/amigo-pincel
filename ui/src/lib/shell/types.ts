@@ -42,6 +42,9 @@ export interface EditorProps {
    *  or Tauri path), runs the unsaved-changes guard and routes it to the
    *  mode the format belongs to. */
   onOpenRecent: (recent: RecentFile) => void;
+  /** Show the shell's dismissable error notice, e.g. when reading a file
+   *  the editor opens itself fails (docs/specs/file-access.md AC-14, AC-16). */
+  onNotice: (message: string) => void;
   /** Native-menu (Tauri) items the editor serves; `null` on unmount. */
   registerMenuHandlers: (handlers: EditorMenuHandlers | null) => void;
 }
