@@ -47,6 +47,15 @@ fn from_params_every_name_parses_with_its_documented_arity() {
         ("sketch_blur", &[10.0, 1.0]),
         ("surface_blur", &[6.0, 25.0]),
         ("zoom_blur", &[10.0, 0.5, 0.5]),
+        ("bulge", &[45.0, 0.5, 0.5, 0.0]),
+        ("crystalize", &[8.0, 1.0]),
+        ("dents", &[25.0, 50.0, 10.0, 1.0, 0.0]),
+        ("frosted_glass", &[10.0, 1.0]),
+        ("morphology", &[0.0, 0.0, 1.0]),
+        ("pixelate", &[8.0, 1.0]),
+        ("polar_inversion", &[1.0, 0.5, 0.5, 1.0]),
+        ("tile_reflection", &[40.0, 30.0, 8.0, 0.0]),
+        ("twist", &[30.0, 100.0, 0.5, 0.5, 0.0]),
     ];
     for (name, params) in cases {
         let spec = EffectSpec::from_params(name, params).unwrap_or_else(|e| panic!("{name}: {e}"));

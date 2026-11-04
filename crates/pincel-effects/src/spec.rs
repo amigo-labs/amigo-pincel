@@ -20,12 +20,19 @@ use crate::blur::{
     Bokeh, BoxBlur, Fragment, GaussianBlur, Median, MotionBlur, RadialBlur, RadialKind, SketchBlur,
     SurfaceBlur,
 };
-use crate::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
+use crate::distort::{
+    Bulge, Crystalize, Dents, EdgeAlgorithm, EdgeDetect, Emboss, FrostedGlass, Morphology,
+    MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, Relief, TileReflection,
+    Twist,
+};
 use crate::effect::Effect;
 use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
 use crate::sharpen::{Sharpen, UnsharpMask};
+use wire::{b, clamped, edge, expect_len, f, option, u};
+
+mod wire;
 
 /// Every effect and adjustment the crate ships, with typed parameters.
 ///
@@ -171,6 +178,37 @@ pub enum EffectSpec {
         center_x: f32,
         center_y: f32,
     },
+    /// `bulge`: `[amount, center_x, center_y, edge]` (`-200..=100`, the
+    /// centre as fractions `0..=1`, edge `0` = clamp, `1` = wrap,
+    /// `2` = reflect, `3` = transparent, as for every resampling
+    /// distortion).
+    Bulge(Bulge),
+    /// `crystalize`: `[cell_size, seed]` (`2..=250`, `0..=9999`).
+    Crystalize(Crystalize),
+    /// `dents`: `[scale, refraction, roughness, seed, edge]` (`1..=200`,
+    /// `0..=200`, `0..=100`, `0..=9999`, edge as for `bulge`).
+    Dents(Dents),
+    /// `frosted_glass`: `[amount, seed]` (`1..=200` px, `0..=9999`).
+    FrostedGlass(FrostedGlass),
+    /// `morphology`: `[operation, shape, radius]` with `operation`
+    /// `0` = dilate, `1` = erode, `2` = open, `3` = close, `shape`
+    /// `0` = square, `1` = circle and `radius` in `1..=100`.
+    Morphology(Morphology),
+    /// `pixelate`: `[cell_size, color]` (`2..=200`, `color` `0` = average,
+    /// `1` = centre). The grid starts at the canvas origin: a host runs
+    /// it with [`EffectSpec::run_at`] for a buffer placed elsewhere.
+    Pixelate(Pixelate),
+    /// `polar_inversion`: `[amount, center_x, center_y, edge]` (`-4..=4`,
+    /// the centre as fractions, edge as for `bulge`).
+    PolarInversion(PolarInversion),
+    /// `tile_reflection`: `[tile_size, angle_degrees, curvature, edge]`
+    /// (`2..=200`, wrapped into `0..360`, `-100..=100`, edge as for
+    /// `bulge`).
+    TileReflection(TileReflection),
+    /// `twist`: `[amount, size_percent, center_x, center_y, edge]`
+    /// (`-100..=100`, `1..=200`, the centre as fractions, edge as for
+    /// `bulge`).
+    Twist(Twist),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -207,40 +245,16 @@ pub const EFFECT_NAMES: &[&str] = &[
     "sketch_blur",
     "surface_blur",
     "zoom_blur",
+    "bulge",
+    "crystalize",
+    "dents",
+    "frosted_glass",
+    "morphology",
+    "pixelate",
+    "polar_inversion",
+    "tile_reflection",
+    "twist",
 ];
-
-fn expect_len(name: &str, params: &[f64], expected: usize) -> Result<(), EffectError> {
-    if params.len() == expected {
-        Ok(())
-    } else {
-        Err(EffectError::ParamCount {
-            effect: name.to_owned(),
-            expected,
-            got: params.len(),
-        })
-    }
-}
-
-fn f(v: f64) -> f32 {
-    if v.is_finite() { v as f32 } else { 0.0 }
-}
-
-fn u(v: f64) -> u32 {
-    if v.is_finite() {
-        v.round().clamp(0.0, u32::MAX as f64) as u32
-    } else {
-        0
-    }
-}
-
-/// A finite number clamped to `lo..=hi`; non-finite reads as 0 first.
-fn clamped(v: f64, lo: f32, hi: f32) -> f32 {
-    f(v).clamp(lo, hi)
-}
-
-fn b(v: f64) -> bool {
-    v.is_finite() && v != 0.0
-}
 
 impl EffectSpec {
     /// Build a spec from its wire `name` and parameter vector.
@@ -498,6 +512,56 @@ impl EffectSpec {
                     center_y: clamped(p[2], 0.0, 1.0),
                 }
             }
+            "bulge" => {
+                expect_len(name, p, 4)?;
+                Self::Bulge(Bulge::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "crystalize" => {
+                expect_len(name, p, 2)?;
+                Self::Crystalize(Crystalize::new(f(p[0]), f(p[1])))
+            }
+            "dents" => {
+                expect_len(name, p, 5)?;
+                Self::Dents(Dents::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
+            }
+            "frosted_glass" => {
+                expect_len(name, p, 2)?;
+                Self::FrostedGlass(FrostedGlass::new(f(p[0]), f(p[1])))
+            }
+            "morphology" => {
+                expect_len(name, p, 3)?;
+                let op = match option(p[0], 3) {
+                    1 => MorphologyOp::Erode,
+                    2 => MorphologyOp::Open,
+                    3 => MorphologyOp::Close,
+                    _ => MorphologyOp::Dilate,
+                };
+                let shape = match option(p[1], 1) {
+                    1 => MorphologyShape::Circle,
+                    _ => MorphologyShape::Square,
+                };
+                Self::Morphology(Morphology::new(op, shape, f(p[2])))
+            }
+            "pixelate" => {
+                expect_len(name, p, 2)?;
+                let color = match option(p[1], 1) {
+                    1 => PixelateColor::Centre,
+                    _ => PixelateColor::Average,
+                };
+                Self::Pixelate(Pixelate::new(f(p[0]), color))
+            }
+            "polar_inversion" => {
+                expect_len(name, p, 4)?;
+                Self::PolarInversion(PolarInversion::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "tile_reflection" => {
+                expect_len(name, p, 4)?;
+                Self::TileReflection(TileReflection::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "twist" => {
+                expect_len(name, p, 5)?;
+                Self::Twist(Twist::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -506,6 +570,22 @@ impl EffectSpec {
     /// Run the described effect over `src`, returning a same-sized buffer.
     pub fn run(&self, src: &EffectImage) -> EffectImage {
         self.run_in(src, |_, _| true)
+    }
+
+    /// Like [`EffectSpec::run_in`], for a buffer whose top-left pixel sits
+    /// at canvas position `origin` (a trimmed Pixel-mode cel). Effects
+    /// anchored to the canvas grid (Pixelate) line up with it; every
+    /// other effect ignores `origin`.
+    pub fn run_at(
+        &self,
+        src: &EffectImage,
+        origin: (i32, i32),
+        in_target: impl Fn(u32, u32) -> bool,
+    ) -> EffectImage {
+        match self {
+            Self::Pixelate(e) => e.with_origin(origin).apply(src),
+            other => other.run_in(src, in_target),
+        }
     }
 
     /// Like [`EffectSpec::run`], for a host that limits the effect to a
@@ -621,6 +701,15 @@ impl EffectSpec {
                 center_x,
                 center_y,
             } => radial(src, *amount, *center_x, *center_y, RadialKind::Zoom),
+            Self::Bulge(e) => e.apply(src),
+            Self::Crystalize(e) => e.apply(src),
+            Self::Dents(e) => e.apply(src),
+            Self::FrostedGlass(e) => e.apply(src),
+            Self::Morphology(e) => e.apply(src),
+            Self::Pixelate(e) => e.apply(src),
+            Self::PolarInversion(e) => e.apply(src),
+            Self::TileReflection(e) => e.apply(src),
+            Self::Twist(e) => e.apply(src),
         }
     }
 
@@ -659,6 +748,15 @@ impl EffectSpec {
             Self::SketchBlur(_) => "Sketch Blur",
             Self::SurfaceBlur(_) => "Surface Blur",
             Self::ZoomBlur { .. } => "Zoom Blur",
+            Self::Bulge(_) => "Bulge",
+            Self::Crystalize(_) => "Crystalize",
+            Self::Dents(_) => "Dents",
+            Self::FrostedGlass(_) => "Frosted Glass",
+            Self::Morphology(_) => "Morphology",
+            Self::Pixelate(_) => "Pixelate",
+            Self::PolarInversion(_) => "Polar Inversion",
+            Self::TileReflection(_) => "Tile Reflection",
+            Self::Twist(_) => "Twist",
         }
     }
 }
