@@ -43,7 +43,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 30 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
 | 31 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
 | 32 | [color-picker](color-picker.md) | both | L | — | |
-| 33 | [palette-formats](palette-formats.md) | Pixel | M | — | Lospec palettes |
 | 34 | [animation-preview](animation-preview.md) | Pixel | M | — | |
 | 35 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
 | 36 | [more-languages](more-languages.md) | both | L | — | |
@@ -70,6 +69,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [outline-effect](outline-effect.md)
+- [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
