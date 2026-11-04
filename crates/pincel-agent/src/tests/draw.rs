@@ -7,7 +7,7 @@ use pincel_core::{
     LayerId, Rgba, Sprite,
 };
 use pincel_effects::{EffectImage, EffectSpec};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{S, px};
 
@@ -267,6 +267,68 @@ fn effect_apply_accepts_every_effect_on_a_pixel_document() {
         s.ok("effect.apply", json!({ "id": name }));
     }
     assert_eq!(s.cel_rgba(&id, 0, 0).len(), 8 * 8 * 4);
+}
+
+/// effects-blurs: the new blurs and Motion Blur's Centered switch take
+/// named parameters and give the editor's pixels.
+#[test]
+fn effect_apply_new_blurs_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "bokeh",
+            json!({ "radius": 3, "highlights": 80 }),
+            &[3.0, 80.0],
+        ),
+        (
+            "fragment",
+            json!({ "fragments": 5, "distance": 2, "rotation": 30 }),
+            &[5.0, 2.0, 30.0],
+        ),
+        (
+            "median",
+            json!({ "radius": 2, "percentile": 75 }),
+            &[2.0, 75.0],
+        ),
+        (
+            "sketch_blur",
+            json!({ "radius": 4, "seed": 9 }),
+            &[4.0, 9.0],
+        ),
+        (
+            "surface_blur",
+            json!({ "radius": 2, "threshold": 40 }),
+            &[2.0, 40.0],
+        ),
+        (
+            "zoom_blur",
+            json!({ "amount": 40, "center_x": 0.25, "center_y": 0.75 }),
+            &[40.0, 0.25, 0.75],
+        ),
+        (
+            "motion_blur",
+            json!({ "distance": 4, "angle": 45, "centered": false }),
+            &[4.0, 45.0, 0.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name}");
+    }
 }
 
 #[test]

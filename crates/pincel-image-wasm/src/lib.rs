@@ -376,9 +376,11 @@ fn effect_region(
     spec: &EffectSpec,
 ) -> Result<Option<(Rect, ImageBuffer)>, JsError> {
     let (src, w, h) = layer_effect_image(doc, layer)?;
-    let after = ImageBuffer::from_raw(w, h, spec.run(&src).into_raw()).map_err(to_js)?;
+    let selection = doc.selection.as_ref();
+    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
+    let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
     let before = &doc.layers()[layer].pixels;
-    Ok(masked_region(before, &after, doc.selection.as_ref()))
+    Ok(masked_region(before, &after, selection))
 }
 
 /// Renders a live preview of effect `name` / `params` on the layer at
@@ -799,6 +801,54 @@ mod paste_tests {
             rgba_key(1, 1, &[200, 100, 50, 0]),
             rgba_key(1, 1, &[0, 0, 0, 0])
         );
+    }
+}
+
+#[cfg(test)]
+mod effect_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    fn gray_row(values: [u8; 4]) -> ImageBuffer {
+        let data = values.iter().flat_map(|&v| [v, v, v, 255]).collect();
+        ImageBuffer::from_raw(4, 1, data).expect("row")
+    }
+
+    /// adjustments-paintnet AC-05 / AC-10 in the Image editor: Auto-Level
+    /// takes its range from the selection, changes only the selected pixels
+    /// of the target layer, and is one undo step.
+    #[test]
+    fn apply_effect_auto_level_stretches_the_selection_only() {
+        let mut doc = Document::new(4, 1).expect("doc");
+        doc.add_layer("top").expect("layer");
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(SetPixels::new(
+            0,
+            Rect::new(0, 0, 4, 1),
+            gray_row([0, 80, 160, 255]),
+        )))
+        .expect("paint");
+        bus.apply(Box::new(SetPixels::new(
+            1,
+            Rect::new(0, 0, 4, 1),
+            gray_row([40, 40, 200, 200]),
+        )))
+        .expect("paint");
+        bus.document.selection = Some(SelectionMask::rectangle(4, 1, Rect::new(1, 0, 2, 1)));
+        let other_layer = bus.document.layers()[1].pixels.clone();
+        let depth = bus.history.undo_depth();
+        let handle = insert(bus);
+
+        assert!(apply_effect(handle, 0, "auto_level", &[]).expect("apply"));
+        with_bus(handle, |bus| {
+            let px = bus.document.layers()[0].pixels.data().to_vec();
+            let reds: Vec<u8> = px.iter().step_by(4).copied().collect();
+            assert_eq!(reds, [0, 0, 255, 255], "80 / 160 stretch to 0 / 255");
+            assert_eq!(bus.document.layers()[1].pixels, other_layer, "other layer");
+            assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+            Ok(())
+        })
+        .expect("bus");
     }
 }
 

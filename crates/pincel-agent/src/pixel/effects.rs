@@ -95,6 +95,7 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
         &[
             num("distance", 1.0, 100.0, 6.0),
             num("angle", 0.0, 360.0, 0.0),
+            flag("centered", true),
         ],
     ),
     plain(
@@ -218,6 +219,69 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
     ),
     plain("posterize", &[num("levels", 2.0, 64.0, 4.0)]),
     plain("threshold", &[num("threshold", 0.0, 255.0, 128.0)]),
+    plain("auto_level", &[]),
+    plain("exposure", &[num("exposure", -5.0, 5.0, 0.0)]),
+    plain(
+        "highlights_shadows",
+        &[
+            num("shadows", -100.0, 100.0, 0.0),
+            num("highlights", -100.0, 100.0, 0.0),
+        ],
+    ),
+    plain("invert_alpha", &[]),
+    plain("sepia", &[num("intensity", 0.0, 100.0, 100.0)]),
+    plain(
+        "temperature_tint",
+        &[
+            num("temperature", -100.0, 100.0, 0.0),
+            num("tint", -100.0, 100.0, 0.0),
+        ],
+    ),
+    // docs/specs/effects-blurs.md: paint.net's remaining blurs.
+    plain(
+        "bokeh",
+        &[
+            num("radius", 1.0, 100.0, 10.0),
+            num("highlights", 0.0, 100.0, 25.0),
+        ],
+    ),
+    plain(
+        "fragment",
+        &[
+            num("fragments", 2.0, 50.0, 4.0),
+            num("distance", 0.0, 100.0, 8.0),
+            num("rotation", 0.0, 360.0, 0.0),
+        ],
+    ),
+    plain(
+        "median",
+        &[
+            num("radius", 1.0, 200.0, 10.0),
+            num("percentile", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "sketch_blur",
+        &[
+            num("radius", 1.0, 100.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "surface_blur",
+        &[
+            num("radius", 1.0, 100.0, 6.0),
+            num("threshold", 1.0, 100.0, 25.0),
+        ],
+    ),
+    plain(
+        "zoom_blur",
+        &[
+            num("amount", 1.0, 100.0, 10.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+        ],
+    ),
 ];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {
@@ -236,6 +300,12 @@ pub(crate) const ADJUSTMENTS: &[&str] = &[
     "grayscale",
     "posterize",
     "threshold",
+    "auto_level",
+    "exposure",
+    "highlights_shadows",
+    "invert_alpha",
+    "sepia",
+    "temperature_tint",
 ];
 
 /// `true` for an adjustment id (Adjust menu), `false` for an effect.

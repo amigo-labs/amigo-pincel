@@ -512,8 +512,10 @@ pub(crate) fn effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
     let (w, h) = (before.width(), before.height());
     let src = EffectImage::from_rgba8(w, h, before.data().to_vec())
         .map_err(|e| AgentError::tool(e.to_string()))?;
-    let after = ImageBuffer::from_raw(w, h, spec.run(&src).into_raw()).map_err(core_err)?;
-    let changed = match masked_region(before, &after, document.selection.as_ref()) {
+    let selection = document.selection.as_ref();
+    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
+    let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(core_err)?;
+    let changed = match masked_region(before, &after, selection) {
         Some((rect, pixels)) => {
             let cmd = SetPixels::new(layer, rect, pixels).with_label(spec.label());
             doc.apply(vec![Box::new(cmd)])?
@@ -529,7 +531,7 @@ pub(crate) fn effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
 
 pub(crate) const ADJUST_APPLY: Tool = Tool {
     name: "adjust.apply",
-    description: "Apply an adjustment from the editor's Adjust menu (brightness_contrast, hue_saturation, curves, levels, color_balance, invert, grayscale, posterize, threshold) to the target layer, exactly as the editor does; respects the selection. `params` maps parameter names to values (see pincel://effects); omitted ones use their defaults. Effects (blur, sharpen, …) go through effect.apply.",
+    description: "Apply an adjustment from the editor's Adjust menu (brightness_contrast, hue_saturation, curves, levels, color_balance, invert, grayscale, posterize, threshold, auto_level, exposure, highlights_shadows, invert_alpha, sepia, temperature_tint) to the target layer, exactly as the editor does; respects the selection. `params` maps parameter names to values (see pincel://effects); omitted ones use their defaults. Effects (blur, sharpen, …) go through effect.apply.",
     schema: || {
         let mut props = json!({
             "id": { "type": "string", "description": format!("Adjustment id: {}", ADJUSTMENTS.join(", ")) },

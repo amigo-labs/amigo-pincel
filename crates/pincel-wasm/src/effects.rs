@@ -60,7 +60,17 @@ impl Document {
 
         let src = EffectImage::from_rgba8(buffer.width, buffer.height, buffer.data.clone())
             .map_err(|e| e.to_string())?;
-        let out = spec.run(&src).into_raw();
+        // The target is the selection when one exists (Auto-Level reads
+        // its luma range from it); cel pixel (x, y) sits at the cel
+        // position plus (x, y) in sprite space.
+        let sprite = &self.sprite;
+        let whole = !sprite.has_selection();
+        let (cx, cy) = cel.position;
+        let out = spec
+            .run_in(&src, |x, y| {
+                whole || sprite.selection_contains(cx + x as i32, cy + y as i32)
+            })
+            .into_raw();
 
         let Some(sel) = self.sprite.selection.filter(|r| !r.is_empty()) else {
             return Ok(EffectRun {
@@ -270,7 +280,7 @@ mod tests {
     #[test]
     fn apply_effect_unknown_name_or_bad_arity_errors() {
         let mut doc = Document::new(2, 2).expect("dims");
-        assert!(doc.apply_effect("sepia", &[]).is_err());
+        assert!(doc.apply_effect("no_such_effect", &[]).is_err());
         assert!(doc.apply_effect("gaussian_blur", &[]).is_err());
         assert_eq!(doc.undo_depth(), 0);
     }
@@ -291,6 +301,238 @@ mod tests {
         );
         assert_eq!(pixel(&doc, 0, 0), 0xFF0000FF, "document unchanged");
         assert_eq!(doc.undo_depth(), depth);
+    }
+
+    /// adjustments-paintnet: the six new adjustments with settings that
+    /// change something.
+    const PAINTNET: [(&str, &[f64]); 6] = [
+        ("auto_level", &[]),
+        ("exposure", &[1.0]),
+        ("highlights_shadows", &[60.0, 60.0]),
+        ("invert_alpha", &[]),
+        ("sepia", &[100.0]),
+        ("temperature_tint", &[80.0, 40.0]),
+    ];
+
+    fn cel_pixels(doc: &Document, layer: u32, frame: u32) -> Vec<u8> {
+        let cel = doc
+            .cels
+            .get(LayerId::new(layer), FrameIndex::new(frame))
+            .expect("cel");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("image cel");
+        };
+        buf.data.clone()
+    }
+
+    /// Layer 0 painted on frames 0 and 1, a second layer on frame 0, and a
+    /// 2x2 selection over the bottom-right corner; layer 0 / frame 0 is
+    /// the target.
+    fn layered() -> (Document, u32) {
+        let mut doc = Document::new(4, 4).expect("dims");
+        for (x, y, c) in [(0, 0, 0x5A6B7CFF), (2, 2, 0x303030FF), (3, 3, 0xA0A0A0FF)] {
+            doc.apply_tool("pencil", x, y, c).expect("paint");
+            doc.end_stroke();
+        }
+        doc.apply_tool("pencil", 3, 2, 0x8040C080).expect("paint");
+        doc.end_stroke();
+        let frame = doc.add_frame(100).expect("frame");
+        doc.set_current_frame(frame).expect("frame");
+        doc.apply_tool("pencil", 2, 2, 0x406080FF).expect("paint");
+        doc.end_stroke();
+        doc.set_current_frame(0).expect("frame");
+        let top = doc.add_layer("top").expect("layer");
+        doc.set_active_layer(top);
+        doc.apply_tool("pencil", 3, 3, 0x10F010FF).expect("paint");
+        doc.end_stroke();
+        doc.set_active_layer(0);
+        doc.set_selection(2, 2, 2, 2);
+        (doc, top)
+    }
+
+    /// adjustments-paintnet AC-10: only the target changes, in one undo step.
+    #[test]
+    fn apply_effect_paintnet_adjustments_change_only_the_target_in_one_undo_step() {
+        for (name, params) in PAINTNET {
+            let (mut doc, top) = layered();
+            let target = cel_pixels(&doc, 0, 0);
+            let other_frame = cel_pixels(&doc, 0, 1);
+            let other_layer = cel_pixels(&doc, top, 0);
+            let depth = doc.undo_depth();
+            assert!(doc.apply_effect(name, params).expect(name), "{name}");
+            assert_eq!(doc.undo_depth(), depth + 1, "{name}: one undo step");
+            let after = cel_pixels(&doc, 0, 0);
+            for y in 0..4 {
+                for x in 0..4 {
+                    let i = (y * 4 + x) * 4;
+                    if x < 2 || y < 2 {
+                        assert_eq!(after[i..i + 4], target[i..i + 4], "{name}: ({x}, {y})");
+                    }
+                }
+            }
+            assert_ne!(after, target, "{name} changed nothing in the selection");
+            assert_eq!(cel_pixels(&doc, 0, 1), other_frame, "{name}: other cel");
+            assert_eq!(cel_pixels(&doc, top, 0), other_layer, "{name}: other layer");
+            assert!(doc.undo());
+            assert_eq!(cel_pixels(&doc, 0, 0), target, "{name}: undo restores");
+        }
+    }
+
+    /// adjustments-paintnet AC-05 / AC-10: Auto-Level reads its range from
+    /// the selection, not from the whole cel.
+    #[test]
+    fn apply_effect_auto_level_takes_its_range_from_the_selection() {
+        let mut doc = Document::new(4, 1).expect("dims");
+        for (x, c) in [
+            (0, 0x000000FF),
+            (1, 0x505050FF),
+            (2, 0xA0A0A0FF),
+            (3, 0xFFFFFFFF),
+        ] {
+            doc.apply_tool("pencil", x, 0, c).expect("paint");
+            doc.end_stroke();
+        }
+        doc.set_selection(1, 0, 2, 1);
+        assert!(doc.apply_effect("auto_level", &[]).expect("apply"));
+        assert_eq!(pixel(&doc, 1, 0), 0x000000FF);
+        assert_eq!(pixel(&doc, 2, 0), 0xFFFFFFFF);
+    }
+
+    /// adjustments-paintnet AC-11: a wrong parameter count is refused and
+    /// changes nothing.
+    #[test]
+    fn apply_effect_paintnet_wrong_parameter_count_changes_nothing() {
+        for (name, params) in PAINTNET {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            let wrong = vec![0.0; params.len() + 1];
+            let err = doc.apply_effect(name, &wrong).expect_err(name);
+            assert!(err.contains("expects"), "{name}: {err}");
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+        }
+    }
+
+    /// adjustments-paintnet AC-13: an indexed document refuses the new
+    /// adjustments with the message every other effect gives.
+    #[test]
+    fn apply_effect_paintnet_on_an_indexed_document_is_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        doc.sprite.color_mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let mut buf = pincel_core::PixelBuffer::empty(
+            2,
+            1,
+            ColorMode::Indexed {
+                transparent_index: 0,
+            },
+        );
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in PAINTNET {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
+    /// effects-blurs: the new blurs and Motion Blur with Centered off, at
+    /// settings that change something.
+    const BLURS: [(&str, &[f64]); 7] = [
+        ("bokeh", &[2.0, 50.0]),
+        ("fragment", &[3.0, 1.0, 0.0]),
+        ("median", &[1.0, 100.0]),
+        ("sketch_blur", &[3.0, 5.0]),
+        ("surface_blur", &[1.0, 100.0]),
+        ("zoom_blur", &[100.0, 0.0, 0.0]),
+        ("motion_blur", &[3.0, 0.0, 0.0]),
+    ];
+
+    /// effects-blurs: the new blurs run in the Pixel core (no menu entry,
+    /// but the wire accepts them) as one undo step.
+    #[test]
+    fn apply_effect_blurs_run_on_a_pixel_document() {
+        for (name, params) in BLURS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            assert!(doc.apply_effect(name, params).expect(name), "{name}");
+            assert_eq!(doc.undo_depth(), depth + 1, "{name}: one undo step");
+            assert_ne!(cel_pixels(&doc, 0, 0), before, "{name} changed nothing");
+        }
+    }
+
+    /// effects-blurs AC-14: a wrong parameter count is refused and changes
+    /// nothing.
+    #[test]
+    fn apply_effect_blurs_wrong_parameter_count_changes_nothing() {
+        for (name, params) in BLURS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            // Motion Blur accepts two or three slots; four is wrong.
+            let wrong = vec![1.0; params.len() + 1];
+            let err = doc.apply_effect(name, &wrong).expect_err(name);
+            assert!(err.contains("expects"), "{name}: {err}");
+            assert!(
+                doc.preview_effect(name, &wrong, 1).is_err(),
+                "{name} preview"
+            );
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+        }
+    }
+
+    /// effects-blurs AC-16: an indexed document refuses the blurs with the
+    /// message every other effect gives.
+    #[test]
+    fn apply_effect_blurs_on_an_indexed_document_are_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in BLURS
+            .iter()
+            .chain(&[("radial_blur", &[10.0, 0.5, 0.5, 1.0][..])])
+        {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
     }
 
     #[test]

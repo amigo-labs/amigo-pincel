@@ -65,7 +65,8 @@ const ADJUSTMENTS_EN = [
   'Brightness / Contrast…',
   'Color Balance…',
   'Curves…',
-  'Grayscale…',
+  // Renamed from Grayscale by adjustments-paintnet.
+  'Black and White…',
   'Hue / Saturation…',
   'Invert Colors',
   'Levels…',

@@ -37,7 +37,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
-| 18 | [outline-effect](outline-effect.md) | both | M | — | Adds a color param kind to effects |
+| 18 | [outline-effect](outline-effect.md) | both | M | effect-catalog-v2 | Adds a color param kind to effects; Object ▸ Outline Object |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
 | 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
@@ -65,12 +65,18 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
 | 47 | [document-tabs](document-tabs.md) | both | L | unsaved-changes-prompt | Several documents in tabs within one mode; other mode replaces the session. Revises app-shell AC-08 / AC-16, autosave-recovery AC-05 |
+| 50 | [effects-distort](effects-distort.md) | both | L | effect-catalog-v2 | Nine distortions; Morphology and Pixelate also in Pixel mode |
+| 51 | [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md) | both | M | effect-catalog-v2, outline-effect | Drop Shadow, Stylize Outline, Quantize, Reduce Noise rebuilt |
+| 52 | [effects-artistic-photo](effects-artistic-photo.md) | Image | L | effect-catalog-v2 | Ink / Pencil Sketch, Oil Painting, Glow, Red Eye, Soften Portrait, Straighten, Vignette |
+| 53 | [effects-render](effects-render.md) | both | M | effect-catalog-v2, outline-effect | Clouds, Turbulence (both modes), Julia and Mandelbrot (Image) |
 
 ## Done
 
+- [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
 - [effect-panel](effect-panel.md)
+- [effects-blurs](effects-blurs.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [pixel-compose](pixel-compose.md)
