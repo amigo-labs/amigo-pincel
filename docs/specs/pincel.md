@@ -694,6 +694,7 @@ Default keymap (Ctrl is ⌘ on macOS; feature specs `power-user-shortcuts-covera
 | View | Grid / pixel grid | Ctrl+' / Ctrl+Shift+' | Pixel |
 | View | Toggle UI (tool rail, options bar, panels) | Tab while the canvas stage has focus | both |
 | Help | Keyboard Shortcuts | Ctrl+/ | both |
+| Help | Command palette: search every menu command and tool, with its shortcut (`power-user-shortcuts-palette`) | Ctrl+K | both |
 | Colors | Swap / default colors | X / D | both |
 | Colors | Next / previous palette color | Alt+] / Alt+[ | Pixel |
 | Brush | Smaller / larger | `[` / `]` | both |
