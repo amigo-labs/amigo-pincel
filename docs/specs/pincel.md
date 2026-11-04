@@ -510,6 +510,8 @@ Two modes:
 
 Sprite-sheet export emits an optional sidecar JSON describing frame durations, tags, and slice rects. Format follows Aseprite's `--data` JSON output for ecosystem compatibility (LDtk, Phaser, etc. consume this format).
 
+Both take an integer scale 1–10 (feature spec `scaled-export.md`, Decision Log 2026-10-29): the frame or sheet is composed at zoom 1 and upscaled nearest-neighbour, capped at 16384 px per edge; the sheet JSON describes the scaled sheet as Aseprite's `--scale` does (geometry ×N, `meta.scale` `"1"`). The wasm `exportPng` / `exportAtlas` take the scale as an optional trailing argument.
+
 ### 7.4 Engine Build Pipeline
 
 Pincel does **not** export to `.ait` directly. The engine's existing `amigo_assets` pipeline reads `.aseprite` files and produces engine-internal formats. Pincel's only contract with the engine is: produce a valid `.aseprite` file at a known location.
