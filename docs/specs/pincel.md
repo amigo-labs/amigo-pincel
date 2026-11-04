@@ -146,7 +146,7 @@ pub struct Sprite {
 pub enum ColorMode {
     Rgba,                              // 32 bpp
     Indexed { transparent_index: u8 }, // 8 bpp + palette
-    Grayscale,                         // 16 bpp (V+A) — Phase 2
+    Grayscale,                         // 16 bpp (V+A) — rendering Phase 1, editing Phase 2
 }
 ```
 
