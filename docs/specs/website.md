@@ -112,11 +112,11 @@ Hints that drift — the code is the truth.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
+| AC-01 | `website/e2e/pages.spec.ts`: "AC-01/AC-02: … is prerendered in …", "AC-01: the pages carry no trailing slash in their links", "AC-01: only `de` is a language prefix" | built |        |
+| AC-02 | `website/e2e/pages.spec.ts`: "AC-01/AC-02: … is prerendered in …"; `lang` after a switch in "AC-03: … switches to … on the same page" | built |        |
+| AC-03 | `website/e2e/pages.spec.ts`: "AC-03: … switches to … on the same page" (all ten pages) | built |        |
+| AC-04 | `website/e2e/pages.spec.ts`: "AC-04: links on … stay in …", "AC-04: copy links on the home page follow its language" | built |        |
+| AC-05 | `website/e2e/pages.spec.ts`: "AC-05: the header / hero / final call to action link loads /app/ as a new document" | built |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
@@ -130,3 +130,7 @@ Hints that drift — the code is the truth.
 
 - 2026-10-29: Extracted from the code (reverse engineering). AC-09 pins today's comparison table; the planned `website-comparison` spec will revise it (and this AC) when it is built.
 - 2026-10-29: Evidence for AC-01 – AC-12 comes from Playwright: `@playwright/test` becomes a `website/` devDependency pinned to `ui/`'s version (1.64.1), specs under `website/e2e/` run against `vite preview` of the static build in the CI `website` job; AC-13 stays manual (§15 row recorded with this batch) — the tool is already approved and used in this repo, and one browser harness covers the HTML, SEO and JS-driven ACs (owner accepted the recommendation).
+- 2026-11-04: The language-switch e2e found a bug: after a client-side switch `<html lang>` kept the old language, because only `hooks.server.ts` set it for the prerendered page; the root layout now sets `document.documentElement.lang` from the route (red run: all ten AC-03 cases failed with `lang="en"` on `/de/…` and vice versa) — the smallest fix that makes AC-02 hold after the switch AC-03 describes.
+- 2026-11-04: Apart from that bug this spec pins behavior that already ships, so its tests were green on their first run; they were checked against deliberate breakage instead (a weakened iPad / ARM-Linux rule in `platform.ts` failed six AC-10 cases) — a reverse-engineered spec has no red phase for existing behavior.
+- 2026-11-04: The website e2e preview port is `PINCEL_SITE_E2E_PORT` (default 4174), not the editor's `PINCEL_E2E_PORT` / 4173 — with `reuseExistingServer` a shared port would let one suite silently test the other's build (AGENTS.md Gotchas).
+- 2026-11-04: AC-05 stubs `/app/` with `page.route` — `vite preview` of the site has no editor (`scripts/cf-build.sh` copies it in at deploy), and the test proves a full document load by a window marker that a client-side navigation would keep.
