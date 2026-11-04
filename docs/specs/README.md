@@ -35,7 +35,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
-| 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
 | 18 |  | both | M | — | Adds a color param kind to effects |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
@@ -83,6 +82,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [save-original-format](save-original-format.md)
+- [scaled-export](scaled-export.md)
 - [slices](slices.md)
 - [tilemaps](tilemaps.md)
 - [wasm-npm-api](wasm-npm-api.md)
