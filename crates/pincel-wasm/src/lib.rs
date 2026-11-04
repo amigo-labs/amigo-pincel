@@ -23,6 +23,7 @@ mod animation;
 mod clipboard;
 mod effects;
 mod events;
+mod gradient;
 mod grid;
 mod import;
 mod layer_ops;
