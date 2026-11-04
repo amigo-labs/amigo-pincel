@@ -97,8 +97,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `image mode lists the ten blurs, sorted; pixel mode none (AC-01)` (ui/e2e/effects-blurs.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |  |
+| AC-02 | `the new blur dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-blurs.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |  |
 | AC-03 | `new_blurs_keep_size_and_the_input_alpha_range` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-04 | `a_solid_opaque_layer_stays_unchanged` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-05 | `transparent_colour_never_tints_an_opaque_neighbour` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
@@ -107,11 +107,11 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-08 | `surface_blur_keeps_a_black_white_edge_sharp`, `surface_blur_smooths_two_close_grays` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-09 | `sketch_blur_is_reproducible_per_seed` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-10 | `zoom_blur_grows_with_the_distance_from_the_centre`, `zoom_blur_equals_radial_blur_zoom` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-11 | `motion_blur_uncentered_spreads_to_one_side_only`, `motion_blur_centered_spreads_symmetrically` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-12 |      | open   |        |
+| AC-11 | `motion_blur_uncentered_spreads_to_one_side_only`, `motion_blur_centered_spreads_symmetrically` (crates/pincel-effects/tests/effects_blurs.rs); `effect_apply_new_blurs_match_the_editor` (Centered off, crates/pincel-agent/src/tests/draw.rs) | built |  |
+| AC-12 | `Radial Blur shows Amount and Center but no Kind choice (AC-12)` (ui/e2e/effects-blurs.spec.ts); `radial_blur: wire vectors equal the previous catalog's` (kind slot always 0, ui/e2e/effect-catalog.spec.ts) | built |  |
 | AC-13 | `existing_wire_calls_keep_working` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
 | AC-14 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_blurs.rs); `apply_effect_blurs_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |  |
-| AC-15 |      | open   |        |
+| AC-15 | `German names and parameter labels (AC-15)` (ui/e2e/effects-blurs.spec.ts) | built |  |
 | AC-16 | `apply_effect_blurs_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |  |
 
 ## Decisions
@@ -124,3 +124,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-04 (spec-build): Clamping per AC-14: radii, Fragments, Seed and Threshold are rounded to whole numbers; Fragment's Rotation wraps into 0–360 like the angle dial instead of clamping (370 → 10); Zoom Blur's centre clamps to 0–1. Motion Blur's two existing slots keep their old unclamped reading (AC-13); its Centered slot is a boolean like every other switch.
 - 2026-11-04 (spec-build): New wire names follow `temperature_tint` at the end of `EFFECT_NAMES` (bokeh, fragment, median, sketch_blur, surface_blur, zoom_blur); `EffectSpec::MotionBlur` gains `centered`, `MotionBlur` gains `centered` / `with_centered`, and `blur::{Bokeh, Fragment, Median, SketchBlur, SurfaceBlur}` and `EffectSpec::{Bokeh, Fragment, Median, SketchBlur, SurfaceBlur, ZoomBlur}` are new public API.
 - 2026-11-04 (spec-build): AC-14 ("changes nothing") and AC-16 are proven in the Pixel core (`pincel-wasm`), where the document and the RGBA refusal live; both tests were green at once, because the refusal and the parameter-count error run before any effect and every new name already parsed in `pincel-effects` (whose tests were red first). The agent catalog gained the new blurs because its tests require it to mirror `EFFECT_NAMES`.
+- 2026-11-04 (spec-build): Radial Blur's hidden Kind uses the catalog's existing `toParams` hook (amount, centre fractions, then a constant 0) instead of a new hidden parameter kind — because `EffectDialog.svelte` renders every unknown kind as a choice and counts `params` for "no parameters", so a new kind would need dialog changes while `effect-panel` reworks that dialog in parallel. The unused `fx.Kind` / `fx.Spin` / `fx.Zoom` strings were removed.
+- 2026-11-04 (spec-build): Labels the table leaves open: Fragments / Fragmente, Rotation / Drehung (an angle dial), Percentile / Perzentil, Centered / Zentriert; Bokeh's Highlights, Radius, Distance, Threshold, Amount, Seed and Center reuse the existing strings (Lichter, Radius, Distanz, Schwellenwert, Stärke, Startwert, Mitte). All six blurs and the Radial / Zoom amount keep step 1.

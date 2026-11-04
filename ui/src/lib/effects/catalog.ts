@@ -130,6 +130,27 @@ const seed = (key: string, label: string, min: number, max: number, def: number)
   default: def,
 });
 
+const center = (): ParamDef => ({
+  kind: 'point',
+  key: 'center',
+  label: 'Center',
+  xKey: 'center_x',
+  yKey: 'center_y',
+  xLabel: 'Center X',
+  yLabel: 'Center Y',
+  default: { x: 50, y: 50 },
+});
+
+/** Radial Blur's amount and centre as wire slots: the amount, then the
+ *  centre as two fractions (the point kind's encoding in `toParams`). */
+function pointParams(v: Record<string, number>): number[] {
+  const read = (key: string, fallback: number): number => {
+    const x = v[key];
+    return typeof x === 'number' && Number.isFinite(x) ? x : fallback;
+  };
+  return [read('amount', 10), read('center_x', 50) / 100, read('center_y', 50) / 100];
+}
+
 // Curves is exposed as five output sliders at fixed input positions —
 // enough for a pixel-art tone tweak without a spline editor.
 const CURVE_XS = [0, 64, 128, 192, 255];
@@ -167,27 +188,22 @@ export const EFFECTS: EffectDef[] = [
     label: 'Motion Blur',
     group: 'blurs',
     modes: IMAGE,
-    params: [num('distance', 'Distance', 1, 100, 6), angle('angle', 'Angle', 0)],
+    params: [
+      num('distance', 'Distance', 1, 100, 6),
+      angle('angle', 'Angle', 0),
+      // docs/specs/effects-blurs.md: off smears only backwards, like a trail.
+      bool('centered', 'Centered', true),
+    ],
   },
   {
     id: 'radial_blur',
     label: 'Radial Blur',
     group: 'blurs',
     modes: IMAGE,
-    params: [
-      num('amount', 'Amount', 1, 100, 10),
-      {
-        kind: 'point',
-        key: 'center',
-        label: 'Center',
-        xKey: 'center_x',
-        yKey: 'center_y',
-        xLabel: 'Center X',
-        yLabel: 'Center Y',
-        default: { x: 50, y: 50 },
-      },
-      choice('kind', 'Kind', ['Spin', 'Zoom']),
-    ],
+    params: [num('amount', 'Amount', 1, 100, 10), center()],
+    // docs/specs/effects-blurs.md: Radial Blur always spins (zooming is
+    // Zoom Blur); the wire keeps its kind slot, sent as 0 = spin.
+    toParams: (v) => [...pointParams(v), 0],
   },
   { id: 'sharpen', label: 'Sharpen', group: 'photo', modes: IMAGE, params: [] },
   {
@@ -386,10 +402,54 @@ export const EFFECTS: EffectDef[] = [
     label: 'Temperature and Tint',
     group: 'adjust',
     modes: BOTH,
+    params: [num('temperature', 'Temperature', -100, 100, 0), num('tint', 'Tint', -100, 100, 0)],
+  },
+  // docs/specs/effects-blurs.md: paint.net's remaining blurs.
+  {
+    id: 'bokeh',
+    label: 'Bokeh',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 10), num('highlights', 'Highlights', 0, 100, 25)],
+  },
+  {
+    id: 'fragment',
+    label: 'Fragment',
+    group: 'blurs',
+    modes: IMAGE,
     params: [
-      num('temperature', 'Temperature', -100, 100, 0),
-      num('tint', 'Tint', -100, 100, 0),
+      num('fragments', 'Fragments', 2, 50, 4),
+      num('distance', 'Distance', 0, 100, 8),
+      angle('rotation', 'Rotation', 0),
     ],
+  },
+  {
+    id: 'median',
+    label: 'Median',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 200, 10), num('percentile', 'Percentile', 0, 100, 50)],
+  },
+  {
+    id: 'sketch_blur',
+    label: 'Sketch Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 10), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'surface_blur',
+    label: 'Surface Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 6), num('threshold', 'Threshold', 1, 100, 25)],
+  },
+  {
+    id: 'zoom_blur',
+    label: 'Zoom Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', 1, 100, 10), center()],
   },
 ];
 

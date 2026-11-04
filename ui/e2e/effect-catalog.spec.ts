@@ -33,20 +33,23 @@ const PINS: Record<string, Pin> = {
       ['height', 9, [3, 9]],
     ],
   },
+  // effects-blurs appends the Centered slot (1 = on, the previous
+  // behaviour) to the previous vectors.
   motion_blur: {
-    defaults: [6, 0],
+    defaults: [6, 0, 1],
     changes: [
-      ['distance', 10, [10, 0]],
-      ['angle', 90, [6, 90]],
+      ['distance', 10, [10, 0, 1]],
+      ['angle', 90, [6, 90, 1]],
+      ['centered', 0, [6, 0, 0]],
     ],
   },
+  // effects-blurs hides the Kind choice: Radial Blur always spins (kind 0).
   radial_blur: {
     defaults: [10, 0.5, 0.5, 0],
     changes: [
       ['amount', 20, [20, 0.5, 0.5, 0]],
       ['center_x', 30, [10, 0.3, 0.5, 0]],
       ['center_y', 70, [10, 0.5, 0.7, 0]],
-      ['kind', 1, [10, 0.5, 0.5, 1]],
     ],
   },
   sharpen: { defaults: [], changes: [] },
@@ -166,6 +169,52 @@ const PINS: Record<string, Pin> = {
     changes: [
       ['temperature', 70, [70, 0]],
       ['tint', -60, [0, -60]],
+    ],
+  },
+  // Added by effects-blurs (no previous catalog): the table's order and
+  // defaults; a point in fractions, an angle in degrees.
+  bokeh: {
+    defaults: [10, 25],
+    changes: [
+      ['radius', 40, [40, 25]],
+      ['highlights', 90, [10, 90]],
+    ],
+  },
+  fragment: {
+    defaults: [4, 8, 0],
+    changes: [
+      ['fragments', 12, [12, 8, 0]],
+      ['distance', 0, [4, 0, 0]],
+      ['rotation', 370, [4, 8, 10]],
+    ],
+  },
+  median: {
+    defaults: [10, 50],
+    changes: [
+      ['radius', 150, [150, 50]],
+      ['percentile', 0, [10, 0]],
+    ],
+  },
+  sketch_blur: {
+    defaults: [10, 1],
+    changes: [
+      ['radius', 30, [30, 1]],
+      ['seed', 777, [10, 777]],
+    ],
+  },
+  surface_blur: {
+    defaults: [6, 25],
+    changes: [
+      ['radius', 12, [12, 25]],
+      ['threshold', 60, [6, 60]],
+    ],
+  },
+  zoom_blur: {
+    defaults: [10, 0.5, 0.5],
+    changes: [
+      ['amount', 55, [55, 0.5, 0.5]],
+      ['center_x', 0, [10, 0, 0.5]],
+      ['center_y', 100, [10, 0.5, 1]],
     ],
   },
 };
