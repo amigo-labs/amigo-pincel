@@ -535,6 +535,8 @@ Animated WebP and video are deferred (no encoder in the workspace).
 
 Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, a hidden layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
 
+Image mode also opens 8-bit RGB Photoshop files (`.psd`) with an in-crate reader (`pincel-image-core/src/codec/psd.rs`): raster layers at their bounds with name, opacity, blend mode and visibility, section dividers as groups, unrepresentable content dropped with one notice, and the flattened composite when the layer section is unusable. PSB, 16 / 32-bit and non-RGB files are rejected. PSD is never written: Save goes to Save As with `.ora` preselected. Decision Log 2026-10-29; feature spec `psd-import.md`.
+
 ---
 
 ## 8. Crate: `aseprite-writer`
@@ -1081,7 +1083,7 @@ Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry mark
 
 | Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
 |------|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ✗ |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ~ (read, 8-bit RGB) |
 | Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
 | LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
 | Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
@@ -1109,7 +1111,7 @@ Lospec and Pyxel Edit are left out of the feature table: neither publishes a fea
 
 | Tool | Layers / groups / blend | Adjustments / filters | Magic wand | Text | Pen pressure | PSD | Animation | Pixel-art features |
 |------|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ✗ | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
+| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ~ (read, 8-bit RGB) | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
 | Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓\* | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ | ~ third-party plugin\* | ✗ | ✗ |
 | Pinta | ✓ / ✗\* / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ? | ? | ✗ | ✗ |
 | Photopea | ✓ / ✓\* / ✓\* | ✓ | ✓\* | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
@@ -1141,7 +1143,7 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 
 - **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
 - **Indexed painting, autotiling, scripting.** Already listed in §13.
-- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
+- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens 8-bit RGB PSD files in Image mode (read only, feature spec `psd-import.md`) but not Krita files.
 - **Layer groups in Image mode.** Pixel mode already has them.
 
 ### 18.6 Sources
