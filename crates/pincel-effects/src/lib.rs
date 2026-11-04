@@ -36,6 +36,7 @@ mod effect;
 mod error;
 mod image;
 mod kernel;
+mod random;
 mod spec;
 
 pub mod adjust;
