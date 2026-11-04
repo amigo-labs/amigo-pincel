@@ -45,6 +45,15 @@ export interface LayerInfo {
   blend_mode: BlendMode;
   visible: boolean;
   locked: boolean;
+  /** A group has no pixels; its children follow it in `layers`. */
+  kind: 'raster' | 'group';
+  /** Index of the group the layer sits in; absent at the root (serde-wasm-bindgen
+   *  turns `None` into `undefined`). */
+  parent?: number;
+  /** Number of groups the layer is nested in. */
+  depth: number;
+  /** Whether a group the layer sits in is locked. */
+  locked_by_parent: boolean;
 }
 
 export interface DocumentInfo {
@@ -242,7 +251,13 @@ export type LayerCommand =
   | { type: 'move_layer'; from: number; to: number }
   | { type: 'merge_down'; index: number }
   | { type: 'merge_visible' }
-  | { type: 'flatten_image' };
+  | { type: 'flatten_image' }
+  | { type: 'add_group' }
+  | { type: 'move_layer_to'; index: number; target: number; place: DropPlace }
+  | { type: 'merge_group'; index: number };
+
+/** Where a moved layer lands relative to its target (docs/specs/image-layer-groups.md). */
+export type DropPlace = 'above' | 'below' | 'into';
 
 /** How a drawn selection combines with the existing one (spec §8.2). */
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';

@@ -14,6 +14,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import {
+    addGroup,
     addLayer,
     applyEffect,
     clearEffectPreview,
@@ -23,6 +24,7 @@
     flattenImage,
     flipCanvas,
     mergeDown,
+    mergeGroup,
     renameLayer,
     mergeVisible,
     previewEffect,
@@ -74,6 +76,7 @@
     storeCopy,
   } from '../../lib/clipboard';
   import { core } from './core/wasm';
+  import { canDeleteLayer, canMergeDown, editRefused } from './core/layer-tree';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -154,6 +157,20 @@
 
   /** Source tag of the in-app copy record; handles are never reused. */
   const docSource = (handle: number): string => `image:${handle}`;
+
+  /** Runs a pixel edit on the active layer unless it is refused — the layer
+   *  or a group it sits in is locked, or it is a group — and shows the
+   *  locked-layer notice instead (docs/specs/image-layer-groups.md AC-11,
+   *  AC-12). `movesContent`: Move / flips / rotations, which a group allows. */
+  function layerEdit(movesContent: boolean, run: () => void): void {
+    const layer = editor.layers[editor.activeLayer];
+    if (layer && editRefused(editor.layers, editor.activeLayer, movesContent)) {
+      editor.notice = t('layers.locked', { name: layer.name });
+      return;
+    }
+    editor.notice = null;
+    run();
+  }
 
   // Edit ▸ Copy / Copy Merged / Cut (spec §5.4): the PNG goes to the system
   // clipboard from this click / keydown (user activation) and into the
@@ -703,7 +720,7 @@
         invertSelection();
         return true;
       case 'deleteSelection':
-        deleteSelection();
+        layerEdit(false, deleteSelection);
         return true;
       case 'zoomIn':
         viewCommands.zoomIn();
@@ -824,7 +841,7 @@
           label: t('menu.deleteSelection'),
           shortcut: hint('deleteSelection'),
           disabled: !editor.hasSelection,
-          run: deleteSelection,
+          run: () => layerEdit(false, deleteSelection),
         },
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
@@ -895,6 +912,7 @@
       label: t('menu.layer'),
       items: [
         { label: t('menu.newLayer'), disabled: !hasDoc, run: addLayer },
+        { label: t('menu.newGroup'), disabled: !hasDoc, run: addGroup },
         {
           label: t('menu.duplicateLayer'),
           disabled: !hasDoc,
@@ -910,23 +928,48 @@
         },
         {
           label: t('menu.deleteLayer'),
-          disabled: editor.layers.length <= 1,
+          disabled: !canDeleteLayer(editor.layers, editor.activeLayer),
           run: () => deleteLayer(editor.activeLayer),
         },
         { kind: 'separator' },
         {
           label: t('menu.mergeDown'),
-          disabled: editor.activeLayer === 0,
+          disabled: !canMergeDown(editor.layers, editor.activeLayer),
           run: () => mergeDown(editor.activeLayer),
+        },
+        {
+          label: t('menu.mergeGroup'),
+          disabled: editor.layers[editor.activeLayer]?.kind !== 'group',
+          run: () => mergeGroup(editor.activeLayer),
         },
         { label: t('menu.mergeVisible'), disabled: !hasDoc, run: mergeVisible },
         { label: t('menu.flatten'), disabled: !hasDoc, run: flattenImage },
         { kind: 'separator' },
-        { label: t('menu.flipH'), disabled: !hasDoc, run: () => transformLayer('flip_h') },
-        { label: t('menu.flipV'), disabled: !hasDoc, run: () => transformLayer('flip_v') },
-        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateLayer90(false) },
-        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateLayer90(true) },
-        { label: t('menu.rotate180'), disabled: !hasDoc, run: () => transformLayer('rotate_180') },
+        {
+          label: t('menu.flipH'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('flip_h')),
+        },
+        {
+          label: t('menu.flipV'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('flip_v')),
+        },
+        {
+          label: t('menu.rotateCw'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => rotateLayer90(false)),
+        },
+        {
+          label: t('menu.rotateCcw'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => rotateLayer90(true)),
+        },
+        {
+          label: t('menu.rotate180'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('rotate_180')),
+        },
       ],
     },
     ...effectMenus((def) => (effectOpen = def), !hasDoc),

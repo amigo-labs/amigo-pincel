@@ -19,6 +19,7 @@ import {
   type Interpolation,
   type ResizeAnchor,
   type BlendMode,
+  type DropPlace,
   type Rgba,
   type DrawShapeCommand,
   type ShapeKind,
@@ -143,6 +144,31 @@ export function reorderLayer(from: number, to: number): void {
   if (from !== to) {
     applyLayer({ type: 'move_layer', from, to });
   }
+}
+
+/** Adds an empty group named `Group N` on top of the stack and makes it active. */
+export function addGroup(): void {
+  applyLayer({ type: 'add_group' });
+}
+
+/** Moves the layer at `index` — a group with its subtree — above, below or
+ *  into the layer at `target`, as one undo step. A move the core refuses
+ *  (a group into itself) leaves the document as it was. */
+export function moveLayerTo(index: number, target: number, place: DropPlace): void {
+  if (editor.handle === null || index === target) {
+    return;
+  }
+  try {
+    core.applyCommand(editor.handle, { type: 'move_layer_to', index, target, place });
+  } catch {
+    // Refused: nothing changed.
+  }
+  syncInfo();
+}
+
+/** Replaces the group at `index` and its subtree with one raster layer. */
+export function mergeGroup(index: number): void {
+  applyLayer({ type: 'merge_group', index });
 }
 
 /** Renames the layer at `index`. */

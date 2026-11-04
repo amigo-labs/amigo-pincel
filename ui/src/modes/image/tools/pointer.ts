@@ -29,6 +29,7 @@ import {
   type ToolKind,
 } from '../stores/editor.svelte';
 import type { SelectionMode, ShapeKind } from '../core/wasm';
+import { editRefused } from '../core/layer-tree';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 
@@ -284,10 +285,12 @@ export function attachTools(
       return;
     }
 
-    // Pixel-writing tools refuse a locked layer (spec §3.2); say why.
+    // Pixel-writing tools refuse a locked layer, a layer in a locked group
+    // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
+    // AC-12); Move (layer) moves a group's content. Say why.
     if (WRITES_PIXELS.has(tool.kind)) {
       const layer = editor.layers[editor.activeLayer];
-      if (layer?.locked) {
+      if (layer && editRefused(editor.layers, editor.activeLayer, tool.kind === 'move')) {
         editor.notice = t('layers.locked', { name: layer.name });
         return;
       }
