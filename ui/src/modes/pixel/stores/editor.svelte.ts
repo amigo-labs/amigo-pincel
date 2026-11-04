@@ -27,6 +27,8 @@ export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type Pt = { x: number; y: number };
 /** Sprite-space rectangle. */
 export type Box = { x: number; y: number; w: number; h: number };
+/** Symmetry / tiled-mode axes: off, x (left–right), y (top–bottom) or both. */
+export type AxisMode = 'none' | 'x' | 'y' | 'xy';
 /** A (tileset, tile) pair. */
 export type TileRef = { tilesetId: number; tileId: number };
 
@@ -97,6 +99,9 @@ function viewInit() {
     /** Custom-grid line colour `#rrggbb` and opacity (%). */
     gridColor: '#0000ff',
     gridOpacity: 60,
+    /** View ▸ Tiled Mode: session-only, never stored in the document
+     *  (symmetry-tiled-mode AC-12, AC-18). */
+    tiled: 'none' as AxisMode,
   };
 }
 
@@ -114,6 +119,12 @@ function toolInit() {
     /** Pencil ink: Simple paints, Shading steps along the palette ramp
      *  (shading-ink AC-09: a fresh session starts Simple, not persisted). */
     pencilInk: 'simple' as 'simple' | 'shading',
+    /** Pencil / Eraser symmetry, session-only (symmetry-tiled-mode). */
+    symmetry: 'none' as AxisMode,
+    /** Moved axis positions in half pixels from the left / top canvas
+     *  edge; `null` = unmoved, at the canvas centre (AC-04, AC-20). */
+    symmetryX: null as number | null,
+    symmetryY: null as number | null,
     strokeWidth: 1,
     shapeMode: 'outline' as ShapeMode,
     cornerRadius: 4,
@@ -257,6 +268,8 @@ function liveInit() {
     pinch: new PinchTracker(),
     pinchZoom0: 1,
     gestureUndoDepth: 0,
+    /** Symmetry axis handle being dragged (symmetry-tiled-mode AC-09). */
+    axisDrag: null as 'x' | 'y' | null,
     /** Last locked-layer status line. */
     lockNotice: null as string | null,
     textFontId: null as number | null,

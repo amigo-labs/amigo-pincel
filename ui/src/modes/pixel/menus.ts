@@ -13,6 +13,7 @@ import { languageMenu } from '../../lib/i18n/locale';
 import { reduceMotionMenuItem } from '../../lib/motion.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
+import type { AxisMode } from './stores/editor.svelte';
 
 /** Layer / canvas transform ids the wasm `Document` takes. */
 export type TransformOp =
@@ -43,6 +44,9 @@ export interface PixelMenuContext {
   /** View ▸ Show Pixel Grid / Show Grid (pixel-grid). */
   showPixelGrid: boolean;
   showGrid: boolean;
+  /** View ▸ Tiled Mode (symmetry-tiled-mode AC-12). */
+  tiled: AxisMode;
+  setTiled(mode: AxisMode): void;
 
   newDoc(): void;
   open(): void;
@@ -261,6 +265,18 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         },
         { label: t('menu.showGrid'), shortcut: hint('toggleGrid'), checked: c.showGrid, run: c.toggleGrid },
         { label: t('menu.gridSettings'), disabled: !c.hasDoc, run: c.openGridSettings },
+        {
+          kind: 'submenu',
+          label: t('menu.tiledMode'),
+          items: (
+            [
+              ['none', t('menu.tiledNone')],
+              ['x', t('menu.tiledX')],
+              ['y', t('menu.tiledY')],
+              ['xy', t('menu.tiledBoth')],
+            ] as const
+          ).map(([mode, label]) => ({ label, checked: c.tiled === mode, run: () => c.setTiled(mode) })),
+        },
         { kind: 'separator' },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
         reduceMotionMenuItem(),

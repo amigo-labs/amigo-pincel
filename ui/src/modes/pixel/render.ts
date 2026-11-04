@@ -1,6 +1,8 @@
 // Rendering: mirror wasm state, recompose, overlays and the rAF loop.
 
 import { Canvas2DRenderer } from '../../lib/render/canvas2d-renderer';
+import { blitDirtyFrame, blitFrame } from '../../lib/render/canvas2d';
+import type { ComposeFrame } from '../../lib/core';
 import type { CanvasRenderer } from '../../lib/render/types';
 import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
 import { paintGridIfChanged } from './grid';
@@ -13,6 +15,7 @@ import {
 import { motion } from '../../lib/motion.svelte';
 import { colors, ed, live, preview, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
+import { clampAxes } from './symmetry';
 
 // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
 // fallback so WebGPU can be A/B'd against it on the same build.
@@ -46,6 +49,7 @@ export function syncMeta() {
   ed.redoDepth = ed.doc.redoDepth;
   ed.canvasW = ed.doc.width;
   ed.canvasH = ed.doc.height;
+  clampAxes(ed.canvasW, ed.canvasH);
   ed.frameCount = ed.doc.frameCount;
   ed.currentFrame = ed.doc.currentFrame;
 }
@@ -75,10 +79,22 @@ export function recompose() {
   const frame = ed.doc.compose(ed.currentFrame, 1);
   try {
     live.renderer.draw(frame);
+    paintTileCopies(frame, false);
   } finally {
     frame.free();
   }
   paintOverlays();
+}
+
+// Tiled mode (symmetry-tiled-mode AC-13): the repeated copies around the
+// canvas show the same composed frame — one compose, blitted again into
+// each copy, never read back from a canvas.
+function paintTileCopies(frame: ComposeFrame, dirty: boolean) {
+  if (view.tiled === 'none' || !view.stage) return;
+  for (const copy of view.stage.querySelectorAll<HTMLCanvasElement>('canvas[data-tile-copy]')) {
+    if (dirty) blitDirtyFrame(copy, frame);
+    else blitFrame(copy, frame);
+  }
 }
 
 // Snapshot of everything the overlay layer paints from
@@ -134,6 +150,7 @@ export function recomposeDirty(rect: { x: number; y: number; w: number; h: numbe
   const frame = ed.doc.composeDirty(ed.currentFrame, 1, rect.x, rect.y, rect.w, rect.h);
   try {
     live.renderer.drawDirty(frame);
+    paintTileCopies(frame, true);
   } finally {
     frame.free();
   }

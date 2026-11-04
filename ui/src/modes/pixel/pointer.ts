@@ -9,6 +9,7 @@ import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
+import { armStroke, onTiledArea } from './symmetry';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -273,6 +274,8 @@ export function paintAt(e: PointerEvent) {
           toolState.pixelPerfect,
         );
       }
+      // Symmetry and tiled mode mirror / wrap the stroke in the core.
+      armStroke(ed.doc);
     }
     ed.doc.strokeTo(target.x, target.y, strokePressure(e));
     live.lastPaint = target;
@@ -320,7 +323,10 @@ export function onPointerDown(e: PointerEvent) {
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(toolState.tool)) return;
   if (e.button !== 0 && e.button !== 2) return;
-  const inside = onCanvas(spriteCoord(e));
+  // In tiled mode a Pencil / Eraser press on a repeated copy paints the
+  // canvas pixel it shows (symmetry-tiled-mode AC-16); other tools clip.
+  const press = spriteCoord(e);
+  const inside = onCanvas(press) || (isBrushTool(toolState.tool) && onTiledArea(press));
   if (!inside && !view.spaceDown && !startsOffCanvas()) return;
   live.useBg = e.button === 2;
   stage.setPointerCapture(e.pointerId);

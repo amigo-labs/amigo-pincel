@@ -14,6 +14,7 @@ import { syncMeta, syncSelection } from './render';
 import { colors, dialogs, ed, live, play, toolState } from './stores/editor.svelte';
 import { fitNewDocument } from './view-ops';
 import { stopPreview } from './preview';
+import { resetAxes } from './symmetry';
 
 /** A Select-menu command. */
 export type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
@@ -226,6 +227,7 @@ export function togglePlay() {
 // document (stamp target, active slice / layer, tile editor) are
 // meaningless against the new one and are dropped.
 export function resetDocViewState() {
+  resetAxes();
   stopPlayback();
   stopPreview();
   play.loopTag = null;

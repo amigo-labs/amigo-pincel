@@ -34,6 +34,17 @@
   import { pixelMenus } from './menus';
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
+  import {
+    axisX2,
+    axisY2,
+    coversX,
+    coversY,
+    endAxisDrag,
+    moveAxisDrag,
+    resetAxis,
+    startAxisDrag,
+    tileOffsets,
+  } from './symmetry';
   import { isBrushTool, loadBrushPref, saveBrushPref, stepBrushSize } from './brush';
   import {
     activeTileSize,
@@ -306,6 +317,11 @@
       probeOn: probe.on,
       showPixelGrid: view.showPixelGrid,
       showGrid: view.showGrid,
+      tiled: view.tiled,
+      setTiled: (mode) => {
+        view.tiled = mode;
+        live.needsRecompose = true;
+      },
       newDoc: openNewDialog,
       open: () => guardUnsaved(() => void openDoc()),
       openRecent: (r) => guardUnsaved(() => void openRecent(r)),
@@ -1158,6 +1174,15 @@
       {/if}
     {:else if isBrushTool(toolState.tool)}
       <BrushOptions />
+      <label class="opt">
+        {t('opt.symmetry')}
+        <select bind:value={toolState.symmetry} class="opt-field" aria-label={t('opt.symmetry')}>
+          <option value="none">{t('opt.symmetryNone')}</option>
+          <option value="x">{t('opt.symmetryX')}</option>
+          <option value="y">{t('opt.symmetryY')}</option>
+          <option value="xy">{t('opt.symmetryXY')}</option>
+        </select>
+      </label>
       {#if toolState.tool === 'pencil'}
         <label class="opt">
           {t('opt.ink')}
@@ -1241,6 +1266,76 @@
           height={ed.canvasH}
           aria-hidden="true"
         ></canvas>
+        <!-- Tiled mode (symmetry-tiled-mode AC-13, AC-14): the composed
+             frame repeated around the canvas, dimmed so the editable
+             canvas stands out. Presses fall through to the stage. -->
+        {#each tileOffsets(view.tiled) as o (`${o.dx},${o.dy}`)}
+          <canvas
+            class="canvas-pixelated pointer-events-none absolute h-full w-full opacity-50"
+            style:left="{o.dx * 100}%"
+            style:top="{o.dy * 100}%"
+            width={ed.canvasW}
+            height={ed.canvasH}
+            data-tile-copy
+            data-testid="tile-copy"
+            data-offset="{o.dx},{o.dy}"
+            aria-hidden="true"
+          ></canvas>
+        {/each}
+        <!-- Symmetry (AC-08, AC-09): axis lines while the Pencil or
+             Eraser is active, handles in the margin with any tool. -->
+        {#if coversX(toolState.symmetry)}
+          {#if isBrushTool(toolState.tool)}
+            <div
+              class="symmetry-axis pointer-events-none absolute inset-y-0 w-px"
+              style:left="{(axisX2() / 2 / ed.canvasW) * 100}%"
+              data-testid="symmetry-axis-x"
+            ></div>
+          {/if}
+          <button
+            type="button"
+            class="symmetry-handle absolute -top-3.5 h-3 w-3 -translate-x-1/2 touch-none"
+            style:left="{(axisX2() / 2 / ed.canvasW) * 100}%"
+            aria-label={t('px.symmetryAxisX')}
+            title={t('px.symmetryHandleHint')}
+            data-axis={axisX2()}
+            onpointerdown={(e) => startAxisDrag('x', e)}
+            onpointermove={(e) => moveAxisDrag('x', e)}
+            onpointerup={endAxisDrag}
+            onpointercancel={endAxisDrag}
+            ondblclick={() => resetAxis('x')}
+          >
+            <svg viewBox="0 0 12 12" class="h-full w-full" aria-hidden="true">
+              <polygon points="0,0 12,0 6,11" />
+            </svg>
+          </button>
+        {/if}
+        {#if coversY(toolState.symmetry)}
+          {#if isBrushTool(toolState.tool)}
+            <div
+              class="symmetry-axis pointer-events-none absolute inset-x-0 h-px"
+              style:top="{(axisY2() / 2 / ed.canvasH) * 100}%"
+              data-testid="symmetry-axis-y"
+            ></div>
+          {/if}
+          <button
+            type="button"
+            class="symmetry-handle absolute -left-3.5 h-3 w-3 -translate-y-1/2 touch-none"
+            style:top="{(axisY2() / 2 / ed.canvasH) * 100}%"
+            aria-label={t('px.symmetryAxisY')}
+            title={t('px.symmetryHandleHint')}
+            data-axis={axisY2()}
+            onpointerdown={(e) => startAxisDrag('y', e)}
+            onpointermove={(e) => moveAxisDrag('y', e)}
+            onpointerup={endAxisDrag}
+            onpointercancel={endAxisDrag}
+            ondblclick={() => resetAxis('y')}
+          >
+            <svg viewBox="0 0 12 12" class="h-full w-full" aria-hidden="true">
+              <polygon points="0,0 0,12 11,6" />
+            </svg>
+          </button>
+        {/if}
       </div>
       <!-- Pixel grid and custom grid (docs/specs/pixel-grid.md): a
                stage-sized canvas over the sprite, so lines stay one device
@@ -1477,5 +1572,12 @@
 <style>
   .canvas-pixelated {
     image-rendering: pixelated;
+  }
+  .symmetry-axis {
+    background: var(--color-pc-accent);
+  }
+  .symmetry-handle {
+    color: var(--color-pc-accent);
+    fill: currentColor;
   }
 </style>
