@@ -63,6 +63,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; the golden corpus must be generated before the Vectorizer repository is deleted |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
+| 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
 
 ## Done
 
