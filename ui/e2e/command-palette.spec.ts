@@ -33,6 +33,37 @@ async function openPalette(page: Page): Promise<void> {
   await expect(palette(page)).toBeVisible();
 }
 
+/** Every command of the menu bar as "Menu ▸ Submenu ▸ Item", read by opening each menu. */
+async function menuPaths(page: Page): Promise<string[]> {
+  const out: string[] = [];
+  const tops = await page.getByRole('menubar').getByRole('menuitem').allTextContents();
+  const walk = async (scope: string, path: string[]): Promise<void> => {
+    const menuEl = page.getByRole('menu', { name: scope, exact: true });
+    await expect(menuEl).toBeVisible();
+    const rows = menuEl.locator(':scope > [role="menuitem"], :scope > [role="menuitemcheckbox"]');
+    const count = await rows.count();
+    for (let i = 0; i < count; i += 1) {
+      const row = rows.nth(i);
+      const label = ((await row.locator('span.flex-1').textContent()) ?? '').trim();
+      if ((await row.getAttribute('aria-haspopup')) === 'menu') {
+        // A disabled submenu (an empty Open Recent) has nothing to list.
+        if (await row.isDisabled()) continue;
+        await row.click();
+        await walk(label, [...path, label]);
+      } else {
+        out.push([...path, label].join(' ▸ '));
+      }
+    }
+  };
+  for (const raw of tops) {
+    const top = raw.trim();
+    await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
+    await walk(top, [top]);
+    while ((await page.getByRole('menu').count()) > 0) await page.keyboard.press('Escape');
+  }
+  return out;
+}
+
 function layerCount(page: Page): Promise<number> {
   return page
     .getByRole('list', { name: 'Layer list' })
@@ -57,6 +88,26 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('Escape');
     await expect(palette(page)).toBeHidden();
     expect(await layerCount(page)).toBe(layers);
+  });
+
+  test(`${mode} mode: the palette lists exactly the menu bar's commands plus the tools (AC-02)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    const fromMenus = await menuPaths(page);
+    expect(fromMenus.length).toBeGreaterThan(30);
+    const tools = await page
+      .getByRole('toolbar', { name: 'Tools' })
+      .getByRole('button')
+      .evaluateAll((els) =>
+        // "Group: Tool" for a group of several tools, else the tool's name.
+        els.map((el) => (el.getAttribute('aria-label') ?? '').split(': ').at(-1) ?? ''),
+      );
+    await openPalette(page);
+    const listed = await labels(page);
+    const commands = listed.filter((l) => !l.startsWith('Tool: ') && l !== 'Go to frame…');
+    expect([...commands].sort()).toEqual([...fromMenus].sort());
+    for (const tool of tools) expect(listed).toContain(`Tool: ${tool}`);
   });
 
   test(`${mode} mode: a text field keeps Ctrl+K`, async ({ page }) => {
@@ -86,7 +137,10 @@ test('typing filters fuzzily, Enter runs the highlighted command, one Undo resto
   // The combobox announces the highlighted option, which carries the menu's hint.
   const first = options(page).first();
   await expect(first).toHaveAttribute('aria-selected', 'true');
-  await expect(search(page)).toHaveAttribute('aria-activedescendant', (await first.getAttribute('id')) ?? '');
+  await expect(search(page)).toHaveAttribute(
+    'aria-activedescendant',
+    (await first.getAttribute('id')) ?? '',
+  );
   await expect(search(page)).toHaveAttribute(
     'aria-controls',
     (await palette(page).getByRole('listbox').getAttribute('id')) ?? '',
