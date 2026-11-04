@@ -95,7 +95,7 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | Angle typed outside 0–360 | Wraps around (AC-09), because an angle is circular: 370° is the same direction as 10° |
 | Pick on canvas, then the user presses outside the image (pasteboard) | The point is clamped to 0–100 % on each axis |
 | Pick on canvas armed, then Cancel is pressed | Picking ends with the dialog; later canvas presses go to the active tool again |
-| Pick armed, then the user presses a tool key (B) or Ctrl+Z | Nothing happens, as for any key while an effect is open |
+| Pick armed, then the user presses a tool key (B) or Ctrl+Z (⌘Z on macOS) | Nothing happens, as for any key while an effect is open |
 | Reseed when the range has a single value | Not reachable: every seed range has at least two values |
 | User unlinks, sets Width 5 and Height 9, then links again | Both take the value of the field edited last (9) |
 | UI language switched while a menu is open | The menu closes or shows the new order the next time it opens |
