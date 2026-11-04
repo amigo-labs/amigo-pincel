@@ -11,6 +11,8 @@
 
 use std::f32::consts::TAU;
 
+use pincel_effects::gradient::GradientLine;
+
 use crate::color::Color;
 use crate::command::SetPixels;
 use crate::document::Document;
@@ -44,12 +46,10 @@ pub enum GradientChannel {
     Transparency,
 }
 
-/// The drag, pre-computed once per gradient instead of per pixel.
+/// The drag, pre-computed once per gradient instead of per pixel. The
+/// linear / radial math is shared with Pixel mode (`pincel-effects`).
 struct Ramp {
-    dx: f32,
-    dy: f32,
-    len: f32,
-    len_sq: f32,
+    line: GradientLine,
     base_angle: f32,
 }
 
@@ -93,15 +93,8 @@ impl Gradient {
         let src = &doc.layers.get(layer_index)?.pixels;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
-        let len_sq = dx * dx + dy * dy;
-        if len_sq <= f32::EPSILON {
-            return None;
-        }
         let ramp = Ramp {
-            dx,
-            dy,
-            len: len_sq.sqrt(),
-            len_sq,
+            line: GradientLine::new(dx, dy)?,
             base_angle: dy.atan2(dx),
         };
 
@@ -129,9 +122,9 @@ impl Gradient {
     /// `t` in `[0, 1]` for the pixel offset `(px, py)` from the drag's start.
     fn parameter(&self, px: f32, py: f32, r: &Ramp) -> f32 {
         match self.kind {
-            GradientKind::Linear => ((px * r.dx + py * r.dy) / r.len_sq).clamp(0.0, 1.0),
-            GradientKind::Reflected => ((px * r.dx + py * r.dy) / r.len_sq).abs().clamp(0.0, 1.0),
-            GradientKind::Radial => ((px * px + py * py).sqrt() / r.len).clamp(0.0, 1.0),
+            GradientKind::Linear => r.line.linear(px, py),
+            GradientKind::Reflected => r.line.projection(px, py).abs().clamp(0.0, 1.0),
+            GradientKind::Radial => r.line.radial(px, py),
             GradientKind::Conical => {
                 // `rem_euclid` wraps the turn into [0, TAU) so the seam sits
                 // exactly along the drag.
@@ -140,11 +133,12 @@ impl Gradient {
             GradientKind::Diamond => {
                 // Manhattan distance in the drag's own frame: the axes are
                 // the drag direction and its perpendicular.
-                let ux = r.dx / r.len;
-                let uy = r.dy / r.len;
+                let len = r.line.len();
+                let ux = r.line.dx() / len;
+                let uy = r.line.dy() / len;
                 let along = px * ux + py * uy;
                 let across = -px * uy + py * ux;
-                ((along.abs() + across.abs()) / r.len).clamp(0.0, 1.0)
+                ((along.abs() + across.abs()) / len).clamp(0.0, 1.0)
             }
         }
     }
