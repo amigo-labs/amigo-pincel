@@ -283,9 +283,8 @@ fn sample_size(edge: u32) -> SampleSize {
 pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
     let spec: CommandSpec =
         serde_json::from_str(command).map_err(|e| JsError::new(&e.to_string()))?;
-    let target = spec.edited_layer();
     with_bus(handle, |bus| {
-        if target.is_some_and(|i| layer_locked(&bus.document, i)) {
+        if spec.refused(&bus.document) {
             return Err(JsError::new(LOCKED));
         }
         STROKES.with(|strokes| {
@@ -509,6 +508,34 @@ struct LayerInfo {
     blend_mode: String,
     visible: bool,
     locked: bool,
+    /// `"raster"` or `"group"`.
+    kind: &'static str,
+    /// Index of the group the layer sits in; `None` at the root.
+    parent: Option<usize>,
+    /// Number of groups the layer is nested in.
+    depth: usize,
+    /// Whether a group the layer sits in is locked.
+    locked_by_parent: bool,
+}
+
+/// The layers panel's view of every layer, bottom first.
+fn layer_infos(doc: &Document) -> Vec<LayerInfo> {
+    doc.layers()
+        .iter()
+        .enumerate()
+        .map(|(i, l)| LayerInfo {
+            id: l.id.to_string(),
+            name: l.name.clone(),
+            opacity: l.opacity,
+            blend_mode: blend_mode_str(l.blend_mode).to_string(),
+            visible: l.visible,
+            locked: l.locked,
+            kind: if l.is_group() { "group" } else { "raster" },
+            parent: doc.parent_index(i),
+            depth: doc.depth(i),
+            locked_by_parent: doc.locked_by_parent(i),
+        })
+        .collect()
 }
 
 /// Lightweight document state for the UI (spec §17 `DocumentInfo`).
@@ -533,19 +560,7 @@ struct DocumentInfo {
 #[wasm_bindgen]
 pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     with_bus(handle, |bus| {
-        let layers = bus
-            .document
-            .layers()
-            .iter()
-            .map(|l| LayerInfo {
-                id: l.id.to_string(),
-                name: l.name.clone(),
-                opacity: l.opacity,
-                blend_mode: blend_mode_str(l.blend_mode).to_string(),
-                visible: l.visible,
-                locked: l.locked,
-            })
-            .collect();
+        let layers = layer_infos(&bus.document);
         let info = DocumentInfo {
             width: bus.document.canvas.width(),
             height: bus.document.canvas.height(),
@@ -566,14 +581,27 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
 #[wasm_bindgen]
 pub fn get_layer_thumbnail(handle: u32, layer_id: &str) -> Result<Clamped<Vec<u8>>, JsError> {
     with_bus(handle, |bus| {
-        let layer = bus
-            .document
-            .layers()
-            .iter()
-            .find(|l| l.id.to_string() == layer_id)
-            .ok_or_else(|| JsError::new("layer not found"))?;
-        Ok(Clamped(thumbnail(&layer.pixels)))
+        layer_thumbnail_pixels(&bus.document, layer_id)
+            .map(Clamped)
+            .ok_or_else(|| JsError::new("layer not found"))
     })
+}
+
+/// The 32×32 thumbnail of the layer with `layer_id`: its pixels, or for a
+/// group the composite of its subtree, hidden or not. `None` for an
+/// unknown id.
+fn layer_thumbnail_pixels(doc: &Document, layer_id: &str) -> Option<Vec<u8>> {
+    let index = doc
+        .layers()
+        .iter()
+        .position(|l| l.id.to_string() == layer_id)?;
+    let layer = &doc.layers()[index];
+    if !layer.is_group() {
+        return Some(thumbnail(&layer.pixels));
+    }
+    let mut subtree = doc.layers()[index..doc.subtree_end(index)].to_vec();
+    subtree[0].visible = true;
+    Some(thumbnail(&compose(&subtree)))
 }
 
 /// Returns the selection's bounding box as `[x, y, w, h]`, or an empty array
@@ -632,6 +660,47 @@ mod ts_bindings {
             .with_large_int("number")
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
+    }
+}
+
+#[cfg(test)]
+mod group_tests {
+    use super::*;
+    use pincel_image_core::Layer;
+
+    /// bg, G { a } with a red pixel at (0, 0) on `a`.
+    fn grouped() -> Document {
+        let mut doc = Document::new(4, 4).expect("doc");
+        let group = Layer::new_group("G");
+        let gid = group.id;
+        doc.insert_layer(1, group).expect("group");
+        let mut a = Layer::new_transparent("a", 4, 4).with_parent(Some(gid));
+        a.pixels.set_pixel(0, 0, Color::rgba(255, 0, 0, 255));
+        doc.insert_layer(2, a).expect("a");
+        doc
+    }
+
+    #[test]
+    fn layer_infos_report_kind_depth_parent_and_inherited_lock() {
+        let mut doc = grouped();
+        doc.set_active_layer(1).expect("active");
+        doc.active_layer_mut().locked = true;
+        let infos = layer_infos(&doc);
+        assert_eq!(infos[0].kind, "raster");
+        assert_eq!(infos[1].kind, "group");
+        assert_eq!((infos[2].depth, infos[2].parent), (1, Some(1)));
+        assert!(infos[2].locked_by_parent && !infos[2].locked);
+        assert!(!infos[1].locked_by_parent);
+    }
+
+    #[test]
+    fn group_thumbnail_shows_its_subtree() {
+        let mut doc = grouped();
+        doc.set_active_layer(1).expect("active");
+        doc.active_layer_mut().visible = false;
+        let id = doc.layers()[1].id.to_string();
+        let thumb = layer_thumbnail_pixels(&doc, &id).expect("thumbnail");
+        assert_eq!(&thumb[..4], &[255, 0, 0, 255], "hidden or not");
     }
 }
 
