@@ -102,6 +102,7 @@
   import { helpMenus } from '../../lib/help/menu';
   import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+  import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { t } from '../../lib/i18n/index.svelte';
@@ -437,6 +438,17 @@
   // File ▸ Open Recent. `null` keeps the entry out of the menu where the
   // registry cannot work at all; an empty array shows it disabled.
   let recents = $state<RecentFile[]>([]);
+
+  // Keep the native Open Recent submenu in step with the recents, as the
+  // shell and the Pixel editor do (desktop-app.md AC-19). Only entries
+  // with a path can be reopened from the native menu.
+  $effect(() => {
+    if (!isTauri()) return;
+    const items = recents.filter((r) => r.path !== null).map((r) => ({ id: r.id, name: r.name }));
+    syncRecentMenu(items).catch((err: unknown) => {
+      console.error('syncRecentMenu failed', err);
+    });
+  });
 
   async function refreshRecents(): Promise<void> {
     if (!recentsAvailable) return;
