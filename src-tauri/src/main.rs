@@ -354,8 +354,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // Export items: the mounted editor serves them (Pixel mode both,
     // Image mode the PNG export); unserved ids are ignored by the shell.
     let export_png_item = bound_item(app, "menu:exportPng", l.export_png, "CmdOrCtrl+E")?;
-    let export_sheet_item =
-        bound_item(app, "menu:exportSheet", l.export_sheet, "CmdOrCtrl+Shift+E")?;
+    let export_sheet_item = bound_item(app, "menu:exportSheet", l.export_sheet, "CmdOrCtrl+Alt+E")?;
     let export_animation_item =
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
     let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
