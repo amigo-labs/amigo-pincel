@@ -91,7 +91,7 @@ fn neutral_settings_leave_every_pixel_unchanged() {
 
 // AC-04
 #[test]
-fn every_new_adjustment_except_invert_alpha_keeps_alpha() {
+fn every_adjustment_of_the_spec_except_invert_alpha_keeps_alpha() {
     let src = varied();
     for (name, params) in [
         ("auto_level", &[][..]),
@@ -103,6 +103,11 @@ fn every_new_adjustment_except_invert_alpha_keeps_alpha() {
         ("sepia", &[35.0][..]),
         ("temperature_tint", &[100.0, -100.0][..]),
         ("temperature_tint", &[-50.0, 60.0][..]),
+        // Black and White (renamed Grayscale) is an adjustment of this spec too.
+        ("grayscale", &[0.0][..]),
+        ("grayscale", &[1.0][..]),
+        ("grayscale", &[2.0][..]),
+        ("grayscale", &[3.0, 0.5, 0.25, 0.25][..]),
     ] {
         let out = run(name, params, &src);
         for (o, s) in out.iter().zip(&src) {
