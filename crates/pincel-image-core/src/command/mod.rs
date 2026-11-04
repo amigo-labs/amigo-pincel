@@ -4,6 +4,7 @@
 //! undone and redone. The [`CommandBus`] applies a command and records it on the
 //! [`UndoStack`].
 
+mod batch;
 mod damage;
 mod layers;
 mod merge;
@@ -16,6 +17,7 @@ mod snapshot;
 pub mod spec;
 mod transform;
 
+pub(crate) use batch::Batch;
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
