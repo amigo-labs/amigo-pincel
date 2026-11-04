@@ -252,6 +252,21 @@ mod tests {
         assert_eq!(doc.undo_depth(), depth);
     }
 
+    /// effect-catalog-v2 AC-08: Pixel mode's menus hide the neighbourhood
+    /// effects, but its core still knows every effect name.
+    #[test]
+    fn apply_effect_knows_every_effect_name_on_a_pixel_document() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        for name in EFFECT_NAMES {
+            if let Err(err) = doc.apply_effect(name, &[]) {
+                assert!(
+                    err.contains("expects") && !err.contains("unknown effect"),
+                    "{name}: {err}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn apply_effect_unknown_name_or_bad_arity_errors() {
         let mut doc = Document::new(2, 2).expect("dims");
