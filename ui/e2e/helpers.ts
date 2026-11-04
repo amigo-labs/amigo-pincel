@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 /** Opens the app on the start screen; `url` carries an optional query (`./?renderer=canvas2d`). */
 export async function gotoStart(page: Page, url = './'): Promise<void> {
   await page.goto(url);
-  await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Pincel', exact: true })).toBeVisible();
 }
 
 /**

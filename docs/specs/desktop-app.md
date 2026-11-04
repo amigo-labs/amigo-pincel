@@ -96,6 +96,8 @@ The paths are not scoped: both file commands accept any path the renderer passes
 
 A unit test (`bundle_icons_are_rgba_pngs`) keeps every bundle icon an RGBA PNG, which Tauri's codegen requires.
 
+**e2e:** `ui/e2e/desktop.spec.ts` runs the shared UI on a stand-in Tauri 2 bridge (`window.__TAURI_INTERNALS__`) that answers the native commands, records the calls and emits `open-file` / `menu`; the user agent picks the OS.
+
 ## Edge cases
 
 | Scenario | Expected behavior |
@@ -129,25 +131,27 @@ A unit test (`bundle_icons_are_rgba_pngs`) keeps every bundle icon an RGBA PNG, 
 | AC-01 | `read_write_round_trip`, `write_then_overwrite` (src-tauri/src/main.rs) | built |        |
 | AC-02 | `read_missing_path_errors` (src-tauri/src/main.rs) | built |        |
 | AC-03 | `first_file_arg_skips_binary`, `first_file_arg_skips_flags`, `first_file_arg_none_when_only_binary` (src-tauri/src/main.rs) | built |        |
-| AC-04 |      | open   |        |
+| AC-04 | e2e `a file the OS hands over opens in the mode of its format, after the discard prompt (AC-04)` (ui/e2e/desktop.spec.ts) — the renderer side, on a stand-in Tauri bridge; which argument becomes `open-file` is AC-03's tests, the second start and the macOS open event stay manual (AC-05, macOS hardware) | built  |        |
 | AC-05 |      | open   |        |
 | AC-06 | `nsis_hooks_cover_every_file_association` (src-tauri/src/main.rs), `mime_types_match_tauri_conf` (src-tauri/src/linux_install.rs) | built |        |
 | AC-07 |      | open   |        |
 | AC-08 | `install_creates_every_part`, `install_again_replaces_the_copy`, `install_from_the_installed_copy_keeps_it` (src-tauri/src/linux_install.rs) | built |        |
 | AC-09 | `uninstall_removes_every_part`, `uninstall_without_install_is_fine` (src-tauri/src/linux_install.rs) | built |        |
-| AC-10 |      | open   |        |
+| AC-10 | `install_outside_an_appimage_fails_with_an_error`, `install_without_home_fails_with_an_error`, `install_from_an_appimage_reports_on_stdout` (src-tauri/src/linux_install.rs) — run in CI (`cargo test -p pincel-tauri`; the crate needs GTK) and locally by compiling `linux_install.rs` on its own; `main` exits with that code before `tauri::Builder` runs | built  |        |
 | AC-11 | `is_due_first_start`, `is_due_once_a_day`, `is_due_clock_went_back`, `is_due_never_when_off` (src-tauri/src/updater.rs) | built |        |
 | AC-12 | `parse_settings_missing_fields_use_defaults`, `parse_settings_damaged_file_is_default` (src-tauri/src/updater.rs) | built |        |
 | AC-13 | `update_settings_keeps_concurrent_toggle` (src-tauri/src/updater.rs) | built |        |
 | AC-14 |      | open   |        |
 | AC-15 | `the web build offers no updater entries` (ui/e2e/help.spec.ts) | built |        |
-| AC-16 |      | open   |        |
+| AC-16 | e2e `Help ▸ Check for Updates… reports the outcome and the stored auto-update value (AC-16)` (ui/e2e/desktop.spec.ts) | built  |        |
 | AC-17 |      | open   |        |
 | AC-18 | `labels_for_german_and_fallback` (src-tauri/src/main.rs) | built |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-19 | e2e `the native Open Recent submenu follows the recents; menu items reach the shell or the editor (AC-19)` (ui/e2e/desktop.spec.ts) — the renderer side; drawing the submenu and its "(no recent files)" placeholder is macOS-only native code, checked with the manual AC-17 | built  |        |
+| AC-20 | e2e `isTauri / hasNativeMenu outside a page: server-side rendering and each bridge (AC-20)`, `the Tauri 2 and Tauri 1 bridges count as the desktop app, a browser does not (AC-20)`, `the native menu bar replaces the in-app Help menu only in the desktop app (AC-20)`, `a browser on macOS keeps the in-app Help menu (AC-20)` (ui/e2e/desktop.spec.ts) | built  |        |
+| AC-21 | e2e `the file-association hint shows on start until "Don't show this again" (AC-21)`, `the file-association hint gives the Windows steps (AC-21)`, `the file-association hint gives the macOS steps (AC-21)` (ui/e2e/desktop.spec.ts) | built  |        |
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code (reverse engineering). AC-15 covers only the browser; whether a desktop copy that cannot update itself hides the entries is part of the manual AC-14 because it needs a debug or package-managed build. AC-11 leaves out the 10 s start delay, which no test pins (see Technical notes).
+- 2026-11-03: Test gaps closed for AC-04, AC-10, AC-16, AC-19, AC-20 and AC-21; the manual ACs (05, 07, 14, 17) stay open. The renderer-side tests (`ui/e2e/desktop.spec.ts`) run the shared UI on a stand-in Tauri 2 bridge (`window.__TAURI_INTERNALS__`, as `@tauri-apps/api/mocks` builds it) that answers the native commands, records the calls and emits `open-file` / `menu`. To test AC-10 without touching the process environment, `run_cli` now hands `$HOME`'s layout, `$APPIMAGE` and the output streams to `run_cli_with`. Red runs: AC-19 failed against the code as found (bug below); every other new test was shown red against a temporary break that was then reverted — the open-file handler skipping the discard prompt (AC-04), `--install` succeeding without `$APPIMAGE` and exiting 0 without `$HOME` (AC-10), the auto-update checkbox following the click instead of the stored value (AC-16), `isTauri` ignoring the Tauri 1 bridge and `hasNativeMenu` true for any Mac browser (AC-20), "Got it" alone remembering the dismissal and Windows detected as Linux (AC-21).
+- 2026-11-03: Bug the tests found, fixed in its own commit: the Image editor did not push its recents to the native Open Recent submenu, so on macOS a file opened or saved in Image mode reached the submenu only after returning to the start screen (AC-19).
