@@ -4,7 +4,9 @@
 //! Shading ink (`docs/specs/shading-ink.md`). `applyTool` stays for single
 //! pixels.
 
-use pincel_core::{BrushShape, FrameIndex, Ink, LayerId, PencilStroke, PixelBrush, Point, Rgba};
+use pincel_core::{
+    BrushShape, FrameIndex, Ink, LayerId, Mirror, PencilStroke, PixelBrush, Point, Rgba, Wrap,
+};
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
@@ -19,6 +21,10 @@ pub(crate) struct LiveStroke {
     brush: PixelBrush,
     pixel_perfect: bool,
     ink: Ink,
+    /// Symmetry axes (`setStrokeMirror`), if any.
+    mirror: Option<Mirror>,
+    /// Tiled-mode wrapping (`setStrokeWrap`).
+    wrap: Wrap,
     /// A `PencilStroke` for this gesture is on the bus.
     started: bool,
 }
@@ -93,6 +99,40 @@ impl Document {
         self.start_stroke(Rgba::TRANSPARENT, size, shape, pixel_perfect, ink)
     }
 
+    /// Mirror the gesture in progress (symmetry): every pixel it paints is
+    /// also painted at its mirror images. `axis_x2` / `axis_y2` are the
+    /// vertical / horizontal axis in half pixels from the left / top canvas
+    /// edge (column `x` mirrors to `axis_x2 − 1 − x`); absent turns that
+    /// axis off. Mirror images off the canvas are skipped unless the
+    /// gesture wraps. Call it after `beginStroke` / `beginShadingStroke`
+    /// and before the first [`Self::stroke_to`].
+    ///
+    /// Errors when no gesture is armed or it has already painted.
+    #[wasm_bindgen(js_name = setStrokeMirror)]
+    pub fn set_stroke_mirror(
+        &mut self,
+        axis_x2: Option<i32>,
+        axis_y2: Option<i32>,
+    ) -> Result<(), String> {
+        let live = self.unstarted_stroke()?;
+        live.mirror = Some(Mirror { axis_x2, axis_y2 });
+        Ok(())
+    }
+
+    /// Let the gesture in progress wrap across the canvas edges (tiled
+    /// mode): along a wrapped axis, points beyond the canvas are taken
+    /// modulo the canvas size instead of skipped, and the line between two
+    /// points continues at the opposite edge. Call it after `beginStroke` /
+    /// `beginShadingStroke` and before the first [`Self::stroke_to`].
+    ///
+    /// Errors when no gesture is armed or it has already painted.
+    #[wasm_bindgen(js_name = setStrokeWrap)]
+    pub fn set_stroke_wrap(&mut self, x: bool, y: bool) -> Result<(), String> {
+        let live = self.unstarted_stroke()?;
+        live.wrap = Wrap { x, y };
+        Ok(())
+    }
+
     /// Extend the gesture to sprite-space `(x, y)`: the first call stamps
     /// the brush there, every later call stamps it at each pixel of the
     /// straight line from the previous point. Pixels outside the canvas
@@ -129,7 +169,12 @@ impl Document {
                 to,
                 pressure,
             )
-            .with_ink(live.ink.clone());
+            .with_ink(live.ink.clone())
+            .with_wrap(live.wrap);
+            let cmd = match live.mirror {
+                Some(m) => cmd.with_mirror(m),
+                None => cmd,
+            };
             self.bus
                 .execute(cmd.into(), &mut self.sprite, &mut self.cels)
                 .map_err(|e| format!("failed to paint: {e}"))?;
@@ -146,6 +191,17 @@ impl Document {
 }
 
 impl Document {
+    /// The armed gesture, if it has not painted yet.
+    fn unstarted_stroke(&mut self) -> Result<&mut LiveStroke, String> {
+        match self.stroke.as_mut() {
+            None => Err("no stroke in progress: call beginStroke first".to_string()),
+            Some(live) if live.started => {
+                Err("the stroke has already started painting".to_string())
+            }
+            Some(live) => Ok(live),
+        }
+    }
+
     /// Shared tail of [`Self::begin_stroke`] and
     /// [`Self::begin_shading_stroke`]: resolve the target and arm the
     /// gesture.
@@ -172,6 +228,8 @@ impl Document {
             brush: PixelBrush::new(size, shape),
             pixel_perfect,
             ink,
+            mirror: None,
+            wrap: Wrap::default(),
             started: false,
         });
         Ok(())
@@ -546,6 +604,56 @@ mod tests {
         let err = shading_gesture(&mut doc, 1, &[(0, 0)]).expect_err("nothing to paint");
         assert!(err.contains("no paintable image layer"));
         assert_eq!(doc.undo_depth(), 0);
+    }
+
+    // Symmetry and tiled mode (docs/specs/symmetry-tiled-mode.md).
+
+    #[test]
+    fn set_stroke_mirror_paints_mirror_images() {
+        let mut doc = Document::new(8, 6).expect("dims");
+        doc.begin_stroke("pencil", RED, 1, "square", false)
+            .expect("begin");
+        doc.set_stroke_mirror(Some(8), Some(6)).expect("mirror");
+        doc.stroke_to(1, 0, None).expect("stroke");
+        doc.end_stroke();
+        assert_eq!(
+            painted(&doc, 8, 6, RED),
+            vec![(1, 0), (6, 0), (1, 5), (6, 5)]
+        );
+        assert_eq!(doc.undo_depth(), 1);
+        assert!(doc.undo());
+        assert!(painted(&doc, 8, 6, RED).is_empty(), "one undo, all four");
+    }
+
+    #[test]
+    fn set_stroke_wrap_continues_across_the_seam() {
+        let mut doc = Document::new(8, 4).expect("dims");
+        doc.begin_stroke("pencil", RED, 1, "square", false)
+            .expect("begin");
+        doc.set_stroke_wrap(true, false).expect("wrap");
+        doc.stroke_to(6, 1, None).expect("stroke");
+        doc.stroke_to(9, 1, None).expect("stroke");
+        doc.end_stroke();
+        assert_eq!(
+            painted(&doc, 8, 4, RED),
+            vec![(0, 1), (1, 1), (6, 1), (7, 1)]
+        );
+    }
+
+    #[test]
+    fn stroke_aids_need_an_unstarted_gesture() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.set_stroke_mirror(Some(4), None).is_err(), "no gesture");
+        assert!(doc.set_stroke_wrap(true, true).is_err(), "no gesture");
+        doc.begin_stroke("pencil", RED, 1, "square", false)
+            .expect("begin");
+        doc.stroke_to(0, 0, None).expect("stroke");
+        assert!(doc.set_stroke_mirror(Some(4), None).is_err(), "started");
+        assert!(doc.set_stroke_wrap(true, false).is_err(), "started");
+        doc.end_stroke();
+        // A plain stroke afterwards neither mirrors nor wraps.
+        gesture(&mut doc, "pencil", 1, "square", false, &[(3, 3)]);
+        assert_eq!(painted(&doc, 4, 4, RED), vec![(0, 0), (3, 3)]);
     }
 
     #[test]

@@ -649,6 +649,8 @@ await init();
 const doc = new Document(64, 64);
 doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
 doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
+doc.setStrokeMirror(axisX2, axisY2);      // optional symmetry axes (half pixels), before the first strokeTo
+doc.setStrokeWrap(wrapX, wrapY);           // optional tiled-mode wrapping, before the first strokeTo
 doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
@@ -664,7 +666,7 @@ const events = doc.drainEvents();
 // event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
-A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent. Before the first `strokeTo`, `setStrokeMirror(axisX2?, axisY2?)` mirrors the gesture across a vertical and / or horizontal axis in half pixels (column x mirrors to axisX2 − 1 − x) and `setStrokeWrap(x, y)` wraps it across the canvas edges for tiled mode; a stamp on the canvas outside the target cel grows the cel within the same undo entry (feature spec `symmetry-tiled-mode`, Decision Log 2026-10-29).
 
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
