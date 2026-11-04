@@ -111,6 +111,9 @@ function toolInit() {
     /** Pen pressure scales the brush size; on by default like Image mode
      *  (pixel-pressure AC-08). Shared by Pencil and Eraser, not persisted. */
     pressureSize: true,
+    /** Pencil ink: Simple paints, Shading steps along the palette ramp
+     *  (shading-ink AC-09: a fresh session starts Simple, not persisted). */
+    pencilInk: 'simple' as 'simple' | 'shading',
     strokeWidth: 1,
     shapeMode: 'outline' as ShapeMode,
     cornerRadius: 4,
@@ -137,7 +140,16 @@ function toolInit() {
 }
 
 function colorsInit() {
-  return { color: '#f87171', alpha: 255, bgColor: '#ffffff', bgAlpha: 255 };
+  return {
+    color: '#f87171',
+    alpha: 255,
+    bgColor: '#ffffff',
+    bgAlpha: 255,
+    /** Shading-ink ramp: the inclusive palette index range picked with
+     *  Shift+click, `null` for the whole palette. Transient UI state, never
+     *  written to the document (shading-ink AC-07, AC-12). */
+    rampRange: null as { from: number; to: number } | null,
+  };
 }
 
 function playInit() {

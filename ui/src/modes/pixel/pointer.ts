@@ -33,6 +33,22 @@ export const BG_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'polygon-shape',
 ]);
 
+/**
+ * The shading-ink ramp: the palette entries of the Shift+click range, or
+ * the whole palette without one, in palette order (packed RGBA).
+ */
+export function shadingRamp(): Uint32Array {
+  const doc = ed.doc;
+  if (!doc) return new Uint32Array();
+  const count = doc.paletteCount;
+  const range = colors.rampRange;
+  const from = range ? Math.min(range.from, count) : 0;
+  const to = range ? Math.min(range.to + 1, count) : count;
+  const out = new Uint32Array(Math.max(0, to - from));
+  for (let i = from; i < to; i += 1) out[i - from] = doc.paletteColor(i);
+  return out;
+}
+
 /** Packed RGBA of the color the current gesture paints with. */
 export function strokeColor(): number {
   return live.useBg
@@ -239,13 +255,24 @@ export function paintAt(e: PointerEvent) {
       // The core stamps the brush along the line between consecutive
       // points and skips off-canvas pixels; the whole drag is one undo
       // entry, closed by `endStroke` on pointerup.
-      ed.doc.beginStroke(
-        toolState.tool,
-        strokeColor(),
-        clampBrushSize(toolState.brushSize),
-        toolState.brushShape,
-        toolState.pixelPerfect,
-      );
+      if (toolState.tool === 'pencil' && toolState.pencilInk === 'shading') {
+        // Left button steps toward the ramp's end, right toward its start.
+        ed.doc.beginShadingStroke(
+          shadingRamp(),
+          live.useBg ? -1 : 1,
+          clampBrushSize(toolState.brushSize),
+          toolState.brushShape,
+          toolState.pixelPerfect,
+        );
+      } else {
+        ed.doc.beginStroke(
+          toolState.tool,
+          strokeColor(),
+          clampBrushSize(toolState.brushSize),
+          toolState.brushShape,
+          toolState.pixelPerfect,
+        );
+      }
     }
     ed.doc.strokeTo(target.x, target.y, strokePressure(e));
     live.lastPaint = target;

@@ -5,6 +5,7 @@
   import { packColor, unpackColor } from '../../../lib/color';
   import type { Document } from '../../../lib/core';
   import { pickAndOpen, saveExport } from '../../../lib/fs';
+  import { colors } from '../stores/editor.svelte';
 
   // Palette panel (spec §6 panel layout). The wasm `Document` is the
   // source of truth; the panel reads the palette through the read
@@ -22,6 +23,10 @@
   // `onChange` bumps the parent's `rev`. `activeColor` (the current
   // foreground as `#RRGGBB`) highlights the matching swatch, if any.
   // Right-clicking a swatch calls `onPickBg` (background color).
+  // Shift+click picks the contiguous range from the selected entry to the
+  // clicked one as the shading-ink ramp (`colors.rampRange`); a plain click
+  // and every structural edit (add, remove, move, preset, import) clear it,
+  // a recolour keeps it (docs/specs/shading-ink.md).
   let {
     doc,
     rev = 0,
@@ -72,6 +77,7 @@
     menu = null;
     edit(t('palette.presetAction'), (d) => d.setPalettePreset(id));
     selected = null;
+    colors.rampRange = null;
     onStatus?.(t('palette.presetApplied', { name: t(PRESET_KEYS[id]) }));
   }
 
@@ -96,6 +102,7 @@
       count = d.importGpl(text);
     });
     selected = null;
+    colors.rampRange = null;
     if (count > 0) onStatus?.(t('palette.imported', { count }));
   }
 
@@ -139,6 +146,7 @@
     if (from === to || to < 0 || to >= swatches.length) return;
     edit(t('palette.move'), (d) => d.movePaletteEntry(from, to));
     selected = to;
+    colors.rampRange = null;
   }
 
   type Swatch = {
@@ -176,6 +184,22 @@
   // are lowercased to stay case-insensitive.
   const activeCss = $derived(activeColor?.toLowerCase() ?? null);
   const current = $derived(swatches.find((s) => s.index === selected) ?? null);
+
+  // A range that no longer fits the palette (a new or opened document, an
+  // undone add) is cleared.
+  $effect(() => {
+    const range = colors.rampRange;
+    if (range && range.to >= swatches.length) colors.rampRange = null;
+  });
+
+  function pickRange(index: number) {
+    const anchor = selected ?? index;
+    selected = anchor;
+    colors.rampRange = { from: Math.min(anchor, index), to: Math.max(anchor, index) };
+  }
+
+  const inRamp = (index: number) =>
+    colors.rampRange !== null && index >= colors.rampRange.from && index <= colors.rampRange.to;
 </script>
 
 <Panel count={swatches.length > 0 ? swatches.length : undefined}>
@@ -188,6 +212,7 @@
       onclick={() =>
         edit(t('palette.addAction'), (d) => {
           selected = d.addPaletteEntry(addColor);
+          colors.rampRange = null;
         })}
     />
     <IconButton
@@ -253,6 +278,8 @@
           class="palette-swatch"
           class:swatch-active={isActive}
           class:swatch-selected={selected === s.index}
+          class:swatch-in-ramp={inRamp(s.index)}
+          data-ramp={inRamp(s.index) ? '' : undefined}
           style:background-color={s.css}
           draggable="true"
           ondragstart={() => (dragFrom = s.index)}
@@ -262,8 +289,13 @@
             if (dragFrom !== null) move(dragFrom, s.index);
             dragFrom = null;
           }}
-          onclick={() => {
+          onclick={(e) => {
+            if (e.shiftKey) {
+              pickRange(s.index);
+              return;
+            }
             selected = s.index;
+            colors.rampRange = null;
             onPick?.(s.packed);
           }}
           oncontextmenu={(e) => {
@@ -312,6 +344,7 @@
             const index = current.index;
             edit(t('palette.removeAction'), (d) => d.removePaletteEntry(index));
             selected = null;
+            colors.rampRange = null;
           }}
           aria-label={t('palette.delete')}>{t('tl.delete')}</button
         >
@@ -370,6 +403,9 @@
   }
   .pal-btn:disabled {
     opacity: 0.4;
+  }
+  .swatch-in-ramp {
+    box-shadow: inset 0 -3px 0 var(--color-pc-accent);
   }
   .swatch-active {
     outline: 2px solid rgb(59 130 246);

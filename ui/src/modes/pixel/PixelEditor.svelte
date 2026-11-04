@@ -1071,6 +1071,22 @@
       {/if}
     {:else if isBrushTool(toolState.tool)}
       <BrushOptions />
+      {#if toolState.tool === 'pencil'}
+        <label class="opt">
+          {t('opt.ink')}
+          <select bind:value={toolState.pencilInk} class="opt-field" aria-label={t('px.pencilInk')}>
+            <option value="simple">{t('opt.inkSimple')}</option>
+            <option value="shading">{t('opt.inkShading')}</option>
+          </select>
+        </label>
+        {#if toolState.pencilInk === 'shading'}
+          <span class="opt text-pc-faint" data-testid="shading-ramp">
+            {colors.rampRange
+              ? t('px.shadingRange', { from: colors.rampRange.from, to: colors.rampRange.to })
+              : t('px.shadingWholePalette')}
+          </span>
+        {/if}
+      {/if}
       {#if BG_TOOLS.has(toolState.tool)}
         <span class="opt text-pc-faint">{t('px.rightBg')}</span>
       {/if}

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, pixelCanvas, storedPref } from './helpers';
+import { readFile } from 'node:fs/promises';
+import { createDocument, menu, pixelCanvas, storedPref } from './helpers';
 
 // Pixel-mode Pencil / Eraser (docs/specs/pixel-pencil.md): brush size and
 // shape, Shift constraint, pixel-perfect, shared and persisted options.
@@ -294,6 +295,157 @@ test('brush settings survive a reload', async ({ page }) => {
   await expect(sizeField(page)).toHaveValue('5');
   await expect(shapeSelect(page)).toHaveValue('round');
   await expect(pixelPerfect(page)).toBeChecked();
+});
+
+// Shading ink (docs/specs/shading-ink.md). DB32 entries 1–4.
+const E1 = '#222034';
+const E2 = '#45283c';
+const E3 = '#663931';
+const inkSelect = (page: Page) => page.getByLabel('Pencil ink');
+const rampHint = (page: Page) => page.getByTestId('shading-ramp');
+const swatch = (page: Page, index: number) =>
+  page.getByRole('button', { name: new RegExp(`^Pick color .* \\(entry ${index}\\)$`) });
+
+/** Paint sprite pixel (x, y) with `color` using the Simple pencil. */
+async function dab(page: Page, at: At, x: number, y: number, color: string): Promise<void> {
+  await pencil(page);
+  await inkSelect(page).selectOption('simple');
+  await fg(page).fill(color);
+  await stroke(page, at, [[x, y]]);
+}
+
+test('the pencil offers Simple and Shading inks and a fresh session starts Simple', async ({
+  page,
+}) => {
+  await setup(page);
+  await pencil(page);
+  await expect(inkSelect(page)).toHaveValue('simple');
+  await expect(inkSelect(page).locator('option')).toHaveText(['Simple', 'Shading']);
+  await expect(rampHint(page)).toHaveCount(0);
+  await inkSelect(page).selectOption('shading');
+  await expect(rampHint(page)).toHaveText(
+    '· ramp: the whole palette — Shift+click a palette entry for a range',
+  );
+  // The eraser has no ink.
+  await eraser(page);
+  await expect(inkSelect(page)).toHaveCount(0);
+  await page.reload();
+  await setup(page);
+  await pencil(page);
+  await expect(inkSelect(page)).toHaveValue('simple');
+});
+
+test('a shading stroke steps ramp colors one entry, once per pixel, as one undo step', async ({
+  page,
+}) => {
+  const at = await setup(page);
+  await dab(page, at, 2, 2, E1);
+  await dab(page, at, 4, 2, E3);
+  await dab(page, at, 6, 2, '#123456');
+
+  // Ramp: entries 1–3 (plain click on 1, Shift+click on 3).
+  await swatch(page, 1).click();
+  await swatch(page, 3).click({ modifiers: ['Shift'] });
+  await pencil(page);
+  await inkSelect(page).selectOption('shading');
+  await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+  await expect(page.locator('[data-ramp]')).toHaveCount(3);
+  const status = page.locator('footer', { hasText: /\d+×\d+/ });
+  await expect(status).toContainText('undo 3 / redo 0');
+
+  // Back and forth over row 2: every ramp pixel steps once toward the end.
+  await stroke(page, at, [
+    [1, 2],
+    [7, 2],
+    [1, 2],
+    [7, 2],
+  ]);
+  await expect(status).toContainText('undo 4 / redo 0');
+  expect(await pick(page, at, 2, 2)).toBe(E2);
+  expect(await pick(page, at, 4, 2), 'the ramp end stays').toBe(E3);
+  expect(await pick(page, at, 6, 2), 'a color outside the ramp stays').toBe('#123456');
+  expect(await pick(page, at, 3, 2), 'transparent stays').toBe('#000000');
+
+  // Undo restores the stroke's pixels.
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  expect(await pick(page, at, 2, 2)).toBe(E1);
+
+  // The right button steps toward the start.
+  await pencil(page);
+  await page.mouse.move(...at(4, 2));
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(...at(2, 2), { steps: 2 });
+  await page.mouse.up({ button: 'right' });
+  expect(await pick(page, at, 4, 2)).toBe(E2);
+  expect(await pick(page, at, 2, 2), 'the ramp start stays').toBe(E1);
+});
+
+test('a plain click or a structural palette edit clears the ramp range; a recolor keeps it', async ({
+  page,
+}) => {
+  await setup(page);
+  await pencil(page);
+  await inkSelect(page).selectOption('shading');
+  const whole = '· ramp: the whole palette — Shift+click a palette entry for a range';
+
+  await swatch(page, 2).click();
+  await swatch(page, 5).click({ modifiers: ['Shift'] });
+  await expect(rampHint(page)).toHaveText('· ramp: palette entries 2–5');
+  // Shift+click does not change the foreground.
+  await expect(fg(page)).toHaveValue(E2);
+  await swatch(page, 4).click();
+  await expect(rampHint(page)).toHaveText(whole);
+
+  // Recoloring an entry keeps the range.
+  await swatch(page, 4).click({ modifiers: ['Shift'] });
+  await expect(rampHint(page)).toHaveText('· ramp: palette entries 4–4');
+  await page.getByLabel('Entry color').fill('#ff8800');
+  await expect(rampHint(page)).toHaveText('· ramp: palette entries 4–4');
+
+  // Adding, moving or removing an entry clears it.
+  const reselect = async () => {
+    await swatch(page, 1).click();
+    await swatch(page, 3).click({ modifiers: ['Shift'] });
+    await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+  };
+  await reselect();
+  await page.getByRole('button', { name: 'Add current color to palette' }).click();
+  await expect(rampHint(page)).toHaveText(whole);
+  await reselect();
+  await page.getByRole('button', { name: 'Move entry right' }).click();
+  await expect(rampHint(page)).toHaveText(whole);
+  await reselect();
+  await page.getByRole('button', { name: 'Delete entry' }).click();
+  await expect(rampHint(page)).toHaveText(whole);
+
+  // A preset replaces the palette and clears it.
+  await reselect();
+  await page.getByRole('button', { name: 'Palette options' }).click();
+  await page.getByRole('menuitem', { name: /PICO-8/ }).click();
+  await expect(rampHint(page)).toHaveText(whole);
+});
+
+test('the ramp range is not written into the saved document', async ({ page }) => {
+  // Without File System Access, Save downloads the file.
+  await page.addInitScript(() => {
+    const w = window as { showSaveFilePicker?: unknown; showOpenFilePicker?: unknown };
+    delete w.showSaveFilePicker;
+    delete w.showOpenFilePicker;
+  });
+  const at = await setup(page);
+  await dab(page, at, 2, 2, E1);
+  const save = async (): Promise<Buffer> => {
+    const download = page.waitForEvent('download');
+    await menu(page, 'File', 'Save (download)');
+    return readFile(await (await download).path());
+  };
+  const plain = await save();
+  await swatch(page, 1).click();
+  await swatch(page, 3).click({ modifiers: ['Shift'] });
+  await pencil(page);
+  await inkSelect(page).selectOption('shading');
+  await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+  expect((await save()).equals(plain)).toBe(true);
 });
 
 test.describe('touch device', () => {
