@@ -7,7 +7,7 @@ export const en = {
   'shell.unsavedChanges': 'Unsaved changes',
   'shell.discard': 'Discard changes',
   'shell.unsupported':
-    '{name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)',
+    '{name}: not a supported file (sprite, OpenRaster, PSD or PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Open failed: {error}',
   'shell.permissionDenied': '{name}: permission denied',
   'shell.noHandle': '{name}: no handle / path',
@@ -53,7 +53,8 @@ export const en = {
   'start.newImage': 'New image',
   'start.newImageHint': 'Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.',
   'start.open': 'Open…',
-  'start.openHint': '.aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF and TIFF open in Image mode.',
+  'start.openHint':
+    '.aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF and PSD open in Image mode.',
   'start.recent': 'Recent',
   'start.recentFiles': 'Recent files',
   'start.language': 'Language',
@@ -803,6 +804,22 @@ export const en = {
   'save.format': 'Format',
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.noEncoder': '{format} files cannot be written back. Choose a format to save in.',
+  // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)
+  'psd.notice': 'Opened with changes: {items}',
+  'psd.adjustment': 'adjustment layer “{layer}” left out',
+  'psd.text': 'text layer “{layer}” opened as pixels',
+  'psd.smartObject': 'smart object “{layer}” opened as pixels',
+  'psd.effects': 'layer effects of “{layer}” left out',
+  'psd.mask': 'mask of “{layer}” left out',
+  'psd.clipping': 'clipping mask of “{layer}” left out',
+  'psd.blend': 'blend mode “{key}” of “{layer}” opened as Normal',
+  'psd.passThrough': 'pass-through groups opened as isolated (“{group}”)',
+  'psd.fallback.no_layers': 'the file has no layers; opened its flattened image',
+  'psd.fallback.compressed':
+    'the layers are ZIP-compressed, which Pincel cannot read; opened the flattened image',
+  'psd.fallback.unreadable': 'the layer data cannot be read; opened the flattened image',
+  'psd.fallback.unrepresentable':
+    'no layer Pincel can show is left; opened the flattened image',
   'resize.constrain': 'Constrain proportions',
   'resize.resampling': 'Resampling',
   'resize.nearestShort': 'Nearest',

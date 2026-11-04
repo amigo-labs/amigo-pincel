@@ -9,7 +9,7 @@ export const de: Record<MessageKey, string> = {
   'shell.unsavedChanges': 'Ungespeicherte Änderungen',
   'shell.discard': 'Änderungen verwerfen',
   'shell.unsupported':
-    '{name}: kein unterstütztes Format (Sprite, OpenRaster oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
+    '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
   'shell.permissionDenied': '{name}: Zugriff verweigert',
   'shell.noHandle': '{name}: kein Datei-Handle / Pfad',
@@ -58,7 +58,7 @@ export const de: Record<MessageKey, string> = {
     'Ebenen, weiche Pinsel, Auswahlen, Effekte. Speichert als .ora; exportiert PNG / JPEG / WebP.',
   'start.open': 'Öffnen…',
   'start.openHint':
-    '.aseprite öffnet im Pixel-Modus; .ora, PNG, JPEG, WebP, BMP, GIF und TIFF öffnen im Bild-Modus.',
+    '.aseprite öffnet im Pixel-Modus; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF und PSD öffnen im Bild-Modus.',
   'start.recent': 'Zuletzt geöffnet',
   'start.recentFiles': 'Zuletzt geöffnete Dateien',
   'start.language': 'Sprache',
@@ -811,6 +811,22 @@ export const de: Record<MessageKey, string> = {
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.noEncoder':
     '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',
+  'psd.notice': 'Mit Änderungen geöffnet: {items}',
+  'psd.adjustment': 'Einstellungsebene „{layer}“ weggelassen',
+  'psd.text': 'Textebene „{layer}“ als Pixel geöffnet',
+  'psd.smartObject': 'Smartobjekt „{layer}“ als Pixel geöffnet',
+  'psd.effects': 'Ebeneneffekte von „{layer}“ weggelassen',
+  'psd.mask': 'Maske von „{layer}“ weggelassen',
+  'psd.clipping': 'Schnittmaske von „{layer}“ weggelassen',
+  'psd.blend': 'Füllmethode „{key}“ von „{layer}“ als Normal geöffnet',
+  'psd.passThrough': 'Hindurchwirken-Gruppen isoliert geöffnet („{group}“)',
+  'psd.fallback.no_layers': 'die Datei hat keine Ebenen; das reduzierte Bild wurde geöffnet',
+  'psd.fallback.compressed':
+    'die Ebenen sind ZIP-komprimiert, das kann Pincel nicht lesen; das reduzierte Bild wurde geöffnet',
+  'psd.fallback.unreadable':
+    'die Ebenendaten sind nicht lesbar; das reduzierte Bild wurde geöffnet',
+  'psd.fallback.unrepresentable':
+    'keine Ebene, die Pincel darstellen kann, bleibt übrig; das reduzierte Bild wurde geöffnet',
   'resize.constrain': 'Proportionen beibehalten',
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',

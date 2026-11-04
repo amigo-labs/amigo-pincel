@@ -5,6 +5,7 @@ import initWasm, {
   create_document,
   open_image,
   open_project,
+  open_psd,
   paste_layer,
   copy_selection,
   cut_selection,
@@ -36,6 +37,26 @@ import initWasm, {
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 
 export type { Vectorizer };
+
+/** Why a PSD opened as its flattened composite (`PsdFallback` in Rust). */
+export type PsdFallback = 'no_layers' | 'compressed' | 'unreadable' | 'unrepresentable';
+
+/** One thing a PSD import left out or changed (`PsdNotice` in
+ *  pincel-image-core, docs/specs/psd-import.md). */
+export type PsdNotice =
+  | { kind: 'fallback'; reason: PsdFallback }
+  | {
+      kind: 'adjustment' | 'text' | 'smart_object' | 'effects' | 'mask' | 'clipping';
+      layer: string;
+    }
+  | { kind: 'blend'; layer: string; key: string }
+  | { kind: 'pass_through'; group: string };
+
+/** What `openPsd` returns: the document handle and the import's notices. */
+export interface PsdOpened {
+  handle: number;
+  notices: PsdNotice[];
+}
 
 /** Per-layer state for the layers panel (spec §16.5). */
 export interface LayerInfo {
@@ -439,6 +460,11 @@ export const core = {
   },
   /** Opens an OpenRaster (`.ora`) project with all its layers. */
   openProject: (data: Uint8Array): number => open_project(data),
+  /** Opens a PSD (8-bit RGB) with its layers and groups, or its flattened
+   *  composite; throws for an unsupported or unreadable file and for a
+   *  canvas over `maxDim` per edge or `maxArea` pixels. */
+  openPsd: (data: Uint8Array, maxDim: number, maxArea: number): PsdOpened =>
+    open_psd(data, maxDim, maxArea) as PsdOpened,
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
   saveProject: (handle: number, compression: number): Uint8Array =>
     save_project(handle, compression),

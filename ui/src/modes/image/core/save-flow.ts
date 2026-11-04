@@ -13,6 +13,7 @@ import {
   flattenWithoutAsking,
   flatteningLoses,
   flattensWithoutAsking,
+  fileFormat,
   formatLabel,
   rememberedJpegQuality,
   saveFormat,
@@ -47,11 +48,13 @@ export async function saveDocument(forceAs = false): Promise<SaveResult | null> 
   const own = saveFormat();
   let format: DocSaveFormat;
   if (forceAs || own === null) {
-    // Save As, or a format Pincel cannot write back (GIF): pick the format.
-    // A layered document defaults to `.ora`, which keeps its layers.
+    // Save As, or a format Pincel cannot write back (GIF, PSD): pick the
+    // format. A layered document, and any opened PSD, defaults to `.ora`,
+    // which keeps its layers (docs/specs/psd-import.md AC-12).
+    const layered = editor.layers.length > 1 || fileFormat() === 'psd';
     const picked = await ask<DocSaveFormat | null>((resolve) => ({
       kind: 'format',
-      preselect: editor.layers.length > 1 ? 'ora' : (own ?? 'png'),
+      preselect: layered ? 'ora' : (own ?? 'png'),
       unwritable: own === null ? formatLabel() : null,
       resolve,
     }));

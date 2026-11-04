@@ -34,7 +34,8 @@ export function planDrop(dropped: readonly DroppedFile[]): { plan: DropPlan; not
     const format = sniffFormat(d.file.bytes) ?? formatFromName(d.file.name);
     if (format === null) {
       notices.push(t('shell.unsupported', { name: d.name }));
-    } else if (format === 'aseprite' || format === 'ora') {
+    } else if (format === 'aseprite' || format === 'ora' || format === 'psd') {
+      // A layered file opens as the document (a PSD never becomes one layer).
       project ??= d.file;
     } else {
       images.push({ file: d.file, format });

@@ -91,13 +91,25 @@ const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...TIFF_TYPES,
 ];
 
+// Photoshop files, opened (never written) in Image mode
+// (docs/specs/psd-import.md).
+const PSD_MIME = 'image/vnd.adobe.photoshop';
+const PSD_TYPES: FilePickerAcceptType[] = [
+  { description: 'Photoshop image', accept: { [PSD_MIME]: ['.psd'] } },
+];
+
 // Open accepts sprites (Pixel mode) and raster images (Image mode; a
 // PNG opened from inside Pixel mode still becomes a sprite / layer).
 // The caller sniffs the bytes to route — see `sniffFormat`.
-const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...ORA_TYPES, ...IMAGE_TYPES];
+const OPEN_TYPES: FilePickerAcceptType[] = [
+  ...ASEPRITE_TYPES,
+  ...ORA_TYPES,
+  ...IMAGE_TYPES,
+  ...PSD_TYPES,
+];
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
-const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
+const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS, 'psd'];
 
 /** What a picker asks for: a document to edit, a palette or a keymap file. */
 export type PickKind = 'document' | 'palette' | 'keymap';
@@ -137,6 +149,7 @@ const PICK: Record<
       { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
       { name: 'OpenRaster image', extensions: ['ora'] },
       { name: 'Images', extensions: IMAGE_EXTENSIONS },
+      { name: 'Photoshop image', extensions: ['psd'] },
     ],
   },
   palette: {
@@ -152,8 +165,18 @@ const PICK: Record<
 };
 
 /** File formats the app opens; decides which editor mode a file lands in.
- *  `ora` is OpenRaster, the Image mode's layered project format. */
-export type FileFormat = 'aseprite' | 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
+ *  `ora` is OpenRaster, the Image mode's layered project format; `psd`
+ *  (Photoshop) opens in Image mode and is never written. */
+export type FileFormat =
+  | 'aseprite'
+  | 'ora'
+  | 'png'
+  | 'jpeg'
+  | 'webp'
+  | 'bmp'
+  | 'gif'
+  | 'tiff'
+  | 'psd';
 
 /** Project formats: one per editor mode. */
 export type ProjectFormat = 'aseprite' | 'ora';
@@ -249,6 +272,7 @@ export function sniffFormat(bytes: Uint8Array): FileFormat | null {
   if (startsWith(bytes, [0x49, 0x49, 0x2a, 0x00]) || startsWith(bytes, [0x4d, 0x4d, 0x00, 0x2a])) {
     return 'tiff';
   }
+  if (startsWith(bytes, [0x38, 0x42, 0x50, 0x53])) return 'psd'; // `8BPS`
   return null;
 }
 
@@ -275,6 +299,8 @@ export function formatFromName(name: string): FileFormat | null {
     case 'tif':
     case 'tiff':
       return 'tiff';
+    case 'psd':
+      return 'psd';
     default:
       return null;
   }
@@ -297,6 +323,8 @@ export function mimeFor(format: FileFormat): string {
       return 'image/jpeg';
     case 'tiff':
       return 'image/tiff';
+    case 'psd':
+      return PSD_MIME;
     default:
       return `image/${format}`;
   }

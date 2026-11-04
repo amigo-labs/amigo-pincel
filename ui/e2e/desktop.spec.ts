@@ -213,6 +213,27 @@ test.describe('desktop on Linux', () => {
     expect(await calls(page, 'read_file_bytes')).toHaveLength(reads + 1);
   });
 
+  test('a .psd the OS hands over opens in Image mode; the open dialog offers .psd (psd-import AC-11, AC-13)', async ({
+    page,
+  }) => {
+    await desktopStart(page, {
+      files: {
+        '/home/u/art.psd': await bytes('../crates/pincel-image-core/tests/fixtures/sample.psd'),
+      },
+    });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await expect.poll(async () => (await calls(page, 'plugin:dialog|open')).length).toBe(1);
+    const [dialog] = await calls(page, 'plugin:dialog|open');
+    const filters = (dialog?.args.options as { filters: { extensions: string[] }[] }).filters;
+    expect(filters[0]?.extensions).toContain('psd');
+    expect(filters).toContainEqual({ name: 'Photoshop image', extensions: ['psd'] });
+
+    await emit(page, 'open-file', '/home/u/art.psd');
+    await waitForEditor(page, 'image');
+    await expect(docTitle(page, 'art.psd')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(4);
+  });
+
   test('Help ▸ Check for Updates… reports the outcome and the stored auto-update value (AC-16)', async ({
     page,
   }) => {

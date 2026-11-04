@@ -140,7 +140,25 @@
       shellError = t('shell.unsupported', { name: opened.name });
       return;
     }
+    if (format === 'psd') {
+      void openPsd(opened);
+      return;
+    }
     launch(detectMode(format), { file: opened, create: null });
+  }
+
+  // A PSD is opened before the Image editor mounts, so a file it cannot
+  // open (PSB, 16-bit, CMYK, too large, broken) leaves the start screen or
+  // the open document as it was (docs/specs/psd-import.md AC-08 – AC-10).
+  async function openPsd(opened: OpenedFile) {
+    try {
+      const { preparePsd } = await import('./modes/image/core/psd-open');
+      await preparePsd(opened.bytes);
+    } catch (err) {
+      shellError = t('shell.openFailed', { error: errText(err) });
+      return;
+    }
+    launch('image', { file: opened, create: null });
   }
 
   async function openFromPicker() {

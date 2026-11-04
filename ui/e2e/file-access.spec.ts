@@ -47,6 +47,7 @@ const DOC_EXTENSIONS = [
   '.gif',
   '.tif',
   '.tiff',
+  '.psd',
 ];
 
 /** True when `bytes` carry the Aseprite header magic. */
