@@ -294,6 +294,8 @@ A new Pixel-mode document starts with the **DB32** palette (DawnBringer 32, Asep
 
 The Palette panel also loads a **preset** — DB32, DB16, PICO-8, Game Boy (four greens), NES (54-colour 2C02 table) — and imports / exports the **GIMP palette** format (`.gpl`: `GIMP Palette` header, optional `Name:` / `Columns:`, `#` comments, `R G B name` rows, at most 256 entries). Both replace the whole palette through one undoable `ReplacePalette`, refused on indexed sprites for the same reason as remove / reorder.
 
+Next to `.gpl` the panel reads and writes Lospec **`.hex`** (one `RRGGBB` per line), **JASC `.pal`** (`JASC-PAL`, `0100`, a count, `R G B [A]` rows) and **PNG palette images** (every distinct non-transparent colour in reading order; exported as a one-row strip of 1 px or 8 px cells) — `codec::palette_formats`, wasm `importPalette` / `exportPalette`. Import detects the format by content (PNG signature → `GIMP Palette` → `JASC-PAL` → hex), so the file extension does not matter; a file without colours, with an unreadable colour line or with more than 256 colours is refused and leaves the palette unchanged. `importGpl` / `exportGpl` stay for the npm API, deprecated (Decision Log 2026-10-29).
+
 Shift+click in the Palette panel selects the contiguous range from the selected entry to the clicked one as the Pencil's shading ramp. The range is transient UI state, never part of the document: a plain click, adding / removing / moving an entry and a preset or import clear it, a recolour keeps it (`shading-ink.md`).
 
 ---
