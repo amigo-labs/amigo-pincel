@@ -345,6 +345,35 @@ export async function sameFile(a: FileLocation, b: FileLocation): Promise<boolea
   return false;
 }
 
+/** `DataTransferItem.getAsFileSystemHandle` (Chromium), not yet in the
+ *  TypeScript DOM library. */
+interface HandleItem {
+  getAsFileSystemHandle?: (this: DataTransferItem) => Promise<FileSystemHandle | null>;
+}
+
+/**
+ * The File System Access handles of a drop's files, in `dataTransfer.files`
+ * order; `null` where the browser offers none. Must be called while the
+ * `drop` event is dispatched: the items are only readable then. The
+ * handles let a dropped file be recognized as the file of an open tab
+ * (docs/specs/document-tabs.md AC-03).
+ */
+export function droppedHandles(dt: DataTransfer | null): Promise<(FileSystemFileHandle | null)[]> {
+  const items = Array.from(dt?.items ?? []).filter((item) => item.kind === 'file');
+  return Promise.all(
+    items.map(async (item): Promise<FileSystemFileHandle | null> => {
+      const get = (item as DataTransferItem & HandleItem).getAsFileSystemHandle;
+      if (!get) return null;
+      try {
+        const handle = await get.call(item);
+        return handle !== null && handle.kind === 'file' ? (handle as FileSystemFileHandle) : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+}
+
 /** True when the current browser exposes `window.showOpenFilePicker`,
  *  i.e. supports in-place save. Used to drive UI labels. */
 export function hasFsAccess(): boolean {

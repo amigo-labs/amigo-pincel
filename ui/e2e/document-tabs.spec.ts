@@ -233,6 +233,10 @@ for (const mode of ['pixel', 'image'] as const) {
     await expectDirty(page, DEFAULT_NAME[mode], true);
     await expectDirty(page, name('a'), false);
     await expect(tabBar(page).getByRole('tab', { selected: true })).toHaveCount(1);
+    // The active tab is marked visually as well: its background differs.
+    const background = (t: Locator) =>
+      t.evaluate((el) => getComputedStyle(el.parentElement ?? el).backgroundColor);
+    expect(await background(tabs(page).nth(2))).not.toBe(await background(tabs(page).nth(0)));
     // Each tab has a close button.
     await expect(tabBar(page).getByRole('button', { name: /^Close / })).toHaveCount(3);
   });
@@ -763,6 +767,51 @@ for (const mode of ['pixel', 'image'] as const) {
     await expectActive(page, file.name);
     await expect(tabs(page)).toHaveCount(2);
     await expectDirty(page, file.name, true);
+    await expect(prompt(page)).toHaveCount(0);
+  });
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: dropping the file of an open tab activates that tab (AC-03, AC-19)`, async ({
+    page,
+  }) => {
+    // File System Access handles for the picker and for dropped items
+    // (`DataTransferItem.getAsFileSystemHandle`), equal by file name.
+    const file = await fileOf(mode, 'dropped');
+    await page.addInitScript(
+      ({ name, data }) => {
+        const handleFor = (n: string) => ({
+          kind: 'file',
+          name: n,
+          getFile: async () => new File([new Uint8Array(data)], n),
+          isSameEntry: async (other: { name?: string }) => other.name === n,
+          queryPermission: async () => 'granted',
+          requestPermission: async () => 'granted',
+        });
+        Object.assign(window, { showOpenFilePicker: async () => [handleFor(name)] });
+        Object.defineProperty(DataTransferItem.prototype, 'getAsFileSystemHandle', {
+          configurable: true,
+          value(this: DataTransferItem) {
+            const f = this.getAsFile();
+            return Promise.resolve(f ? handleFor(f.name) : null);
+          },
+        });
+      },
+      { name: file.name, data: Array.from(file.bytes) },
+    );
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await menu(page, 'File', 'Open…');
+    await expectActive(page, file.name);
+    await paint(page, mode);
+    await tab(page, DEFAULT_NAME[mode]).click();
+    await dropFiles(page, [file]);
+    await expectActive(page, file.name);
+    await expect(tabs(page)).toHaveCount(2);
+    await expectDirty(page, file.name, true);
+    // Among several dropped files too, the open one is activated, not reopened.
+    await dropFiles(page, [await fileOf(mode, 'new'), file]);
+    await expectActive(page, file.name);
+    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], file.name, `new.${EXT[mode]}`]);
     await expect(prompt(page)).toHaveCount(0);
   });
 }

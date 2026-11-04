@@ -27,6 +27,7 @@
   import { detectMode, launch, session } from './lib/shell/session.svelte';
   import type { EditorMode, EditorProps, EditorSession, NewDocParams } from './lib/shell/types';
   import {
+    droppedHandles,
     ensureReadPermission,
     formatFromName,
     hasFsAccess,
@@ -248,12 +249,19 @@
     const files = Array.from(e.dataTransfer?.files ?? []);
     if (files.length === 0) return;
     e.preventDefault();
-    void onDropFiles(files);
+    // Read the handles now: the drop's items are gone after this event.
+    void onDropFiles(files, droppedHandles(e.dataTransfer));
   }
 
-  async function readDropped(file: File): Promise<OpenedFile> {
+  // A dropped file with its File System Access handle, if the browser
+  // gave one: that handle makes it the same file as an open tab's
+  // (document-tabs AC-03).
+  async function readDropped(
+    file: File,
+    handle: FileSystemFileHandle | null = null,
+  ): Promise<OpenedFile> {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    return { name: file.name, bytes, mime: file.type, handle: null, path: null };
+    return { name: file.name, bytes, mime: file.type, handle, path: null };
   }
 
   // A file dropped on the start screen.
@@ -273,11 +281,12 @@
   // the mounted editor's mode opens as a tab, in drop order; the other
   // mode's are skipped with a notice, unless every file is of the other
   // mode — then the first one replaces the session.
-  async function onDropFiles(files: File[]) {
+  async function onDropFiles(files: File[], handles: Promise<(FileSystemFileHandle | null)[]>) {
     if (busy || promptBusy()) return;
     busy = true;
     try {
-      const read = await Promise.all(files.map(readDropped));
+      const found = await handles;
+      const read = await Promise.all(files.map((f, i) => readDropped(f, found[i] ?? null)));
       shellError = null;
       const own: OpenedFile[] = [];
       const other: OpenedFile[] = [];
