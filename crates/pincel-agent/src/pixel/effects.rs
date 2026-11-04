@@ -6,6 +6,7 @@
 use serde_json::{Map, Value};
 
 use crate::AgentError;
+use crate::args::parse_hex;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind {
@@ -20,6 +21,10 @@ pub(crate) enum Kind {
     Choice {
         options: &'static [&'static str],
         default: usize,
+    },
+    /// A `#RRGGBB` / `#RRGGBBAA` colour, one `0xRRGGBBAA` wire slot.
+    Color {
+        default: u32,
     },
 }
 
@@ -68,6 +73,29 @@ const fn choice(key: &'static str, options: &'static [&'static str]) -> Param {
             default: 0,
         },
     }
+}
+
+const fn choice_default(
+    key: &'static str,
+    options: &'static [&'static str],
+    default: usize,
+) -> Param {
+    Param {
+        key,
+        kind: Kind::Choice { options, default },
+    }
+}
+
+const fn color(key: &'static str, default: u32) -> Param {
+    Param {
+        key,
+        kind: Kind::Color { default },
+    }
+}
+
+/// `#rrggbbaa` of a `0xRRGGBBAA` colour.
+pub(crate) fn color_hex(v: u32) -> String {
+    format!("#{v:08x}")
 }
 
 const fn plain(id: &'static str, params: &'static [Param]) -> EffectDef {
@@ -147,6 +175,16 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
         ],
     ),
     plain("reduce_noise", &[num("radius", 1.0, 10.0, 1.0)]),
+    // The editor defaults the colour to the foreground; the agent has none.
+    plain(
+        "outline",
+        &[
+            choice("place", &["outside", "inside", "both"]),
+            choice_default("shape", &["circle", "square"], 1),
+            num("thickness", 1.0, 8.0, 1.0),
+            color("color", 0x0000_00FF),
+        ],
+    ),
     plain(
         "brightness_contrast",
         &[
@@ -257,6 +295,9 @@ pub(crate) fn catalog_summary() -> String {
                     }
                     Kind::Bool { default } => format!("{} bool (default {default})", p.key),
                     Kind::Choice { options, .. } => format!("{} {}", p.key, options.join("|")),
+                    Kind::Color { default } => {
+                        format!("{} #RRGGBB[AA] (default {})", p.key, color_hex(default))
+                    }
                 })
                 .collect();
             if params.is_empty() {
@@ -361,6 +402,19 @@ fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
                 ))
             })
         }
+        Kind::Color { default } => match v {
+            None => Ok(f64::from(default)),
+            Some(v) => v
+                .as_str()
+                .and_then(parse_hex)
+                .map(|c| f64::from(c.to_u32()))
+                .ok_or_else(|| {
+                    AgentError::tool(format!(
+                        "parameter `{}` of `{id}` must be \"#RRGGBB\" or \"#RRGGBBAA\"",
+                        p.key
+                    ))
+                }),
+        },
     }
 }
 
@@ -400,6 +454,23 @@ mod tests {
     fn wire_params_levels_scales_points_like_the_editor() {
         let w = wire_params("levels", &map(json!({ "in_white": 51, "gamma": 2 }))).expect("ok");
         assert_eq!(w, vec![0.0, 0.0, 0.2, 2.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn wire_params_outline_takes_a_hex_colour_in_one_slot() {
+        let w = wire_params(
+            "outline",
+            &map(json!({ "place": "both", "thickness": 3, "color": "#10203040" })),
+        )
+        .expect("ok");
+        assert_eq!(w, vec![2.0, 1.0, 3.0, f64::from(0x1020_3040u32)]);
+        let opaque = wire_params("outline", &map(json!({ "color": "#ff0000" }))).expect("ok");
+        assert_eq!(opaque[3], f64::from(0xFF00_00FFu32));
+        let err = wire_params("outline", &map(json!({ "color": "red" }))).unwrap_err();
+        assert_eq!(
+            err,
+            AgentError::tool("parameter `color` of `outline` must be \"#RRGGBB\" or \"#RRGGBBAA\"")
+        );
     }
 
     #[test]
