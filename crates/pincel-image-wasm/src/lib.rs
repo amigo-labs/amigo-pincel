@@ -376,9 +376,11 @@ fn effect_region(
     spec: &EffectSpec,
 ) -> Result<Option<(Rect, ImageBuffer)>, JsError> {
     let (src, w, h) = layer_effect_image(doc, layer)?;
-    let after = ImageBuffer::from_raw(w, h, spec.run(&src).into_raw()).map_err(to_js)?;
+    let selection = doc.selection.as_ref();
+    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
+    let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
     let before = &doc.layers()[layer].pixels;
-    Ok(masked_region(before, &after, doc.selection.as_ref()))
+    Ok(masked_region(before, &after, selection))
 }
 
 /// Renders a live preview of effect `name` / `params` on the layer at
