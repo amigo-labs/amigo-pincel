@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: L
 mode: Image
@@ -47,22 +47,22 @@ All averaging blurs use premultiplied averaging; all use clamped edge pixels. Bl
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In Image mode the Blurs submenu lists Bokeh…, Fragment…, Gaussian Blur…, Median…, Motion Blur…, Radial Blur…, Sketch Blur…, Square Blur…, Surface Blur… and Zoom Blur…, sorted as `effect-catalog-v2` AC-04 specifies; in Pixel mode none of them appears.
-- [ ] AC-02 (event): When the user opens one of the new blurs, then the effect dialog shows exactly its parameters from the table with their ranges and defaults, using the angle, point and random-seed controls of `effect-catalog-v2` where the table says so.
-- [ ] AC-03 (always): Each new blur returns an image of the same size as its input, and every output alpha lies between the lowest and the highest alpha of the input layer.
-- [ ] AC-04 (always): A solid single-colour opaque layer stays unchanged under Bokeh, Fragment, Median, Sketch Blur, Surface Blur and Zoom Blur at any parameters.
-- [ ] AC-05 (always): No new blur lets the colour of a fully transparent pixel tint an opaque neighbour: a red opaque square on transparent pixels whose stored colour is green yields no opaque output pixel with more green than red.
-- [ ] AC-06 (always): Fragment with Distance 0 leaves the layer unchanged.
-- [ ] AC-07 (always): Median with Percentile 0 makes no channel brighter than the darkest value in its neighbourhood, Percentile 100 none darker than the brightest; a single bright pixel on a dark area disappears under Median radius 1, percentile 50.
-- [ ] AC-08 (always): Surface Blur at Threshold 25 leaves the edge between a black and a white area sharp (every pixel keeps its colour) and, on an area of two alternating grays that differ by 10, makes the largest difference between neighbouring pixels smaller than 10.
-- [ ] AC-09 (always): Sketch Blur with the same seed and parameters gives the same pixels on every run; a different seed gives a different result on a non-uniform layer.
-- [ ] AC-10 (always): On an odd-width image of 1-px vertical stripes with the centre on its middle column, Zoom Blur leaves the middle column unchanged and the mean change per column grows with the column's distance from the middle; its output equals Radial Blur's zoom kind for the same amount and the same centre position on the image.
-- [ ] AC-11 (option): Where Motion Blur's Centered is off, a single opaque pixel on transparency spreads only to one side along the angle; where it is on, it spreads to both sides symmetrically, as today.
-- [ ] AC-12 (event): When the user opens Radial Blur, then it shows Amount and Center but no Kind choice, and it always spins.
-- [ ] AC-13 (always): Existing wire calls still work unchanged: `motion_blur` with its two parameters behaves as Centered on, and `radial_blur` with kind Zoom still zooms.
-- [ ] AC-14 (error): If a wire call names a new blur with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-16 (error): If a wire call runs a blur on a Pixel-mode document that is not RGBA, then it is refused with the same message as every other effect and the document is unchanged.
-- [ ] AC-15 (option): Where the UI language is German, the names and parameter labels are the German ones of the table.
+- [x] AC-01 (always): In Image mode the Blurs submenu lists Bokeh…, Fragment…, Gaussian Blur…, Median…, Motion Blur…, Radial Blur…, Sketch Blur…, Square Blur…, Surface Blur… and Zoom Blur…, sorted as `effect-catalog-v2` AC-04 specifies; in Pixel mode none of them appears.
+- [x] AC-02 (event): When the user opens one of the new blurs, then the effect dialog shows exactly its parameters from the table with their ranges and defaults, using the angle, point and random-seed controls of `effect-catalog-v2` where the table says so.
+- [x] AC-03 (always): Each new blur returns an image of the same size as its input, and every output alpha lies between the lowest and the highest alpha of the input layer.
+- [x] AC-04 (always): A solid single-colour opaque layer stays unchanged under Bokeh, Fragment, Median, Sketch Blur, Surface Blur and Zoom Blur at any parameters.
+- [x] AC-05 (always): No new blur lets the colour of a fully transparent pixel tint an opaque neighbour: a red opaque square on transparent pixels whose stored colour is green yields no opaque output pixel with more green than red.
+- [x] AC-06 (always): Fragment with Distance 0 leaves the layer unchanged.
+- [x] AC-07 (always): Median with Percentile 0 makes no channel brighter than the darkest value in its neighbourhood, Percentile 100 none darker than the brightest; a single bright pixel on a dark area disappears under Median radius 1, percentile 50.
+- [x] AC-08 (always): Surface Blur at Threshold 25 leaves the edge between a black and a white area sharp (every pixel keeps its colour) and, on an area of two alternating grays that differ by 10, makes the largest difference between neighbouring pixels smaller than 10.
+- [x] AC-09 (always): Sketch Blur with the same seed and parameters gives the same pixels on every run; a different seed gives a different result on a non-uniform layer.
+- [x] AC-10 (always): On an odd-width image of 1-px vertical stripes with the centre on its middle column, Zoom Blur leaves the middle column unchanged and the mean change per column grows with the column's distance from the middle; its output equals Radial Blur's zoom kind for the same amount and the same centre position on the image.
+- [x] AC-11 (option): Where Motion Blur's Centered is off, a single opaque pixel on transparency spreads only to one side along the angle; where it is on, it spreads to both sides symmetrically, as today.
+- [x] AC-12 (event): When the user opens Radial Blur, then it shows Amount and Center but no Kind choice, and it always spins.
+- [x] AC-13 (always): Existing wire calls still work unchanged: `motion_blur` with its two parameters behaves as Centered on, and `radial_blur` with kind Zoom still zooms.
+- [x] AC-14 (error): If a wire call names a new blur with the wrong number of parameters, then it is rejected as a wrong parameter count and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-16 (error): If a wire call runs a blur on a Pixel-mode document that is not RGBA, then it is refused with the same message as every other effect and the document is unchanged.
+- [x] AC-15 (option): Where the UI language is German, the names and parameter labels are the German ones of the table.
 
 ## Technical notes
 
@@ -97,22 +97,31 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `image mode lists the ten blurs, sorted; pixel mode none (AC-01)` (ui/e2e/effects-blurs.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |  |
-| AC-02 | `the new blur dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-blurs.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |  |
-| AC-03 | `new_blurs_keep_size_and_the_input_alpha_range` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-04 | `a_solid_opaque_layer_stays_unchanged` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-05 | `transparent_colour_never_tints_an_opaque_neighbour` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-06 | `fragment_with_distance_zero_is_the_identity` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-07 | `median_percentile_zero_and_hundred_bound_every_channel`, `median_removes_a_single_bright_pixel` (crates/pincel-effects/tests/effects_blurs.rs); `median_sliding_histogram_matches_sorting` (crates/pincel-effects/src/blur/median.rs) | built |  |
-| AC-08 | `surface_blur_keeps_a_black_white_edge_sharp`, `surface_blur_smooths_two_close_grays` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-09 | `sketch_blur_is_reproducible_per_seed` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-10 | `zoom_blur_grows_with_the_distance_from_the_centre`, `zoom_blur_equals_radial_blur_zoom` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-11 | `motion_blur_uncentered_spreads_to_one_side_only`, `motion_blur_centered_spreads_symmetrically` (crates/pincel-effects/tests/effects_blurs.rs); `effect_apply_new_blurs_match_the_editor` (Centered off, crates/pincel-agent/src/tests/draw.rs) | built |  |
-| AC-12 | `Radial Blur shows Amount and Center but no Kind choice (AC-12)` (ui/e2e/effects-blurs.spec.ts); `radial_blur: wire vectors equal the previous catalog's` (kind slot always 0, ui/e2e/effect-catalog.spec.ts) | built |  |
-| AC-13 | `existing_wire_calls_keep_working` (crates/pincel-effects/tests/effects_blurs.rs) | built |  |
-| AC-14 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_blurs.rs); `apply_effect_blurs_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |  |
-| AC-15 | `German names and parameter labels (AC-15)` (ui/e2e/effects-blurs.spec.ts) | built |  |
-| AC-16 | `apply_effect_blurs_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | built |  |
+| AC-01 | `image mode lists the ten blurs, sorted; pixel mode none (AC-01)` (ui/e2e/effects-blurs.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | verified | ec36c78 |
+| AC-02 | `the new blur dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-blurs.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | verified | ec36c78 |
+| AC-03 | `new_blurs_keep_size_and_the_input_alpha_range` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-04 | `a_solid_opaque_layer_stays_unchanged` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-05 | `transparent_colour_never_tints_an_opaque_neighbour` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-06 | `fragment_with_distance_zero_is_the_identity` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-07 | `median_percentile_zero_and_hundred_bound_every_channel`, `median_removes_a_single_bright_pixel` (crates/pincel-effects/tests/effects_blurs.rs); `median_sliding_histogram_matches_sorting` (crates/pincel-effects/src/blur/median.rs) | verified | 6bb9973 |
+| AC-08 | `surface_blur_keeps_a_black_white_edge_sharp`, `surface_blur_smooths_two_close_grays` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-09 | `sketch_blur_is_reproducible_per_seed` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-10 | `zoom_blur_grows_with_the_distance_from_the_centre`, `zoom_blur_equals_radial_blur_zoom` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-11 | `motion_blur_uncentered_spreads_to_one_side_only`, `motion_blur_centered_spreads_symmetrically` (crates/pincel-effects/tests/effects_blurs.rs); `effect_apply_new_blurs_match_the_editor` (Centered off, crates/pincel-agent/src/tests/draw.rs) | verified | 6bb9973 |
+| AC-12 | `Radial Blur shows Amount and Center but no Kind choice (AC-12)` (ui/e2e/effects-blurs.spec.ts); `radial_blur: wire vectors equal the previous catalog's` (kind slot always 0, ui/e2e/effect-catalog.spec.ts) | verified | ec36c78 |
+| AC-13 | `existing_wire_calls_keep_working` (crates/pincel-effects/tests/effects_blurs.rs) | verified | 6bb9973 |
+| AC-14 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_blurs.rs); `apply_effect_blurs_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | verified | 6bb9973 |
+| AC-15 | `German names and parameter labels (AC-15)` (ui/e2e/effects-blurs.spec.ts) | verified | ec36c78 |
+| AC-16 | `apply_effect_blurs_on_an_indexed_document_are_refused` (crates/pincel-wasm/src/effects.rs) | verified | 8266a00 |
+
+## Summary
+
+> Completed: 2026-11-04
+
+- Six new blurs in `pincel-effects` (Bokeh, Fragment, Median with a sliding histogram, Sketch Blur, Surface Blur, Zoom Blur), premultiplied and edge-clamped, with wire names, clamping and labels in `EffectSpec`
+- Motion Blur gains the Centered switch (optional third wire slot, two-slot calls stay centred); Radial Blur's zoom kind now averages toward the centre and equals Zoom Blur
+- Image mode's Blurs submenu lists all ten paint.net blurs; Radial Blur's dialog drops the Kind choice and always sends spin; en + de names and labels
+- Agent catalog and the Pixel core accept the new blurs on the wire (parameter-count and non-RGBA refusals tested)
 
 ## Decisions
 
