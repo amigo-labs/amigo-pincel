@@ -230,14 +230,14 @@ export async function copiedImage(page: Page): Promise<ClipImage> {
   return img;
 }
 
-/** Puts a `width` × `height` PNG filled with `color` on the system clipboard. */
-export async function putClipboardImage(
+/** A `width` × `height` PNG filled with `color`, encoded in the browser. */
+export async function solidPng(
   page: Page,
   width: number,
   height: number,
   color: string,
-): Promise<void> {
-  await page.evaluate(
+): Promise<Buffer> {
+  const bytes = await page.evaluate(
     async ([w, h, c]) => {
       const canvas = new OffscreenCanvas(w, h);
       const ctx = canvas.getContext('2d');
@@ -245,9 +245,52 @@ export async function putClipboardImage(
       ctx.fillStyle = c;
       ctx.fillRect(0, 0, w, h);
       const blob = await canvas.convertToBlob({ type: 'image/png' });
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
     },
     [width, height, color] as const,
+  );
+  return Buffer.from(bytes);
+}
+
+/** Puts a `width` × `height` PNG filled with `color` on the system clipboard. */
+export async function putClipboardImage(
+  page: Page,
+  width: number,
+  height: number,
+  color: string,
+): Promise<void> {
+  const png = Array.from(await solidPng(page, width, height, color));
+  await page.evaluate(async (bytes) => {
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'image/png' });
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  }, png);
+}
+
+/** A file a drag carries (`dragFiles`). */
+export interface DraggedFile {
+  name: string;
+  bytes: Buffer | number[];
+}
+
+/**
+ * Dispatches a drag event at `target` that carries `files` (or, with
+ * `'text'`, only text). The event bubbles like a real drag; a `dragleave`
+ * has no related target, as when the drag leaves the window.
+ */
+export async function dragFiles(
+  target: Locator,
+  type: 'dragover' | 'dragleave' | 'drop',
+  files: DraggedFile[] | 'text',
+): Promise<void> {
+  const list = files === 'text' ? 'text' : files.map((f) => ({ name: f.name, bytes: Array.from(f.bytes) }));
+  await target.evaluate(
+    (el, [t, f]) => {
+      const data = new DataTransfer();
+      if (f === 'text') data.setData('text/plain', 'just text');
+      else for (const { name, bytes } of f) data.items.add(new File([new Uint8Array(bytes)], name));
+      el.dispatchEvent(new DragEvent(t, { dataTransfer: data, bubbles: true, cancelable: true }));
+    },
+    [type, list] as const,
   );
 }
 

@@ -4,6 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import {
   createDocument,
   drag,
+  dragFiles,
   fakeFileHandles,
   fakeFs,
   fakeFsFile,
@@ -14,6 +15,7 @@ import {
   pixelCanvas,
   rasterFile,
   waitForEditor,
+  type DraggedFile,
 } from './helpers';
 
 // File access across hosts (docs/specs/file-access.md): the File System
@@ -130,21 +132,11 @@ async function pickInEditor(page: Page, name: string): Promise<void> {
 }
 
 /** Dispatches a drag event carrying `files` (or only text) at the start screen. */
-async function dragAtStart(
+const dragAtStart = (
   page: Page,
   type: 'dragover' | 'dragleave' | 'drop',
-  files: { name: string; bytes: number[] }[] | 'text',
-): Promise<void> {
-  await page.getByRole('main').evaluate(
-    (el, [t, f]) => {
-      const data = new DataTransfer();
-      if (f === 'text') data.setData('text/plain', 'just text');
-      else for (const { name, bytes } of f) data.items.add(new File([new Uint8Array(bytes)], name));
-      el.dispatchEvent(new DragEvent(t, { dataTransfer: data, bubbles: true, cancelable: true }));
-    },
-    [type, files] as const,
-  );
-}
+  files: DraggedFile[] | 'text',
+) => dragFiles(page.getByRole('main'), type, files);
 
 /** The names of the fake disk's in-place writes so far. */
 const writes = async (page: Page) => (await fakeFsLog(page)).writes;
