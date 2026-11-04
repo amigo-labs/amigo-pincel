@@ -105,13 +105,13 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-01 | `compose_linked_cel_renders_like_a_copy_of_its_target` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-02 | `compose_onion_skin_renders_linked_neighbours` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-03 | `export_frames_with_linked_cels_equal_compose` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-04 | `linked_cels_compose_the_same_after_aseprite_round_trip` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-05 | `compose_linked_cel_with_missing_target_fails_naming_frames` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-06 | `compose_chained_or_self_linked_cel_fails_without_looping` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
+| AC-07 | `compose_linked_target_of_wrong_kind_fails_with_type_mismatch` in `crates/pincel-core/tests/render_linked_cels.rs` | built |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
@@ -135,3 +135,5 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 - AC-12 allows a difference of 1 per channel because isolated u8 compositing may round differently from compositing straight onto the backdrop.
 - 2026-10-29: A Decision Log entry supersedes the folding part of 2026-07-09: `compose()` follows linked cels (target's data, position and cel opacity) and folds a group's opacity / blend mode through a temporary buffer when the group is not 255 / Normal, and the 2026-07-09 row is marked "folding superseded 2026-10-29" — real `.aseprite` files use both, §4.2 already describes the fold, and the entry avoids an AGENTS.md §9 phase violation, as 2026-10-27 superseded the HSL fallback (owner accepted the recommendation).
 - 2026-10-29: A group at 255 / Normal passes its children through to the backdrop; only opacity < 255 or a non-Normal blend mode isolates (AC-20) — existing files keep their look, AC-12 already assumes it, and it matches Aseprite's renderer as far as known (a reference fixture should confirm); Image mode stays always-isolated by design (owner accepted the recommendation).
+- 2026-11-04: AC-05 / AC-06 raise two new `RenderError` variants, `LinkedCelTargetMissing { layer, frame, target }` and `LinkedCelChained { layer, frame, target }`, and `LinkedCelUnsupported` is removed — the ACs ask for structured errors naming all three, and no link is refused any more.
+- 2026-11-04: A link whose target holds the wrong data kind (AC-07), or a buffer in the wrong color mode, reports the *linking* frame in its error — that is the frame being composed, as for an unlinked cel.

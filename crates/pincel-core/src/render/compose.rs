@@ -7,9 +7,10 @@
 //! no pixels and are skipped (their visibility gates their children — see
 //! [`effectively_visible`]). Onion skin (spec §4.2) composites the
 //! neighbouring frames under the current one — see [`super::onion`].
-//! Linked cels and overlays still return [`RenderError`].
+//! Linked cels render their target frame's cel ([`resolve_cel`]); overlays
+//! still return [`RenderError`].
 
-use crate::document::{CelData, CelMap, FrameIndex, Layer, LayerKind, Sprite};
+use crate::document::{Cel, CelData, CelMap, FrameIndex, Layer, LayerKind, Sprite};
 use crate::geometry::Rect;
 
 use super::blend::mul_u8;
@@ -155,7 +156,7 @@ pub(super) struct Scene<'a> {
 /// Composite every selected layer at `frame` into `dst`, which is
 /// sized to `viewport.width * viewport.height * 4` bytes. Each layer blends
 /// under its own blend mode (see
-/// [`blend_pixel_into`](super::blend::blend_pixel_into)); linked cels and
+/// [`blend_pixel_into`](super::blend::blend_pixel_into)); broken links and
 /// mismatched cel kinds raise [`RenderError`] — see the per-arm comments
 /// below.
 pub(super) fn composite_visible_layers(
@@ -178,7 +179,7 @@ pub(super) fn composite_visible_layers(
             // Phase 1 (spec §4 defers the fold-into-temp-buffer behavior).
             continue;
         }
-        let Some(cel) = cels.get(layer.id, frame) else {
+        let Some(cel) = resolve_cel(sprite, cels, layer, frame)? else {
             continue;
         };
         let paint = Paint {
@@ -231,10 +232,7 @@ pub(super) fn composite_visible_layers(
                 )?;
             }
             (_, CelData::Linked(_)) => {
-                return Err(RenderError::LinkedCelUnsupported {
-                    layer: layer.id,
-                    frame,
-                });
+                unreachable!("resolve_cel follows links one hop and refuses chains");
             }
             (LayerKind::Image, CelData::Tilemap { .. })
             | (LayerKind::Tilemap { .. }, CelData::Image(_)) => {
@@ -250,6 +248,41 @@ pub(super) fn composite_visible_layers(
         }
     }
     Ok(())
+}
+
+/// The cel `layer` shows at `frame`: its own, or for a linked cel the
+/// target frame's cel on the same layer, whose data, position and cel
+/// opacity a link shares (spec §3.2, Decision Log 2026-10-29). A missing
+/// or itself-linked target is an error, so the result is never a link.
+fn resolve_cel<'a>(
+    sprite: &Sprite,
+    cels: &'a CelMap,
+    layer: &Layer,
+    frame: FrameIndex,
+) -> Result<Option<&'a Cel>, RenderError> {
+    let Some(cel) = cels.get(layer.id, frame) else {
+        return Ok(None);
+    };
+    let CelData::Linked(target) = cel.data else {
+        return Ok(Some(cel));
+    };
+    let missing = RenderError::LinkedCelTargetMissing {
+        layer: layer.id,
+        frame,
+        target,
+    };
+    if (target.0 as usize) >= sprite.frames.len() {
+        return Err(missing);
+    }
+    let resolved = cels.get(layer.id, target).ok_or(missing)?;
+    if let CelData::Linked(_) = resolved.data {
+        return Err(RenderError::LinkedCelChained {
+            layer: layer.id,
+            frame,
+            target,
+        });
+    }
+    Ok(Some(resolved))
 }
 
 /// Nearest-neighbor integer upscale of an RGBA8 image. See spec §4.1: the
@@ -713,25 +746,21 @@ mod tests {
     }
 
     #[test]
-    fn rejects_linked_cel() {
-        let sprite = one_layer_sprite(1, 1, 1);
+    fn compose_linked_cel_renders_target_frame_cel() {
+        let sprite = one_layer_sprite(1, 1, 2);
         let mut cels = CelMap::new();
+        cels.insert(Cel::image(
+            LayerId::new(0),
+            FrameIndex::new(0),
+            solid(1, 1, [9, 8, 7, 255]),
+        ));
         cels.insert(Cel {
-            layer: LayerId::new(0),
-            frame: FrameIndex::new(0),
-            position: (0, 0),
-            opacity: 255,
             data: CelData::Linked(FrameIndex::new(0)),
-            user_data: None,
-            z_index: 0,
+            ..Cel::image(LayerId::new(0), FrameIndex::new(1), solid(1, 1, [0; 4]))
         });
-        assert_eq!(
-            compose_owned(&sprite, &cels, &full_req(1, 1)).unwrap_err(),
-            RenderError::LinkedCelUnsupported {
-                layer: LayerId::new(0),
-                frame: FrameIndex::new(0),
-            }
-        );
+        let req = ComposeRequest::full(FrameIndex::new(1), 1, 1);
+        let r = compose_owned(&sprite, &cels, &req).unwrap();
+        assert_eq!(r.pixels, vec![9, 8, 7, 255]);
     }
 
     #[test]

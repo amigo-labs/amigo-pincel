@@ -3,9 +3,9 @@
 //! Covers every color mode (RGBA, indexed through the palette, grayscale —
 //! Decision Log 2026-10-29), image cels and tilemap cels, and every
 //! blend mode — separable and the four non-separable HSL modes (spec §15
-//! Decision Log, 2026-10-27) — plus the onion-skin pass (spec §4.2). Linked
-//! cels and decoration overlays raise [`RenderError`] and arrive in later
-//! milestones.
+//! Decision Log, 2026-10-27), linked cels (followed to their target) — plus
+//! the onion-skin pass (spec §4.2). Decoration overlays raise
+//! [`RenderError`] and arrive in a later milestone.
 
 mod blend;
 mod compose;

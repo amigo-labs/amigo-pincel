@@ -241,11 +241,12 @@ pub struct AtlasOutput {
 ///
 /// # Limitations
 ///
-/// Inherited from `compose()`: linked cels fail with [`ExportError::Render`]
-/// carrying the underlying [`RenderError`]. Every color mode (indexed and
-/// grayscale through `compose()`'s conversion to RGBA), image and tilemap
-/// layers, and every blend mode compose. Export does not work around these
-/// limits — it widens automatically as `compose()` does.
+/// Inherited from `compose()`: a document it refuses (a corrupt cel, a
+/// broken link) fails with [`ExportError::Render`] carrying the underlying
+/// [`RenderError`]. Every color mode (indexed and grayscale through
+/// `compose()`'s conversion to RGBA), image and tilemap layers, linked cels
+/// and every blend mode compose. Export does not work around these limits —
+/// it widens automatically as `compose()` does.
 ///
 /// # Errors
 ///
@@ -299,9 +300,9 @@ pub fn export_frame_png_scaled(
 /// # Limitations
 ///
 /// Same as [`export_frame_png`] — every frame goes through `compose()`, so a
-/// sprite it refuses (linked cel) fails the whole atlas with
-/// [`ExportError::Render`]. No
-/// trimming, no rotation, and no bin-packing: the grid is the contract.
+/// sprite it refuses (a corrupt cel, a broken link) fails the whole atlas
+/// with [`ExportError::Render`]. No trimming, no rotation, and no
+/// bin-packing: the grid is the contract.
 ///
 /// # Errors
 ///
@@ -933,10 +934,11 @@ mod tests {
         };
         let cases = [
             (
-                last(CelData::Linked(FrameIndex::new(0))),
-                RenderError::LinkedCelUnsupported {
+                last(CelData::Linked(FrameIndex::new(7))),
+                RenderError::LinkedCelTargetMissing {
                     layer: LayerId::new(0),
                     frame: FrameIndex::new(2),
+                    target: FrameIndex::new(7),
                 },
             ),
             (
