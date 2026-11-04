@@ -211,6 +211,13 @@ pub fn close_document(handle: u32) {
     });
 }
 
+/// Number of documents open in the core. A diagnostic: tests check that
+/// closing a tab frees its document (docs/specs/document-tabs.md AC-16).
+#[wasm_bindgen]
+pub fn document_count() -> u32 {
+    DOCUMENTS.with(|docs| u32::try_from(docs.borrow().len()).unwrap_or(u32::MAX))
+}
+
 /// Returns the flattened composite as an RGBA8 `Uint8ClampedArray`, ready to
 /// wrap in an `ImageData` (spec §17).
 #[wasm_bindgen]
@@ -835,5 +842,24 @@ mod export_tests {
             let back = decode(bytes).expect("decode");
             assert_eq!((back.width(), back.height()), (5, 3));
         }
+    }
+}
+
+#[cfg(test)]
+mod document_count_tests {
+    use super::*;
+
+    #[test]
+    fn document_count_follows_create_and_close() {
+        let before = document_count();
+        let a = create_document(4, 4).expect("a");
+        let b = create_document(4, 4).expect("b");
+        assert_eq!(document_count(), before + 2);
+        close_document(a);
+        assert_eq!(document_count(), before + 1);
+        close_document(b);
+        // Closing twice is a no-op.
+        close_document(b);
+        assert_eq!(document_count(), before);
     }
 }
