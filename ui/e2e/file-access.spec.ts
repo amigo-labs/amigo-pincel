@@ -72,6 +72,80 @@ async function pickFromStart(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Open…' }).click();
 }
 
+/** A row of the recent-files registry. */
+interface RecentRow {
+  name: string;
+  mode: Mode;
+  path: string | null;
+  openedAt: number;
+}
+
+/** The recent-files registry, read straight from IndexedDB, newest first. */
+async function recentRows(page: Page): Promise<RecentRow[]> {
+  return page.evaluate(
+    () =>
+      new Promise<RecentRow[]>((resolve, reject) => {
+        const open = indexedDB.open('pincel');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains('recent_files')) {
+            resolve([]);
+            return;
+          }
+          const all = db.transaction('recent_files').objectStore('recent_files').getAll();
+          all.onerror = () => reject(all.error);
+          all.onsuccess = () =>
+            resolve(
+              (all.result as RecentRow[])
+                .map(({ name, mode, path, openedAt }) => ({ name, mode, path, openedAt }))
+                .sort((a, b) => b.openedAt - a.openedAt),
+            );
+        };
+      }),
+  );
+}
+
+/** The registry as `name/mode` pairs, newest first. */
+const recentNames = async (page: Page) =>
+  (await recentRows(page)).map((r) => `${r.name}/${r.mode}`);
+
+/** The start screen's Recent list. */
+const recentList = (page: Page) => page.getByRole('list', { name: 'Recent files' });
+
+/** The shell's error notice that contains `text`. */
+const notice = (page: Page, text: string | RegExp) =>
+  page.getByRole('alert').filter({ hasText: text });
+
+/** Dismisses the shell notice holding `text` and checks that it is gone. */
+async function dismiss(page: Page, text: string | RegExp): Promise<void> {
+  await notice(page, text).getByRole('button', { name: 'Dismiss' }).click();
+  await expect(notice(page, text)).toHaveCount(0);
+}
+
+/** Opens `name` from an open editor's File ▸ Open… with the fake picker. */
+async function pickInEditor(page: Page, name: string): Promise<void> {
+  await fakeFs(page, { pick: name });
+  await menu(page, 'File', 'Open…');
+}
+
+/** Dispatches a drag event carrying `files` (or only text) at the start screen. */
+async function dragAtStart(
+  page: Page,
+  type: 'dragover' | 'dragleave' | 'drop',
+  files: { name: string; bytes: number[] }[] | 'text',
+): Promise<void> {
+  await page.getByRole('main').evaluate(
+    (el, [t, f]) => {
+      const data = new DataTransfer();
+      if (f === 'text') data.setData('text/plain', 'just text');
+      else for (const { name, bytes } of f) data.items.add(new File([new Uint8Array(bytes)], name));
+      el.dispatchEvent(new DragEvent(t, { dataTransfer: data, bubbles: true, cancelable: true }));
+    },
+    [type, files] as const,
+  );
+}
+
 /** The names of the fake disk's in-place writes so far. */
 const writes = async (page: Page) => (await fakeFsLog(page)).writes;
 
@@ -219,6 +293,347 @@ test.describe('File System Access', () => {
   }
 });
 
+test.describe('recent files', () => {
+  test('AC-10: opens and saves through a handle are recorded once per document', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    await fakeFileHandles(page, {
+      'hero.aseprite': await sprite(),
+      'villain.aseprite': await sprite(),
+      'photo.png': await rasterFile(page, 'png'),
+    });
+    await pickFromStart(page, 'photo.png');
+    await waitForEditor(page, 'image');
+    await expect.poll(() => recentNames(page)).toEqual(['photo.png/image']);
+    await pickFromStart(page, 'hero.aseprite');
+    await waitForEditor(page, 'pixel');
+    await expect.poll(() => recentNames(page)).toEqual(['hero.aseprite/pixel', 'photo.png/image']);
+    // The Pixel editor's own Open….
+    await pickInEditor(page, 'villain.aseprite');
+    await expect
+      .poll(() => recentNames(page))
+      .toEqual(['villain.aseprite/pixel', 'hero.aseprite/pixel', 'photo.png/image']);
+
+    // Re-opened through Pixel's Open Recent: moved to the top, not added again.
+    await menu(page, 'File', 'Open Recent', 'hero.aseprite');
+    await expect
+      .poll(() => recentNames(page))
+      .toEqual(['hero.aseprite/pixel', 'villain.aseprite/pixel', 'photo.png/image']);
+    // Saved again: still one entry, refreshed.
+    const [opened] = await recentRows(page);
+    await edit(page, 'pixel');
+    await menu(page, 'File', 'Save');
+    await expect.poll(() => writes(page)).toEqual(['hero.aseprite']);
+    await expect.poll(async () => (await recentRows(page))[0]?.openedAt).toBeGreaterThan(
+      opened?.openedAt ?? Infinity,
+    );
+    expect(await recentNames(page)).toEqual([
+      'hero.aseprite/pixel',
+      'villain.aseprite/pixel',
+      'photo.png/image',
+    ]);
+
+    // An Image-mode document saved through the save picker, then again.
+    await createDocument(page, 'image');
+    await fakeFs(page, { savePick: 'art.ora' });
+    await edit(page, 'image');
+    await menu(page, 'File', 'Save');
+    await expect.poll(() => recentNames(page)).toHaveLength(4);
+    expect((await recentNames(page))[0]).toBe('art.ora/image');
+    await edit(page, 'image');
+    await menu(page, 'File', 'Save');
+    await expect.poll(() => writes(page)).toEqual(['art.ora', 'art.ora']);
+    expect(await recentNames(page)).toEqual([
+      'art.ora/image',
+      'hero.aseprite/pixel',
+      'villain.aseprite/pixel',
+      'photo.png/image',
+    ]);
+  });
+
+  test('AC-11: the registry keeps the 8 newest entries, newest first', async ({ page }) => {
+    await gotoStart(page);
+    const names = Array.from({ length: 9 }, (_, i) => `s${i + 1}.aseprite`);
+    const bytes = await sprite();
+    await fakeFileHandles(page, Object.fromEntries(names.map((n) => [n, bytes])));
+    await createDocument(page, 'pixel');
+    for (const [i, name] of names.entries()) {
+      await pickInEditor(page, name);
+      await expect.poll(async () => (await recentRows(page))[0]?.name).toBe(name);
+      expect(await recentRows(page)).toHaveLength(Math.min(i + 1, 8));
+    }
+    const newest = names.slice(1).reverse();
+    expect((await recentRows(page)).map((r) => r.name)).toEqual(newest);
+    await menu(page, 'File', 'Open Recent');
+    await expect(
+      page.getByRole('menu', { name: 'Open Recent', exact: true }).getByRole('menuitem'),
+    ).toHaveText(newest);
+  });
+
+  test('AC-13: the start screen lists recents with their mode and re-opens them', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    await fakeFileHandles(page, {
+      'hero.aseprite': await sprite(),
+      'photo.png': await rasterFile(page, 'png'),
+    });
+    await gotoStart(page);
+    await expect(recentList(page)).toHaveCount(0);
+    await pickFromStart(page, 'hero.aseprite');
+    await waitForEditor(page, 'pixel');
+    await pickFromStart(page, 'photo.png');
+    await waitForEditor(page, 'image');
+
+    await gotoStart(page);
+    await expect(page.getByRole('heading', { name: 'Recent', exact: true })).toBeVisible();
+    await expect(recentList(page).getByRole('listitem')).toHaveText([
+      /^photo\.png\s*Image$/,
+      /^hero\.aseprite\s*Pixel$/,
+    ]);
+    await recentList(page).getByRole('button', { name: /^photo\.png/ }).click();
+    await waitForEditor(page, 'image');
+    await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
+    await gotoStart(page);
+    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await waitForEditor(page, 'pixel');
+    await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
+  });
+
+  test('AC-14: a denied read permission names the file and opens nothing', async ({ page }) => {
+    await gotoStart(page);
+    await fakeFileHandles(page, {
+      'hero.aseprite': await sprite(),
+      'villain.aseprite': await sprite(),
+      'photo.png': await rasterFile(page, 'png'),
+    });
+    await pickFromStart(page, 'hero.aseprite');
+    await waitForEditor(page, 'pixel');
+    await pickFromStart(page, 'photo.png');
+    await waitForEditor(page, 'image');
+    const denied = 'hero.aseprite: permission denied';
+
+    // The start screen's Recent list.
+    await gotoStart(page);
+    await fakeFs(page, { denyRead: ['hero.aseprite'] });
+    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await expect(notice(page, denied)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Pincel', exact: true })).toBeVisible();
+    await expect(pixelCanvas(page)).toHaveCount(0);
+    await dismiss(page, denied);
+
+    // Image mode's File ▸ Open Recent.
+    await recentList(page).getByRole('button', { name: /^photo\.png/ }).click();
+    await waitForEditor(page, 'image');
+    await menu(page, 'File', 'Open Recent', 'hero.aseprite');
+    await expect(notice(page, denied)).toBeVisible();
+    await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
+    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await dismiss(page, denied);
+
+    // Pixel mode's File ▸ Open Recent.
+    await pickInEditor(page, 'villain.aseprite');
+    await waitForEditor(page, 'pixel');
+    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await menu(page, 'File', 'Open Recent', 'hero.aseprite');
+    await expect(notice(page, denied)).toBeVisible();
+    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await dismiss(page, denied);
+  });
+
+  test('AC-12: no IndexedDB: Open Recent is absent in both modes', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'indexedDB', { value: undefined, configurable: true });
+    });
+    for (const mode of ['pixel', 'image'] as const) {
+      await createDocument(page, mode);
+      await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+      const file = page.getByRole('menu', { name: 'File', exact: true });
+      await expect(file.getByRole('menuitem', { name: 'Open…', exact: true })).toBeVisible();
+      await expect(file.getByRole('menuitem', { name: 'Open Recent' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+    }
+  });
+});
+
+test.describe('start screen', () => {
+  test('AC-15: a dragged file highlights the start screen and opens when dropped', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    const main = page.getByRole('main');
+    const highlighted = /(^|\s)bg-pc-panel(\s|$)/;
+    const hero = [{ name: 'hero.aseprite', bytes: Array.from(await sprite()) }];
+    await expect(main).not.toHaveClass(highlighted);
+
+    await dragAtStart(page, 'dragover', hero);
+    await expect(main).toHaveClass(highlighted);
+    await dragAtStart(page, 'dragleave', hero);
+    await expect(main).not.toHaveClass(highlighted);
+    // Dragged text is no file: no drop state.
+    await dragAtStart(page, 'dragover', 'text');
+    await expect(main).not.toHaveClass(highlighted);
+
+    await dragAtStart(page, 'dragover', hero);
+    await dragAtStart(page, 'drop', hero);
+    await waitForEditor(page, 'pixel');
+    await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
+    await expect(page.getByTitle('hero.aseprite', { exact: true })).toBeVisible();
+  });
+
+  test('AC-16: a failed read names the failure in a dismissable notice, nothing changes', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    await fakeFileHandles(page, {
+      'hero.aseprite': await sprite(),
+      'villain.aseprite': await sprite(),
+      'photo.png': await rasterFile(page, 'png'),
+    });
+    await pickFromStart(page, 'hero.aseprite');
+    await waitForEditor(page, 'pixel');
+    const start = page.getByRole('heading', { name: 'Pincel', exact: true });
+    const picked = 'Open failed: hero.aseprite is gone';
+    const recent = 'Opening hero.aseprite failed: hero.aseprite is gone';
+
+    // Picked on the start screen.
+    await gotoStart(page);
+    await fakeFs(page, { failRead: ['hero.aseprite'], pick: 'hero.aseprite' });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await expect(notice(page, picked)).toBeVisible();
+    await expect(start).toBeVisible();
+    await dismiss(page, picked);
+
+    // A recent on the start screen.
+    await recentList(page).getByRole('button', { name: /^hero\.aseprite/ }).click();
+    await expect(notice(page, recent)).toBeVisible();
+    await expect(start).toBeVisible();
+    await dismiss(page, recent);
+
+    // Dropped on the start screen.
+    await page.getByRole('main').evaluate((el) => {
+      const read = File.prototype.arrayBuffer;
+      File.prototype.arrayBuffer = function (this: File) {
+        return this.name === 'broken.png'
+          ? Promise.reject(new DOMException('broken.png is unreadable', 'NotReadableError'))
+          : read.call(this);
+      };
+      const data = new DataTransfer();
+      data.items.add(new File([new Uint8Array([1, 2, 3])], 'broken.png'));
+      el.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    const dropped = 'Drop failed: broken.png is unreadable';
+    await expect(notice(page, dropped)).toBeVisible();
+    await expect(start).toBeVisible();
+    await dismiss(page, dropped);
+
+    // From an open document, in both editors: it stays as it was.
+    await fakeFs(page, { pick: 'photo.png' });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await waitForEditor(page, 'image');
+    await pickInEditor(page, 'hero.aseprite');
+    await expect(notice(page, picked)).toBeVisible();
+    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await dismiss(page, picked);
+    await menu(page, 'File', 'Open Recent', 'hero.aseprite');
+    await expect(notice(page, recent)).toBeVisible();
+    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await dismiss(page, recent);
+
+    await pickInEditor(page, 'villain.aseprite');
+    await waitForEditor(page, 'pixel');
+    await pickInEditor(page, 'hero.aseprite');
+    await expect(notice(page, picked)).toBeVisible();
+    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await dismiss(page, picked);
+    await menu(page, 'File', 'Open Recent', 'hero.aseprite');
+    await expect(notice(page, recent)).toBeVisible();
+    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await dismiss(page, recent);
+  });
+});
+
+test.describe('clipboard sizing', () => {
+  test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+  // Holds every clipboard read until `releaseClipboard()`; `prefillReady`
+  // counts the decoded images, after which a prefill would have landed.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        releaseClipboard: () => void;
+        prefillReady: number;
+      };
+      const held: (() => void)[] = [];
+      const read = navigator.clipboard.read.bind(navigator.clipboard);
+      navigator.clipboard.read = () => new Promise<void>((r) => held.push(r)).then(read);
+      w.releaseClipboard = () => held.splice(0).forEach((r) => r());
+      w.prefillReady = 0;
+      const decode = window.createImageBitmap.bind(window);
+      window.createImageBitmap = ((...args: Parameters<typeof createImageBitmap>) =>
+        decode(...args).finally(() => (w.prefillReady += 1))) as typeof createImageBitmap;
+    });
+  });
+
+  /** Releases the held clipboard reads and waits until their prefill is due. */
+  async function releaseClipboard(page: Page): Promise<void> {
+    const ready = () =>
+      page.evaluate(() => (window as unknown as { prefillReady: number }).prefillReady);
+    const before = await ready();
+    await page.evaluate(() => (window as unknown as { releaseClipboard: () => void }).releaseClipboard());
+    await expect.poll(ready).toBeGreaterThan(before);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+  }
+
+  /** Puts a `width` × `height` PNG on the clipboard (test-side canvas). */
+  async function copyImage(page: Page, width: number, height: number): Promise<void> {
+    await page.evaluate(
+      async ([w, h]) => {
+        const canvas = new OffscreenCanvas(w, h);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no 2d context');
+        ctx.fillRect(0, 0, w, h);
+        const blob = await canvas.convertToBlob({ type: 'image/png' });
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      },
+      [width, height] as const,
+    );
+  }
+
+  test('AC-19: a size typed before the clipboard read finishes is kept', async ({ page }) => {
+    await gotoStart(page);
+    await copyImage(page, 123, 45);
+    const head = page.getByRole('button', { name: 'New image' });
+    const card = page.getByRole('form', { name: 'New image' });
+
+    // Untouched, the card takes the clipboard size once the read finishes.
+    await head.click();
+    await expect(card.getByLabel('Width')).toHaveValue('800');
+    await releaseClipboard(page);
+    await expect(card.getByLabel('Width')).toHaveValue('123');
+    await expect(card.getByLabel('Height')).toHaveValue('45');
+
+    // A width typed while the read is pending stays, and so does the height.
+    await head.click();
+    await head.click();
+    await card.getByLabel('Width').fill('300');
+    await releaseClipboard(page);
+    await expect(card.getByLabel('Width')).toHaveValue('300');
+    await expect(card.getByLabel('Height')).toHaveValue('600');
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+
+    // File ▸ New…: a height typed while the read is pending.
+    await menu(page, 'File', 'New…');
+    const dialog = page.getByRole('dialog', { name: 'New document' });
+    await dialog.getByLabel('Height').fill('500');
+    await releaseClipboard(page);
+    await expect(dialog.getByLabel('Width')).toHaveValue('800');
+    await expect(dialog.getByLabel('Height')).toHaveValue('500');
+  });
+});
+
 test.describe('without File System Access', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
@@ -287,6 +702,17 @@ test.describe('without File System Access', () => {
       await edit(page, 'pixel');
       await expect(unsaved(page, saved)).toBeVisible();
       await download(saved);
+    }
+  });
+
+  test('AC-12: Open Recent is absent in both modes', async ({ page }) => {
+    for (const mode of ['pixel', 'image'] as const) {
+      await createDocument(page, mode);
+      await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+      const file = page.getByRole('menu', { name: 'File', exact: true });
+      await expect(file.getByRole('menuitem', { name: 'Open…', exact: true })).toBeVisible();
+      await expect(file.getByRole('menuitem', { name: 'Open Recent' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
     }
   });
 
@@ -421,6 +847,37 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
       expect(await tauriCalls(page, 'write_file_bytes')).toHaveLength(1);
     });
   }
+
+  test('AC-10: files opened and saved by path are recorded with path and mode', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    const [hero, photo] = ['/home/me/hero.aseprite', '/home/me/photo.png'];
+    await stubTauri(page, { [hero]: await sprite(), [photo]: await rasterFile(page, 'png') });
+    const rows = async () =>
+      (await recentRows(page)).map((r) => `${r.name}/${r.mode}/${r.path ?? 'no path'}`);
+
+    await gotoDesktopStart(page);
+    await tauriDialogs(page, { pick: hero });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await waitForEditor(page, 'pixel');
+    await expect.poll(rows).toEqual([`hero.aseprite/pixel/${hero}`]);
+    const [opened] = await recentRows(page);
+    await edit(page, 'pixel');
+    await menu(page, 'File', 'Save');
+    await expect.poll(async () => (await recentRows(page))[0]?.openedAt).toBeGreaterThan(
+      opened?.openedAt ?? Infinity,
+    );
+    expect(await rows()).toEqual([`hero.aseprite/pixel/${hero}`]);
+
+    await gotoDesktopStart(page);
+    await tauriDialogs(page, { pick: photo });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await waitForEditor(page, 'image');
+    await expect
+      .poll(rows)
+      .toEqual([`photo.png/image/${photo}`, `hero.aseprite/pixel/${hero}`]);
+  });
 });
 
 test('AC-08: pixel: with File System Access, Save and Save As… are listed', async ({ page }) => {
