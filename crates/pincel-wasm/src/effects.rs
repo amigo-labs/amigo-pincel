@@ -535,6 +535,144 @@ mod tests {
         assert_eq!(cel_pixels(&doc, 0, 0), before);
     }
 
+    /// outline-effect: Outline Object, defaults (Outside, Square, 1 px)
+    /// in a semi-transparent orange.
+    const OUTLINE_COLOR: u32 = 0xFF80_10C0;
+    const OUTLINE: [f64; 4] = [0.0, 1.0, 1.0, OUTLINE_COLOR as f64];
+
+    /// outline-effect AC-03 / AC-06 / AC-09: a single pixel's 8 neighbours
+    /// take the colour exactly, in one undo step that redo repeats.
+    #[test]
+    fn apply_effect_outline_colours_the_neighbours_in_one_undo_step() {
+        let mut doc = Document::new(5, 5).expect("dims");
+        doc.apply_tool("pencil", 2, 2, 0x102030FF).expect("paint");
+        doc.end_stroke();
+        let before = cel_pixels(&doc, 0, 0);
+        let depth = doc.undo_depth();
+        assert!(doc.apply_effect("outline", &OUTLINE).expect("apply"));
+        assert_eq!(doc.undo_depth(), depth + 1);
+        let after = cel_pixels(&doc, 0, 0);
+        for y in 0..5 {
+            for x in 0..5 {
+                let want = if (x, y) == (2, 2) {
+                    0x102030FF
+                } else if (1..=3).contains(&x) && (1..=3).contains(&y) {
+                    OUTLINE_COLOR
+                } else {
+                    0
+                };
+                assert_eq!(pixel(&doc, x, y), want, "({x}, {y})");
+            }
+        }
+        assert!(doc.undo());
+        assert_eq!(cel_pixels(&doc, 0, 0), before, "undo restores exactly");
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(cel_pixels(&doc, 0, 0), after, "redo repeats the outline");
+    }
+
+    /// outline-effect AC-02: a trimmed cel's edge counts as transparent and
+    /// the outline never grows the cel or writes outside it.
+    #[test]
+    fn apply_effect_outline_clips_at_a_trimmed_cel() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let mut buf = pincel_core::PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        buf.data = [[9, 9, 9, 255], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]].concat();
+        let mut cel = pincel_core::Cel::image(crate::DEFAULT_LAYER_ID, FrameIndex::new(0), buf);
+        cel.position = (3, 3);
+        doc.cels.insert(cel);
+        // Inside: the cel's corner pixel touches the cel's edge.
+        assert!(
+            doc.apply_effect("outline", &[1.0, 1.0, 1.0, OUTLINE[3]])
+                .expect("inside")
+        );
+        assert_eq!(pixel(&doc, 3, 3), OUTLINE_COLOR);
+        assert!(doc.undo());
+        // Outside: only the cel's other three pixels; nothing beyond it.
+        assert!(doc.apply_effect("outline", &OUTLINE).expect("outside"));
+        let cel = doc
+            .cels
+            .get(crate::DEFAULT_LAYER_ID, FrameIndex::new(0))
+            .expect("cel");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("image cel");
+        };
+        assert_eq!((cel.position, buf.width, buf.height), ((3, 3), 2, 2));
+        assert_eq!(pixel(&doc, 3, 3), 0x090909FF);
+        for (x, y) in [(4, 3), (3, 4), (4, 4)] {
+            assert_eq!(pixel(&doc, x, y), OUTLINE_COLOR, "({x}, {y})");
+        }
+        for (x, y) in [(2, 2), (2, 3), (3, 2), (5, 5)] {
+            assert_eq!(pixel(&doc, x, y) & 0xFF, 0, "({x}, {y}) outside the cel");
+        }
+    }
+
+    /// outline-effect AC-07: only the selection changes, and an opaque pixel
+    /// outside it still outlines into it.
+    #[test]
+    fn apply_effect_outline_stays_in_the_selection() {
+        let mut doc = Document::new(6, 3).expect("dims");
+        doc.apply_tool("pencil", 2, 1, 0x102030FF).expect("paint");
+        doc.end_stroke();
+        doc.set_selection(3, 0, 3, 3);
+        assert!(doc.apply_effect("outline", &OUTLINE).expect("apply"));
+        for y in 0..3 {
+            assert_eq!(
+                pixel(&doc, 3, y),
+                OUTLINE_COLOR,
+                "(3, {y}) in the selection"
+            );
+            assert_eq!(
+                pixel(&doc, 1, y) & 0xFF,
+                0,
+                "(1, {y}) outside the selection"
+            );
+        }
+        assert_eq!(pixel(&doc, 2, 0) & 0xFF, 0);
+        assert_eq!(pixel(&doc, 2, 1), 0x102030FF);
+        assert_eq!(pixel(&doc, 4, 1) & 0xFF, 0, "beyond the thickness");
+    }
+
+    /// outline-effect AC-10 / AC-12: an indexed document, a wrong parameter
+    /// count and a bad colour slot are refused and change nothing.
+    #[test]
+    fn apply_effect_outline_errors_change_nothing() {
+        let (mut doc, _) = layered();
+        let before = cel_pixels(&doc, 0, 0);
+        let depth = doc.undo_depth();
+        for wrong in [
+            &OUTLINE[..3],
+            &[0.0, 1.0, 1.0, 0.5][..],
+            &[0.0, 1.0, 1.0, -1.0][..],
+        ] {
+            assert!(doc.apply_effect("outline", wrong).is_err(), "{wrong:?}");
+            assert!(
+                doc.preview_effect("outline", wrong, 1).is_err(),
+                "{wrong:?}"
+            );
+        }
+        assert_eq!(doc.undo_depth(), depth);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        assert_eq!(doc.apply_effect("outline", &OUTLINE), Err(expected));
+        assert!(doc.preview_effect("outline", &OUTLINE, 1).is_err());
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
     #[test]
     fn preview_effect_honours_zoom() {
         let doc = Document::new(2, 3).expect("dims");
