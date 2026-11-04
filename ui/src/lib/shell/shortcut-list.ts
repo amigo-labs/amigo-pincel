@@ -7,6 +7,7 @@ import type { ToolGroup } from '../components/layout/tools';
 import { t, type MessageKey } from '../i18n/index.svelte';
 import type { KeymapId } from './keymap-state.svelte';
 import {
+  OPACITY_ACTIONS,
   TOOL_GROUP_KEYS,
   chordLabel,
   chordLabels,
@@ -45,8 +46,10 @@ export interface ShortcutRow {
   note?: string;
 }
 
-// Actions without an obvious menu sit with the related one: colors and
-// brush size with the tools, the overview itself with View.
+// Actions without an obvious menu sit with the related one: colors, brush
+// size and opacity and the palette keys with the tools, the overview and
+// Toggle UI with View; the layer and image keys (Layer / Image menus,
+// which have no section of their own) with Edit.
 const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
   open: 'file',
   save: 'file',
@@ -77,6 +80,30 @@ const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
   prevFrame: 'frames',
   nextFrame: 'frames',
   togglePlay: 'frames',
+  newLayer: 'edit',
+  duplicateLayer: 'edit',
+  deleteLayer: 'edit',
+  mergeDown: 'edit',
+  layerAbove: 'edit',
+  layerBelow: 'edit',
+  newFrame: 'frames',
+  flipLayerH: 'edit',
+  flipLayerV: 'edit',
+  rotateCw: 'edit',
+  rotateCcw: 'edit',
+  toggleUi: 'view',
+  opacity10: 'tools',
+  opacity20: 'tools',
+  opacity30: 'tools',
+  opacity40: 'tools',
+  opacity50: 'tools',
+  opacity60: 'tools',
+  opacity70: 'tools',
+  opacity80: 'tools',
+  opacity90: 'tools',
+  opacity100: 'tools',
+  paletteNext: 'tools',
+  palettePrev: 'tools',
 };
 
 /** Row label per action; a `Record`, so a new action without one fails `pnpm check`. */
@@ -110,7 +137,38 @@ export const ACTION_LABEL: Record<ShortcutAction, MessageKey> = {
   prevFrame: 'menu.prevFrame',
   nextFrame: 'menu.nextFrame',
   togglePlay: 'keys.togglePlay',
+  newLayer: 'menu.newLayer',
+  duplicateLayer: 'menu.duplicateLayer',
+  deleteLayer: 'menu.deleteLayer',
+  mergeDown: 'menu.mergeDown',
+  layerAbove: 'keys.layerAbove',
+  layerBelow: 'keys.layerBelow',
+  newFrame: 'menu.newFrame',
+  flipLayerH: 'keys.flipLayerH',
+  flipLayerV: 'keys.flipLayerV',
+  rotateCw: 'keys.rotateCw',
+  rotateCcw: 'keys.rotateCcw',
+  toggleUi: 'menu.toggleUi',
+  opacity10: 'keys.opacity',
+  opacity20: 'keys.opacity',
+  opacity30: 'keys.opacity',
+  opacity40: 'keys.opacity',
+  opacity50: 'keys.opacity',
+  opacity60: 'keys.opacity',
+  opacity70: 'keys.opacity',
+  opacity80: 'keys.opacity',
+  opacity90: 'keys.opacity',
+  opacity100: 'keys.opacity',
+  paletteNext: 'keys.paletteNext',
+  palettePrev: 'keys.palettePrev',
 };
+
+/** Display name of an action (the opacity steps name their percentage). */
+export function actionLabel(action: ShortcutAction): string {
+  const step = OPACITY_ACTIONS.indexOf(action as (typeof OPACITY_ACTIONS)[number]);
+  if (step >= 0) return t('keys.opacity', { percent: (step + 1) * 10 });
+  return t(ACTION_LABEL[action]);
+}
 
 export const SECTION_LABEL: Record<ShortcutSection, MessageKey> = {
   file: 'keys.section.file',
@@ -143,7 +201,7 @@ const TOOL_GROUP_LABEL: Record<string, MessageKey> = {
 
 /** Display name of a keymap entry; a tool group as the current mode names it. */
 export function keymapLabel(id: KeymapId, groups: readonly ToolGroup[]): string {
-  if (!id.startsWith('tool:')) return t(ACTION_LABEL[id as ShortcutAction]);
+  if (!id.startsWith('tool:')) return actionLabel(id as ShortcutAction);
   const group = id.slice('tool:'.length);
   const own = groups.find((g) => g.id === group);
   if (own) return own.label;
@@ -195,7 +253,7 @@ export function shortcutList(source: ShortcutSource): ShortcutRow[] {
   const rows: ShortcutRow[] = source.actions.map((action) => ({
     id: action,
     section: ACTION_SECTION[action],
-    label: t(ACTION_LABEL[action]),
+    label: actionLabel(action),
     chords: chordLabels(action),
   }));
   for (const g of source.groups) {

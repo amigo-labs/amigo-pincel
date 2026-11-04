@@ -23,6 +23,7 @@
   import { t } from '../../i18n/index.svelte';
   import { modifiers, notePointer } from '../../shell/modifiers.svelte';
   import ModifierBar from './ModifierBar.svelte';
+  import { chrome } from './chrome.svelte';
 
   interface Props {
     /** Mode badge and the key layout prefs are stored under. */
@@ -80,6 +81,19 @@
     } else {
       sheetTab = sheetTab === null ? (panels[0]?.id ?? null) : null;
     }
+  }
+
+  // The canvas stage takes focus on a press, so Tab there toggles the UI
+  // (power-user-shortcuts-coverage AC-09) while Tab anywhere else keeps
+  // moving focus. A press on a control inside the stage leaves it alone.
+  let stageEl = $state<HTMLElement | null>(null);
+  function onStagePointerDown(e: PointerEvent): void {
+    notePointer(e);
+    const target = e.target instanceof Element ? e.target : null;
+    const control = target?.closest(
+      'input, textarea, select, button, a, [contenteditable], [tabindex]:not([data-stage])',
+    );
+    if (!control) stageEl?.focus({ preventScroll: true });
   }
 
   const panelsShown = $derived(
@@ -149,12 +163,12 @@
   </header>
 
   <div class="relative flex min-h-0 flex-1">
-    {#if size !== 'narrow'}
+    {#if size !== 'narrow' && !chrome.hidden}
       {@render tools('vertical')}
     {/if}
 
     <div class="flex min-w-0 flex-1 flex-col">
-      {#if options}
+      {#if options && !chrome.hidden}
         <div
           class="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
           role="toolbar"
@@ -163,12 +177,18 @@
           {@render options()}
         </div>
       {/if}
-      <main class="relative min-h-0 flex-1 overflow-hidden" onpointerdowncapture={notePointer}>
+      <main
+        bind:this={stageEl}
+        class="relative min-h-0 flex-1 overflow-hidden outline-none"
+        tabindex="-1"
+        data-stage=""
+        onpointerdowncapture={onStagePointerDown}
+      >
         {@render stage()}
         {#if modifiers.shown}
           <ModifierBar />
         {/if}
-        {#if size === 'narrow' && sheetPanel}
+        {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
@@ -200,7 +220,7 @@
           </div>
         {/if}
       </main>
-      {#if size !== 'narrow'}
+      {#if size !== 'narrow' && !chrome.hidden}
         {#each bottomPanels as p (p.id)}
           <div class="shrink-0 border-t border-pc-border bg-pc-panel">
             {@render hosted(p, 'bottom')}
@@ -216,7 +236,9 @@
       {/if}
     </div>
 
-    {#if size === 'wide' && layout.sidebar}
+    {#if chrome.hidden}
+      <!-- Toggle UI: no panels. -->
+    {:else if size === 'wide' && layout.sidebar}
       <aside
         class="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel"
         aria-label={t('frame.panels')}
@@ -233,7 +255,7 @@
     {/if}
   </div>
 
-  {#if size === 'narrow'}
+  {#if size === 'narrow' && !chrome.hidden}
     {@render tools('horizontal')}
   {/if}
 </div>

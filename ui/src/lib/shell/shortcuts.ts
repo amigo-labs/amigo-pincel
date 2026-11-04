@@ -3,12 +3,23 @@
 // and Image mode; each editor binds the actions it supports. Menus and
 // tooltips print their hints from here, so labels never drift from keys.
 
-import { isMac } from '../platform';
+import { isMac, isTauri } from '../platform';
 import { keymapState, type KeymapId } from './keymap-state.svelte';
 
-/** A key chord. `key` is matched case-insensitively against `KeyboardEvent.key`. */
+/**
+ * A key chord. `key` is matched case-insensitively against
+ * `KeyboardEvent.key`, or, where `code` is set, `code` against
+ * `KeyboardEvent.code` (`key` then only labels the chord).
+ */
 export interface Chord {
   key: string;
+  /**
+   * Physical key (`Digit1`, `BracketRight`, `KeyE`) for chords whose
+   * `e.key` depends on the layout or the modifiers: Shift+digit types `!`
+   * (US) or `=` (German Shift+0), Alt+[ types `“` on macOS, Ctrl+Alt+E is
+   * AltGr+E (`€`) on a German Windows keyboard.
+   */
+  code?: string;
   /** Ctrl on Windows / Linux, ⌘ on macOS. */
   mod?: boolean;
   shift?: boolean;
@@ -45,7 +56,66 @@ export type ShortcutAction =
   | 'prevFrame'
   | 'nextFrame'
   | 'togglePlay'
-  | 'shortcuts';
+  | 'shortcuts'
+  | 'newLayer'
+  | 'duplicateLayer'
+  | 'deleteLayer'
+  | 'mergeDown'
+  | 'layerAbove'
+  | 'layerBelow'
+  | 'newFrame'
+  | 'flipLayerH'
+  | 'flipLayerV'
+  | 'rotateCw'
+  | 'rotateCcw'
+  | 'toggleUi'
+  | OpacityAction
+  | 'paletteNext'
+  | 'palettePrev';
+
+/** Brush opacity 10 % … 100 % (Image mode): Shift+1 … Shift+9, Shift+0. */
+export type OpacityAction =
+  | 'opacity10'
+  | 'opacity20'
+  | 'opacity30'
+  | 'opacity40'
+  | 'opacity50'
+  | 'opacity60'
+  | 'opacity70'
+  | 'opacity80'
+  | 'opacity90'
+  | 'opacity100';
+
+/** The opacity actions, 10 % first. */
+export const OPACITY_ACTIONS: readonly OpacityAction[] = [
+  'opacity10',
+  'opacity20',
+  'opacity30',
+  'opacity40',
+  'opacity50',
+  'opacity60',
+  'opacity70',
+  'opacity80',
+  'opacity90',
+  'opacity100',
+];
+
+/** The brush opacity (%) an opacity action sets. */
+export function opacityPercent(action: OpacityAction): number {
+  return Number(action.slice('opacity'.length));
+}
+
+/** Shift+digit on the physical digit row, whatever character it types. */
+function shiftDigit(percent: number): Chord {
+  const digit = String((percent / 10) % 10);
+  return { key: digit, code: `Digit${digit}`, shift: true };
+}
+
+/**
+ * Keys only the desktop app can take: Ctrl+R reloads a browser tab, so
+ * the rotations have no default there (pincel.md Decision Log 2026-10-29).
+ */
+const DESKTOP = isTauri();
 
 /** Primary chord per action, plus alternates matched but not displayed. */
 export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
@@ -53,7 +123,8 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   save: [{ key: 's', mod: true }],
   saveAs: [{ key: 's', mod: true, shift: true }],
   export: [{ key: 'e', mod: true }],
-  exportSheet: [{ key: 'e', mod: true, shift: true }],
+  // Ctrl+Alt+E: Ctrl+Shift+E is Merge Down (power-user-shortcuts-coverage).
+  exportSheet: [{ key: 'e', code: 'KeyE', mod: true, alt: true }],
   undo: [{ key: 'z', mod: true }],
   redo: [
     { key: 'z', mod: true, shift: true },
@@ -94,6 +165,35 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   // Help ▸ Keyboard Shortcuts. `/` is matched without Shift, so layouts
   // that type it with Shift (German: Ctrl+Shift+7) reach it too.
   shortcuts: [{ key: '/', mod: true }],
+  // docs/specs/power-user-shortcuts-coverage.md: Aseprite / Photoshop keys.
+  // Shift+N (not Ctrl+Shift+N, which a browser tab can't capture).
+  newLayer: [{ key: 'n', shift: true }],
+  duplicateLayer: [{ key: 'j', mod: true }],
+  deleteLayer: [{ key: 'Delete', mod: true, shift: true }],
+  mergeDown: [{ key: 'e', mod: true, shift: true }],
+  layerAbove: [{ key: 'ArrowUp', alt: true }],
+  layerBelow: [{ key: 'ArrowDown', alt: true }],
+  // macOS types a dead key for ⌥N, hence the physical key.
+  newFrame: [{ key: 'n', code: 'KeyN', alt: true }],
+  flipLayerH: [{ key: 'h', shift: true }],
+  flipLayerV: [{ key: 'v', shift: true }],
+  rotateCw: DESKTOP ? [{ key: 'r', mod: true }] : [],
+  rotateCcw: DESKTOP ? [{ key: 'r', mod: true, shift: true }] : [],
+  // Only while the canvas stage has focus (`isStageTarget`); elsewhere Tab
+  // keeps moving focus.
+  toggleUi: [{ key: 'Tab' }],
+  opacity10: [shiftDigit(10)],
+  opacity20: [shiftDigit(20)],
+  opacity30: [shiftDigit(30)],
+  opacity40: [shiftDigit(40)],
+  opacity50: [shiftDigit(50)],
+  opacity60: [shiftDigit(60)],
+  opacity70: [shiftDigit(70)],
+  opacity80: [shiftDigit(80)],
+  opacity90: [shiftDigit(90)],
+  opacity100: [shiftDigit(100)],
+  paletteNext: [{ key: ']', code: 'BracketRight', alt: true }],
+  palettePrev: [{ key: '[', code: 'BracketLeft', alt: true }],
 };
 
 /**
@@ -154,6 +254,10 @@ const IS_MAC = isMac();
 function keyLabel(key: string): string {
   if (key === 'Delete') return 'Del';
   if (key === 'Enter') return '↵';
+  if (key === 'ArrowUp') return '↑';
+  if (key === 'ArrowDown') return '↓';
+  if (key === 'ArrowLeft') return '←';
+  if (key === 'ArrowRight') return '→';
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
@@ -220,44 +324,79 @@ export function toolHint(groupId: string): string | undefined {
 }
 
 /**
- * Shift only counts for letters, and for `'`, whose Shift chord is a
- * separate action (Ctrl+' / Ctrl+Shift+'): other shifted punctuation (`+`,
- * `_`) carries it anyway.
+ * Shift counts for letters; for `'`, whose Shift chord is a separate
+ * action (Ctrl+' / Ctrl+Shift+'); for named keys (Tab, Delete, arrows),
+ * where Shift+Tab moves focus back; and for physical-key chords. Other
+ * shifted punctuation (`+`, `_`) carries it anyway.
  */
-function shiftMatters(key: string): boolean {
-  return /^[a-z']$/i.test(key);
+function shiftMatters(c: Chord): boolean {
+  return c.code !== undefined || /^[a-z']$/i.test(c.key) || c.key.length > 1;
 }
 
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
   const mod = e.ctrlKey || e.metaKey;
   if (Boolean(c.mod) !== mod || Boolean(c.alt) !== e.altKey) return false;
-  if (shiftMatters(c.key) && Boolean(c.shift) !== e.shiftKey) return false;
+  if (shiftMatters(c) && Boolean(c.shift) !== e.shiftKey) return false;
+  if (c.code !== undefined) return e.code === c.code;
   return e.key.toLowerCase() === c.key.toLowerCase();
 }
 
-/** The chord a key press makes, in stored form (`mod`, Shift only for letters). */
+/** The label key of a physical key whose typed character is unreliable, if any. */
+function keyOfCode(code: string): string | null {
+  const digit = /^Digit(\d)$/.exec(code);
+  if (digit) return digit[1] ?? null;
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter) return (letter[1] ?? '').toLowerCase();
+  if (code === 'BracketLeft') return '[';
+  if (code === 'BracketRight') return ']';
+  return null;
+}
+
+/**
+ * The chord a key press makes, in stored form (`mod`, Shift where it
+ * counts). Shift+digit and Alt+letter / bracket record the physical key,
+ * as the defaults do, since their `e.key` depends on the layout.
+ */
 export function chordFromEvent(e: KeyboardEvent): Chord {
-  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  const c: Chord = { key };
+  const physical = keyOfCode(e.code);
+  const byCode =
+    physical !== null &&
+    ((e.shiftKey && /^Digit/.test(e.code)) || (e.altKey && !/^Digit/.test(e.code)));
+  const key = byCode ? physical : e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const c: Chord = byCode ? { key, code: e.code } : { key };
   if (e.ctrlKey || e.metaKey) c.mod = true;
-  if (e.shiftKey && shiftMatters(key)) c.shift = true;
+  if (e.shiftKey && shiftMatters(c)) c.shift = true;
   if (e.altKey) c.alt = true;
   return c;
 }
 
 /** True when two chords are the same key press. */
 export function sameChord(a: Chord, b: Chord): boolean {
-  if (a.key.toLowerCase() !== b.key.toLowerCase()) return false;
+  if (a.code !== undefined && b.code !== undefined) {
+    if (a.code !== b.code) return false;
+  } else if (a.key.toLowerCase() !== b.key.toLowerCase()) return false;
   if (Boolean(a.mod) !== Boolean(b.mod) || Boolean(a.alt) !== Boolean(b.alt)) return false;
-  return !shiftMatters(a.key) || Boolean(a.shift) === Boolean(b.shift);
+  return !(shiftMatters(a) || shiftMatters(b)) || Boolean(a.shift) === Boolean(b.shift);
 }
 
-/** The action `e` triggers, if any. */
+/**
+ * The action `e` triggers, if any. Physical-key chords go first, so
+ * German Shift+0 (`=`) sets the opacity instead of zooming in.
+ */
 export function actionFor(e: KeyboardEvent): ShortcutAction | null {
-  for (const action of Object.keys(SHORTCUTS) as ShortcutAction[]) {
-    if (effectiveChords(action).some((c) => chordMatches(e, c))) return action;
+  const actions = Object.keys(SHORTCUTS) as ShortcutAction[];
+  for (const byCode of [true, false]) {
+    for (const action of actions) {
+      const chords = effectiveChords(action).filter((c) => (c.code !== undefined) === byCode);
+      if (chords.some((c) => chordMatches(e, c))) return action;
+    }
   }
   return null;
+}
+
+/** True when `target` is the canvas stage, the only place Tab toggles the UI. */
+export function isStageTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && target.dataset.stage !== undefined;
 }
 
 /** The tool group a key selects, if any. A bare key ignores Shift, as it always has. */

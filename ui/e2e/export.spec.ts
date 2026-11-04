@@ -241,7 +241,7 @@ test('the sprite sheet dialog opens with every frame, the tags, √n columns and
   const dialog = page.getByRole('dialog', { name: 'Export sprite sheet' });
   for (const open of [
     () => menu(page, 'File', 'Export', 'Sprite Sheet…'),
-    () => page.keyboard.press('Control+Shift+E'),
+    () => page.keyboard.press('Control+Alt+E'),
   ]) {
     await open();
     await expect(dialog).toBeVisible();
@@ -302,7 +302,7 @@ test('Cancel and Escape close the sprite sheet dialog without exporting', async 
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
 
-  await page.keyboard.press('Control+Shift+E');
+  await page.keyboard.press('Control+Alt+E');
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();

@@ -402,6 +402,40 @@ test.describe('desktop on Windows', () => {
   });
 });
 
+// Ctrl+R / Ctrl+Shift+R rotate the whole image, in the desktop app only
+// (docs/specs/power-user-shortcuts-coverage.md AC-08); a browser tab keeps
+// them for reload (shortcuts-coverage.spec.ts checks the empty hints).
+test.describe('desktop rotation keys', () => {
+  test.use({ userAgent: LINUX_UA });
+
+  test('Ctrl+R and Ctrl+Shift+R rotate the image 90° (power-user-shortcuts-coverage AC-08)', async ({
+    page,
+  }) => {
+    await desktopStart(page);
+    await page.getByRole('button', { name: 'New image' }).click();
+    const card = page.getByRole('form', { name: 'New image' });
+    await card.getByLabel('Width').fill('32');
+    await card.getByLabel('Height').fill('16');
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+    const size = page.locator('footer');
+    await expect(size).toContainText('32 × 16');
+
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+    const imageMenu = page.getByRole('menu', { name: 'Image', exact: true });
+    await expect(imageMenu.getByRole('menuitem', { name: 'Rotate 90° CW' })).toContainText('Ctrl+R');
+    await expect(imageMenu.getByRole('menuitem', { name: 'Rotate 90° CCW' })).toContainText(
+      'Ctrl+Shift+R',
+    );
+    await page.keyboard.press('Escape');
+
+    await page.keyboard.press('Control+r');
+    await expect(size).toContainText('16 × 32');
+    await page.keyboard.press('Control+Shift+R');
+    await expect(size).toContainText('32 × 16');
+  });
+});
+
 test.describe('desktop on macOS', () => {
   test.use({ userAgent: MAC_UA });
 

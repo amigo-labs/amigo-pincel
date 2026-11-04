@@ -92,6 +92,10 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 export function asChord(v: unknown): Chord | null {
   if (!isRecord(v) || typeof v.key !== 'string' || v.key === '') return null;
   const c: Chord = { key: v.key.length === 1 ? v.key.toLowerCase() : v.key };
+  if (v.code !== undefined) {
+    if (typeof v.code !== 'string' || !/^[A-Za-z0-9]+$/.test(v.code)) return null;
+    c.code = v.code;
+  }
   for (const flag of ['mod', 'shift', 'alt'] as const) {
     const f = v[flag];
     if (f === undefined) continue;

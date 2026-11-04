@@ -121,25 +121,25 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-01 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | built |        |
+| AC-02 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/export.spec.ts` (Ctrl+E, Ctrl+Alt+E) | built |        |
+| AC-03 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | built |        |
+| AC-04 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | built |        |
+| AC-05 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+↑ / Alt+↓ select the layer above / below" (pixel, image) | built |        |
+| AC-06 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+N adds a frame" | built |        |
+| AC-07 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+H / Shift+V flip the active layer, the tool stays" (pixel, image) | built |        |
+| AC-08 | `ui/e2e/desktop.spec.ts` "Ctrl+R and Ctrl+Shift+R rotate the image 90°"; `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (browser: no hint); `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) | built |        |
+| AC-09 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | built |        |
+| AC-10 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+digits set the brush opacity, bare digits still zoom" | built |        |
+| AC-11 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+] / Alt+[ step through the palette, [ / ] still size the brush" | built |        |
+| AC-12 | `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not" (Export ▸ Sprite Sheet…) | built |        |
+| AC-13 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) | built |        |
+| AC-14 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image); `ui/e2e/desktop.spec.ts` "Ctrl+R and Ctrl+Shift+R rotate the image 90°" | built |        |
+| AC-15 | `ui/e2e/shortcuts-coverage.spec.ts` "a focused text field gets the keys" (pixel, image) | built |        |
+| AC-16 | `ui/e2e/shortcuts-coverage.spec.ts` "a layer key whose menu item is disabled does nothing" (pixel, image) | built |        |
+| AC-17 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | built |        |
+| AC-18 | `ui/e2e/shortcuts-coverage.spec.ts` "a reload shows the full UI again" | built |        |
+| AC-19 | `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E does nothing" (image); native macOS accelerator in `src-tauri/src/main.rs` (CI only) | built |        |
 
 ## Decisions
 
@@ -154,3 +154,12 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-29: Shift+H / Shift+V flip the active layer (Layer menu); Ctrl+R / Ctrl+Shift+R rotate the whole image (Image menu) — flipping is a per-layer drawing aid as in Aseprite, while a 90° layer rotation on a non-square canvas clips (owner accepted the recommendation).
 - 2026-10-29: Tab toggles the UI only while the canvas stage has focus, and View ▸ Toggle UI does the same — painters get the Photoshop / Krita key and keyboard users keep Tab navigation (WCAG 2.1.1 / 2.1.2) (owner accepted the recommendation).
 - 2026-10-29: Toggle UI hides the tool rail, options bar and panels, keeps the menu bar and status bar, and is not persisted — the way back stays visible and nobody is stuck in a bare UI after a reload (owner accepted the recommendation).
+- 2026-11-04 (build): Alt+↑ / Alt+↓ step through every row of the layers panel's order, including the children of collapsed groups — collapsing is the panel's own view state, and the keys also work while Toggle UI hides the panel.
+- 2026-11-04 (build): Alt+] / Alt+[ with a foreground color the palette doesn't hold pick the palette's first / last entry — the obvious start of a walk through the palette.
+- 2026-11-04 (build): The new rows of the shortcut overview sit in its existing sections (layer and image keys under Edit, Toggle UI under View, opacity and palette keys under Tools, New Frame under Frames) — `shortcut-overview` AC-07 fixes the section list.
+- 2026-11-04 (build): Brush opacity is ten actions (`opacity10` … `opacity100`) — each step gets its own overview row and can be rebound on its own.
+- 2026-11-04 (build): Chords with a layout-dependent character carry the physical key (`Chord.code`: Shift+digit, Alt+[ / ], Alt+N, Ctrl+Alt+E) and are matched before the `e.key` chords — German Shift+0 types `=`, which is also zoom in; a captured rebinding records such chords the same way.
+- 2026-11-04 (build): Shift now counts for named keys (Tab, Delete, Enter, arrows) — Shift+Tab stays focus navigation and Ctrl+Delete is not Ctrl+Shift+Delete; Shift+Enter and Shift+Delete therefore no longer play / delete the selection.
+- 2026-11-04 (build): A layer key whose menu item is disabled is still consumed (no browser default) — the key belongs to the editor even when its command can't run.
+- 2026-11-04 (build): View ▸ Toggle UI has no check mark, and the hidden state lasts until a reload, across the documents of the session — the item names a toggle, and AC-18 only asks for a reset on reload.
+- 2026-11-04 (build): The AC-13 / AC-14 test was already green before the build (the old keymap had no conflict) — it guards the new chords; the red run covered every other block.

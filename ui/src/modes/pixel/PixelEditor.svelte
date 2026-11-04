@@ -26,11 +26,13 @@
   import {
     actionFor,
     hint,
+    isStageTarget,
     isTypingTarget,
     nativeMenuOwns,
     toolGroupForKey,
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
+  import { toggleUi } from '../../lib/components/layout/chrome.svelte';
   import { pixelMenus } from './menus';
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
@@ -96,6 +98,8 @@
     selectAction,
     selectAll,
     setFrame,
+    stepActiveLayer,
+    stepPaletteColor,
     stopPlayback,
     swapColors,
     targetLayer,
@@ -290,6 +294,20 @@
     'prevFrame',
     'nextFrame',
     'togglePlay',
+    'newLayer',
+    'duplicateLayer',
+    'deleteLayer',
+    'mergeDown',
+    'layerAbove',
+    'layerBelow',
+    'newFrame',
+    'flipLayerH',
+    'flipLayerV',
+    'rotateCw',
+    'rotateCcw',
+    'toggleUi',
+    'paletteNext',
+    'palettePrev',
   ];
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
@@ -384,6 +402,7 @@
       toggleGrid,
       openGridSettings,
       openShortcuts: openOverview,
+      toggleUi,
     }),
   );
 
@@ -448,6 +467,8 @@
     const action = actionFor(e);
     if (action !== null) {
       if (nativeMenuHost && nativeMenuOwns(action)) return;
+      // Tab toggles the UI only on the canvas stage; elsewhere it moves focus.
+      if (action === 'toggleUi' && !isStageTarget(e.target)) return;
       if (runShortcut(action)) e.preventDefault();
       return;
     }
@@ -493,6 +514,9 @@
         return true;
       case 'shortcuts':
         openOverview();
+        return true;
+      case 'toggleUi':
+        toggleUi();
         return true;
     }
     if (!ed.doc) return false;
@@ -544,6 +568,45 @@
       case 'brushLarger':
         if (!isBrushTool(toolState.tool)) return false;
         stepBrushSize(action === 'brushLarger' ? 1 : -1);
+        return true;
+      // Layer, frame and transform keys run what their menu items run;
+      // where the item is disabled the key does nothing (AC-16).
+      case 'newLayer':
+        addLayer();
+        return true;
+      case 'duplicateLayer': {
+        const id = targetLayer();
+        if (id !== null) duplicateLayer(id);
+        return true;
+      }
+      case 'deleteLayer': {
+        const id = targetLayer();
+        if (id !== null && layerCountNow > 1) removeLayerById(id);
+        return true;
+      }
+      case 'mergeDown': {
+        const id = targetLayer();
+        if (id !== null && canMergeDown) mergeDownLayer(id);
+        return true;
+      }
+      case 'layerAbove':
+      case 'layerBelow':
+        stepActiveLayer(action === 'layerAbove' ? -1 : 1);
+        return true;
+      case 'newFrame':
+        addFrame();
+        return true;
+      case 'flipLayerH':
+      case 'flipLayerV':
+        imageAction(action === 'flipLayerH' ? 'layer:flip_horizontal' : 'layer:flip_vertical');
+        return true;
+      case 'rotateCw':
+      case 'rotateCcw':
+        imageAction(action === 'rotateCw' ? 'canvas:rotate_90_cw' : 'canvas:rotate_90_ccw');
+        return true;
+      case 'paletteNext':
+      case 'palettePrev':
+        stepPaletteColor(action === 'paletteNext' ? 1 : -1);
         return true;
       default:
         return false;

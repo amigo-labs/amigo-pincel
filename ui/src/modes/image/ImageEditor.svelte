@@ -32,6 +32,7 @@
     rotateCanvas,
     rotateLayer90,
     scaleImage,
+    selectLayer,
     transformLayer,
     newDocument,
     openBytes,
@@ -76,7 +77,7 @@
     storeCopy,
   } from '../../lib/clipboard';
   import { core } from './core/wasm';
-  import { canDeleteLayer, canMergeDown, editRefused } from './core/layer-tree';
+  import { canDeleteLayer, canMergeDown, editRefused, treeOrder } from './core/layer-tree';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -89,14 +90,19 @@
   import { effectMenus } from '../../lib/effects/menu';
   import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import {
+    OPACITY_ACTIONS,
     actionFor,
     hint,
+    isStageTarget,
     isTypingTarget,
     nativeMenuOwns,
+    opacityPercent,
     toolGroupForKey,
     toolHint,
+    type OpacityAction,
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
+  import { toggleUi } from '../../lib/components/layout/chrome.svelte';
   import { formatFromName, hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
@@ -470,6 +476,18 @@
     'resetColors',
     'brushSmaller',
     'brushLarger',
+    'newLayer',
+    'duplicateLayer',
+    'deleteLayer',
+    'mergeDown',
+    'layerAbove',
+    'layerBelow',
+    'flipLayerH',
+    'flipLayerV',
+    'rotateCw',
+    'rotateCcw',
+    'toggleUi',
+    ...OPACITY_ACTIONS,
   ];
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
@@ -663,8 +681,12 @@
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.
     if (action !== null && hasNativeMenu() && nativeMenuOwns(action)) return;
-    if (action !== null && runShortcut(action)) {
-      e.preventDefault();
+    // An action chord wins over a tool key, so Shift+H flips instead of
+    // picking the Hand (power-user-shortcuts-coverage AC-04, AC-07). Tab
+    // toggles the UI only on the canvas stage; elsewhere it moves focus.
+    if (action !== null) {
+      if (action === 'toggleUi' && !isStageTarget(e.target)) return;
+      if (runShortcut(action)) e.preventDefault();
       return;
     }
     // Escape drops a gesture in progress; with none, it deselects
@@ -748,6 +770,54 @@
         return true;
       case 'shortcuts':
         openOverview();
+        return true;
+      case 'toggleUi':
+        toggleUi();
+        return true;
+      default:
+        return runLayerShortcut(action);
+    }
+  }
+
+  /**
+   * Layer, transform and opacity keys: they run what their menu items run,
+   * and where the item is disabled they do nothing (AC-16).
+   */
+  function runLayerShortcut(action: ReturnType<typeof actionFor>): boolean {
+    if (action === null || editor.handle === null) return false;
+    const active = editor.activeLayer;
+    if (OPACITY_ACTIONS.includes(action as OpacityAction)) {
+      tool.opacity = opacityPercent(action as OpacityAction);
+      return true;
+    }
+    switch (action) {
+      case 'newLayer':
+        addLayer();
+        return true;
+      case 'duplicateLayer':
+        duplicateLayer(active);
+        return true;
+      case 'deleteLayer':
+        if (canDeleteLayer(editor.layers, active)) deleteLayer(active);
+        return true;
+      case 'mergeDown':
+        if (canMergeDown(editor.layers, active)) mergeDown(active);
+        return true;
+      case 'layerAbove':
+      case 'layerBelow': {
+        const order = treeOrder(editor.layers);
+        const at = order.indexOf(active);
+        const next = at < 0 ? undefined : order[at + (action === 'layerAbove' ? -1 : 1)];
+        if (next !== undefined) selectLayer(next);
+        return true;
+      }
+      case 'flipLayerH':
+      case 'flipLayerV':
+        layerEdit(true, () => transformLayer(action === 'flipLayerH' ? 'flip_h' : 'flip_v'));
+        return true;
+      case 'rotateCw':
+      case 'rotateCcw':
+        rotateCanvas(action === 'rotateCw' ? 'cw90' : 'ccw90');
         return true;
       default:
         return false;
@@ -894,8 +964,18 @@
         { label: t('menu.flipH'), disabled: !hasDoc, run: () => flipCanvas(true) },
         { label: t('menu.flipV'), disabled: !hasDoc, run: () => flipCanvas(false) },
         { kind: 'separator' },
-        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateCanvas('cw90') },
-        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateCanvas('ccw90') },
+        {
+          label: t('menu.rotateCw'),
+          shortcut: hint('rotateCw'),
+          disabled: !hasDoc,
+          run: () => rotateCanvas('cw90'),
+        },
+        {
+          label: t('menu.rotateCcw'),
+          shortcut: hint('rotateCcw'),
+          disabled: !hasDoc,
+          run: () => rotateCanvas('ccw90'),
+        },
         { label: t('menu.rotate180'), disabled: !hasDoc, run: () => rotateCanvas('rotate_180') },
         { kind: 'separator' },
         {
@@ -911,10 +991,11 @@
       id: 'layer',
       label: t('menu.layer'),
       items: [
-        { label: t('menu.newLayer'), disabled: !hasDoc, run: addLayer },
+        { label: t('menu.newLayer'), shortcut: hint('newLayer'), disabled: !hasDoc, run: addLayer },
         { label: t('menu.newGroup'), disabled: !hasDoc, run: addGroup },
         {
           label: t('menu.duplicateLayer'),
+          shortcut: hint('duplicateLayer'),
           disabled: !hasDoc,
           run: () => duplicateLayer(editor.activeLayer),
         },
@@ -928,12 +1009,14 @@
         },
         {
           label: t('menu.deleteLayer'),
+          shortcut: hint('deleteLayer'),
           disabled: !canDeleteLayer(editor.layers, editor.activeLayer),
           run: () => deleteLayer(editor.activeLayer),
         },
         { kind: 'separator' },
         {
           label: t('menu.mergeDown'),
+          shortcut: hint('mergeDown'),
           disabled: !canMergeDown(editor.layers, editor.activeLayer),
           run: () => mergeDown(editor.activeLayer),
         },
@@ -947,11 +1030,13 @@
         { kind: 'separator' },
         {
           label: t('menu.flipH'),
+          shortcut: hint('flipLayerH'),
           disabled: !hasDoc,
           run: () => layerEdit(true, () => transformLayer('flip_h')),
         },
         {
           label: t('menu.flipV'),
+          shortcut: hint('flipLayerV'),
           disabled: !hasDoc,
           run: () => layerEdit(true, () => transformLayer('flip_v')),
         },
@@ -1002,6 +1087,7 @@
           run: () => viewCommands.actual(),
         },
         { kind: 'separator' },
+        { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
         { kind: 'separator' },
         languageMenu(),
