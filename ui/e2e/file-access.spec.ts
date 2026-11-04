@@ -272,6 +272,28 @@ test.describe('File System Access', () => {
       expect(await pickerCalls(page, 'save')).toHaveLength(1);
     });
 
+    test(`${mode}: a cancelled Save or Save As leaves the document unsaved`, async ({ page }) => {
+      await gotoStart(page);
+      await fakeFileHandles(page, {});
+      const name = mode === 'pixel' ? 'pincel.aseprite' : 'image.ora';
+      await createDocument(page, mode);
+      await fakeFs(page, { savePick: null });
+      await edit(page, mode);
+      await expect(unsaved(page, name)).toBeVisible();
+
+      await menu(page, 'File', 'Save');
+      await expect.poll(async () => (await pickerCalls(page, 'save')).length).toBe(1);
+      await expect(unsaved(page, name)).toBeVisible();
+
+      await menu(page, 'File', 'Save As…');
+      if (mode === 'image') {
+        await page.getByRole('dialog', { name: 'Save As' }).getByRole('button', { name: 'Save' }).click();
+      }
+      await expect.poll(async () => (await pickerCalls(page, 'save')).length).toBe(2);
+      await expect(unsaved(page, name)).toBeVisible();
+      expect(await writes(page)).toEqual([]);
+    });
+
     test(`AC-07: ${mode}: a denied write permission falls back to the save picker`, async ({
       page,
     }) => {

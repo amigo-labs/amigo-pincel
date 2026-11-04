@@ -13,9 +13,9 @@ import {
   isPngBytes,
   mimeFromName,
   pickAndOpen,
-  saveBytes,
   saveExport,
   sniffFormat,
+  writeTarget,
 } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
@@ -165,7 +165,9 @@ export async function save(opts: { forceAs?: boolean } = {}) {
   file.busy = true;
   try {
     const bytes = new Uint8Array(ed.doc.saveAseprite());
-    const next = await saveBytes(bytes, file.saveTarget, { forceAs });
+    const next = await writeTarget(bytes, file.saveTarget, { forceAs });
+    // A cancelled save picker or dialog wrote nothing: still unsaved.
+    if (next === null) return;
     file.saveTarget = next;
     ed.lastSavedUndoDepth = ed.doc.undoDepth;
     ed.status = t('px.saved', { bytes: bytes.length, name: next.name });
@@ -258,7 +260,7 @@ export async function openRecent(r: RecentFile) {
       nextTarget = { name: r.name, handle: null, path: r.path };
     } else if (r.handle) {
       // Read access is enough to open. The next save will prompt
-      // for write via `saveBytes` → `ensureReadWritePermission`.
+      // for write via `writeTarget` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
         shell.notice(t('shell.permissionDenied', { name: r.name }));
         return;

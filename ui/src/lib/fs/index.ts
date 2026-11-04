@@ -146,7 +146,7 @@ export type ProjectFormat = 'aseprite' | 'ora';
 /** Raster formats an Image-mode document is saved back to (no GIF encoder). */
 export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff';
 
-/** Everything `saveBytes` writes: the project formats and, for Image-mode
+/** Everything `writeTarget` writes: the project formats and, for Image-mode
  *  Save back to the opened file, its raster formats. */
 export type SaveFormat = ProjectFormat | ImageSaveFormat;
 
@@ -502,22 +502,11 @@ function openViaInput(kind: PickKind): Promise<OpenedFile | null> {
  *  3. Fallback: trigger a Blob + anchor download named `target.name`.
  *
  * Returns the (possibly updated) target so the caller can persist the
- * fresh handle for subsequent in-place saves. On user cancel of the
- * save-as picker, returns the original target unchanged. */
-export async function saveBytes(
-  // ArrayBuffer-backed (not ArrayBufferLike): the FSA `write()` and
-  // `Blob` ctors reject SharedArrayBuffer-compatible views under
-  // current lib.dom typings. Callers copy through `new Uint8Array(…)`
-  // before invoking, which narrows the buffer type.
-  bytes: Uint8Array<ArrayBuffer>,
-  target: SaveTarget,
-  opts: { forceAs?: boolean; format?: SaveFormat } = {},
-): Promise<SaveTarget> {
-  return (await writeTarget(bytes, target, opts)) ?? target;
-}
-
-/** `saveBytes`, but resolves `null` when the user cancelled the save
- *  picker / dialog, so the caller can keep the document unsaved. */
+ * fresh handle for subsequent in-place saves, or `null` when the user
+ * cancelled the save picker / dialog: nothing was written and the
+ * document stays unsaved (docs/specs/file-access.md, Decisions
+ * 2026-11-04). `bytes` is ArrayBuffer-backed: the FSA `write()` and
+ * `Blob` ctors reject SharedArrayBuffer-compatible views. */
 export async function writeTarget(
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,
