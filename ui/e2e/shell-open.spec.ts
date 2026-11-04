@@ -303,6 +303,24 @@ test.describe('input fallback', () => {
     await expect(page.getByTitle('photo.jpeg — unsaved changes')).toBeVisible();
     await notice.getByRole('button', { name: 'Dismiss' }).click();
     await expect(notice).toHaveCount(0);
+
+    // The Pixel editor's own File ▸ Open…: the same notice, the sprite stays.
+    await gotoStart(page);
+    await openFromStart(page, 'hero.aseprite', await sprite(), 'application/octet-stream');
+    await expectEditor(page, 'pixel', [32, 24]);
+    await edit(page, 'pixel');
+    const openUnknownInPixel = async () => {
+      await menu(page, 'File', 'Open…');
+      await page.getByRole('button', { name: 'Discard changes' }).click();
+    };
+    await choose(page, openUnknownInPixel, {
+      name: 'notes.txt',
+      mimeType: 'text/plain',
+      buffer: junk,
+    });
+    await expect(notice).toBeVisible();
+    await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   });
 });
 

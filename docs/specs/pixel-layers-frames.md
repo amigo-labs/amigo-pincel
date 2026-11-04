@@ -110,7 +110,6 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-
 ## Evidence
 
 | AC    | Test | Status | Commit |

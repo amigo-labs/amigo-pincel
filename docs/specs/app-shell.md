@@ -94,8 +94,6 @@ Hints, not contracts — paths drift; grep for the names.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- AC-12 and the Pixel editor's own File ▸ Open…: an unknown file there falls through to the sprite decoder, and only the status bar reports the decoder's error — no dismissable notice naming the file. AC-12 does not say whether it covers this entry point (AC-09 lists the shell's, AC-11 the Pixel editor's own). The test covers the shell entry points only; should the Pixel editor's Open… also show the shell notice?
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -123,6 +121,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-21 | `ui/e2e/help.spec.ts › pixel mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › image mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › the start screen reaches About without a menu bar` | built | |
 
 ## Decisions
+
+- 2026-11-04 — AC-12 covers the Pixel editor's own File ▸ Open… too: an unknown file there now goes to the shell like a foreign format, which shows the notice naming it and leaves the open sprite as it was, instead of the sprite decoder's error in the status bar. The AC-12 e2e test gained that entry point and was red before.
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
 - 2026-11-03: Test gaps closed for AC-01, AC-05, AC-06, AC-08 to AC-16, AC-18 and AC-20 (`ui/e2e/shell.spec.ts`, `ui/e2e/shell-open.spec.ts`). Each test that was green at once was run red against a deliberate break, then reverted: About hidden on the start screen (AC-01), sprite height forced to its width (AC-05), the New dialog keeping the size on a mode switch (AC-08), mode routing swapped (AC-09), name before signature (AC-10), PNG handed over from the Pixel editor (AC-11), an unknown file launched in Image mode (AC-12), the image wasm fetched in a Pixel session (AC-13), both unsaved guards skipped (AC-14), `beforeunload` never / always asking (AC-15), the unsaved tooltip dropped (AC-16), layout prefs not stored (AC-18), `isTypingTarget` false for text inputs and the New dialog not stopping key propagation (AC-20).

@@ -117,10 +117,11 @@ export async function openDocInner() {
   }
   if (!opened) return;
   // Anything that is neither a sprite nor a PNG belongs to the Image
-  // mode; the shell re-routes it (unknown bytes fall through so the
-  // codec error below names the problem).
+  // mode, and an unknown file gets the shell's notice naming it
+  // (app-shell AC-11, AC-12): the shell routes both and leaves the open
+  // document alone when nothing can open the file.
   const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
-  if (format !== null && format !== 'aseprite' && format !== 'png') {
+  if (format !== 'aseprite' && format !== 'png') {
     shell.openForeign(opened);
     return;
   }
