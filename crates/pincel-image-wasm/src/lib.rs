@@ -805,6 +805,54 @@ mod paste_tests {
 }
 
 #[cfg(test)]
+mod effect_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    fn gray_row(values: [u8; 4]) -> ImageBuffer {
+        let data = values.iter().flat_map(|&v| [v, v, v, 255]).collect();
+        ImageBuffer::from_raw(4, 1, data).expect("row")
+    }
+
+    /// adjustments-paintnet AC-05 / AC-10 in the Image editor: Auto-Level
+    /// takes its range from the selection, changes only the selected pixels
+    /// of the target layer, and is one undo step.
+    #[test]
+    fn apply_effect_auto_level_stretches_the_selection_only() {
+        let mut doc = Document::new(4, 1).expect("doc");
+        doc.add_layer("top").expect("layer");
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(SetPixels::new(
+            0,
+            Rect::new(0, 0, 4, 1),
+            gray_row([0, 80, 160, 255]),
+        )))
+        .expect("paint");
+        bus.apply(Box::new(SetPixels::new(
+            1,
+            Rect::new(0, 0, 4, 1),
+            gray_row([40, 40, 200, 200]),
+        )))
+        .expect("paint");
+        bus.document.selection = Some(SelectionMask::rectangle(4, 1, Rect::new(1, 0, 2, 1)));
+        let other_layer = bus.document.layers()[1].pixels.clone();
+        let depth = bus.history.undo_depth();
+        let handle = insert(bus);
+
+        assert!(apply_effect(handle, 0, "auto_level", &[]).expect("apply"));
+        with_bus(handle, |bus| {
+            let px = bus.document.layers()[0].pixels.data().to_vec();
+            let reds: Vec<u8> = px.iter().step_by(4).copied().collect();
+            assert_eq!(reds, [0, 0, 255, 255], "80 / 160 stretch to 0 / 255");
+            assert_eq!(bus.document.layers()[1].pixels, other_layer, "other layer");
+            assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+            Ok(())
+        })
+        .expect("bus");
+    }
+}
+
+#[cfg(test)]
 mod region_tests {
     use super::*;
 
