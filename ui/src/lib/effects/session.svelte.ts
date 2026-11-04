@@ -34,3 +34,14 @@ export class EffectSession {
     this.lastEdited = {};
   }
 }
+
+/** The mounted editor's way to cancel its open effect; `null` while none
+ *  is open. The shell calls `cancelActiveEffect` before an unsaved-changes
+ *  prompt or a document switch, so the preview never outlives its
+ *  document (effect-panel AC-17). */
+export const activeEffect: { cancel: (() => void) | null } = { cancel: null };
+
+/** Cancels the open effect of the mounted editor, if any. */
+export function cancelActiveEffect(): void {
+  activeEffect.cancel?.();
+}

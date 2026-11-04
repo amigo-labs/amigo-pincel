@@ -27,7 +27,7 @@ import type {
 } from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { disposeDoc, resetDocViewState } from './doc-ops';
-import { afterImageCommand } from './image-ops';
+import { afterImageCommand, endOpenEffect } from './image-ops';
 import { dialogs, ed, file } from './stores/editor.svelte';
 
 /** Shell callbacks this module serves (`EditorProps`). */
@@ -72,6 +72,9 @@ export const recentsAvailable = (fsAccessAvailable || tauriHost) && idbAvailable
 // Run `action` immediately when the document is clean; otherwise park
 // it behind the inline "discard unsaved changes?" confirm dialog.
 export function guardUnsaved(action: () => void) {
+  // The open effect's preview is not part of the document: end it before
+  // the prompt or the switch (effect-panel AC-17).
+  endOpenEffect();
   if (!isDocDirty()) {
     action();
     return;

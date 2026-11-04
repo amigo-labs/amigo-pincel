@@ -51,22 +51,26 @@ export function previewEffectParams(params: number[]) {
 export function applyEffectParams(params: number[]) {
   if (!ed.doc || !dialogs.effect) return;
   const def = dialogs.effect.def;
-  dialogs.effect = null;
+  let changed: boolean;
   try {
-    if (ed.doc.applyEffect(def.id, Float64Array.from(params))) {
-      live.needsRecompose = true;
-      syncMeta();
-      ed.docRev += 1;
-      ed.status = t('px.effectApplied', { effect: effectLabel(def) });
-    } else {
-      ed.status = t('px.effectOutside', { effect: effectLabel(def) });
-      recompose();
-    }
+    changed = ed.doc.applyEffect(def.id, Float64Array.from(params));
   } catch (err) {
+    // The panel stays open with its values; the document is unchanged
+    // (effect-panel AC-16).
     ed.status = t('px.effectFailed', {
       effect: effectLabel(def),
       error: err instanceof Error ? err.message : String(err),
     });
+    return;
+  }
+  dialogs.effect = null;
+  if (changed) {
+    live.needsRecompose = true;
+    syncMeta();
+    ed.docRev += 1;
+    ed.status = t('px.effectApplied', { effect: effectLabel(def) });
+  } else {
+    ed.status = t('px.effectOutside', { effect: effectLabel(def) });
     recompose();
   }
 }
@@ -74,6 +78,12 @@ export function applyEffectParams(params: number[]) {
 export function cancelEffect() {
   dialogs.effect = null;
   recompose();
+}
+
+/** Cancels the open effect, if any, before the document is replaced or
+ *  an unsaved-changes prompt shows (effect-panel AC-17). */
+export function endOpenEffect() {
+  if (dialogs.effect) cancelEffect();
 }
 
 export function afterImageCommand(label: string) {

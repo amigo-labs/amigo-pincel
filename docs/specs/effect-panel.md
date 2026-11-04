@@ -93,7 +93,7 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | ----- | ---- | ------ | ------ |
 | AC-01 | `pixel: …` / `image: the effect panel is the topmost sidebar panel, clear of the canvas (AC-01)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-02 | `a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-03 |      | open   |        |
+| AC-03 | `pixel: …` / `image: other panels are inert and the canvas only zooms and pans (AC-03)` — `ui/e2e/effect-panel-input.spec.ts`; `point: Pick on canvas sets the point without a tool stroke (AC-11)` — `ui/e2e/effect-params.spec.ts` | built |        |
 | AC-04 | `pixel: …` / `image: OK applies and Cancel, × and Escape leave the document alone (AC-04)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-05 | `pixel: …` / `image: choosing an effect while one is open restarts at the defaults (AC-05)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-06 | `pixel: …` / `image: focus goes to the first control, or OK, and back to the canvas area (AC-06)` — `ui/e2e/effect-panel.spec.ts` | built |        |
@@ -106,8 +106,8 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | AC-13 | `phone › the bottom sheet gets a selected tab for the effect (AC-13)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-14 | `resizing across layouts keeps the effect and its values (AC-14)` — `ui/e2e/effect-panel.spec.ts` | built |        |
 | AC-15 | `German UI › close button, splitter and sheet tab are German (AC-15)` — `ui/e2e/effect-panel.spec.ts` | built |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-16 | `pixel: …` / `image: a failing effect keeps the panel and its values (AC-16)` — `ui/e2e/effect-panel-input.spec.ts` | built |        |
+| AC-17 | `pixel: …` / `image: a save while an effect is open writes the document without the preview (AC-17)`; `pixel: …` / `image: the unsaved-changes prompt cancels the open effect first (AC-17)`; `pixel: opening a file while an effect is open cancels the effect (AC-17)`; `image: an autosave while an effect is open stores the document without the preview (AC-17)` — `ui/e2e/effect-panel-input.spec.ts` | built |        |
 
 ## Decisions
 
@@ -120,3 +120,9 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 - 2026-11-04 (spec-build): On close, focus goes to the frame's `<main>` canvas area (`tabindex="-1"`), the one element both editors share.
 - 2026-11-04 (spec-build): The splitter is a 4 px strip that replaces the sidebar's 1 px left border. Its input lives in a Svelte attachment (`ui/src/lib/components/layout/splitter.ts`): a focusable `role="separator"` is a widget in WAI-ARIA's window-splitter pattern, but Svelte's a11y check counts `separator` as non-interactive and flags `tabindex` / handlers on it in markup; the attachment avoids a suppression without dropping the role AC-09 asks for.
 - 2026-11-04 (spec-build): The width limits follow `window.innerWidth` (tracked in `viewport.svelte.ts`); half the window is floored to whole px.
+- 2026-11-04 (spec-build): Pixel mode had no middle-button pan; AC-03 lists it among the gestures that keep working, so Pixel mode now pans on a middle-button drag everywhere, as Image mode already did.
+- 2026-11-04 (spec-build): While an effect is open the Pixel canvas starts only pinch, Space-drag and middle-button pans — the Move tool's pan fallback counts as tool input and is blocked; in Image mode the Hand and Zoom tools stay usable, since they move the view only (they are served before the guard in `MainCanvas.svelte`).
+- 2026-11-04 (spec-build): `effect-params.spec.ts` (effect-catalog-v2 AC-11) checked that the Pencil paints while the dialog is open and picking is off. AC-03 here replaces that behaviour; the step now expects no stroke while the panel is open and a stroke after Cancel.
+- 2026-11-04 (spec-build): The shell's `guard()` (`App.svelte`) — the one path of New, Open, Open Recent, open-file events and Paste as New Image, native menu included — cancels the open effect through `cancelActiveEffect()` (`lib/effects/session.svelte.ts`), which the mounted editor registers while an effect is open. Pixel mode's own `guardUnsaved` and `disposeDoc`, and Image mode's watch on the document handle, cover replacements inside an editor.
+- 2026-11-04 (spec-build): Saves and autosaves never contained the preview (both cores preview without mutating the document); the AC-17 save and autosave tests were green at once after fixing their own setup and pin that behaviour.
+- 2026-11-04 (spec-build): A failed run shows "{effect} failed: {error}" / "Preview failed: {error}" (existing `px.effectFailed` / `status.failed` strings); Image mode clears its failure notice on the next successful preview or apply. A failed OK leaves the preview as it was.

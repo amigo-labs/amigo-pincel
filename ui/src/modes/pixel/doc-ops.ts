@@ -61,6 +61,8 @@ export function selectAction(action: SelectAction, radius = 1) {
 // `Document` before replacing it avoids leaking memory across
 // repeated New / Open operations. Safe to call when `doc` is null.
 export function disposeDoc() {
+  // An effect open on the old document ends with it (effect-panel AC-17).
+  dialogs.effect = null;
   if (ed.doc) {
     ed.doc.free();
     ed.doc = null;

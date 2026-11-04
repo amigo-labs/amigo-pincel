@@ -14,6 +14,7 @@
   import PalettePanel from './components/PalettePanel.svelte';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import { effectLabel } from '../../lib/effects/labels';
+  import { activeEffect } from '../../lib/effects/session.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
@@ -597,6 +598,16 @@
       live.renderer?.destroy();
       live.renderer = null;
       disposeDoc();
+    };
+  });
+
+  // The shell cancels the open effect before its unsaved-changes prompt
+  // or a document switch (effect-panel AC-17).
+  $effect(() => {
+    if (!dialogs.effect) return;
+    activeEffect.cancel = cancelEffect;
+    return () => {
+      if (activeEffect.cancel === cancelEffect) activeEffect.cancel = null;
     };
   });
 

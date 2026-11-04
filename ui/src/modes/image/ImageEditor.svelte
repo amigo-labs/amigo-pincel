@@ -84,7 +84,7 @@
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
   import type { EffectDef } from '../../lib/effects/catalog';
-  import { EffectSession } from '../../lib/effects/session.svelte';
+  import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import {
     NATIVE_MENU_ACTIONS,
     actionFor,
@@ -640,6 +640,44 @@
     effectOpen = null;
   }
 
+  // The notice of the last failed effect run, cleared by the next success.
+  let effectFailure: string | null = null;
+
+  /** Runs a preview or apply; on failure shows the error in the notice line
+   *  and returns `null` — the document is unchanged (effect-panel AC-16). */
+  function runEffect<T>(run: () => T, action: string): T | null {
+    try {
+      const result = run();
+      if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
+      effectFailure = null;
+      return result;
+    } catch (err) {
+      effectFailure = t('status.failed', {
+        action,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      editor.notice = effectFailure;
+      return null;
+    }
+  }
+
+  // The preview is not part of the document (AC-17): the shell cancels the
+  // open effect before its unsaved-changes prompt or a document switch
+  // (`cancelActiveEffect`), and a document replaced in place ends it too.
+  $effect(() => {
+    if (!effectOpen) return;
+    activeEffect.cancel = closeEffect;
+    return () => {
+      if (activeEffect.cancel === closeEffect) activeEffect.cancel = null;
+    };
+  });
+  let effectHandle: number | null = null;
+  $effect(() => {
+    const handle = editor.handle;
+    if (handle !== effectHandle && effectOpen) closeEffect();
+    effectHandle = handle;
+  });
+
   // Menu bar (spec §9.2): the same menus, order and labels as Pixel mode;
   // entries Image mode lacks are simply absent.
   const menus: MenuDef[] = $derived([
@@ -877,10 +915,13 @@
         onPreview={(params) => {
           // An empty vector means "preview off": show the real composite.
           if (params.length === 0 && session.def.params.length > 0) clearEffectPreview();
-          else previewEffect(session.def.id, params);
+          else runEffect(() => previewEffect(session.def.id, params), t('act.preview'));
         }}
         onApply={(params) => {
-          if (!applyEffect(session.def.id, params)) {
+          const changed = runEffect(() => applyEffect(session.def.id, params), effectLabel(session.def));
+          // A failed effect keeps the panel open with its values (AC-16).
+          if (changed === null) return;
+          if (!changed) {
             editor.notice = t('fx.selectionEmpty', { effect: effectLabel(session.def) });
           }
           effectOpen = null;

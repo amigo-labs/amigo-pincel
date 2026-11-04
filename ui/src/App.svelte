@@ -33,6 +33,7 @@
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
   import { actionFor, isTypingTarget } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
+  import { cancelActiveEffect } from './lib/effects/session.svelte';
 
   type EditorModule = { default: Component<EditorProps> };
   // Dynamic imports keep each editor (and its wasm package) in its own
@@ -75,6 +76,9 @@
   // guard their own in-editor flows; this covers the shell's entry
   // points (native New / Open / Open Recent, open-file events).
   function guard(action: () => void) {
+    // An open effect's preview is not part of the document; end it before
+    // the prompt or the switch (effect-panel AC-17).
+    cancelActiveEffect();
     if (!session.dirty) {
       action();
       return;
