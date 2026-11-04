@@ -10,6 +10,7 @@ mod batch;
 mod bus;
 mod clear_region;
 mod dirty;
+mod draw_dither_gradient;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
@@ -61,6 +62,7 @@ pub use batch::CommandBatch;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
 pub use clear_region::ClearRegion;
 pub use dirty::DirtyRegion;
+pub use draw_dither_gradient::{DitherMatrix, DrawDitherGradient, GradientKind};
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
@@ -154,6 +156,7 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    DrawDitherGradient(DrawDitherGradient),
     ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
@@ -218,6 +221,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::DrawDitherGradient(c) => c.apply(doc, cels),
             Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
@@ -278,6 +282,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::DrawDitherGradient(c) => c.revert(doc, cels),
             Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
@@ -337,6 +342,7 @@ impl AnyCommand {
             (Self::DrawRectangle(a), Self::DrawRectangle(b)) => a.merge(b),
             (Self::DrawEllipse(a), Self::DrawEllipse(b)) => a.merge(b),
             (Self::FillRegion(a), Self::FillRegion(b)) => a.merge(b),
+            (Self::DrawDitherGradient(a), Self::DrawDitherGradient(b)) => a.merge(b),
             (Self::MoveSelectionContent(a), Self::MoveSelectionContent(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
@@ -367,6 +373,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.dirty_region(),
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
+            Self::DrawDitherGradient(c) => c.dirty_region(),
             Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
@@ -549,6 +556,12 @@ impl From<DrawRectangle> for AnyCommand {
 impl From<DrawEllipse> for AnyCommand {
     fn from(c: DrawEllipse) -> Self {
         Self::DrawEllipse(c)
+    }
+}
+
+impl From<DrawDitherGradient> for AnyCommand {
+    fn from(c: DrawDitherGradient) -> Self {
+        Self::DrawDitherGradient(c)
     }
 }
 

@@ -24,15 +24,16 @@ pub use codec::{
 pub use command::{
     AddEmptyCel, AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer,
     AddTileset, Anchor, AnyCommand, BrushShape, Bus, ClearRegion, Command, CommandBatch,
-    CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, DrawShape, DrawText,
-    DuplicateLayer, FillRegion, FlattenImage, Interpolation, LayerPlacement, MAX_BRUSH_SIZE,
-    MIN_BRUSH_SIZE, MergeDown, MoveDirection, MoveLayer, MoveLayerTo, MovePaletteEntry,
-    MoveSelectionContent, Orientation, PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush,
-    PlaceTile, PutCel, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice,
-    RemoveTag, ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration,
-    SetGrid, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
-    SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel,
-    ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
+    CommandError, DirtyRegion, DitherMatrix, DrawDitherGradient, DrawEllipse, DrawLine,
+    DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, GradientKind,
+    Interpolation, LayerPlacement, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, MergeDown, MoveDirection,
+    MoveLayer, MoveLayerTo, MovePaletteEntry, MoveSelectionContent, Orientation, PasteLayer,
+    PastedImage, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel, ReframeCanvas, RemoveFrame,
+    RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
+    ReplacePalette, ScaleImage, SetFrameDuration, SetGrid, SetLayerBlendMode, SetLayerEditable,
+    SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey,
+    SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle,
+    TextAlign, TextStyle, TransformCanvas, TransformCel,
 };
 
 pub use document::{

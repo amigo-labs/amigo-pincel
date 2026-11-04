@@ -100,25 +100,27 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-05 contradicts AC-04 (found by spec-build, 2026-11-04). With AC-04's per-pixel rule, column x's foreground count is the number of thresholds in matrix column `x mod n` above that column's `t`, and the threshold sets differ from one matrix column to the next. A 16-wide Bayer 4×4 ramp from column 0 to 15 on a 4-row sprite counts 4, 4, 3, **4**, … foreground pixels in columns 0–3 (matrix column 2 holds the indices {2, 14, 1, 13}, column 3 {10, 6, 9, 5}); for Bayer 2, 4 and 8 every such ramp longer than about 8 columns breaks "never increases". AC-04 is the decided rule (legacy plan), so AC-05 is skipped. A wording that holds: "the number of foreground pixels per block of n consecutive columns starting at a multiple of n never increases", or a density measured over whole n × n tiles.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-01 | `linear_before_start_is_foreground_and_past_end_is_background`, `linear_sixteen_wide_row_starts_foreground_and_ends_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-02 | `radial_start_is_foreground_and_beyond_the_radius_is_background` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-03 | `every_written_pixel_is_exactly_foreground_or_background`, `equal_colors_paint_every_target_pixel_that_color` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-04 | `bayer_threshold_decides_every_pixel`, `bayer_matrices_are_the_standard_ones`, `bayer8_on_a_small_sprite_uses_the_matching_part_of_the_matrix` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-06 | `none_matrix_splits_into_two_hard_bands_at_half` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-07 | `gradient_respects_selection_mask`, `gradient_respects_selection_rect` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-08 | `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-14 | `draw_every_kind_matches_the_pinned_output` (crates/pincel-image-core/src/tools/gradient.rs) | built | |
+| AC-15 | `without_selection_every_cel_pixel_on_the_canvas_is_written_and_the_cel_keeps_its_size` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 
 ## Decisions
 
@@ -128,4 +130,9 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 - 2026-10-29: A Decision Log entry records moving the linear / radial `t(px, py)` math from `pincel-image-core` into `pincel-effects` and the dithered Pixel Gradient tool (fg → bg, Bayer 2/4/8 or hard split, no new colors) in the `G` fill group, and `pincel.md` §5.2 gains a Gradient row — AGENTS.md §2.1, and §5.2 lists every Pixel tool (owner accepted the recommendation).
 - 2026-10-29: Indexed and grayscale cels are refused like `FillRegion` does (AC-13); writing palette indices comes later with indexed painting — indexed painting is Phase 2 (§3.7) and AGENTS.md §9 forbids mixing phases, while fg / bg-only output already creates no new colors in RGBA (owner accepted the recommendation).
 - 2026-10-29: Dithering through a palette range is a follow-up; this spec stays fg → bg and does not depend on `shading-ink` — it keeps the spec at size M and independent, and the ramp can later take N colors without changing the dither rule (owner accepted the recommendation).
+- 2026-11-04 (spec-build): `pincel-core` and `pincel-image-core` take `pincel-effects` (a workspace crate whose only dependency is `thiserror`) as a regular dependency — the Decision Log entry of 2026-10-29 has both cores call the shared math; no external crate is added.
+- 2026-11-04 (spec-build): The drag endpoints are sprite pixels sampled at their centres, so a pixel's offset from P0 is whole pixels and the pixel at P0 has `t = 0` exactly — the edge-case table's "column 0 foreground, column 15 background" then holds for every matrix.
+- 2026-11-04 (spec-build): A Bayer index `i` normalises to `(i + 0.5) / n²` and the hard split ("none") uses `0.5` — both strictly inside (0, 1), so `t = 0` is always foreground and `t = 1` always background (AC-01, AC-02).
+- 2026-11-04 (spec-build): `(x mod n, y mod n)` uses sprite coordinates, not cel-local ones — the pattern stays aligned across cels and layers.
+- 2026-11-04 (spec-build): AC-14 is proven by a characterization test that pins every Image-mode kind's output (Color and Transparency channel) before the math moved; it was green from the start by design and stays green after the move.
 - 2026-10-29: Without a selection the gradient covers the target cel's bounds clipped to the canvas and never grows the cel; a layer without a cel gets the usual canvas-sized cel (`ensure_paint_cel`) (AC-15) — Phase 1 never auto-grows cels, and trimmed cels only come from imported `.aseprite` files (owner accepted the recommendation).
