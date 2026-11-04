@@ -83,7 +83,7 @@
   import { tidy, type MenuDef } from '../../lib/components/layout/menu';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
-  import type { EffectDef } from '../../lib/effects/catalog';
+  import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import {
     NATIVE_MENU_ACTIONS,
@@ -632,7 +632,11 @@
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
     if (effectOpen) clearEffectPreview();
-    effectOpen = new EffectSession(def);
+    // Colour parameters start at the current colours (outline-effect AC-01).
+    effectOpen = new EffectSession(def, {
+      foreground: rgbaOf(tool.foreground),
+      background: rgbaOf(tool.background),
+    });
   }
 
   function closeEffect(): void {

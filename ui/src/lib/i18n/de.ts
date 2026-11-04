@@ -329,6 +329,7 @@ export const de: Record<MessageKey, string> = {
   'effect.sketch_blur': 'Skizzenhaftes Weichzeichnen',
   'effect.surface_blur': 'Oberflächen-Weichzeichner',
   'effect.zoom_blur': 'Zoom-Weichzeichnen',
+  'effect.outline': 'Objekt umranden',
   'effect.group.artistic': 'Künstlerisch',
   'effect.group.blurs': 'Weichzeichnen',
   'effect.group.color': 'Farbe',
@@ -411,6 +412,15 @@ export const de: Record<MessageKey, string> = {
   'fx.Rotation': 'Drehung',
   'fx.Percentile': 'Perzentil',
   'fx.Centered': 'Zentriert',
+  'fx.Place': 'Lage',
+  'fx.Outside': 'Außen',
+  'fx.Inside': 'Innen',
+  'fx.Both': 'Beides',
+  'fx.Shape': 'Form',
+  'fx.Circle': 'Kreis',
+  'fx.Square': 'Quadrat',
+  'fx.Thickness': 'Dicke',
+  'fx.Color': 'Farbe',
   'fx.outAt': 'Ausgabe bei {x}',
 
   // Effect dialog
@@ -427,6 +437,8 @@ export const de: Record<MessageKey, string> = {
   'effectDlg.reseed': 'Neu würfeln',
   'effectDlg.link': '{a} und {b} verknüpfen',
   'effectDlg.reset': 'Zurücksetzen',
+  'effectDlg.hex': '{label} als Hex',
+  'effectDlg.hexInvalid': '#RRGGBB oder #RRGGBBAA verwenden',
 
   // Tools
   'tool.hand': 'Verschieben (Ansicht)',

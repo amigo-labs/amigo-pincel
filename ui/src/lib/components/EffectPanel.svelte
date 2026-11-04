@@ -6,6 +6,7 @@
   import type { EffectSession } from '../effects/session.svelte';
   import { t } from '../i18n/index.svelte';
   import AngleDial from './AngleDial.svelte';
+  import EffectColorField from './EffectColorField.svelte';
   import IconButton from './layout/IconButton.svelte';
 
   // Docked panel for one open effect / adjustment (effect-panel spec); the
@@ -267,6 +268,12 @@
               </span>
             {/if}
           </fieldset>
+        {:else if p.kind === 'color'}
+          <EffectColorField
+            value={values[p.key] ?? 0}
+            label={fxText(p.label)}
+            onchange={(v) => (values[p.key] = v)}
+          />
         {:else if p.kind === 'seed'}
           <div class="flex items-center justify-between gap-2 text-xs text-pc-text">
             <span>{fxText(p.label)}</span>

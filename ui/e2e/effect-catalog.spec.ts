@@ -217,6 +217,17 @@ const PINS: Record<string, Pin> = {
       ['center_y', 100, [10, 0.5, 1]],
     ],
   },
+  // outline-effect: new, no previous vectors; the colour is one
+  // 0xRRGGBBAA slot (opaque black without an editor's foreground).
+  outline: {
+    defaults: [0, 1, 1, 0x000000ff],
+    changes: [
+      ['place', 2, [2, 1, 1, 0x000000ff]],
+      ['shape', 0, [0, 0, 1, 0x000000ff]],
+      ['thickness', 5, [0, 1, 5, 0x000000ff]],
+      ['color', 0xff8010c0, [0, 1, 1, 0xff8010c0]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {

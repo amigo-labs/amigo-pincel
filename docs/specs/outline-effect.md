@@ -92,19 +92,19 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-01 | `ui/e2e/outline-effect.spec.ts` `pixel mode: Outline Object opens with its defaults (AC-01)`, `image mode: …(AC-01)`, `the catalog sends the colour as one 0xRRGGBBAA slot…`; `ui/e2e/effect-menus.spec.ts` (Object submenu derived from the catalog) | built  |        |
+| AC-02 | `crates/pincel-effects/tests/outline_effect.rs` `outline_edges_and_alpha_one_follow_the_opaque_rule`; `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_clips_at_a_trimmed_cel` | built  |        |
+| AC-03 | `crates/pincel-effects/tests/outline_effect.rs` `outline_outside_square_colours_the_chebyshev_ring`, `outline_thickness_three_square_colours_a_seven_block`; `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_colours_the_neighbours_in_one_undo_step` | built  |        |
+| AC-04 | `crates/pincel-effects/tests/outline_effect.rs` `outline_outside_circle_colours_the_manhattan_ring` | built  |        |
+| AC-05 | `crates/pincel-effects/tests/outline_effect.rs` `outline_inside_recolours_the_opaque_border` | built  |        |
+| AC-06 | `crates/pincel-effects/tests/outline_effect.rs` `outline_colour_slot_is_rrggbbaa` (and every `check` case); `ui/e2e/outline-effect.spec.ts` `pixel mode: the colour takes hex text with alpha…` | built  |        |
+| AC-07 | `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_stays_in_the_selection`; `crates/pincel-image-wasm/src/lib.rs` `apply_effect_outline_blends_a_feathered_selection_by_coverage` | built  |        |
+| AC-08 | `ui/e2e/outline-effect.spec.ts` `pixel mode: the outline previews live, cancels, applies in one undo step (AC-08, AC-09)`, `image mode: …` | built  |        |
+| AC-09 | `ui/e2e/outline-effect.spec.ts` (same two tests); `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_colours_the_neighbours_in_one_undo_step`; `crates/pincel-image-wasm/src/lib.rs` `apply_effect_outline_colours_neighbours_and_undoes_in_one_step` | built  |        |
+| AC-10 | `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_errors_change_nothing` | built  |        |
+| AC-11 | `ui/e2e/outline-effect.spec.ts` `pixel mode: the colour takes hex text with alpha and refuses invalid text (AC-06, AC-11)`, `pixel mode: the native colour input keeps the alpha of the hex text` | built  |        |
+| AC-12 | `crates/pincel-effects/tests/outline_effect.rs` `outline_wire_clamps_thickness_and_rejects_bad_slots`; `crates/pincel-wasm/src/effects.rs` `apply_effect_outline_errors_change_nothing`; `crates/pincel-agent/src/pixel/effects.rs` `wire_params_outline_colour_is_one_rrggbbaa_slot` | built  |        |
+| AC-13 | `crates/pincel-effects/tests/outline_effect.rs` `outline_both_is_the_union_of_inside_and_outside` | built  |        |
 
 ## Decisions
 
@@ -116,3 +116,11 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: In Pixel mode the outline clips at the cel's edge and never grows a trimmed cel (AC-02) — Phase 1 never auto-grows cels (`MoveSelectionContent`), and trimmed cels only come from imported files (owner accepted the recommendation).
 - 2026-10-29: No alpha threshold parameter; opaque stays alpha > 0 — pixel art has hard alpha and the parameter would only add UI; it can be added later as an extra slot (owner accepted the recommendation).
 - 2026-11-04: The menu path becomes Effects ▸ Object ▸ Outline Object… (AC-01 reworded, still `open`) — because `effect-catalog-v2` adopts paint.net's submenus, paint.net 5 names its sprite-style outline "Outline Object" under Object, and Stylize ▸ Outline is paint.net's different edge effect (`effects-object-stylize-color-noise`). The entry appears in both modes.
+- 2026-11-04 (spec-build): Wire id `outline`, slots `[place, shape, thickness, color]` with place 0 / 1 / 2 = Outside / Inside / Both and shape 0 / 1 = Circle / Square (the dialog's option order); an unknown place index reads as Outside, an unknown shape index as Square (the defaults), thickness is rounded and clamped to 1–8 — because choices elsewhere fall back to their first option and the defaults keep a stray value harmless. `stylize_outline` stays free for paint.net's edge effect.
+- 2026-11-04 (spec-build): A bad colour slot is the new `EffectError::ColorSlot { effect, slot }` — because neither existing variant (unknown name, wrong count) describes it, and Drop Shadow / Clouds reuse it.
+- 2026-11-04 (spec-build): The effect lives in a new `pincel_effects::object` module (`Outline`, `OutlinePlace`, `OutlineShape`), named after paint.net's Object submenu; it runs t passes of 3×3 dilation (cross / full block) of the opaque set (Outside) and of the transparent set with everything beyond the edge in it (Inside).
+- 2026-11-04 (spec-build): The colour kind is `{ kind: 'color', default: 'foreground' | 'background' | 0xRRGGBBAA }`; `EffectSession` takes the editor's colours when it opens (Pixel: foreground hex + its alpha slider, Image: foreground hex, opaque) and Reset returns to them. Without an editor (`defaultValues(def)`) the sources fall back to opaque black / white.
+- 2026-11-04 (spec-build): The control is `EffectColorField.svelte`, rendered by `EffectPanel.svelte` for every colour parameter: a native colour input (RGB, keeps the current alpha) labelled with the parameter name, and a hex text field labelled "{label} hex" that accepts exactly `#RRGGBB` (opaque) or `#RRGGBBAA`, case-insensitive. Other text sets `aria-invalid="true"`, shows "Use #RRGGBB or #RRGGBBAA" and keeps the last valid colour (AC-11). German: Objekt umranden; Lage (Außen / Innen / Beides), Form (Kreis / Quadrat), Dicke, Farbe.
+- 2026-11-04 (spec-build): The agent catalog gets a `color` parameter kind (`#RRGGBB[AA]` strings, default `#000000FF` since the agent has no foreground colour) — because its tests require it to mirror `EFFECT_NAMES`.
+- 2026-11-04 (spec-build): AC-10 and the "changes nothing" half of AC-12 are proven in the Pixel core (`pincel-wasm`), where the refusal lives; Image mode's error path cannot run natively (`JsError` needs a wasm target), and it parses through the same `EffectSpec::from_params` first. The host tests were green at once — the hosts pass any spec through; the red runs were `pincel-effects` (unknown effect `outline`) and the agent's catalog mirror.
+- 2026-11-04 (spec-build): `pincel.md` §13.4 no longer lists the Outline filter, as the 2026-10-29 Decision Log entry says.

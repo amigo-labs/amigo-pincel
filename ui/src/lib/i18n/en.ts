@@ -322,6 +322,7 @@ export const en = {
   'effect.sketch_blur': 'Sketch Blur',
   'effect.surface_blur': 'Surface Blur',
   'effect.zoom_blur': 'Zoom Blur',
+  'effect.outline': 'Outline Object',
   'effect.group.artistic': 'Artistic',
   'effect.group.blurs': 'Blurs',
   'effect.group.color': 'Color',
@@ -404,6 +405,15 @@ export const en = {
   'fx.Rotation': 'Rotation',
   'fx.Percentile': 'Percentile',
   'fx.Centered': 'Centered',
+  'fx.Place': 'Place',
+  'fx.Outside': 'Outside',
+  'fx.Inside': 'Inside',
+  'fx.Both': 'Both',
+  'fx.Shape': 'Shape',
+  'fx.Circle': 'Circle',
+  'fx.Square': 'Square',
+  'fx.Thickness': 'Thickness',
+  'fx.Color': 'Color',
   'fx.outAt': 'Out @ {x}',
 
   // Effect dialog
@@ -420,6 +430,8 @@ export const en = {
   'effectDlg.reseed': 'Reseed',
   'effectDlg.link': 'Link {a} and {b}',
   'effectDlg.reset': 'Reset',
+  'effectDlg.hex': '{label} hex',
+  'effectDlg.hexInvalid': 'Use #RRGGBB or #RRGGBBAA',
 
   // Tools
   'tool.hand': 'Pan',

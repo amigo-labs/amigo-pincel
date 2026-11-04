@@ -7,7 +7,7 @@
 // id and lists its parameters in the exact order `applyEffect` /
 // `previewEffect` expect them. Choice parameters travel as their option
 // index, booleans as 0 / 1, a point as two fractions, a linked pair as two
-// numbers. Keep this table in step with the Rust enum; the
+// numbers, a colour as one 0xRRGGBBAA integer (Decision Log 2026-10-29). Keep this table in step with the Rust enum; the
 // `every_effect_name_is_accepted` test on the Rust side and
 // `assertCatalogCoversAllEffects` below guard the id set from each end.
 
@@ -32,6 +32,16 @@ export type EffectGroup = EffectSubmenu | 'adjust';
 
 /** The editor mode a menu is built for. */
 export type EffectMode = 'pixel' | 'image';
+
+/** Where a colour parameter starts: the editor's foreground or background
+ *  colour when the effect opens, or a fixed `0xRRGGBBAA`. */
+export type ColorDefault = 'foreground' | 'background' | number;
+
+/** The editor's colours as `0xRRGGBBAA`, for colour parameter defaults. */
+export type EffectColors = { readonly foreground: number; readonly background: number };
+
+/** Opaque black / opaque white: the colours when no editor supplies any. */
+export const FALLBACK_COLORS: EffectColors = { foreground: 0x000000ff, background: 0xffffffff };
 
 export type ParamDef =
   | {
@@ -74,7 +84,9 @@ export type ParamDef =
       max: number;
       step: number;
       default: number;
-    };
+    }
+  /** A colour with alpha (one wire slot holding `0xRRGGBBAA`). */
+  | { kind: 'color'; key: string; label: string; default: ColorDefault };
 
 export type EffectDef = {
   id: string;
@@ -127,6 +139,13 @@ const seed = (key: string, label: string, min: number, max: number, def: number)
   label,
   min,
   max,
+  default: def,
+});
+
+const color = (key: string, label: string, def: ColorDefault): ParamDef => ({
+  kind: 'color',
+  key,
+  label,
   default: def,
 });
 
@@ -451,6 +470,19 @@ export const EFFECTS: EffectDef[] = [
     modes: IMAGE,
     params: [num('amount', 'Amount', 1, 100, 10), center()],
   },
+  // docs/specs/outline-effect.md: a hard pixel-art outline.
+  {
+    id: 'outline',
+    label: 'Outline Object',
+    group: 'object',
+    modes: BOTH,
+    params: [
+      choice('place', 'Place', ['Outside', 'Inside', 'Both']),
+      choice('shape', 'Shape', ['Circle', 'Square'], 1),
+      num('thickness', 'Thickness', 1, 8, 1),
+      color('color', 'Color', 'foreground'),
+    ],
+  },
 ];
 
 /** English fallback names of the Effects submenus (`effect.group.<id>`). */
@@ -483,12 +515,46 @@ export function wrapAngle(deg: number): number {
   return ((deg % 360) + 360) % 360;
 }
 
+/** `true` for a colour value the wire accepts: an integer `0xRRGGBBAA`. */
+export function isColorValue(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 0xffffffff;
+}
+
+/** `#RRGGBB` (opaque) or `#RRGGBBAA` as `0xRRGGBBAA`; `null` for any other
+ *  text (outline-effect AC-11). */
+export function parseHexColor(text: string): number | null {
+  const m = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.exec(text.trim());
+  if (!m?.[1]) return null;
+  const hex = m[1].length === 6 ? `${m[1]}ff` : m[1];
+  return parseInt(hex, 16);
+}
+
+/** `0xRRGGBBAA` as lower-case `#rrggbbaa`. */
+export function formatHexColor(rgba: number): string {
+  return `#${(rgba >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+/** A `#rrggbb` colour plus an alpha 0–255 as `0xRRGGBBAA`. */
+export function rgbaOf(hex: string, alpha = 255): number {
+  const rgb = parseHexColor(hex);
+  const a = Math.min(255, Math.max(0, Math.round(alpha)));
+  // Arithmetic, not bitwise: `&` would turn a red above 0x7f negative.
+  return rgb === null ? a : rgb - (rgb % 256) + a;
+}
+
 /** Default value map for a definition (numbers; bools and the link
- *  toggle as 0/1; a point in percent). */
-export function defaultValues(def: EffectDef): Record<string, number> {
+ *  toggle as 0/1; a point in percent; a colour as `0xRRGGBBAA`, taken from
+ *  `colors` where it follows the foreground or background). */
+export function defaultValues(
+  def: EffectDef,
+  colors: EffectColors = FALLBACK_COLORS,
+): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of def.params) {
     switch (p.kind) {
+      case 'color':
+        out[p.key] = typeof p.default === 'number' ? p.default : colors[p.default];
+        break;
       case 'bool':
         out[p.key] = p.default ? 1 : 0;
         break;
@@ -525,6 +591,11 @@ export function toParams(def: EffectDef, values: Record<string, number>): number
         return [read(p.first.key, p.default), read(p.second.key, p.default)];
       case 'angle':
         return [wrapAngle(read(p.key, p.default))];
+      case 'color': {
+        const v = values[p.key];
+        const fallback = typeof p.default === 'number' ? p.default : FALLBACK_COLORS[p.default];
+        return [isColorValue(v) ? v : fallback];
+      }
       default:
         return [read(p.key, p.default)];
     }

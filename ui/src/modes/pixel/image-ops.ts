@@ -1,13 +1,13 @@
 // Image menu: effects, transforms, resize / scale, crop.
 
-import type { EffectDef } from '../../lib/effects/catalog';
+import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
 import { effectLabel } from '../../lib/effects/labels';
 import { EffectSession } from '../../lib/effects/session.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { ResizeResult } from './components/ResizeDialog.svelte';
 import type { TransformOp } from './menus';
 import { paintOverlays, recompose, syncMeta } from './render';
-import { dialogs, ed, live } from './stores/editor.svelte';
+import { colors, dialogs, ed, live } from './stores/editor.svelte';
 
 /** An Image-menu command. */
 export type ImageAction =
@@ -22,7 +22,11 @@ export type ImageAction =
 export function openEffect(def: EffectDef) {
   if (!ed.doc) return;
   if (dialogs.effect) recompose();
-  dialogs.effect = new EffectSession(def);
+  // Colour parameters start at the current colours (outline-effect AC-01).
+  dialogs.effect = new EffectSession(def, {
+    foreground: rgbaOf(colors.color, colors.alpha),
+    background: rgbaOf(colors.bgColor, colors.bgAlpha),
+  });
 }
 
 export function previewEffectParams(params: number[]) {
