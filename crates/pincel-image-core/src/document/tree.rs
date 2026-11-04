@@ -116,12 +116,6 @@ impl Document {
     }
 
     /// Whether any group the layer at `index` sits in (at any level) is
-    /// hidden; the layer's own flag is not considered.
-    pub fn hidden_by_parent(&self, index: usize) -> bool {
-        self.ancestors(index).any(|i| !self.layers[i].visible)
-    }
-
-    /// Whether any group the layer at `index` sits in (at any level) is
     /// locked; the layer's own flag is not considered.
     pub fn locked_by_parent(&self, index: usize) -> bool {
         self.ancestors(index).any(|i| self.layers[i].locked)

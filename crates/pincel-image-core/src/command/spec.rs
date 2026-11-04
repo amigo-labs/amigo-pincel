@@ -9,13 +9,13 @@
 use serde::Deserialize;
 
 use super::{
-    AddLayer, Anchor, Batch, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer,
-    FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection,
-    RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage,
-    SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetSelection,
-    TransformLayer,
+    AddGroup, AddLayer, Anchor, Batch, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer,
+    FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible, MoveLayer,
+    MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
+    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
+    SetSelection, TransformLayer,
 };
-use crate::document::Document;
+use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Eraser, EraserMode, Fill, FillOptions,
@@ -440,6 +440,17 @@ pub enum CommandSpec {
     MergeVisible,
     /// Flatten every layer onto an opaque white background.
     FlattenImage,
+    /// Add an empty group named `Group N` on top of the root stack.
+    AddGroup,
+    /// Move the layer at `index` (with its subtree) next to or into the
+    /// layer at `target`; `place` is `above`, `below` or `into`.
+    MoveLayerTo {
+        index: usize,
+        target: usize,
+        place: String,
+    },
+    /// Replace the group at `index` and its subtree with one raster layer.
+    MergeGroup { index: usize },
     /// Rectangular selection over `(x, y, w, h)` combined per `mode`.
     SelectRectangle {
         x: i32,
@@ -950,6 +961,20 @@ pub fn run_command(
         CommandSpec::MergeDown { index } => bus.apply(Box::new(MergeDown::at(index))),
         CommandSpec::MergeVisible => bus.apply(Box::new(MergeVisible::new())),
         CommandSpec::FlattenImage => bus.apply(Box::new(FlattenImage::new())),
+        CommandSpec::AddGroup => bus.apply(Box::new(AddGroup::on_top())),
+        CommandSpec::MoveLayerTo {
+            index,
+            target,
+            place,
+        } => {
+            let place = match place.as_str() {
+                "above" => LayerPlacement::Above,
+                "below" => LayerPlacement::Below,
+                _ => LayerPlacement::Into,
+            };
+            bus.apply(Box::new(MoveLayerTo::new(index, target, place)))
+        }
+        CommandSpec::MergeGroup { index } => bus.apply(Box::new(MergeGroup::at(index))),
         CommandSpec::SelectRectangle {
             x,
             y,
@@ -1339,6 +1364,38 @@ mod tests {
                 assert!(bus.undo().unwrap());
                 assert_eq!(bus.document.layers(), before.as_slice(), "{json}: undone");
             }
+        }
+
+        #[test]
+        fn group_wire_commands_add_move_and_merge_groups() {
+            let mut bus = bus();
+            let mut scratch = StrokeScratch::default();
+            let mut run = |bus: &mut CommandBus, json: &str| {
+                run_command(bus, parse(json), &mut scratch, &[]).expect(json);
+            };
+            run(&mut bus, r#"{"type":"add_group"}"#);
+            assert_eq!(bus.document.layers()[5].name, "Group 3");
+            assert_eq!(bus.document.active_layer_index(), 5);
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":0,"target":5,"place":"into"}"#,
+            );
+            assert_eq!(bus.document.layers()[4].name, "Group 3");
+            assert_eq!(bus.document.parent_index(5), Some(4));
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":5,"target":0,"place":"below"}"#,
+            );
+            assert_eq!(bus.document.layers()[0].name, "bg");
+            assert_eq!(bus.document.parent_index(0), None);
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":0,"target":1,"place":"above"}"#,
+            );
+            assert_eq!(bus.document.parent_index(4), None, "above the whole group");
+            run(&mut bus, r#"{"type":"merge_group","index":0}"#);
+            assert!(!bus.document.layers()[0].is_group());
+            assert!(bus.document.is_well_formed());
         }
 
         #[test]
