@@ -93,21 +93,23 @@ Hints, verified 2026-11-04; paths and line numbers drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- macOS Dock menu ▸ Quit (and a Quit from the system, e.g. the app switcher) sends `NSApplication terminate:` straight to the app: tao 0.35 implements no `applicationShouldTerminate:` and Tauri emits no close or exit request for it, so the UI cannot ask first and the app quits as before. File ▸ Quit / Cmd+Q are covered (custom `menu:quit` item). Covering the Dock Quit needs a native `applicationShouldTerminate:` hook on tao's app delegate (Objective-C runtime, `unsafe`, AGENTS.md §3.3) or an upstream tao / Tauri change. Decide: accept the gap (narrow AC-09's "Dock menu" to the window's own close), add the native hook, or wait for upstream.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `ui/e2e/unsaved-prompt.spec.ts`: "File ▸ Open… asks before the picker opens (AC-01)", "dropping a file onto an open editor asks first (AC-01)", New in every "… (AC-02)" / "… (AC-03)" test; `ui/e2e/paste-new-image.spec.ts`: "pixel: Paste as New Image asks about unsaved changes first (AC-23)"; `ui/e2e/unsaved-close.spec.ts` (mocked Tauri bridge): "a file handed over by the OS asks first (AC-01)", "Open Recent asks first, from both editors; a missing recent shows its error (AC-01, AC-11)" | built | |
 | AC-02 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: the prompt names the document and offers Save, Don't Save, Cancel (AC-02)", "keys pressed while the prompt is open reach neither editor nor menus (AC-02)", "Enter on Don't Save runs the pending action (AC-02, AC-05)" | built | |
 | AC-03 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Save saves like File ▸ Save, then runs the action (AC-03)", "Save counts as done once the download is handed over, without file-system access (AC-03)" | built | |
 | AC-04 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: a cancelled save from the prompt keeps the document and skips the action (AC-04)", "{pixel,image}: a failed save from the prompt shows File ▸ Save's error and skips the action (AC-04)" | built | |
 | AC-05 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Don't Save runs the action; cancelling the New dialog keeps the document (AC-05)"; `ui/e2e/recovery.spec.ts`: "a discarded document is not offered again, on New or after a reload" | built | |
 | AC-06 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Cancel keeps the document, its history and its marker (AC-06)", Escape in "… offers Save, Don't Save, Cancel (AC-02)" | built | |
 | AC-07 | `ui/e2e/unsaved-prompt.spec.ts`: "a clean document runs every action at once (AC-07)" | built | |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-08 | `ui/e2e/unsaved-close.spec.ts`: "closing with unsaved changes asks; Cancel keeps the app running (AC-09, AC-06)" (second close ignored);      | open   |        |
+| AC-09 | automated against a mocked Tauri bridge in `ui/e2e/unsaved-close.spec.ts`: "closing with unsaved changes asks; Cancel keeps the app running", "Don't Save closes the app and recovery never offers the work", "Save closes the app once the save succeeded", "a dismissed save picker keeps the app open", "without unsaved changes, or on the start screen, the app closes at once", "macOS Quit (menu:quit) asks like a window close"; manual check on Windows / macOS / Linux still open | built | |
+| AC-10 | automated against a mocked Tauri bridge in `ui/e2e/unsaved-close.spec.ts`: "a close during a running save waits for it, then closes (AC-10)", "a close during a save that fails asks after it (AC-10)"; manual check still open | built | |
+| AC-11 | `ui/e2e/unsaved-prompt.spec.ts`: "a dropped file that cannot be opened shows its error and no prompt (AC-11)", "clipboard › Paste as New Image with no image on the clipboard shows no prompt (AC-11)", "a file picked after Don't Save that cannot be opened leaves the document as it was (AC-11)"; `ui/e2e/unsaved-close.spec.ts`: "a handed-over file that cannot be read shows its error and no prompt (AC-11)", "Open Recent asks first, from both editors; a missing recent shows its error (AC-01, AC-11)" | built | |
 | AC-12 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: dismissing the Save As picker reports no failure (AC-12)" | built | |
 | AC-13 | `ui/e2e/unsaved-prompt.spec.ts`: "German › the prompt speaks German (AC-13)" (strings `shell.unsavedChanges`, `shell.saveChangesTo`, `shell.save`, `shell.dontSave`, `common.cancel` in `ui/src/lib/i18n/{en,de}.ts`) | built | |
 
@@ -122,4 +124,9 @@ Hints, verified 2026-11-04; paths and line numbers drift.
 - 2026-11-04: Pixel-mode Save now writes through `writeTarget` and treats a dismissed picker as "nothing written" — before, `saveBytes` returned the old target on cancel and the document was marked saved without being written. Image mode already did this; its AC-12 test was green on the first run.
 - 2026-11-04: Dropping a file onto an open editor is new: the shell listens for file drops on the window while an editor is mounted (before, only the start screen took drops). In the desktop app the webview's own drag-drop handling (Tauri `dragDropEnabled`, default on) may keep HTML drops from arriving at all — unchanged by this spec, as for the start screen.
 - 2026-11-04: "A file picked in File ▸ Open… that cannot be opened" (AC-11) is checked for unreadable and unrecognized files, as everywhere in the shell; a file whose format is recognized but whose content is corrupt still replaces the editor with its error, as before.
+- 2026-11-04: Desktop close: the shell registers `getCurrentWindow().onCloseRequested`, always prevents the default close and decides itself (`ui/src/lib/shell/close-guard.ts`), closing with `destroy()` (`core:window:allow-destroy` added to `src-tauri/capabilities/default.json`). macOS File ▸ Quit is a custom `menu:quit` item (Cmd+Q) instead of the predefined one, handled by the shell like a close request. Reason: the spec's technical notes; the predefined Quit exits without a close request.
+- 2026-11-04: After Don't Save on close, dropping the autosave snapshot waits at most 2 s, then the window closes anyway. Reason: "closing must never hang on a storage error" (Edge cases).
+- 2026-11-04: A close request while an earlier one waits for a running save is ignored, like a second close while the prompt is open. Reason: AC-08's rule, applied to the waiting state.
+- 2026-11-04: The desktop paths (close, Quit, OS hand-over, Open Recent by path) are automated in Playwright against a mocked `__TAURI_INTERNALS__` bridge (IPC answers, virtual disk, emitted events); the real window on each OS stays the manual part of AC-09 / AC-10. Reason: the browser e2e has no Tauri runtime.
+- 2026-11-04: Re-opening a recent through the shell (Image mode's Open Recent, or a recent of the other mode) lists it again under a new id — behavior from before this spec, not changed here; the e2e test clicks the first of the duplicate rows.
 - 2026-11-04: Pixel mode's own Open Recent reads the file first; a recent of another format goes to the shell (which recognizes it and asks), an `.aseprite` asks and then opens in place. Reason: AC-01 / AC-11 want the prompt only for a file that can be opened.

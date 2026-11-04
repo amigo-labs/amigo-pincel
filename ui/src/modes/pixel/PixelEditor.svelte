@@ -243,7 +243,7 @@
       probeOn: probe.on,
       newDoc: openNewDialog,
       open: () => guardUnsaved(() => void openDoc()),
-      openRecent: (r) => guardUnsaved(() => void openRecent(r)),
+      openRecent: (r) => void openRecent(r),
       save: (asNew) => void save({ forceAs: asNew }),
       importPng: () => void importPngLayer(),
       exportPng: () => void exportPng(),

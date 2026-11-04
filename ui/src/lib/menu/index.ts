@@ -42,6 +42,8 @@ export type EditorMenuHandlers = Partial<Record<EditorMenuId, MenuHandler>>;
 export interface ShellMenuHandlers {
   'menu:new': MenuHandler;
   'menu:open': MenuHandler;
+  /** macOS File ▸ Quit / Cmd+Q: a close request (unsaved-changes-prompt AC-09). */
+  'menu:quit': MenuHandler;
   recent: RecentHandler;
   /** Current editor handlers (`null` while the start screen shows). */
   editor: () => EditorMenuHandlers | null;
@@ -56,7 +58,7 @@ export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<Unlis
       void handlers.recent(id);
       return;
     }
-    if (payload === 'menu:new' || payload === 'menu:open') {
+    if (payload === 'menu:new' || payload === 'menu:open' || payload === 'menu:quit') {
       void handlers[payload]();
       return;
     }

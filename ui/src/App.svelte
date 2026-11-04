@@ -13,6 +13,7 @@
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
   import UnsavedPrompt from './lib/shell/UnsavedPrompt.svelte';
+  import { requestClose, wireCloseGuard } from './lib/shell/close-guard';
   import { answerUnsaved, guardUnsaved, registerDocument, unsaved } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
@@ -265,11 +266,21 @@
       .finally(() => (booting = false));
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenOpenFile: UnlistenFn | null = null;
+    let unlistenClose: UnlistenFn | null = null;
     if (tauriHost) {
       void loadUpdaterState();
+      wireCloseGuard()
+        .then((fn) => {
+          if (cancelled) fn();
+          else unlistenClose = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('close guard failed', err);
+        });
       wireNativeMenu({
         'menu:new': () => guardUnsaved(() => requestNew(currentMode)),
         'menu:open': () => guardUnsaved(() => void openFromPicker()),
+        'menu:quit': () => requestClose(),
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
           // entries recorded by the mounted editor are found too.
@@ -314,6 +325,7 @@
       cancelled = true;
       if (unlistenMenu) unlistenMenu();
       if (unlistenOpenFile) unlistenOpenFile();
+      if (unlistenClose) unlistenClose();
     };
   });
 </script>
