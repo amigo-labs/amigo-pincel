@@ -185,11 +185,11 @@ fn labels_for(lang: &str) -> &'static Labels {
 }
 
 fn current_labels() -> &'static Labels {
-    if GERMAN.load(Ordering::Relaxed) {
-        &LABELS_DE
+    labels_for(if GERMAN.load(Ordering::Relaxed) {
+        "de"
     } else {
-        &LABELS_EN
-    }
+        "en"
+    })
 }
 
 // Rebuild the whole native menu in `lang`, keeping the Open Recent
