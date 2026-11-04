@@ -319,6 +319,8 @@ struct Record {
     channels: Vec<(i16, usize, usize)>,
     blend: [u8; 4],
     opacity: u8,
+    /// Fill opacity (`iOpa`): scales the pixels but not the layer effects.
+    fill: u8,
     clipping: u8,
     hidden: bool,
     name: String,
@@ -373,6 +375,7 @@ fn read_record(c: &mut Cursor<'_>) -> Option<Record> {
         channels,
         blend,
         opacity,
+        fill: 255,
         clipping,
         hidden: flags & 0x02 != 0,
         name: String::new(),
@@ -411,6 +414,7 @@ fn read_record(c: &mut Cursor<'_>) -> Option<Record> {
                     record.section = Some((kind, key));
                 }
             }
+            b"iOpa" => record.fill = d.u8().unwrap_or(255),
             b"TySh" | b"tySh" => record.text = true,
             b"SoLd" | b"SoLE" | b"PlLd" | b"plLd" => record.smart = true,
             b"lrFX" | b"lfx2" | b"lfxs" | b"lmfx" => record.effects = true,
@@ -700,6 +704,10 @@ fn emit(
         };
         layer.blend_mode = blend_mode(&key).unwrap_or(BlendMode::Normal);
         layer.opacity = f32::from(r.opacity) / 255.0;
+        if children.is_none() {
+            // With the effects left out, fill opacity is plain opacity.
+            layer.opacity *= f32::from(r.fill) / 255.0;
+        }
         layer.visible = !r.hidden;
         layer.parent = parent;
         let id = layer.id;

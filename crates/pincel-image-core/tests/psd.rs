@@ -549,6 +549,27 @@ fn psd_two_layers_keep_order_opacity_blend() {
     assert!(import.notices.is_empty(), "{:?}", import.notices);
 }
 
+/// Fill opacity scales only the pixels, not layer effects; with the
+/// effects left out it is part of the layer's opacity.
+#[test]
+fn psd_fill_opacity_multiplies_into_the_layer_opacity() {
+    let fill = full("Fill", [1, 1, 1, 255]).block(b"iOpa", vec![128, 0, 0, 0]);
+    let mut both = full("Both", [1, 1, 1, 255]).block(b"iOpa", vec![51, 0, 0, 0]);
+    both.opacity = 128;
+    let doc = open(&layered(&[fill, both])).document;
+    let l = doc.layers();
+    assert!(
+        (l[0].opacity - 128.0 / 255.0).abs() < 1e-6,
+        "{}",
+        l[0].opacity
+    );
+    assert!(
+        (l[1].opacity - 128.0 / 255.0 * 0.2).abs() < 1e-6,
+        "{}",
+        l[1].opacity
+    );
+}
+
 #[test]
 fn psd_offset_layer_is_placed_at_bounds() {
     let mut rle = L::new("Inner", (1, 2, 3, 4), [10, 20, 30, 200]);
