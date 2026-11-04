@@ -255,6 +255,20 @@ fn selection_limits_fill_and_effect_until_cleared() {
     assert_eq!(px(&s.cel_rgba(&id, 0, 0), 8, 7, 7), [0, 0, 255, 255]);
 }
 
+/// effect-catalog-v2 AC-08: the editor's Pixel-mode menus hide the
+/// neighbourhood effects (blurs, sharpening, Edge Detect, …), but the agent
+/// tools still apply every effect to a Pixel document.
+#[test]
+fn effect_apply_accepts_every_effect_on_a_pixel_document() {
+    let mut s = S::new();
+    let id = s.new_doc(8, 8);
+    s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#336699" }));
+    for name in pincel_effects::EFFECT_NAMES {
+        s.ok("effect.apply", json!({ "id": name }));
+    }
+    assert_eq!(s.cel_rgba(&id, 0, 0).len(), 8 * 8 * 4);
+}
+
 #[test]
 fn effect_apply_matches_the_editor_effect() {
     let mut s = S::new();
