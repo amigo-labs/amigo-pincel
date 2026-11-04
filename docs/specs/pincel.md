@@ -607,6 +607,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 │ Tool │ Options bar: variants of the active tool group │  Colors        │
 │ rail │ + that tool's options                          ├────────────────┤
 │      ├────────────────────────────────────────────────┤  Palette       │
+│      │                                                │  Preview ▸     │
 │      │                                                ├────────────────┤
 │      │            Canvas viewport                     │  Layers        │
 │      │           (WebGPU / Canvas2D)       [− % + 1:1]├────────────────┤
@@ -626,6 +627,8 @@ Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists 
 | ≥ 1024 px (desktop) | menu bar | vertical rail | docked sidebar, toggleable |
 | 640–1023 px (tablet) | menu bar (scrolls if needed) | vertical rail | drawer over the canvas |
 | < 640 px (phone) | ☰ sheet with every menu | horizontal strip at the bottom | bottom sheet, one tab per panel (timeline included) |
+
+**Preview panel.** Pixel mode only, collapsed by default and placed above Layers: the animation at 1×, 2×, 4× or Fit, played on its own loop (play / pause in the panel header) through the timeline's loop tag and frame durations, while the main canvas stays on the current frame and keeps taking strokes. Paused, it shows the current frame. It composites through wasm `composeFrame(frame, zoom, false)`, so it never shows onion-skin ghosts, and recomposes only when the shown frame or the document changes; collapsing the panel stops its playback (`docs/specs/animation-preview.md`, Decision Log 2026-10-29).
 
 **Layers panel.** Both modes render the same panel (`ui/src/lib/components/layers/`): each row has a drag grip (pointer events, so it works with touch and pen; arrow keys on a focused grip), visibility, lock, a thumbnail, the name and a rename button; the active layer's opacity and blend mode sit below the list. Pixel mode lists layers as a tree — a group's header above its indented children — tags tilemap / group rows, and lets a drag cross groups: the outer quarters of a row drop above / below it, a group's middle drops into it (Alt+← / → on a grip: out of / into a group); Layer ▸ New Group adds an empty group. A locked layer — or one inside a locked group — refuses pixel edits with a status-bar notice. Layer ▸ Rename… opens the same rename dialog in both modes.
 
