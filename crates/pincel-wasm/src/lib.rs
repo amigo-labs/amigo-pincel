@@ -53,7 +53,8 @@ use pincel_core::{
     RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
     SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
     TileImage, TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png,
-    export_frame_png_scaled, read_aseprite, read_gpl, write_aseprite, write_gpl,
+    export_frame_png_scaled, palette_to_png, read_aseprite, read_gpl, read_palette, write_aseprite,
+    write_gpl, write_hex, write_jasc_pal,
 };
 use wasm_bindgen::prelude::*;
 
@@ -1486,6 +1487,10 @@ impl Document {
 
     /// Replace the palette with a GIMP `.gpl` file's colours and return
     /// how many it holds. One undo entry. Refused for indexed documents.
+    ///
+    /// Deprecated: use [`Document::import_palette`] (`importPalette`),
+    /// which reads `.gpl` and the other palette formats. Kept for the
+    /// public npm API (spec §17.5).
     #[wasm_bindgen(js_name = importGpl)]
     pub fn import_gpl(&mut self, text: &str) -> Result<u32, String> {
         let palette = read_gpl(text).map_err(|e| e.to_string())?;
@@ -1495,9 +1500,43 @@ impl Document {
     }
 
     /// The palette as a GIMP `.gpl` file called `name` (alpha dropped).
+    ///
+    /// Deprecated: use [`Document::export_palette`] (`exportPalette`) with
+    /// format `gpl`. Kept for the public npm API (spec §17.5).
     #[wasm_bindgen(js_name = exportGpl)]
     pub fn export_gpl(&self, name: &str) -> String {
         write_gpl(&self.sprite.palette, name)
+    }
+
+    /// Replace the palette with a palette file's colours and return how
+    /// many it holds. The format — GIMP `.gpl`, Lospec `.hex`, JASC `.pal`
+    /// or a PNG palette image — is detected from the content, not the file
+    /// name (spec §3.7). One undo entry. Refused for indexed documents, for
+    /// files without colours and above 256 colours; the palette is then
+    /// unchanged.
+    #[wasm_bindgen(js_name = importPalette)]
+    pub fn import_palette(&mut self, bytes: &[u8]) -> Result<u32, String> {
+        let palette = read_palette(bytes).map_err(|e| e.to_string())?;
+        let count = palette.len() as u32;
+        self.replace_palette(palette)?;
+        Ok(count)
+    }
+
+    /// The palette as a file: `format` is `gpl` (a GIMP palette called
+    /// `name`), `hex` (Lospec), `pal` (JASC) or `png` (a one-row strip of
+    /// `cell` × `cell` px swatches). `name` is used only by `gpl`, `cell`
+    /// only by `png`. Errors for an unknown format, or a PNG strip of an
+    /// empty palette or with `cell` 0.
+    #[wasm_bindgen(js_name = exportPalette)]
+    pub fn export_palette(&self, format: &str, name: &str, cell: u32) -> Result<Vec<u8>, String> {
+        let palette = &self.sprite.palette;
+        match format {
+            "gpl" => Ok(write_gpl(palette, name).into_bytes()),
+            "hex" => Ok(write_hex(palette).into_bytes()),
+            "pal" => Ok(write_jasc_pal(palette).into_bytes()),
+            "png" => palette_to_png(palette, cell).map_err(|e| e.to_string()),
+            other => Err(format!("unknown palette format `{other}`")),
+        }
     }
 
     fn replace_palette(&mut self, palette: Palette) -> Result<(), String> {
@@ -4336,6 +4375,121 @@ mod tests {
         // Nothing reached the undo stack: undo takes back the add.
         assert!(doc.undo());
         assert_eq!(doc.palette_count(), 32);
+    }
+
+    // ---- Palette formats (docs/specs/palette-formats.md) ----
+
+    fn palette_rgba(doc: &Document) -> Vec<u32> {
+        (0..doc.palette_count())
+            .map(|i| doc.palette_color(i).expect("entry"))
+            .collect()
+    }
+
+    #[test]
+    fn import_palette_detects_every_format_by_content() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let strip = pincel_core::encode_png(&[1, 2, 3, 255, 4, 5, 6, 255], 2, 1).expect("png");
+        let cases: [(&[u8], &[u32]); 4] = [
+            (
+                b"#FF0000\r\n; c\r\n00ff00\r\n0000ff\r\n123456\r\n",
+                &[0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x123456ff],
+            ),
+            (
+                b"JASC-PAL\n0100\n2\n1 2 3\n4 5 6 128\n",
+                &[0x010203ff, 0x04050680],
+            ),
+            (b"GIMP Palette\n9 8 7 x\n", &[0x090807ff]),
+            (&strip, &[0x010203ff, 0x040506ff]),
+        ];
+        for (bytes, want) in cases {
+            assert_eq!(
+                doc.import_palette(bytes).expect("import"),
+                want.len() as u32
+            );
+            assert_eq!(palette_rgba(&doc), want);
+        }
+    }
+
+    #[test]
+    fn import_palette_is_one_undo_step() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let before = palette_rgba(&doc);
+        assert_eq!(doc.import_palette(b"ff0000\n00ff00\n").expect("import"), 2);
+        assert!(doc.undo());
+        assert_eq!(palette_rgba(&doc), before);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(palette_rgba(&doc), [0xff0000ff, 0x00ff00ff]);
+    }
+
+    #[test]
+    fn import_palette_invalid_file_returns_err_and_keeps_palette() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let before = palette_rgba(&doc);
+        let too_many_hex = "000000\n".repeat(257);
+        let pixels: Vec<u8> = (0..257u32)
+            .flat_map(|i| [i as u8, (i >> 8) as u8, 0, 255])
+            .collect();
+        let too_many_png = pincel_core::encode_png(&pixels, 257, 1).expect("png");
+        let clear_png = pincel_core::encode_png(&[0, 0, 0, 0], 1, 1).expect("png");
+        let cases: [(&[u8], &str); 7] = [
+            (b"ff0000\nnope\n", "line 2"),
+            (b"JASC-PAL\n0100\n1\n1 2 300\n", "line 4"),
+            (too_many_hex.as_bytes(), "more than 256"),
+            (&too_many_png, "not a palette image"),
+            (b"", "no colours found"),
+            (b"JASC-PAL\n0100\n0\n", "no colours found"),
+            (&clear_png, "no colours found"),
+        ];
+        for (bytes, msg) in cases {
+            let err = doc.import_palette(bytes).expect_err("refused");
+            assert!(err.contains(msg), "{err:?} lacks {msg:?}");
+            assert_eq!(palette_rgba(&doc), before);
+        }
+        assert!(!doc.undo(), "nothing reached the undo stack");
+    }
+
+    #[test]
+    fn import_palette_on_indexed_sprite_is_refused_for_every_format() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite.color_mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let before = palette_rgba(&doc);
+        let strip = pincel_core::encode_png(&[1, 2, 3, 255], 1, 1).expect("png");
+        let files: [&[u8]; 4] = [
+            b"ff0000\n",
+            b"JASC-PAL\n0100\n1\n1 2 3\n",
+            b"GIMP Palette\n1 2 3\n",
+            &strip,
+        ];
+        for bytes in files {
+            assert!(doc.import_palette(bytes).is_err());
+            assert_eq!(palette_rgba(&doc), before);
+        }
+        assert!(doc.import_gpl("GIMP Palette\n1 2 3\n").is_err());
+    }
+
+    #[test]
+    fn export_palette_writes_each_format() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.import_palette(b"ff0044\n00ff00\n").expect("import");
+        let text = |format: &str| {
+            String::from_utf8(doc.export_palette(format, "Mine", 1).expect("export")).expect("utf8")
+        };
+        assert_eq!(text("hex"), "ff0044\n00ff00\n");
+        let pal = text("pal");
+        assert_eq!(
+            pal.lines().collect::<Vec<_>>(),
+            ["JASC-PAL", "0100", "2", "255 0 68", "0 255 0"]
+        );
+        assert_eq!(text("gpl"), doc.export_gpl("Mine"));
+        for cell in [1u32, 8] {
+            let png = doc.export_palette("png", "", cell).expect("png");
+            let img = pincel_core::import_png(&png).expect("decodes");
+            assert_eq!((img.width, img.height), (2 * cell, cell));
+        }
+        assert!(doc.export_palette("aco", "", 1).is_err());
+        assert!(doc.export_palette("png", "", 0).is_err());
     }
 
     // ---- Drawing tools (docs/specs/pixel-drawing-tools.md) ----
