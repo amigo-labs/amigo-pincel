@@ -85,3 +85,48 @@ test('website-comparison AC-07: Piskel has had no tagged release since 0.15.0', 
   expect(cell).toContain('master still gets fixes');
   expect(cell).not.toContain('modernization in progress');
 });
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const url of ['/', '/de']) {
+    test(`website-comparison AC-09: ${url} tables scroll inside their wrappers with Pincel in view`, async ({
+      page,
+    }) => {
+      await page.goto(url);
+      const width = await page.evaluate(() => ({
+        scroll: document.scrollingElement?.scrollWidth ?? 0,
+        view: window.innerWidth,
+      }));
+      expect(width.scroll).toBe(width.view);
+
+      const wraps = await page.locator('.table-wrap').all();
+      expect(wraps.length).toBeGreaterThan(0);
+      for (const wrap of wraps) {
+        await wrap.scrollIntoViewIfNeeded();
+        expect(await wrap.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+        await wrap.evaluate((el) => {
+          el.scrollLeft = el.scrollWidth;
+        });
+        expect(await wrap.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+        const box = await wrap.boundingBox();
+        // The Pincel header and every Pincel cell stay inside the wrapper.
+        const cells = await wrap.locator('.pincel').all();
+        expect(cells.length).toBeGreaterThan(1);
+        for (const cell of cells) {
+          const c = await cell.boundingBox();
+          if (!box || !c) throw new Error('table not laid out');
+          expect(c.x).toBeGreaterThanOrEqual(box.x - 0.5);
+          expect(c.x + c.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+        }
+        // Scrolled to the end, the last column is not hidden under Pincel.
+        const pincel = await wrap.locator('thead .pincel').boundingBox();
+        const last = await wrap.locator('thead th').last().boundingBox();
+        if (!pincel || !last) throw new Error('table not laid out');
+        expect(last.x).toBeGreaterThanOrEqual(pincel.x + pincel.width - 0.5);
+      }
+      // Scrolling a table never scrolls the page sideways.
+      expect(await page.evaluate(() => window.scrollX)).toBe(0);
+    });
+  }
+});

@@ -105,7 +105,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 | AC-06 | `website/e2e/comparison.spec.ts`: "website-comparison AC-06: Aseprite is source-available, not open source" | built |        |
 | AC-07 | `website/e2e/comparison.spec.ts`: "website-comparison AC-07: Piskel has had no tagged release since 0.15.0" | built |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-09 | `website/e2e/comparison.spec.ts`: "website-comparison AC-09: / tables scroll inside their wrappers with Pincel in view", "… /de tables …" (390 px; every `.table-wrap`, so it covers both tables once they exist) | built |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
@@ -123,3 +123,5 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - 2026-11-04 (spec-build): AC-06 and AC-07 are built on today's three-column table, ahead of the two new tables that the open questions hold back — both cells are settled facts from §18.1 (Aseprite "source-available EULA"; Piskel "0.15.0, 2018 (master still gets fixes)") and independent of AC-05.
 - 2026-11-04 (spec-build): Aseprite's license cell is 🟡 "source-available, EULA forbids redistribution" — not ✅ (AC-06) and not ❌, because the source can be read and built for one's own use while the EULA forbids redistribution, which is what keeps it from being OSI open source.
 - 2026-11-04 (spec-build): The copy keys became `sourceAvailable` and `noRelease` (replacing `eula` and `modernizing`), and `website.md`'s pinned table, its AC-09 test and website-spec §4.1.4 follow the two cells — `website.md`'s 2026-10-29 Decision lets this spec revise its AC-09.
+- 2026-11-04 (spec-build): AC-09 is built on today's table and its test checks every `.table-wrap`, so it carries over to both tables — the layout is independent of the cell contents the open questions hold back (red run: on `/de` the Pincel column scrolled 16 px out of the wrapper).
+- 2026-11-04 (spec-build): Below 720 px the feature labels stay sticky beside the Pincel column, and every column has a fixed width (7.5rem, Pincel 6.5rem) — with only Pincel sticky the row labels would scroll away, and without fixed widths a competitor column wider than the strip left free could never be read in full (the test asserts the last column ends up beside Pincel, not under it). Long words break (`overflow-wrap: anywhere`, `hyphens: auto`), and the table uses separate zero-spaced borders so sticky cells keep their row lines.
