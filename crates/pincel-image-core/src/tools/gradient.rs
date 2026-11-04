@@ -323,6 +323,58 @@ mod tests {
         );
     }
 
+    /// FNV-1a over the layer's RGBA bytes after drawing `kind` from
+    /// (1.25, 2.5) to (7.5, 5.75) over a 9×7 opaque grey layer.
+    fn kind_digest(kind: GradientKind, channel: GradientChannel) -> u64 {
+        let mut doc = opaque_doc(9, 7, Color::rgba(90, 120, 150, 255));
+        let mut cmd = Gradient {
+            kind,
+            channel,
+            from: Color::rgba(200, 30, 10, 255),
+            to: Color::rgba(10, 60, 240, 128),
+            opacity: 0.8,
+        }
+        .draw(0, Point::new(1.25, 2.5), Point::new(7.5, 5.75), &doc)
+        .unwrap();
+        cmd.apply(&mut doc).unwrap();
+        doc.layers[0]
+            .pixels
+            .data()
+            .iter()
+            .fold(0xcbf2_9ce4_8422_2325, |h, &b| {
+                (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+            })
+    }
+
+    /// Pins every kind's output to the values from before the linear /
+    /// radial parameter math moved into `pincel-effects`
+    /// (`docs/specs/dithered-gradient.md` AC-14).
+    #[test]
+    fn draw_every_kind_matches_the_pinned_output() {
+        let digests = [
+            GradientKind::Linear,
+            GradientKind::Reflected,
+            GradientKind::Radial,
+            GradientKind::Conical,
+            GradientKind::Diamond,
+        ]
+        .map(|k| {
+            (
+                kind_digest(k, GradientChannel::Color),
+                kind_digest(k, GradientChannel::Transparency),
+            )
+        });
+        assert_eq!(digests, PINNED_DIGESTS);
+    }
+
+    const PINNED_DIGESTS: [(u64, u64); 5] = [
+        (6_338_608_836_344_469_668, 1_557_870_034_624_219_300),
+        (2_370_596_846_134_834_344, 1_612_726_249_743_352_031),
+        (14_321_446_003_203_966_033, 15_671_960_150_631_404_222),
+        (2_078_452_278_065_046_774, 12_820_304_232_706_594_046),
+        (12_999_643_837_064_416_437, 12_984_060_960_515_096_344),
+    ];
+
     #[test]
     fn gradient_is_undoable() {
         let mut doc = opaque_doc(4, 1, Color::rgba(1, 2, 3, 255));
