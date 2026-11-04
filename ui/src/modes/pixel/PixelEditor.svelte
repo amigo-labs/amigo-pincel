@@ -1002,6 +1002,24 @@
           <option value="composite">{t('opt.composite')}</option>
         </select>
       </label>
+    {:else if toolState.tool === 'gradient'}
+      <label class="opt">
+        {t('opt.kind')}
+        <select bind:value={toolState.gradientKind} class="opt-field" aria-label={t('px.gradientKind')}>
+          <option value="linear">{t('opt.gradientLinear')}</option>
+          <option value="radial">{t('opt.gradientRadial')}</option>
+        </select>
+      </label>
+      <label class="opt">
+        {t('opt.dither')}
+        <select bind:value={toolState.gradientDither} class="opt-field" aria-label={t('px.dither')}>
+          <option value={0}>{t('opt.ditherNone')}</option>
+          <option value={2}>{t('opt.bayer2')}</option>
+          <option value={4}>{t('opt.bayer4')}</option>
+          <option value={8}>{t('opt.bayer8')}</option>
+        </select>
+      </label>
+      <span class="opt text-pc-faint">{t('px.gradientHint')}</span>
     {:else if isShapeTool(toolState.tool)}
       <label class="opt">
         {t('opt.stroke')}

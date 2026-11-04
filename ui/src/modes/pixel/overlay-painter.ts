@@ -117,6 +117,7 @@ function paintDragPreview(
   const { start: a, end: b } = drag;
   switch (drag.tool) {
     case 'line':
+    case 'gradient':
       paintLinePreview(overlay, a.x, a.y, b.x, b.y, color);
       break;
     case 'rectangle':

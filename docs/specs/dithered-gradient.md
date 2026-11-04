@@ -113,12 +113,12 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 | AC-05 |      | open   |        |
 | AC-06 | `none_matrix_splits_into_two_hard_bands_at_half` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-07 | `gradient_respects_selection_mask`, `gradient_respects_selection_rect` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-08 | `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-08 | `apply_gradient_paints_fg_to_bg_as_one_undo_entry` (crates/pincel-wasm/src/gradient.rs); `gradient_revert_restores_cel_and_redo_is_identical` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
+| AC-09 | "pixel mode: a gradient drag previews a line, then fills foreground to background as one undo step" (ui/e2e/pixel-tools.spec.ts) | built | |
+| AC-10 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither", "pixel mode: single keys select the drawing tools and cycle the shapes" (ui/e2e/pixel-tools.spec.ts) | built | |
+| AC-11 | "pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither" (ui/e2e/pixel-tools.spec.ts) | built | |
+| AC-12 | `new_zero_length_drag_returns_none` (crates/pincel-core/src/command/draw_dither_gradient.rs); `apply_gradient_zero_length_drag_changes_nothing` (crates/pincel-wasm/src/gradient.rs); "pixel mode: a gradient drag previews a line, …" (ui/e2e/pixel-tools.spec.ts) | built | |
+| AC-13 | `apply_gradient_on_locked_layer_errs_without_undo_entry`, `apply_gradient_without_image_layer_errs`, `apply_gradient_on_indexed_or_grayscale_sprite_errs_without_change` (crates/pincel-wasm/src/gradient.rs); `indexed_or_grayscale_sprite_is_refused_without_an_undo_entry` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 | AC-14 | `draw_every_kind_matches_the_pinned_output` (crates/pincel-image-core/src/tools/gradient.rs) | built | |
 | AC-15 | `without_selection_every_cel_pixel_on_the_canvas_is_written_and_the_cel_keeps_its_size` (crates/pincel-core/src/command/draw_dither_gradient.rs) | built | |
 
@@ -135,4 +135,7 @@ This is part A of the legacy plan `08-pixel-tools.md`; `shading-ink` and `rotspr
 - 2026-11-04 (spec-build): A Bayer index `i` normalises to `(i + 0.5) / n²` and the hard split ("none") uses `0.5` — both strictly inside (0, 1), so `t = 0` is always foreground and `t = 1` always background (AC-01, AC-02).
 - 2026-11-04 (spec-build): `(x mod n, y mod n)` uses sprite coordinates, not cel-local ones — the pattern stays aligned across cels and layers.
 - 2026-11-04 (spec-build): AC-14 is proven by a characterization test that pins every Image-mode kind's output (Color and Transparency channel) before the math moved; it was green from the start by design and stays green after the move.
+- 2026-11-04 (spec-build): With two tools in the Fill group the rail names them "Fill: Bucket" and "Fill: Gradient" (new key `tool.bucket`) — "Fill: Fill" would not tell the variants apart.
+- 2026-11-04 (spec-build): The Gradient always runs from the foreground to the background color whichever mouse button drags, and Shift does not constrain its drag — the spec gives the right button and Shift no role for this tool.
+- 2026-11-04 (spec-build): The wasm call is `applyGradient(line: Int32Array [x0, y0, x1, y1], kind, dither, foreground, background) -> boolean` (`false` for a zero-length drag) — a flat argument list would need a new `too_many_arguments` suppression.
 - 2026-10-29: Without a selection the gradient covers the target cel's bounds clipped to the canvas and never grows the cel; a layer without a cel gets the usual canvas-sized cel (`ensure_paint_cel`) (AC-15) — Phase 1 never auto-grows cels, and trimmed cels only come from imported `.aseprite` files (owner accepted the recommendation).

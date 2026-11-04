@@ -713,6 +713,16 @@ export function onPointerUp(e: PointerEvent) {
     try {
       if (live.dragTool === 'line') {
         ed.doc.applyLine(live.dragStart.x, live.dragStart.y, end.x, end.y, packed);
+      } else if (live.dragTool === 'gradient') {
+        // Foreground at the press, background at the release; a click
+        // (zero-length drag) changes nothing.
+        ed.doc.applyGradient(
+          Int32Array.of(live.dragStart.x, live.dragStart.y, end.x, end.y),
+          toolState.gradientKind,
+          toolState.gradientDither,
+          packColor(colors.color, colors.alpha),
+          packColor(colors.bgColor, colors.bgAlpha),
+        );
       } else if (isShapeTool(live.dragTool)) {
         const kind =
           live.dragTool === 'rectangle'

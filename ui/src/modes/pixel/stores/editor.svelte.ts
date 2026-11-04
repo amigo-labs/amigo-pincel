@@ -118,6 +118,10 @@ function toolInit() {
     wandTolerance: 0,
     wandContiguous: true,
     wandSample: 'layer' as 'layer' | 'composite',
+    /** Gradient ramp and dither matrix size (0 = hard split); linear and
+     *  Bayer 4×4 by default (dithered-gradient, Assumptions). */
+    gradientKind: 'linear' as 'linear' | 'radial',
+    gradientDither: 4 as 0 | 2 | 4 | 8,
     /** Tile the Tilemap Stamp tool places. */
     stampTile: null as TileRef | null,
     /** Hover cell under the cursor while stamping. */
