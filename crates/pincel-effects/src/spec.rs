@@ -12,8 +12,9 @@
 //! defaults out-of-range values the same way the underlying effect does.
 
 use crate::adjust::{
-    BrightnessContrast, ColorBalance, CurveChannel, Curves, Grayscale, GrayscaleMethod,
-    HueSaturation, Invert, Levels, LevelsChannel, Posterize, Threshold,
+    AutoLevel, BrightnessContrast, ColorBalance, CurveChannel, Curves, Exposure, Grayscale,
+    GrayscaleMethod, HighlightsShadows, HueSaturation, Invert, InvertAlpha, Levels, LevelsChannel,
+    Posterize, Sepia, TemperatureTint, Threshold,
 };
 use crate::blur::{BoxBlur, GaussianBlur, MotionBlur, RadialBlur, RadialKind};
 use crate::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
@@ -130,6 +131,19 @@ pub enum EffectSpec {
     Posterize { levels: u32 },
     /// `threshold`: `[threshold]`.
     Threshold { threshold: u8 },
+    /// `auto_level`: no parameters. Reads the luma range of its target,
+    /// so a host limits it with [`EffectSpec::run_in`].
+    AutoLevel,
+    /// `exposure`: `[ev]` in `-5..=5` stops.
+    Exposure(Exposure),
+    /// `highlights_shadows`: `[shadows, highlights]`, each `-100..=100`.
+    HighlightsShadows(HighlightsShadows),
+    /// `invert_alpha`: no parameters.
+    InvertAlpha,
+    /// `sepia`: `[intensity]` in `0..=100` percent.
+    Sepia(Sepia),
+    /// `temperature_tint`: `[temperature, tint]`, each `-100..=100`.
+    TemperatureTint(TemperatureTint),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -154,6 +168,12 @@ pub const EFFECT_NAMES: &[&str] = &[
     "grayscale",
     "posterize",
     "threshold",
+    "auto_level",
+    "exposure",
+    "highlights_shadows",
+    "invert_alpha",
+    "sepia",
+    "temperature_tint",
 ];
 
 fn expect_len(name: &str, params: &[f64], expected: usize) -> Result<(), EffectError> {
@@ -381,6 +401,30 @@ impl EffectSpec {
                     threshold: u(p[0]).min(255) as u8,
                 }
             }
+            "auto_level" => {
+                expect_len(name, p, 0)?;
+                Self::AutoLevel
+            }
+            "exposure" => {
+                expect_len(name, p, 1)?;
+                Self::Exposure(Exposure::new(f(p[0])))
+            }
+            "highlights_shadows" => {
+                expect_len(name, p, 2)?;
+                Self::HighlightsShadows(HighlightsShadows::new(f(p[0]), f(p[1])))
+            }
+            "invert_alpha" => {
+                expect_len(name, p, 0)?;
+                Self::InvertAlpha
+            }
+            "sepia" => {
+                expect_len(name, p, 1)?;
+                Self::Sepia(Sepia::new(f(p[0])))
+            }
+            "temperature_tint" => {
+                expect_len(name, p, 2)?;
+                Self::TemperatureTint(TemperatureTint::new(f(p[0]), f(p[1])))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -388,6 +432,16 @@ impl EffectSpec {
 
     /// Run the described effect over `src`, returning a same-sized buffer.
     pub fn run(&self, src: &EffectImage) -> EffectImage {
+        self.run_in(src, |_, _| true)
+    }
+
+    /// Like [`EffectSpec::run`], for a host that limits the effect to a
+    /// target (a selection): `in_target(x, y)` tells whether the pixel at
+    /// `(x, y)` of `src` belongs to it. Effects that read statistics of
+    /// their target (Auto-Level) take them from those pixels only; every
+    /// other effect ignores `in_target`, and the host keeps only the
+    /// target's pixels of the result as before.
+    pub fn run_in(&self, src: &EffectImage, in_target: impl Fn(u32, u32) -> bool) -> EffectImage {
         match self {
             Self::GaussianBlur { radius } => GaussianBlur::new(*radius).apply(src),
             Self::BoxBlur { width, height } => BoxBlur::new(*width, *height).apply(src),
@@ -478,6 +532,12 @@ impl EffectSpec {
             },
             Self::Posterize { levels } => Posterize::new(*levels).apply(src),
             Self::Threshold { threshold } => Threshold::new(*threshold).apply(src),
+            Self::AutoLevel => AutoLevel.apply_in(src, in_target),
+            Self::Exposure(e) => e.apply(src),
+            Self::HighlightsShadows(e) => e.apply(src),
+            Self::InvertAlpha => InvertAlpha.apply(src),
+            Self::Sepia(e) => e.apply(src),
+            Self::TemperatureTint(e) => e.apply(src),
         }
     }
 
@@ -501,9 +561,15 @@ impl EffectSpec {
             Self::Levels { .. } => "Levels",
             Self::ColorBalance { .. } => "Color Balance",
             Self::Invert => "Invert Colors",
-            Self::Grayscale { .. } => "Grayscale",
+            Self::Grayscale { .. } => "Black and White",
             Self::Posterize { .. } => "Posterize",
             Self::Threshold { .. } => "Threshold",
+            Self::AutoLevel => "Auto-Level",
+            Self::Exposure(_) => "Exposure",
+            Self::HighlightsShadows(_) => "Highlights / Shadows",
+            Self::InvertAlpha => "Invert Alpha",
+            Self::Sepia(_) => "Sepia",
+            Self::TemperatureTint(_) => "Temperature and Tint",
         }
     }
 }
@@ -544,6 +610,12 @@ mod tests {
             ("grayscale", &[3.0, 0.5, 0.25, 0.25]),
             ("posterize", &[4.0]),
             ("threshold", &[128.0]),
+            ("auto_level", &[]),
+            ("exposure", &[1.0]),
+            ("highlights_shadows", &[20.0, -20.0]),
+            ("invert_alpha", &[]),
+            ("sepia", &[100.0]),
+            ("temperature_tint", &[30.0, -30.0]),
         ];
         for (name, params) in cases {
             let spec =
@@ -562,8 +634,8 @@ mod tests {
     #[test]
     fn from_params_unknown_name_is_an_error() {
         assert_eq!(
-            EffectSpec::from_params("sepia", &[]),
-            Err(EffectError::UnknownEffect("sepia".into()))
+            EffectSpec::from_params("no_such_effect", &[]),
+            Err(EffectError::UnknownEffect("no_such_effect".into()))
         );
     }
 
