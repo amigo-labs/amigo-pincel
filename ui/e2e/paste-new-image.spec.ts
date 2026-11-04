@@ -91,7 +91,7 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
-test('pixel: Paste as New Image asks before discarding unsaved changes (AC-23)', async ({ page }) => {
+test('pixel: Paste as New Image asks about unsaved changes first (AC-23)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   const box = await pixelCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
@@ -104,7 +104,7 @@ test('pixel: Paste as New Image asks before discarding unsaved changes (AC-23)',
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(pixelCanvas(page)).toBeVisible();
   await menu(page, 'Edit', 'Paste as New Image');
-  await confirm.getByRole('button', { name: /Discard/ }).click();
+  await confirm.getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, 'image');
   await expect(imageSize(page, 24, 12)).toBeVisible();
 });

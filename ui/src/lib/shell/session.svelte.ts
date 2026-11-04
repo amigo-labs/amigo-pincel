@@ -18,8 +18,6 @@ export const session = $state({
   mode: 'start' as ShellMode,
   seq: 0,
   pending: null as PendingLaunch | null,
-  /** Mirrored from the mounted editor via `EditorProps.onDirtyChange`. */
-  dirty: false,
 });
 
 /** Which editor a file format belongs to. Sprites are Pixel mode;
@@ -32,7 +30,6 @@ export function detectMode(format: FileFormat | null): EditorMode {
 /** Mount `mode` with a fresh session that opens `pending`. */
 export function launch(mode: EditorMode, pending: PendingLaunch): void {
   session.pending = pending;
-  session.dirty = false;
   session.mode = mode;
   session.seq += 1;
 }

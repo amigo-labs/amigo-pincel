@@ -73,7 +73,6 @@
   import {
     autosave,
     bindShell,
-    confirmDiscard,
     closeSvgDialog,
     describeAnimation,
     exportAnimation,
@@ -96,6 +95,7 @@
     openAnimationDialog,
     openSheetDialog,
     recentsAvailable,
+    runningSave,
     save,
     tauriHost,
   } from './file-ops';
@@ -149,15 +149,16 @@
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
-  // serves — New dialog, foreign-format re-routing, dirty mirror, and
-  // the native-menu items this editor handles.
+  // serves — New dialog, foreign-format re-routing, the unsaved-changes
+  // prompt, and the native-menu items this editor handles.
   let {
     initialFile,
     initialNew,
     onRequestNew,
     onOpenForeign,
     onOpenFile,
-    onDirtyChange,
+    confirmUnsaved,
+    registerDocument,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -167,6 +168,7 @@
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
     openFile: (opened) => onOpenFile(opened),
+    confirmUnsaved: (action) => confirmUnsaved(action),
   });
   initAutosave();
 
@@ -174,7 +176,7 @@
   const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
 
   // "Modified since last save" — drives the footer dot, the tab title,
-  // the beforeunload warning, and the New / Open confirm guard.
+  // and the beforeunload warning.
   const isDirty = $derived(isDocDirty());
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
@@ -315,10 +317,6 @@
     // right after a marquee release must already see that selection.
     syncSelection();
     if (e.key === 'Escape') {
-      if (dialogs.confirm) {
-        dialogs.confirm = null;
-        return;
-      }
       if (toolState.polyPoints || live.lassoPoints) {
         cancelPolygon();
         return;
@@ -557,11 +555,20 @@
     // Recovery probe and the autosave timer. A tick before `loadCore`
     // resolves is a no-op (no document yet).
     autosave.start();
+    // The document as the shell's unsaved-changes prompt and close guard
+    // see it (docs/specs/unsaved-changes-prompt.md).
+    const unregisterDocument = registerDocument({
+      name: () => file.saveTarget.name,
+      dirty: isDocDirty,
+      save: () => save(),
+      running: runningSave,
+      discard: () => autosave.finish(),
+    });
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
-      'menu:save': () => save(),
-      'menu:saveAs': () => save({ forceAs: true }),
+      'menu:save': () => void save(),
+      'menu:saveAs': () => void save({ forceAs: true }),
       'menu:exportPng': () => void exportPng(),
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
@@ -577,6 +584,7 @@
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
       autosave.close();
+      unregisterDocument();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('paste', onWindowPaste);
@@ -615,12 +623,6 @@
   // Reflect the document identity + dirty state in the tab title.
   $effect(() => {
     document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
-  });
-
-  // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events).
-  $effect(() => {
-    onDirtyChange(isDirty);
   });
 
   // Warn before the tab closes with unsaved edits. Autosave (30 s
@@ -1173,27 +1175,6 @@
   {/key}
 {/if}
 
-{#if dialogs.confirm}
-  <div
-    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-    role="alertdialog"
-    aria-modal="true"
-    aria-label={t('shell.unsavedChanges')}
-  >
-    <div class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl">
-      <p>{dialogs.confirm.message}</p>
-      <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (dialogs.confirm = null)}>{t('common.cancel')}</button>
-        <button
-          class="panel-btn border-red-800 text-red-300"
-          onclick={confirmDiscard}
-        >
-          {t('shell.discard')}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .canvas-pixelated {

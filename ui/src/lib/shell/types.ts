@@ -15,6 +15,25 @@ export interface NewDocParams {
   height: number;
 }
 
+/** The mounted editor's document, as the shell's unsaved-changes prompt
+ *  and the desktop close guard see it (docs/specs/unsaved-changes-prompt.md). */
+export interface EditorDocument {
+  /** The name the top bar shows, with its extension. */
+  name(): string;
+  /** The document has unsaved changes (the top bar's unsaved marker). */
+  dirty(): boolean;
+  /** File ▸ Save, with every picker and question it asks; resolves `true`
+   *  once the document is saved, `false` when it was cancelled or failed
+   *  (the failure is reported as File ▸ Save reports it). */
+  save(): Promise<boolean>;
+  /** The File ▸ Save / Save As running now, or `null`; it resolves like
+   *  `save()` once that save ends. */
+  running(): Promise<boolean> | null;
+  /** Drop the document's autosave snapshot and stop autosaving: the app
+   *  is about to close without saving. */
+  discard(): Promise<void>;
+}
+
 /** Props every editor component accepts. The shell mounts exactly one
  *  editor at a time and remounts it per session, so `initialFile` /
  *  `initialNew` are consumed once, right after the editor's core loaded. */
@@ -36,8 +55,12 @@ export interface EditorProps {
   /** Open a document the editor was handed (Paste as New Image): the shell
    *  runs its unsaved-changes guard, then routes it like Open…. */
   onOpenFile: (file: OpenedFile) => void;
-  /** Mirror of the editor's dirty state, for the shell's guards. */
-  onDirtyChange: (dirty: boolean) => void;
+  /** Run `action` (an in-editor Open / Open Recent that replaces the
+   *  document) once the shell's unsaved-changes prompt allows it. */
+  confirmUnsaved: (action: () => void) => void;
+  /** Hand the shell the editor's document on mount; returns the
+   *  unregister function the editor calls on unmount. */
+  registerDocument: (doc: EditorDocument) => () => void;
   /** Re-open a recent through the shell, which reads the file (FSA handle
    *  or Tauri path), runs the unsaved-changes guard and routes it to the
    *  mode the format belongs to. */

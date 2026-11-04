@@ -3,9 +3,10 @@
 
 export const en = {
   // Shell
-  'shell.discardPrompt': 'Discard unsaved changes to the open document?',
   'shell.unsavedChanges': 'Unsaved changes',
-  'shell.discard': 'Discard changes',
+  'shell.saveChangesTo': 'Save changes to "{name}"?',
+  'shell.save': 'Save',
+  'shell.dontSave': "Don't Save",
   'shell.unsupported':
     '{name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Open failed: {error}',
@@ -659,7 +660,6 @@ export const en = {
   'px.pasted': 'pasted',
   'px.needTilemap': 'add a tilemap layer first (+ Layer in the Tilesets panel)',
   'px.toolFailed': '{tool} failed: {error}',
-  'px.discardNamed': 'Discard unsaved changes to {name}?',
   'px.opened': 'opened {name} · {w}×{h}',
   'px.saved': 'saved {bytes} bytes · {name}',
   'px.recovered': 'recovered {name} · {w}×{h}',

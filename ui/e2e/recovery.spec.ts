@@ -55,7 +55,7 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   await page.waitForTimeout(500);
 
   await menu(page, 'File', 'New…');
-  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await page.getByRole('button', { name: "Don't Save" }).click();
   const newDialog = page.getByRole('dialog', { name: 'New document' });
   await newDialog.getByRole('button', { name: 'Create' }).click();
   await expect(newDialog).toBeHidden();

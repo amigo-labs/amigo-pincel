@@ -16,7 +16,7 @@ Worse, the desktop app closes without asking at all: closing the window (title-b
 
 This spec replaces both guards with a prompt that asks what should happen — **Save**, **Don't Save** or **Cancel** — the pattern of paint.net, Office and most desktop editors, and puts that prompt in front of closing the desktop app. It supersedes `app-shell` AC-14; `app-shell` AC-15 (the PWA's leave-page warning) stays as it is.
 
-**Terms.** *Unsaved changes*: exactly the state in which the top bar shows the unsaved marker (`app-shell` AC-16). That includes a document restored by the autosave recovery and a Paste as New Image document until they are saved; undoing back to the saved state clears it. *Document name*: the name the top bar shows for the document, with its extension — for a never-saved document the default name (`pincel.aseprite` in Pixel mode, `image.ora` in Image mode today). *Pending action*: the action that triggered the prompt. *Running save*: a File ▸ Save or Save As (from the menu, a shortcut or the prompt) that has started and not yet finished; autosave snapshots are not saves.
+**Terms.** *Unsaved changes*: exactly the state in which the top bar shows the unsaved marker (`app-shell` AC-16). That includes a document restored by the autosave recovery and a Paste as New Image document until they are saved; undoing back to the saved state clears it. *Document name*: the name the top bar shows for the document, with its extension — for a never-saved document the default name (`pincel.aseprite` in Pixel mode, `image.ora` in Image mode today). *Pending action*: the action that triggered the prompt. *Running save*: a File ▸ Save or Save As (from the menu, a shortcut or the prompt) that has started and not yet finished; autosave snapshots are not saves. *Keys*: Ctrl means Ctrl on Windows and Linux and ⌘ Command on macOS, Alt means ⌥ Option on macOS — the `mod` convention of `ui/src/lib/shell/shortcuts.ts`.
 
 ## Scope
 
@@ -98,20 +98,28 @@ Hints, verified 2026-11-04; paths and line numbers drift.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-02 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: the prompt names the document and offers Save, Don't Save, Cancel (AC-02)", "keys pressed while the prompt is open reach neither editor nor menus (AC-02)", "Enter on Don't Save runs the pending action (AC-02, AC-05)" | built | |
+| AC-03 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Save saves like File ▸ Save, then runs the action (AC-03)", "Save counts as done once the download is handed over, without file-system access (AC-03)" | built | |
+| AC-04 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: a cancelled save from the prompt keeps the document and skips the action (AC-04)", "{pixel,image}: a failed save from the prompt shows File ▸ Save's error and skips the action (AC-04)" | built | |
+| AC-05 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Don't Save runs the action; cancelling the New dialog keeps the document (AC-05)"; `ui/e2e/recovery.spec.ts`: "a discarded document is not offered again, on New or after a reload" | built | |
+| AC-06 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: Cancel keeps the document, its history and its marker (AC-06)", Escape in "… offers Save, Don't Save, Cancel (AC-02)" | built | |
+| AC-07 | `ui/e2e/unsaved-prompt.spec.ts`: "a clean document runs every action at once (AC-07)" | built | |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `ui/e2e/unsaved-prompt.spec.ts`: "{pixel,image}: dismissing the Save As picker reports no failure (AC-12)" | built | |
+| AC-13 | `ui/e2e/unsaved-prompt.spec.ts`: "German › the prompt speaks German (AC-13)" (strings `shell.unsavedChanges`, `shell.saveChangesTo`, `shell.save`, `shell.dontSave`, `common.cancel` in `ui/src/lib/i18n/{en,de}.ts`) | built | |
 
 ## Decisions
 
 - 2026-11-04: One prompt with Save / Don't Save / Cancel replaces both "Discard changes" guards, and the desktop app asks before closing — the owner wants to decide what happens to unsaved work instead of the app closing or discarding. Supersedes `app-shell` AC-14.
 - 2026-11-04: A second trigger while the prompt is open is ignored, and a close during a running save waits for it (owner's choice in the clarification pass).
+- 2026-11-04 (owner: macOS uses ⌘/⌥): Ctrl in this spec means ⌘ on macOS and Alt means ⌥ — the `mod` convention of `shortcuts.ts`. The prompt blocks every key while open, the Meta chords included (tested with Meta+Z / Meta+S / Meta+O); it shows no shortcut hints.
+- 2026-11-04: The prompt lives in the shell (`ui/src/lib/shell/unsaved.svelte.ts`, `UnsavedPrompt.svelte`); editors hand over their document through a new `EditorProps.registerDocument` (name, dirty, save, running save, discard snapshot) and Pixel mode's own Open / Open Recent ask through `EditorProps.confirmUnsaved`. `EditorProps.onDirtyChange` and `session.dirty` are gone — the shell reads `dirty()` live, so a save that just finished is seen at once (AC-10). Reason: one prompt for both modes, no second source of truth for the dirty state.
+- 2026-11-04: While the prompt is open a capture-phase window key listener stops and prevents every key (Space included, which would otherwise click the focused Save button); Tab / Shift+Tab, Enter and Escape are handled by the prompt itself. Reason: AC-02 lists Space among the keys that must change nothing.
+- 2026-11-04: After Save, Cancel or a failed / cancelled save the prompt closes; it is not re-shown. Reason: the spec only requires that the pending action does not run (AC-04).
+- 2026-11-04: Pixel-mode Save now writes through `writeTarget` and treats a dismissed picker as "nothing written" — before, `saveBytes` returned the old target on cancel and the document was marked saved without being written. Image mode already did this; its AC-12 test was green on the first run.
+- 2026-11-04: Dropping a file onto an open editor is new: the shell listens for file drops on the window while an editor is mounted (before, only the start screen took drops). In the desktop app the webview's own drag-drop handling (Tauri `dragDropEnabled`, default on) may keep HTML drops from arriving at all — unchanged by this spec, as for the start screen.
+- 2026-11-04: "A file picked in File ▸ Open… that cannot be opened" (AC-11) is checked for unreadable and unrecognized files, as everywhere in the shell; a file whose format is recognized but whose content is corrupt still replaces the editor with its error, as before.
+- 2026-11-04: Pixel mode's own Open Recent reads the file first; a recent of another format goes to the shell (which recognizes it and asks), an `.aseprite` asks and then opens in place. Reason: AC-01 / AC-11 want the prompt only for a file that can be opened.

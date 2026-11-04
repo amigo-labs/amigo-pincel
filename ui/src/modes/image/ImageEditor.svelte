@@ -110,15 +110,16 @@
 
   // Shell contract (src/App.svelte mounts one editor per session): the
   // document to open / create on mount, and the callbacks the shell
-  // serves — New / Open dialogs, dirty mirror, native-menu items.
+  // serves — New / Open dialogs, the unsaved-changes prompt, native-menu
+  // items.
   let {
     initialFile,
     initialNew,
     onRequestNew,
     onRequestOpen,
-    onDirtyChange,
     onOpenRecent,
     onOpenFile,
+    registerDocument,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -432,20 +433,33 @@
   // Save / Save As write back to the opened file in its own format, or the
   // OpenRaster project (save-original-format, core/save-flow.ts); Export
   // stays the flat PNG / JPEG / WebP path.
-  let saving = false;
-  async function save(forceAs = false): Promise<void> {
-    if (saving || editor.handle === null) return;
-    saving = true;
+  // The running Save / Save As, for the shell's unsaved-changes prompt and
+  // close guard (unsaved-changes-prompt AC-08, AC-10).
+  let running: Promise<boolean> | null = null;
+  const saving = (): boolean => running !== null;
+
+  /** Saves; resolves `true` once the document is saved, `false` when a
+   *  prompt or the picker was cancelled or the save failed. */
+  function save(forceAs = false): Promise<boolean> {
+    if (running !== null || editor.handle === null) return Promise.resolve(false);
+    const current = saveInner(forceAs).finally(() => {
+      running = null;
+    });
+    running = current;
+    return current;
+  }
+
+  async function saveInner(forceAs: boolean): Promise<boolean> {
     try {
       const result = await saveDocument(forceAs);
-      if (result === null) return;
+      if (result === null) return false;
       // A flattened file lost the layers: the snapshot keeps them (AC-13).
       await (result.flattened ? autosave.keep() : autosave.saved());
       await recordRecent(result.target);
+      return true;
     } catch (e) {
       loadError = t('img.saveFailed', { error: String(e) });
-    } finally {
-      saving = false;
+      return false;
     }
   }
 
@@ -455,7 +469,7 @@
     mode: 'image',
     depth: () => (editor.handle === null ? null : editor.undoDepth),
     savedDepth: () => editor.savedUndoDepth,
-    busy: () => saving,
+    busy: saving,
     name: () => fileName(),
     format: () => fileFormat(),
     encode: () => projectBytes(true),
@@ -489,6 +503,13 @@
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     autosave.start();
     void refreshRecents();
+    const unregisterDocument = registerDocument({
+      name: () => editor.fileName,
+      dirty: () => dirty,
+      save: () => save(),
+      running: () => running,
+      discard: () => autosave.finish(),
+    });
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -502,17 +523,12 @@
     });
     return () => {
       autosave.close();
+      unregisterDocument();
       registerMenuHandlers(null);
     };
   });
 
   const dirty = $derived(editor.undoDepth !== editor.savedUndoDepth);
-
-  // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events): edits since the last save.
-  $effect(() => {
-    onDirtyChange(dirty);
-  });
 
   // Keyboard map shared with Pixel mode (lib/shell/shortcuts.ts).
   function onKeydown(e: KeyboardEvent): void {

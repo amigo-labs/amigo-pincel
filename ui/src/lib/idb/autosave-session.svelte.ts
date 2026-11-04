@@ -13,7 +13,7 @@
 // - A recovered document counts as unsaved, and its snapshot stays until
 //   the user saves — closing the tab right after recovering loses nothing.
 // - Discarding the last listed snapshot closes the dialog.
-// - Leaving a document (New / Open after "Discard changes", or the editor
+// - Leaving a document (New / Open after "Don't Save", or the editor
 //   unmounting) deletes its snapshots: the user chose to drop it.
 
 import type { EditorMode } from '../shell/types';
@@ -89,13 +89,21 @@ export class AutosaveSession {
   }
 
   /** Editor unmount: disarm the timer and drop the open document's
-   *  snapshots — the shell only remounts after "Discard changes" or on a
+   *  snapshots — the shell only remounts after "Don't Save" or on a
    *  clean document. A page unload never unmounts, so a crash or a closed
    *  tab still leaves the snapshot for recovery. */
   close(): void {
+    void this.finish();
+  }
+
+  /** Disarm the timer and drop the open document's snapshots, resolving
+   *  once they are gone: the desktop app closes after "Don't Save"
+   *  (unsaved-changes-prompt AC-05). A storage error is logged, never
+   *  thrown — closing must not hang on it. */
+  async finish(): Promise<void> {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
-    void this.clear();
+    await this.clear();
   }
 
   /** Write a snapshot if the document changed since the last one. */

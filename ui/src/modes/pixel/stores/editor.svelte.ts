@@ -144,8 +144,6 @@ function fileInit() {
 
 function dialogsInit() {
   return {
-    /** Unsaved-changes confirmation awaiting an answer. */
-    confirm: null as { message: string; run: () => void } | null,
     effect: null as EffectDef | null,
     resize: null as ResizeMode | null,
     sheet: false,

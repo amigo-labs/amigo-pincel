@@ -11,10 +11,11 @@ import {
   formatFromName,
   hasFsAccess,
   isPngBytes,
+  mimeFromName,
   pickAndOpen,
-  saveBytes,
   saveExport,
   sniffFormat,
+  writeTarget,
 } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
@@ -35,10 +36,12 @@ const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
   openFile: (opened: OpenedFile) => void;
+  confirmUnsaved: (action: () => void) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
+  confirmUnsaved: () => {},
 };
 
 /** Hand a document to the shell, which guards unsaved changes and opens it. */
@@ -69,23 +72,10 @@ export const idbAvailable = isIdbAvailable();
 
 export const recentsAvailable = (fsAccessAvailable || tauriHost) && idbAvailable;
 
-// Run `action` immediately when the document is clean; otherwise park
-// it behind the inline "discard unsaved changes?" confirm dialog.
+/** Run `action` once the shell's unsaved-changes prompt allows it
+ *  (docs/specs/unsaved-changes-prompt.md). */
 export function guardUnsaved(action: () => void) {
-  if (!isDocDirty()) {
-    action();
-    return;
-  }
-  dialogs.confirm = {
-    message: t('px.discardNamed', { name: file.saveTarget.name }),
-    run: action,
-  };
-}
-
-export function confirmDiscard() {
-  const pending = dialogs.confirm;
-  dialogs.confirm = null;
-  pending?.run();
+  shell.confirmUnsaved(action);
 }
 
 // The New dialog lives in the shell (it offers both editor modes and
@@ -154,21 +144,44 @@ export async function openOpened(opened: OpenedFile) {
   }
 }
 
-export async function save(opts: { forceAs?: boolean } = {}) {
-  if (!ed.doc || file.busy) return;
-  const forceAs = opts.forceAs ?? false;
+/** The running Save / Save As, for the shell's unsaved-changes prompt and
+ *  close guard (unsaved-changes-prompt AC-08, AC-10). */
+let running: Promise<boolean> | null = null;
+
+/** The File ▸ Save / Save As running now, or `null`. */
+export function runningSave(): Promise<boolean> | null {
+  return running;
+}
+
+/** Saves; resolves `true` once the document is saved, `false` when the
+ *  picker was dismissed (no message, unsaved-changes-prompt AC-12) or the
+ *  save failed (reported in the status bar). */
+export function save(opts: { forceAs?: boolean } = {}): Promise<boolean> {
+  if (!ed.doc || file.busy) return Promise.resolve(false);
+  const current = saveInner(ed.doc, opts.forceAs ?? false).finally(() => {
+    running = null;
+  });
+  running = current;
+  return current;
+}
+
+async function saveInner(doc: Document, forceAs: boolean): Promise<boolean> {
   file.busy = true;
   try {
-    const bytes = new Uint8Array(ed.doc.saveAseprite());
-    const next = await saveBytes(bytes, file.saveTarget, { forceAs });
+    const bytes = new Uint8Array(doc.saveAseprite());
+    const depth = doc.undoDepth;
+    const next = await writeTarget(bytes, file.saveTarget, { forceAs });
+    if (next === null) return false;
     file.saveTarget = next;
-    ed.lastSavedUndoDepth = ed.doc.undoDepth;
+    ed.lastSavedUndoDepth = depth;
     ed.status = t('px.saved', { bytes: bytes.length, name: next.name });
     await autosave.saved();
     await recordRecent();
+    return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('status.failed', { action: t('act.save'), error: msg });
+    return false;
   } finally {
     file.busy = false;
   }
@@ -237,8 +250,34 @@ export async function recordRecent() {
   }
 }
 
+// File ▸ Open Recent: the file is read and recognized first, so only a
+// file that can be opened asks about unsaved changes
+// (unsaved-changes-prompt AC-01, AC-11).
 export async function openRecent(r: RecentFile) {
   if (file.busy) return;
+  const read = await readRecent(r);
+  if (read === null) return;
+  // Another mode's file goes to the shell, which recognizes it and asks.
+  if ((sniffFormat(read.bytes) ?? formatFromName(read.name)) !== 'aseprite') {
+    shell.openFile({
+      name: read.name,
+      bytes: read.bytes,
+      mime: mimeFromName(read.name),
+      handle: read.target.handle,
+      path: read.target.path,
+    });
+    return;
+  }
+  guardUnsaved(() => void applyRecent(r, read));
+}
+
+interface ReadRecent {
+  name: string;
+  bytes: Uint8Array;
+  target: SaveTarget;
+}
+
+async function readRecent(r: RecentFile): Promise<ReadRecent | null> {
   file.busy = true;
   try {
     let name: string;
@@ -256,7 +295,7 @@ export async function openRecent(r: RecentFile) {
       // for write via `saveBytes` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
         ed.status = t('px.recentDenied', { name: r.name });
-        return;
+        return null;
       }
       const file = await r.handle.getFile();
       bytes = new Uint8Array(await file.arrayBuffer());
@@ -264,24 +303,36 @@ export async function openRecent(r: RecentFile) {
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
       ed.status = t('px.recentNoHandle', { name: r.name });
-      return;
+      return null;
     }
-    const next = Document.openAseprite(bytes);
-    disposeDoc();
-    ed.doc = next;
-    resetDocViewState();
-    file.saveTarget = nextTarget;
-    ed.lastSavedUndoDepth = ed.doc.undoDepth;
-    ed.status = t('px.opened', { name, w: ed.doc.width, h: ed.doc.height });
-    // Keep the recent's id so re-opens count as the same document.
-    await autosave.opened(r.id);
-    await recordRecent();
+    return { name, bytes, target: nextTarget };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    return null;
   } finally {
     file.busy = false;
   }
+}
+
+async function applyRecent(r: RecentFile, read: ReadRecent): Promise<void> {
+  let next: Document;
+  try {
+    next = Document.openAseprite(read.bytes);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    return;
+  }
+  disposeDoc();
+  ed.doc = next;
+  resetDocViewState();
+  file.saveTarget = read.target;
+  ed.lastSavedUndoDepth = ed.doc.undoDepth;
+  ed.status = t('px.opened', { name: read.name, w: ed.doc.width, h: ed.doc.height });
+  // Keep the recent's id so re-opens count as the same document.
+  await autosave.opened(r.id);
+  await recordRecent();
 }
 
 // Import a PNG as a new layer on top of the current document.

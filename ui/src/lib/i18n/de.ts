@@ -5,9 +5,10 @@ import type { MessageKey } from './en';
 
 export const de: Record<MessageKey, string> = {
   // Shell
-  'shell.discardPrompt': 'Ungespeicherte Änderungen am offenen Dokument verwerfen?',
   'shell.unsavedChanges': 'Ungespeicherte Änderungen',
-  'shell.discard': 'Änderungen verwerfen',
+  'shell.saveChangesTo': 'Änderungen an „{name}“ speichern?',
+  'shell.save': 'Speichern',
+  'shell.dontSave': 'Nicht speichern',
   'shell.unsupported':
     '{name}: kein unterstütztes Format (Sprite, OpenRaster oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
@@ -666,7 +667,6 @@ export const de: Record<MessageKey, string> = {
   'px.ready': 'bereit',
   'px.needTilemap': 'zuerst eine Tilemap-Ebene anlegen (+ Ebene im Tilesets-Bedienfeld)',
   'px.toolFailed': '{tool} fehlgeschlagen: {error}',
-  'px.discardNamed': 'Ungespeicherte Änderungen an {name} verwerfen?',
   'px.opened': '{name} geöffnet · {w}×{h}',
   'px.saved': '{bytes} Bytes gespeichert · {name}',
   'px.recovered': '{name} wiederhergestellt · {w}×{h}',

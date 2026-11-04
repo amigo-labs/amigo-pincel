@@ -301,12 +301,12 @@ async function newDocument(page: Page, mode: 'pixel' | 'image'): Promise<void> {
   const dialog = page.getByRole('dialog', { name: 'New document' });
   const unsaved = page.getByRole('alertdialog', { name: 'Unsaved changes' });
   await unsaved.or(dialog).first().waitFor();
-  if (await unsaved.isVisible()) await unsaved.getByRole('button', { name: 'Discard changes' }).click();
+  if (await unsaved.isVisible()) await unsaved.getByRole('button', { name: "Don't Save" }).click();
   await dialog.getByRole('radio', { name: mode === 'pixel' ? /Pixel sprite/ : /^Image/ }).click();
   await dialog.getByLabel('Width').fill(String(SIZE));
   await dialog.getByLabel('Height').fill(String(SIZE));
   await dialog.getByRole('button', { name: 'Create' }).click();
-  if (await unsaved.isVisible()) await unsaved.getByRole('button', { name: 'Discard changes' }).click();
+  if (await unsaved.isVisible()) await unsaved.getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, mode);
 }
 

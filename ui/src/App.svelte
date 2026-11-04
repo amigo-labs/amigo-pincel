@@ -12,6 +12,8 @@
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
+  import UnsavedPrompt from './lib/shell/UnsavedPrompt.svelte';
+  import { answerUnsaved, guardUnsaved, registerDocument, unsaved } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
   import type { EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
@@ -56,8 +58,6 @@
 
   // Mode preselected in the New dialog; `null` while it is closed.
   let newDialog = $state<EditorMode | null>(null);
-  // Pending destructive action awaiting the unsaved-changes confirmation.
-  let confirmState = $state<{ message: string; run: () => void } | null>(null);
   let recents = $state<RecentFile[]>([]);
   // True while the shell reads a file (picker, recent, drop, open-file).
   let busy = $state(false);
@@ -71,25 +71,8 @@
 
   const currentMode = $derived<EditorMode>(session.mode === 'image' ? 'image' : 'pixel');
 
-  // Run `action` now when nothing is unsaved, else ask first. Editors
-  // guard their own in-editor flows; this covers the shell's entry
-  // points (native New / Open / Open Recent, open-file events).
-  function guard(action: () => void) {
-    if (!session.dirty) {
-      action();
-      return;
-    }
-    confirmState = { message: t('shell.discardPrompt'), run: action };
-  }
-
   function errText(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
-  }
-
-  function confirmDiscard() {
-    const pending = confirmState;
-    confirmState = null;
-    pending?.run();
   }
 
   function requestNew(mode: EditorMode) {
@@ -101,15 +84,23 @@
     launch(params.mode, { file: null, create: params });
   }
 
-  // Route an already-read file to the editor its format belongs to.
-  function openFile(opened: OpenedFile) {
+  // Route an already-read file to the editor its format belongs to. Its
+  // format is recognized first, so only a file that can be opened asks
+  // about unsaved changes (unsaved-changes-prompt AC-01, AC-11); `guarded`
+  // is false where the prompt already ran (Open…, before its picker).
+  function openFile(opened: OpenedFile, guarded = true) {
     shellError = null;
     const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
     if (format === null) {
       shellError = t('shell.unsupported', { name: opened.name });
       return;
     }
-    launch(detectMode(format), { file: opened, create: null });
+    guardIf(guarded, () => launch(detectMode(format), { file: opened, create: null }));
+  }
+
+  function guardIf(guarded: boolean, action: () => void) {
+    if (guarded) guardUnsaved(action);
+    else action();
   }
 
   async function openFromPicker() {
@@ -117,7 +108,7 @@
     busy = true;
     try {
       const opened = await pickAndOpen();
-      if (opened) openFile(opened);
+      if (opened) openFile(opened, false);
     } catch (err) {
       shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
@@ -196,6 +187,20 @@
     void clipboardImage().then(openPasted);
   }
 
+  // A file dropped onto an open editor (the start screen takes its own).
+  function onWindowDragOver(e: DragEvent) {
+    if (session.mode === 'start' || !e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+  }
+
+  function onWindowDrop(e: DragEvent) {
+    if (session.mode === 'start' || e.defaultPrevented) return;
+    const file = e.dataTransfer?.files[0];
+    if (!file) return;
+    e.preventDefault();
+    void onDropFile(file);
+  }
+
   async function onDropFile(file: File) {
     if (busy) return;
     busy = true;
@@ -224,16 +229,6 @@
       setPref(FILE_ASSOC_PREF, true).catch((err: unknown) => {
         console.error('setPref fileAssoc failed', err);
       });
-    }
-  }
-
-  // Keys typed into the confirm dialog must not reach the editor's
-  // window-level shortcuts.
-  function onConfirmKeydown(e: KeyboardEvent) {
-    e.stopPropagation();
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      confirmState = null;
     }
   }
 
@@ -273,14 +268,14 @@
     if (tauriHost) {
       void loadUpdaterState();
       wireNativeMenu({
-        'menu:new': () => guard(() => requestNew(currentMode)),
-        'menu:open': () => guard(() => void openFromPicker()),
+        'menu:new': () => guardUnsaved(() => requestNew(currentMode)),
+        'menu:open': () => guardUnsaved(() => void openFromPicker()),
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
           // entries recorded by the mounted editor are found too.
           const rows = recentsAvailable ? await listRecents() : [];
           const r = rows.find((row) => row.id === id);
-          if (r) guard(() => void openRecent(r));
+          if (r) void openRecent(r);
         },
         editor: () => editorMenu,
       })
@@ -293,8 +288,7 @@
         });
       listen<string>('open-file', (e) => {
         if (typeof e.payload === 'string') {
-          const path = e.payload;
-          guard(() => void openByPath(path));
+          void openByPath(e.payload);
         }
       })
         .then((fn) => {
@@ -324,7 +318,12 @@
   });
 </script>
 
-<svelte:window onpaste={onShellPaste} onkeydown={onShellKeydown} />
+<svelte:window
+  onpaste={onShellPaste}
+  onkeydown={onShellKeydown}
+  ondragover={onWindowDragOver}
+  ondrop={onWindowDrop}
+/>
 
 {#if session.mode === 'start' && booting}
   <div class="h-full bg-pc-bg"></div>
@@ -348,12 +347,13 @@
       <Editor
         initialFile={session.pending?.file ?? null}
         initialNew={session.pending?.create ?? null}
-        onRequestNew={() => guard(() => requestNew(currentMode))}
-        onRequestOpen={() => guard(() => void openFromPicker())}
-        onOpenForeign={openFile}
-        onOpenFile={(f) => guard(() => openFile(f))}
-        onDirtyChange={(dirty) => (session.dirty = dirty)}
-        onOpenRecent={(r) => guard(() => void openRecent(r))}
+        onRequestNew={() => guardUnsaved(() => requestNew(currentMode))}
+        onRequestOpen={() => guardUnsaved(() => void openFromPicker())}
+        onOpenForeign={(f) => openFile(f, false)}
+        onOpenFile={(f) => openFile(f)}
+        onOpenRecent={(r) => void openRecent(r)}
+        confirmUnsaved={guardUnsaved}
+        {registerDocument}
         registerMenuHandlers={(h) => (editorMenu = h)}
       />
     {:catch err}
@@ -374,27 +374,8 @@
   {/key}
 {/if}
 
-{#if confirmState}
-  <div
-    class="fixed inset-0 z-30 flex items-center justify-center bg-black/50"
-    role="alertdialog"
-    aria-modal="true"
-    aria-label={t('shell.unsavedChanges')}
-    tabindex="-1"
-    onkeydown={onConfirmKeydown}
-  >
-    <div
-      class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-    >
-      <p>{confirmState.message}</p>
-      <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (confirmState = null)}>{t('common.cancel')}</button>
-        <button class="panel-btn border-red-800 text-red-300" onclick={confirmDiscard}
-          >{t('shell.discard')}</button
-        >
-      </div>
-    </div>
-  </div>
+{#if unsaved.prompt}
+  <UnsavedPrompt name={unsaved.prompt.name} onAnswer={(a) => void answerUnsaved(a)} />
 {/if}
 
 {#if fileAssocOpen}
