@@ -98,21 +98,21 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-01 | e2e `the palette menu offers one import entry and an export submenu` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-02 | `detect_palette_format_by_content_in_spec_order`, `read_palette_ignores_extension_and_dispatches_on_content` (`crates/pincel-core/src/codec/palette_formats.rs`); `import_palette_detects_every_format_by_content` (`crates/pincel-wasm/src/lib.rs`); e2e `a .txt file with hex lines imports as .hex in one undo step` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-03 | `read_hex_skips_comments_blank_lines_bom_and_whitespace`, `read_jasc_pal_keeps_alpha_and_lets_colour_lines_win` (`crates/pincel-core/src/codec/palette_formats.rs`); e2e `a .txt file with hex lines imports as .hex in one undo step` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-04 | `read_jasc_pal_keeps_alpha_and_lets_colour_lines_win` (`crates/pincel-core/src/codec/palette_formats.rs`); `import_palette_detects_every_format_by_content` (`crates/pincel-wasm/src/lib.rs`) | built |        |
+| AC-05 | `palette_from_png_reads_distinct_colours_in_reading_order`, `palette_from_png_scaled_strip_gives_each_colour_once` (`crates/pincel-core/src/codec/palette_formats.rs`); e2e `a 2x1 PNG imports as two swatches` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-06 | `read_hex_bad_line_names_its_line_number`, `read_jasc_pal_bad_line_names_its_line_number` (`crates/pincel-core/src/codec/palette_formats.rs`); `import_palette_invalid_file_returns_err_and_keeps_palette` (`crates/pincel-wasm/src/lib.rs`); e2e `a bad .hex line names its line and keeps the palette` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-07 | `readers_refuse_more_than_256_entries` (`crates/pincel-core/src/codec/palette_formats.rs`); `import_palette_invalid_file_returns_err_and_keeps_palette` (`crates/pincel-wasm/src/lib.rs`) | built |        |
+| AC-08 | `import_palette_on_indexed_sprite_is_refused_for_every_format` (`crates/pincel-wasm/src/lib.rs`) | built |        |
+| AC-09 | `import_palette_is_one_undo_step` (`crates/pincel-wasm/src/lib.rs`); e2e `a .txt file with hex lines imports as .hex in one undo step`, `a 2x1 PNG imports as two swatches` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-10 | `write_hex_is_lowercase_rgb_without_alpha_or_names` (`crates/pincel-core/src/codec/palette_formats.rs`); `export_palette_writes_each_format` (`crates/pincel-wasm/src/lib.rs`); e2e `.hex, .pal and PNG strip export` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-11 | `write_jasc_pal_has_header_count_and_three_columns` (`crates/pincel-core/src/codec/palette_formats.rs`); `export_palette_writes_each_format` (`crates/pincel-wasm/src/lib.rs`); e2e `.hex, .pal and PNG strip export` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-12 | `palette_to_png_is_one_row_of_cells_in_palette_order` (`crates/pincel-core/src/codec/palette_formats.rs`); `export_palette_writes_each_format` (`crates/pincel-wasm/src/lib.rs`); e2e `.hex, .pal and PNG strip export` (`ui/e2e/palette.spec.ts`) | built |        |
+| AC-13 | `hex_pal_and_png_strip_round_trip`, `png_strip_collapses_duplicate_entries` (`crates/pincel-core/src/codec/palette_formats.rs`) | built |        |
+| AC-14 | `palette_presets_and_gpl_round_trip_through_undo`, `import_gpl_invalid_file_returns_err_and_keeps_palette` (`crates/pincel-wasm/src/lib.rs`); `crates/pincel-wasm/tests/undo_history.rs` | built |        |
+| AC-15 | `readers_refuse_files_without_colours` (`crates/pincel-core/src/codec/palette_formats.rs`); `import_palette_invalid_file_returns_err_and_keeps_palette` (`crates/pincel-wasm/src/lib.rs`) | built |        |
 
 ## Decisions
 
@@ -125,3 +125,11 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: Importing a file with no colour entries is an error ("no colours found") and leaves the palette unchanged, for every format (AC-15) — `.hex` is the fallback for anything else, so any random text or binary file would otherwise silently wipe the palette (owner accepted the recommendation).
 - 2026-10-29: `.hex` and `.pal` import skip a leading UTF-8 BOM and trim whitespace on every line, as `read_gpl` does (AC-03) — Windows editors add BOMs and trailing spaces, which are formatting noise rather than errors (owner accepted the recommendation).
 - 2026-10-29: The PNG strip cell size is chosen by two Export palette submenu entries, "PNG strip (1 px)" and "PNG strip (8 px)", with no dialog (AC-01) — one click like the other formats, with no new dialog for a binary choice (owner accepted the recommendation).
+- 2026-11-04: Detection looks at the first non-empty line after a BOM and whitespace, not strictly line 1 — the same header search `read_gpl` already does, so a `.gpl` with a leading blank line still detects as `.gpl`.
+- 2026-11-04: A `.pal` file needs its `0100` and count lines (else "not a JASC palette"); the version line is not checked and a count line that is not a number is a bad line — the colour lines win over the count anyway (AC-04), so only its presence matters.
+- 2026-11-04: `.pal` is written with CRLF line ends — Paint Shop Pro, where the format comes from, writes CRLF, and every reader that takes LF takes CRLF.
+- 2026-11-04: wasm `exportPalette(format, name, cell)` takes the PNG cell size as a third argument (`format` is `gpl`, `hex`, `pal` or `png`) — one function covers both strip entries and any later cell size; `name` is used by `gpl` only, `cell` by `png` only.
+- 2026-11-04: The Import palette… picker offers `.gpl`, `.hex`, `.pal`, `.png` and `.txt` — content detection makes the extension irrelevant, and Lospec-style lists are often shared as `.txt` (AC-02).
+- 2026-11-04: The Export palette submenu expands inline inside the ⋯ popover (`aria-haspopup="menu"`, a nested `role="menu"`) rather than as a flyout — the panel's popover sits at the window edge, where a flyout would need its own placement logic.
+- 2026-11-04: Test inputs are built inline in the unit tests (and PNGs with `encode_png`) instead of files under `tests/fixtures/palettes/` — every case is a few bytes, so no `.gitattributes` change was needed.
+- 2026-11-04: AC-14's tests are the existing `.gpl` wasm tests, which pass unchanged — the functions were only given deprecation notes in their doc comments.

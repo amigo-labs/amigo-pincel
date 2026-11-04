@@ -50,11 +50,11 @@
     onError?: (message: string) => void;
     /** A one-line success message (preset applied, palette imported / exported). */
     onStatus?: (message: string) => void;
-    /** Base name suggested for an exported `.gpl`. */
+    /** Base name suggested for an exported palette file. */
     fileStem?: string;
   } = $props();
 
-  // The ⋯ menu: built-in presets plus GIMP `.gpl` import / export (spec §3.7).
+  // The ⋯ menu: built-in presets plus palette file import / export (spec §3.7).
   const PRESETS = ['db32', 'db16', 'pico8', 'gameboy', 'nes'] as const;
   const PRESET_KEYS = {
     db32: 'palette.preset.db32',
@@ -67,6 +67,7 @@
 
   function openMenu(e: MouseEvent) {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    exportOpen = false;
     menu = {
       left: Math.max(4, Math.min(r.right - 208, window.innerWidth - 212)),
       top: r.bottom + 4,
@@ -81,13 +82,25 @@
     onStatus?.(t('palette.presetApplied', { name: t(PRESET_KEYS[id]) }));
   }
 
-  async function importGpl() {
+  // Import detects the palette format from the content (spec §3.7);
+  // export picks it from the Export palette submenu.
+  const EXPORTS = [
+    { id: 'gpl', format: 'gpl', ext: 'gpl', cell: 1, label: 'palette.exportGpl' },
+    { id: 'hex', format: 'hex', ext: 'hex', cell: 1, label: 'palette.exportHex' },
+    { id: 'pal', format: 'pal', ext: 'pal', cell: 1, label: 'palette.exportPal' },
+    { id: 'png1', format: 'png', ext: 'png', cell: 1, label: 'palette.exportPng1' },
+    { id: 'png8', format: 'png', ext: 'png', cell: 8, label: 'palette.exportPng8' },
+  ] as const;
+  const SAVE_FORMAT = { gpl: 'gpl', hex: 'hex', pal: 'pal', png: 'palette-png' } as const;
+  let exportOpen = $state(false);
+
+  async function importPalette() {
     menu = null;
-    let text: string;
+    let bytes: Uint8Array;
     try {
-      const opened = await pickAndOpen('gpl');
+      const opened = await pickAndOpen('palette');
       if (!opened) return;
-      text = new TextDecoder().decode(opened.bytes);
+      bytes = opened.bytes;
     } catch (err) {
       onError?.(
         t('status.failed', {
@@ -99,19 +112,20 @@
     }
     let count = 0;
     edit(t('palette.import'), (d) => {
-      count = d.importGpl(text);
+      count = d.importPalette(bytes);
     });
     selected = null;
     colors.rampRange = null;
     if (count > 0) onStatus?.(t('palette.imported', { count }));
   }
 
-  async function exportGpl() {
+  async function exportPalette(entry: (typeof EXPORTS)[number]) {
     menu = null;
     if (!doc) return;
     try {
-      const bytes = new TextEncoder().encode(doc.exportGpl(fileStem));
-      if (await saveExport(bytes, `${fileStem}.gpl`, 'gpl')) {
+      const bytes = new Uint8Array(doc.exportPalette(entry.format, fileStem, entry.cell));
+      const name = `${fileStem}.${entry.ext}`;
+      if (await saveExport(bytes, name, SAVE_FORMAT[entry.format])) {
         onStatus?.(t('palette.exported', { count: swatches.length }));
       }
     } catch (err) {
@@ -258,12 +272,39 @@
         </button>
       {/each}
       <div class="my-1 border-t border-pc-border" role="separator"></div>
-      <button type="button" class="pal-menu-row" role="menuitem" onclick={() => void importGpl()}>
-        {t('palette.importGpl')}
+      <button
+        type="button"
+        class="pal-menu-row"
+        role="menuitem"
+        onclick={() => void importPalette()}
+      >
+        {t('palette.importAction')}
       </button>
-      <button type="button" class="pal-menu-row" role="menuitem" onclick={() => void exportGpl()}>
-        {t('palette.exportGpl')}
+      <button
+        type="button"
+        class="pal-menu-row flex items-center justify-between"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={exportOpen}
+        onclick={() => (exportOpen = !exportOpen)}
+      >
+        <span>{t('palette.export')}</span>
+        <span aria-hidden="true">{exportOpen ? '▾' : '▸'}</span>
       </button>
+      {#if exportOpen}
+        <div role="menu" aria-label={t('palette.export')} tabindex="-1">
+          {#each EXPORTS as entry (entry.id)}
+            <button
+              type="button"
+              class="pal-menu-row pl-6"
+              role="menuitem"
+              onclick={() => void exportPalette(entry)}
+            >
+              {t(entry.label)}
+            </button>
+          {/each}
+        </div>
+      {/if}
     </div>
   {/if}
 

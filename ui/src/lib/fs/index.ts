@@ -100,10 +100,25 @@ const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'ti
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
 
 /** What a picker asks for: a document to edit, a palette or a keymap file. */
-export type PickKind = 'document' | 'gpl' | 'keymap';
+export type PickKind = 'document' | 'palette' | 'keymap';
 
 const GPL_TYPES: FilePickerAcceptType[] = [
   { description: 'GIMP palette', accept: { 'text/plain': ['.gpl'] } },
+];
+const HEX_TYPES: FilePickerAcceptType[] = [
+  { description: 'Lospec palette', accept: { 'text/plain': ['.hex'] } },
+];
+const PAL_TYPES: FilePickerAcceptType[] = [
+  { description: 'JASC palette', accept: { 'text/plain': ['.pal'] } },
+];
+// Palette import detects the format by content (spec §3.7), so one picker
+// takes every palette file and plain `.txt` lists.
+const PALETTE_EXTENSIONS = ['gpl', 'hex', 'pal', 'png', 'txt'];
+const PALETTE_TYPES: FilePickerAcceptType[] = [
+  {
+    description: 'Palette',
+    accept: { 'text/plain': ['.gpl', '.hex', '.pal', '.txt'], 'image/png': ['.png'] },
+  },
 ];
 
 const PICK: Record<
@@ -124,10 +139,10 @@ const PICK: Record<
       { name: 'Images', extensions: IMAGE_EXTENSIONS },
     ],
   },
-  gpl: {
-    types: GPL_TYPES,
-    extensions: ['gpl'],
-    filters: [{ name: 'GIMP palette', extensions: ['gpl'] }],
+  palette: {
+    types: PALETTE_TYPES,
+    extensions: PALETTE_EXTENSIONS,
+    filters: [{ name: 'Palette', extensions: PALETTE_EXTENSIONS }],
   },
   keymap: {
     types: [{ description: 'Pincel keymap', accept: { 'application/json': ['.json'] } }],
@@ -174,8 +189,10 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
 /** Raster formats the Image mode exports. */
 export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
 /** Everything `saveExport` can write: images, animated GIFs, JSON
- *  sidecars, palettes, SVG (vectorize-dialog). */
-export type ExportFormat = ImageExportFormat | 'gif' | 'json' | 'gpl' | 'svg';
+ *  sidecars, palettes (`gpl`, `hex`, `pal`, `palette-png` strips), SVG
+ *  (vectorize-dialog). */
+export type ExportFormat =
+  ImageExportFormat | 'gif' | 'json' | 'gpl' | 'hex' | 'pal' | 'palette-png' | 'svg';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
@@ -184,6 +201,9 @@ const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   gif: GIF_TYPES,
   json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
   gpl: GPL_TYPES,
+  hex: HEX_TYPES,
+  pal: PAL_TYPES,
+  'palette-png': PNG_TYPES,
   svg: [{ description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } }],
 };
 
@@ -194,6 +214,9 @@ const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] 
   gif: { name: 'GIF image', extensions: ['gif'] },
   json: { name: 'JSON data', extensions: ['json'] },
   gpl: { name: 'GIMP palette', extensions: ['gpl'] },
+  hex: { name: 'Lospec palette', extensions: ['hex'] },
+  pal: { name: 'JASC palette', extensions: ['pal'] },
+  'palette-png': { name: 'PNG palette strip', extensions: ['png'] },
   svg: { name: 'SVG image', extensions: ['svg'] },
 };
 
