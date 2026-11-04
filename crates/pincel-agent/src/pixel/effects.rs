@@ -218,6 +218,24 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
     ),
     plain("posterize", &[num("levels", 2.0, 64.0, 4.0)]),
     plain("threshold", &[num("threshold", 0.0, 255.0, 128.0)]),
+    plain("auto_level", &[]),
+    plain("exposure", &[num("exposure", -5.0, 5.0, 0.0)]),
+    plain(
+        "highlights_shadows",
+        &[
+            num("shadows", -100.0, 100.0, 0.0),
+            num("highlights", -100.0, 100.0, 0.0),
+        ],
+    ),
+    plain("invert_alpha", &[]),
+    plain("sepia", &[num("intensity", 0.0, 100.0, 100.0)]),
+    plain(
+        "temperature_tint",
+        &[
+            num("temperature", -100.0, 100.0, 0.0),
+            num("tint", -100.0, 100.0, 0.0),
+        ],
+    ),
 ];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {
@@ -236,6 +254,12 @@ pub(crate) const ADJUSTMENTS: &[&str] = &[
     "grayscale",
     "posterize",
     "threshold",
+    "auto_level",
+    "exposure",
+    "highlights_shadows",
+    "invert_alpha",
+    "sepia",
+    "temperature_tint",
 ];
 
 /// `true` for an adjustment id (Adjust menu), `false` for an effect.

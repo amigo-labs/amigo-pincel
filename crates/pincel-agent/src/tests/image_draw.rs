@@ -328,8 +328,10 @@ fn editor_effect(s: &S, id: &str, name: &str, params: &[f64]) -> Vec<u8> {
     let before = &doc.layers()[0].pixels;
     let src = EffectImage::from_rgba8(before.width(), before.height(), before.data().to_vec())
         .expect("image");
-    let after = ImageBuffer::from_raw(before.width(), before.height(), spec.run(&src).into_raw())
-        .expect("buffer");
+    let selection = doc.selection.as_ref();
+    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
+    let after =
+        ImageBuffer::from_raw(before.width(), before.height(), out.into_raw()).expect("buffer");
     let mut bus = CommandBus::new(doc.clone());
     if let Some((rect, region)) = masked_region(before, &after, doc.selection.as_ref()) {
         bus.apply(Box::new(SetPixels::new(0, rect, region)))
@@ -376,6 +378,61 @@ fn adjust_and_effect_apply_refuse_unknown_ids_and_bad_params() {
         "{e}"
     );
     assert_eq!(state(&s, &id), before);
+}
+
+/// adjustments-paintnet AC-05 / AC-10 in Image mode: the six adjustments
+/// match the editor, stay inside the selection and are one undo step each;
+/// Auto-Level stretches the selection's own luma range.
+#[test]
+fn paintnet_adjustments_match_the_editor_inside_the_selection() {
+    let mut s = S::new();
+    let id = s.new_image(16, 4);
+    s.ok(
+        "draw.gradient",
+        json!({ "x0": 0, "y0": 0, "x1": 16, "y1": 0, "from": "#202020", "to": "#a0a0a0" }),
+    );
+    s.ok(
+        "select.rect",
+        json!({ "x": 4, "y": 0, "width": 8, "height": 4 }),
+    );
+    let original = agent_pixels(&s, &id, 0);
+    let outside = |px: &[u8]| {
+        (0..4u32).all(|y| {
+            (0..16u32).filter(|x| !(4..12).contains(x)).all(|x| {
+                let i = ((y * 16 + x) * 4) as usize;
+                px[i..i + 4] == original[i..i + 4]
+            })
+        })
+    };
+    for (name, params, wire) in [
+        ("auto_level", json!({}), vec![]),
+        ("exposure", json!({ "exposure": 1.5 }), vec![1.5]),
+        (
+            "highlights_shadows",
+            json!({ "shadows": 50, "highlights": -30 }),
+            vec![50.0, -30.0],
+        ),
+        ("invert_alpha", json!({}), vec![]),
+        ("sepia", json!({}), vec![100.0]),
+        (
+            "temperature_tint",
+            json!({ "temperature": 40, "tint": -20 }),
+            vec![40.0, -20.0],
+        ),
+    ] {
+        let want = editor_effect(&s, &id, name, &wire);
+        let args = json!({ "id": name, "params": params });
+        one_undo_step(&mut s, &id, "adjust.apply", args);
+        let got = agent_pixels(&s, &id, 0);
+        assert_eq!(got, want, "{name}");
+        assert_ne!(got, original, "{name} changed nothing");
+        assert!(outside(&got), "{name} changed pixels outside the selection");
+        s.ok("doc.undo", json!({}));
+    }
+    s.ok("adjust.apply", json!({ "id": "auto_level" }));
+    let px = agent_pixels(&s, &id, 0);
+    let row: Vec<u8> = (4..12).map(|x| px[x * 4]).collect();
+    assert!(row[0] <= 1 && row[7] >= 254, "{row:?}");
 }
 
 #[test]
