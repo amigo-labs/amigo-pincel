@@ -177,6 +177,18 @@ export function toolGroupForKey(e: KeyboardEvent): string | null {
   return null;
 }
 
+/**
+ * True for a focused control that a Space tap activates (button, checkbox,
+ * radio). Both editors still pan on a Space-drag over such a control, but
+ * leave the keydown alone so a tap reaches it (effect-catalog-v2 AC-15).
+ */
+export function isSpaceActivated(target: EventTarget | null): boolean {
+  if (target instanceof HTMLButtonElement) return true;
+  return (
+    target instanceof HTMLInputElement && ['checkbox', 'radio', 'button'].includes(target.type)
+  );
+}
+
 /** True when keyboard input belongs to a text field, not the editor. */
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

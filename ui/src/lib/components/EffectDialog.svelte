@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { defaultValues, toParams, type EffectDef } from '../effects/catalog';
+  import { defaultValues, toParams, type EffectDef, type ParamDef } from '../effects/catalog';
+  import { canvasPick } from '../effects/canvas-pick.svelte';
   import { effectLabel, fxText } from '../effects/labels';
   import { t } from '../i18n/index.svelte';
+  import AngleDial from './AngleDial.svelte';
 
   // Parameter dialog for one effect / adjustment. Purely presentational:
   // the parent owns the wasm `Document`, runs `previewEffect` on every
@@ -50,12 +52,73 @@
   // Turning preview off restores the composite without closing.
   let onCancel_previewOnly = () => onPreview([]);
 
+  type PointDef = Extract<ParamDef, { kind: 'point' }>;
+  type PairDef = Extract<ParamDef, { kind: 'pair' }>;
+  type SeedDef = Extract<ParamDef, { kind: 'seed' }>;
+
+  // Pick on canvas (AC-11): the point parameter being picked, if any. The
+  // canvas routes its presses here through `canvasPick` while it is set.
+  let picking = $state<string | null>(null);
+
+  const pct = (f: number): number => Math.round(Math.min(100, Math.max(0, f * 100)) * 10) / 10;
+
+  function startPicking(p: PointDef): void {
+    picking = p.key;
+    canvasPick.handler = (fx, fy, phase) => {
+      values[p.xKey] = pct(fx);
+      values[p.yKey] = pct(fy);
+      if (phase === 'up') stopPicking();
+    };
+  }
+
+  function stopPicking(): void {
+    picking = null;
+    canvasPick.handler = null;
+  }
+
+  // Closing the dialog (OK, Cancel, Escape) ends picking with it.
+  $effect(() => stopPicking);
+
+  // Linked pairs (AC-13): the side edited last, so re-linking takes its value.
+  let lastEdited = $state<Record<string, 'first' | 'second'>>({});
+
+  function setPair(p: PairDef, side: 'first' | 'second', v: number): void {
+    if (!Number.isFinite(v)) return;
+    lastEdited[p.key] = side;
+    values[p[side].key] = v;
+    if (values[p.linkKey] !== 0) values[p[side === 'first' ? 'second' : 'first'].key] = v;
+  }
+
+  function toggleLink(p: PairDef): void {
+    const linked = values[p.linkKey] !== 0;
+    values[p.linkKey] = linked ? 0 : 1;
+    if (!linked) {
+      const v = values[p[lastEdited[p.key] ?? 'first'].key] ?? p.default;
+      values[p.first.key] = v;
+      values[p.second.key] = v;
+    }
+  }
+
+  /** A new seed in range, different from the current one (AC-12). */
+  function reseed(p: SeedDef): void {
+    const current = values[p.key];
+    let next = current;
+    while (next === current) next = p.min + Math.floor(Math.random() * (p.max - p.min + 1));
+    values[p.key] = next ?? p.default;
+  }
+
   function reset() {
+    stopPicking();
+    lastEdited = {};
     values = defaultValues(def);
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && picking !== null) {
+      // Escape ends picking only; the dialog stays open.
+      e.preventDefault();
+      stopPicking();
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
     } else if (e.key === 'Enter' && !(e.target instanceof HTMLTextAreaElement)) {
@@ -128,6 +191,107 @@
           />
           <span>{fxText(p.label)}</span>
         </label>
+      {:else if p.kind === 'angle'}
+        <div class="flex flex-col gap-1 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <AngleDial
+            value={values[p.key] ?? p.default}
+            label={fxText(p.label)}
+            onchange={(v) => (values[p.key] = v)}
+          />
+        </div>
+      {:else if p.kind === 'point'}
+        <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+          <legend>{fxText(p.label)}</legend>
+          <span class="flex items-center gap-2">
+            {#each [{ key: p.xKey, label: p.xLabel }, { key: p.yKey, label: p.yLabel }] as axis (axis.key)}
+              <label class="flex items-center gap-1">
+                <span>{fxText(axis.label)}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  bind:value={values[axis.key]}
+                  class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+                  aria-label={t('effectDlg.percent', { label: fxText(axis.label) })}
+                />
+                <span class="text-pc-faint">%</span>
+              </label>
+            {/each}
+          </span>
+          <button
+            type="button"
+            class="panel-btn self-start"
+            aria-pressed={picking === p.key}
+            onclick={() => (picking === p.key ? stopPicking() : startPicking(p))}
+          >
+            {t('effectDlg.pick')}
+          </button>
+          {#if picking === p.key}
+            <span class="text-pc-muted" role="status">
+              {t('effectDlg.picking', { label: fxText(p.label) })}
+            </span>
+          {/if}
+        </fieldset>
+      {:else if p.kind === 'seed'}
+        <div class="flex items-center justify-between gap-2 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <span class="flex items-center gap-2">
+            <input
+              type="number"
+              min={p.min}
+              max={p.max}
+              step="1"
+              bind:value={values[p.key]}
+              class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+              aria-label={t('effectDlg.value', { label: fxText(p.label) })}
+            />
+            <button type="button" class="panel-btn" onclick={() => reseed(p)}>
+              {t('effectDlg.reseed')}
+            </button>
+          </span>
+        </div>
+      {:else if p.kind === 'pair'}
+        <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+          <legend>{fxText(p.label)}</legend>
+          {#each ['first', 'second'] as const as side (side)}
+            {@const part = p[side]}
+            <span class="flex items-center gap-2">
+              <span class="w-12">{fxText(part.label)}</span>
+              <input
+                type="range"
+                min={p.min}
+                max={p.max}
+                step={p.step}
+                value={values[part.key]}
+                oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
+                class="flex-1 cursor-pointer"
+                aria-label={fxText(part.label)}
+              />
+              <input
+                type="number"
+                min={p.min}
+                max={p.max}
+                step={p.step}
+                value={values[part.key]}
+                oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
+                class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+                aria-label={t('effectDlg.value', { label: fxText(part.label) })}
+              />
+            </span>
+          {/each}
+          <label class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={values[p.linkKey] !== 0}
+              onchange={() => toggleLink(p)}
+            />
+            <span>
+              {t('effectDlg.link', { a: fxText(p.first.label), b: fxText(p.second.label) })}
+            </span>
+          </label>
+        </fieldset>
       {:else}
         <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
           <span>{fxText(p.label)}</span>

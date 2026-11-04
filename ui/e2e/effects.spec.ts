@@ -6,7 +6,7 @@ test('image mode: effects and adjustments come from the shared catalog', async (
   await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
 
-  await menu(page, 'Effects', 'Blur', 'Gaussian Blur…');
+  await menu(page, 'Effects', 'Blurs', 'Gaussian Blur…');
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: 'Gaussian Blur' })).toBeVisible();
   await dialog.getByRole('button', { name: 'OK' }).click();

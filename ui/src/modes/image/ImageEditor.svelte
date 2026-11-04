@@ -804,7 +804,7 @@
         { label: t('menu.rotate180'), disabled: !hasDoc, run: () => transformLayer('rotate_180') },
       ],
     },
-    ...effectMenus((def) => (effectOpen = def), !hasDoc),
+    ...effectMenus((def) => (effectOpen = def), !hasDoc, 'image'),
     {
       id: 'view',
       label: t('menu.view'),

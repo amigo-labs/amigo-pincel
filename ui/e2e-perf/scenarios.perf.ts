@@ -157,7 +157,7 @@ test('image 4K, 10 layers: brush, pan / zoom, recompose, effect, save and export
   });
 
   await test.step('effect preview and result (Gaussian r = 10)', async () => {
-    await menu(page, 'Effects', 'Blur', 'Gaussian Blur…');
+    await menu(page, 'Effects', 'Blurs', 'Gaussian Blur…');
     const dialog = page.getByRole('dialog');
     await expect(dialog.getByRole('heading', { name: 'Gaussian Blur' })).toBeVisible();
     await startRecording(page);

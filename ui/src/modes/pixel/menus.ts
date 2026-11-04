@@ -232,7 +232,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.deleteFrame'), disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
       ],
     },
-    ...effectMenus(c.openEffect, noDoc),
+    ...effectMenus(c.openEffect, noDoc, 'pixel'),
     {
       id: 'view',
       label: t('menu.view'),

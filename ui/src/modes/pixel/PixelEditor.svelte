@@ -25,6 +25,7 @@
     NATIVE_MENU_ACTIONS,
     actionFor,
     hint,
+    isSpaceActivated,
     isTypingTarget,
     toolGroupForKey,
     type ShortcutAction,
@@ -302,8 +303,10 @@
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
-      // Prevent the browser from page-scrolling on space.
-      e.preventDefault();
+      // Prevent the browser from page-scrolling on space; a focused button
+      // or checkbox keeps its Space activation (a Space-drag still pans).
+      spacePan = { x: view.panX, y: view.panY };
+      if (!isSpaceActivated(e.target)) e.preventDefault();
       view.spaceDown = true;
       return;
     }
@@ -452,8 +455,13 @@
     onPaste(e, blocked || help.about || toolState.textAnchor !== null);
   }
 
+  // The view offset when Space went down: a hold that panned must not
+  // also activate the focused button on release.
+  let spacePan = { x: 0, y: 0 };
+
   function onKeyUp(e: KeyboardEvent) {
     if (e.code === 'Space') {
+      if (view.panX !== spacePan.x || view.panY !== spacePan.y) e.preventDefault();
       view.spaceDown = false;
     }
   }
