@@ -102,6 +102,40 @@ impl Default for PixelBrush {
     }
 }
 
+/// How a Pencil stroke changes the pixels it touches (`docs/specs/pincel.md`
+/// §5.2, `docs/specs/shading-ink.md`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Ink {
+    /// Paint the stroke color.
+    #[default]
+    Simple,
+    /// Step each touched pixel `step` entries along `ramp`, judged against
+    /// its value from before the stroke: a pixel matching ramp entry `i`
+    /// (its first occurrence) becomes entry `i + step`, clamped to the
+    /// ramp; a pixel whose exact RGBA is not in the ramp is left alone.
+    Shading {
+        /// The ramp, in palette order.
+        ramp: Vec<Rgba>,
+        /// `1` toward the ramp's end (left button), `-1` toward its start.
+        step: i8,
+    },
+}
+
+impl Ink {
+    /// The color a pixel that was `before` the stroke takes, or `None` to
+    /// leave it alone.
+    fn color_for(&self, paint: Rgba, before: Rgba) -> Option<Rgba> {
+        match self {
+            Self::Simple => Some(paint),
+            Self::Shading { ramp, step } => {
+                let i = ramp.iter().position(|&c| c == before)?;
+                let j = (i as i64 + i64::from(*step)).clamp(0, ramp.len() as i64 - 1);
+                ramp.get(j as usize).copied()
+            }
+        }
+    }
+}
+
 /// One Pixel-mode Pencil / Eraser stroke (one undo entry).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PencilStroke {
@@ -111,6 +145,8 @@ pub struct PencilStroke {
     color: Rgba,
     brush: PixelBrush,
     pixel_perfect: bool,
+    /// What the stroke does to the pixels it touches.
+    ink: Ink,
     /// Input samples in order. Never empty; `apply` replays them.
     samples: Vec<Point>,
     /// Pen pressure per sample in `[0, 1]`, parallel to `samples`; a
@@ -243,6 +279,7 @@ impl PencilStroke {
             color,
             brush,
             pixel_perfect,
+            ink: Ink::Simple,
             samples: vec![start],
             pressure: vec![clamp_pressure(pressure)],
             path: Vec::new(),
@@ -250,6 +287,13 @@ impl PencilStroke {
             prior: HashMap::new(),
             bounds: Bounds::default(),
         }
+    }
+
+    /// The stroke with `ink` instead of [`Ink::Simple`]; set it before the
+    /// stroke is applied.
+    pub fn with_ink(mut self, ink: Ink) -> Self {
+        self.ink = ink;
+        self
     }
 
     /// Extend an applied stroke to `to` with pen pressure `pressure`
@@ -345,14 +389,19 @@ impl PencilStroke {
         }
     }
 
-    /// Write the stroke color to one pixel, recording its first-touch value.
+    /// Write the ink's color to one pixel, recording its first-touch
+    /// value. The ink judges the pixel by that first-touch value, so a
+    /// pixel the stroke passes over again gets the same color.
     fn paint(&mut self, t: &mut Target, x: i32, y: i32, seg: &mut Bounds) {
         let Some(off) = t.offset(x, y) else {
             return;
         };
         let before = t.read(off);
-        self.prior.entry((x, y)).or_insert(before);
-        t.write(off, self.color);
+        let first = *self.prior.entry((x, y)).or_insert(before);
+        let Some(color) = self.ink.color_for(self.color, first) else {
+            return;
+        };
+        t.write(off, color);
         self.bounds.add(x, y);
         seg.add(x, y);
     }
@@ -998,5 +1047,219 @@ mod tests {
                 "case {case}: eraser"
             );
         }
+    }
+
+    // Shading ink (docs/specs/shading-ink.md).
+
+    const R0: Rgba = Rgba::new(10, 0, 0, 255);
+    const R1: Rgba = Rgba::new(20, 0, 0, 255);
+    const R2: Rgba = Rgba::new(30, 0, 0, 255);
+    const OFF: Rgba = Rgba::new(21, 0, 0, 255);
+
+    fn ramp() -> Vec<Rgba> {
+        vec![R0, R1, R2]
+    }
+
+    fn shade(step: i8, size: u8, pp: bool, pts: &[(i32, i32)]) -> PencilStroke {
+        stroke(RED, size, BrushShape::Square, pp, pts).with_ink(Ink::Shading { ramp: ramp(), step })
+    }
+
+    /// A cel whose row `y` is R0 R1 R2 OFF R0 R1 R2 OFF and the rest
+    /// transparent.
+    fn ramp_row(cels: &mut CelMap, y: i32) {
+        let mut t = target(cels, LayerId::new(1), FrameIndex::new(0)).expect("cel");
+        for x in 0..W as i32 {
+            let off = t.offset(x, y).expect("in bounds");
+            t.write(off, [R0, R1, R2, OFF][x as usize % 4]);
+        }
+    }
+
+    fn row(cels: &mut CelMap, y: i32) -> Vec<Rgba> {
+        (0..W as i32).map(|x| pixel(cels, x, y)).collect()
+    }
+
+    #[test]
+    fn shading_steps_one_entry_toward_end() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 1, false, &[(0, 2)]),
+            &[(7, 2)],
+        );
+        assert_eq!(row(&mut cels, 2), [R1, R2, R2, OFF, R1, R2, R2, OFF]);
+    }
+
+    #[test]
+    fn shading_right_button_steps_toward_start() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(-1, 1, false, &[(0, 2)]),
+            &[(7, 2)],
+        );
+        assert_eq!(row(&mut cels, 2), [R0, R0, R1, OFF, R0, R0, R1, OFF]);
+    }
+
+    #[test]
+    fn shading_ignores_colors_outside_ramp() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let mut bus = Bus::new();
+        // Row 3 is transparent, which is not in the ramp; OFF is one off R1.
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 1, false, &[(3, 2)]),
+            &[(3, 3), (0, 3)],
+        );
+        assert_eq!(pixel(&mut cels, 3, 2), OFF);
+        assert!(painted(&mut cels, Rgba::TRANSPARENT).contains(&(0, 3)));
+        assert_eq!(row(&mut cels, 3), vec![Rgba::TRANSPARENT; W as usize]);
+    }
+
+    #[test]
+    fn shading_clamps_at_ramp_end() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 1, false, &[(2, 2)]),
+            &[],
+        );
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(-1, 1, false, &[(0, 2)]),
+            &[],
+        );
+        assert_eq!(pixel(&mut cels, 2, 2), R2);
+        assert_eq!(pixel(&mut cels, 0, 2), R0);
+        // A one-entry ramp leaves its color alone both ways.
+        for step in [1, -1] {
+            let s = stroke(RED, 1, BrushShape::Square, false, &[(1, 2)]).with_ink(Ink::Shading {
+                ramp: vec![R1],
+                step,
+            });
+            run(&mut bus, &mut sprite, &mut cels, s, &[]);
+            assert_eq!(pixel(&mut cels, 1, 2), R1);
+        }
+    }
+
+    #[test]
+    fn shading_same_pixel_twice_in_one_stroke_steps_once() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 1, false, &[(0, 2)]),
+            &[(1, 2), (0, 2), (1, 2), (0, 2)],
+        );
+        assert_eq!(pixel(&mut cels, 0, 2), R1);
+        assert_eq!(pixel(&mut cels, 1, 2), R2);
+        // Replaying the stroke (redo) gives the same result.
+        let after = snapshot(&mut cels);
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert!(bus.redo(&mut sprite, &mut cels).expect("redo"));
+        assert_eq!(snapshot(&mut cels), after);
+    }
+
+    #[test]
+    fn shading_size_3_shades_every_stamped_pixel() {
+        let (mut sprite, mut cels) = fixture();
+        for y in 1..=3 {
+            ramp_row(&mut cels, y);
+        }
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 3, false, &[(1, 2)]),
+            &[],
+        );
+        for y in 1..=3 {
+            assert_eq!(&row(&mut cels, y)[..4], [R1, R2, R2, OFF], "row {y}");
+        }
+        assert_eq!(pixel(&mut cels, 4, 2), R0, "outside the stamp");
+    }
+
+    #[test]
+    fn shading_stroke_is_one_undo_entry_that_restores_every_pixel() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let before = snapshot(&mut cels);
+        let mut bus = Bus::new();
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 2, false, &[(0, 1)]),
+            &[(7, 2)],
+        );
+        assert_eq!(bus.undo_depth(), 1);
+        assert_ne!(snapshot(&mut cels), before);
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!(snapshot(&mut cels), before);
+    }
+
+    #[test]
+    fn shading_pixel_perfect_restores_a_pruned_corner_to_its_prior_value() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        ramp_row(&mut cels, 3);
+        let mut bus = Bus::new();
+        // (0, 2) → (1, 2) → (1, 3): (1, 2) is an L-corner and is dropped.
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            shade(1, 1, true, &[(0, 2)]),
+            &[(1, 2), (1, 3)],
+        );
+        assert_eq!(pixel(&mut cels, 0, 2), R1);
+        assert_eq!(
+            pixel(&mut cels, 1, 2),
+            R1,
+            "pruned corner keeps its prior value"
+        );
+        assert_eq!(pixel(&mut cels, 1, 3), R2);
+    }
+
+    #[test]
+    fn simple_ink_paints_like_a_plain_stroke() {
+        let (mut sprite, mut cels) = fixture();
+        ramp_row(&mut cels, 2);
+        let (mut sprite2, mut cels2) = fixture();
+        ramp_row(&mut cels2, 2);
+        let mut bus = Bus::new();
+        let mut bus2 = Bus::new();
+        let pts = [(0, 2)];
+        let rest = [(5, 2), (5, 5)];
+        run(
+            &mut bus,
+            &mut sprite,
+            &mut cels,
+            stroke(BLUE, 2, BrushShape::Round, false, &pts),
+            &rest,
+        );
+        let s = stroke(BLUE, 2, BrushShape::Round, false, &pts).with_ink(Ink::Simple);
+        run(&mut bus2, &mut sprite2, &mut cels2, s, &rest);
+        assert_eq!(snapshot(&mut cels), snapshot(&mut cels2));
     }
 }

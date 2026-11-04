@@ -81,7 +81,9 @@ pub use palette_ops::{
 };
 pub use paste_layer::{PasteLayer, PastedImage};
 pub use patch_cel::{AddEmptyCel, PatchCel};
-pub use pencil_stroke::{BrushShape, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, PencilStroke, PixelBrush};
+pub use pencil_stroke::{
+    BrushShape, Ink, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, PencilStroke, PixelBrush,
+};
 pub use place_tile::PlaceTile;
 pub use put_cel::PutCel;
 pub use reframe_canvas::{Anchor, ReframeCanvas};

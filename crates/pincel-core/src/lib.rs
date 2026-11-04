@@ -26,7 +26,7 @@ pub use command::{
     AddTileset, Anchor, AnyCommand, BrushShape, Bus, ClearRegion, Command, CommandBatch,
     CommandError, DirtyRegion, DitherMatrix, DrawDitherGradient, DrawEllipse, DrawLine,
     DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, GradientKind,
-    Interpolation, LayerPlacement, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, MergeDown, MoveDirection,
+    Ink, Interpolation, LayerPlacement, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, MergeDown, MoveDirection,
     MoveLayer, MoveLayerTo, MovePaletteEntry, MoveSelectionContent, Orientation, PasteLayer,
     PastedImage, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel, ReframeCanvas, RemoveFrame,
     RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer, ReplaceCelPixels,
