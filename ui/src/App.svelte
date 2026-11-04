@@ -9,8 +9,10 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import AboutDialog from './lib/components/AboutDialog.svelte';
   import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
+  import CommandPalette from './lib/components/CommandPalette.svelte';
   import {
     closeAbout,
+    closePalette,
     closeShortcuts,
     help,
     helpDialogOpen,
@@ -567,6 +569,10 @@
 
 {#if help.shortcuts}
   <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
+{/if}
+
+{#if help.palette}
+  <CommandPalette source={help.palette} onClose={closePalette} />
 {/if}
 
 {#if shellError}

@@ -93,23 +93,23 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `ui/e2e/command-palette.spec.ts` "Ctrl+K opens the palette with every command and tool; Escape closes it" (pixel, image); `ui/e2e/command-palette.spec.ts` "a text field keeps Ctrl+K" (pixel, image) | built |        |
+| AC-02 | `ui/e2e/command-palette.spec.ts` "Ctrl+K opens the palette with every command and tool; Escape closes it" (pixel, image) | built |        |
+| AC-03 | `ui/e2e/command-palette.spec.ts` "Ctrl+K opens the palette with every command and tool; Escape closes it" (pixel, image); `ui/e2e/command-palette.spec.ts` "the palette speaks German and finds English queries" | built |        |
+| AC-04 | `ui/e2e/command-palette.spec.ts` "typing filters fuzzily, Enter runs the highlighted command, one Undo restores" | built |        |
+| AC-05 | `ui/e2e/command-palette.spec.ts` "the palette speaks German and finds English queries" | built |        |
+| AC-06 | `ui/e2e/command-palette.spec.ts` "typing filters fuzzily, Enter runs the highlighted command, one Undo restores" | built |        |
+| AC-07 | `ui/e2e/command-palette.spec.ts` "typing filters fuzzily, Enter runs the highlighted command, one Undo restores" | built |        |
+| AC-08 | `ui/e2e/command-palette.spec.ts` "a click runs the command, a tool entry selects the tool" | built |        |
+| AC-09 | `ui/e2e/command-palette.spec.ts` "a disabled command is dimmed and does nothing; no match runs nothing" | built |        |
+| AC-10 | `ui/e2e/command-palette.spec.ts` "a click runs the command, a tool entry selects the tool" | built |        |
+| AC-11 | `ui/e2e/command-palette.spec.ts` "Go to frame… jumps to a frame in range and ignores anything else" | built |        |
+| AC-12 | `ui/e2e/command-palette.spec.ts` "Go to frame… jumps to a frame in range and ignores anything else" | built |        |
+| AC-13 | `ui/e2e/command-palette.spec.ts` "recently run commands come first, also after a reload" | built |        |
+| AC-14 | `ui/e2e/command-palette.spec.ts` "Ctrl+K opens the palette with every command and tool; Escape closes it" (pixel, image) | built |        |
+| AC-15 | `ui/e2e/command-palette.spec.ts` "typing filters fuzzily, Enter runs the highlighted command, one Undo restores" | built |        |
+| AC-16 | `ui/e2e/command-palette.spec.ts` "a disabled command is dimmed and does nothing; no match runs nothing" | built |        |
+| AC-17 | `ui/e2e/command-palette.spec.ts` "the palette speaks German and finds English queries" | built |        |
 
 ## Decisions
 
@@ -117,3 +117,9 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The palette is built from the editors' menu data and tool groups — one command source, so the palette can't list commands the menus don't have.
 - 2026-10-28 (legacy plan): Matching runs on the localized label and the English label — English command names then work in every locale.
 - 2026-10-28 (legacy plan): Ctrl+K opens the palette — the common convention (Aseprite's Run Command, many editors).
+- 2026-11-04 (build): English labels come from a reverse lookup of the active locale's dictionary (`englishLabel` in `ui/src/lib/i18n/`) instead of a message key on every `MenuItem` — one place, no change to the menu data of both editors; labels that aren't plain messages (file names in Open Recent, "Pause" / "Play" filled in at runtime) are matched in the UI language only.
+- 2026-11-04 (build): An entry's id (for the recent list) is its English menu path — recents survive a language switch.
+- 2026-11-04 (build): Fuzzy matching is an in-order subsequence over the menu path with bonuses for adjacent characters, word starts, a plain substring and a command name that starts with the query — "merge" then ranks Merge Down above Copy Merged.
+- 2026-11-04 (build): A tool entry shows its group's key, for every tool of the group — the key reaches each of them by cycling.
+- 2026-11-04 (build): An invalid frame number in "Go to frame…" keeps the field open and marks it `aria-invalid` — the user can correct it, and Escape closes without a change (AC-12).
+- 2026-11-04 (build): Ctrl+K has no native macOS menu item — the spec doesn't ask for one; the editors handle the key on every platform.

@@ -110,7 +110,12 @@
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
-  import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
+  import {
+    closeShortcuts,
+    helpDialogOpen,
+    openPalette,
+    openShortcuts,
+  } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
   import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
   import { syncRecentMenu } from '../../lib/menu';
@@ -487,6 +492,7 @@
     'rotateCw',
     'rotateCcw',
     'toggleUi',
+    'commandPalette',
     ...OPACITY_ACTIONS,
   ];
 
@@ -773,6 +779,16 @@
         return true;
       case 'toggleUi':
         toggleUi();
+        return true;
+      case 'commandPalette':
+        // Ctrl+K: the command palette over these menus and tools.
+        openPalette({
+          menus: () => menus,
+          groups: () => toolGroups,
+          selectTool: (id) => {
+            if (groupOf(toolGroups, id as ToolKind)) tool.kind = id as ToolKind;
+          },
+        });
         return true;
       default:
         return runLayerShortcut(action);

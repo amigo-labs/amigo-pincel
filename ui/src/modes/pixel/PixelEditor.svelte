@@ -67,7 +67,12 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
-  import { closeShortcuts, helpDialogOpen, openShortcuts } from '../../lib/help/state.svelte';
+  import {
+    closeShortcuts,
+    helpDialogOpen,
+    openPalette,
+    openShortcuts,
+  } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
@@ -308,11 +313,29 @@
     'toggleUi',
     'paletteNext',
     'palettePrev',
+    'commandPalette',
   ];
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
   function openOverview(): void {
     openShortcuts({ actions: PIXEL_ACTIONS, groups: railGroups });
+  }
+  /** Ctrl+K: the command palette over these menus and tools (power-user-shortcuts-palette). */
+  function openCommandPalette(): void {
+    openPalette({
+      menus: () => menus,
+      groups: () => railGroups,
+      selectTool: (id) => {
+        if (groupOf(railGroups, id as typeof toolState.tool)) toolState.tool = id as typeof toolState.tool;
+      },
+      frames: {
+        count: () => ed.frameCount,
+        goto: (frame) => {
+          stopPlayback();
+          setFrame(frame - 1);
+        },
+      },
+    });
   }
   const toolLabel = $derived(
     groupOf(railGroups, toolState.tool)?.tools.find((x) => x.id === toolState.tool)?.label ?? '',
@@ -517,6 +540,9 @@
         return true;
       case 'toggleUi':
         toggleUi();
+        return true;
+      case 'commandPalette':
+        openCommandPalette();
         return true;
     }
     if (!ed.doc) return false;

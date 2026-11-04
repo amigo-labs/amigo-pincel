@@ -71,7 +71,8 @@ export type ShortcutAction =
   | 'toggleUi'
   | OpacityAction
   | 'paletteNext'
-  | 'palettePrev';
+  | 'palettePrev'
+  | 'commandPalette';
 
 /** Brush opacity 10 % … 100 % (Image mode): Shift+1 … Shift+9, Shift+0. */
 export type OpacityAction =
@@ -194,6 +195,8 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   opacity100: [shiftDigit(100)],
   paletteNext: [{ key: ']', code: 'BracketRight', alt: true }],
   palettePrev: [{ key: '[', code: 'BracketLeft', alt: true }],
+  // docs/specs/power-user-shortcuts-palette.md.
+  commandPalette: [{ key: 'k', mod: true }],
 };
 
 /**
