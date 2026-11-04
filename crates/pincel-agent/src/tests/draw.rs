@@ -309,6 +309,12 @@ fn effect_apply_new_blurs_match_the_editor() {
             json!({ "distance": 4, "angle": 45, "centered": false }),
             &[4.0, 45.0, 0.0],
         ),
+        // outline-effect: Outline Object with its colour parameter.
+        (
+            "outline",
+            json!({ "place": "both", "shape": "circle", "thickness": 2, "color": "#FF8010C0" }),
+            &[2.0, 0.0, 2.0, 4_286_582_976.0],
+        ),
     ];
     for (name, params, wire) in cases {
         let mut s = S::new();

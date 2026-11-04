@@ -103,6 +103,9 @@ fn effects_json() -> Value {
                     Kind::Choice { options, default } => json!({
                         "name": p.key, "type": "choice", "options": options, "default": options[default],
                     }),
+                    Kind::Color { default } => json!({
+                        "name": p.key, "type": "color", "default": format!("#{default:08X}"),
+                    }),
                 })
                 .collect();
             json!({
@@ -200,6 +203,16 @@ mod tests {
         assert_eq!(
             levels["params"][0]["options"],
             json!(["composite", "red", "green", "blue"])
+        );
+        // outline-effect: the colour parameter kind.
+        let outline = entries
+            .iter()
+            .find(|e| e["id"] == "outline")
+            .expect("outline");
+        assert_eq!(outline["kind"], "effect");
+        assert_eq!(
+            outline["params"][3],
+            json!({ "name": "color", "type": "color", "default": "#000000FF" })
         );
         // Generated from the catalog: every parameter is there.
         for (entry, def) in entries.iter().zip(crate::pixel::effects::EFFECTS) {

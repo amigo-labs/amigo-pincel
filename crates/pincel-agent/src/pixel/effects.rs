@@ -6,6 +6,7 @@
 use serde_json::{Map, Value};
 
 use crate::AgentError;
+use crate::args::parse_hex;
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Kind {
@@ -20,6 +21,11 @@ pub(crate) enum Kind {
     Choice {
         options: &'static [&'static str],
         default: usize,
+    },
+    /// A colour as `#RRGGBB` / `#RRGGBBAA`; the wire carries it as one
+    /// `0xRRGGBBAA` slot (Decision Log 2026-10-29).
+    Color {
+        default: u32,
     },
 }
 
@@ -67,6 +73,13 @@ const fn choice(key: &'static str, options: &'static [&'static str]) -> Param {
             options,
             default: 0,
         },
+    }
+}
+
+const fn color(key: &'static str, default: u32) -> Param {
+    Param {
+        key,
+        kind: Kind::Color { default },
     }
 }
 
@@ -282,6 +295,22 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("center_y", 0.0, 1.0, 0.5),
         ],
     ),
+    // docs/specs/outline-effect.md: Object ▸ Outline Object.
+    plain(
+        "outline",
+        &[
+            choice("place", &["outside", "inside", "both"]),
+            Param {
+                key: "shape",
+                kind: Kind::Choice {
+                    options: &["circle", "square"],
+                    default: 1,
+                },
+            },
+            num("thickness", 1.0, 8.0, 1.0),
+            color("color", 0x0000_00FF),
+        ],
+    ),
 ];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {
@@ -327,6 +356,9 @@ pub(crate) fn catalog_summary() -> String {
                     }
                     Kind::Bool { default } => format!("{} bool (default {default})", p.key),
                     Kind::Choice { options, .. } => format!("{} {}", p.key, options.join("|")),
+                    Kind::Color { default } => {
+                        format!("{} #RRGGBB[AA] (default #{default:08X})", p.key)
+                    }
                 })
                 .collect();
             if params.is_empty() {
@@ -431,6 +463,19 @@ fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
                 ))
             })
         }
+        Kind::Color { default } => {
+            let rgba = match v {
+                None => Some(default),
+                Some(Value::String(s)) => parse_hex(s).map(|c| c.to_u32()),
+                Some(_) => None,
+            };
+            rgba.map(f64::from).ok_or_else(|| {
+                AgentError::tool(format!(
+                    "parameter `{}` of `{id}` must be a colour #RRGGBB or #RRGGBBAA",
+                    p.key
+                ))
+            })
+        }
     }
 }
 
@@ -478,5 +523,33 @@ mod tests {
         let b = wire_params("radial_blur", &map(json!({ "kind": 1 }))).expect("ok");
         assert_eq!(a, b);
         assert_eq!(a[3], 1.0);
+    }
+
+    /// outline-effect: the colour parameter takes `#RRGGBB[AA]` and travels
+    /// as one `0xRRGGBBAA` slot, like the editor's colour control.
+    #[test]
+    fn wire_params_outline_colour_is_one_rrggbbaa_slot() {
+        let d = wire_params("outline", &Map::new()).expect("defaults");
+        assert_eq!(d, vec![0.0, 1.0, 1.0, f64::from(0x0000_00FF_u32)]);
+        let w = wire_params(
+            "outline",
+            &map(
+                json!({ "place": "both", "shape": "circle", "thickness": 3, "color": "#FF801080" }),
+            ),
+        )
+        .expect("ok");
+        assert_eq!(w, vec![2.0, 0.0, 3.0, f64::from(0xFF80_1080_u32)]);
+        let opaque = wire_params("outline", &map(json!({ "color": "#ff8010" }))).expect("ok");
+        assert_eq!(opaque[3], f64::from(0xFF80_10FF_u32));
+        for bad in [json!("red"), json!("#ff80"), json!(255)] {
+            let err = wire_params("outline", &map(json!({ "color": bad }))).unwrap_err();
+            assert_eq!(
+                err,
+                AgentError::tool(
+                    "parameter `color` of `outline` must be a colour #RRGGBB or #RRGGBBAA"
+                )
+            );
+        }
+        assert!(wire_params("outline", &map(json!({ "thickness": 9 }))).is_err());
     }
 }
