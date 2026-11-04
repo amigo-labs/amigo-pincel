@@ -1,8 +1,8 @@
 <script lang="ts" generics="T extends string">
   // Variant switcher for the active tool group (spec §9.2), shown at the
   // start of the options bar: Rectangle / Ellipse / … for Shapes, the
-  // marquee shapes for Select, and so on. Touch-friendly replacement for a
-  // long-press flyout.
+  // marquee shapes for Select, and so on. The touch-friendly path that
+  // needs no hold; the rail's flyout (`ToolFlyout`) is the faster one.
   import Icon from '../icons/Icon.svelte';
   import { groupOf, type ToolGroup } from './tools';
   import { t } from '../../i18n/index.svelte';

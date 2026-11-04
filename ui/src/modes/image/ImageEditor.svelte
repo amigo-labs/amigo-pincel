@@ -887,6 +887,7 @@
       active={tool.kind}
       onSelect={(next) => (tool.kind = next)}
       {orientation}
+      resetKey={editor.handle}
     />
   {/snippet}
   {#snippet options()}

@@ -14,7 +14,7 @@ A tool-rail button that groups several variants (the shapes, the marquee shapes,
 
 This spec adds the flyout the triangle promises. The options-bar control and the key cycling stay, so §9.2's "no variant *needs* a long-press" stays true; the flyout is a second, faster way.
 
-*Group button*: a tool-rail button whose group has more than one variant (it shows the triangle). *Single button*: a tool-rail button whose group has exactly one tool. *Flyout*: the small menu this spec adds, listing one group's variants.
+*Group button*: a tool-rail button whose group has more than one variant (it shows the triangle). *Single button*: a tool-rail button whose group has exactly one tool. *Flyout*: the small menu this spec adds, listing one group's variants. *Ctrl* means Ctrl on Windows / Linux and ⌘ Command on macOS, *Alt* means ⌥ Option on macOS (the `mod` convention of `ui/src/lib/shell/shortcuts.ts`); on macOS a Control-click is a right-click.
 
 ## Scope
 
@@ -90,23 +90,31 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `ui/e2e/tool-flyout.spec.ts`: "pixel mode / image mode: a right-click on a group button lists its variants", "macOS › a Control-click opens and closes the flyout like a right-click" | built  |        |
+| AC-02 | `ui/e2e/tool-flyout.spec.ts`: "single buttons, separators and the empty rail open nothing"; `ui/e2e/tool-flyout-model.spec.ts`: "hasFlyout: a single button and an all-disabled group open no flyout" | built  |        |
+| AC-03 | `ui/e2e/tool-flyout.spec.ts`: "a mouse hold opens the flyout, release over an entry chooses it", "a pen hold opens the flyout and chooses on release", "touch › a touch hold opens the flyout; a cancelled or two-finger press does not" | built  |        |
+| AC-04 | `ui/e2e/tool-flyout.spec.ts`: "a short press, a drag or a moved press selects the shown variant", "touch › … a cancelled or two-finger press does not", "touch › a quick tap selects the shown variant"; `ui/e2e/tool-flyout-model.spec.ts`: "pressTarget: …" | built  |        |
+| AC-05 | `ui/e2e/tool-flyout.spec.ts`: "header, checked entry and keyboard choice"; `ui/e2e/tool-flyout-model.spec.ts`: "flyoutStep: arrows skip disabled entries …", "flyoutFocus: …" | built  |        |
+| AC-06 | `ui/e2e/tool-flyout.spec.ts`: "a mouse hold opens the flyout, release over an entry chooses it", "header, checked entry and keyboard choice" | built  |        |
+| AC-07 | `ui/e2e/tool-flyout.spec.ts`: "Escape, Tab, outside clicks and other buttons close the flyout", "macOS › a Control-click opens and closes …" | built  |        |
+| AC-08 | `ui/e2e/tool-flyout.spec.ts`: "header, checked entry and keyboard choice"; `ui/e2e/tool-flyout-model.spec.ts`: "flyoutStep: …", "flyoutFocus: …" | built  |        |
+| AC-09 | `ui/e2e/tool-flyout.spec.ts`: "Shift+F10 and the context-menu key open the flyout" | built  |        |
+| AC-10 | `ui/e2e/tool-flyout.spec.ts`: "shortcuts while open › the open flyout blocks editor keys, Ctrl and ⌘ alike" | built  |        |
+| AC-11 | `ui/e2e/tool-flyout.spec.ts`: "the flyout sits right of the vertical rail", "phone strip › the flyout sits above the strip, inside the window", "short window › a flyout taller than the window is limited to it and scrolls"; `ui/e2e/tool-flyout-model.spec.ts`: "placeFlyout: …" (3 tests) | built  |        |
+| AC-12 | `ui/e2e/tool-flyout.spec.ts`: "pixel mode / image mode: a right-click on a group button lists its variants" (role menu named after the group, menuitemradio names and aria-checked), "header, checked entry and keyboard choice" (checked state); `ui/e2e/tool-flyout-model.spec.ts`: disabled rules | built  |        |
+| AC-13 | `ui/e2e/tool-flyout.spec.ts`: "German UI › header and accessible name are German" | built  |        |
+| AC-14 | `ui/e2e/tool-flyout.spec.ts`: "closing from outside › resize, rail scroll and an outside tool change close the flyout", "closing from outside › replacing the document closes the flyout" | built  |        |
 
 ## Decisions
 
 - 2026-11-04: The flyout is added next to the options-bar variant control and the key cycling, not instead of them — because the owner asked why the triangle and right-click do nothing (they open the browser menu); the triangle now does what it promises in paint.net-style editors, and the touch path without a hold stays.
 - 2026-11-04: Written without a user dialogue while the owner's goal "all planned specs implemented" was active; the plan the owner approved chose "Flyout with variants" for this request. Thresholds and keyboard access follow common menu conventions (WAI-ARIA menu button pattern).
 - 2026-11-04: Clarification pass settled without a dialogue (owner goal active): mouse hold opens the flyout too; releasing a long press over an entry chooses it; focus returns to the group button only after Escape or a choice; Tab closes the flyout; the context-menu check is the cancelled `contextmenu` event; the flyout closes on resize, scroll and outside tool changes (AC-14).
+- 2026-11-04: owner: macOS uses ⌘/⌥; Control-click = right-click — the key blocking of AC-10 covers ⌘+Z / ⌘+S as well as Ctrl+Z / Ctrl+S, and a Control-click on a group button on macOS opens and closes the flyout like a right-click.
+- 2026-11-04 (spec-build): The pure rail model (`hasFlyout`, `pressTarget`, `flyoutStep`, `flyoutFocus`, `placeFlyout` in `ui/src/lib/components/layout/tools.ts`) is tested in the Playwright runner without a browser (`tool-flyout-model.spec.ts`) — because Vitest is not set up and adding it is a new dependency; no shipping multi-variant group has a disabled variant, so the disabled-entry rules of AC-05 / AC-08 and the all-disabled group of AC-02 are proven on a made-up group there, and the rendering reads the same `disabled` flag.
+- 2026-11-04 (spec-build): A long press on a single button selects nothing (its click is swallowed) — because AC-02 requires the active tool not to change after a long press on a single button.
+- 2026-11-04 (spec-build): While the flyout is open, a capture-phase `keydown` listener on the window owns the keyboard and stops every key from reaching the editors (both modes, no editor flag), and cancels the browser default for editor chords and Ctrl / ⌘ chords — because Ctrl+S would otherwise open the browser's "save page" in place of the blocked save.
+- 2026-11-04 (spec-build): Tab / Shift+Tab close the flyout and move focus to the tab stop after / before the group button — because the flyout is not in the rail's tab order, so "the next element" is taken relative to its button.
+- 2026-11-04 (spec-build): `ToolRail` gets an optional `resetKey` prop (Pixel: the document object, Image: the document handle); the flyout closes when it changes — because in Pixel mode Open… replaces a PNG / sprite in place, without remounting the editor.
+- 2026-11-04 (spec-build): Group buttons carry `touch-action: pan-y` on the vertical rail and `pan-x` on the phone strip — because sliding a finger from the button onto the flyout runs across the rail's scroll direction, and the browser must not take that slide as a scroll.
+- 2026-11-04 (spec-build): No new i18n keys — because the header and the accessible name are the already translated group label plus its single-key shortcut; no chord label is shown. A Control-click counts as a context press only where `isMac()` (`ui/src/lib/platform`) holds, so a Ctrl+click on Windows / Linux stays a plain click.
