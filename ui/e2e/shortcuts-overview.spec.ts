@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, menu, pixelCanvas } from './helpers';
+import { createDocument, imageCanvas, menu, menuHint, pixelCanvas } from './helpers';
 
 // Help ▸ Keyboard Shortcuts (docs/specs/shortcut-overview.md): a searchable
 // list of every shortcut of the current mode, generated from the one
@@ -29,17 +29,6 @@ async function sections(dialog: Locator): Promise<string[]> {
 /** The active tool-rail button. */
 function activeTool(page: Page): Locator {
   return page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
-}
-
-/** The shortcut hint a menu-bar item prints next to its label. */
-async function menuHint(page: Page, top: string, label: string): Promise<string> {
-  await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
-  const item = page
-    .getByRole('menu', { name: top, exact: true })
-    .getByRole('menuitem', { name: label, exact: true });
-  const text = (await item.locator('span[aria-hidden="true"]').last().textContent()) ?? '';
-  await page.keyboard.press('Escape');
-  return text.trim();
 }
 
 for (const mode of ['pixel', 'image'] as const) {

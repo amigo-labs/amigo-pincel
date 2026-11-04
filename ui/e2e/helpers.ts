@@ -172,6 +172,32 @@ export async function menu(page: Page, top: string, ...path: string[]): Promise<
   }
 }
 
+/**
+ * The shortcut hint a menu-bar item prints next to its label (`''` for
+ * none): `menuHint(page, 'File', 'Export', 'Sprite Sheet…')` opens File
+ * and the Export submenu and reads the Sprite Sheet item. Closes the menu.
+ */
+export async function menuHint(page: Page, top: string, ...path: string[]): Promise<string> {
+  await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
+  let scope = top;
+  for (const label of path.slice(0, -1)) {
+    await page
+      .getByRole('menu', { name: scope, exact: true })
+      .getByRole('menuitem', { name: label, exact: true })
+      .click();
+    scope = label;
+  }
+  const item = page
+    .getByRole('menu', { name: scope, exact: true })
+    .getByRole('menuitem', { name: path.at(-1) ?? '', exact: true });
+  await item.waitFor();
+  const hints = await item.locator('span[aria-hidden="true"]').allTextContents();
+  for (let i = 0; i < path.length && (await page.getByRole('menu').count()) > 0; i += 1) {
+    await page.keyboard.press('Escape');
+  }
+  return (hints.at(-1) ?? '').trim();
+}
+
 /** A decoded clipboard image: size plus straight RGBA bytes. */
 export interface ClipImage {
   width: number;

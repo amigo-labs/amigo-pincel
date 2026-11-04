@@ -5,6 +5,7 @@ import {
   drag,
   imageCanvas,
   menu,
+  menuHint,
   pixelCanvas,
   storedPref,
   waitForEditor,
@@ -53,17 +54,6 @@ function undoButton(page: Page): Locator {
 
 function activeTool(page: Page): Locator {
   return page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
-}
-
-/** The shortcut hint a menu-bar item prints next to its label. */
-async function menuHint(page: Page, top: string, label: string): Promise<string> {
-  await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
-  const item = page
-    .getByRole('menu', { name: top, exact: true })
-    .getByRole('menuitem', { name: label, exact: true });
-  const text = (await item.locator('span[aria-hidden="true"]').last().textContent()) ?? '';
-  await page.keyboard.press('Escape');
-  return text.trim();
 }
 
 /** Draws a stroke, so Undo has something to undo. */
