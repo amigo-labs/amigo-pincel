@@ -64,6 +64,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
+| 45 | [effect-catalog-v2](effect-catalog-v2.md) | both | M | — | paint.net submenus, per-mode filter (Pixel: hard-edged effects only), angle / point / seed / linked-pair controls. Supersedes effects-adjustments AC-01 |
 
 ## Done
 
