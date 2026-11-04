@@ -312,6 +312,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
     let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
 
+    // A custom Quit: the predefined one ends the app without a window
+    // close request, so the UI could not ask about unsaved changes first
+    // (docs/specs/unsaved-changes-prompt.md AC-09). The UI closes the
+    // window itself once the prompt allows it.
+    let quit_item = MenuItemBuilder::with_id("menu:quit", l.quit)
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+
     let file = SubmenuBuilder::new(app, l.file)
         .item(&new_item)
         .item(&open_item)
@@ -325,7 +333,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&export_animation_item)
         .item(&export_svg_item)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some(l.quit))?)
+        .item(&quit_item)
         .build()?;
 
     // Edit items
