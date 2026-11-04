@@ -32,8 +32,8 @@ Both editors offer the same twenty effects and adjustments — blurs, sharpening
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In both modes the Effects menu holds the submenus Blur (Gaussian Blur, Box Blur, Motion Blur, Radial Blur), Sharpen (Sharpen, Unsharp Mask), Distort (Emboss, Edge Detect, Relief) and Noise (Add Noise, Reduce Noise), and the Adjustments menu lists Brightness / Contrast, Hue / Saturation, Curves, Levels, Color Balance, Invert Colors, Grayscale, Posterize and Threshold; an entry with parameters ends in "…", and every entry is disabled while no document is open.
-- [ ] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown — or "This effect has no parameters."; Reset returns every parameter to its default.
+- ~~AC-01 (always): In both modes the Effects menu holds the submenus Blur, Sharpen, Distort and Noise, and the Adjustments menu lists nine adjustments …~~ dropped: superseded by [effect-catalog-v2](effect-catalog-v2.md) AC-01 – AC-06 (paint.net submenus, per-mode filter).
+- [ ] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown, an angle, point, random seed or linked pair as [effect-catalog-v2](effect-catalog-v2.md) AC-09 – AC-13 specify — or "This effect has no parameters."; Reset returns every parameter to its default.
 - [ ] AC-03 (state): While the effect dialog is open with Preview on, the canvas shows the active layer with the effect at the current parameters, and the document and its undo history stay unchanged; turning Preview off shows the image without the effect.
 - [ ] AC-04 (event): When the user confirms the dialog (OK or Enter), then the effect is applied to the active layer (Pixel mode: the active layer's cel on the current frame) as exactly one undo step that never merges with a neighbouring stroke, and the dialog closes; Pixel mode's status bar reads "<Effect> applied".
 - [ ] AC-05 (event): When the user cancels the dialog (Cancel or Escape), then it closes, the canvas shows the unchanged image and no undo step is added.
@@ -107,7 +107,7 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 |      | dropped |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | built | |
@@ -131,3 +131,4 @@ Partial coverage (status stays `open`): AC-01 — `effects.spec.ts` opens Blur �
 ## Decisions
 
 {Filled during revision and implementation — decision plus reason.}
+- 2026-11-04: AC-01 dropped (superseded by `effect-catalog-v2`: paint.net submenus, Pixel mode shows only hard-edged effects); AC-02 reworded to cover the new parameter kinds, back to `open`. The Technical notes table keeps the old group column as history; the catalog mapping lives in `effect-catalog-v2`.

@@ -37,7 +37,7 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [ ] AC-02 (always): A document whose undo depth equals its depth at the last save or open is never snapshotted, and a document that did not change since its last snapshot is not written again.
 - [ ] AC-03 (event): When the user saves a document, then its snapshot is deleted and it is no longer offered for recovery.
 - [ ] AC-04 (event): When an editor of a mode mounts for the first time in a page load and snapshots of that mode exist, then the "Recover unsaved work?" dialog lists each document's latest snapshot with its name, time and size, newest first; snapshots of the other mode are not listed.
-- [ ] AC-05 (event): When the user clicks Recover on a listed snapshot, then that document replaces the open one, the dialog closes and the document reads as unsaved (unsaved marker shown).
+- [ ] AC-05 (event): When the user clicks Recover on a listed snapshot, then that document opens as a new tab and becomes active (`document-tabs` AC-15), reads as unsaved (unsaved marker shown), and the dialog stays open while other snapshots remain; it closes after the last one is recovered or discarded.
 - [ ] AC-06 (state): While a recovered document has not been saved, its snapshot stays, so closing the tab right after recovering loses nothing.
 - [ ] AC-07 (event): When the user clicks Discard on a listed snapshot, then that snapshot is deleted for good; discarding the last listed snapshot closes the dialog.
 - [ ] AC-08 (event): When the user clicks "Not now", then the dialog closes, is not shown again for the rest of the page load (also not after File ▸ New…), and the snapshots are offered again after the next reload.
@@ -84,7 +84,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-02 | | open | |
 | AC-03 | | open | |
 | AC-04 | | open | |
-| AC-05 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | built | |
+| AC-05 | | open | |
 | AC-06 | | open | |
 | AC-07 | | open | |
 | AC-08 | | open | |
@@ -101,3 +101,4 @@ Partial coverage (status stays `open`): AC-04 — the dialog title and Recover b
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
+- 2026-11-04: AC-05 reworded for `document-tabs`: Recover opens a tab instead of replacing the document, and the dialog stays open for the remaining snapshots; back to `open`.

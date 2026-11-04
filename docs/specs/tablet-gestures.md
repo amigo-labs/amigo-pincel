@@ -29,7 +29,7 @@ Both gestures are on by default; View ▸ Touch Gestures turns the taps off for 
 
 ### Out of scope
 
-- Long-press menus — because they are a separate interaction design.
+- Long-press menus on the canvas and panels — because they are a separate interaction design (the tool rail's long-press flyout is `tool-variant-flyout`).
 - Pinch-to-rotate the canvas — because the view has no rotation.
 - Apple Pencil squeeze and double-tap — because Safari does not expose them to web apps.
 - Four-finger gestures — because no common editor convention exists for them.
@@ -122,3 +122,4 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The eraser end overrides the tool per stroke only; the rail keeps showing the selected tool — the eraser is a transient input state, like the Shift / Alt toggles (Decision Log 2026-10-12).
 - 2026-10-29: The Decision Log records two-finger tap = Undo and three-finger tap = Redo (touches within 150 ms, ≤ 10 CSS px, lifted within 300 ms, pinch ±2 %), View ▸ Touch Gestures (on by default, IndexedDB pref), the pen eraser end erasing per stroke, and that Apple Pencil squeeze / double-tap are not exposed to Safari web apps; the §9.4 touch sentence is updated with the Decision Log row — the values were already fixed in the ACs and only the record was missing (owner accepted the recommendation).
 - 2026-10-29: No eraser cursor badge in this spec — the erased pixels are the feedback, and neither mode has a cursor-badge system to hook it into (owner accepted the recommendation).
+- 2026-11-04: The out-of-scope line on long-press menus is narrowed to the canvas and panels — because `tool-variant-flyout` adds a long-press flyout on the tool rail; no AC changes.
