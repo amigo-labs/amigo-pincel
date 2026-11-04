@@ -14,7 +14,13 @@
   import StartScreen from './lib/shell/StartScreen.svelte';
   import UnsavedPrompt from './lib/shell/UnsavedPrompt.svelte';
   import { requestClose, wireCloseGuard } from './lib/shell/close-guard';
-  import { answerUnsaved, guardUnsaved, registerDocument, unsaved } from './lib/shell/unsaved.svelte';
+  import {
+    answerUnsaved,
+    guardUnsaved,
+    promptBusy,
+    registerDocument,
+    unsaved,
+  } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import { detectMode, launch, session } from './lib/shell/session.svelte';
   import type { EditorMode, EditorProps, NewDocParams } from './lib/shell/types';
@@ -288,7 +294,9 @@
           const r = rows.find((row) => row.id === id);
           if (r) void openRecent(r);
         },
-        editor: () => editorMenu,
+        // While the unsaved-changes prompt is open the native menu's
+        // accelerators (macOS Cmd+Z, Cmd+S, …) reach no editor (AC-02).
+        editor: () => (promptBusy() ? null : editorMenu),
       })
         .then((fn) => {
           if (cancelled) fn();

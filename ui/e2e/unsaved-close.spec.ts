@@ -345,3 +345,55 @@ test('Open Recent asks first, from both editors; a missing recent shows its erro
   await expect(prompt(page)).toHaveCount(0);
   await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
 });
+
+test('a clean document opens a handed-over file and a recent at once (AC-07)', async ({ page }) => {
+  await start(page);
+  await create(page, 'pixel');
+  await paint(page, 'pixel');
+  await page.keyboard.press('Control+s');
+  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+
+  // Pixel mode's own Open Recent.
+  await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
+  await expect(page.getByText(/opened sprite\.aseprite/)).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+
+  // The OS hands over a file.
+  await putFile(page, '/docs/dot.png', PNG_1X1);
+  await emit(page, 'open-file', '/docs/dot.png');
+  await waitForEditor(page, 'image');
+  await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+
+  // Image mode's Open Recent, through the shell.
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+  await page.getByRole('menu', { name: 'File', exact: true }).getByRole('menuitem', { name: 'Open Recent' }).click();
+  await page
+    .getByRole('menu', { name: 'Open Recent', exact: true })
+    .getByRole('menuitem', { name: 'sprite.aseprite', exact: true })
+    .first()
+    .click();
+  await waitForEditor(page, 'pixel');
+  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+});
+
+test('native-menu items reach no editor while the prompt is open (AC-02)', async ({ page }) => {
+  await start(page);
+  await create(page, 'pixel');
+  await paint(page, 'pixel');
+  await closeWindow(page);
+  await expect(prompt(page)).toBeVisible();
+  // macOS menu accelerators (Cmd+Z, Cmd+S, …) arrive as `menu` events.
+  for (const id of ['menu:undo', 'menu:save', 'menu:saveAs', 'menu:exportPng', 'menu:zoomIn']) {
+    await emit(page, 'menu', id);
+  }
+  await page.waitForTimeout(300);
+  await expect(prompt(page)).toHaveCount(1);
+  expect(await page.evaluate(() => Object.keys((window as unknown as MockWindow).__mock.disk))).toEqual([]);
+  await prompt(page).getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByTitle('pincel.aseprite — unsaved changes')).toBeVisible();
+  // The history is intact: one undo reaches the saved state.
+  await emit(page, 'menu', 'menu:undo');
+  await expect(page.getByTitle('pincel.aseprite', { exact: true })).toBeVisible();
+});
