@@ -26,8 +26,11 @@ pub enum EffectError {
     /// parameters for the named effect.
     #[error("effect `{effect}` expects {expected} parameter(s), got {got}")]
     ParamCount {
+        /// Wire name of the effect.
         effect: String,
+        /// Parameter count the effect accepts.
         expected: usize,
+        /// Parameter count supplied.
         got: usize,
     },
 
@@ -37,5 +40,10 @@ pub enum EffectError {
     #[error(
         "effect `{effect}` parameter {slot} must be a colour 0xRRGGBBAA (an integer 0–4294967295)"
     )]
-    ColorSlot { effect: String, slot: usize },
+    ColorSlot {
+        /// Wire name of the effect.
+        effect: String,
+        /// Index of the offending parameter slot.
+        slot: usize,
+    },
 }
