@@ -1,13 +1,16 @@
+/** One closed outline: its corner vertices in document space. */
+export type Outline = Array<[number, number]>;
+
 /**
  * Traces a selection mask's boundary as closed outlines in document space.
- * Each outline is one continuous subpath, so a dash runs along it and the
- * marching ants march; separate one-pixel edges would restart the dash on
- * every edge and, zoomed out, blink all at once.
+ * Each outline becomes one continuous subpath, so a dash runs along it and
+ * the marching ants march; separate one-pixel edges would restart the dash
+ * on every edge and, zoomed out, blink all at once.
  *
  * `mask` is `width × height` coverage bytes; a pixel counts as selected
  * from 128 up.
  */
-export function selectionOutline(mask: ArrayLike<number>, width: number, height: number): Path2D {
+export function selectionOutline(mask: ArrayLike<number>, width: number, height: number): Outline[] {
   const sel = (x: number, y: number): boolean =>
     x >= 0 && y >= 0 && x < width && y < height && (mask[y * width + x] ?? 0) >= 128;
   // Directed boundary edges with the selection on the right: vertex → next
@@ -31,7 +34,7 @@ export function selectionOutline(mask: ArrayLike<number>, width: number, height:
       if (!sel(x - 1, y)) edge(x, y + 1, x, y);
     }
   }
-  const path = new Path2D();
+  const loops: Outline[] = [];
   const vx = (v: number) => v % stride;
   const vy = (v: number) => Math.floor(v / stride);
   for (const start of next.keys()) {
@@ -40,21 +43,32 @@ export function selectionOutline(mask: ArrayLike<number>, width: number, height:
     // corners become path vertices.
     let at = start;
     let dir = 0;
-    let open = false;
+    const loop: Outline = [];
     for (let to = next.get(at)?.pop(); to !== undefined; to = next.get(at)?.pop()) {
-      if (!open) {
-        path.moveTo(vx(at), vy(at));
-        open = true;
-      } else if (to - at !== dir) {
-        path.lineTo(vx(at), vy(at));
-      }
+      if (loop.length === 0 || to - at !== dir) loop.push([vx(at), vy(at)]);
       dir = to - at;
       at = to;
     }
-    if (open) {
-      path.lineTo(vx(at), vy(at));
-      path.closePath();
-    }
+    if (loop.length > 0) loops.push(loop);
+  }
+  return loops;
+}
+
+/**
+ * The outlines as a device-space path for a view of `scale` device pixels
+ * per document pixel and origin `(ox, oy)` in device pixels. Every vertex
+ * is snapped to a device pixel centre, so a one-pixel line covers whole
+ * pixels at any zoom and pan instead of smearing over two at half strength.
+ */
+export function devicePath(loops: readonly Outline[], scale: number, ox: number, oy: number): Path2D {
+  const path = new Path2D();
+  const snap = (v: number, o: number): number => Math.round(o + v * scale) + 0.5;
+  for (const loop of loops) {
+    loop.forEach(([x, y], i) => {
+      if (i === 0) path.moveTo(snap(x, ox), snap(y, oy));
+      else path.lineTo(snap(x, ox), snap(y, oy));
+    });
+    path.closePath();
   }
   return path;
 }
