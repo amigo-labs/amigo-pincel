@@ -62,7 +62,7 @@ impl Document {
     /// a fresh `Uint8Array` copy. Errors surface the `pincel-core`
     /// message: an unknown format or tag, a scale outside 1–10, an output
     /// edge above 16384 px, a frameless sequence, or a sprite the renderer
-    /// refuses (an indexed sprite).
+    /// refuses (a corrupt cel or a broken linked cel).
     #[wasm_bindgen(js_name = exportAnimation)]
     pub fn export_animation(
         &self,
