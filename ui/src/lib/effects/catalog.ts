@@ -330,7 +330,7 @@ export const EFFECTS: EffectDef[] = [
   { id: 'invert', label: 'Invert Colors', group: 'adjust', modes: BOTH, params: [] },
   {
     id: 'grayscale',
-    label: 'Grayscale',
+    label: 'Black and White',
     group: 'adjust',
     modes: BOTH,
     params: [
@@ -353,6 +353,43 @@ export const EFFECTS: EffectDef[] = [
     group: 'adjust',
     modes: BOTH,
     params: [num('threshold', 'Threshold', 0, 255, 128)],
+  },
+  // docs/specs/adjustments-paintnet.md: paint.net's remaining adjustments.
+  { id: 'auto_level', label: 'Auto-Level', group: 'adjust', modes: BOTH, params: [] },
+  {
+    id: 'exposure',
+    label: 'Exposure',
+    group: 'adjust',
+    modes: BOTH,
+    params: [num('exposure', 'Exposure', -5, 5, 0, 0.01)],
+  },
+  {
+    id: 'highlights_shadows',
+    label: 'Highlights / Shadows',
+    group: 'adjust',
+    modes: BOTH,
+    params: [
+      num('shadows', 'Shadows', -100, 100, 0),
+      num('highlights', 'Highlights', -100, 100, 0),
+    ],
+  },
+  { id: 'invert_alpha', label: 'Invert Alpha', group: 'adjust', modes: BOTH, params: [] },
+  {
+    id: 'sepia',
+    label: 'Sepia',
+    group: 'adjust',
+    modes: BOTH,
+    params: [num('intensity', 'Intensity', 0, 100, 100)],
+  },
+  {
+    id: 'temperature_tint',
+    label: 'Temperature and Tint',
+    group: 'adjust',
+    modes: BOTH,
+    params: [
+      num('temperature', 'Temperature', -100, 100, 0),
+      num('tint', 'Tint', -100, 100, 0),
+    ],
   },
 ];
 

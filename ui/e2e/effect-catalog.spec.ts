@@ -148,6 +148,26 @@ const PINS: Record<string, Pin> = {
   },
   posterize: { defaults: [4], changes: [['levels', 8, [8]]] },
   threshold: { defaults: [128], changes: [['threshold', 60, [60]]] },
+  // Added by adjustments-paintnet (no previous catalog): the table's order
+  // and defaults.
+  auto_level: { defaults: [], changes: [] },
+  exposure: { defaults: [0], changes: [['exposure', 1.25, [1.25]]] },
+  highlights_shadows: {
+    defaults: [0, 0],
+    changes: [
+      ['shadows', 40, [40, 0]],
+      ['highlights', -25, [0, -25]],
+    ],
+  },
+  invert_alpha: { defaults: [], changes: [] },
+  sepia: { defaults: [100], changes: [['intensity', 30, [30]]] },
+  temperature_tint: {
+    defaults: [0, 0],
+    changes: [
+      ['temperature', 70, [70, 0]],
+      ['tint', -60, [0, -60]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {

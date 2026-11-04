@@ -92,21 +92,30 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-01 | `both modes list the paint.net adjustments, sorted, without Grayscale (AC-01)` (ui/e2e/adjustments-paintnet.spec.ts); `effect-menus.spec.ts` (Black and White in both modes) | built |  |
+| AC-02 | `the dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/adjustments-paintnet.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |  |
+| AC-03 | `neutral_settings_leave_every_pixel_unchanged` (crates/pincel-effects/tests/adjustments_paintnet.rs); `exposure_zero_is_the_identity_lut` (crates/pincel-effects/src/adjust/exposure.rs) | built |  |
+| AC-04 | `every_new_adjustment_except_invert_alpha_keeps_alpha`, `invert_alpha_flips_alpha_keeps_colour_and_twice_restores` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
+| AC-05 | `auto_level_stretches_a_gray_target_to_the_full_range`, `auto_level_ignores_transparent_pixels_for_its_range`, `auto_level_without_a_luma_range_changes_nothing`, `auto_level_takes_its_range_from_the_target_pixels` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_auto_level_takes_its_range_from_the_selection` (crates/pincel-wasm/src/effects.rs) | built |  |
+| AC-06 | `exposure_scales_mid_gray_in_linear_light` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
+| AC-07 | `highlights_shadows_act_on_their_tonal_range` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
+| AC-08 | `sepia_at_full_intensity_is_a_function_of_luma` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
+| AC-09 | `temperature_and_tint_shift_mid_gray` (crates/pincel-effects/tests/adjustments_paintnet.rs) | built |  |
+| AC-10 | `apply_effect_paintnet_adjustments_change_only_the_target_in_one_undo_step` (crates/pincel-wasm/src/effects.rs); `paintnet_adjustments_match_the_editor_inside_the_selection` (crates/pincel-agent/src/tests/image_draw.rs); `image mode: every new adjustment applies as one undo step (AC-10)`, `pixel mode: every new adjustment applies (AC-10)` (ui/e2e/adjustments-paintnet.spec.ts) | built |  |
+| AC-11 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/adjustments_paintnet.rs); `apply_effect_paintnet_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |  |
+| AC-12 | `German names and parameter labels (AC-12)` (ui/e2e/adjustments-paintnet.spec.ts) | built |  |
+| AC-13 | `apply_effect_paintnet_on_an_indexed_document_is_refused` (crates/pincel-wasm/src/effects.rs) | built |  |
 
 ## Decisions
 
 - 2026-11-04: Written without a dialogue while the owner's goal "all planned specs implemented" was active, following the approved plan (#3). Parameters and formulas are Pincel's own because paint.net's docs give none.
 - 2026-11-04: Clarification pass settled without a dialogue: Auto-Level, Highlights / Shadows and Sepia formulas pinned; Exposure AC on mid-gray; non-finite numbers read as 0 (the existing convention); exact-value ACs hold for fully selected pixels.
+- 2026-11-04 (spec-build): The spec reached this branch by cherry-picking `5b0ca4c` from `spec/paintnet-effects-tabs`; its companion `5012906` was already contained here, so the cherry-pick was empty and skipped.
+- 2026-11-04 (spec-build): Auto-Level reads L0 / L1 from the target, not from the whole layer — because the Terms define the target as the selection. New `EffectSpec::run_in(src, in_target)` passes the host's selection (Pixel: `Sprite::selection_contains`, Image: mask coverage > 0); every other effect ignores it. Target pixels that are transparent are mapped too (the formula covers every channel), they only do not count for the range.
+- 2026-11-04 (spec-build): Luma is computed as the integer `2126 R + 7152 G + 722 B` — so "the same luma" (AC-05, AC-08) is an exact comparison without float noise.
+- 2026-11-04 (spec-build): Temperature and Tint are multiplicative sRGB channel gains of ±30 % at ±100 (red ×(1 + 0.3 t), blue ×(1 − 0.3 t), green ×(1 − 0.3 n)) — because the spec gives directions only; gains keep black black.
+- 2026-11-04 (spec-build): Exposure runs through a 256-entry LUT built in f64 (exactly the identity at 0 EV, AC-03); Sepia blends as `c · (1 − k) + tone · k`, exact at 0 % and 100 %.
+- 2026-11-04 (spec-build): Parameter keys and German labels the table leaves open: `exposure` (Belichtung), `shadows` / `highlights` (Tiefen / Lichter), `intensity` (Intensität), `temperature` / `tint` (Temperatur / Farbton); the agent catalog uses the same keys and ranges. The new wire names follow `threshold` at the end of `EFFECT_NAMES`.
+- 2026-11-04 (spec-build): The Rust label of `grayscale` (undo label) also becomes "Black and White"; the wire id stays `grayscale` (Assumptions).
+- 2026-11-04 (spec-build): `effect-catalog.spec.ts` keeps requiring a pin for every catalog entry; the six new entries got pins of their own (table order and defaults) instead of exempting them.
+- 2026-11-04 (spec-build): AC-13 is proven in the Pixel core (`pincel-wasm`), where the refusal lives — the UI cannot create a non-RGBA document to test it end to end.
