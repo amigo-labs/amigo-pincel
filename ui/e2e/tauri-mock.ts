@@ -3,10 +3,21 @@ import type { Page } from '@playwright/test';
 // A mocked Tauri bridge for e2e specs of the desktop paths: an init script
 // sets `__TAURI_INTERNALS__`, which answers the IPC calls the UI makes
 // (event listen, window destroy, native dialogs, file reads and writes over
-// a virtual disk) and lets the test emit events. The real window behavior
-// on each OS stays a manual check.
+// a virtual disk, the clipboard-manager plugin's image read) and lets the
+// test emit events. The real window behavior on each OS stays a manual check.
 
 export type WriteMode = 'write' | 'fail' | 'hold';
+
+/** An image on the mocked system clipboard, as the plugin hands it over. */
+export interface ClipImage {
+  width: number;
+  height: number;
+  /** Straight RGBA, row-major; its length need not match (a broken image). */
+  rgba: number[];
+}
+
+/** The mocked system clipboard: an image, no image, or a refused read. */
+export type ClipContent = ClipImage | null | 'error';
 
 export interface TauriMock {
   emit(event: string, payload: unknown): void;
@@ -22,6 +33,14 @@ export interface TauriMock {
   /** The path the native open dialog answers with; `null` is a cancel. */
   openPick: string | null;
   disk: Record<string, number[]>;
+  /** What `readImage()` finds; `null` (no image) by default. */
+  clipboard: ClipContent;
+  /** How often the UI read the clipboard image. */
+  clipboardReads: number;
+  /** While set, clipboard reads wait in `clipboardHeld` (in start order). */
+  holdClipboard: boolean;
+  clipboardHeld: (() => void)[];
+  images: Record<number, ClipImage>;
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -45,7 +64,13 @@ export async function installTauriMock(page: Page): Promise<void> {
       writeQueue: [],
       openPick: null,
       disk: {},
+      clipboard: null,
+      clipboardReads: 0,
+      holdClipboard: false,
+      clipboardHeld: [],
+      images: {},
     };
+    let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
       switch (cmd) {
         case 'plugin:event|listen': {
@@ -76,6 +101,34 @@ export async function installTauriMock(page: Page): Promise<void> {
           mock.disk[String(args.path)] = args.bytes as number[];
           return null;
         }
+        case 'plugin:clipboard-manager|read_image': {
+          mock.clipboardReads += 1;
+          // The native read happens now; only its answer is held.
+          const content = mock.clipboard;
+          if (mock.holdClipboard) {
+            await new Promise<void>((resolve) => mock.clipboardHeld.push(resolve));
+          }
+          if (content === 'error') throw new Error('clipboard unavailable');
+          if (content === null) {
+            throw new Error('The clipboard contents were not available in the requested format');
+          }
+          const rid = nextRid++;
+          mock.images[rid] = content;
+          return rid;
+        }
+        case 'plugin:image|size': {
+          const img = mock.images[Number(args.rid)];
+          if (!img) throw new Error('unknown resource');
+          return { width: img.width, height: img.height };
+        }
+        case 'plugin:image|rgba': {
+          const img = mock.images[Number(args.rid)];
+          if (!img) throw new Error('unknown resource');
+          return img.rgba;
+        }
+        case 'plugin:resources|close':
+          delete mock.images[Number(args.rid)];
+          return null;
         default:
           return null;
       }
@@ -153,4 +206,58 @@ export async function releaseWrite(page: Page): Promise<void> {
     mock.release?.();
     mock.release = null;
   });
+}
+
+/** A `width`×`height` clipboard image of one straight RGBA color. */
+export function solidImage(
+  width: number,
+  height: number,
+  rgba: readonly [number, number, number, number] = [255, 0, 0, 255],
+): ClipImage {
+  const px: number[] = [];
+  for (let i = 0; i < width * height; i += 1) px.push(...rgba);
+  return { width, height, rgba: px };
+}
+
+/** Puts `content` on the mocked system clipboard (what the plugin reads). */
+export async function setClipboard(page: Page, content: ClipContent): Promise<void> {
+  await page.evaluate((c) => {
+    (window as unknown as MockWindow).__mock.clipboard = c;
+  }, content);
+}
+
+/** How often the UI read the mocked clipboard image. */
+export async function clipboardReads(page: Page): Promise<number> {
+  return page.evaluate(() => (window as unknown as MockWindow).__mock.clipboardReads);
+}
+
+/** Holds the answers of the clipboard reads that start from now on. */
+export async function holdClipboard(page: Page, hold: boolean): Promise<void> {
+  await page.evaluate((h) => {
+    (window as unknown as MockWindow).__mock.holdClipboard = h;
+  }, hold);
+}
+
+/** Waits until `n` clipboard reads are held. */
+export async function heldClipboardReads(page: Page, n: number): Promise<void> {
+  await page.waitForFunction(
+    (count) => (window as unknown as MockWindow).__mock.clipboardHeld.length >= count,
+    n,
+  );
+}
+
+/** Lets the held clipboard read at `index` (start order) answer. */
+export async function releaseClipboardRead(page: Page, index: number): Promise<void> {
+  await page.evaluate((i) => {
+    const held = (window as unknown as MockWindow).__mock.clipboardHeld;
+    const release = held[i];
+    if (!release) throw new Error(`no held clipboard read ${i}`);
+    held[i] = () => undefined;
+    release();
+  }, index);
+}
+
+/** The window gains focus (switched to, or restored from minimised). */
+export async function focusWindow(page: Page): Promise<void> {
+  await emit(page, 'tauri://focus');
 }

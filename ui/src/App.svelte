@@ -5,15 +5,24 @@
   // per mode is mounted — a lazily imported chunk that brings its own wasm
   // module, fetched with the first document of its mode — and only the
   // active tab's editor is shown and receives input.
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import AboutDialog from './lib/components/AboutDialog.svelte';
   import { closeAbout, help, loadUpdaterState } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
+  import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
+  import {
+    checkClipboard,
+    dismissOffer,
+    offer,
+    takeOffer,
+  } from './lib/shell/clipboard-offer.svelte';
+  import { encodeRgbaPng } from './lib/encode-png';
   import UnsavedPrompt from './lib/shell/UnsavedPrompt.svelte';
   import type { TabBarProps } from './lib/components/layout/TabBar.svelte';
   import { requestClose, wireCloseGuard } from './lib/shell/close-guard';
@@ -119,6 +128,10 @@
 
   const activeMode = $derived(shownMode());
   const showStart = $derived(session.tabs.length === 0 && editors.loading === null);
+  // A modal dialog over the start screen hides the clipboard card (AC-32).
+  const modalOpen = $derived(
+    newDialog !== null || recoveryOpen || unsaved.prompt !== null || fileAssocOpen || help.about,
+  );
 
   /** The tab bar both editors draw (document-tabs AC-01). */
   const tabBar: TabBarProps = $derived({
@@ -305,7 +318,9 @@
   // image as a new document (copy-cut-paste AC-22, AC-26). An empty paste
   // stays silent: it is often a stray key with text on the clipboard.
   function startScreenIdle(target: EventTarget | null): boolean {
-    if (!showStart || editors.pending > 0 || newDialog !== null || help.about) return false;
+    if (!showStart || editors.pending > 0 || offer.opening || newDialog !== null || help.about) {
+      return false;
+    }
     if (isTypingTarget(target)) return false;
     return !(target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]'));
   }
@@ -325,6 +340,36 @@
     if (actionFor(e) !== 'pasteNewImage' || !startScreenIdle(e.target)) return;
     e.preventDefault();
     void clipboardImage().then(openPasted);
+  }
+
+  // The desktop clipboard offer (copy-cut-paste AC-27 – AC-32): read when
+  // the start screen appears and on window focus while it shows; a tab
+  // opening hides the card and drops the reads in flight.
+  const offerEligible = (): boolean => tauriHost && showStart && !booting;
+
+  $effect(() => {
+    if (!tauriHost) return;
+    if (showStart && !booting) untrack(() => void checkClipboard(offerEligible));
+    else dismissOffer();
+  });
+
+  // Open takes the card's image, not a new read (AC-29), and opens it as
+  // Ctrl/⌘+V on the start screen does (AC-22).
+  async function openOffer(): Promise<void> {
+    if (offer.opening) return;
+    const image = takeOffer();
+    if (!image) return;
+    offer.opening = true;
+    try {
+      const png = await encodeRgbaPng(image.rgba, image.width, image.height);
+      await serial(async () => {
+        await routeFile(pastedImageFile(png, 'image/png'));
+      });
+    } catch (err) {
+      shellError = t('shell.couldNotOpen', { name: t('paste.newImageName'), error: errText(err) });
+    } finally {
+      offer.opening = false;
+    }
   }
 
   // A file dropped onto an open editor (the start screen takes its own).
@@ -446,7 +491,19 @@
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenOpenFile: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
+    let unlistenFocus: UnlistenFn | null = null;
     if (tauriHost) {
+      getCurrentWindow()
+        .onFocusChanged(({ payload: focused }) => {
+          if (focused && offerEligible()) void checkClipboard(offerEligible);
+        })
+        .then((fn) => {
+          if (cancelled) fn();
+          else unlistenFocus = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('focus listen failed', err);
+        });
       void loadUpdaterState();
       wireCloseGuard()
         .then((fn) => {
@@ -509,6 +566,7 @@
       if (unlistenMenu) unlistenMenu();
       if (unlistenOpenFile) unlistenOpenFile();
       if (unlistenClose) unlistenClose();
+      if (unlistenFocus) unlistenFocus();
     };
   });
 </script>
@@ -532,6 +590,14 @@
     onOpenRecent={(r) => openRecent(r)}
     onDropFile={(f) => onDropFiles([f])}
   />
+  {#if offer.image && !modalOpen}
+    <ClipboardOffer
+      image={offer.image}
+      busy={picking || editors.pending > 0}
+      onOpen={() => void openOffer()}
+      onIgnore={dismissOffer}
+    />
+  {/if}
 {/if}
 
 <!-- The editors: at most one per mode; only the active tab's is shown and
