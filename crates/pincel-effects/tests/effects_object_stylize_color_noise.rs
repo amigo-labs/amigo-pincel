@@ -55,12 +55,14 @@ fn changed(a: &EffectImage, b: &EffectImage) -> Vec<(u32, u32)> {
     out
 }
 
-/// A deterministic hash of a position, for test images.
-fn hash(x: u32, y: u32, salt: u32) -> u32 {
+/// A deterministic, non-cryptographic hash of a position for test images;
+/// `stream` picks one of several independent number streams (one per
+/// channel or feature of the image).
+fn hash(x: u32, y: u32, stream: u32) -> u32 {
     let mut h = x
         .wrapping_mul(0x9E37_79B1)
         .wrapping_add(y.wrapping_mul(0x85EB_CA77))
-        .wrapping_add(salt.wrapping_mul(0xC2B2_AE3D));
+        .wrapping_add(stream.wrapping_mul(0xC2B2_AE3D));
     h ^= h >> 15;
     h = h.wrapping_mul(0x2C1B_3C6D);
     h ^= h >> 12;
