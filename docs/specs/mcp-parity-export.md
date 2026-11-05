@@ -159,16 +159,16 @@ Every capability exists already; grep for the names, line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `export_tools_are_listed_and_open_save_take_the_new_arguments` (`crates/pincel-agent/src/tests/export.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
 | AC-02 | `animation_exports_on_image_documents_fail_naming_the_mode`, `export_bmp_and_tiff_write_the_composite_and_leave_the_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-03 | `file_tools_refuse_read_only_and_escaping_paths` (`crates/pincel-mcp/tests/stdio.rs`) | built  |        |
+| AC-04 | `file_tools_refuse_read_only_and_escaping_paths` (`crates/pincel-mcp/tests/stdio.rs`) | built  |        |
+| AC-05 | `export_svg_defaults_equal_the_dialog_in_each_mode`, `export_svg_options_equal_the_dialogs` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-06 | `export_svg_defaults_equal_the_dialog_in_each_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-07 | `export_svg_options_equal_the_dialogs` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-08 | `export_svg_defaults_equal_the_dialog_in_each_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-09 | `bad_svg_arguments_write_nothing` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-10 | `pixel_exact_svg_refuses_more_than_256_colors` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-11 | `export_apng_and_gif_equal_the_editors_animation_export` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-12 | `export_apng_and_gif_equal_the_editors_animation_export` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-13 | `export_gif_warns_about_what_gif_cannot_keep` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
@@ -184,7 +184,7 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-23 | `doc_open_mode_pixel_opens_a_png_as_the_pixel_editor_does` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-24 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-25 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
-| AC-26 |      | open   |        |
+| AC-26 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
 | AC-27 | `bad_animation_arguments_write_nothing` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-28 | `bad_save_arguments_name_the_argument` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-29 | `doc_open_mode_pixel_of_a_corrupt_png_names_the_file` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
@@ -199,3 +199,5 @@ Every capability exists already; grep for the names, line numbers drift.
 - 2026-11-05: `depends_on` lists `mcp-parity-structure` (PSD groups show in `layer.list` only after its AC-12), `psd-import` and `vectorize-dialog` (both built but not yet accepted; the tools mirror their behavior, so it must be final first). `vectorize-core` comes in through `vectorize-dialog`.
 - 2026-11-05 (spec-build): The test `image_doc_save_without_path_after_flat_open_fails_and_writes_nothing` (mcp-headless-image AC-20, "doc.save writes OpenRaster only") is replaced by `image_doc_save_without_path_after_flat_open_refuses_a_lossy_flatten`, because AC-14 / AC-15 of this spec supersede that behavior.
 - 2026-11-05 (spec-build): A flat `doc.save` makes the written file the document's save target (`source`) and drops a previous `.ora` path, so a later `doc.save` without `path` writes the last saved file in its format, as the editor's Save does.
+- 2026-11-05 (spec-build): `export.svg` builds the dialog's flat option vector and traces through `TraceOptions::from_wire`, the path both wasm `Vectorizer`s take, so the file is the dialog's by construction; the tool checks the ranges first so an agent learns which value was refused. `pincel-agent` depends on `pincel-trace` (Decision Log 2026-11-01 names the agent tools among its users; no new external crate).
+- 2026-11-05 (spec-build): The stdio test `image_document_open_edit_save_and_export_over_stdio` now expects `doc.save` without `path` to write an opened PNG back (AC-14 supersedes `mcp-headless-image` AC-20).

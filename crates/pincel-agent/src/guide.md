@@ -107,6 +107,25 @@ These tools work on Pixel documents only: `slice.list`, `slice.add`,
   tiles with `tile.set_pixels` and the cells with `tilemap.place`.
 - `grid.set` changes the document grid stored in the `.aseprite` file.
 
+## Files: open, save and export
+
+- `doc.open` reads `.aseprite` / `.ase` as Pixel documents and `.ora`,
+  Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF and TIFF as Image documents;
+  a PSD result lists `notices` of what was left out. A PNG opens as a
+  Pixel document only with `mode: "pixel"`.
+- `doc.save` of an Image document writes the format of the path's
+  extension (`.ora`, `.png`, `.jpg`, `.webp`, `.bmp`, `.tif`; `quality`
+  for JPEG) and, without `path`, writes an opened flat image back in its
+  format. A layered Image document needs `flatten: true` to be saved to a
+  flat format; `.ora` keeps the layers.
+- `export.svg` (both modes) traces the image: `mode` `pixel_exact`
+  (default on Pixel documents), `colors` (default on Image documents) or
+  `mono`, with `colors`, `threshold`, `invert`, `fill`, `despeckle`,
+  `min_area`, `alpha_max`, `opt_curve` and `opt_tolerance`.
+- Pixel documents only: `export.apng` and `export.gif` (animations, with
+  `tag`, `scale`, `loops`; GIF reports `warnings`). Image documents only:
+  `export.bmp` and `export.tiff`.
+
 ## Moving content and the clipboard
 
 - `select.move_content` (both modes) moves the selected pixels with the

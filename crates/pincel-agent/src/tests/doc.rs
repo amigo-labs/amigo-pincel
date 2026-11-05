@@ -102,6 +102,7 @@ const EXPECTED_TOOLS: &[&str] = &[
     "export.tiff",
     "export.apng",
     "export.gif",
+    "export.svg",
     // mcp-parity-pixel-assets
     "slice.list",
     "slice.add",
@@ -220,6 +221,9 @@ fn example(name: &str) -> Value {
         "export.jpeg" => json!({ "path": "a.jpg", "quality": 80 }),
         "export.webp" => json!({ "path": "a.webp" }),
         "export.bmp" => json!({ "path": "a.bmp" }),
+        "export.svg" => {
+            json!({ "path": "a.svg", "mode": "mono", "threshold": "auto", "fill": "#102030", "alpha_max": 1.2, "frame": 0 })
+        }
         "export.apng" | "export.gif" => {
             json!({ "path": "a.gif", "tag": "walk", "scale": 2, "loops": 3 })
         }

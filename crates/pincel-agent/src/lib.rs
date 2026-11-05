@@ -17,6 +17,7 @@ mod preview;
 mod resources;
 mod schema;
 mod select;
+mod svg;
 #[cfg(test)]
 mod tests;
 mod transform;
@@ -121,6 +122,7 @@ fn all_tools() -> impl Iterator<Item = &'static Tool> {
         .chain(transform::TOOLS)
         .chain(clipboard::TOOLS)
         .chain(pixel::ASSET_TOOLS)
+        .chain(std::iter::once(&svg::EXPORT_SVG))
         .chain(image::TOOLS)
 }
 

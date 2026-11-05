@@ -181,6 +181,7 @@ mod tests {
             "## Moving content and the clipboard",
             "## Drawing in each mode",
             "## Slices, tilesets and the grid",
+            "## Files: open, save and export",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
@@ -265,6 +266,26 @@ mod tests {
             "`select.move_content` (both modes)",
         ] {
             assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-export AC-26.
+        for word in [
+            "`export.svg`",
+            "`export.apng`",
+            "`export.gif`",
+            "`export.bmp`",
+            "`export.tiff`",
+            "`flatten: true`",
+            "`quality`",
+            "`mode: \"pixel\"`",
+            "`notices`",
+            "`tag`, `scale`, `loops`",
+            "`opt_tolerance`",
+            "A PNG opens as a\n  Pixel document only with `mode: \"pixel\"`",
+            "A layered Image document needs `flatten: true`",
+            "Pixel documents only: `export.apng`",
+            "Image documents only:\n  `export.bmp`",
+        ] {
+            assert!(guide.contains(word), "missing {word}");
         }
         // mcp-parity-pixel-assets AC-32.
         for tool in [
