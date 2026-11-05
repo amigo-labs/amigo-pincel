@@ -413,6 +413,32 @@ test('image: Escape discards an open polygonal lasso and keeps the selection', a
   expect(await size(page)).toEqual([4, 4]);
 });
 
+test('image: a polygonal lasso begun in one tab does not continue in a newly opened tab', async ({
+  page,
+}) => {
+  await openDoc(page, 'image');
+  await useTool(page, 'q', 'Polygonal Lasso');
+  await page.mouse.click(...(await mid(page, 'image', 4, 4)));
+  await page.mouse.click(...(await mid(page, 'image', 27, 4)));
+  // File ▸ New… opens a second Image tab while the polygon is open.
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  for (const label of ['Width', 'Height']) {
+    const field = dialog.getByLabel(label);
+    await expect(async () => {
+      await field.fill(String(IMG));
+      await expect(field).toHaveValue(String(IMG), { timeout: 500 });
+    }).toPass();
+  }
+  await dialog.getByRole('button', { name: 'Create' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(imageCanvas(page)).toHaveAttribute('data-ready', 'true');
+  // A double-click closes a polygon of three or more vertices: the first
+  // tab's two must be gone, so this one has too few and selects nothing.
+  await page.mouse.dblclick(...(await mid(page, 'image', 16, 27)));
+  expect(await size(page)).toEqual([IMG, IMG]);
+});
+
 // ---- Pixel selection ACs that had no test (pixel-selection-move) --------
 
 test('pixel: a marquee selects A–B inclusive and draws its outline (AC-01)', async ({ page }) => {

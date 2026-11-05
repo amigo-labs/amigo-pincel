@@ -1,0 +1,8 @@
+/**
+ * Cancels the in-flight gesture without committing (Escape, a tab switch).
+ * Wired up by `attachTools`; a no-op while no canvas is mounted. Answers
+ * whether a gesture was in progress, so Escape deselects only when none
+ * was. A module of its own so the tab store can use it without importing
+ * the pointer code (which imports the controller, which imports the tabs).
+ */
+export const gestureControl = { cancel: (): boolean => false };

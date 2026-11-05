@@ -11,7 +11,6 @@ import { t } from '../../../lib/i18n/index.svelte';
 import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
 import { saveDocument } from './save-flow';
-import { gestureControl } from '../tools/pointer';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 import { core } from './wasm';
 
@@ -91,11 +90,8 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
     save: () => saveTab(tab),
     running: () => runningSave(tab),
     discard: () => autosave.finish(),
-    activate: () => {
-      // A gesture in flight belongs to the tab being left.
-      if (tabs.active !== tab) gestureControl.cancel();
-      activateTab(tab);
-    },
+    // `activateTab` drops the gesture in flight of the tab being left.
+    activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });

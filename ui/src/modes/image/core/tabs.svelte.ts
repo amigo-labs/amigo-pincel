@@ -14,6 +14,7 @@ import {
   type ImageTab,
 } from '../stores/editor.svelte';
 import type { DocumentFile } from './document-file';
+import { gestureControl } from '../tools/gesture-control';
 
 let nextId = 1;
 
@@ -48,9 +49,11 @@ export function openTab(handle: number, file: DocumentFile): ImageTab {
 }
 
 /** Makes `tab` the active one: the canvas, panels, menus and status bar
- *  follow it (AC-04); transient previews of the previous tab are dropped. */
+ *  follow it (AC-04); a gesture in flight and the transient previews of
+ *  the previous tab are dropped, also for a newly opened tab. */
 export function activateTab(tab: ImageTab): void {
   if (tabs.active === tab) return;
+  gestureControl.cancel();
   tabs.active = tab;
   editor.previewComposite = null;
   editor.notice = null;
