@@ -1,5 +1,7 @@
 //! Clouds and Turbulence (docs/specs/effects-render.md): seeded fractal
-//! value noise in layer coordinates, mapped between two colours.
+//! noise in layer coordinates, mapped between two colours — value noise
+//! for Clouds, gradient noise for Turbulence (whose ridges at the noise's
+//! zero crossings would show value noise's lattice).
 
 use super::RenderBlend;
 use crate::blur::{param, whole};
@@ -36,6 +38,26 @@ fn value(seed: u32, octave: u32, size: f64, x: i64, y: i64) -> f32 {
     let v = |dx, dy| lattice(seed, octave, ix + dx, iy + dy);
     let top = v(0, 0) + (v(1, 0) - v(0, 0)) * tx;
     let bottom = v(0, 1) + (v(1, 1) - v(0, 1)) * tx;
+    top + (bottom - top) * ty
+}
+
+/// Gradient (Perlin) noise, roughly in `[-0.7, 0.7]`, at canvas position
+/// `(x, y)` (pixel centres) with lattice spacing `size` pixels; the
+/// lattice gradients' angles come from [`lattice`].
+fn gradient(seed: u32, octave: u32, size: f64, x: i64, y: i64) -> f32 {
+    let gx = (x as f64 + 0.5) / size;
+    let gy = (y as f64 + 0.5) / size;
+    let (x0, y0) = (gx.floor(), gy.floor());
+    let (fx, fy) = (gx - x0, gy - y0);
+    let (ix, iy) = (x0 as i64, y0 as i64);
+    let dot = |dx: i64, dy: i64| {
+        let a = f64::from(lattice(seed, octave, ix + dx, iy + dy)) * std::f64::consts::TAU;
+        let (s, c) = a.sin_cos();
+        (c * (fx - dx as f64) + s * (fy - dy as f64)) as f32
+    };
+    let (tx, ty) = (fade(fx), fade(fy));
+    let top = dot(0, 0) + (dot(1, 0) - dot(0, 0)) * tx;
+    let bottom = dot(0, 1) + (dot(1, 1) - dot(0, 1)) * tx;
     top + (bottom - top) * ty
 }
 
@@ -153,10 +175,11 @@ impl Effect for Clouds {
     }
 }
 
-/// Turbulence: the absolute value of `octaves` signed value-noise octaves
-/// (feature size `scale / 2^k` px, at least 1 px, weight `1 / 2^k`),
-/// summed and divided by the sum of the weights — sharp ridges where each
-/// octave crosses zero — mapped from `color1` (0) to `color2` (1).
+/// Turbulence: the absolute value of `octaves` signed gradient-noise
+/// octaves (feature size `scale / 2^k` px, at least 1 px, weight `1 / 2^k`,
+/// each stretched from about ±0.7 to ±1), summed and divided by the sum of
+/// the weights — sharp ridges where each octave crosses zero — mapped from
+/// `color1` (0) to `color2` (1).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Turbulence {
     /// Feature size of the first octave in pixels, `2..=1000`.
@@ -206,8 +229,8 @@ impl Turbulence {
         let (mut sum, mut total, mut weight) = (0.0, 0.0, 1.0);
         let mut size = f64::from(self.scale);
         for octave in 0..self.octaves {
-            let n = value(self.seed, octave, size.max(1.0), x, y);
-            sum += weight * (2.0 * n - 1.0).abs();
+            let n = gradient(self.seed, octave, size.max(1.0), x, y);
+            sum += weight * (n.abs() * std::f32::consts::SQRT_2).min(1.0);
             total += weight;
             weight *= 0.5;
             size /= 2.0;
@@ -241,6 +264,17 @@ mod tests {
         for (x, y) in [(-40, 3), (0, 0), (17, 999)] {
             let v = value(3, 0, 7.5, x, y);
             assert!((0.0..=1.0).contains(&v), "{v}");
+        }
+    }
+
+    #[test]
+    fn gradient_is_zero_on_the_lattice_and_bounded() {
+        // Pixel centre 0.5 at spacing 1 sits mid-cell; spacing 0.5 puts
+        // it on a lattice point, where gradient noise is 0.
+        assert_eq!(gradient(1, 0, 0.5, 3, -7), 0.0);
+        for (x, y) in [(-40, 3), (0, 0), (17, 999), (5, 5)] {
+            let g = gradient(9, 2, 6.3, x, y);
+            assert!(g.abs() <= 1.0, "{g}");
         }
     }
 
