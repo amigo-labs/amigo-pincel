@@ -167,8 +167,12 @@ test.describe('desktop app', () => {
           await expect(page.getByTitle(`second.${ext}`, { exact: true })).toBeVisible();
         }
         await expect(tab(page, `second.${ext}`)).toBeVisible();
-        await page.keyboard.press('Control+w');
-        await expect(tabs(page)).toHaveCount(1);
+        // The save runs on until the recent is recorded, and a tab with a
+        // running save does not close (AC-17): press again until it does.
+        await expect(async () => {
+          await page.keyboard.press('Control+w');
+          await expect(tabs(page)).toHaveCount(1, { timeout: 1_000 });
+        }).toPass();
         // Pixel mode reopens it itself, Image mode through the shell.
         await page
           .getByRole('menubar')
