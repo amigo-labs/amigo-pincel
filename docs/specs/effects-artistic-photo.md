@@ -89,8 +89,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `image mode lists the Artistic and Photo entries, sorted; pixel mode neither submenu (AC-01)` (ui/e2e/effects-artistic-photo.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
+| AC-02 | `the Artistic and Photo dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-artistic-photo.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |        |
 | AC-03 | `every_effect_keeps_size_and_alpha`, `straighten_keeps_the_size_and_rotates_the_alpha` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-04 | `neutral_settings_leave_the_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-05 | `pencil_sketch_is_gray_and_whitens_a_flat_area` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
@@ -101,7 +101,7 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-10 | `straighten_zoom_to_fill_keeps_every_pixel_opaque`, `straighten_transparent_corners_clears_the_corners` (crates/pincel-effects/tests/effects_artistic_photo.rs); `source_zoom_to_fill_scales_just_enough_to_cover_the_layer` (crates/pincel-effects/src/photo/straighten.rs) | built |        |
 | AC-11 | `glow_never_darkens` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-12 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range`, `photo_numbers_read_non_finite_as_zero_then_clamp` (crates/pincel-effects/tests/effects_artistic_photo.rs); `apply_effect_artistic_photo_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-13 |      | open   |        |
+| AC-13 | `German names and parameter labels (AC-13)` (ui/e2e/effects-artistic-photo.spec.ts) | built |        |
 
 ## Decisions
 
@@ -114,3 +114,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-05 (spec-build): AC-10's "for any Angle ≠ 0" is proven on an 800 × 800 layer at ±0.1°, ±1°, ±10° and ±45° — because a corner pixel's centre leaves the layer only once the rotation moves it by more than half a pixel, which on a small layer needs more than 0.1°; Transparent corners does not antialias (as the Transparent edge behaviour of `effects-distort`).
 - 2026-11-05 (spec-build): The agent catalog names Straighten's Fill `zoom_to_fill` / `transparent_corners` and Vignette's Colour `black` / `white`; the other parameters keep the wire names (`ink_outline`, `coloring`, `brush_size`, `coarseness`, `tip_size`, `color_range`, `radius`, `brightness`, `contrast`, `tolerance`, `saturation`, `softness`, `lighting`, `warmth`, `angle`, `center_x`, `center_y`, `density`). The agent test that used `glow` as an unknown effect id now uses `no_such_effect`, because Glow is a real effect now.
 - 2026-11-05 (spec-build): AC-12's "changes nothing" is proven in the Pixel core (`pincel-wasm`), as in `effects-blurs` and `effects-distort`: the Image core's `apply_effect` returns a `JsError`, which cannot be built in a native test, and it parses the spec before it touches the document just like the Pixel core. The test was green at once, because the parameter-count error runs before any effect and every new name already parsed in `pincel-effects` (whose tests were red first).
+- 2026-11-05 (spec-build): Labels the table leaves open: Ink outline / Tuschekontur, Coloring / Färbung, Brush size / Pinselgröße, Coarseness / Grobheit, Pencil tip size / Stiftspitze, Color range / Farbbereich, Tolerance / Toleranz, Softness / Weichheit, Lighting / Beleuchtung, Warmth / Wärme, Fill / Füllung (Zoom to fill / Zoomen zum Füllen, Transparent corners / Transparente Ecken), Radius % / Radius %, Density / Dichte, Color / Farbe (Black / Schwarz, White / Weiß); Radius, Brightness, Contrast, Saturation, Angle and Center reuse the existing strings. English labels use US spelling like the rest of the UI. Straighten's Angle is a number slider (step 0.1, −45 to 45), not the angle dial, because the dial wraps 0–360; Vignette's Center comes first, as in the table. Every other number steps by 1.
+- 2026-11-05 (spec-build): Vignette follows the table literally — the falloff starts at Radius % of half the diagonal — so at the default Radius 100 the corners sit exactly at r0 and the default changes no pixel of a whole-layer target (visible from Radius < 100, or with the centre moved); AC-09 fixes Radius 50. Recorded for the owner: a lower default Radius (e.g. 50) would make the default visible, but changes the table.

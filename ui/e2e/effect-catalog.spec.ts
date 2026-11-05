@@ -306,6 +306,69 @@ const PINS: Record<string, Pin> = {
       ['edge', 3, [30, 100, 0.5, 0.5, 3]],
     ],
   },
+  // Added by effects-artistic-photo (no previous catalog): the table's order
+  // and defaults; choices as option index, a point as two fractions.
+  ink_sketch: {
+    defaults: [50, 50],
+    changes: [
+      ['ink_outline', 99, [99, 50]],
+      ['coloring', 0, [50, 0]],
+    ],
+  },
+  oil_painting: {
+    defaults: [3, 50],
+    changes: [
+      ['brush_size', 8, [8, 50]],
+      ['coarseness', 3, [3, 3]],
+    ],
+  },
+  pencil_sketch: {
+    defaults: [2, 0],
+    changes: [
+      ['tip_size', 20, [20, 0]],
+      ['color_range', -20, [2, -20]],
+    ],
+  },
+  glow: {
+    defaults: [6, 10, 10],
+    changes: [
+      ['radius', 20, [20, 10, 10]],
+      ['brightness', -100, [6, -100, 10]],
+      ['contrast', 100, [6, 10, 100]],
+    ],
+  },
+  red_eye_removal: {
+    defaults: [70, 90],
+    changes: [
+      ['tolerance', 0, [0, 90]],
+      ['saturation', 0, [70, 0]],
+    ],
+  },
+  soften_portrait: {
+    defaults: [5, 0, 10],
+    changes: [
+      ['softness', 10, [10, 0, 10]],
+      ['lighting', -20, [5, -20, 10]],
+      ['warmth', 0, [5, 0, 0]],
+    ],
+  },
+  straighten: {
+    defaults: [0, 0],
+    changes: [
+      ['angle', -12.5, [-12.5, 0]],
+      ['fill', 1, [0, 1]],
+    ],
+  },
+  vignette: {
+    defaults: [0.5, 0.5, 100, 100, 0],
+    changes: [
+      ['center_x', 0, [0, 0.5, 100, 100, 0]],
+      ['center_y', 100, [0.5, 1, 100, 100, 0]],
+      ['radius', 400, [0.5, 0.5, 400, 100, 0]],
+      ['density', 0, [0.5, 0.5, 100, 0, 0]],
+      ['color', 1, [0.5, 0.5, 100, 100, 1]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {
