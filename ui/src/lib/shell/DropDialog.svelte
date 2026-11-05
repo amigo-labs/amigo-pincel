@@ -18,8 +18,11 @@
 
   let dontAsk = $state(false);
   let primary: HTMLButtonElement | undefined = $state();
+  let openButton: HTMLButtonElement | undefined = $state();
 
-  onMount(() => primary?.focus());
+  // Add as layer is the default; without it (AC-22) Open as document takes
+  // the focus, so Escape and the editor's keys stay with the dialog.
+  onMount(() => (primary ?? openButton)?.focus());
 
   function onKeydown(e: KeyboardEvent): void {
     e.stopPropagation();
@@ -57,7 +60,12 @@
     </label>
     <div class="mt-4 flex flex-wrap justify-end gap-2">
       <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="button" class="panel-btn" onclick={() => onChoose('document', dontAsk)}>
+      <button
+        bind:this={openButton}
+        type="button"
+        class="panel-btn"
+        onclick={() => onChoose('document', dontAsk)}
+      >
         {t('drop.openDocument')}
       </button>
       {#if canAddLayers}

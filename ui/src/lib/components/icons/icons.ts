@@ -158,6 +158,13 @@ export const ICONS = {
   film: [{ d: 'M3 5h18v14H3z' }, { d: 'M7 5v14M17 5v14M3 12h4M17 12h4' }],
   more: [{ d: 'M5 12h.01M12 12h.01M19 12h.01' }],
   download: [{ d: 'M12 4v11M7 10l5 5 5-5' }, { d: 'M5 20h14' }],
+  // Document modes (tab bar marker)
+  'mode-pixel': [
+    { d: 'M4 14h6v6H4z', fill: true },
+    { d: 'M10 8h6v6h-6z', fill: true },
+    { d: 'M16 4h4v4h-4z', fill: true },
+  ],
+  'mode-image': [{ d: RECT }, { d: 'M4 17l5-5 4 4 2-2 5 5' }, { d: 'M15.5 9.5h.01' }],
 } satisfies Record<string, IconPath[]>;
 
 /** A known icon name. */

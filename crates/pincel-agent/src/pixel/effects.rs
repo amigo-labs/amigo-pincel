@@ -22,7 +22,8 @@ pub(crate) enum Kind {
         options: &'static [&'static str],
         default: usize,
     },
-    /// A `#RRGGBB` / `#RRGGBBAA` colour, one `0xRRGGBBAA` wire slot.
+    /// A colour as `#RRGGBB` / `#RRGGBBAA`; the wire carries it as one
+    /// `0xRRGGBBAA` slot (Decision Log 2026-10-29).
     Color {
         default: u32,
     },
@@ -75,17 +76,6 @@ const fn choice(key: &'static str, options: &'static [&'static str]) -> Param {
     }
 }
 
-const fn choice_default(
-    key: &'static str,
-    options: &'static [&'static str],
-    default: usize,
-) -> Param {
-    Param {
-        key,
-        kind: Kind::Choice { options, default },
-    }
-}
-
 const fn color(key: &'static str, default: u32) -> Param {
     Param {
         key,
@@ -93,10 +83,16 @@ const fn color(key: &'static str, default: u32) -> Param {
     }
 }
 
-/// `#rrggbbaa` of a `0xRRGGBBAA` colour.
-pub(crate) fn color_hex(v: u32) -> String {
-    format!("#{v:08x}")
+/// A choice whose default is not the first option.
+const fn choice_at(key: &'static str, options: &'static [&'static str], default: usize) -> Param {
+    Param {
+        key,
+        kind: Kind::Choice { options, default },
+    }
 }
+
+/// The edge behaviour of the resampling distortions (effects-distort).
+const EDGES: &[&str] = &["clamp", "wrap", "reflect", "transparent"];
 
 const fn plain(id: &'static str, params: &'static [Param]) -> EffectDef {
     EffectDef {
@@ -123,6 +119,7 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
         &[
             num("distance", 1.0, 100.0, 6.0),
             num("angle", 0.0, 360.0, 0.0),
+            flag("centered", true),
         ],
     ),
     plain(
@@ -174,15 +171,11 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("seed", 0.0, 9999.0, 1.0),
         ],
     ),
-    plain("reduce_noise", &[num("radius", 1.0, 10.0, 1.0)]),
-    // The editor defaults the colour to the foreground; the agent has none.
     plain(
-        "outline",
+        "reduce_noise",
         &[
-            choice("place", &["outside", "inside", "both"]),
-            choice_default("shape", &["circle", "square"], 1),
-            num("thickness", 1.0, 8.0, 1.0),
-            color("color", 0x0000_00FF),
+            num("radius", 1.0, 200.0, 6.0),
+            num("strength", 0.0, 100.0, 40.0),
         ],
     ),
     plain(
@@ -256,7 +249,301 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
     ),
     plain("posterize", &[num("levels", 2.0, 64.0, 4.0)]),
     plain("threshold", &[num("threshold", 0.0, 255.0, 128.0)]),
+    plain("auto_level", &[]),
+    plain("exposure", &[num("exposure", -5.0, 5.0, 0.0)]),
+    plain(
+        "highlights_shadows",
+        &[
+            num("shadows", -100.0, 100.0, 0.0),
+            num("highlights", -100.0, 100.0, 0.0),
+        ],
+    ),
+    plain("invert_alpha", &[]),
+    plain("sepia", &[num("intensity", 0.0, 100.0, 100.0)]),
+    plain(
+        "temperature_tint",
+        &[
+            num("temperature", -100.0, 100.0, 0.0),
+            num("tint", -100.0, 100.0, 0.0),
+        ],
+    ),
+    // docs/specs/effects-blurs.md: paint.net's remaining blurs.
+    plain(
+        "bokeh",
+        &[
+            num("radius", 1.0, 100.0, 10.0),
+            num("highlights", 0.0, 100.0, 25.0),
+        ],
+    ),
+    plain(
+        "fragment",
+        &[
+            num("fragments", 2.0, 50.0, 4.0),
+            num("distance", 0.0, 100.0, 8.0),
+            num("rotation", 0.0, 360.0, 0.0),
+        ],
+    ),
+    plain(
+        "median",
+        &[
+            num("radius", 1.0, 200.0, 10.0),
+            num("percentile", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "sketch_blur",
+        &[
+            num("radius", 1.0, 100.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "surface_blur",
+        &[
+            num("radius", 1.0, 100.0, 6.0),
+            num("threshold", 1.0, 100.0, 25.0),
+        ],
+    ),
+    plain(
+        "zoom_blur",
+        &[
+            num("amount", 1.0, 100.0, 10.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+        ],
+    ),
+    // docs/specs/outline-effect.md: Object ▸ Outline Object.
+    plain(
+        "outline",
+        &[
+            choice("place", &["outside", "inside", "both"]),
+            Param {
+                key: "shape",
+                kind: Kind::Choice {
+                    options: &["circle", "square"],
+                    default: 1,
+                },
+            },
+            num("thickness", 1.0, 8.0, 1.0),
+            color("color", 0x0000_00FF),
+        ],
+    ),
+    // docs/specs/effects-distort.md: paint.net's Distort menu.
+    plain(
+        "bulge",
+        &[
+            num("amount", -200.0, 100.0, 45.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "crystalize",
+        &[
+            num("cell_size", 2.0, 250.0, 8.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "dents",
+        &[
+            num("scale", 1.0, 200.0, 25.0),
+            num("refraction", 0.0, 200.0, 50.0),
+            num("roughness", 0.0, 100.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "frosted_glass",
+        &[
+            num("amount", 1.0, 200.0, 10.0),
+            num("seed", 0.0, 9999.0, 1.0),
+        ],
+    ),
+    plain(
+        "morphology",
+        &[
+            choice("operation", &["dilate", "erode", "open", "close"]),
+            choice("shape", &["square", "circle"]),
+            num("radius", 1.0, 100.0, 1.0),
+        ],
+    ),
+    plain(
+        "pixelate",
+        &[
+            num("cell_size", 2.0, 200.0, 8.0),
+            // Pixel mode's default: the centre pixel adds no colour.
+            choice_at("color", &["average", "centre"], 1),
+        ],
+    ),
+    plain(
+        "polar_inversion",
+        &[
+            num("amount", -4.0, 4.0, 1.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice_at("edge", EDGES, 1),
+        ],
+    ),
+    plain(
+        "tile_reflection",
+        &[
+            num("tile_size", 2.0, 200.0, 40.0),
+            num("angle", 0.0, 360.0, 30.0),
+            num("curvature", -100.0, 100.0, 8.0),
+            choice("edge", EDGES),
+        ],
+    ),
+    plain(
+        "twist",
+        &[
+            num("amount", -100.0, 100.0, 30.0),
+            num("size", 1.0, 200.0, 100.0),
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            choice("edge", EDGES),
+        ],
+    ),
+    // docs/specs/effects-object-stylize-color-noise.md: Object ▸ Drop
+    // Shadow (Pixel mode's Blur 0), Stylize ▸ Outline, Color ▸ Quantize.
+    plain(
+        "drop_shadow",
+        &[
+            num("offset_x", -100.0, 100.0, 4.0),
+            num("offset_y", -100.0, 100.0, 4.0),
+            num("blur", 0.0, 50.0, 0.0),
+            color("color", 0x0000_00FF),
+            num("opacity", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "stylize_outline",
+        &[
+            num("thickness", 1.0, 200.0, 3.0),
+            num("intensity", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "quantize",
+        &[
+            num("colors", 2.0, 256.0, 16.0),
+            choice("algorithm", &["median_cut", "octree"]),
+            num("dithering", 0.0, 100.0, 0.0),
+        ],
+    ),
+    // docs/specs/effects-artistic-photo.md: paint.net's Artistic and Photo
+    // menus.
+    plain(
+        "ink_sketch",
+        &[
+            num("ink_outline", 0.0, 99.0, 50.0),
+            num("coloring", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "oil_painting",
+        &[
+            num("brush_size", 1.0, 8.0, 3.0),
+            num("coarseness", 3.0, 255.0, 50.0),
+        ],
+    ),
+    plain(
+        "pencil_sketch",
+        &[
+            num("tip_size", 1.0, 20.0, 2.0),
+            num("color_range", -20.0, 20.0, 0.0),
+        ],
+    ),
+    plain(
+        "glow",
+        &[
+            num("radius", 1.0, 20.0, 6.0),
+            num("brightness", -100.0, 100.0, 10.0),
+            num("contrast", -100.0, 100.0, 10.0),
+        ],
+    ),
+    plain(
+        "red_eye_removal",
+        &[
+            num("tolerance", 0.0, 100.0, 70.0),
+            num("saturation", 0.0, 100.0, 90.0),
+        ],
+    ),
+    plain(
+        "soften_portrait",
+        &[
+            num("softness", 0.0, 10.0, 5.0),
+            num("lighting", -20.0, 20.0, 0.0),
+            num("warmth", 0.0, 20.0, 10.0),
+        ],
+    ),
+    plain(
+        "straighten",
+        &[
+            num("angle", -45.0, 45.0, 0.0),
+            choice("fill", &["zoom_to_fill", "transparent_corners"]),
+        ],
+    ),
+    plain(
+        "vignette",
+        &[
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            num("radius", 10.0, 400.0, 100.0),
+            num("density", 0.0, 100.0, 100.0),
+            choice("color", &["black", "white"]),
+        ],
+    ),
+    // docs/specs/effects-render.md: paint.net's Render menu. The editor's
+    // colours default to its foreground / background; agents get black /
+    // white.
+    plain(
+        "clouds",
+        &[
+            num("scale", 2.0, 1000.0, 250.0),
+            num("roughness", 0.0, 100.0, 50.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            color("color1", 0x0000_00FF),
+            color("color2", 0xFFFF_FFFF),
+            choice("blend", BLENDS),
+        ],
+    ),
+    plain(
+        "turbulence",
+        &[
+            num("scale", 2.0, 1000.0, 200.0),
+            num("octaves", 1.0, 8.0, 5.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            color("color1", 0x0000_00FF),
+            color("color2", 0xFFFF_FFFF),
+            choice("blend", BLENDS),
+        ],
+    ),
+    plain(
+        "julia_fractal",
+        &[
+            num("factor", 1.0, 10.0, 4.0),
+            num("zoom", 1.0, 50.0, 1.0),
+            num("angle", 0.0, 360.0, 0.0),
+            num("quality", 1.0, 5.0, 2.0),
+        ],
+    ),
+    plain(
+        "mandelbrot_fractal",
+        &[
+            num("factor", 1.0, 10.0, 1.0),
+            num("zoom", 1.0, 100.0, 10.0),
+            num("angle", 0.0, 360.0, 0.0),
+            num("quality", 1.0, 5.0, 2.0),
+            flag("invert", false),
+        ],
+    ),
 ];
+
+/// The blend modes of Clouds and Turbulence (effects-render).
+const BLENDS: &[&str] = &["normal", "multiply", "screen", "overlay"];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {
     EFFECTS.iter().map(|e| e.id).collect()
@@ -274,6 +561,12 @@ pub(crate) const ADJUSTMENTS: &[&str] = &[
     "grayscale",
     "posterize",
     "threshold",
+    "auto_level",
+    "exposure",
+    "highlights_shadows",
+    "invert_alpha",
+    "sepia",
+    "temperature_tint",
 ];
 
 /// `true` for an adjustment id (Adjust menu), `false` for an effect.
@@ -296,7 +589,7 @@ pub(crate) fn catalog_summary() -> String {
                     Kind::Bool { default } => format!("{} bool (default {default})", p.key),
                     Kind::Choice { options, .. } => format!("{} {}", p.key, options.join("|")),
                     Kind::Color { default } => {
-                        format!("{} #RRGGBB[AA] (default {})", p.key, color_hex(default))
+                        format!("{} #RRGGBB[AA] (default #{default:08X})", p.key)
                     }
                 })
                 .collect();
@@ -402,19 +695,19 @@ fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
                 ))
             })
         }
-        Kind::Color { default } => match v {
-            None => Ok(f64::from(default)),
-            Some(v) => v
-                .as_str()
-                .and_then(parse_hex)
-                .map(|c| f64::from(c.to_u32()))
-                .ok_or_else(|| {
-                    AgentError::tool(format!(
-                        "parameter `{}` of `{id}` must be \"#RRGGBB\" or \"#RRGGBBAA\"",
-                        p.key
-                    ))
-                }),
-        },
+        Kind::Color { default } => {
+            let rgba = match v {
+                None => Some(default),
+                Some(Value::String(s)) => parse_hex(s).map(|c| c.to_u32()),
+                Some(_) => None,
+            };
+            rgba.map(f64::from).ok_or_else(|| {
+                AgentError::tool(format!(
+                    "parameter `{}` of `{id}` must be a colour #RRGGBB or #RRGGBBAA",
+                    p.key
+                ))
+            })
+        }
     }
 }
 
@@ -457,27 +750,38 @@ mod tests {
     }
 
     #[test]
-    fn wire_params_outline_takes_a_hex_colour_in_one_slot() {
-        let w = wire_params(
-            "outline",
-            &map(json!({ "place": "both", "thickness": 3, "color": "#10203040" })),
-        )
-        .expect("ok");
-        assert_eq!(w, vec![2.0, 1.0, 3.0, f64::from(0x1020_3040u32)]);
-        let opaque = wire_params("outline", &map(json!({ "color": "#ff0000" }))).expect("ok");
-        assert_eq!(opaque[3], f64::from(0xFF00_00FFu32));
-        let err = wire_params("outline", &map(json!({ "color": "red" }))).unwrap_err();
-        assert_eq!(
-            err,
-            AgentError::tool("parameter `color` of `outline` must be \"#RRGGBB\" or \"#RRGGBBAA\"")
-        );
-    }
-
-    #[test]
     fn wire_params_choice_accepts_name_or_index() {
         let a = wire_params("radial_blur", &map(json!({ "kind": "zoom" }))).expect("ok");
         let b = wire_params("radial_blur", &map(json!({ "kind": 1 }))).expect("ok");
         assert_eq!(a, b);
         assert_eq!(a[3], 1.0);
+    }
+
+    /// outline-effect: the colour parameter takes `#RRGGBB[AA]` and travels
+    /// as one `0xRRGGBBAA` slot, like the editor's colour control.
+    #[test]
+    fn wire_params_outline_colour_is_one_rrggbbaa_slot() {
+        let d = wire_params("outline", &Map::new()).expect("defaults");
+        assert_eq!(d, vec![0.0, 1.0, 1.0, f64::from(0x0000_00FF_u32)]);
+        let w = wire_params(
+            "outline",
+            &map(
+                json!({ "place": "both", "shape": "circle", "thickness": 3, "color": "#FF801080" }),
+            ),
+        )
+        .expect("ok");
+        assert_eq!(w, vec![2.0, 0.0, 3.0, f64::from(0xFF80_1080_u32)]);
+        let opaque = wire_params("outline", &map(json!({ "color": "#ff8010" }))).expect("ok");
+        assert_eq!(opaque[3], f64::from(0xFF80_10FF_u32));
+        for bad in [json!("red"), json!("#ff80"), json!(255)] {
+            let err = wire_params("outline", &map(json!({ "color": bad }))).unwrap_err();
+            assert_eq!(
+                err,
+                AgentError::tool(
+                    "parameter `color` of `outline` must be a colour #RRGGBB or #RRGGBBAA"
+                )
+            );
+        }
+        assert!(wire_params("outline", &map(json!({ "thickness": 9 }))).is_err());
     }
 }

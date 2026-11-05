@@ -1,18 +1,57 @@
-//! Blur effects (Fineliner spec §11.1): Gaussian, Box, Motion, Radial.
+//! Blur effects (Fineliner spec §11.1): Gaussian, Box, Motion, Radial; and
+//! paint.net's Bokeh, Fragment, Median, Sketch and Surface Blur
+//! (docs/specs/effects-blurs.md).
 //!
-//! All four run in premultiplied-alpha gamma space (see [`crate`]). Gaussian and
-//! Box are separable convolutions built on [`convolve_axis`]; Motion and Radial
-//! resample along a path with [`sample_bilinear`].
+//! The averaging blurs run in premultiplied-alpha gamma space (see [`crate`]).
+//! Gaussian and Box are separable convolutions built on [`convolve_axis`];
+//! Motion, Radial, Fragment and Sketch resample along a path with
+//! [`sample_bilinear`]. Median works on straight colours of opaque pixels.
+//! Every blur reads neighbours outside the layer as the nearest edge pixel.
 
+mod bokeh;
 mod box_blur;
+mod fragment;
 mod gaussian;
+mod median;
 mod motion;
 mod radial;
+mod sketch;
+mod surface;
 
+pub use bokeh::Bokeh;
 pub use box_blur::BoxBlur;
+pub use fragment::Fragment;
 pub use gaussian::GaussianBlur;
+pub(crate) use gaussian::gaussian_kernel;
+pub use median::Median;
 pub use motion::MotionBlur;
 pub use radial::{RadialBlur, RadialKind};
+pub use sketch::SketchBlur;
+pub use surface::SurfaceBlur;
+
+/// Reads a parameter as finite (non-finite reads as 0) and clamps it to
+/// `lo..=hi`, the convention of every effect (`effects-adjustments`).
+pub(crate) fn param(v: f32, lo: f32, hi: f32) -> f32 {
+    let v = if v.is_finite() { v } else { 0.0 };
+    v.clamp(lo, hi)
+}
+
+/// Like [`param`], rounded to a whole number.
+pub(crate) fn whole(v: f32, lo: u32, hi: u32) -> u32 {
+    param(v, lo as f32, hi as f32).round() as u32
+}
+
+/// Reads an angle in degrees as finite (non-finite reads as 0) and wraps it
+/// into `0..360`, as the angle dial does.
+pub(crate) fn angle(v: f32) -> f32 {
+    if v.is_finite() {
+        let w = v.rem_euclid(360.0);
+        // rem_euclid can round up to exactly 360.0 for tiny negatives.
+        if w >= 360.0 { 0.0 } else { w }
+    } else {
+        0.0
+    }
+}
 
 /// Convolves a flat premultiplied RGBA f32 buffer with a 1-D `kernel` along one
 /// axis, clamping at the edges. `kernel` is centred on `kernel.len() / 2` and is

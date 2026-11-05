@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use crate::AgentError;
 use crate::args::hex;
-use crate::pixel::effects::{EFFECTS, Kind, color_hex, is_adjustment};
+use crate::pixel::effects::{EFFECTS, Kind, is_adjustment};
 
 const PALETTE_PREFIX: &str = "pincel://palettes/";
 const GUIDE_URI: &str = "pincel://guide";
@@ -104,7 +104,7 @@ fn effects_json() -> Value {
                         "name": p.key, "type": "choice", "options": options, "default": options[default],
                     }),
                     Kind::Color { default } => json!({
-                        "name": p.key, "type": "color", "default": color_hex(default),
+                        "name": p.key, "type": "color", "default": format!("#{default:08X}"),
                     }),
                 })
                 .collect();
@@ -203,6 +203,16 @@ mod tests {
         assert_eq!(
             levels["params"][0]["options"],
             json!(["composite", "red", "green", "blue"])
+        );
+        // outline-effect: the colour parameter kind.
+        let outline = entries
+            .iter()
+            .find(|e| e["id"] == "outline")
+            .expect("outline");
+        assert_eq!(outline["kind"], "effect");
+        assert_eq!(
+            outline["params"][3],
+            json!({ "name": "color", "type": "color", "default": "#000000FF" })
         );
         // Generated from the catalog: every parameter is there.
         for (entry, def) in entries.iter().zip(crate::pixel::effects::EFFECTS) {

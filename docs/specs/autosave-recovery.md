@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: M
 mode: both
@@ -36,8 +36,8 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [x] AC-01 (state): While a document has edits that are not saved, the editor writes a snapshot of it to browser storage every 30 seconds, in both modes; a reload after that offers it for recovery.
 - [x] AC-02 (always): A document whose undo depth equals its depth at the last save or open is never snapshotted, and a document that did not change since its last snapshot is not written again.
 - [x] AC-03 (event): When the user saves a document, then its snapshot is deleted and it is no longer offered for recovery.
-- [x] AC-04 (event): When an editor of a mode mounts for the first time in a page load and snapshots of that mode exist, then the "Recover unsaved work?" dialog lists each document's latest snapshot with its name, time and size, newest first; snapshots of the other mode are not listed.
-- [x] AC-05 (event): When the user clicks Recover on a listed snapshot, then that document replaces the open one, the dialog closes and the document reads as unsaved (unsaved marker shown).
+- [ ] AC-04 (event): When the first editor mounts in a page load and snapshots exist, then the "Recover unsaved work?" dialog lists each document's latest snapshot of both modes with its name, mode, time and size, newest first; recovering one opens it as a tab of its mode (`document-tabs` AC-15).
+- [ ] AC-05 (event): When the user clicks Recover on a listed snapshot, then that document opens as a new tab and becomes active (`document-tabs` AC-15), reads as unsaved (unsaved marker shown), and the dialog stays open while other snapshots remain; it closes after the last one is recovered or discarded.
 - [x] AC-06 (state): While a recovered document has not been saved, its snapshot stays, so closing the tab right after recovering loses nothing.
 - [x] AC-07 (event): When the user clicks Discard on a listed snapshot, then that snapshot is deleted for good; discarding the last listed snapshot closes the dialog.
 - [x] AC-08 (event): When the user clicks "Not now", then the dialog closes, is not shown again for the rest of the page load (also not after File ▸ New…), and the snapshots are offered again after the next reload.
@@ -92,8 +92,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-01 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | verified | ba53299 |
 | AC-02 | `ui/e2e/recovery.spec.ts › pixel: a clean or unchanged document is not snapshotted`; `ui/e2e/recovery.spec.ts › image: a clean or unchanged document is not snapshotted` | verified | ba53299 |
 | AC-03 | `ui/e2e/recovery.spec.ts › pixel: saving deletes the snapshot and it is not offered again`; `ui/e2e/recovery.spec.ts › image: saving deletes the snapshot and it is not offered again` | verified | 6aed618 |
-| AC-04 | `ui/e2e/recovery.spec.ts › the dialog lists each document’s latest snapshot of its own mode, newest first` | verified | ba53299 |
-| AC-05 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | verified | 35f631c |
+| AC-04 | `ui/e2e/document-tabs-mixed.spec.ts`: "the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)" (both modes at the first editor start, newest first, each row with name, mode, time and size; Recover opens a tab of the snapshot's mode) | built | |
+| AC-05 | | open | |
 | AC-06 | `ui/e2e/recovery.spec.ts › pixel: a recovered document keeps its snapshot until it is saved`; `ui/e2e/recovery.spec.ts › image: a recovered document keeps its snapshot until it is saved` | verified | 6aed618 |
 | AC-07 | `ui/e2e/recovery.spec.ts › a discarded snapshot is gone for good; discarding the last one closes the dialog` | verified | 35f631c |
 | AC-08 | `ui/e2e/recovery.spec.ts › "Not now" keeps the dialog away for the rest of the page load, not after a reload` | verified | 9af6b69 |
@@ -111,3 +111,5 @@ Partial coverage: AC-09 is marked `built` on the File ▸ New… path in Pixel m
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
 - 2026-11-03: Closed the test gaps of AC-02 – AC-04, AC-06 – AC-08 and AC-10 – AC-15. The listing (AC-04), discard (AC-07) and failed-recover (AC-10) tests seed `autosave_meta` / `autosave_snapshots` rows in IndexedDB the way an earlier page load leaves them, so names, times, sizes and broken payloads are exact; AC-11 makes every `autosave_snapshots` put throw a `QuotaExceededError`; AC-13 removes `window.indexedDB` before the app loads; AC-14 lets the service worker run (the suite blocks it otherwise) and goes offline with `context.setOffline`. The behavior existed, so each test was run red against a deliberate, reverted break: `tick()` without the unchanged-depth check (AC-02); `saved()` keeping the snapshot (AC-03); the probe's mode filter dropped (AC-04); `recover()` deleting the snapshot (AC-06); `discard()` skipping `removeSnapshots` (AC-07); `dismiss()` deleting the listed snapshots (AC-08); no row error on a failed recover (AC-10); a failed write not reported (AC-11); the stored background color not loaded (AC-12); `isIdbAvailable()` always `true` (AC-13); `.wasm` dropped from the precache `globPatterns` (AC-14); the manifest's `display` set to `browser` (AC-15).
+- 2026-11-04: AC-05 reworded for `document-tabs`: Recover opens a tab instead of replacing the document, and the dialog stays open for the remaining snapshots; back to `open`.
+- 2026-11-04: AC-04 reworded for mixed-mode tabs: the dialog lists the snapshots of both modes at the first editor start; back to `open`.

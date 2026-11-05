@@ -468,7 +468,14 @@ pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput,
         };
         let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone())
             .map_err(|e| AgentError::tool(e.to_string()))?;
-        buf.data = spec.run(&src).into_raw();
+        // The editor's target: the selection when one exists.
+        let whole = !doc.sprite.has_selection();
+        let (cx, cy) = original.position;
+        buf.data = spec
+            .run_at(&src, (cx, cy), |x, y| {
+                whole || doc.sprite.selection_contains(cx + x as i32, cy + y as i32)
+            })
+            .into_raw();
         mask_to_selection(&doc.sprite, &original, cel);
         Ok(())
     })

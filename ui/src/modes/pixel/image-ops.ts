@@ -1,12 +1,13 @@
 // Image menu: effects, transforms, resize / scale, crop.
 
-import type { EffectDef } from '../../lib/effects/catalog';
+import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
 import { effectLabel } from '../../lib/effects/labels';
+import { EffectSession } from '../../lib/effects/session.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { ResizeResult } from './components/ResizeDialog.svelte';
 import type { TransformOp } from './menus';
 import { paintOverlays, recompose, syncMeta } from './render';
-import { dialogs, ed, live } from './stores/editor.svelte';
+import { colors, dialogs, ed, live } from './stores/editor.svelte';
 
 /** An Image-menu command. */
 export type ImageAction =
@@ -16,20 +17,28 @@ export type ImageAction =
   | 'canvas:scale'
   | 'canvas:crop';
 
+/** Opens `def` at its defaults in the effect panel; an effect already
+ *  open is cancelled first, even the same one (effect-panel AC-05). */
 export function openEffect(def: EffectDef) {
   if (!ed.doc) return;
-  dialogs.effect = def;
+  if (dialogs.effect) recompose();
+  // Colour parameters start at the current colours (outline-effect AC-01).
+  dialogs.effect = new EffectSession(def, {
+    foreground: rgbaOf(colors.color, colors.alpha),
+    background: rgbaOf(colors.bgColor, colors.bgAlpha),
+  });
 }
 
 /** Live preview of the open effect; `null` (Preview off) shows the document. */
 export function previewEffectParams(params: number[] | null) {
   if (!ed.doc || !live.renderer || !dialogs.effect) return;
+  const def = dialogs.effect.def;
   if (params === null) {
     recompose();
     return;
   }
   try {
-    const frame = ed.doc.previewEffect(dialogs.effect.id, Float64Array.from(params), 1);
+    const frame = ed.doc.previewEffect(def.id, Float64Array.from(params), 1);
     try {
       live.renderer.draw(frame);
     } finally {
@@ -46,23 +55,27 @@ export function previewEffectParams(params: number[] | null) {
 
 export function applyEffectParams(params: number[]) {
   if (!ed.doc || !dialogs.effect) return;
-  const def = dialogs.effect;
-  dialogs.effect = null;
+  const def = dialogs.effect.def;
+  let changed: boolean;
   try {
-    if (ed.doc.applyEffect(def.id, Float64Array.from(params))) {
-      live.needsRecompose = true;
-      syncMeta();
-      ed.docRev += 1;
-      ed.status = t('px.effectApplied', { effect: effectLabel(def) });
-    } else {
-      ed.status = t('px.effectOutside', { effect: effectLabel(def) });
-      recompose();
-    }
+    changed = ed.doc.applyEffect(def.id, Float64Array.from(params));
   } catch (err) {
+    // The panel stays open with its values; the document is unchanged
+    // (effect-panel AC-16).
     ed.status = t('px.effectFailed', {
       effect: effectLabel(def),
       error: err instanceof Error ? err.message : String(err),
     });
+    return;
+  }
+  dialogs.effect = null;
+  if (changed) {
+    live.needsRecompose = true;
+    syncMeta();
+    ed.docRev += 1;
+    ed.status = t('px.effectApplied', { effect: effectLabel(def) });
+  } else {
+    ed.status = t('px.effectOutside', { effect: effectLabel(def) });
     recompose();
   }
 }

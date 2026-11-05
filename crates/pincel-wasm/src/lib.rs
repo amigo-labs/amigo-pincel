@@ -88,6 +88,37 @@ pub struct Document {
     onion_skin: Option<OnionSkin>,
     /// The Pencil / Eraser gesture between `beginStroke` and `endStroke`.
     stroke: Option<stroke::LiveStroke>,
+    /// Counts this document in [`open_document_count`] while it lives.
+    _live: LiveDocument,
+}
+
+thread_local! {
+    /// Documents constructed and not yet dropped (freed from JS).
+    static LIVE_DOCUMENTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Counts one live [`Document`] for [`open_document_count`].
+struct LiveDocument;
+
+impl LiveDocument {
+    fn new() -> Self {
+        LIVE_DOCUMENTS.with(|n| n.set(n.get().saturating_add(1)));
+        Self
+    }
+}
+
+impl Drop for LiveDocument {
+    fn drop(&mut self) {
+        LIVE_DOCUMENTS.with(|n| n.set(n.get().saturating_sub(1)));
+    }
+}
+
+/// Number of [`Document`]s alive in this module (created and not yet
+/// freed). A diagnostic: tests check that closing a tab frees its document
+/// (docs/specs/document-tabs.md AC-16).
+#[wasm_bindgen(js_name = openDocumentCount)]
+pub fn open_document_count() -> u32 {
+    LIVE_DOCUMENTS.with(std::cell::Cell::get)
 }
 
 #[wasm_bindgen]
@@ -129,6 +160,7 @@ impl Document {
             current_frame: FrameIndex::new(0),
             onion_skin: None,
             stroke: None,
+            _live: LiveDocument::new(),
         })
     }
 
@@ -149,6 +181,7 @@ impl Document {
             current_frame: FrameIndex::new(0),
             onion_skin: None,
             stroke: None,
+            _live: LiveDocument::new(),
         })
     }
 
@@ -4742,5 +4775,23 @@ mod tests {
                 .expect(kind);
             assert!(painted(&doc, 3, 3), "{kind} centre");
         }
+    }
+}
+
+#[cfg(test)]
+mod live_count_tests {
+    use super::*;
+
+    #[test]
+    fn open_document_count_follows_new_open_and_drop() {
+        let before = open_document_count();
+        let a = Document::new(2, 2).expect("new");
+        let bytes = a.save_aseprite().expect("save");
+        let b = Document::open_aseprite(&bytes).expect("open");
+        assert_eq!(open_document_count(), before + 2);
+        drop(a);
+        assert_eq!(open_document_count(), before + 1);
+        drop(b);
+        assert_eq!(open_document_count(), before);
     }
 }

@@ -280,5 +280,9 @@ test.describe('German', () => {
     await expect(first).toHaveText('Ebene ▸ Nach unten vereinen');
     await dialog.getByRole('combobox').fill('wand');
     await expect(first).toHaveText('Werkzeug: Zauberstab');
+    // A parameterized effect's menu entry carries "…"; its English name
+    // still finds it.
+    await dialog.getByRole('combobox').fill('exposure');
+    await expect(first).toHaveText(/ ▸ Belichtung…$/);
   });
 });

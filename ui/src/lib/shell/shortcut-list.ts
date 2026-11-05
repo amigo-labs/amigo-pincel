@@ -105,6 +105,9 @@ const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
   paletteNext: 'tools',
   palettePrev: 'tools',
   commandPalette: 'view',
+  nextTab: 'view',
+  prevTab: 'view',
+  closeTab: 'file',
 };
 
 /** Row label per action; a `Record`, so a new action without one fails `pnpm check`. */
@@ -163,6 +166,9 @@ export const ACTION_LABEL: Record<ShortcutAction, MessageKey> = {
   paletteNext: 'keys.paletteNext',
   palettePrev: 'keys.palettePrev',
   commandPalette: 'cmd.title',
+  nextTab: 'keys.nextTab',
+  prevTab: 'keys.prevTab',
+  closeTab: 'menu.close',
 };
 
 /** Display name of an action (the opacity steps name their percentage). */

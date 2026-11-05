@@ -14,8 +14,8 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
-| Both modes | [i18n](i18n.md) |
-| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
+| Both modes | [i18n](i18n.md), [effects-adjustments](effects-adjustments.md) |
+| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md), [app-shell](app-shell.md), [autosave-recovery](autosave-recovery.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -35,7 +35,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
-| 18 |  | both | M | — | Adds a color param kind to effects |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 23 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
 | 26 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
@@ -50,14 +49,21 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
 | 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
+| 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 
 ## Done
 
+- [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
-- [app-shell](app-shell.md)
-- [autosave-recovery](autosave-recovery.md)
 - [dithered-gradient](dithered-gradient.md)
-- [effects-adjustments](effects-adjustments.md)
+- [document-tabs](document-tabs.md)
+- [effect-catalog-v2](effect-catalog-v2.md)
+- [effect-panel](effect-panel.md)
+- [effects-artistic-photo](effects-artistic-photo.md)
+- [effects-blurs](effects-blurs.md)
+- [effects-distort](effects-distort.md)
+- [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
+- [effects-render](effects-render.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
@@ -85,6 +91,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
 - [tilemaps](tilemaps.md)
+- [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
 ## Open items outside specs

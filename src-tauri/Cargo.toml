@@ -5,7 +5,9 @@ description = "Pincel pixel-art editor — native desktop shell (Tauri 2)."
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-rust-version.workspace = true
+# Tauri 2.12 and its plugins need Rust 1.90; the library crates keep the
+# workspace's 1.88.
+rust-version = "1.90"
 default-run = "pincel"
 
 [[bin]]
@@ -23,6 +25,9 @@ tauri-build = { version = "2", features = [] }
 pincel-core = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
+# Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –
+# AC-33, Decision Log 2026-11-05).
+tauri-plugin-clipboard-manager = "2.5"
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"

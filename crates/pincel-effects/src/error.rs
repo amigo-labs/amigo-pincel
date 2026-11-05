@@ -26,18 +26,24 @@ pub enum EffectError {
     /// parameters for the named effect.
     #[error("effect `{effect}` expects {expected} parameter(s), got {got}")]
     ParamCount {
+        /// Wire name of the effect.
         effect: String,
+        /// Parameter count the effect accepts.
         expected: usize,
+        /// Parameter count supplied.
         got: usize,
     },
 
-    /// [`crate::EffectSpec::from_params`] got a parameter value that has
-    /// no meaning for the effect (e.g. a colour slot that is not an
-    /// integer `0xRRGGBBAA`), so nothing is clamped and nothing runs.
-    #[error("effect `{effect}` parameter {index} is invalid: {reason}")]
-    InvalidParam {
+    /// [`crate::EffectSpec::from_params`] got a colour slot that is not an
+    /// integer in `0..=u32::MAX` (a `0xRRGGBBAA` value; Decision Log
+    /// 2026-10-29).
+    #[error(
+        "effect `{effect}` parameter {slot} must be a colour 0xRRGGBBAA (an integer 0–4294967295)"
+    )]
+    ColorSlot {
+        /// Wire name of the effect.
         effect: String,
-        index: usize,
-        reason: &'static str,
+        /// Index of the offending parameter slot.
+        slot: usize,
     },
 }

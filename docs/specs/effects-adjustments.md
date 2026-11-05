@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: M
 mode: both
@@ -32,8 +32,8 @@ Both editors offer the same twenty effects and adjustments — blurs, sharpening
 
 ## Acceptance criteria
 
-- [x] AC-01 (always): In both modes the Effects menu holds the submenus Blur (Gaussian Blur, Box Blur, Motion Blur, Radial Blur), Sharpen (Sharpen, Unsharp Mask), Distort (Emboss, Edge Detect, Relief) and Noise (Add Noise, Reduce Noise), and the Adjustments menu lists Brightness / Contrast, Hue / Saturation, Curves, Levels, Color Balance, Invert Colors, Grayscale, Posterize and Threshold; an entry with parameters ends in "…", and every entry is disabled while no document is open.
-- [x] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown — or "This effect has no parameters."; Reset returns every parameter to its default.
+- ~~AC-01 (always): In both modes the Effects menu holds the submenus Blur, Sharpen, Distort and Noise, and the Adjustments menu lists nine adjustments …~~ dropped: superseded by [effect-catalog-v2](effect-catalog-v2.md) AC-01 – AC-06 (paint.net submenus, per-mode filter).
+- [ ] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes, as amended by the later effect specs (`effects-blurs`, `effects-object-stylize-color-noise`, …) for the parameters they changed — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown, an angle, point, random seed or linked pair as [effect-catalog-v2](effect-catalog-v2.md) AC-09 – AC-13 specify — or "This effect has no parameters."; Reset returns every parameter to its default.
 - [x] AC-03 (state): While the effect dialog is open with Preview on, the canvas shows the active layer with the effect at the current parameters, and the document and its undo history stay unchanged; turning Preview off shows the image without the effect.
 - [x] AC-04 (event): When the user confirms the dialog (OK or Enter), then the effect is applied to the active layer (Pixel mode: the active layer's cel on the current frame) as exactly one undo step that never merges with a neighbouring stroke, and the dialog closes; Pixel mode's status bar reads "<Effect> applied".
 - [x] AC-05 (event): When the user cancels the dialog (Cancel or Escape), then it closes, the canvas shows the unchanged image and no undo step is added.
@@ -116,8 +116,8 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/effects.spec.ts › pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | ba53299 |
-| AC-02 | `ui/e2e/effects.spec.ts › pixel: every effect dialog shows its parameters at their defaults; Reset restores them (AC-02)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | ba53299 |
+| AC-01 |      | dropped |        |
+| AC-02 |      | open   |        |
 | AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | verified | 6aed618 |
 | AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | verified | ba53299 |
 | AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 35f631c |
@@ -144,3 +144,5 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 - 2026-11-03: Bug (AC-18): Emboss, Edge Detect and Relief read a straight-RGB luma field, and Reduce Noise took the median over every pixel of its window, so a transparent pixel's hidden colour shifted opaque neighbours. The distort height field is now premultiplied luma (luma · alpha), and the median skips fully transparent pixels (`fix(pincel-effects)`) — the smallest changes that make the result independent of invisible colour.
 - 2026-11-03: AC-11's indexed case is proven in the core only: the Aseprite reader refuses indexed files and no command converts a sprite to indexed, so no UI path reaches an indexed sprite today. The "<Effect> failed: …" status is proven with the no-cel case.
 - 2026-11-03: AC-09 in Pixel mode needs a cel smaller than the canvas; New and Paste create canvas-sized cels, so the e2e test opens a hand-built `.aseprite` with a 2 × 2 cel.
+- 2026-11-04: AC-01 dropped (superseded by `effect-catalog-v2`: paint.net submenus, Pixel mode shows only hard-edged effects); AC-02 reworded to cover the new parameter kinds, back to `open`. The Technical notes table keeps the old group column as history; the catalog mapping lives in `effect-catalog-v2`.
+- 2026-11-05: AC-02's defaults follow the later effect specs where they changed a parameter (Box Blur as a linked pair, Motion Blur's Centered, Radial Blur without its kind, Reduce Noise's Radius 6 / Strength 40); the Technical notes table stays as history. Found when PR #123's AC-02 test met the merged catalog.

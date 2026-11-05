@@ -13,20 +13,31 @@
   // backing store never exceeds the viewport (spec §8.5).
   import { motion } from '../../../../lib/motion.svelte';
   import { selectionMask } from '../../core/controller';
-  import { selectionOutline } from './selection-outline';
+  import { devicePath, selectionOutline, type Outline } from './selection-outline';
 
   let canvas: HTMLCanvasElement;
   // Boundary of the committed selection, rebuilt only when the document
   // changes ($state so the animation effect reacts to it).
-  let selectionPath = $state<Path2D | null>(null);
+  let selectionLoops = $state.raw<Outline[] | null>(null);
+  // The committed outline in device space for the current view.
+  let deviceCache: { loops: Outline[]; key: string; path: Path2D } | null = null;
   let raf = 0;
   let running = false;
   let dashOffset = 0;
 
   /** The committed selection's boundary as closed outlines. */
-  function buildSelectionPath(): Path2D | null {
+  function buildSelectionLoops(): Outline[] | null {
     const mask = selectionMask();
     return mask ? selectionOutline(mask, editor.width, editor.height) : null;
+  }
+
+  /** The committed outline snapped to device pixels, rebuilt when the view moves. */
+  function selectionDevicePath(loops: Outline[], scale: number, ox: number, oy: number): Path2D {
+    const key = `${scale}:${ox}:${oy}`;
+    if (deviceCache?.loops !== loops || deviceCache.key !== key) {
+      deviceCache = { loops, key, path: devicePath(loops, scale, ox, oy) };
+    }
+    return deviceCache.path;
   }
 
   /** Builds the path for the in-progress selection gesture, if any. */
@@ -134,11 +145,12 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
     const scale = view.zoom * dpr;
+    if (selectionLoops) {
+      // Device space, one-pixel lines on pixel centres: crisp at any zoom.
+      marchingAnts(ctx, selectionDevicePath(selectionLoops, scale, view.panX * dpr, view.panY * dpr), 1);
+    }
     ctx.setTransform(scale, 0, 0, scale, view.panX * dpr, view.panY * dpr);
     const unit = 1 / scale;
-    if (selectionPath) {
-      marchingAnts(ctx, selectionPath, unit);
-    }
     const preview = buildPreviewPath();
     if (preview) {
       marchingAnts(ctx, preview, unit);
@@ -151,7 +163,7 @@
 
   /** Whether anything is on the overlay (else the animation loop idles). */
   function hasContent(): boolean {
-    return selectionPath !== null || selectionPreview.value !== null || shapePreview.value !== null;
+    return selectionLoops !== null || selectionPreview.value !== null || shapePreview.value !== null;
   }
 
   // The dash animation only runs while there is something to animate and
@@ -204,7 +216,7 @@
   // Rebuild the committed selection boundary whenever the document mutates.
   $effect(() => {
     void editor.revision;
-    selectionPath = editor.handle !== null ? buildSelectionPath() : null;
+    selectionLoops = editor.handle !== null ? buildSelectionLoops() : null;
   });
 </script>
 

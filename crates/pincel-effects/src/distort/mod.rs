@@ -1,17 +1,44 @@
-//! Distort effects (Fineliner spec §11.3): Emboss, Edge Detect, Relief.
+//! Distort effects: Emboss, Edge Detect, Relief (Fineliner spec §11.3; in
+//! the Stylize submenu since `effect-catalog-v2`) and paint.net's Distort
+//! menu (docs/specs/effects-distort.md).
 //!
-//! All three read a luminance height field and its gradient; alpha is preserved
-//! from the source. The height field is premultiplied luma (luma · alpha), so
-//! the invisible colour of a fully transparent pixel never shows up in its
-//! opaque neighbours (docs/specs/effects-adjustments.md AC-18).
+//! [`StylizeOutline`] (Stylize ▸ Outline, docs/specs/
+//! effects-object-stylize-color-noise.md) darkens pixels near colour edges.
+//!
+//! Emboss, Edge Detect and Relief read a luminance height field and its
+//! gradient; alpha is preserved from the source. The height field is
+//! premultiplied luma (luma · alpha), so the invisible colour of a fully
+//! transparent pixel never shows up in its opaque neighbours
+//! (docs/specs/effects-adjustments.md AC-18).
+//!
+//! Bulge, Dents, Polar Inversion, Tile Reflection and Twist resample
+//! premultiplied pixels bilinearly with an [`EdgeBehavior`]; Crystalize
+//! averages premultiplied cells. Frosted Glass, Morphology and Pixelate's
+//! Centre colour copy whole pixels.
 
+mod crystalize;
+mod dents;
+pub(crate) mod edge;
 mod edge_detect;
 mod emboss;
+mod frosted_glass;
+mod morphology;
+mod pixelate;
 mod relief;
+mod stylize_outline;
+mod warp;
 
+pub use crystalize::Crystalize;
+pub use dents::Dents;
+pub use edge::EdgeBehavior;
 pub use edge_detect::{EdgeAlgorithm, EdgeDetect};
 pub use emboss::Emboss;
+pub use frosted_glass::FrostedGlass;
+pub use morphology::{Morphology, MorphologyOp, MorphologyShape};
+pub use pixelate::{Pixelate, PixelateColor};
 pub use relief::Relief;
+pub use stylize_outline::StylizeOutline;
+pub use warp::{Bulge, PolarInversion, TileReflection, Twist};
 
 /// Premultiplied Rec.601 luma (luma · alpha) of pixel `(x, y)` in
 /// `[0.0, 1.0]`, clamping at the edges.

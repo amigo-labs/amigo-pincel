@@ -52,6 +52,10 @@ export interface PixelMenuContext {
   open(): void;
   openRecent(r: RecentFile): void;
   save(asNew: boolean): void;
+  /** File ▸ Close: close the active tab (document-tabs AC-07). */
+  close(): void;
+  /** The active tab is being saved: File ▸ Close does nothing (AC-17). */
+  saving: boolean;
   importPng(): void;
   exportPng(): void;
   exportSheet(): void;
@@ -133,6 +137,8 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
         ...recentMenuItems(c.recents, c.openRecent, c.busy),
         droppedImagesMenu(),
+        { kind: 'separator' },
+        { label: t('menu.close'), shortcut: hint('closeTab'), disabled: noDoc || c.saving, run: c.close },
         { kind: 'separator' },
         {
           label: c.canSaveInPlace ? t('menu.save') : t('menu.saveDownload'),
@@ -271,7 +277,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.deleteFrame'), disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
       ],
     },
-    ...effectMenus(c.openEffect, noDoc),
+    ...effectMenus(c.openEffect, noDoc, 'pixel'),
     {
       id: 'view',
       label: t('menu.view'),

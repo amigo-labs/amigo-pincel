@@ -71,8 +71,8 @@ const REVERSE: Partial<Record<Locale, Readonly<Record<string, MessageKey>>>> = {
 
 /**
  * The English text of `label`, a message of the active locale without
- * parameters (`Nach unten vereinen` → `Merge Down`); `null` when `label`
- * is no such message (a file name, a filled-in template). The command
+ * parameters (`Nach unten vereinen` → `Merge Down`, `Belichtung…` →
+ * `Exposure…`); `null` when `label` is no such message (a file name, a filled-in template). The command
  * palette matches English queries in every locale with it.
  */
 export function englishLabel(label: string): string | null {
@@ -85,5 +85,12 @@ export function englishLabel(label: string): string | null {
     REVERSE[loc] = map;
   }
   const key = Object.hasOwn(map, label) ? map[label] : undefined;
-  return key === undefined ? null : en[key];
+  if (key !== undefined) return en[key];
+  // A menu entry that opens a panel or dialog appends "…" to its message
+  // (`Belichtung…`): look up the message and keep the suffix.
+  if (label.endsWith('…') && label.length > 1) {
+    const base = englishLabel(label.slice(0, -1));
+    return base === null ? null : `${base}…`;
+  }
+  return null;
 }

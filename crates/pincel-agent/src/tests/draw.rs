@@ -7,7 +7,7 @@ use pincel_core::{
     LayerId, Rgba, Sprite,
 };
 use pincel_effects::{EffectImage, EffectSpec};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{S, px};
 
@@ -255,6 +255,270 @@ fn selection_limits_fill_and_effect_until_cleared() {
     assert_eq!(px(&s.cel_rgba(&id, 0, 0), 8, 7, 7), [0, 0, 255, 255]);
 }
 
+/// effect-catalog-v2 AC-08: the editor's Pixel-mode menus hide the
+/// neighbourhood effects (blurs, sharpening, Edge Detect, …), but the agent
+/// tools still apply every effect to a Pixel document.
+#[test]
+fn effect_apply_accepts_every_effect_on_a_pixel_document() {
+    let mut s = S::new();
+    let id = s.new_doc(8, 8);
+    s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#336699" }));
+    for name in pincel_effects::EFFECT_NAMES {
+        s.ok("effect.apply", json!({ "id": name }));
+    }
+    assert_eq!(s.cel_rgba(&id, 0, 0).len(), 8 * 8 * 4);
+}
+
+/// effects-blurs: the new blurs and Motion Blur's Centered switch take
+/// named parameters and give the editor's pixels.
+#[test]
+fn effect_apply_new_blurs_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "bokeh",
+            json!({ "radius": 3, "highlights": 80 }),
+            &[3.0, 80.0],
+        ),
+        (
+            "fragment",
+            json!({ "fragments": 5, "distance": 2, "rotation": 30 }),
+            &[5.0, 2.0, 30.0],
+        ),
+        (
+            "median",
+            json!({ "radius": 2, "percentile": 75 }),
+            &[2.0, 75.0],
+        ),
+        (
+            "sketch_blur",
+            json!({ "radius": 4, "seed": 9 }),
+            &[4.0, 9.0],
+        ),
+        (
+            "surface_blur",
+            json!({ "radius": 2, "threshold": 40 }),
+            &[2.0, 40.0],
+        ),
+        (
+            "zoom_blur",
+            json!({ "amount": 40, "center_x": 0.25, "center_y": 0.75 }),
+            &[40.0, 0.25, 0.75],
+        ),
+        (
+            "motion_blur",
+            json!({ "distance": 4, "angle": 45, "centered": false }),
+            &[4.0, 45.0, 0.0],
+        ),
+        // outline-effect: Outline Object with its colour parameter.
+        (
+            "outline",
+            json!({ "place": "both", "shape": "circle", "thickness": 2, "color": "#FF8010C0" }),
+            &[2.0, 0.0, 2.0, 4_286_582_976.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name}");
+    }
+}
+
+/// effects-distort: the distortions take named parameters (choices by
+/// name) and give the editor's pixels; Pixelate defaults to Pixel mode's
+/// Centre.
+#[test]
+fn effect_apply_distortions_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "bulge",
+            json!({ "amount": -60, "center_x": 0.3, "edge": "reflect" }),
+            &[-60.0, 0.3, 0.5, 2.0],
+        ),
+        (
+            "crystalize",
+            json!({ "cell_size": 3, "seed": 4 }),
+            &[3.0, 4.0],
+        ),
+        (
+            "dents",
+            json!({ "scale": 3, "refraction": 120, "edge": "wrap" }),
+            &[3.0, 120.0, 10.0, 1.0, 1.0],
+        ),
+        (
+            "frosted_glass",
+            json!({ "amount": 2, "seed": 8 }),
+            &[2.0, 8.0],
+        ),
+        (
+            "morphology",
+            json!({ "operation": "erode", "shape": "circle", "radius": 1 }),
+            &[1.0, 1.0, 1.0],
+        ),
+        ("pixelate", json!({ "cell_size": 3 }), &[3.0, 1.0]),
+        (
+            "pixelate",
+            json!({ "cell_size": 2, "color": "average" }),
+            &[2.0, 0.0],
+        ),
+        (
+            "polar_inversion",
+            json!({ "amount": 0.5 }),
+            &[0.5, 0.5, 0.5, 1.0],
+        ),
+        (
+            "tile_reflection",
+            json!({ "tile_size": 4, "angle": 15, "curvature": 20, "edge": "transparent" }),
+            &[4.0, 15.0, 20.0, 3.0],
+        ),
+        (
+            "twist",
+            json!({ "amount": -40, "size": 150 }),
+            &[-40.0, 150.0, 0.5, 0.5, 0.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
+/// effects-object-stylize-color-noise: Drop Shadow (colour as hex, Pixel
+/// mode's Blur 0 by default), Stylize Outline, Quantize (algorithm by name)
+/// and Reduce Noise with its Strength give the editor's pixels.
+#[test]
+fn effect_apply_object_stylize_color_noise_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "drop_shadow",
+            json!({}),
+            &[4.0, 4.0, 0.0, f64::from(0x0000_00FF_u32), 50.0],
+        ),
+        (
+            "drop_shadow",
+            json!({ "offset_x": -2, "offset_y": 3, "blur": 2, "color": "#ff801080", "opacity": 90 }),
+            &[-2.0, 3.0, 2.0, f64::from(0xFF80_1080_u32), 90.0],
+        ),
+        (
+            "stylize_outline",
+            json!({ "thickness": 2, "intensity": 80 }),
+            &[2.0, 80.0],
+        ),
+        ("quantize", json!({ "colors": 2 }), &[2.0, 0.0, 0.0]),
+        (
+            "quantize",
+            json!({ "colors": 2, "algorithm": "octree", "dithering": 50 }),
+            &[2.0, 1.0, 50.0],
+        ),
+        ("reduce_noise", json!({}), &[6.0, 40.0]),
+        (
+            "reduce_noise",
+            json!({ "radius": 2, "strength": 100 }),
+            &[2.0, 100.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
+/// effects-render: the render effects take named parameters (colours as
+/// hex, the blend mode by name) and give the editor's pixels; Clouds and
+/// Turbulence default to black / white.
+#[test]
+fn effect_apply_render_effects_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "clouds",
+            json!({ "scale": 4, "seed": 9 }),
+            &[4.0, 50.0, 9.0, 255.0, 4_294_967_295.0, 0.0],
+        ),
+        (
+            "clouds",
+            json!({ "scale": 3, "roughness": 80, "color1": "#ff0000", "color2": "#0000FF80", "blend": "screen" }),
+            &[3.0, 80.0, 1.0, 4_278_190_335.0, 65_408.0, 2.0],
+        ),
+        (
+            "turbulence",
+            json!({ "scale": 5, "octaves": 3, "blend": "overlay" }),
+            &[5.0, 3.0, 1.0, 255.0, 4_294_967_295.0, 3.0],
+        ),
+        (
+            "julia_fractal",
+            json!({ "factor": 6, "zoom": 2, "angle": 30, "quality": 1 }),
+            &[6.0, 2.0, 30.0, 1.0],
+        ),
+        (
+            "mandelbrot_fractal",
+            json!({ "invert": true, "quality": 3 }),
+            &[1.0, 10.0, 0.0, 3.0, 1.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
 #[test]
 fn effect_apply_matches_the_editor_effect() {
     let mut s = S::new();
@@ -300,8 +564,8 @@ fn effect_apply_unknown_id_or_out_of_range_param_fails() {
     let mut s = S::new();
     let id = scene(&mut s);
     let before = s.state(&id);
-    let e = s.err("effect.apply", json!({ "id": "glow" }));
-    assert!(e.contains("glow"), "{e}");
+    let e = s.err("effect.apply", json!({ "id": "no_such_effect" }));
+    assert!(e.contains("no_such_effect"), "{e}");
     let e = s.err(
         "effect.apply",
         json!({ "id": "posterize", "params": { "levels": 100 } }),
@@ -363,4 +627,71 @@ fn paint_target_defaults_to_active_layer_and_frame() {
         )
         .contains("frame 5")
     );
+}
+
+/// effects-artistic-photo: the Artistic and Photo effects take named
+/// parameters (choices by name) and give the editor's pixels.
+#[test]
+fn effect_apply_artistic_and_photo_effects_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "ink_sketch",
+            json!({ "ink_outline": 80, "coloring": 0 }),
+            &[80.0, 0.0],
+        ),
+        (
+            "oil_painting",
+            json!({ "brush_size": 2, "coarseness": 8 }),
+            &[2.0, 8.0],
+        ),
+        (
+            "pencil_sketch",
+            json!({ "tip_size": 3, "color_range": -4 }),
+            &[3.0, -4.0],
+        ),
+        (
+            "glow",
+            json!({ "radius": 2, "brightness": 30 }),
+            &[2.0, 30.0, 10.0],
+        ),
+        (
+            "red_eye_removal",
+            json!({ "tolerance": 100, "saturation": 50 }),
+            &[100.0, 50.0],
+        ),
+        (
+            "soften_portrait",
+            json!({ "softness": 3, "lighting": -5, "warmth": 4 }),
+            &[3.0, -5.0, 4.0],
+        ),
+        (
+            "straighten",
+            json!({ "angle": 12.5, "fill": "transparent_corners" }),
+            &[12.5, 1.0],
+        ),
+        (
+            "vignette",
+            json!({ "center_x": 0.2, "radius": 40, "color": "white" }),
+            &[0.2, 0.5, 40.0, 100.0, 1.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
 }

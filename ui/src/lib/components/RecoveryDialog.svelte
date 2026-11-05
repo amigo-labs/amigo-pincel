@@ -70,7 +70,7 @@
                 {snap.name}
               </span>
               <span class="text-xs text-pc-faint">
-                {formatTimestamp(snap.ts)} · {formatBytes(snap.byteLength)}
+                {t(`mode.${snap.mode ?? 'pixel'}`)} · {formatTimestamp(snap.ts)} · {formatBytes(snap.byteLength)}
               </span>
             </div>
             <div class="flex shrink-0 gap-1">

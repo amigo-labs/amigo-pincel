@@ -7,20 +7,35 @@ use crate::image::EffectImage;
 /// Motion blur averaging samples along a straight line.
 ///
 /// The line is `distance` pixels long, oriented at `angle` degrees (0° = +x,
-/// measured clockwise in image space), and centred on each pixel. A `distance`
-/// of 1 is the identity. Valid UI ranges are 1–500 px and 0–360° (Fineliner spec §11.1).
+/// measured clockwise in image space). Centred (the default), it runs
+/// symmetrically through each pixel; otherwise it starts at the pixel and
+/// runs along the angle, so the smear trails behind a pixel moving along
+/// the angle (docs/specs/effects-blurs.md). A `distance` of 1 is the
+/// identity. Valid UI ranges are 1–500 px and 0–360° (Fineliner spec §11.1).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MotionBlur {
     /// Line length in pixels.
     pub distance: f32,
     /// Line orientation in degrees.
     pub angle: f32,
+    /// `true`: smear to both sides; `false`: a one-sided trail.
+    pub centered: bool,
 }
 
 impl MotionBlur {
-    /// Creates a motion blur of the given distance (px) and angle (degrees).
+    /// Creates a centred motion blur of the given distance (px) and angle
+    /// (degrees).
     pub fn new(distance: f32, angle: f32) -> Self {
-        Self { distance, angle }
+        Self {
+            distance,
+            angle,
+            centered: true,
+        }
+    }
+
+    /// The same blur, centred or as a one-sided trail.
+    pub fn with_centered(self, centered: bool) -> Self {
+        Self { centered, ..self }
     }
 }
 
@@ -33,7 +48,11 @@ impl Effect for MotionBlur {
         let (w, h) = (src.width() as usize, src.height() as usize);
         let rad = self.angle.to_radians();
         let (dx, dy) = (rad.cos(), rad.sin());
-        let half = (samples - 1) as f32 / 2.0;
+        let half = if self.centered {
+            (samples - 1) as f32 / 2.0
+        } else {
+            0.0
+        };
         let buf = src.to_premultiplied_f32();
         let mut out = vec![0.0f32; buf.len()];
         let inv_n = 1.0 / samples as f32;
@@ -59,7 +78,7 @@ impl Effect for MotionBlur {
     fn scaled(&self, factor: f32) -> Self {
         Self {
             distance: self.distance * factor,
-            angle: self.angle,
+            ..*self
         }
     }
 }

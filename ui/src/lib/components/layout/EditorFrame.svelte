@@ -6,23 +6,32 @@
   //   medium 640+   rail left · sidebar as a drawer over the canvas
   //   narrow <640   ☰ menu · tools as a bottom strip · panels in a
   //                 bottom sheet with one tab per panel
-  // Panel collapse state and sidebar visibility persist per mode.
-  import { onMount, type Snippet } from 'svelte';
+  // Panel collapse state, sidebar visibility and width persist per mode.
+  // While an effect is open (`effectPanel`), its panel sits on top of the
+  // sidebar / drawer / sheet, which show for it, and every other panel is
+  // inert (effect-panel spec).
+  import { onMount, tick, type Snippet } from 'svelte';
   import Icon from '../icons/Icon.svelte';
   import IconButton from './IconButton.svelte';
   import MenuBar from './MenuBar.svelte';
   import PanelHost from './PanelHost.svelte';
   import type { MenuDef } from './menu';
   import {
+    SIDEBAR_DEFAULT_WIDTH,
+    SIDEBAR_MIN_WIDTH,
     loadLayout,
     saveLayout,
+    sidebarMaxWidth,
+    sidebarWidth,
     type FrameLayout,
     type PanelDef,
   } from './panels.svelte';
+  import { splitter } from './splitter';
   import { viewport, watchViewport } from './viewport.svelte';
   import { t } from '../../i18n/index.svelte';
   import { modifiers, notePointer } from '../../shell/modifiers.svelte';
   import ModifierBar from './ModifierBar.svelte';
+  import TabBar, { type TabBarProps } from './TabBar.svelte';
   import { chrome } from './chrome.svelte';
 
   interface Props {
@@ -43,9 +52,25 @@
     quick?: Snippet;
     /** Status bar content. */
     statusbar?: Snippet;
+    /** The open effect's panel (title for the sheet tab), or `null`. */
+    effectPanel?: { title: string; body: Snippet } | null;
+    /** The open documents, drawn as a tab bar above the canvas. */
+    tabs?: TabBarProps;
   }
-  const { mode, menus, panels, title, dirty = false, tools, options, viewport: stage, quick, statusbar }: Props =
-    $props();
+  const {
+    mode,
+    menus,
+    panels,
+    title,
+    dirty = false,
+    tools,
+    options,
+    viewport: stage,
+    quick,
+    statusbar,
+    effectPanel = null,
+    tabs,
+  }: Props = $props();
 
   let layout = $state<FrameLayout>({ collapsed: {}, sidebar: true });
   // Drawer (medium) and bottom sheet (narrow) are per-session, not stored.
@@ -56,6 +81,23 @@
   const bottomPanels = $derived(panels.filter((p) => p.placement === 'bottom'));
   const size = $derived(viewport.size);
   const sheetPanel = $derived(panels.find((p) => p.id === sheetTab) ?? null);
+  const effectOpen = $derived(effectPanel !== null);
+  // The effect shows the sidebar, drawer or sheet without touching their
+  // own state, so each returns to it when the effect ends (AC-02, AC-12 –
+  // AC-14).
+  const sidebarShown = $derived(layout.sidebar || effectOpen);
+  const drawerShown = $derived(drawerOpen || effectOpen);
+  const sheetShown = $derived(sheetPanel !== null || effectOpen);
+
+  // When the effect panel closes, focus goes to the canvas area: the menu
+  // entry that opened it is gone (AC-06).
+  let stageEl = $state<HTMLElement | null>(null);
+  let hadEffect = false;
+  $effect(() => {
+    const open = effectOpen;
+    if (hadEffect && !open) void tick().then(() => stageEl?.focus());
+    hadEffect = open;
+  });
 
   onMount(() => {
     const stop = watchViewport();
@@ -83,10 +125,37 @@
     }
   }
 
+  // Docked sidebar width (effect-panel AC-07 – AC-11): the stored width,
+  // clamped to what the window allows; the stored value only changes when
+  // the user moves the splitter.
+  const asideWidth = $derived(sidebarWidth(layout.sidebarWidth, viewport.width));
+  const asideMax = $derived(sidebarMaxWidth(viewport.width));
+  const SPLITTER_STEP = 16;
+  let dragBase = 0;
+
+  function setSidebarWidth(width: number): void {
+    layout.sidebarWidth = sidebarWidth(width, viewport.width);
+  }
+
+  // The splitter is the sidebar's left edge: moving it left widens the
+  // sidebar. A drag that ends any way keeps the width it last set.
+  const splitterEvents = {
+    begin: () => (dragBase = asideWidth),
+    move: (dx: number) => setSidebarWidth(dragBase - dx),
+    end: () => saveLayout(mode, layout),
+    step: (direction: -1 | 1) => {
+      setSidebarWidth(asideWidth - direction * SPLITTER_STEP);
+      saveLayout(mode, layout);
+    },
+    reset: () => {
+      layout.sidebarWidth = SIDEBAR_DEFAULT_WIDTH;
+      saveLayout(mode, layout);
+    },
+  };
+
   // The canvas stage takes focus on a press, so Tab there toggles the UI
   // (power-user-shortcuts-coverage AC-09) while Tab anywhere else keeps
   // moving focus. A press on a control inside the stage leaves it alone.
-  let stageEl = $state<HTMLElement | null>(null);
   function onStagePointerDown(e: PointerEvent): void {
     notePointer(e);
     const target = e.target instanceof Element ? e.target : null;
@@ -114,15 +183,21 @@
 {/snippet}
 
 {#snippet sidebarBody()}
-  {#each sidePanels as p (p.id)}
-    <div
-      class="flex min-h-0 flex-col border-b border-pc-border"
-      class:flex-1={p.grow && !(isCollapsed(p))}
-      class:shrink-0={!p.grow || (isCollapsed(p))}
-    >
-      {@render hosted(p, 'side')}
-    </div>
-  {/each}
+  {#if effectPanel}
+    <div class="shrink-0 border-b border-pc-border">{@render effectPanel.body()}</div>
+  {/if}
+  <!-- Inert while an effect is open: the preview depends on what they set. -->
+  <div class="flex min-h-0 flex-1 flex-col" inert={effectOpen}>
+    {#each sidePanels as p (p.id)}
+      <div
+        class="flex min-h-0 flex-col border-b border-pc-border"
+        class:flex-1={p.grow && !(isCollapsed(p))}
+        class:shrink-0={!p.grow || (isCollapsed(p))}
+      >
+        {@render hosted(p, 'side')}
+      </div>
+    {/each}
+  </div>
 {/snippet}
 
 <div class="flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
@@ -157,6 +232,7 @@
         icon={size === 'narrow' ? 'layers' : 'sidebar'}
         label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
         pressed={panelsShown}
+        disabled={effectOpen}
         onclick={toggleSidebar}
       />
     </span>
@@ -177,6 +253,9 @@
           {@render options()}
         </div>
       {/if}
+      {#if tabs}
+        <TabBar {...tabs} />
+      {/if}
       <main
         bind:this={stageEl}
         class="relative min-h-0 flex-1 overflow-hidden outline-none"
@@ -188,21 +267,34 @@
         {#if modifiers.shown}
           <ModifierBar />
         {/if}
-        {#if size === 'narrow' && sheetPanel && !chrome.hidden}
+        {#if size === 'narrow' && sheetShown && (!chrome.hidden || effectOpen)}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
             aria-label={t('frame.panels')}
           >
             <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-2 pt-1.5 [scrollbar-width:none]" role="tablist">
+              {#if effectPanel}
+                <!-- The open effect's own tab, selected while it is open (AC-13). -->
+                <button
+                  type="button"
+                  class="flex shrink-0 items-center gap-1.5 rounded-md bg-pc-active px-2.5 py-1.5 text-xs"
+                  role="tab"
+                  aria-selected="true"
+                >
+                  <Icon name="wand" size={15} />
+                  {effectPanel.title}
+                </button>
+              {/if}
               {#each panels as p (p.id)}
                 <button
                   type="button"
-                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs"
-                  class:bg-pc-active={p.id === sheetTab}
-                  class:text-pc-muted={p.id !== sheetTab}
+                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs disabled:opacity-35"
+                  class:bg-pc-active={!effectPanel && p.id === sheetTab}
+                  class:text-pc-muted={effectPanel || p.id !== sheetTab}
                   role="tab"
-                  aria-selected={p.id === sheetTab}
+                  aria-selected={!effectPanel && p.id === sheetTab}
+                  disabled={effectOpen}
                   onclick={() => (sheetTab = p.id)}
                 >
                   <Icon name={p.icon} size={15} />
@@ -210,19 +302,25 @@
                 </button>
               {/each}
               <span class="flex-1"></span>
-              <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+              {#if !effectPanel}
+                <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+              {/if}
             </div>
             <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" role="tabpanel">
-              {#key sheetPanel.id}
-                {@render hosted(sheetPanel, 'sheet')}
-              {/key}
+              {#if effectPanel}
+                {@render effectPanel.body()}
+              {:else if sheetPanel}
+                {#key sheetPanel.id}
+                  {@render hosted(sheetPanel, 'sheet')}
+                {/key}
+              {/if}
             </div>
           </div>
         {/if}
       </main>
       {#if size !== 'narrow' && !chrome.hidden}
         {#each bottomPanels as p (p.id)}
-          <div class="shrink-0 border-t border-pc-border bg-pc-panel">
+          <div class="shrink-0 border-t border-pc-border bg-pc-panel" inert={effectOpen}>
             {@render hosted(p, 'bottom')}
           </div>
         {/each}
@@ -236,16 +334,28 @@
       {/if}
     </div>
 
-    {#if chrome.hidden}
-      <!-- Toggle UI: no panels. -->
-    {:else if size === 'wide' && layout.sidebar}
+    {#if chrome.hidden && !effectOpen}
+      <!-- Toggle UI: no panels; an open effect keeps its panel (effect-panel AC-01). -->
+    {:else if size === 'wide' && sidebarShown}
+      <!-- Splitter: the sidebar's draggable left edge (effect-panel AC-07). -->
+      <div
+        class="w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:bg-pc-accent focus-visible:outline-none"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t('frame.sidebarWidth')}
+        aria-valuenow={asideWidth}
+        aria-valuemin={SIDEBAR_MIN_WIDTH}
+        aria-valuemax={asideMax}
+        {@attach splitter(splitterEvents)}
+      ></div>
       <aside
-        class="flex w-72 shrink-0 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel"
+        class="flex shrink-0 flex-col overflow-y-auto bg-pc-panel"
+        style:width="{asideWidth}px"
         aria-label={t('frame.panels')}
       >
         {@render sidebarBody()}
       </aside>
-    {:else if size === 'medium' && drawerOpen}
+    {:else if size === 'medium' && drawerShown}
       <aside
         class="absolute inset-y-0 right-0 z-30 flex w-72 flex-col overflow-y-auto border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
         aria-label={t('frame.panels')}

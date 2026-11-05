@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Document, loadCore } from '../../lib/core';
-  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
+  import { loadCore } from '../../lib/core';
+  import {
+    bindTabHooks,
+    detachAllTabs,
+    isTabDirty,
+    requestCloseTab,
+    runningSave,
+    saveTab,
+  } from './tab-session';
   import TileEditor from './components/TileEditor.svelte';
   import TilesetPanel from './components/TilesetPanel.svelte';
   import SlicesPanel from './components/SlicesPanel.svelte';
@@ -12,9 +19,10 @@
   import AnimationExportDialog from './components/AnimationExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import PalettePanel from './components/PalettePanel.svelte';
+  import EffectPanel from '../../lib/components/EffectPanel.svelte';
+  import { effectLabel } from '../../lib/effects/labels';
+  import { activeEffect } from '../../lib/effects/session.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
-  import EffectDialog from '../../lib/components/EffectDialog.svelte';
-  import { rgbaOf } from '../../lib/effects/catalog';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
@@ -26,6 +34,7 @@
   import {
     actionFor,
     hint,
+    isSpaceActivated,
     isStageTarget,
     isTypingTarget,
     nativeMenuOwns,
@@ -91,7 +100,6 @@
     applyOnion,
     deleteSelectionPixels,
     deselect,
-    disposeDoc,
     duplicateLayer,
     flattenLayers,
     mergeDownLayer,
@@ -112,10 +120,9 @@
     undo,
   } from './doc-ops';
   import {
-    autosave,
     bindShell,
-    confirmDiscard,
     closeSvgDialog,
+    createTab,
     describeAnimation,
     exportAnimation,
     exportSvg,
@@ -124,21 +131,18 @@
     exportPng,
     exportSheet,
     fsAccessAvailable,
-    guardUnsaved,
     idbAvailable,
     importPngLayer,
-    initAutosave,
-    isDocDirty,
     openDoc,
     openNewDialog,
     openOpened,
     openRecent,
+    openRecovered,
     nativeMenuHost,
     openAnimationDialog,
     openSheetDialog,
     openPngDialog,
     recentsAvailable,
-    save,
     tauriHost,
   } from './file-ops';
   import {
@@ -168,7 +172,6 @@
   import {
     MAX_ZOOM,
     MIN_ZOOM,
-    fitNewDocument,
     onWheel,
     resetView,
     zoomActual,
@@ -185,21 +188,28 @@
     play,
     probe,
     resetPixelStore,
+    tabs,
     toolState,
     view,
   } from './stores/editor.svelte';
 
-  // Shell contract (src/App.svelte mounts one editor per session): the
-  // document to open / create on mount, and the callbacks the shell
-  // serves — New dialog, foreign-format re-routing, dirty mirror, and
-  // the native-menu items this editor handles.
+  // Shell contract (src/App.svelte mounts at most one editor per mode):
+  // whether the active tab is this editor's, the shared tab bar, and the
+  // callbacks the shell serves — New dialog, routing, the unsaved-changes
+  // prompt, and the native-menu items this editor handles.
   let {
-    initialFile,
-    initialNew,
+    active,
+    tabBar,
+    onStepTab,
     onRequestNew,
     onOpenForeign,
     onOpenFile,
-    onDirtyChange,
+    confirmClose,
+    registerDocument,
+    activateDocument,
+    reportError,
+    registerSession,
+    onEmpty,
     onNotice,
     registerDropTarget,
     registerMenuHandlers,
@@ -210,17 +220,27 @@
   bindShell({
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
-    openFile: (opened) => onOpenFile(opened),
+    openFile: (opened, mode) => onOpenFile(opened, mode),
     notice: (message) => onNotice(message),
   });
-  initAutosave();
+  bindTabHooks({
+    registerDocument: (doc) => registerDocument(doc),
+    confirmClose: (doc, close) => confirmClose(doc, close),
+    activateDocument: (doc) => activateDocument(doc),
+    reportError: (doc, error) => reportError(doc, error),
+    onEmpty: () => onEmpty(),
+  });
+
+  function save(forceAs = false): Promise<boolean> {
+    return saveTab(tabs.active, forceAs);
+  }
 
   // Release version stamped in by the release workflow; `dev` locally.
   const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
 
   // "Modified since last save" — drives the footer dot, the tab title,
-  // the beforeunload warning, and the New / Open confirm guard.
-  const isDirty = $derived(isDocDirty());
+  // and the window title.
+  const isDirty = $derived(isTabDirty(tabs.active));
   // Last-used foreground color, persisted across sessions (prefs IDB
   // store). Loaded once on mount; written on every change thereafter.
   const COLOR_PREF = 'lastColor';
@@ -364,9 +384,11 @@
         live.needsRecompose = true;
       },
       newDoc: openNewDialog,
-      open: () => guardUnsaved(() => void openDoc()),
-      openRecent: (r) => guardUnsaved(() => void openRecent(r)),
-      save: (asNew) => void save({ forceAs: asNew }),
+      open: () => void openDoc(),
+      openRecent: (r) => void openRecent(r),
+      save: (asNew) => void save(asNew),
+      close: () => requestCloseTab(),
+      saving: runningSave() !== null,
       importPng: () => void importPngLayer(),
       exportPng: openPngDialog,
       exportSheet: openSheetDialog,
@@ -430,9 +452,15 @@
   );
 
   function onKeyDown(e: KeyboardEvent) {
+    // A hidden editor (another mode's tab is active) takes no keys (AC-21).
+    // A key the other editor already handled is not handled again: a tab
+    // switch it made shows this editor before the event reaches it.
+    if (!active || e.defaultPrevented) return;
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
-      // Prevent the browser from page-scrolling on space.
-      e.preventDefault();
+      // Prevent the browser from page-scrolling on space; a focused button
+      // or checkbox keeps its Space activation (a Space-drag still pans).
+      spacePan = { x: view.panX, y: view.panY };
+      if (!isSpaceActivated(e.target)) e.preventDefault();
       view.spaceDown = true;
       return;
     }
@@ -446,8 +474,7 @@
       dialogs.png ||
       dialogs.grid ||
       dialogs.animation ||
-      dialogs.svg ||
-      autosave.snapshots.length > 0
+      dialogs.svg
     )
       return;
     if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
@@ -455,10 +482,6 @@
     // right after a marquee release must already see that selection.
     syncSelection();
     if (e.key === 'Escape') {
-      if (dialogs.confirm) {
-        dialogs.confirm = null;
-        return;
-      }
       if (toolState.polyPoints || live.lassoPoints) {
         cancelPolygon();
         return;
@@ -508,11 +531,18 @@
   function runShortcut(action: ShortcutAction): boolean {
     switch (action) {
       case 'open':
-        guardUnsaved(() => void openDoc());
+        void openDoc();
         return true;
       case 'save':
       case 'saveAs':
-        void save({ forceAs: action === 'saveAs' });
+        void save(action === 'saveAs');
+        return true;
+      case 'nextTab':
+      case 'prevTab':
+        onStepTab(action === 'nextTab' ? 1 : -1);
+        return true;
+      case 'closeTab':
+        requestCloseTab();
         return true;
       case 'export':
         openPngDialog();
@@ -642,7 +672,6 @@
   // True while any editor dialog (or the tile editor) owns the input.
   function dialogOpen(): boolean {
     return Boolean(
-      dialogs.confirm ||
       dialogs.effect ||
       dialogs.resize ||
       dialogs.sheet ||
@@ -654,14 +683,14 @@
       dialogs.selectionRadius ||
       dialogs.editingTile ||
       dialogs.paste ||
-      toolState.textAnchor ||
-      autosave.snapshots.length > 0,
+      toolState.textAnchor,
     );
   }
 
   // Ctrl+V / ⌘V arrives as the browser's `paste` event (spec §5.4); not
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
+    if (!active || e.defaultPrevented) return;
     const blocked = Boolean(
       dialogs.effect ||
       dialogs.resize ||
@@ -675,8 +704,13 @@
     onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
 
+  // The view offset when Space went down: a hold that panned must not
+  // also activate the focused button on release.
+  let spacePan = { x: 0, y: 0 };
+
   function onKeyUp(e: KeyboardEvent) {
-    if (e.code === 'Space') {
+    if (active && e.code === 'Space') {
+      if (view.panX !== spacePan.x || view.panY !== spacePan.y) e.preventDefault();
       view.spaceDown = false;
     }
   }
@@ -687,57 +721,77 @@
 
   onMount(() => {
     let cancelled = false;
-    loadCore()
-      .then(async () => {
-        if (cancelled) return;
-        // Pick the base-layer renderer before the first frame. The base
-        // canvas is bound by the time onMount runs (spec §4.4, M12.5).
-        if (view.canvas && !live.renderer) {
-          const r = await createRenderer(view.canvas);
-          if (cancelled) {
-            r.destroy();
-            return;
-          }
-          live.renderer = r;
-          ed.backend = r.backend;
+    // The core and the base-layer renderer, before the first document.
+    // The base canvas is bound by the time onMount runs (spec §4.4, M12.5).
+    const ready = loadCore().then(async () => {
+      if (cancelled) return;
+      if (view.canvas && !live.renderer) {
+        const r = await createRenderer(view.canvas);
+        if (cancelled) {
+          r.destroy();
+          return;
         }
-        const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.width ?? 64)));
-        const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(initialNew?.height ?? 64)));
-        ed.doc = new Document(w, h);
-        syncMeta();
-        fitNewDocument();
-        syncSelection();
-        live.needsRecompose = true;
-        ed.lastSavedUndoDepth = ed.doc.undoDepth;
-        ed.status = t('px.ready');
-        live.rafHandle = requestAnimationFrame(tick);
-        // The shell hands over a file it already read (start screen,
-        // drag-and-drop, file association, Open Recent).
-        if (initialFile) {
+        live.renderer = r;
+        ed.backend = r.backend;
+      }
+      live.rafHandle = requestAnimationFrame(tick);
+    });
+    ready.catch((err: unknown) => {
+      if (cancelled) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('loadCore failed', err);
+      ed.status = t('status.failed', { action: t('act.wasmInit'), error: msg });
+    });
+    // The canvas reports ready once the first document has composed: the
+    // frame is queued behind the `tick` that draws it.
+    function markReady(): void {
+      if (ed.ready) return;
+      requestAnimationFrame(() => {
+        if (!cancelled) ed.ready = true;
+      });
+    }
+    /** Runs `open` once the core is loaded; resolves `null` once the tab
+     *  is open, else the error (the core failing to load, AC-23). */
+    async function whenReady(open: () => Promise<string | null>): Promise<string | null> {
+      try {
+        await ready;
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+      if (cancelled) return t('px.noDocument');
+      const error = await open();
+      if (error === null) markReady();
+      return error;
+    }
+    // The documents the shell routes here open as tabs (document-tabs
+    // AC-02, AC-15).
+    const unregisterSession = registerSession({
+      open: (opened) =>
+        whenReady(async () => {
           file.busy = true;
           try {
-            await openOpened(initialFile);
+            return await openOpened(opened);
           } finally {
             file.busy = false;
           }
-        }
-        // Queued behind the `tick` above, so the document has composed
-        // by the time the canvas reports ready.
-        requestAnimationFrame(() => {
-          if (!cancelled) ed.ready = true;
+        }),
+      create: (params) =>
+        whenReady(async () => {
+          createTab(params);
+          return null;
+        }),
+      recover: async (bytes, meta) => {
+        const error = await whenReady(async () => {
+          openRecovered(bytes, meta.name, meta.docId);
+          return null;
         });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('loadCore failed', err);
-        ed.status = t('status.failed', { action: t('act.wasmInit'), error: msg });
-      });
+        if (error !== null) throw new Error(error);
+      },
+    });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('paste', onWindowPaste);
     window.addEventListener('blur', onWindowBlur);
-    window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('visibilitychange', onVisibilityChange);
     // Wheel zoom is registered imperatively (not via `onwheel`) so the
     // listener is non-passive and `preventDefault()` actually suppresses
@@ -781,9 +835,6 @@
           console.error('listRecents failed', err);
         });
     }
-    // Recovery probe and the autosave timer. A tick before `loadCore`
-    // resolves is a no-op (no document yet).
-    autosave.start();
     // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
     // AC-28): the shell asks and opens documents; Pixel mode adds PNGs.
     registerDropTarget({
@@ -794,8 +845,9 @@
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
-      'menu:save': () => save(),
-      'menu:saveAs': () => save({ forceAs: true }),
+      'menu:close': () => requestCloseTab(),
+      'menu:save': () => void save(),
+      'menu:saveAs': () => void save(true),
       'menu:exportPng': openPngDialog,
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
@@ -811,7 +863,7 @@
       cancelled = true;
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
-      autosave.close();
+      unregisterSession();
       // A drop waiting on the larger-image dialog ends with the editor.
       answerPaste(null);
       registerDropTarget(null);
@@ -821,12 +873,21 @@
       window.removeEventListener('paste', onWindowPaste);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onWindowBlur);
-      window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       view.canvas?.removeEventListener('wheel', onWheel);
       live.renderer?.destroy();
       live.renderer = null;
-      disposeDoc();
+      detachAllTabs();
+    };
+  });
+
+  // The shell cancels the open effect before its unsaved-changes prompt
+  // or a document switch (effect-panel AC-17).
+  $effect(() => {
+    if (!dialogs.effect) return;
+    activeEffect.cancel = cancelEffect;
+    return () => {
+      if (activeEffect.cancel === cancelEffect) activeEffect.cancel = null;
     };
   });
 
@@ -851,26 +912,22 @@
     if (idbAvailable) saveBrushPref(pref);
   });
 
-  // Reflect the document identity + dirty state in the tab title.
+  // Reflect the document identity + dirty state in the window title while
+  // this editor's tab is active.
   $effect(() => {
-    document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
+    if (active) document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
   });
 
-  // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events).
+  // Leaving for another mode's tab (or a shell dialog) drops the gestures,
+  // playback and sub-modes in flight, as switching tabs does (AC-21).
   $effect(() => {
-    onDirtyChange(isDirty);
+    if (active) return;
+    stopPlayback();
+    onWindowBlur();
+    cancelPolygon();
+    view.spaceDown = false;
   });
 
-  // Warn before the tab closes with unsaved edits. Autosave (30 s
-  // cadence) softens the loss, but the user should still get the
-  // browser's "leave site?" prompt.
-  function onBeforeUnload(e: BeforeUnloadEvent) {
-    if (!isDirty) return;
-    e.preventDefault();
-    // Chrome still requires returnValue to be set.
-    e.returnValue = '';
-  }
 
   // Push the current recents list to the Rust-side `Open Recent`
   // submenu so the native menu stays in sync with the in-memory list.
@@ -879,7 +936,7 @@
   // surface in the UI — the toolbar dropdown remains the authoritative
   // recents UI on the web.
   $effect(() => {
-    if (!tauriHost) return;
+    if (!tauriHost || !active) return;
     const items = file.recents
       .filter((r) => r.path !== null)
       .map((r) => ({ id: r.id, name: r.name }));
@@ -1098,11 +1155,27 @@
   />
 {/snippet}
 
+{#snippet effectBody()}
+  {#if dialogs.effect}
+    {#key dialogs.effect.token}
+      <EffectPanel
+        session={dialogs.effect}
+        hasSelection={ed.selection !== null}
+        onPreview={previewEffectParams}
+        onApply={applyEffectParams}
+        onCancel={cancelEffect}
+      />
+    {/key}
+  {/if}
+{/snippet}
+
 <EditorFrame
   mode="pixel"
   {menus}
   title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
+  effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}
+  tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
@@ -1159,6 +1232,7 @@
       active={toolState.tool}
       onSelect={(next) => (toolState.tool = next)}
       {orientation}
+      resetKey={active ? ed.doc : null}
     />
   {/snippet}
   {#snippet options()}
@@ -1486,16 +1560,6 @@
   {/snippet}
 </EditorFrame>
 
-{#if autosave.snapshots.length > 0}
-  <RecoveryDialog
-    snapshots={autosave.snapshots}
-    errors={autosave.errors}
-    onRecover={(snap) => void autosave.recover(snap)}
-    onDiscard={(id) => void autosave.discard(id)}
-    onDismiss={() => autosave.dismiss()}
-  />
-{/if}
-
 {#if dialogs.selectionRadius}
   {@const op = dialogs.selectionRadius}
   <RadiusDialog
@@ -1622,41 +1686,7 @@
   />
 {/if}
 
-{#if dialogs.effect}
-  {#key dialogs.effect.id}
-    <EffectDialog
-      def={dialogs.effect}
-      foreground={rgbaOf(colors.color, colors.alpha)}
-      hasSelection={ed.selection !== null}
-      onPreview={previewEffectParams}
-      onApply={applyEffectParams}
-      onCancel={cancelEffect}
-    />
-  {/key}
-{/if}
 
-{#if dialogs.confirm}
-  <div
-    class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-    role="alertdialog"
-    aria-modal="true"
-    aria-label={t('shell.unsavedChanges')}
-  >
-    <div
-      class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-    >
-      <p>{dialogs.confirm.message}</p>
-      <div class="mt-4 flex justify-end gap-2">
-        <button class="panel-btn" onclick={() => (dialogs.confirm = null)}
-          >{t('common.cancel')}</button
-        >
-        <button class="panel-btn border-red-800 text-red-300" onclick={confirmDiscard}>
-          {t('shell.discard')}
-        </button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .canvas-pixelated {

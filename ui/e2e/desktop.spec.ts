@@ -13,6 +13,7 @@ import {
   waitForEditor,
   type ClipImage,
 } from './helpers';
+import { expectActive, expectDirty, tabNames } from './tab-helpers';
 
 // The desktop shell as the shared UI sees it (docs/specs/desktop-app.md).
 // src-tauri cannot run here, so a stand-in Tauri 2 bridge
@@ -179,13 +180,14 @@ const docTitle = (page: Page, name: string) => page.getByTitle(name, { exact: tr
 test.describe('desktop on Linux', () => {
   test.use({ userAgent: LINUX_UA });
 
-  test('a file the OS hands over opens in the mode of its format, after the discard prompt (AC-04)', async ({
+  test('a file the OS hands over opens as a tab of the mode of its format, without a prompt (AC-04, document-tabs AC-02, AC-03)', async ({
     page,
   }) => {
     await desktopStart(page, {
       files: {
         '/home/u/sprite.aseprite': await bytes(ASEPRITE),
         '/home/u/pic.png': await bytes(PNG),
+        '/home/u/other.png': await bytes(PNG),
       },
     });
 
@@ -197,31 +199,29 @@ test.describe('desktop on Linux', () => {
       { cmd: 'read_file_bytes', args: { path: '/home/u/sprite.aseprite' } },
     ]);
 
-    // Nothing unsaved: a PNG replaces it in Image mode without asking.
+    // A PNG opens in Image mode as a second tab; the sprite's tab stays.
     await emit(page, 'open-file', '/home/u/pic.png');
     await waitForEditor(page, 'image');
-    await expect(docTitle(page, 'pic.png')).toBeVisible();
+    await expectActive(page, 'pic.png');
+    expect(await tabNames(page)).toEqual(['sprite.aseprite', 'pic.png']);
     await expect(unsaved(page)).toHaveCount(0);
 
-    // Unsaved changes: the prompt comes first; Cancel keeps the document
-    // and reads nothing.
+    // Unsaved changes: a further file opens beside them, without a prompt,
+    // and the unsaved tab keeps its changes.
     await page.keyboard.press('b');
     await drag(page, imageCanvas(page), [0.2, 0.2], [0.8, 0.8]);
-    await expect(page.getByTitle('pic.png — unsaved changes')).toBeVisible();
-    const reads = (await calls(page, 'read_file_bytes')).length;
-    await emit(page, 'open-file', '/home/u/sprite.aseprite');
-    await expect(unsaved(page)).toBeVisible();
-    await unsaved(page).getByRole('button', { name: 'Cancel' }).click();
-    await expect(unsaved(page)).toBeHidden();
-    expect(await calls(page, 'read_file_bytes')).toHaveLength(reads);
-    await expect(imageCanvas(page)).toBeVisible();
+    await expectDirty(page, 'pic.png', true);
+    await emit(page, 'open-file', '/home/u/other.png');
+    await expectActive(page, 'other.png');
+    await expect(unsaved(page)).toHaveCount(0);
+    expect(await tabNames(page)).toEqual(['sprite.aseprite', 'pic.png', 'other.png']);
+    await expectDirty(page, 'pic.png', true);
 
-    // Discard opens the handed-over file.
+    // The file of an open tab activates that tab instead of a second one.
     await emit(page, 'open-file', '/home/u/sprite.aseprite');
-    await unsaved(page).getByRole('button', { name: 'Discard changes' }).click();
-    await waitForEditor(page, 'pixel');
-    await expect(docTitle(page, 'sprite.aseprite')).toBeVisible();
-    expect(await calls(page, 'read_file_bytes')).toHaveLength(reads + 1);
+    await expectActive(page, 'sprite.aseprite');
+    expect(await tabNames(page)).toEqual(['sprite.aseprite', 'pic.png', 'other.png']);
+    await expect(unsaved(page)).toHaveCount(0);
   });
 
   test('a .psd the OS hands over opens in Image mode; the open dialog offers .psd (psd-import AC-11, AC-13)', async ({

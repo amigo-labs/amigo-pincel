@@ -252,6 +252,13 @@ pub fn close_document(handle: u32) {
     });
 }
 
+/// Number of documents open in the core. A diagnostic: tests check that
+/// closing a tab frees its document (docs/specs/document-tabs.md AC-16).
+#[wasm_bindgen]
+pub fn document_count() -> u32 {
+    DOCUMENTS.with(|docs| u32::try_from(docs.borrow().len()).unwrap_or(u32::MAX))
+}
+
 /// Returns the flattened composite as an RGBA8 `Uint8ClampedArray`, ready to
 /// wrap in an `ImageData` (spec §17).
 #[wasm_bindgen]
@@ -416,9 +423,11 @@ fn effect_region(
     spec: &EffectSpec,
 ) -> Result<Option<(Rect, ImageBuffer)>, JsError> {
     let (src, w, h) = layer_effect_image(doc, layer)?;
-    let after = ImageBuffer::from_raw(w, h, spec.run(&src).into_raw()).map_err(to_js)?;
+    let selection = doc.selection.as_ref();
+    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
+    let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
     let before = &doc.layers()[layer].pixels;
-    Ok(masked_region(before, &after, doc.selection.as_ref()))
+    Ok(masked_region(before, &after, selection))
 }
 
 /// Renders a live preview of effect `name` / `params` on the layer at
@@ -946,6 +955,243 @@ mod paste_tests {
 }
 
 #[cfg(test)]
+mod effect_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    fn gray_row(values: [u8; 4]) -> ImageBuffer {
+        let data = values.iter().flat_map(|&v| [v, v, v, 255]).collect();
+        ImageBuffer::from_raw(4, 1, data).expect("row")
+    }
+
+    /// adjustments-paintnet AC-05 / AC-10 in the Image editor: Auto-Level
+    /// takes its range from the selection, changes only the selected pixels
+    /// of the target layer, and is one undo step.
+    #[test]
+    fn apply_effect_auto_level_stretches_the_selection_only() {
+        let mut doc = Document::new(4, 1).expect("doc");
+        doc.add_layer("top").expect("layer");
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(SetPixels::new(
+            0,
+            Rect::new(0, 0, 4, 1),
+            gray_row([0, 80, 160, 255]),
+        )))
+        .expect("paint");
+        bus.apply(Box::new(SetPixels::new(
+            1,
+            Rect::new(0, 0, 4, 1),
+            gray_row([40, 40, 200, 200]),
+        )))
+        .expect("paint");
+        bus.document.selection = Some(SelectionMask::rectangle(4, 1, Rect::new(1, 0, 2, 1)));
+        let other_layer = bus.document.layers()[1].pixels.clone();
+        let depth = bus.history.undo_depth();
+        let handle = insert(bus);
+
+        assert!(apply_effect(handle, 0, "auto_level", &[]).expect("apply"));
+        with_bus(handle, |bus| {
+            let px = bus.document.layers()[0].pixels.data().to_vec();
+            let reds: Vec<u8> = px.iter().step_by(4).copied().collect();
+            assert_eq!(reds, [0, 0, 255, 255], "80 / 160 stretch to 0 / 255");
+            assert_eq!(bus.document.layers()[1].pixels, other_layer, "other layer");
+            assert_eq!(bus.history.undo_depth(), depth + 1, "one undo step");
+            Ok(())
+        })
+        .expect("bus");
+    }
+}
+
+#[cfg(test)]
+mod outline_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    const COLOR: [u8; 4] = [0xFF, 0x80, 0x10, 0xC0];
+    const OUTLINE: [f64; 4] = [0.0, 1.0, 1.0, 0xFF80_10C0_u32 as f64];
+
+    fn px(bus: &CommandBus, x: u32, y: u32) -> [u8; 4] {
+        let p = &bus.document.layers()[0].pixels;
+        let o = ((y * p.width() + x) * 4) as usize;
+        let d = p.data();
+        [d[o], d[o + 1], d[o + 2], d[o + 3]]
+    }
+
+    /// One opaque pixel at (2, 1) on a 6 × 3 layer.
+    fn dot() -> CommandBus {
+        let mut data = vec![0; 6 * 3 * 4];
+        data[(6 + 2) * 4..(6 + 2) * 4 + 4].copy_from_slice(&[10, 20, 30, 255]);
+        let mut bus = CommandBus::new(Document::new(6, 3).expect("doc"));
+        bus.apply(Box::new(SetPixels::new(
+            0,
+            Rect::new(0, 0, 6, 3),
+            ImageBuffer::from_raw(6, 3, data).expect("buf"),
+        )))
+        .expect("paint");
+        bus
+    }
+
+    /// outline-effect AC-03 / AC-06 / AC-09 in Image mode: the neighbours
+    /// take the colour exactly, in one undo step that redo repeats.
+    #[test]
+    fn apply_effect_outline_colours_neighbours_and_undoes_in_one_step() {
+        let bus = dot();
+        let before = bus.document.layers()[0].pixels.clone();
+        let depth = bus.history.undo_depth();
+        let handle = insert(bus);
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        with_bus(handle, |bus| {
+            assert_eq!(bus.history.undo_depth(), depth + 1);
+            for (x, y) in [(1, 0), (3, 2), (1, 1), (3, 1)] {
+                assert_eq!(px(bus, x, y), COLOR, "({x}, {y})");
+            }
+            assert_eq!(px(bus, 2, 1), [10, 20, 30, 255]);
+            assert_eq!(px(bus, 4, 1), [0, 0, 0, 0]);
+            Ok(())
+        })
+        .expect("bus");
+        assert!(undo(handle).expect("undo"));
+        with_bus(handle, |bus| {
+            assert_eq!(bus.document.layers()[0].pixels, before, "undo restores");
+            Ok(())
+        })
+        .expect("bus");
+        assert!(redo(handle).expect("redo"));
+        with_bus(handle, |bus| {
+            assert_eq!(px(bus, 3, 1), COLOR, "redo repeats");
+            Ok(())
+        })
+        .expect("bus");
+    }
+
+    /// outline-effect AC-07 in Image mode: only the selection changes, an
+    /// opaque pixel outside it outlines into it, and a partly selected
+    /// pixel blends the outline by its coverage.
+    #[test]
+    fn apply_effect_outline_blends_a_feathered_selection_by_coverage() {
+        let mut bus = dot();
+        let mut mask = SelectionMask::rectangle(6, 3, Rect::new(3, 0, 3, 3));
+        mask.set(3, 0, 128);
+        bus.document.selection = Some(mask);
+        let handle = insert(bus);
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        with_bus(handle, |bus| {
+            assert_eq!(px(bus, 3, 1), COLOR, "fully selected: exact colour");
+            assert_eq!(px(bus, 3, 2), COLOR);
+            // 0 + (c - 0) * 128 / 255, rounded.
+            let half = COLOR.map(|c| ((u32::from(c) * 128 + 127) / 255) as u8);
+            assert_eq!(px(bus, 3, 0), half, "coverage 128 blends");
+            for y in 0..3 {
+                assert_eq!(px(bus, 1, y), [0, 0, 0, 0], "(1, {y}) outside");
+            }
+            Ok(())
+        })
+        .expect("bus");
+    }
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    /// effects-render: the four render effects, Clouds and Turbulence
+    /// at a small scale with black / white.
+    const RENDERS: [(&str, &[f64]); 4] = [
+        ("clouds", &[3.0, 50.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("turbulence", &[3.0, 5.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("julia_fractal", &[4.0, 1.0, 0.0, 2.0]),
+        ("mandelbrot_fractal", &[1.0, 10.0, 0.0, 2.0, 0.0]),
+    ];
+
+    const W: u32 = 6;
+    const H: u32 = 4;
+
+    fn px(buf: &ImageBuffer, x: u32, y: u32) -> [u8; 4] {
+        let o = ((y * W + x) * 4) as usize;
+        let d = buf.data();
+        [d[o], d[o + 1], d[o + 2], d[o + 3]]
+    }
+
+    /// Two painted layers, a selection of columns 2..5 with (2, 0) half
+    /// selected.
+    fn layered() -> CommandBus {
+        let mut doc = Document::new(W, H).expect("doc");
+        doc.add_layer("top").expect("layer");
+        let mut bus = CommandBus::new(doc);
+        for (layer, v) in [(0, 90u8), (1, 200)] {
+            let data = (0..W * H).flat_map(|i| [v, i as u8 * 9, 40, 255]).collect();
+            let buf = ImageBuffer::from_raw(W, H, data).expect("buf");
+            bus.apply(Box::new(SetPixels::new(layer, Rect::new(0, 0, W, H), buf)))
+                .expect("paint");
+        }
+        let mut mask = SelectionMask::rectangle(W, H, Rect::new(2, 0, 3, H));
+        mask.set(2, 0, 128);
+        bus.document.selection = Some(mask);
+        bus
+    }
+
+    /// effects-render AC-09 in Image mode: only the selection changes
+    /// (fully selected pixels take the rendering exactly, a partly selected
+    /// one blends by its coverage), the other layer stays, one undo step
+    /// restores the target.
+    #[test]
+    fn apply_effect_render_changes_only_the_selection_in_one_undo_step() {
+        for (name, params) in RENDERS {
+            let bus = layered();
+            let before = bus.document.layers()[0].pixels.clone();
+            let other = bus.document.layers()[1].pixels.clone();
+            let src = EffectImage::from_rgba8(W, H, before.data().to_vec()).expect("img");
+            let full = ImageBuffer::from_raw(
+                W,
+                H,
+                EffectSpec::from_params(name, params)
+                    .expect(name)
+                    .run(&src)
+                    .into_raw(),
+            )
+            .expect("buf");
+            let depth = bus.history.undo_depth();
+            let handle = insert(bus);
+            assert!(apply_effect(handle, 0, name, params).expect(name), "{name}");
+            with_bus(handle, |bus| {
+                let after = &bus.document.layers()[0].pixels;
+                assert_eq!(bus.history.undo_depth(), depth + 1, "{name}: one undo step");
+                for y in 0..H {
+                    for x in 0..W {
+                        let (a, b, f) = (px(after, x, y), px(&before, x, y), px(&full, x, y));
+                        if !(2..5).contains(&x) {
+                            assert_eq!(a, b, "{name} ({x}, {y}) outside");
+                        } else if (x, y) == (2, 0) {
+                            for ch in 0..4 {
+                                let (lo, hi) = (b[ch].min(f[ch]), b[ch].max(f[ch]));
+                                assert!((lo..=hi).contains(&a[ch]), "{name} partial ch {ch}");
+                            }
+                        } else {
+                            assert_eq!(a, f, "{name} ({x}, {y}) selected");
+                        }
+                    }
+                }
+                assert_ne!(after, &before, "{name} changed nothing");
+                assert_eq!(
+                    bus.document.layers()[1].pixels,
+                    other,
+                    "{name}: other layer"
+                );
+                Ok(())
+            })
+            .expect("bus");
+            assert!(undo(handle).expect("undo"));
+            with_bus(handle, |bus| {
+                assert_eq!(bus.document.layers()[0].pixels, before, "{name}: undo");
+                Ok(())
+            })
+            .expect("bus");
+        }
+    }
+}
+
+#[cfg(test)]
 mod region_tests {
     use super::*;
     use pincel_image_core::compose_region;
@@ -1090,7 +1336,27 @@ mod export_tests {
 }
 
 #[cfg(test)]
-mod effect_tests {
+mod document_count_tests {
+    use super::*;
+
+    #[test]
+    fn document_count_follows_create_and_close() {
+        let before = document_count();
+        let a = create_document(4, 4).expect("a");
+        let b = create_document(4, 4).expect("b");
+        assert_eq!(document_count(), before + 2);
+        close_document(a);
+        assert_eq!(document_count(), before + 1);
+        close_document(b);
+        // Closing twice is a no-op.
+        close_document(b);
+        assert_eq!(document_count(), before);
+    }
+}
+
+/// Effects through the handle API (`apply_effect` / `preview_effect`).
+#[cfg(test)]
+mod effect_handle_tests {
     use super::*;
     use pincel_image_core::SelectionMask;
 

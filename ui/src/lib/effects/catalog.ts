@@ -1,17 +1,47 @@
-// Effect / adjustment catalog for the Effects and Adjust menus of both
+// Effect / adjustment catalog for the Effects and Adjustments menus of both
 // modes (Pixel and Image share `pincel_effects::EffectSpec` as the wire
-// format; spec §15, 2026-10-11).
+// format; spec §15, 2026-10-11). Menu structure and per-mode filter:
+// docs/specs/effect-catalog-v2.md (Decision Log 2026-11-04).
 //
 // Mirrors `pincel_effects::EffectSpec`: every entry names the wasm wire
 // id and lists its parameters in the exact order `applyEffect` /
 // `previewEffect` expect them. Choice parameters travel as their option
-// index, booleans as 0 / 1, colours as one integer 0xRRGGBBAA (spec §15,
-// 2026-10-29). Keep this table in step with the Rust enum;
-// the `every_effect_name_is_accepted` test on the Rust side and
+// index, booleans as 0 / 1, a point as two fractions, a linked pair as two
+// numbers, a colour as one 0xRRGGBBAA integer (Decision Log 2026-10-29). Keep this table in step with the Rust enum; the
+// `every_effect_name_is_accepted` test on the Rust side and
 // `assertCatalogCoversAllEffects` below guard the id set from each end.
 
-/** `effects` entries sit directly in the Effects menu, after its submenus. */
-export type EffectGroup = 'blur' | 'sharpen' | 'distort' | 'noise' | 'effects' | 'adjust';
+/** The Effects menu's submenus, in paint.net's order. */
+export const EFFECT_SUBMENUS = [
+  'artistic',
+  'blurs',
+  'color',
+  'distort',
+  'noise',
+  'object',
+  'photo',
+  'render',
+  'stylize',
+] as const;
+
+/** One submenu of the Effects menu. */
+export type EffectSubmenu = (typeof EFFECT_SUBMENUS)[number];
+
+/** Where an entry lives: an Effects submenu, or the Adjustments menu. */
+export type EffectGroup = EffectSubmenu | 'adjust';
+
+/** The editor mode a menu is built for. */
+export type EffectMode = 'pixel' | 'image';
+
+/** Where a colour parameter starts: the editor's foreground or background
+ *  colour when the effect opens, or a fixed `0xRRGGBBAA`. */
+export type ColorDefault = 'foreground' | 'background' | number;
+
+/** The editor's colours as `0xRRGGBBAA`, for colour parameter defaults. */
+export type EffectColors = { readonly foreground: number; readonly background: number };
+
+/** Opaque black / opaque white: the colours when no editor supplies any. */
+export const FALLBACK_COLORS: EffectColors = { foreground: 0x000000ff, background: 0xffffffff };
 
 export type ParamDef =
   | {
@@ -25,26 +55,58 @@ export type ParamDef =
     }
   | { kind: 'bool'; key: string; label: string; default: boolean }
   | { kind: 'choice'; key: string; label: string; options: string[]; default: number }
-  /** A straight-alpha colour as the integer 0xRRGGBBAA; it defaults to the
-   *  current foreground colour (`EffectContext`), to `default` without one. */
-  | { kind: 'color'; key: string; label: string; default: number };
-
-/** What a dialog knows beyond the catalog when it opens. */
-export type EffectContext = {
-  /** The foreground colour as 0xRRGGBBAA. */
-  foreground?: number | undefined;
-};
+  /** A direction in degrees, 0° right, 90° down (one wire slot). */
+  | { kind: 'angle'; key: string; label: string; default: number }
+  /** A position in percent of the image area, edited as X / Y; the wire
+   *  carries it as two fractions in [0, 1]. */
+  | {
+      kind: 'point';
+      key: string;
+      label: string;
+      xKey: string;
+      yKey: string;
+      xLabel: string;
+      yLabel: string;
+      default: { x: number; y: number };
+    }
+  /** A random seed with a Reseed button (one wire slot). */
+  | { kind: 'seed'; key: string; label: string; min: number; max: number; default: number }
+  /** Two numbers with a link toggle (two wire slots; the toggle is UI
+   *  state, kept in the value map under `linkKey`). */
+  | {
+      kind: 'pair';
+      key: string;
+      label: string;
+      first: { key: string; label: string };
+      second: { key: string; label: string };
+      linkKey: string;
+      min: number;
+      max: number;
+      step: number;
+      default: number;
+    }
+  /** A colour with alpha (one wire slot holding `0xRRGGBBAA`). */
+  | { kind: 'color'; key: string; label: string; default: ColorDefault };
 
 export type EffectDef = {
   id: string;
   label: string;
   group: EffectGroup;
+  /** The modes whose menus show this entry; the wire format accepts every
+   *  effect in both cores regardless. */
+  modes: readonly EffectMode[];
   params: ParamDef[];
+  /** Parameter defaults that differ per mode, by parameter key (Pixelate's
+   *  Colour: Centre in Pixel mode). `entriesFor` applies them. */
+  modeDefaults?: Partial<Record<EffectMode, Record<string, number>>>;
   /** Build the wire parameter vector from the current values. Defaults to
    *  the params in declared order; Curves overrides to interleave the
    *  fixed x positions. */
   toParams?: (values: Record<string, number>) => number[];
 };
+
+const IMAGE: readonly EffectMode[] = ['image'];
+const BOTH: readonly EffectMode[] = ['pixel', 'image'];
 
 const num = (
   key: string,
@@ -68,12 +130,61 @@ const choice = (key: string, label: string, options: string[], def = 0): ParamDe
   default: def,
 });
 
-const color = (key: string, label: string): ParamDef => ({
+const angle = (key: string, label: string, def: number): ParamDef => ({
+  kind: 'angle',
+  key,
+  label,
+  default: def,
+});
+const seed = (key: string, label: string, min: number, max: number, def: number): ParamDef => ({
+  kind: 'seed',
+  key,
+  label,
+  min,
+  max,
+  default: def,
+});
+
+const color = (key: string, label: string, def: ColorDefault): ParamDef => ({
   kind: 'color',
   key,
   label,
-  default: 0x000000ff,
+  default: def,
 });
+
+const center = (): ParamDef => ({
+  kind: 'point',
+  key: 'center',
+  label: 'Center',
+  xKey: 'center_x',
+  yKey: 'center_y',
+  xLabel: 'Center X',
+  yLabel: 'Center Y',
+  default: { x: 50, y: 50 },
+});
+
+/** The resampling distortions' edge behaviour (one wire slot, the option
+ *  index; docs/specs/effects-distort.md). */
+const edge = (def = 0): ParamDef =>
+  choice('edge', 'Edge behavior', ['Clamp', 'Wrap', 'Reflect', 'Transparent'], def);
+
+/** Clouds' and Turbulence's colours and blend mode (three wire slots;
+ *  docs/specs/effects-render.md). */
+const renderColors = (): ParamDef[] => [
+  color('color1', 'Color 1', 'foreground'),
+  color('color2', 'Color 2', 'background'),
+  choice('blend', 'Blend mode', ['Normal', 'Multiply', 'Screen', 'Overlay']),
+];
+
+/** Radial Blur's amount and centre as wire slots: the amount, then the
+ *  centre as two fractions (the point kind's encoding in `toParams`). */
+function pointParams(v: Record<string, number>): number[] {
+  const read = (key: string, fallback: number): number => {
+    const x = v[key];
+    return typeof x === 'number' && Number.isFinite(x) ? x : fallback;
+  };
+  return [read('amount', 10), read('center_x', 50) / 100, read('center_y', 50) / 100];
+}
 
 // Curves is exposed as five output sliders at fixed input positions —
 // enough for a pixel-art tone tweak without a spline editor.
@@ -83,37 +194,58 @@ export const EFFECTS: EffectDef[] = [
   {
     id: 'gaussian_blur',
     label: 'Gaussian Blur',
-    group: 'blur',
+    group: 'blurs',
+    modes: IMAGE,
     params: [num('radius', 'Radius', 0.1, 250, 2, 0.1)],
   },
   {
     id: 'box_blur',
-    label: 'Box Blur',
-    group: 'blur',
-    params: [num('width', 'Width', 1, 251, 3, 2), num('height', 'Height', 1, 251, 3, 2)],
+    label: 'Square Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [
+      {
+        kind: 'pair',
+        key: 'size',
+        label: 'Size',
+        first: { key: 'width', label: 'Width' },
+        second: { key: 'height', label: 'Height' },
+        linkKey: 'size_linked',
+        min: 1,
+        max: 251,
+        step: 2,
+        default: 3,
+      },
+    ],
   },
   {
     id: 'motion_blur',
     label: 'Motion Blur',
-    group: 'blur',
-    params: [num('distance', 'Distance', 1, 100, 6), num('angle', 'Angle', 0, 360, 0)],
+    group: 'blurs',
+    modes: IMAGE,
+    params: [
+      num('distance', 'Distance', 1, 100, 6),
+      angle('angle', 'Angle', 0),
+      // docs/specs/effects-blurs.md: off smears only backwards, like a trail.
+      bool('centered', 'Centered', true),
+    ],
   },
   {
     id: 'radial_blur',
     label: 'Radial Blur',
-    group: 'blur',
-    params: [
-      num('amount', 'Amount', 1, 100, 10),
-      num('center_x', 'Center X', 0, 1, 0.5, 0.01),
-      num('center_y', 'Center Y', 0, 1, 0.5, 0.01),
-      choice('kind', 'Kind', ['Spin', 'Zoom']),
-    ],
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', 1, 100, 10), center()],
+    // docs/specs/effects-blurs.md: Radial Blur always spins (zooming is
+    // Zoom Blur); the wire keeps its kind slot, sent as 0 = spin.
+    toParams: (v) => [...pointParams(v), 0],
   },
-  { id: 'sharpen', label: 'Sharpen', group: 'sharpen', params: [] },
+  { id: 'sharpen', label: 'Sharpen', group: 'photo', modes: IMAGE, params: [] },
   {
     id: 'unsharp_mask',
     label: 'Unsharp Mask',
-    group: 'sharpen',
+    group: 'photo',
+    modes: IMAGE,
     params: [
       num('amount', 'Amount %', 1, 500, 50),
       num('radius', 'Radius', 0.1, 50, 1, 0.1),
@@ -123,9 +255,10 @@ export const EFFECTS: EffectDef[] = [
   {
     id: 'emboss',
     label: 'Emboss',
-    group: 'distort',
+    group: 'stylize',
+    modes: IMAGE,
     params: [
-      num('angle', 'Angle', 0, 360, 45),
+      angle('angle', 'Angle', 45),
       num('elevation', 'Elevation', 0, 90, 45),
       num('relief', 'Relief', 0.1, 10, 1, 0.1),
     ],
@@ -133,7 +266,8 @@ export const EFFECTS: EffectDef[] = [
   {
     id: 'edge_detect',
     label: 'Edge Detect',
-    group: 'distort',
+    group: 'stylize',
+    modes: IMAGE,
     params: [
       choice('algorithm', 'Algorithm', ['Sobel', 'Prewitt', 'Laplacian']),
       num('amount', 'Amount %', 1, 400, 100),
@@ -142,41 +276,35 @@ export const EFFECTS: EffectDef[] = [
   {
     id: 'relief',
     label: 'Relief',
-    group: 'distort',
-    params: [num('angle', 'Angle', 0, 360, 45), num('amount', 'Amount', 0.1, 10, 1, 0.1)],
+    group: 'stylize',
+    modes: IMAGE,
+    params: [angle('angle', 'Angle', 45), num('amount', 'Amount', 0.1, 10, 1, 0.1)],
   },
   {
     id: 'add_noise',
     label: 'Add Noise',
     group: 'noise',
+    modes: BOTH,
     params: [
       num('amount', 'Amount', 1, 100, 20),
       choice('noise_type', 'Distribution', ['Uniform', 'Gaussian']),
       choice('channels', 'Channels', ['RGB', 'Monochromatic']),
-      num('seed', 'Seed', 0, 9999, 1),
+      seed('seed', 'Seed', 0, 9999, 1),
     ],
   },
   {
     id: 'reduce_noise',
     label: 'Reduce Noise',
     group: 'noise',
-    params: [num('radius', 'Radius', 1, 10, 1)],
-  },
-  {
-    id: 'outline',
-    label: 'Outline',
-    group: 'effects',
-    params: [
-      choice('place', 'Place', ['Outside', 'Inside', 'Both']),
-      choice('shape', 'Shape', ['Circle', 'Square'], 1),
-      num('thickness', 'Thickness', 1, 8, 1),
-      color('color', 'Color'),
-    ],
+    modes: IMAGE,
+    // effects-object-stylize-color-noise: paint.net's Reduce Noise.
+    params: [num('radius', 'Radius', 1, 200, 6), num('strength', 'Strength', 0, 100, 40)],
   },
   {
     id: 'brightness_contrast',
     label: 'Brightness / Contrast',
     group: 'adjust',
+    modes: BOTH,
     params: [
       num('brightness', 'Brightness', -150, 150, 0),
       num('contrast', 'Contrast', -150, 150, 0),
@@ -187,6 +315,7 @@ export const EFFECTS: EffectDef[] = [
     id: 'hue_saturation',
     label: 'Hue / Saturation',
     group: 'adjust',
+    modes: BOTH,
     params: [
       num('hue', 'Hue', -180, 180, 0),
       num('saturation', 'Saturation', -100, 100, 0),
@@ -198,6 +327,7 @@ export const EFFECTS: EffectDef[] = [
     id: 'curves',
     label: 'Curves',
     group: 'adjust',
+    modes: BOTH,
     params: [
       choice('channel', 'Channel', ['Composite', 'Red', 'Green', 'Blue', 'Alpha']),
       ...CURVE_XS.map((x) => num(`y${x}`, `Out @ ${x}`, 0, 255, x)),
@@ -212,6 +342,7 @@ export const EFFECTS: EffectDef[] = [
     id: 'levels',
     label: 'Levels',
     group: 'adjust',
+    modes: BOTH,
     params: [
       choice('channel', 'Channel', ['Composite', 'Red', 'Green', 'Blue']),
       num('in_black', 'Input black', 0, 255, 0),
@@ -234,6 +365,7 @@ export const EFFECTS: EffectDef[] = [
     id: 'color_balance',
     label: 'Color Balance',
     group: 'adjust',
+    modes: BOTH,
     params: [
       num('s_cr', 'Shadows cyan–red', -100, 100, 0),
       num('s_mg', 'Shadows magenta–green', -100, 100, 0),
@@ -247,11 +379,12 @@ export const EFFECTS: EffectDef[] = [
       bool('preserve_luminosity', 'Preserve luminosity', true),
     ],
   },
-  { id: 'invert', label: 'Invert Colors', group: 'adjust', params: [] },
+  { id: 'invert', label: 'Invert Colors', group: 'adjust', modes: BOTH, params: [] },
   {
     id: 'grayscale',
-    label: 'Grayscale',
+    label: 'Black and White',
     group: 'adjust',
+    modes: BOTH,
     params: [
       choice('method', 'Method', ['Luminosity', 'Average', 'BT.709', 'Channel mixer']),
       num('r', 'Red weight', 0, 1, 0.3, 0.01),
@@ -263,75 +396,499 @@ export const EFFECTS: EffectDef[] = [
     id: 'posterize',
     label: 'Posterize',
     group: 'adjust',
+    modes: BOTH,
     params: [num('levels', 'Levels', 2, 64, 4)],
   },
   {
     id: 'threshold',
     label: 'Threshold',
     group: 'adjust',
+    modes: BOTH,
     params: [num('threshold', 'Threshold', 0, 255, 128)],
+  },
+  // docs/specs/adjustments-paintnet.md: paint.net's remaining adjustments.
+  { id: 'auto_level', label: 'Auto-Level', group: 'adjust', modes: BOTH, params: [] },
+  {
+    id: 'exposure',
+    label: 'Exposure',
+    group: 'adjust',
+    modes: BOTH,
+    params: [num('exposure', 'Exposure', -5, 5, 0, 0.01)],
+  },
+  {
+    id: 'highlights_shadows',
+    label: 'Highlights / Shadows',
+    group: 'adjust',
+    modes: BOTH,
+    params: [
+      num('shadows', 'Shadows', -100, 100, 0),
+      num('highlights', 'Highlights', -100, 100, 0),
+    ],
+  },
+  { id: 'invert_alpha', label: 'Invert Alpha', group: 'adjust', modes: BOTH, params: [] },
+  {
+    id: 'sepia',
+    label: 'Sepia',
+    group: 'adjust',
+    modes: BOTH,
+    params: [num('intensity', 'Intensity', 0, 100, 100)],
+  },
+  {
+    id: 'temperature_tint',
+    label: 'Temperature and Tint',
+    group: 'adjust',
+    modes: BOTH,
+    params: [num('temperature', 'Temperature', -100, 100, 0), num('tint', 'Tint', -100, 100, 0)],
+  },
+  // docs/specs/effects-blurs.md: paint.net's remaining blurs.
+  {
+    id: 'bokeh',
+    label: 'Bokeh',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 10), num('highlights', 'Highlights', 0, 100, 25)],
+  },
+  {
+    id: 'fragment',
+    label: 'Fragment',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [
+      num('fragments', 'Fragments', 2, 50, 4),
+      num('distance', 'Distance', 0, 100, 8),
+      angle('rotation', 'Rotation', 0),
+    ],
+  },
+  {
+    id: 'median',
+    label: 'Median',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 200, 10), num('percentile', 'Percentile', 0, 100, 50)],
+  },
+  {
+    id: 'sketch_blur',
+    label: 'Sketch Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 10), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'surface_blur',
+    label: 'Surface Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('radius', 'Radius', 1, 100, 6), num('threshold', 'Threshold', 1, 100, 25)],
+  },
+  {
+    id: 'zoom_blur',
+    label: 'Zoom Blur',
+    group: 'blurs',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', 1, 100, 10), center()],
+  },
+  // docs/specs/outline-effect.md: a hard pixel-art outline.
+  {
+    id: 'outline',
+    label: 'Outline Object',
+    group: 'object',
+    modes: BOTH,
+    params: [
+      choice('place', 'Place', ['Outside', 'Inside', 'Both']),
+      choice('shape', 'Shape', ['Circle', 'Square'], 1),
+      num('thickness', 'Thickness', 1, 8, 1),
+      color('color', 'Color', 'foreground'),
+    ],
+  },
+  // docs/specs/effects-distort.md: paint.net's Distort menu. Morphology and
+  // Pixelate keep pixels hard-edged, so Pixel mode shows them too.
+  {
+    id: 'bulge',
+    label: 'Bulge',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', -200, 100, 45), center(), edge()],
+  },
+  {
+    id: 'crystalize',
+    label: 'Crystalize',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('cell_size', 'Cell size', 2, 250, 8), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'dents',
+    label: 'Dents',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('scale', 'Scale', 1, 200, 25),
+      num('refraction', 'Refraction', 0, 200, 50),
+      num('roughness', 'Roughness', 0, 100, 10),
+      seed('seed', 'Seed', 0, 9999, 1),
+      edge(),
+    ],
+  },
+  {
+    id: 'frosted_glass',
+    label: 'Frosted Glass',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', 1, 200, 10), seed('seed', 'Seed', 0, 9999, 1)],
+  },
+  {
+    id: 'morphology',
+    label: 'Morphology',
+    group: 'distort',
+    modes: BOTH,
+    params: [
+      choice('operation', 'Operation', ['Dilate', 'Erode', 'Open', 'Close']),
+      choice('shape', 'Shape', ['Square', 'Circle']),
+      num('radius', 'Radius', 1, 100, 1),
+    ],
+  },
+  {
+    id: 'pixelate',
+    label: 'Pixelate',
+    group: 'distort',
+    modes: BOTH,
+    params: [
+      num('cell_size', 'Cell size', 2, 200, 8),
+      choice('color', 'Color', ['Average', 'Center']),
+    ],
+    // Centre picks an existing pixel: no new colours in a Pixel-mode sprite.
+    modeDefaults: { pixel: { color: 1 } },
+  },
+  {
+    id: 'polar_inversion',
+    label: 'Polar Inversion',
+    group: 'distort',
+    modes: IMAGE,
+    params: [num('amount', 'Amount', -4, 4, 1, 0.01), center(), edge(1)],
+  },
+  {
+    id: 'tile_reflection',
+    label: 'Tile Reflection',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('tile_size', 'Tile size', 2, 200, 40),
+      angle('angle', 'Angle', 30),
+      num('curvature', 'Curvature', -100, 100, 8),
+      edge(),
+    ],
+  },
+  {
+    id: 'twist',
+    label: 'Twist',
+    group: 'distort',
+    modes: IMAGE,
+    params: [
+      num('amount', 'Amount', -100, 100, 30),
+      num('size', 'Size %', 1, 200, 100),
+      center(),
+      edge(),
+    ],
+  },
+  // docs/specs/effects-object-stylize-color-noise.md: Drop Shadow with Blur 0
+  // and Quantize keep pixels hard-edged, so Pixel mode shows them too.
+  {
+    id: 'drop_shadow',
+    label: 'Drop Shadow',
+    group: 'object',
+    modes: BOTH,
+    params: [
+      num('offset_x', 'Offset X', -100, 100, 4),
+      num('offset_y', 'Offset Y', -100, 100, 4),
+      num('blur', 'Blur radius', 0, 50, 4),
+      color('color', 'Color', 0x000000ff),
+      num('opacity', 'Opacity', 0, 100, 50),
+    ],
+    // A blurred shadow adds anti-aliased colours to a sprite.
+    modeDefaults: { pixel: { blur: 0 } },
+  },
+  {
+    id: 'stylize_outline',
+    label: 'Outline',
+    group: 'stylize',
+    modes: IMAGE,
+    params: [num('thickness', 'Thickness', 1, 200, 3), num('intensity', 'Intensity', 0, 100, 50)],
+  },
+  {
+    id: 'quantize',
+    label: 'Quantize',
+    group: 'color',
+    modes: BOTH,
+    params: [
+      num('colors', 'Colors', 2, 256, 16),
+      choice('algorithm', 'Algorithm', ['Median Cut', 'Octree']),
+      num('dithering', 'Dithering', 0, 100, 0),
+    ],
+  },
+  // docs/specs/effects-artistic-photo.md: paint.net's Artistic and Photo
+  // menus; all eight create in-between colours, so Image mode only.
+  {
+    id: 'ink_sketch',
+    label: 'Ink Sketch',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [num('ink_outline', 'Ink outline', 0, 99, 50), num('coloring', 'Coloring', 0, 100, 50)],
+  },
+  {
+    id: 'oil_painting',
+    label: 'Oil Painting',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [num('brush_size', 'Brush size', 1, 8, 3), num('coarseness', 'Coarseness', 3, 255, 50)],
+  },
+  {
+    id: 'pencil_sketch',
+    label: 'Pencil Sketch',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [
+      num('tip_size', 'Pencil tip size', 1, 20, 2),
+      num('color_range', 'Color range', -20, 20, 0),
+    ],
+  },
+  {
+    id: 'glow',
+    label: 'Glow',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('radius', 'Radius', 1, 20, 6),
+      num('brightness', 'Brightness', -100, 100, 10),
+      num('contrast', 'Contrast', -100, 100, 10),
+    ],
+  },
+  {
+    id: 'red_eye_removal',
+    label: 'Red Eye Removal',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('tolerance', 'Tolerance', 0, 100, 70),
+      num('saturation', 'Saturation', 0, 100, 90),
+    ],
+  },
+  {
+    id: 'soften_portrait',
+    label: 'Soften Portrait',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('softness', 'Softness', 0, 10, 5),
+      num('lighting', 'Lighting', -20, 20, 0),
+      num('warmth', 'Warmth', 0, 20, 10),
+    ],
+  },
+  {
+    id: 'straighten',
+    label: 'Straighten',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('angle', 'Angle', -45, 45, 0, 0.1),
+      choice('fill', 'Fill', ['Zoom to fill', 'Transparent corners']),
+    ],
+  },
+  {
+    id: 'vignette',
+    label: 'Vignette',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      center(),
+      num('radius', 'Radius %', 10, 400, 100),
+      num('density', 'Density', 0, 100, 100),
+      choice('color', 'Color', ['Black', 'White']),
+    ],
+  },
+  // docs/specs/effects-render.md: paint.net's Render menu. Clouds and
+  // Turbulence are texture generators, so Pixel mode shows them too; the
+  // fractals' fixed rainbow palette keeps them in Image mode.
+  {
+    id: 'clouds',
+    label: 'Clouds',
+    group: 'render',
+    modes: BOTH,
+    params: [
+      num('scale', 'Scale', 2, 1000, 250),
+      num('roughness', 'Roughness', 0, 100, 50),
+      seed('seed', 'Seed', 0, 9999, 1),
+      ...renderColors(),
+    ],
+  },
+  {
+    id: 'turbulence',
+    label: 'Turbulence',
+    group: 'render',
+    modes: BOTH,
+    params: [
+      num('scale', 'Scale', 2, 1000, 200),
+      num('octaves', 'Octaves', 1, 8, 5),
+      seed('seed', 'Seed', 0, 9999, 1),
+      ...renderColors(),
+    ],
+  },
+  {
+    id: 'julia_fractal',
+    label: 'Julia Fractal',
+    group: 'render',
+    modes: IMAGE,
+    params: [
+      num('factor', 'Factor', 1, 10, 4),
+      num('zoom', 'Zoom', 1, 50, 1),
+      angle('angle', 'Angle', 0),
+      num('quality', 'Quality', 1, 5, 2),
+    ],
+  },
+  {
+    id: 'mandelbrot_fractal',
+    label: 'Mandelbrot Fractal',
+    group: 'render',
+    modes: IMAGE,
+    params: [
+      num('factor', 'Factor', 1, 10, 1),
+      num('zoom', 'Zoom', 1, 100, 10),
+      angle('angle', 'Angle', 0),
+      num('quality', 'Quality', 1, 5, 2),
+      bool('invert', 'Invert colors'),
+    ],
   },
 ];
 
-export const GROUP_LABELS: Record<EffectGroup, string> = {
-  blur: 'Blur',
-  sharpen: 'Sharpen',
+/** English fallback names of the Effects submenus (`effect.group.<id>`). */
+export const SUBMENU_LABELS: Record<EffectSubmenu, string> = {
+  artistic: 'Artistic',
+  blurs: 'Blurs',
+  color: 'Color',
   distort: 'Distort',
   noise: 'Noise',
-  effects: 'Effects',
-  adjust: 'Adjustments',
+  object: 'Object',
+  photo: 'Photo',
+  render: 'Render',
+  stylize: 'Stylize',
 };
-
-/** Groups that are submenus of the Effects menu; `effects` entries follow
- *  them directly, `adjust` has its own menu. */
-export const EFFECT_MENU_GROUPS: EffectGroup[] = ['blur', 'sharpen', 'distort', 'noise'];
 
 export function effectById(id: string): EffectDef | undefined {
   return EFFECTS.find((e) => e.id === id);
 }
 
-/** Default value map for a definition (numbers; bools as 0/1; colours as
- *  0xRRGGBBAA, the foreground from `ctx` when given). */
-export function defaultValues(def: EffectDef, ctx: EffectContext = {}): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const p of def.params) {
-    if (p.kind === 'bool') out[p.key] = p.default ? 1 : 0;
-    else if (p.kind === 'color') out[p.key] = ctx.foreground ?? p.default;
-    else out[p.key] = p.default;
-  }
-  return out;
+/** The definition as `mode` shows it: its `modeDefaults` for that mode
+ *  become the parameters' defaults. */
+export function forMode(def: EffectDef, mode: EffectMode): EffectDef {
+  const overrides = def.modeDefaults?.[mode];
+  if (!overrides) return def;
+  const params = def.params.map((p): ParamDef => {
+    const v = overrides[p.key];
+    if (v === undefined || p.kind === 'bool' || p.kind === 'point') return p;
+    return { ...p, default: v };
+  });
+  return { ...def, params };
 }
 
-/** `#RRGGBB` or `#RRGGBBAA` as 0xRRGGBBAA (alpha 255 without `AA`);
- *  `null` for any other text. */
+/** Entries of `group` that `mode`'s menus show, in catalog order, with
+ *  that mode's defaults. */
+export function entriesFor(group: EffectGroup, mode: EffectMode): EffectDef[] {
+  return EFFECTS.filter((e) => e.group === group && e.modes.includes(mode)).map((e) =>
+    forMode(e, mode),
+  );
+}
+
+/** Wraps a typed angle into the dial's range: 0–360 stays, anything
+ *  outside wraps around (370 → 10, −10 → 350). */
+export function wrapAngle(deg: number): number {
+  if (!Number.isFinite(deg)) return 0;
+  if (deg >= 0 && deg <= 360) return deg;
+  return ((deg % 360) + 360) % 360;
+}
+
+/** `true` for a colour value the wire accepts: an integer `0xRRGGBBAA`. */
+export function isColorValue(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 0xffffffff;
+}
+
+/** `#RRGGBB` (opaque) or `#RRGGBBAA` as `0xRRGGBBAA`; `null` for any other
+ *  text (outline-effect AC-11). */
 export function parseHexColor(text: string): number | null {
-  const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(text.trim());
-  if (!m) return null;
-  return parseInt(`${m[1]}${m[2] ?? 'ff'}`, 16);
+  const m = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.exec(text.trim());
+  if (!m?.[1]) return null;
+  const hex = m[1].length === 6 ? `${m[1]}ff` : m[1];
+  return parseInt(hex, 16);
 }
 
-/** 0xRRGGBBAA as `#rrggbb`, with `aa` appended unless it is opaque. */
+/** `0xRRGGBBAA` as lower-case `#rrggbbaa`. */
 export function formatHexColor(rgba: number): string {
-  const v = rgba >>> 0;
-  const rgb = (v >>> 8).toString(16).padStart(6, '0');
-  const a = v & 0xff;
-  return a === 0xff ? `#${rgb}` : `#${rgb}${a.toString(16).padStart(2, '0')}`;
+  return `#${(rgba >>> 0).toString(16).padStart(8, '0')}`;
 }
 
-/** `#rrggbb` plus an alpha 0–255 as 0xRRGGBBAA (black for a bad hex). */
+/** A `#rrggbb` colour plus an alpha 0–255 as `0xRRGGBBAA`. */
 export function rgbaOf(hex: string, alpha = 255): number {
   const rgb = parseHexColor(hex);
-  const base = rgb === null ? 0 : rgb >>> 8;
-  return (base * 256 + (Math.round(alpha) & 0xff)) >>> 0;
+  const a = Math.min(255, Math.max(0, Math.round(alpha)));
+  // Arithmetic, not bitwise: `&` would turn a red above 0x7f negative.
+  return rgb === null ? a : rgb - (rgb % 256) + a;
+}
+
+/** Default value map for a definition (numbers; bools and the link
+ *  toggle as 0/1; a point in percent; a colour as `0xRRGGBBAA`, taken from
+ *  `colors` where it follows the foreground or background). */
+export function defaultValues(
+  def: EffectDef,
+  colors: EffectColors = FALLBACK_COLORS,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of def.params) {
+    switch (p.kind) {
+      case 'color':
+        out[p.key] = typeof p.default === 'number' ? p.default : colors[p.default];
+        break;
+      case 'bool':
+        out[p.key] = p.default ? 1 : 0;
+        break;
+      case 'point':
+        out[p.xKey] = p.default.x;
+        out[p.yKey] = p.default.y;
+        break;
+      case 'pair':
+        out[p.first.key] = p.default;
+        out[p.second.key] = p.default;
+        out[p.linkKey] = 1;
+        break;
+      default:
+        out[p.key] = p.default;
+    }
+  }
+  return out;
 }
 
 /** Wire parameter vector in the order `pincel_effects::EffectSpec` expects. */
 export function toParams(def: EffectDef, values: Record<string, number>): number[] {
   if (def.toParams) return def.toParams(values);
-  return def.params.map((p) => {
-    const v = values[p.key];
-    const fallback = p.kind === 'bool' ? (p.default ? 1 : 0) : p.default;
+  const read = (key: string, fallback: number): number => {
+    const v = values[key];
     return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  };
+  return def.params.flatMap((p) => {
+    switch (p.kind) {
+      case 'bool':
+        return [read(p.key, p.default ? 1 : 0)];
+      case 'point':
+        return [read(p.xKey, p.default.x) / 100, read(p.yKey, p.default.y) / 100];
+      case 'pair':
+        return [read(p.first.key, p.default), read(p.second.key, p.default)];
+      case 'angle':
+        return [wrapAngle(read(p.key, p.default))];
+      case 'color': {
+        const v = values[p.key];
+        const fallback = typeof p.default === 'number' ? p.default : FALLBACK_COLORS[p.default];
+        return [isColorValue(v) ? v : fallback];
+      }
+      default:
+        return [read(p.key, p.default)];
+    }
   });
 }
 

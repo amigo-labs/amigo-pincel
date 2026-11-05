@@ -22,7 +22,7 @@ impl GaussianBlur {
 }
 
 /// Builds a normalised 1-D Gaussian kernel spanning ±3σ.
-fn gaussian_kernel(sigma: f32) -> Vec<f32> {
+pub(crate) fn gaussian_kernel(sigma: f32) -> Vec<f32> {
     let radius = (sigma * 3.0).ceil().max(1.0) as i32;
     let two_sigma_sq = 2.0 * sigma * sigma;
     let mut kernel: Vec<f32> = (-radius..=radius)

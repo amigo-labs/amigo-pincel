@@ -4,7 +4,7 @@
 // parameter labels and choice options by their English text (`fx.<text>`).
 
 import { isMessageKey, t } from '../i18n/index.svelte';
-import type { EffectDef, EffectGroup } from './catalog';
+import type { EffectDef, EffectSubmenu } from './catalog';
 
 function lookup(key: string, fallback: string): string {
   return isMessageKey(key) ? t(key) : fallback;
@@ -16,7 +16,7 @@ export function effectLabel(def: EffectDef): string {
 }
 
 /** A menu group's name in the UI language. */
-export function groupLabel(group: EffectGroup, fallback: string): string {
+export function groupLabel(group: EffectSubmenu, fallback: string): string {
   return lookup(`effect.group.${group}`, fallback);
 }
 

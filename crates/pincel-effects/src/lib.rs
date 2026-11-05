@@ -36,14 +36,19 @@ mod effect;
 mod error;
 mod image;
 mod kernel;
+mod random;
 mod spec;
 
 pub mod adjust;
+pub mod artistic;
 pub mod blur;
+pub mod color;
 pub mod distort;
 pub mod gradient;
 pub mod noise;
-pub mod outline;
+pub mod object;
+pub mod photo;
+pub mod render;
 pub mod sharpen;
 
 pub use effect::Effect;

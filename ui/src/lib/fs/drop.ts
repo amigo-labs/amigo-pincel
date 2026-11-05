@@ -8,7 +8,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { isTauri } from '../platform';
-import { mimeFromName, type OpenedFile } from './index';
+import { droppedHandles, mimeFromName, type OpenedFile } from './index';
 
 /** One dropped file: read, or the reason it could not be read. */
 export interface DroppedFile {
@@ -36,16 +36,23 @@ function carriesFiles(e: DragEvent): boolean {
   return e.dataTransfer?.types.includes('Files') ?? false;
 }
 
-/** Reads `File`s dropped in the browser; a folder or an unreadable file
- *  comes back with its error. */
-export async function readDroppedFiles(files: readonly File[]): Promise<DroppedFile[]> {
+/** Reads `File`s dropped in the browser, each with its File System Access
+ *  handle where the browser gave one (`handles`, in drop order): the handle
+ *  makes it the same file as an open tab's (document-tabs AC-03). A folder
+ *  or an unreadable file comes back with its error. */
+export async function readDroppedFiles(
+  files: readonly File[],
+  handles: Promise<(FileSystemFileHandle | null)[]> = Promise.resolve([]),
+): Promise<DroppedFile[]> {
+  const found = await handles.catch((): (FileSystemFileHandle | null)[] => []);
   return Promise.all(
-    files.map(async (f): Promise<DroppedFile> => {
+    files.map(async (f, i): Promise<DroppedFile> => {
       try {
         const bytes = new Uint8Array(await f.arrayBuffer());
+        const handle = found[i] ?? null;
         return {
           name: f.name,
-          file: { name: f.name, bytes, mime: f.type, handle: null, path: null },
+          file: { name: f.name, bytes, mime: f.type, handle, path: null },
           error: null,
         };
       } catch (err) {
@@ -104,7 +111,9 @@ function watchBrowser(h: FileDropHandlers): () => void {
     // Ask before `hover(false)`: it reports the state the drop landed in.
     const taken = h.hover(true);
     h.hover(false);
-    if (taken && files.length > 0) void readDroppedFiles(files).then(h.drop);
+    if (!taken || files.length === 0) return;
+    // Read the handles now: the drop's items are gone after this event.
+    void readDroppedFiles(files, droppedHandles(e.dataTransfer)).then(h.drop);
   };
   const onEnd = () => h.hover(false);
   window.addEventListener('dragover', onOver);

@@ -3,7 +3,7 @@
 // and Image mode; each editor binds the actions it supports. Menus and
 // tooltips print their hints from here, so labels never drift from keys.
 
-import { isMac, isTauri } from '../platform';
+import { hasNativeMenu, isMac, isTauri } from '../platform';
 import { keymapState, type KeymapId } from './keymap-state.svelte';
 
 /**
@@ -22,8 +22,13 @@ export interface Chord {
   code?: string;
   /** Ctrl on Windows / Linux, ⌘ on macOS. */
   mod?: boolean;
+  /** The Control key itself, ⌃ on macOS too (⌘Tab is the app switcher). */
+  ctrl?: boolean;
   shift?: boolean;
   alt?: boolean;
+  /** The native menu bar (macOS desktop app) owns this chord as an
+   *  accelerator and fires the menu item instead; the editors leave it. */
+  menu?: boolean;
 }
 
 /** Editor actions with a shortcut. */
@@ -72,7 +77,45 @@ export type ShortcutAction =
   | OpacityAction
   | 'paletteNext'
   | 'palettePrev'
-  | 'commandPalette';
+  | 'commandPalette'
+  | 'nextTab'
+  | 'prevTab'
+  | 'closeTab';
+
+const IS_MAC = isMac();
+
+/**
+ * The tab keys (docs/specs/document-tabs.md "Tab keys"). The web build gets
+ * no Ctrl / ⌘ chords, which the browser keeps for its own tabs; on macOS
+ * next / previous use the Control key (⌘Tab is the app switcher) and ⇧⌘[ / ]
+ * as in Safari, and the native menu owns ⌘W (File ▸ Close).
+ */
+function tabChords(): Record<'nextTab' | 'prevTab' | 'closeTab', Chord[]> {
+  const next: Chord = { key: 'PageDown', alt: true };
+  const prev: Chord = { key: 'PageUp', alt: true };
+  const altW: Chord = { key: 'w', code: 'KeyW', alt: true };
+  if (!isTauri()) return { nextTab: [next], prevTab: [prev], closeTab: [altW] };
+  if (IS_MAC) {
+    return {
+      nextTab: [
+        { key: 'Tab', ctrl: true },
+        { key: ']', code: 'BracketRight', mod: true, shift: true },
+        next,
+      ],
+      prevTab: [
+        { key: 'Tab', ctrl: true, shift: true },
+        { key: '[', code: 'BracketLeft', mod: true, shift: true },
+        prev,
+      ],
+      closeTab: [{ key: 'w', mod: true, menu: true }, altW],
+    };
+  }
+  return {
+    nextTab: [{ key: 'Tab', ctrl: true }, next],
+    prevTab: [{ key: 'Tab', ctrl: true, shift: true }, prev],
+    closeTab: [{ key: 'w', mod: true }, altW],
+  };
+}
 
 /** Brush opacity 10 % … 100 % (Image mode): Shift+1 … Shift+9, Shift+0. */
 export type OpacityAction =
@@ -197,6 +240,7 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   palettePrev: [{ key: '[', code: 'BracketLeft', alt: true }],
   // docs/specs/power-user-shortcuts-palette.md.
   commandPalette: [{ key: 'k', mod: true }],
+  ...tabChords(),
 };
 
 /**
@@ -252,11 +296,11 @@ const NATIVE_MENU_IDS: Partial<Record<ShortcutAction, string>> = {
   shortcuts: 'menu:shortcuts',
 };
 
-const IS_MAC = isMac();
-
 function keyLabel(key: string): string {
   if (key === 'Delete') return 'Del';
   if (key === 'Enter') return '↵';
+  if (key === 'PageDown') return IS_MAC ? '⇟' : 'Page Down';
+  if (key === 'PageUp') return IS_MAC ? '⇞' : 'Page Up';
   if (key === 'ArrowUp') return '↑';
   if (key === 'ArrowDown') return '↓';
   if (key === 'ArrowLeft') return '←';
@@ -264,12 +308,15 @@ function keyLabel(key: string): string {
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
-/** Human label of a chord: `Ctrl+Shift+S`, or `⇧⌘S` on macOS. */
+/** Human label of a chord: `Ctrl+Shift+S`, or `⇧⌘S` on macOS (modifiers
+ *  in the macOS order ⌃ ⌥ ⇧ ⌘). */
 export function chordLabel(c: Chord): string {
   if (IS_MAC) {
-    return `${c.alt ? '⌥' : ''}${c.shift ? '⇧' : ''}${c.mod ? '⌘' : ''}${keyLabel(c.key)}`;
+    const mods = `${c.ctrl ? '⌃' : ''}${c.alt ? '⌥' : ''}${c.shift ? '⇧' : ''}${c.mod ? '⌘' : ''}`;
+    return `${mods}${keyLabel(c.key)}`;
   }
-  const parts = [c.mod ? 'Ctrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : '', keyLabel(c.key)];
+  const ctrl = c.mod === true || c.ctrl === true;
+  const parts = [ctrl ? 'Ctrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : '', keyLabel(c.key)];
   return parts.filter(Boolean).join('+');
 }
 
@@ -337,8 +384,10 @@ function shiftMatters(c: Chord): boolean {
 }
 
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
+  if (c.menu === true && hasNativeMenu()) return false;
   const mod = e.ctrlKey || e.metaKey;
-  if (Boolean(c.mod) !== mod || Boolean(c.alt) !== e.altKey) return false;
+  if ((c.mod === true || c.ctrl === true) !== mod || Boolean(c.alt) !== e.altKey) return false;
+  if (c.ctrl === true && (!e.ctrlKey || e.metaKey)) return false;
   if (shiftMatters(c) && Boolean(c.shift) !== e.shiftKey) return false;
   if (c.code !== undefined) return e.code === c.code;
   return e.key.toLowerCase() === c.key.toLowerCase();
@@ -413,6 +462,18 @@ export function toolGroupForKey(e: KeyboardEvent): string | null {
     if (hit) return group;
   }
   return null;
+}
+
+/**
+ * True for a focused control that a Space tap activates (button, checkbox,
+ * radio). Both editors still pan on a Space-drag over such a control, but
+ * leave the keydown alone so a tap reaches it (effect-catalog-v2 AC-15).
+ */
+export function isSpaceActivated(target: EventTarget | null): boolean {
+  if (target instanceof HTMLButtonElement) return true;
+  return (
+    target instanceof HTMLInputElement && ['checkbox', 'radio', 'button'].includes(target.type)
+  );
 }
 
 // Keys a native menu accelerator can name (Tauri's accelerator syntax).

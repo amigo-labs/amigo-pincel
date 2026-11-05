@@ -32,6 +32,7 @@ import type { SelectionMode, ShapeKind } from '../core/wasm';
 import { editRefused } from '../core/layer-tree';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
+import { gestureControl } from './gesture-control';
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
  *  the element that covers the document on screen (any size / transform). */
@@ -101,12 +102,7 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
 
-/**
- * Cancels the in-flight gesture without committing (Escape). Wired up by
- * `attachTools`; a no-op while no canvas is mounted. Answers whether a
- * gesture was in progress, so Escape deselects only when none was.
- */
-export const gestureControl = { cancel: (): boolean => false };
+export { gestureControl };
 
 /** Tools that may start on the stage beside the canvas (image-editing AC-29, AC-32). */
 const STAGE_TOOLS: ReadonlySet<ToolKind> = new Set([

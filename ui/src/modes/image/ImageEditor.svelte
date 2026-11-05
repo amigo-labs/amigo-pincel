@@ -4,6 +4,7 @@
   import {
     clampCanvasSize,
     editor,
+    tabs,
     tool,
     ui,
     resetColors,
@@ -39,7 +40,6 @@
     pasteImage,
     copyImage,
     exportImage,
-    projectBytes,
     markUnsaved,
     undo,
     redo,
@@ -55,8 +55,18 @@
     traceSvg,
     type ExportFormat,
   } from './core/controller';
-  import { docFormat, fileFormat, fileName, parseDocFormat } from './core/document-file';
-  import { saveDocument } from './core/save-flow';
+  import { docFormat, fileTarget, parseDocFormat } from './core/document-file';
+  import {
+    attachTab,
+    bindTabHooks,
+    detachAllTabs,
+    docIdOf,
+    focusTab,
+    isDirty,
+    requestCloseTab,
+    runningSave,
+    saveTab,
+  } from './core/tab-session';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import MainCanvas from './components/canvas/MainCanvas.svelte';
@@ -80,7 +90,7 @@
   import { canDeleteLayer, canMergeDown, editRefused, treeOrder } from './core/layer-tree';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
-  import EffectDialog from '../../lib/components/EffectDialog.svelte';
+  import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
@@ -89,6 +99,7 @@
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
   import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
+  import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import {
     OPACITY_ACTIONS,
     actionFor,
@@ -103,11 +114,11 @@
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { toggleUi } from '../../lib/components/layout/chrome.svelte';
-  import { formatFromName, hasFsAccess } from '../../lib/fs';
+  import { formatFromName, hasFsAccess, sameFile, type OpenedFile } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
-  import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
-  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
+  import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
+  import type { NewDocParams } from '../../lib/shell/types';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
   import {
@@ -127,17 +138,24 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
-  // Shell contract (src/App.svelte mounts one editor per session): the
-  // document to open / create on mount, and the callbacks the shell
-  // serves — New / Open dialogs, dirty mirror, native-menu items.
+  // Shell contract (src/App.svelte mounts at most one editor per mode):
+  // whether the active tab is this editor's, the shared tab bar, and the
+  // callbacks the shell serves — New / Open dialogs, the unsaved-changes
+  // prompt, native-menu items.
   let {
-    initialFile,
-    initialNew,
+    active,
+    tabBar,
+    onStepTab,
     onRequestNew,
     onRequestOpen,
-    onDirtyChange,
     onOpenRecent,
     onOpenFile,
+    confirmClose,
+    registerDocument,
+    activateDocument,
+    reportError,
+    registerSession,
+    onEmpty,
     registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
@@ -147,7 +165,8 @@
   /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
   let svgOpen = $state(false);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
-  let effectOpen = $state<EffectDef | null>(null);
+  // The open effect (effect-panel spec), shown in the frame's sidebar.
+  let effectOpen = $state<EffectSession | null>(null);
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
@@ -321,7 +340,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen()) return;
+    if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
@@ -557,11 +577,12 @@
 
   async function recordRecent(
     file: Pick<SaveTarget, 'name' | 'handle' | 'path'> | null,
+    id: string | null,
   ): Promise<void> {
-    if (!recentsAvailable || !file || (!file.handle && !file.path)) return;
+    if (!recentsAvailable || !file || id === null || (!file.handle && !file.path)) return;
     try {
       await upsertRecent({
-        id: autosave.docId,
+        id,
         name: file.name,
         handle: file.handle,
         path: file.path,
@@ -575,78 +596,82 @@
 
   // Save / Save As write back to the opened file in its own format, or the
   // OpenRaster project (save-original-format, core/save-flow.ts); Export
-  // stays the flat PNG / JPEG / WebP path.
-  let saving = false;
-  async function save(forceAs = false): Promise<void> {
-    if (saving || editor.handle === null) return;
-    saving = true;
+  // stays the flat PNG / JPEG / WebP path. Each tab saves on its own
+  // (core/tab-session.ts).
+  function save(forceAs = false): Promise<boolean> {
+    return saveTab(tabs.active, forceAs);
+  }
+
+  // Tabs (docs/specs/document-tabs.md): the shell routes same-mode
+  // documents here; each opens as a tab after the last one.
+
+  /** Opens an already-read file as a new tab, or activates the tab of the
+   *  same file (AC-03). Resolves `null`, else the error. */
+  async function openTabFile(opened: OpenedFile): Promise<string | null> {
+    for (const tab of tabs.list) {
+      if (await sameFile(fileTarget(tab), opened)) {
+        focusTab(tab);
+        return null;
+      }
+    }
     try {
-      const result = await saveDocument(forceAs);
-      if (result === null) return;
-      // A flattened file lost the layers: the snapshot keeps them (AC-13).
-      await (result.flattened ? autosave.keep() : autosave.saved());
-      await recordRecent(result.target);
+      const tab = await openBytes(opened.bytes, opened.name, opened.mime, opened);
+      attachTab(tab);
+      loadError = null;
+      await recordRecent(opened, docIdOf(tab));
+      return null;
     } catch (e) {
-      loadError = t('img.saveFailed', { error: String(e) });
-    } finally {
-      saving = false;
+      loadError = t('img.openFailed', { error: String(e) });
+      return e instanceof Error ? e.message : String(e);
     }
   }
 
-  // Autosave and recovery, shared with Pixel mode (lib/idb/autosave-session):
-  // OpenRaster snapshots tagged `mode: 'image'`.
-  const autosave = new AutosaveSession({
-    mode: 'image',
-    depth: () => (editor.handle === null ? null : editor.undoDepth),
-    savedDepth: () => editor.savedUndoDepth,
-    busy: () => saving,
-    name: () => fileName(),
-    format: () => fileFormat(),
-    encode: () => projectBytes(true),
-    open: async (bytes, meta) => {
-      // The snapshot is OpenRaster; Save keeps writing the format stored
-      // with it (a recovered PNG saves back as PNG). Older snapshots carry
-      // none: the file name's extension stands in.
-      await openBytes(bytes, meta.name, 'image/openraster', {
-        handle: null,
-        path: null,
-        format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
-      });
-      markUnsaved();
-    },
-    report: (action, error) => {
-      loadError =
-        action === 'autosave'
-          ? t('img.autosaveFailed', { error })
-          : t('status.failed', { action: t(action === 'recover' ? 'act.recover' : 'act.discard'), error });
-    },
-  });
+  /** A blank document as a new tab; resolves `null`, else the error. */
+  async function createTab(params: NewDocParams): Promise<string | null> {
+    try {
+      attachTab(await newDocument(params.width, params.height));
+      loadError = null;
+      return null;
+    } catch (e) {
+      loadError = t('img.openFailed', { error: String(e) });
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Open a recovered autosave snapshot as an unsaved tab (AC-15). The
+   *  snapshot is OpenRaster; Save keeps writing the format stored with it
+   *  (a recovered PNG saves back as PNG). Older snapshots carry none: the
+   *  file name's extension stands in. */
+  async function recoverTab(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void> {
+    const tab = await openBytes(bytes, meta.name, 'image/openraster', {
+      handle: null,
+      path: null,
+      format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
+    });
+    markUnsaved();
+    attachTab(tab, { docId: meta.docId, recovered: true });
+  }
 
   onMount(() => {
-    // Open what the shell handed over: an already-read file, or a blank
-    // canvas of the requested size.
-    const start = initialFile
-      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime, initialFile).then(() =>
-          recordRecent(initialFile),
-        )
-      : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
-    start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
-    autosave.start();
+    bindTabHooks({
+      registerDocument,
+      confirmClose,
+      activateDocument,
+      reportError,
+      onEmpty: () => onEmpty(),
+      recordRecent: (target, id) => recordRecent(target, id),
+      report: (message) => (loadError = message),
+    });
     void refreshRecents();
-    // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
-    // AC-28): the shell asks and opens documents; Image mode adds every
-    // raster format its core decodes.
-    registerDropTarget({
-      accepts: () =>
-        editor.handle !== null &&
-        !ui.modalOpen &&
-        renaming === null &&
-        savePrompt.value === null &&
-        autosave.snapshots.length === 0,
-      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
-      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+    // The documents the shell routes here open as tabs (document-tabs
+    // AC-02, AC-15); the core loads with the first of them.
+    const unregisterSession = registerSession({
+      open: openTabFile,
+      create: createTab,
+      recover: recoverTab,
     });
     registerMenuHandlers({
+      'menu:close': () => requestCloseTab(),
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
@@ -659,7 +684,8 @@
       'menu:shortcuts': openOverview,
     });
     return () => {
-      autosave.close();
+      unregisterSession();
+      detachAllTabs();
       // A drop waiting on the larger-image dialog ends with the editor.
       answerPaste(null);
       registerDropTarget(null);
@@ -668,19 +694,48 @@
     };
   });
 
-  const dirty = $derived(editor.undoDepth !== editor.savedUndoDepth);
-
-  // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events): edits since the last save.
+  // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
+  // AC-28): the shell asks and opens documents; Image mode adds every
+  // raster format its core decodes. The shell keeps one target per mode
+  // and hands a drop to the shown editor's; a hidden one refuses it.
   $effect(() => {
-    onDirtyChange(dirty);
+    registerDropTarget({
+      accepts: () =>
+        active &&
+        editor.handle !== null &&
+        !ui.modalOpen &&
+        renaming === null &&
+        savePrompt.value === null,
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
+      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+    });
+  });
+
+  // A hidden editor takes no input (AC-21): the canvas' Space pan reads
+  // this too. Leaving for another mode's tab drops a gesture in flight.
+  $effect.pre(() => {
+    ui.active = active;
+    if (!active) gestureControl.cancel();
+  });
+
+  const dirty = $derived(isDirty(tabs.active));
+
+  // The window title follows the active tab (document-tabs AC-04), as in
+  // Pixel mode.
+  $effect(() => {
+    if (active && editor.handle !== null) {
+      document.title = `${dirty ? '● ' : ''}${editor.fileName} – Pincel`;
+    }
   });
 
   // Keyboard map shared with Pixel mode (lib/shell/shortcuts.ts).
   function onKeydown(e: KeyboardEvent): void {
-    // Ignore shortcuts while typing in a field (text-entry overlay included)
-    // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
+    // Ignore shortcuts while another mode's tab is active (AC-21), while
+    // typing in a field (text-entry overlay included) or while a modal
+    // dialog owns the keyboard.
+    // A key the other editor already handled is not handled again: a tab
+    // switch it made shows this editor before the event reaches it.
+    if (!active || e.defaultPrevented || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
@@ -714,6 +769,13 @@
     switch (action) {
       case 'open':
         onRequestOpen();
+        return true;
+      case 'nextTab':
+      case 'prevTab':
+        onStepTab(action === 'nextTab' ? 1 : -1);
+        return true;
+      case 'closeTab':
+        requestCloseTab();
         return true;
       case 'save':
         void save();
@@ -853,6 +915,60 @@
 
   const hasDoc = $derived(editor.handle !== null);
 
+  /** Opens `def` at its defaults; an effect already open is cancelled
+   *  first, even the same one (effect-panel AC-05). */
+  function openEffect(def: EffectDef): void {
+    if (effectOpen) clearEffectPreview();
+    // Colour parameters start at the current colours (outline-effect AC-01).
+    effectOpen = new EffectSession(def, {
+      foreground: rgbaOf(tool.foreground),
+      background: rgbaOf(tool.background),
+    });
+  }
+
+  function closeEffect(): void {
+    clearEffectPreview();
+    effectOpen = null;
+  }
+
+  // The notice of the last failed effect run, cleared by the next success.
+  let effectFailure: string | null = null;
+
+  /** Runs a preview or apply; on failure shows the error in the notice line
+   *  and returns `null` — the document is unchanged (effect-panel AC-16). */
+  function runEffect<T>(run: () => T, action: string): T | null {
+    try {
+      const result = run();
+      if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
+      effectFailure = null;
+      return result;
+    } catch (err) {
+      effectFailure = t('status.failed', {
+        action,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      editor.notice = effectFailure;
+      return null;
+    }
+  }
+
+  // The preview is not part of the document (AC-17): the shell cancels the
+  // open effect before its unsaved-changes prompt or a document switch
+  // (`cancelActiveEffect`), and a document replaced in place ends it too.
+  $effect(() => {
+    if (!effectOpen) return;
+    activeEffect.cancel = closeEffect;
+    return () => {
+      if (activeEffect.cancel === closeEffect) activeEffect.cancel = null;
+    };
+  });
+  let effectHandle: number | null = null;
+  $effect(() => {
+    const handle = editor.handle;
+    if (handle !== effectHandle && effectOpen) closeEffect();
+    effectHandle = handle;
+  });
+
   // Menu bar (spec §9.2): the same menus, order and labels as Pixel mode;
   // entries Image mode lacks are simply absent.
   const menus: MenuDef[] = $derived([
@@ -864,6 +980,13 @@
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         droppedImagesMenu(),
+        { kind: 'separator' },
+        {
+          label: t('menu.close'),
+          shortcut: hint('closeTab'),
+          disabled: !hasDoc || runningSave() !== null,
+          run: () => requestCloseTab(),
+        },
         { kind: 'separator' },
         {
           label: t('menu.save'),
@@ -1073,7 +1196,7 @@
         },
       ],
     },
-    ...effectMenus((def) => (effectOpen = def), !hasDoc),
+    ...effectMenus(openEffect, !hasDoc, 'image'),
     {
       id: 'view',
       label: t('menu.view'),
@@ -1111,20 +1234,37 @@
     },
     ...helpMenus(openOverview),
   ]);
-
-  // Warn before discarding edits on reload/close.
-  function onBeforeUnload(e: BeforeUnloadEvent): void {
-    if (dirty) {
-      e.preventDefault();
-      // Legacy browsers gate the confirmation prompt on a set returnValue.
-      e.returnValue = '';
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} onpaste={onPaste} onbeforeunload={onBeforeUnload} />
+<svelte:window onkeydown={onKeydown} onpaste={onPaste} />
 
 {#snippet colorsBody()}<ColorsPanel />{/snippet}
+{#snippet effectBody()}
+  {#if effectOpen}
+    {@const session = effectOpen}
+    {#key session.token}
+      <EffectPanel
+        {session}
+        hasSelection={editor.hasSelection}
+        onPreview={(params) => {
+          // `null` means "preview off": show the real composite.
+          if (params === null) clearEffectPreview();
+          else runEffect(() => previewEffect(session.def.id, params), t('act.preview'));
+        }}
+        onApply={(params) => {
+          const changed = runEffect(() => applyEffect(session.def.id, params), effectLabel(session.def));
+          // A failed effect keeps the panel open with its values (AC-16).
+          if (changed === null) return;
+          if (!changed) {
+            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(session.def) });
+          }
+          effectOpen = null;
+        }}
+        onCancel={closeEffect}
+      />
+    {/key}
+  {/if}
+{/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
 
 <EditorFrame
@@ -1132,6 +1272,8 @@
   {menus}
   title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
+  effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
+  tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
@@ -1159,6 +1301,7 @@
       active={tool.kind}
       onSelect={(next) => (tool.kind = next)}
       {orientation}
+      resetKey={active ? editor.handle : null}
     />
   {/snippet}
   {#snippet options()}
@@ -1204,16 +1347,6 @@
   />
 {/if}
 
-{#if autosave.snapshots.length > 0}
-  <RecoveryDialog
-    snapshots={autosave.snapshots}
-    errors={autosave.errors}
-    onRecover={(snap) => void autosave.recover(snap)}
-    onDiscard={(id) => void autosave.discard(id)}
-    onDismiss={() => autosave.dismiss()}
-  />
-{/if}
-
 {#if transformDialog === 'resize'}
   <ResizeDialog
     onApply={(w, h, anchor) => {
@@ -1230,44 +1363,6 @@
     }}
     onClose={() => (transformDialog = null)}
   />
-{/if}
-
-{#if effectOpen}
-  {#key effectOpen.id}
-    <EffectDialog
-      def={effectOpen}
-      foreground={rgbaOf(tool.foreground)}
-      hasSelection={editor.hasSelection}
-      onPreview={(params) => {
-        if (!effectOpen) return;
-        // `null` means "preview off": show the real composite.
-        if (params === null) clearEffectPreview();
-        else previewEffect(effectOpen.id, params);
-      }}
-      onApply={(params) => {
-        const def = effectOpen;
-        effectOpen = null;
-        if (!def) return;
-        try {
-          if (!applyEffect(def.id, params)) {
-            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(def) });
-          }
-        } catch (err) {
-          // A refusal (a locked layer) leaves the document as it was; report
-          // it like Pixel mode instead of throwing out of the dialog.
-          clearEffectPreview();
-          editor.notice = t('px.effectFailed', {
-            effect: effectLabel(def),
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }}
-      onCancel={() => {
-        clearEffectPreview();
-        effectOpen = null;
-      }}
-    />
-  {/key}
 {/if}
 
 {#if pasteDialog}
