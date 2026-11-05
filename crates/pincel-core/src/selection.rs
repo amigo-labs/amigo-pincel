@@ -12,8 +12,62 @@
 
 use std::collections::VecDeque;
 
-use crate::document::{PixelBuffer, Rgba};
+use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, PixelBuffer, Rgba, Sprite};
 use crate::geometry::Rect;
+use crate::render::{ComposeRequest, RenderError, compose};
+
+/// The cel of `layer` at `frame` copied raw into a canvas-sized RGBA
+/// buffer (transparent where the layer has no image cel): what the Magic
+/// Wand samples with `sample: layer`.
+pub fn layer_canvas(
+    sprite: &Sprite,
+    cels: &CelMap,
+    layer: LayerId,
+    frame: FrameIndex,
+) -> PixelBuffer {
+    let (w, h) = (sprite.width, sprite.height);
+    let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
+    if let Some(cel) = cels.get(layer, frame)
+        && let CelData::Image(buf) = &cel.data
+    {
+        for ly in 0..buf.height {
+            let y = i64::from(cel.position.1) + i64::from(ly);
+            if y < 0 || y >= i64::from(h) {
+                continue;
+            }
+            for lx in 0..buf.width {
+                let x = i64::from(cel.position.0) + i64::from(lx);
+                if x < 0 || x >= i64::from(w) {
+                    continue;
+                }
+                let s = ((ly * buf.width + lx) * 4) as usize;
+                let d = ((y as u32 * w + x as u32) * 4) as usize;
+                out.data[d..d + 4].copy_from_slice(&buf.data[s..s + 4]);
+            }
+        }
+    }
+    out
+}
+
+/// The visible composite of `frame` as a canvas-sized RGBA buffer: what
+/// the Magic Wand samples with `sample: composite`.
+///
+/// # Errors
+///
+/// The [`RenderError`] of [`compose`].
+pub fn composite_canvas(
+    sprite: &Sprite,
+    cels: &CelMap,
+    frame: FrameIndex,
+) -> Result<PixelBuffer, RenderError> {
+    let (w, h) = (sprite.width, sprite.height);
+    let request = ComposeRequest::full(frame, w, h);
+    let mut pixels = Vec::new();
+    compose(sprite, cels, &request, &mut pixels)?;
+    let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
+    out.data = pixels;
+    Ok(out)
+}
 
 /// How a new shape combines with the existing selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -508,6 +562,27 @@ mod tests {
         let mut b = PixelBuffer::empty(w, h, ColorMode::Rgba);
         b.data = px.iter().flatten().copied().collect();
         b
+    }
+
+    #[test]
+    fn layer_canvas_places_the_cel_and_composite_canvas_composes_the_frame() {
+        use crate::document::{Cel, Frame, Layer};
+        let layer = LayerId::new(0);
+        let sprite = Sprite::builder(3, 2)
+            .add_layer(Layer::image(layer, "L"))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite");
+        let mut cels = CelMap::new();
+        let mut cel = Cel::image(layer, FrameIndex::new(0), buffer(1, 1, &[[9, 8, 7, 255]]));
+        cel.position = (2, 1);
+        cels.insert(cel);
+        let canvas = layer_canvas(&sprite, &cels, layer, FrameIndex::new(0));
+        assert_eq!((canvas.width, canvas.height), (3, 2));
+        assert_eq!(&canvas.data[20..24], &[9, 8, 7, 255]);
+        assert!(canvas.data[..20].iter().all(|&b| b == 0));
+        let composed = composite_canvas(&sprite, &cels, FrameIndex::new(0)).expect("compose");
+        assert_eq!(composed.data, canvas.data);
     }
 
     #[test]
