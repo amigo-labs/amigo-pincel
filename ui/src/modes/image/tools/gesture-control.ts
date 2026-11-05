@@ -10,4 +10,7 @@ export const gestureControl = {
   /** Drops a live-object handle drag in progress (Undo during the drag,
    *  docs/specs/image-live-objects-ui.md AC-11); `false` when none is. */
   cancelLiveDrag: (): boolean => false,
+  /** Commits the active document's live object, if any (tab switch, save;
+   *  docs/specs/image-live-objects-ui.md AC-09, AC-15). Set by `core/live`. */
+  commitLive: (): void => {},
 };
