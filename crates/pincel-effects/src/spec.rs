@@ -20,13 +20,20 @@ use crate::blur::{
     Bokeh, BoxBlur, Fragment, GaussianBlur, Median, MotionBlur, RadialBlur, RadialKind, SketchBlur,
     SurfaceBlur,
 };
-use crate::distort::{EdgeAlgorithm, EdgeDetect, Emboss, Relief};
+use crate::distort::{
+    Bulge, Crystalize, Dents, EdgeAlgorithm, EdgeDetect, Emboss, FrostedGlass, Morphology,
+    MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, Relief, TileReflection,
+    Twist,
+};
 use crate::effect::Effect;
 use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
 use crate::object::{Outline, OutlinePlace, OutlineShape};
 use crate::sharpen::{Sharpen, UnsharpMask};
+use wire::{b, clamped, color, edge, expect_len, f, option, u};
+
+mod wire;
 
 /// Every effect and adjustment the crate ships, with typed parameters.
 ///
@@ -177,6 +184,37 @@ pub enum EffectSpec {
     /// `1` = square, `thickness` in `1..=8` and `color` one `0xRRGGBBAA`
     /// slot (an integer, Decision Log 2026-10-29).
     Outline(Outline),
+    /// `bulge`: `[amount, center_x, center_y, edge]` (`-200..=100`, the
+    /// centre as fractions `0..=1`, edge `0` = clamp, `1` = wrap,
+    /// `2` = reflect, `3` = transparent, as for every resampling
+    /// distortion).
+    Bulge(Bulge),
+    /// `crystalize`: `[cell_size, seed]` (`2..=250`, `0..=9999`).
+    Crystalize(Crystalize),
+    /// `dents`: `[scale, refraction, roughness, seed, edge]` (`1..=200`,
+    /// `0..=200`, `0..=100`, `0..=9999`, edge as for `bulge`).
+    Dents(Dents),
+    /// `frosted_glass`: `[amount, seed]` (`1..=200` px, `0..=9999`).
+    FrostedGlass(FrostedGlass),
+    /// `morphology`: `[operation, shape, radius]` with `operation`
+    /// `0` = dilate, `1` = erode, `2` = open, `3` = close, `shape`
+    /// `0` = square, `1` = circle and `radius` in `1..=100`.
+    Morphology(Morphology),
+    /// `pixelate`: `[cell_size, color]` (`2..=200`, `color` `0` = average,
+    /// `1` = centre). The grid starts at the canvas origin: a host runs
+    /// it with [`EffectSpec::run_at`] for a buffer placed elsewhere.
+    Pixelate(Pixelate),
+    /// `polar_inversion`: `[amount, center_x, center_y, edge]` (`-4..=4`,
+    /// the centre as fractions, edge as for `bulge`).
+    PolarInversion(PolarInversion),
+    /// `tile_reflection`: `[tile_size, angle_degrees, curvature, edge]`
+    /// (`2..=200`, wrapped into `0..360`, `-100..=100`, edge as for
+    /// `bulge`).
+    TileReflection(TileReflection),
+    /// `twist`: `[amount, size_percent, center_x, center_y, edge]`
+    /// (`-100..=100`, `1..=200`, the centre as fractions, edge as for
+    /// `bulge`).
+    Twist(Twist),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -214,54 +252,16 @@ pub const EFFECT_NAMES: &[&str] = &[
     "surface_blur",
     "zoom_blur",
     "outline",
+    "bulge",
+    "crystalize",
+    "dents",
+    "frosted_glass",
+    "morphology",
+    "pixelate",
+    "polar_inversion",
+    "tile_reflection",
+    "twist",
 ];
-
-fn expect_len(name: &str, params: &[f64], expected: usize) -> Result<(), EffectError> {
-    if params.len() == expected {
-        Ok(())
-    } else {
-        Err(EffectError::ParamCount {
-            effect: name.to_owned(),
-            expected,
-            got: params.len(),
-        })
-    }
-}
-
-fn f(v: f64) -> f32 {
-    if v.is_finite() { v as f32 } else { 0.0 }
-}
-
-fn u(v: f64) -> u32 {
-    if v.is_finite() {
-        v.round().clamp(0.0, u32::MAX as f64) as u32
-    } else {
-        0
-    }
-}
-
-/// A finite number clamped to `lo..=hi`; non-finite reads as 0 first.
-fn clamped(v: f64, lo: f32, hi: f32) -> f32 {
-    f(v).clamp(lo, hi)
-}
-
-/// A colour slot: an integer `0xRRGGBBAA` in `0..=u32::MAX`, as RGBA bytes.
-/// Anything else (fractional, out of range, non-finite) is an error.
-fn color(name: &str, p: &[f64], slot: usize) -> Result<[u8; 4], EffectError> {
-    let v = p[slot];
-    if v.is_finite() && v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&v) {
-        Ok((v as u32).to_be_bytes())
-    } else {
-        Err(EffectError::ColorSlot {
-            effect: name.to_owned(),
-            slot,
-        })
-    }
-}
-
-fn b(v: f64) -> bool {
-    v.is_finite() && v != 0.0
-}
 
 impl EffectSpec {
     /// Build a spec from its wire `name` and parameter vector.
@@ -533,6 +533,56 @@ impl EffectSpec {
                 };
                 Self::Outline(Outline::new(place, shape, u(p[2]), color(name, p, 3)?))
             }
+            "bulge" => {
+                expect_len(name, p, 4)?;
+                Self::Bulge(Bulge::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "crystalize" => {
+                expect_len(name, p, 2)?;
+                Self::Crystalize(Crystalize::new(f(p[0]), f(p[1])))
+            }
+            "dents" => {
+                expect_len(name, p, 5)?;
+                Self::Dents(Dents::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
+            }
+            "frosted_glass" => {
+                expect_len(name, p, 2)?;
+                Self::FrostedGlass(FrostedGlass::new(f(p[0]), f(p[1])))
+            }
+            "morphology" => {
+                expect_len(name, p, 3)?;
+                let op = match option(p[0], 3) {
+                    1 => MorphologyOp::Erode,
+                    2 => MorphologyOp::Open,
+                    3 => MorphologyOp::Close,
+                    _ => MorphologyOp::Dilate,
+                };
+                let shape = match option(p[1], 1) {
+                    1 => MorphologyShape::Circle,
+                    _ => MorphologyShape::Square,
+                };
+                Self::Morphology(Morphology::new(op, shape, f(p[2])))
+            }
+            "pixelate" => {
+                expect_len(name, p, 2)?;
+                let color = match option(p[1], 1) {
+                    1 => PixelateColor::Centre,
+                    _ => PixelateColor::Average,
+                };
+                Self::Pixelate(Pixelate::new(f(p[0]), color))
+            }
+            "polar_inversion" => {
+                expect_len(name, p, 4)?;
+                Self::PolarInversion(PolarInversion::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "tile_reflection" => {
+                expect_len(name, p, 4)?;
+                Self::TileReflection(TileReflection::new(f(p[0]), f(p[1]), f(p[2]), edge(p[3])))
+            }
+            "twist" => {
+                expect_len(name, p, 5)?;
+                Self::Twist(Twist::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -541,6 +591,22 @@ impl EffectSpec {
     /// Run the described effect over `src`, returning a same-sized buffer.
     pub fn run(&self, src: &EffectImage) -> EffectImage {
         self.run_in(src, |_, _| true)
+    }
+
+    /// Like [`EffectSpec::run_in`], for a buffer whose top-left pixel sits
+    /// at canvas position `origin` (a trimmed Pixel-mode cel). Effects
+    /// anchored to the canvas grid (Pixelate) line up with it; every
+    /// other effect ignores `origin`.
+    pub fn run_at(
+        &self,
+        src: &EffectImage,
+        origin: (i32, i32),
+        in_target: impl Fn(u32, u32) -> bool,
+    ) -> EffectImage {
+        match self {
+            Self::Pixelate(e) => e.with_origin(origin).apply(src),
+            other => other.run_in(src, in_target),
+        }
     }
 
     /// Like [`EffectSpec::run`], for a host that limits the effect to a
@@ -657,6 +723,15 @@ impl EffectSpec {
                 center_y,
             } => radial(src, *amount, *center_x, *center_y, RadialKind::Zoom),
             Self::Outline(e) => e.apply(src),
+            Self::Bulge(e) => e.apply(src),
+            Self::Crystalize(e) => e.apply(src),
+            Self::Dents(e) => e.apply(src),
+            Self::FrostedGlass(e) => e.apply(src),
+            Self::Morphology(e) => e.apply(src),
+            Self::Pixelate(e) => e.apply(src),
+            Self::PolarInversion(e) => e.apply(src),
+            Self::TileReflection(e) => e.apply(src),
+            Self::Twist(e) => e.apply(src),
         }
     }
 
@@ -696,6 +771,15 @@ impl EffectSpec {
             Self::SurfaceBlur(_) => "Surface Blur",
             Self::ZoomBlur { .. } => "Zoom Blur",
             Self::Outline(_) => "Outline Object",
+            Self::Bulge(_) => "Bulge",
+            Self::Crystalize(_) => "Crystalize",
+            Self::Dents(_) => "Dents",
+            Self::FrostedGlass(_) => "Frosted Glass",
+            Self::Morphology(_) => "Morphology",
+            Self::Pixelate(_) => "Pixelate",
+            Self::PolarInversion(_) => "Polar Inversion",
+            Self::TileReflection(_) => "Tile Reflection",
+            Self::Twist(_) => "Twist",
         }
     }
 }
@@ -715,139 +799,4 @@ fn radial(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn solid(w: u32, h: u32, px: [u8; 4]) -> EffectImage {
-        let data = px.repeat((w * h) as usize);
-        EffectImage::from_rgba8(w, h, data).unwrap()
-    }
-
-    #[test]
-    fn from_params_every_name_parses_with_its_documented_arity() {
-        let cases: &[(&str, &[f64])] = &[
-            ("gaussian_blur", &[2.0]),
-            ("box_blur", &[3.0, 3.0]),
-            ("motion_blur", &[5.0, 45.0]),
-            ("radial_blur", &[10.0, 0.5, 0.5, 1.0]),
-            ("sharpen", &[]),
-            ("unsharp_mask", &[50.0, 1.0, 0.0]),
-            ("emboss", &[45.0, 45.0, 1.0]),
-            ("edge_detect", &[2.0, 100.0]),
-            ("relief", &[45.0, 1.0]),
-            ("add_noise", &[10.0, 1.0, 1.0, 7.0]),
-            ("reduce_noise", &[1.0]),
-            ("brightness_contrast", &[10.0, 10.0, 1.0]),
-            ("hue_saturation", &[10.0, 0.0, 0.0, 0.0]),
-            ("curves", &[0.0, 0.0, 0.0, 255.0, 255.0]),
-            ("levels", &[0.0, 0.0, 255.0, 1.0, 0.0, 255.0]),
-            (
-                "color_balance",
-                &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-            ),
-            ("invert", &[]),
-            ("grayscale", &[0.0]),
-            ("grayscale", &[3.0, 0.5, 0.25, 0.25]),
-            ("posterize", &[4.0]),
-            ("threshold", &[128.0]),
-            ("auto_level", &[]),
-            ("exposure", &[1.0]),
-            ("highlights_shadows", &[20.0, -20.0]),
-            ("invert_alpha", &[]),
-            ("sepia", &[100.0]),
-            ("temperature_tint", &[30.0, -30.0]),
-            ("motion_blur", &[5.0, 45.0, 0.0]),
-            ("bokeh", &[10.0, 25.0]),
-            ("fragment", &[4.0, 8.0, 0.0]),
-            ("median", &[10.0, 50.0]),
-            ("sketch_blur", &[10.0, 1.0]),
-            ("surface_blur", &[6.0, 25.0]),
-            ("zoom_blur", &[10.0, 0.5, 0.5]),
-            ("outline", &[0.0, 1.0, 1.0, 255.0]),
-        ];
-        for (name, params) in cases {
-            let spec =
-                EffectSpec::from_params(name, params).unwrap_or_else(|e| panic!("{name}: {e}"));
-            assert!(
-                EFFECT_NAMES.contains(name),
-                "{name} missing from EFFECT_NAMES"
-            );
-            assert!(!spec.label().is_empty());
-            // Every spec must run on a small image without panicking.
-            let out = spec.run(&solid(4, 4, [200, 100, 50, 255]));
-            assert_eq!((out.width(), out.height()), (4, 4));
-        }
-    }
-
-    #[test]
-    fn from_params_unknown_name_is_an_error() {
-        assert_eq!(
-            EffectSpec::from_params("no_such_effect", &[]),
-            Err(EffectError::UnknownEffect("no_such_effect".into()))
-        );
-    }
-
-    #[test]
-    fn from_params_wrong_arity_is_an_error() {
-        assert!(matches!(
-            EffectSpec::from_params("gaussian_blur", &[]),
-            Err(EffectError::ParamCount {
-                expected: 1,
-                got: 0,
-                ..
-            })
-        ));
-        assert!(matches!(
-            EffectSpec::from_params("curves", &[0.0, 1.0]),
-            Err(EffectError::ParamCount { .. })
-        ));
-    }
-
-    #[test]
-    fn run_invert_flips_rgb_and_keeps_alpha() {
-        let spec = EffectSpec::from_params("invert", &[]).unwrap();
-        let out = spec.run(&solid(1, 1, [10, 20, 30, 200]));
-        assert_eq!(out.data(), &[245, 235, 225, 200]);
-    }
-
-    #[test]
-    fn every_effect_name_is_accepted() {
-        for name in EFFECT_NAMES {
-            if let Err(err) = EffectSpec::from_params(name, &[]) {
-                assert!(
-                    !matches!(err, EffectError::UnknownEffect(_)),
-                    "{name} rejected as unknown"
-                );
-            }
-        }
-    }
-
-    /// A 9x9 black / white checkerboard, so any resampling shows.
-    fn checker9() -> EffectImage {
-        let mut data = Vec::with_capacity(9 * 9 * 4);
-        for y in 0..9u8 {
-            for x in 0..9u8 {
-                let v = if (x + y) % 2 == 0 { 255 } else { 0 };
-                data.extend_from_slice(&[v, v, v, 255]);
-            }
-        }
-        EffectImage::from_rgba8(9, 9, data).unwrap()
-    }
-
-    fn px(img: &EffectImage, x: usize, y: usize) -> [u8; 4] {
-        let o = (y * img.width() as usize + x) * 4;
-        let d = img.data();
-        [d[o], d[o + 1], d[o + 2], d[o + 3]]
-    }
-
-    #[test]
-    fn radial_blur_center_is_a_fraction_of_the_image() {
-        // The catalog and the agent tools send the centre as 0..1 of the
-        // image; 0.5 / 0.5 must spin around the middle pixel, not (0.5, 0.5) px.
-        let src = checker9();
-        let spec = EffectSpec::from_params("radial_blur", &[40.0, 0.5, 0.5, 0.0]).unwrap();
-        let out = spec.run(&src);
-        assert_eq!(px(&out, 4, 4), px(&src, 4, 4), "centre pixel must stay");
-        assert_ne!(px(&out, 0, 4), px(&src, 0, 4), "edge pixel must spin");
-    }
-}
+mod tests;

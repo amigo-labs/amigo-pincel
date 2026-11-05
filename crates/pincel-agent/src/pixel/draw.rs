@@ -472,7 +472,7 @@ pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput,
         let whole = !doc.sprite.has_selection();
         let (cx, cy) = original.position;
         buf.data = spec
-            .run_in(&src, |x, y| {
+            .run_at(&src, (cx, cy), |x, y| {
                 whole || doc.sprite.selection_contains(cx + x as i32, cy + y as i32)
             })
             .into_raw();

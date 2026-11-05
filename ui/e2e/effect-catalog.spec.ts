@@ -4,6 +4,7 @@ import {
   EFFECT_SUBMENUS,
   EFFECTS,
   effectById,
+  entriesFor,
   toParams,
   wrapAngle,
 } from '../src/lib/effects/catalog';
@@ -228,6 +229,83 @@ const PINS: Record<string, Pin> = {
       ['color', 0xff8010c0, [0, 1, 1, 0xff8010c0]],
     ],
   },
+  // Added by effects-distort (no previous catalog): the table's order and
+  // defaults; choices as option index, the edge behaviour last
+  // (0 = Clamp, 1 = Wrap, 2 = Reflect, 3 = Transparent).
+  bulge: {
+    defaults: [45, 0.5, 0.5, 0],
+    changes: [
+      ['amount', -200, [-200, 0.5, 0.5, 0]],
+      ['center_x', 25, [45, 0.25, 0.5, 0]],
+      ['edge', 3, [45, 0.5, 0.5, 3]],
+    ],
+  },
+  crystalize: {
+    defaults: [8, 1],
+    changes: [
+      ['cell_size', 250, [250, 1]],
+      ['seed', 42, [8, 42]],
+    ],
+  },
+  dents: {
+    defaults: [25, 50, 10, 1, 0],
+    changes: [
+      ['scale', 200, [200, 50, 10, 1, 0]],
+      ['refraction', 0, [25, 0, 10, 1, 0]],
+      ['roughness', 100, [25, 50, 100, 1, 0]],
+      ['seed', 9, [25, 50, 10, 9, 0]],
+      ['edge', 2, [25, 50, 10, 1, 2]],
+    ],
+  },
+  frosted_glass: {
+    defaults: [10, 1],
+    changes: [
+      ['amount', 200, [200, 1]],
+      ['seed', 0, [10, 0]],
+    ],
+  },
+  morphology: {
+    defaults: [0, 0, 1],
+    changes: [
+      ['operation', 3, [3, 0, 1]],
+      ['shape', 1, [0, 1, 1]],
+      ['radius', 100, [0, 0, 100]],
+    ],
+  },
+  // Image mode's defaults (Average); Pixel mode's Centre is pinned below.
+  pixelate: {
+    defaults: [8, 0],
+    changes: [
+      ['cell_size', 2, [2, 0]],
+      ['color', 1, [8, 1]],
+    ],
+  },
+  polar_inversion: {
+    defaults: [1, 0.5, 0.5, 1],
+    changes: [
+      ['amount', -3.5, [-3.5, 0.5, 0.5, 1]],
+      ['center_y', 0, [1, 0.5, 0, 1]],
+      ['edge', 0, [1, 0.5, 0.5, 0]],
+    ],
+  },
+  tile_reflection: {
+    defaults: [40, 30, 8, 0],
+    changes: [
+      ['tile_size', 2, [2, 30, 8, 0]],
+      ['angle', 370, [40, 10, 8, 0]],
+      ['curvature', -100, [40, 30, -100, 0]],
+      ['edge', 1, [40, 30, 8, 1]],
+    ],
+  },
+  twist: {
+    defaults: [30, 100, 0.5, 0.5, 0],
+    changes: [
+      ['amount', -100, [-100, 100, 0.5, 0.5, 0]],
+      ['size', 200, [30, 200, 0.5, 0.5, 0]],
+      ['center_x', 10, [30, 100, 0.1, 0.5, 0]],
+      ['edge', 3, [30, 100, 0.5, 0.5, 3]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {
@@ -248,6 +326,20 @@ for (const [id, pin] of Object.entries(PINS)) {
     }
   });
 }
+
+// effects-distort AC-02: Pixelate's Colour starts at Centre in Pixel mode
+// (no new colours), at Average in Image mode; the menus hand out each mode's
+// definition.
+test('pixelate: each mode starts at its own colour default', () => {
+  const inMode = (mode: 'pixel' | 'image') => {
+    const def = entriesFor('distort', mode).find((e) => e.id === 'pixelate');
+    if (!def) throw new Error(`pixelate missing from ${mode} mode`);
+    return toParams(def, defaultValues(def));
+  };
+  expect(inMode('pixel')).toEqual([8, 1]);
+  expect(inMode('image')).toEqual([8, 0]);
+  expect(entriesFor('distort', 'pixel').map((e) => e.id)).toEqual(['morphology', 'pixelate']);
+});
 
 // AC-01 / AC-06: the nine submenus in paint.net's order and their names;
 // menus only show the non-empty ones, so the full list is checked here.

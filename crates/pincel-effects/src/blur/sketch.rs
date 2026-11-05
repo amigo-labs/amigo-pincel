@@ -4,6 +4,7 @@
 use super::{sample_bilinear, whole};
 use crate::effect::Effect;
 use crate::image::EffectImage;
+use crate::random::{hash, unit};
 use std::f32::consts::TAU;
 
 /// Smears each pixel along a line centred on it, of a direction and a length
@@ -28,16 +29,6 @@ impl SketchBlur {
     }
 }
 
-/// SplitMix64 of the seed and a pixel position: a stateless per-pixel
-/// random number, so the result does not depend on visiting order.
-fn hash(seed: u32, x: usize, y: usize) -> u64 {
-    let mut z = (u64::from(seed) << 40) ^ ((y as u64) << 20) ^ x as u64;
-    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^ (z >> 31)
-}
-
 impl Effect for SketchBlur {
     fn apply(&self, src: &EffectImage) -> EffectImage {
         let (w, h) = (src.width() as usize, src.height() as usize);
@@ -46,7 +37,6 @@ impl Effect for SketchBlur {
         }
         let buf = src.to_premultiplied_f32();
         let mut out = vec![0.0f32; buf.len()];
-        let unit = |bits: u64| (bits & 0xFF_FFFF) as f32 / 0xFF_FFFF as f32;
         for y in 0..h {
             for x in 0..w {
                 let bits = hash(self.seed, x, y);
@@ -80,17 +70,5 @@ impl Effect for SketchBlur {
             radius: ((self.radius as f32 * factor).round() as u32).max(1),
             seed: self.seed,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn hash_differs_per_seed_and_position() {
-        assert_ne!(hash(1, 0, 0), hash(2, 0, 0));
-        assert_ne!(hash(1, 1, 0), hash(1, 0, 1));
-        assert_eq!(hash(7, 3, 4), hash(7, 3, 4));
     }
 }

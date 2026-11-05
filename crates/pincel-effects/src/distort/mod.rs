@@ -1,17 +1,39 @@
-//! Distort effects (Fineliner spec §11.3): Emboss, Edge Detect, Relief.
+//! Distort effects: Emboss, Edge Detect, Relief (Fineliner spec §11.3; in
+//! the Stylize submenu since `effect-catalog-v2`) and paint.net's Distort
+//! menu (docs/specs/effects-distort.md).
 //!
-//! All three read a luminance height field and its gradient. They operate on
-//! straight RGB (alpha is preserved from the source) rather than premultiplied
-//! space: the output is a lit/edge greyscale or a colour-preserving relief, so
-//! transparent-pixel colour bleed is not a concern in practice.
+//! Emboss, Edge Detect and Relief read a luminance height field and its
+//! gradient. They operate on straight RGB (alpha is preserved from the
+//! source) rather than premultiplied space: the output is a lit/edge
+//! greyscale or a colour-preserving relief, so transparent-pixel colour
+//! bleed is not a concern in practice.
+//!
+//! Bulge, Dents, Polar Inversion, Tile Reflection and Twist resample
+//! premultiplied pixels bilinearly with an [`EdgeBehavior`]; Crystalize
+//! averages premultiplied cells. Frosted Glass, Morphology and Pixelate's
+//! Centre colour copy whole pixels.
 
+mod crystalize;
+mod dents;
+mod edge;
 mod edge_detect;
 mod emboss;
+mod frosted_glass;
+mod morphology;
+mod pixelate;
 mod relief;
+mod warp;
 
+pub use crystalize::Crystalize;
+pub use dents::Dents;
+pub use edge::EdgeBehavior;
 pub use edge_detect::{EdgeAlgorithm, EdgeDetect};
 pub use emboss::Emboss;
+pub use frosted_glass::FrostedGlass;
+pub use morphology::{Morphology, MorphologyOp, MorphologyShape};
+pub use pixelate::{Pixelate, PixelateColor};
 pub use relief::Relief;
+pub use warp::{Bulge, PolarInversion, TileReflection, Twist};
 
 /// Rec.601 luma of pixel `(x, y)` in `[0.0, 1.0]`, clamping at the edges.
 pub(crate) fn luma_at(data: &[u8], w: usize, h: usize, x: i32, y: i32) -> f32 {
