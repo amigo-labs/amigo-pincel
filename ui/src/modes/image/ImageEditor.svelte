@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
+  import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
   import {
     clampCanvasSize,
@@ -554,6 +555,20 @@
   // File ▸ Open Recent. `null` keeps the entry out of the menu where the
   // registry cannot work at all; an empty array shows it disabled.
   let recents = $state<RecentFile[]>([]);
+
+  // The Magic Wand link (docs/specs/image-editing.md AC-33, AC-34): every
+  // value the settings take recomputes the linked click; choosing another
+  // tool ends the link, even if the wand is chosen again later.
+  $effect(() => {
+    void tool.tolerance;
+    void tool.contiguous;
+    void tool.wandSample;
+    untrack(relinkWand);
+  });
+  $effect(() => {
+    void tool.kind;
+    untrack(dropWandLink);
+  });
 
   // Keep the native Open Recent submenu in step with the recents, as the
   // shell and the Pixel editor do (desktop-app.md AC-19). Only entries

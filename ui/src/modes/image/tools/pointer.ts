@@ -12,7 +12,6 @@ import {
   selectRectangle,
   selectEllipse,
   selectPolygon,
-  selectWand,
   drawShape,
   drawGradient,
   moveSelectionContent,
@@ -33,6 +32,7 @@ import { editRefused } from '../core/layer-tree';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 import { gestureControl } from './gesture-control';
+import { wandClick } from './wand-link';
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
  *  the element that covers the document on screen (any size / transform). */
@@ -294,8 +294,7 @@ export function attachTools(
     editor.notice = null;
 
     if (tool.kind === 'magic_wand') {
-      if (inside) selectWand(point[0], point[1], selectionModeOf(e));
-      else missedCanvas(selectionModeOf(e));
+      wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
       return;
     }
 
