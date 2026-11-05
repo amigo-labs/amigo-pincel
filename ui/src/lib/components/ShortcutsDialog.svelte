@@ -150,7 +150,7 @@
 
 <div
   bind:this={root}
-  class="shortcuts-print fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-4"
+  class="shortcuts-print fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
   role="dialog"
   aria-modal="true"
   aria-labelledby="shortcuts-title"
@@ -235,11 +235,11 @@
                 <td class="py-1 pr-3 text-xs text-pc-muted">{r.note ?? ''}</td>
                 <td class="shortcuts-noprint py-1 text-right whitespace-nowrap">
                   {#if id !== null}
-                    <button class="panel-btn" onclick={() => startCapture(id)}>
+                    <button class="panel-btn panel-btn-ghost" onclick={() => startCapture(id)}>
                       {t('keys.change')}
                     </button>
                     <button
-                      class="panel-btn"
+                      class="panel-btn panel-btn-ghost"
                       disabled={!isOverridden(id)}
                       onclick={() => resetBinding(id)}
                     >
