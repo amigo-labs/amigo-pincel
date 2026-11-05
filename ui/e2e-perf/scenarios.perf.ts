@@ -355,6 +355,7 @@ test('start screen: cold start on Slow 4G, then warm', async ({ page }) => {
     ...frameMetrics({
       frames: [...coldFrames, ...warmFrames],
       latencies: [],
+      drawLatencies: [],
       clicks: [],
       draws: [],
       marks: {},

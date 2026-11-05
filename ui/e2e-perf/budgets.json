@@ -31,8 +31,8 @@
       "owner": "performance-input-path"
     },
     {
-      "metric": "browser/pixel-pencil-256-z32/dab-latency-p95",
-      "scenario": "Pixel: pencil drag on 256x256 at zoom 32, dab latency",
+      "metric": "browser/pixel-pencil-256-z32/dab-draw-latency-p95",
+      "scenario": "Pixel: pencil drag on 256x256 at zoom 32, dab latency (pointer event received -> draw call)",
       "max": 8,
       "unit": "ms",
       "owner": "performance-input-path"

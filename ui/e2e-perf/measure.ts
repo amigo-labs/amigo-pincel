@@ -32,6 +32,9 @@ export interface Recording {
   readonly frames: readonly number[];
   /** Pointer-move → presented latencies (painting). */
   readonly latencies: readonly number[];
+  /** Pointer-move received by the page → first draw call (painting, the
+   *  work Pincel controls; performance-input-path AC-04). */
+  readonly drawLatencies: readonly number[];
   /** Pointer-down → first draw (a click's effect reaching the canvas). */
   readonly clicks: readonly number[];
   readonly draws: readonly number[];
@@ -51,10 +54,20 @@ export async function stopRecording(page: Page, settleMs = 500): Promise<Recordi
     const latencies = perf.inputs
       .filter((i) => i.type === 'pointermove' && i.presentedAt !== null)
       .map((i) => (i.presentedAt ?? 0) - i.t);
+    const drawLatencies = perf.inputs
+      .filter((i) => i.type === 'pointermove' && i.drawnAt !== null)
+      .map((i) => (i.drawnAt ?? 0) - i.dispatchedAt);
     const clicks = perf.inputs
       .filter((i) => i.type === 'pointerdown' && i.drawnAt !== null)
       .map((i) => (i.drawnAt ?? 0) - i.t);
-    return { frames, latencies, clicks, draws: [...perf.draws], marks: { ...perf.marks } };
+    return {
+      frames,
+      latencies,
+      drawLatencies,
+      clicks,
+      draws: [...perf.draws],
+      marks: { ...perf.marks },
+    };
   });
 }
 
@@ -67,11 +80,14 @@ export function frameMetrics(rec: Recording): Record<string, number> {
   };
 }
 
-/** p50 / p95 dab latency (pointer event → pixels presented), in ms. */
+/** p50 / p95 dab latency (pointer event → pixels presented) and dab draw
+ *  latency (pointer event received → draw call), in ms. */
 export function latencyMetrics(rec: Recording): Record<string, number> {
   return {
     'dab-latency-p50': round(percentile(rec.latencies, 50)),
     'dab-latency-p95': round(percentile(rec.latencies, 95)),
+    'dab-draw-latency-p50': round(percentile(rec.drawLatencies, 50)),
+    'dab-draw-latency-p95': round(percentile(rec.drawLatencies, 95)),
   };
 }
 
