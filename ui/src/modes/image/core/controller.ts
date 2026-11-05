@@ -27,7 +27,7 @@ import {
   type Vectorizer,
 } from './wasm';
 import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
-import { editor, tool, type ImageTab } from '../stores/editor.svelte';
+import { editor, live, tool, type ImageTab } from '../stores/editor.svelte';
 import {
   formatFromName,
   saveExport,
@@ -38,6 +38,7 @@ import {
 import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
 import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
+import { gestureControl } from '../tools/gesture-control';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -55,18 +56,18 @@ function rgbToHex(r: number, g: number, b: number): string {
 }
 
 /** Opacity as a 0–1 fraction, clamped. */
-function opacity01(): number {
+export function opacity01(): number {
   return Math.min(1, Math.max(0, tool.opacity / 100));
 }
 
 /** The active foreground (or background) color as opaque RGBA. */
-function activeColor(useBackground: boolean): Rgba {
+export function activeColor(useBackground: boolean): Rgba {
   const [r, g, b] = hexToRgb(useBackground ? tool.background : tool.foreground);
   return [r, g, b, 255];
 }
 
 /** A #RRGGBB color with the current tool opacity baked into its alpha. */
-function colorWithOpacity(hex: string): Rgba {
+export function colorWithOpacity(hex: string): Rgba {
   const [r, g, b] = hexToRgb(hex);
   return [r, g, b, Math.round(opacity01() * 255)];
 }
@@ -108,6 +109,7 @@ export function syncInfo(): void {
   editor.undoDepth = info.undo_depth;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
+  live.object = core.liveObject(editor.handle);
   editor.revision += 1;
 }
 
@@ -859,8 +861,10 @@ export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
   return core.composite(editor.handle);
 }
 
-/** Undoes the last command. */
+/** Undoes the last command. During a live-object handle drag it only drops
+ *  that drag (docs/specs/image-live-objects-ui.md AC-11). */
 export function undo(): void {
+  if (gestureControl.cancelLiveDrag()) return;
   if (editor.handle !== null && core.undo(editor.handle)) {
     syncInfo();
   }

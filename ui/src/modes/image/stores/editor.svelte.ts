@@ -9,6 +9,7 @@ import type {
   GradientChannel,
   GradientKind,
   LayerInfo,
+  LiveObjectSpec,
   SampleSource,
   ShapeKind,
   ShapeMode,
@@ -231,6 +232,15 @@ export type ShapePreview = {
 
 /** The live Shapes-tool preview, or `null` when not drawing a shape. */
 export const shapePreview = $state({ value: null as ShapePreview | null });
+
+/** The active document's live object (docs/specs/image-live-objects-ui.md),
+ *  mirrored from the core on every sync, and the pointer state over it. */
+export const live = $state({
+  /** The core's live object, `null` when none is live. */
+  object: null as LiveObjectSpec | null,
+  /** The cursor over a handle or the body; `null` keeps the tool's. */
+  cursor: null as string | null,
+});
 
 /** Tool options across the M6 tool suite (spec §9.2, §16.3). */
 export const tool = $state({

@@ -470,7 +470,8 @@ export type LiveCommand =
   | BeginLiveGradientCommand
   | EditLiveCommand
   | { type: 'commit_live' }
-  | { type: 'cancel_live' };
+  | { type: 'cancel_live' }
+  | { type: 'cancel_live_gesture'; gesture: number };
 
 /** Any command emitted to the core. */
 export type ToolCommand =
