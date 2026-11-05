@@ -189,31 +189,28 @@
 
       {#each def.params as p (p.key)}
         {#if p.kind === 'number'}
-          <label class="flex flex-col gap-1 text-xs text-pc-text">
-            <span class="flex justify-between">
-              <span>{fxText(p.label)}</span>
-              <span class="tabular-nums text-pc-faint">{values[p.key]}</span>
-            </span>
-            <span class="flex items-center gap-2">
-              <input
-                type="range"
-                min={p.min}
-                max={p.max}
-                step={p.step}
-                bind:value={values[p.key]}
-                class="flex-1 cursor-pointer"
-                aria-label={fxText(p.label)}
-              />
-              <input
-                type="number"
-                min={p.min}
-                max={p.max}
-                step={p.step}
-                bind:value={values[p.key]}
-                class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-                aria-label={t('effectDlg.value', { label: fxText(p.label) })}
-              />
-            </span>
+          <!-- Slider first in the DOM (focus order, effect-panel AC-06), shown
+               under the label / value row by the grid. -->
+          <label class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1.5 text-xs text-pc-text">
+            <span class="col-start-1 row-start-1">{fxText(p.label)}</span>
+            <input
+              type="range"
+              min={p.min}
+              max={p.max}
+              step={p.step}
+              bind:value={values[p.key]}
+              class="col-span-2 row-start-2 w-full cursor-pointer"
+              aria-label={fxText(p.label)}
+            />
+            <input
+              type="number"
+              min={p.min}
+              max={p.max}
+              step={p.step}
+              bind:value={values[p.key]}
+              class="opt-field col-start-2 row-start-1 w-16 text-right tabular-nums"
+              aria-label={t('effectDlg.value', { label: fxText(p.label) })}
+            />
           </label>
         {:else if p.kind === 'bool'}
           <label class="flex items-center gap-2 text-xs text-pc-text">
@@ -246,7 +243,7 @@
                     max="100"
                     step="0.1"
                     bind:value={values[axis.key]}
-                    class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+                    class="opt-field w-16 text-right tabular-nums"
                     aria-label={t('effectDlg.percent', { label: fxText(axis.label) })}
                   />
                   <span class="text-pc-faint">%</span>
@@ -283,7 +280,7 @@
                 max={p.max}
                 step="1"
                 bind:value={values[p.key]}
-                class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+                class="opt-field w-16 text-right tabular-nums"
                 aria-label={t('effectDlg.value', { label: fxText(p.label) })}
               />
               <button type="button" class="panel-btn" onclick={() => reseed(p)}>
@@ -315,7 +312,7 @@
                   step={p.step}
                   value={values[part.key]}
                   oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
-                  class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+                  class="opt-field w-16 text-right tabular-nums"
                   aria-label={t('effectDlg.value', { label: fxText(part.label) })}
                 />
               </span>
