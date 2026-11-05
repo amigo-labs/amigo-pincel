@@ -31,12 +31,16 @@ import initWasm, {
   export_tiff,
   get_document_info,
   get_selection_mask,
+  live_object,
   register_font,
   vectorizer,
   type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../../../lib/diagnostics';
+import type { LiveObjectSpec } from './generated/LiveObjectSpec';
+
+export type { LiveObjectSpec };
 
 export type { Vectorizer };
 
@@ -404,6 +408,70 @@ export interface DrawTextCommand {
   align: TextAlign;
 }
 
+/** Two canvas points: endpoints, box corners or a gradient's drag. */
+export type PointPair = [[number, number], [number, number]];
+
+/** Begins a live Line or box shape (docs/specs/image-live-objects.md). */
+export interface BeginLiveShapeCommand {
+  type: 'begin_live_shape';
+  layer: number;
+  shape: ShapeKind;
+  points: PointPair;
+  corner_radius?: number;
+  sides?: number;
+  mode?: ShapeMode;
+  stroke_width?: number;
+  stroke_color?: Rgba;
+  fill_color?: Rgba;
+  anti_alias?: boolean;
+  dash?: DashPattern;
+}
+
+/** Begins a live gradient (docs/specs/image-live-objects.md). */
+export interface BeginLiveGradientCommand {
+  type: 'begin_live_gradient';
+  layer: number;
+  kind?: GradientKind;
+  channel?: GradientChannel;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  from?: Rgba;
+  to?: Rgba;
+  opacity?: number;
+}
+
+/** Edits the live object; absent fields keep their value. Edits sharing a
+ *  `gesture` form one undo step. */
+export interface EditLiveCommand {
+  type: 'edit_live';
+  gesture?: number;
+  points?: PointPair;
+  shape?: ShapeKind;
+  mode?: ShapeMode;
+  stroke_width?: number;
+  dash?: DashPattern;
+  anti_alias?: boolean;
+  corner_radius?: number;
+  sides?: number;
+  stroke_color?: Rgba;
+  fill_color?: Rgba;
+  kind?: GradientKind;
+  channel?: GradientChannel;
+  from?: Rgba;
+  to?: Rgba;
+  opacity?: number;
+}
+
+/** Begin, edit, commit or cancel the live object. */
+export type LiveCommand =
+  | BeginLiveShapeCommand
+  | BeginLiveGradientCommand
+  | EditLiveCommand
+  | { type: 'commit_live' }
+  | { type: 'cancel_live' };
+
 /** Any command emitted to the core. */
 export type ToolCommand =
   | PencilStrokeCommand
@@ -420,7 +488,8 @@ export type ToolCommand =
   | TransformCommand
   | DrawShapeCommand
   | DrawGradientCommand
-  | DrawTextCommand;
+  | DrawTextCommand
+  | LiveCommand;
 
 let initialized: Promise<unknown> | null = null;
 
@@ -538,6 +607,9 @@ export const core = {
   exportBmp: (handle: number): Uint8Array => export_bmp(handle),
   exportTiff: (handle: number): Uint8Array => export_tiff(handle),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
+  /** The live object (docs/specs/image-live-objects.md), or `null`. */
+  liveObject: (handle: number): LiveObjectSpec | null =>
+    live_object(handle) as LiveObjectSpec | null,
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),
 };
