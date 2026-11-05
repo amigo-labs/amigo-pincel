@@ -84,12 +84,6 @@ export function cancelEffect() {
   recompose();
 }
 
-/** Cancels the open effect, if any, before the document is replaced or
- *  an unsaved-changes prompt shows (effect-panel AC-17). */
-export function endOpenEffect() {
-  if (dialogs.effect) cancelEffect();
-}
-
 export function afterImageCommand(label: string) {
   live.needsRecompose = true;
   syncMeta();

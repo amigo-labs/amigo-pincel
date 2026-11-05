@@ -7,6 +7,7 @@
 // Save All / Don't Save / Cancel. While the prompt (or a save it started)
 // is open, further actions are ignored (unsaved-changes-prompt AC-08); a
 // session-wide action waits for running saves first (document-tabs AC-17).
+import { cancelActiveEffect } from '../effects/session.svelte';
 import { activateDocument, openDocuments } from './session.svelte';
 import type { EditorDocument } from './types';
 
@@ -48,6 +49,9 @@ export async function discardDocuments(): Promise<void> {
 }
 
 function ask(action: () => void, dirty: EditorDocument[]): void {
+  // An open effect's preview is not part of the document: end it before
+  // the prompt (effect-panel AC-17).
+  cancelActiveEffect();
   pending = { action, docs: dirty };
   const only = dirty.length === 1 ? dirty[0] : undefined;
   if (only) activateDocument(only);

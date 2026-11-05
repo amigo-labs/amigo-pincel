@@ -239,7 +239,8 @@ for (const mode of ['pixel', 'image'] as const) {
     await openInvert(page);
     await expect.poll(async () => (await centre(page, mode)).equals(filled)).toBe(false);
 
-    await menu(page, 'File', 'New…');
+    // Since document-tabs only closing a tab (or the app) asks.
+    await menu(page, 'File', 'Close');
     const prompt = page.getByRole('alertdialog');
     await expect(prompt).toBeVisible();
     await expect(invertPanel(page)).toHaveCount(0);
@@ -268,7 +269,8 @@ test('pixel: opening a file while an effect is open cancels the effect (AC-17)',
     page.waitForEvent('filechooser'),
     menu(page, 'File', 'Open…'),
   ]);
-  await expect(invertPanel(page)).toHaveCount(0);
+  // The file opens in a new tab (document-tabs); the effect ends with the
+  // tab it was open on.
   await chooser.setFiles({ name: 'red.png', mimeType: 'image/png', buffer: Buffer.from(png) });
   await expect(page.getByText(/opened red\.png/)).toBeVisible();
   await expect(invertPanel(page)).toHaveCount(0);

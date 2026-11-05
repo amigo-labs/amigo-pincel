@@ -47,6 +47,8 @@ function show(tab: PixelTab): void {
   toolState.stampTile = null;
   toolState.stampHover = null;
   dialogs.editingTile = null;
+  // An effect open on the tab being left ends with it (effect-panel AC-17).
+  dialogs.effect = null;
   tabs.active = tab;
   live.needsRecompose = true;
   syncMeta();
