@@ -157,6 +157,7 @@ No shared files with the groups above; pick by priority.
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
+- [performance-image-kernel](performance-image-kernel.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
