@@ -941,6 +941,107 @@ mod outline_tests {
 }
 
 #[cfg(test)]
+mod render_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    /// effects-render: the four render effects, Clouds and Turbulence
+    /// at a small scale with black / white.
+    const RENDERS: [(&str, &[f64]); 4] = [
+        ("clouds", &[3.0, 50.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("turbulence", &[3.0, 5.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("julia_fractal", &[4.0, 1.0, 0.0, 2.0]),
+        ("mandelbrot_fractal", &[1.0, 10.0, 0.0, 2.0, 0.0]),
+    ];
+
+    const W: u32 = 6;
+    const H: u32 = 4;
+
+    fn px(buf: &ImageBuffer, x: u32, y: u32) -> [u8; 4] {
+        let o = ((y * W + x) * 4) as usize;
+        let d = buf.data();
+        [d[o], d[o + 1], d[o + 2], d[o + 3]]
+    }
+
+    /// Two painted layers, a selection of columns 2..5 with (2, 0) half
+    /// selected.
+    fn layered() -> CommandBus {
+        let mut doc = Document::new(W, H).expect("doc");
+        doc.add_layer("top").expect("layer");
+        let mut bus = CommandBus::new(doc);
+        for (layer, v) in [(0, 90u8), (1, 200)] {
+            let data = (0..W * H).flat_map(|i| [v, i as u8 * 9, 40, 255]).collect();
+            let buf = ImageBuffer::from_raw(W, H, data).expect("buf");
+            bus.apply(Box::new(SetPixels::new(layer, Rect::new(0, 0, W, H), buf)))
+                .expect("paint");
+        }
+        let mut mask = SelectionMask::rectangle(W, H, Rect::new(2, 0, 3, H));
+        mask.set(2, 0, 128);
+        bus.document.selection = Some(mask);
+        bus
+    }
+
+    /// effects-render AC-09 in Image mode: only the selection changes
+    /// (fully selected pixels take the rendering exactly, a partly selected
+    /// one blends by its coverage), the other layer stays, one undo step
+    /// restores the target.
+    #[test]
+    fn apply_effect_render_changes_only_the_selection_in_one_undo_step() {
+        for (name, params) in RENDERS {
+            let bus = layered();
+            let before = bus.document.layers()[0].pixels.clone();
+            let other = bus.document.layers()[1].pixels.clone();
+            let src = EffectImage::from_rgba8(W, H, before.data().to_vec()).expect("img");
+            let full = ImageBuffer::from_raw(
+                W,
+                H,
+                EffectSpec::from_params(name, params)
+                    .expect(name)
+                    .run(&src)
+                    .into_raw(),
+            )
+            .expect("buf");
+            let depth = bus.history.undo_depth();
+            let handle = insert(bus);
+            assert!(apply_effect(handle, 0, name, params).expect(name), "{name}");
+            with_bus(handle, |bus| {
+                let after = &bus.document.layers()[0].pixels;
+                assert_eq!(bus.history.undo_depth(), depth + 1, "{name}: one undo step");
+                for y in 0..H {
+                    for x in 0..W {
+                        let (a, b, f) = (px(after, x, y), px(&before, x, y), px(&full, x, y));
+                        if !(2..5).contains(&x) {
+                            assert_eq!(a, b, "{name} ({x}, {y}) outside");
+                        } else if (x, y) == (2, 0) {
+                            for ch in 0..4 {
+                                let (lo, hi) = (b[ch].min(f[ch]), b[ch].max(f[ch]));
+                                assert!((lo..=hi).contains(&a[ch]), "{name} partial ch {ch}");
+                            }
+                        } else {
+                            assert_eq!(a, f, "{name} ({x}, {y}) selected");
+                        }
+                    }
+                }
+                assert_ne!(after, &before, "{name} changed nothing");
+                assert_eq!(
+                    bus.document.layers()[1].pixels,
+                    other,
+                    "{name}: other layer"
+                );
+                Ok(())
+            })
+            .expect("bus");
+            assert!(undo(handle).expect("undo"));
+            with_bus(handle, |bus| {
+                assert_eq!(bus.document.layers()[0].pixels, before, "{name}: undo");
+                Ok(())
+            })
+            .expect("bus");
+        }
+    }
+}
+
+#[cfg(test)]
 mod region_tests {
     use super::*;
 

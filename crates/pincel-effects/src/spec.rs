@@ -35,6 +35,7 @@ use crate::object::{DropShadow, Outline, OutlinePlace, OutlineShape};
 use crate::photo::{
     Glow, RedEyeRemoval, SoftenPortrait, Straighten, StraightenFill, Vignette, VignetteColor,
 };
+use crate::render::{Clouds, JuliaFractal, MandelbrotFractal, RenderBlend, Turbulence};
 use crate::sharpen::{Sharpen, UnsharpMask};
 use wire::{b, clamped, color, edge, expect_len, f, option, u};
 
@@ -254,6 +255,22 @@ pub enum EffectSpec {
     /// (the centre as fractions `0..=1`, `10..=400`, `0..=100`, `color`
     /// `0` = black, `1` = white).
     Vignette(Vignette),
+    /// `clouds`: `[scale, roughness, seed, color1, color2, blend]`
+    /// (`2..=1000`, `0..=100`, `0..=9999`, two `0xRRGGBBAA` slots, `blend`
+    /// `0` = normal, `1` = multiply, `2` = screen, `3` = overlay). The noise
+    /// sits in canvas coordinates: a host runs it with
+    /// [`EffectSpec::run_at`] for a buffer placed elsewhere.
+    Clouds(Clouds),
+    /// `turbulence`: `[scale, octaves, seed, color1, color2, blend]`
+    /// (`2..=1000`, `1..=8`, the rest as for `clouds`).
+    Turbulence(Turbulence),
+    /// `julia_fractal`: `[factor, zoom, angle_degrees, quality]` (`1..=10`,
+    /// `1..=50`, wrapped into `0..360`, `1..=5`).
+    JuliaFractal(JuliaFractal),
+    /// `mandelbrot_fractal`: `[factor, zoom, angle_degrees, quality,
+    /// invert]` (`1..=10`, `1..=100`, wrapped into `0..360`, `1..=5`,
+    /// `0` / `1`).
+    MandelbrotFractal(MandelbrotFractal),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -311,6 +328,10 @@ pub const EFFECT_NAMES: &[&str] = &[
     "soften_portrait",
     "straighten",
     "vignette",
+    "clouds",
+    "turbulence",
+    "julia_fractal",
+    "mandelbrot_fractal",
 ];
 
 impl EffectSpec {
@@ -698,6 +719,32 @@ impl EffectSpec {
                 };
                 Self::Vignette(Vignette::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), color))
             }
+            "clouds" => {
+                expect_len(name, p, 6)?;
+                let colors = (color(name, p, 3)?, color(name, p, 4)?);
+                let blend = RenderBlend::from_index(option(p[5], 3));
+                Self::Clouds(Clouds::new(f(p[0]), f(p[1]), f(p[2]), colors, blend))
+            }
+            "turbulence" => {
+                expect_len(name, p, 6)?;
+                let colors = (color(name, p, 3)?, color(name, p, 4)?);
+                let blend = RenderBlend::from_index(option(p[5], 3));
+                Self::Turbulence(Turbulence::new(f(p[0]), f(p[1]), f(p[2]), colors, blend))
+            }
+            "julia_fractal" => {
+                expect_len(name, p, 4)?;
+                Self::JuliaFractal(JuliaFractal::new(f(p[0]), f(p[1]), f(p[2]), f(p[3])))
+            }
+            "mandelbrot_fractal" => {
+                expect_len(name, p, 5)?;
+                Self::MandelbrotFractal(MandelbrotFractal::new(
+                    f(p[0]),
+                    f(p[1]),
+                    f(p[2]),
+                    f(p[3]),
+                    b(p[4]),
+                ))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -710,8 +757,9 @@ impl EffectSpec {
 
     /// Like [`EffectSpec::run_in`], for a buffer whose top-left pixel sits
     /// at canvas position `origin` (a trimmed Pixel-mode cel). Effects
-    /// anchored to the canvas grid (Pixelate) line up with it; every
-    /// other effect ignores `origin`.
+    /// anchored to the canvas grid (Pixelate) and noise in canvas
+    /// coordinates (Clouds, Turbulence) line up with it; every other
+    /// effect ignores `origin`.
     pub fn run_at(
         &self,
         src: &EffectImage,
@@ -720,6 +768,8 @@ impl EffectSpec {
     ) -> EffectImage {
         match self {
             Self::Pixelate(e) => e.with_origin(origin).apply(src),
+            Self::Clouds(e) => e.with_origin(origin).apply(src),
+            Self::Turbulence(e) => e.with_origin(origin).apply(src),
             other => other.run_in(src, in_target),
         }
     }
@@ -858,6 +908,10 @@ impl EffectSpec {
             Self::SoftenPortrait(e) => e.apply(src),
             Self::Straighten(e) => e.apply(src),
             Self::Vignette(e) => e.apply(src),
+            Self::Clouds(e) => e.apply(src),
+            Self::Turbulence(e) => e.apply(src),
+            Self::JuliaFractal(e) => e.apply(src),
+            Self::MandelbrotFractal(e) => e.apply(src),
         }
     }
 
@@ -917,6 +971,10 @@ impl EffectSpec {
             Self::SoftenPortrait(_) => "Soften Portrait",
             Self::Straighten(_) => "Straighten",
             Self::Vignette(_) => "Vignette",
+            Self::Clouds(_) => "Clouds",
+            Self::Turbulence(_) => "Turbulence",
+            Self::JuliaFractal(_) => "Julia Fractal",
+            Self::MandelbrotFractal(_) => "Mandelbrot Fractal",
         }
     }
 }
