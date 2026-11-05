@@ -36,11 +36,12 @@ async function breakWorker(page: Page): Promise<void> {
 }
 
 const EXPORTS = [
-  ['PNG', () => ['File', 'Export', 'PNG']],
-  ['WebP', () => ['File', 'Export', 'WebP (lossless)']],
+  ['PNG', 'PNG'],
+  ['WebP', 'WebP (lossless)'],
 ] as const;
 
-for (const [label, path] of EXPORTS) {
+for (const [label, item] of EXPORTS) {
+  const exportIt = (page: Page) => () => menu(page, 'File', 'Export', item);
   test(`${label} export from the worker is byte-identical to the main-thread encoding (AC-01, AC-09)`, async ({
     page,
   }) => {
@@ -51,7 +52,7 @@ for (const [label, path] of EXPORTS) {
     const workers: string[] = [];
     page.on('worker', (w) => workers.push(w.url()));
     await paintedDocument(page);
-    const fromWorker = await download(page, () => menu(page, ...path()));
+    const fromWorker = await download(page, exportIt(page));
     expect(workers.some((u) => /\/assets\/worker-/.test(u)), 'a job worker ran').toBe(true);
     expect(logged).toEqual([]);
     // With the worker unable to start, the job is retried once and then
@@ -60,7 +61,7 @@ for (const [label, path] of EXPORTS) {
     await page.reload();
     await page.evaluate(() => undefined);
     await paintedDocument(page);
-    const onMain = await download(page, () => menu(page, ...path()));
+    const onMain = await download(page, exportIt(page));
     expect(onMain.equals(fromWorker), 'same bytes').toBe(true);
     expect(logged.some((l) => l.includes('worker job failed twice'))).toBe(true);
     await expect(page.getByText(/failed/i)).toHaveCount(0);
