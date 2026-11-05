@@ -5,6 +5,7 @@ mod doc;
 mod draw;
 mod image;
 mod image_draw;
+mod layers;
 mod preview;
 mod structure;
 

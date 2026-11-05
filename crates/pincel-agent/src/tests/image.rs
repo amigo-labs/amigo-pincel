@@ -315,9 +315,6 @@ fn tools_of_the_other_mode_fail_naming_the_mode_and_change_nothing() {
             "doc.read_pixels",
             json!({ "region": region, "format": "index" }),
         ),
-        ("layer.add", json!({ "parent": 0 })),
-        ("layer.add", json!({ "kind": "group" })),
-        ("layer.set", json!({ "layer": 0, "parent": 0 })),
     ];
     for (name, args) in pixel_only {
         let before = state(&s, &img);

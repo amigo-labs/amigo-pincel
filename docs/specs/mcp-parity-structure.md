@@ -136,17 +136,17 @@ Today `layer.list` reports every layer of an Image document as `kind: "image", p
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
 | AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-03 | `layer_add_without_target_places_the_layer_like_the_editor` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-04 | `layer_add_with_target_and_place_puts_the_layer_there` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-05 | `layer_duplicate_copies_the_layer_directly_above_its_source` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-06 | `layer_move_equals_the_editors_move` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-07 | `layer_move_and_add_with_bad_placement_fail_naming_the_argument` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-08 | `layer_merge_down_equals_the_editors_merge_down` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-09 | `layer_merge_down_the_editor_refuses_fails_with_the_reason` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-10 | `layer_merge_visible_and_merge_group_equal_the_editors` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-11 | `layer_flatten_equals_the_editors_flatten` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-12 | `image_groups_are_listed_with_kind_and_parent` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-13 | `image_pixel_tools_on_a_group_fail_saying_it_is_a_group` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
 | AC-16 |      | open   |        |
@@ -161,8 +161,8 @@ Today `layer.list` reports every layer of an Image document as `kind: "image", p
 | AC-25 |      | open   |        |
 | AC-26 |      | open   |        |
 | AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
-| AC-29 |      | open   |        |
+| AC-28 | `layer_duplicate_of_a_pixel_group_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-29 | `merge_and_flatten_refuse_locked_layers_while_duplicate_and_move_work` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
 | AC-30 |      | open   |        |
 
 ## Decisions
@@ -171,3 +171,6 @@ Today `layer.list` reports every layer of an Image document as `kind: "image", p
 - 2026-11-05: `layer.add` without `target` follows the editor of the document's mode: Pixel on top, Image above the active layer. `target` + `place` give exact placement — owner's choice, because an agent should get the same result as a user doing the same thing. Only Image documents change behavior; before this spec they put the new layer on top.
 - 2026-11-05: One tool per verb (`layer.merge_down`, `layer.merge_visible`, `layer.merge_group`, `layer.flatten`) rather than one `layer.merge { mode }` tool — owner's choice, because small schemas are unambiguous for models.
 - 2026-11-05: The parity specs are built in parallel with `mcp-live-desktop` — owner's choice. Live mode runs the same `pincel-agent` code, so every new tool reaches it.
+- 2026-11-05 (spec-build): `layer.add` with `kind: "group"` and no `target` / `parent` on an Image document puts the group on top of the root stack, because that is where the editor's Add Group puts it (`AddGroup::on_top`); AC-03's "above the active layer" is the editor's rule for a new image layer.
+- 2026-11-05 (spec-build): `layer.move`, `layer.merge_visible` and `layer.flatten` report `changed` (whether an undo step was recorded), because AC-25 lets these calls succeed without changing the document and an agent should not have to diff `layer.list` to find out.
+- 2026-11-05 (spec-build): "No change" (AC-25) is decided by a dry run of the same commands on a copy of the document; for Image documents a change of the active layer alone does not count, because the active layer is selection state, not document content.

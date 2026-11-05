@@ -12,7 +12,7 @@ pub(crate) mod layer;
 use std::any::Any;
 use std::fmt;
 
-use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, layer_locked, run_command};
+use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
 use pincel_image_core::command::{Command, CommandBus, DEFAULT_UNDO_CAPACITY};
 use pincel_image_core::{Document, DocumentError};
 use serde_json::{Value, json};
@@ -219,23 +219,47 @@ impl ImageDoc {
             })
     }
 
+    /// The stack index of the layer with agent id `id`, naming the
+    /// argument `key` in the error (mcp-parity-structure AC-27).
+    pub fn layer_arg(&self, id: u32, key: &str) -> Result<usize, AgentError> {
+        self.layer_index(id).map_err(|_| {
+            AgentError::tool(format!(
+                "argument `{key}`: no layer with id {id}; layer.list shows the ids"
+            ))
+        })
+    }
+
     /// The layer an edit targets: the `layer` argument, else the active
-    /// layer. Refuses a locked layer.
+    /// layer. Refuses a group (it has no pixels) and a locked layer.
     pub fn target(&self, args: &Args) -> Result<usize, AgentError> {
         let index = match args.u32("layer")? {
-            Some(id) => self.layer_index(id)?,
+            Some(id) => self.layer_arg(id, "layer")?,
             None => self.bus.document.active_layer_index(),
         };
-        self.check_unlocked(index)?;
+        self.check_paintable(index)?;
         Ok(index)
     }
 
-    /// Refuse to edit a locked layer.
+    /// Refuse a pixel edit on a group (mcp-parity-structure AC-13) or on a
+    /// locked layer.
+    pub fn check_paintable(&self, index: usize) -> Result<(), AgentError> {
+        let doc = &self.bus.document;
+        if doc.layers().get(index).is_some_and(|l| l.is_group()) {
+            return Err(AgentError::tool(format!(
+                "layer {} ({:?}) is a group, which has no pixels; pass the id of an image layer inside it (layer.list)",
+                self.layer_id(index),
+                doc.layers()[index].name
+            )));
+        }
+        self.check_unlocked(index)
+    }
+
+    /// Refuse to edit a locked layer or a layer inside a locked group.
     pub fn check_unlocked(&self, index: usize) -> Result<(), AgentError> {
-        if layer_locked(&self.bus.document, index) {
+        if self.bus.document.effectively_locked(index) {
             let name = self.bus.document.layers()[index].name.as_str();
             return Err(AgentError::tool(format!(
-                "layer {} ({name:?}) is locked; unlock it with layer.set {{\"locked\": false}}",
+                "layer {} ({name:?}) is locked (or inside a locked group); unlock it with layer.set {{\"locked\": false}}",
                 self.layer_id(index)
             )));
         }
@@ -253,7 +277,7 @@ impl ImageDoc {
     /// recorded (an edit that misses the canvas records none).
     pub fn run(&mut self, spec: CommandSpec) -> Result<bool, AgentError> {
         if let Some(index) = spec.edited_layer() {
-            self.check_unlocked(index)?;
+            self.check_paintable(index)?;
         }
         let before = self.bus.history.undo_depth();
         run_command(&mut self.bus, spec, &mut self.scratch, &[FONT]).map_err(core_err)?;
@@ -270,6 +294,30 @@ impl ImageDoc {
         let before = self.bus.history.undo_depth();
         self.bus.apply(cmd).map_err(core_err)?;
         Ok(self.recorded(before))
+    }
+
+    /// Apply the commands `build` makes as one undo step, but only when
+    /// they change the document: a dry run on a copy decides, so a call
+    /// that changes nothing records no undo step (mcp-parity-structure
+    /// AC-25). A change of the active layer alone does not count. Returns
+    /// whether a step was recorded; a failing command changes nothing.
+    pub fn apply_if_changed(
+        &mut self,
+        build: impl Fn() -> Vec<Box<dyn Command>>,
+    ) -> Result<bool, AgentError> {
+        let mut copy = self.bus.document.clone();
+        let mut cmd = Batch(build());
+        cmd.apply(&mut copy).map_err(core_err)?;
+        let mut before = self.bus.document.clone();
+        before
+            .set_active_layer(0)
+            .expect("a document has at least one layer");
+        copy.set_active_layer(0)
+            .expect("a document has at least one layer");
+        if copy == before {
+            return Ok(false);
+        }
+        self.apply(build())
     }
 
     fn recorded(&mut self, before: usize) -> bool {
@@ -291,13 +339,14 @@ impl ImageDoc {
             .selection
             .as_ref()
             .and_then(|s| s.bounding_box())
-            .map(|r| json!({ "x": r.x, "y": r.y, "width": r.w, "height": r.h }));
+            .map(|r| json!({ "x": r.x, "y": r.y, "w": r.w, "h": r.h }));
         json!({
             "doc": id,
             "mode": "image",
             "width": self.width(),
             "height": self.height(),
             "layers": doc.layer_count(),
+            "color_mode": "rgba",
             "active_layer": self.layer_id(doc.active_layer_index()),
             "selection": selection,
             "dirty": self.dirty,

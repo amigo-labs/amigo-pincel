@@ -8,8 +8,9 @@ use pincel_core::{
 };
 use serde_json::{Value, json};
 
+use super::layer_ops::{check_placement, place_core};
 use super::{int, tool_schema};
-use crate::args::{Args, hex, parse_hex};
+use crate::args::{Args, hex, parse_hex, placement, placement_props};
 use crate::workspace::Doc;
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
@@ -32,7 +33,7 @@ fn kind_name(kind: &LayerKind) -> &'static str {
     }
 }
 
-fn layers_json(sprite: &Sprite) -> Value {
+pub(super) fn layers_json(sprite: &Sprite) -> Value {
     let layers: Vec<Value> = sprite
         .layers
         .iter()
@@ -85,12 +86,13 @@ fn palette_json(palette: &Palette) -> Value {
     json!({ "size": entries.len(), "entries": entries })
 }
 
-/// The `layer` argument as an existing layer id.
-fn layer_arg(doc: &Doc, args: &Args, key: &str) -> Result<LayerId, AgentError> {
+/// The argument `key` as an existing layer id; the error names the
+/// argument and its value (mcp-parity-structure AC-27).
+pub(super) fn layer_arg(doc: &Doc, args: &Args, key: &str) -> Result<LayerId, AgentError> {
     let id = LayerId::new(args.req_u32(key)?);
     doc.sprite.layer(id).map(|_| id).ok_or_else(|| {
         AgentError::tool(format!(
-            "no layer with id {}; layer.list shows the ids",
+            "argument `{key}`: no layer with id {}; layer.list shows the ids",
             id.0
         ))
     })
@@ -105,10 +107,13 @@ fn group_arg(doc: &Doc, args: &Args) -> Result<Option<LayerId>, AgentError> {
     match doc.sprite.layer(id).map(|l| &l.kind) {
         Some(LayerKind::Group) => Ok(Some(id)),
         Some(_) => Err(AgentError::tool(format!(
-            "parent {} is not a group layer",
+            "argument `parent`: layer {} is not a group layer",
             id.0
         ))),
-        None => Err(AgentError::tool(format!("no layer with id {}", id.0))),
+        None => Err(AgentError::tool(format!(
+            "argument `parent`: no layer with id {}",
+            id.0
+        ))),
     }
 }
 
@@ -140,9 +145,12 @@ pub(super) const LAYER_LIST: Tool = Tool {
 
 pub(super) const LAYER_ADD: Tool = Tool {
     name: "layer.add",
-    description: "Add a layer on top of the stack (or as the top child of the group `parent`) and make it the active layer. Returns its id.",
+    description: "Add a layer and make it the active layer; returns its id. Without `target` it goes where the editor puts a new layer: Pixel documents on top of the stack (or as the top child of the group `parent`), Image documents directly above the active layer in its group (a group on top of the stack). `target` + `place` put it above / below the layer `target` or into the group `target`.",
     schema: || {
         let mut props = layer_props();
+        if let (Some(p), Value::Object(extra)) = (props.as_object_mut(), placement_props()) {
+            p.extend(extra);
+        }
         props["kind"] = json!({ "type": "string", "enum": ["image", "group"], "description": "Layer kind; default image" });
         tool_schema(props, &[])
     },
@@ -182,10 +190,24 @@ fn layer_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     if let Some(locked) = args.bool("locked") {
         layer.editable = !locked;
     }
+    let placement = placement(args)?;
+    if placement.is_some() && args.get("parent").is_some() {
+        return Err(AgentError::tool(
+            "arguments `parent` and `target` exclude each other; use `target` with `place: \"into\"`",
+        ));
+    }
     let parent = group_arg(doc, args)?;
+    let target = match placement {
+        Some((_, place)) => {
+            let target = layer_arg(doc, args, "target")?;
+            check_placement(doc, None, target, place)?;
+            Some((target, place_core(place)))
+        }
+        None => parent.map(|p| (p, LayerPlacement::Into)),
+    };
     let mut cmds: Vec<AnyCommand> = vec![AddLayer::on_top(layer).into()];
-    if let Some(p) = parent {
-        cmds.push(MoveLayerTo::new(lid, p, LayerPlacement::Into).into());
+    if let Some((t, place)) = target {
+        cmds.push(MoveLayerTo::new(lid, t, place).into());
     }
     doc.commit(cmds)?;
     doc.active_layer = Some(lid);

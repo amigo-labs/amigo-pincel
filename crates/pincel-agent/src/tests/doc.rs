@@ -65,6 +65,13 @@ const EXPECTED_TOOLS: &[&str] = &[
     "image.rotate",
     "export.jpeg",
     "export.webp",
+    // mcp-parity-structure
+    "layer.duplicate",
+    "layer.move",
+    "layer.merge_down",
+    "layer.merge_visible",
+    "layer.merge_group",
+    "layer.flatten",
 ];
 
 /// One valid example call per tool.
@@ -81,7 +88,10 @@ fn example(name: &str) -> Value {
             json!({ "columns": 4, "path": "s.png", "tag": "walk", "scale": 2, "json": "s.json" })
         }
         "layer.add" => json!({ "name": "Outline", "kind": "image", "parent": 1 }),
-        "layer.remove" => json!({ "layer": 1 }),
+        "layer.remove" | "layer.duplicate" | "layer.merge_down" | "layer.merge_group" => {
+            json!({ "layer": 1 })
+        }
+        "layer.move" => json!({ "layer": 1, "target": 0, "place": "into" }),
         "layer.set" => {
             json!({ "layer": 0, "name": "A", "visible": false, "opacity": 128, "blend": "multiply", "locked": true })
         }

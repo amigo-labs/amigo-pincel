@@ -160,6 +160,53 @@ pub(crate) fn parse_region(v: &Value) -> Result<Rect, AgentError> {
     Ok(Rect::new(x, y, w, h))
 }
 
+/// Where `layer.add` / `layer.move` put a layer relative to `target`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Place {
+    /// Directly above the target (above a group's whole subtree), as its
+    /// sibling.
+    Above,
+    /// Directly below the target, as its sibling.
+    Below,
+    /// The target group's top child.
+    Into,
+}
+
+/// Schema of the `target` / `place` argument pair.
+pub(crate) fn placement_props() -> Value {
+    json!({
+        "target": { "type": "integer", "minimum": 0, "description": "Layer id (layer.list) the layer is placed relative to; needs `place`" },
+        "place": { "type": "string", "enum": ["above", "below", "into"], "description": "above / below `target` as its sibling, or into the group `target` as its top child; needs `target`" },
+    })
+}
+
+/// The `target` + `place` pair: both or neither (mcp-parity-structure
+/// AC-07).
+pub(crate) fn placement(args: &Args) -> Result<Option<(u32, Place)>, AgentError> {
+    let target = args.u32("target")?;
+    let place = match args.str("place") {
+        None => None,
+        Some("above") => Some(Place::Above),
+        Some("below") => Some(Place::Below),
+        Some("into") => Some(Place::Into),
+        Some(other) => {
+            return Err(AgentError::tool(format!(
+                "argument `place`: unknown placement {other:?} (above, below, into)"
+            )));
+        }
+    };
+    match (target, place) {
+        (Some(t), Some(p)) => Ok(Some((t, p))),
+        (None, None) => Ok(None),
+        (Some(_), None) => Err(AgentError::tool(
+            "argument `target` needs `place` (above, below or into)",
+        )),
+        (None, Some(_)) => Err(AgentError::tool(
+            "argument `place` needs `target` (the layer id to place relative to)",
+        )),
+    }
+}
+
 /// `true` when `r` lies completely inside a `w`×`h` canvas.
 pub(crate) fn inside_canvas(r: Rect, w: u32, h: u32) -> bool {
     r.x >= 0

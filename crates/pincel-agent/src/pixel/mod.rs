@@ -4,6 +4,7 @@
 mod doc;
 mod draw;
 pub(crate) mod effects;
+mod layer_ops;
 mod structure;
 
 pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
@@ -32,6 +33,12 @@ pub(crate) static TOOLS: &[Tool] = &[
     structure::LAYER_REMOVE,
     structure::LAYER_LIST,
     structure::LAYER_SET,
+    layer_ops::LAYER_DUPLICATE,
+    layer_ops::LAYER_MOVE,
+    layer_ops::LAYER_MERGE_DOWN,
+    layer_ops::LAYER_MERGE_VISIBLE,
+    layer_ops::LAYER_MERGE_GROUP,
+    layer_ops::LAYER_FLATTEN,
     structure::FRAME_ADD,
     structure::FRAME_REMOVE,
     structure::FRAME_SET_DURATION,
