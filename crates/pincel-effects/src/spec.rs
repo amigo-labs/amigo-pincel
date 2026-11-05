@@ -289,7 +289,6 @@ pub const EFFECT_NAMES: &[&str] = &[
     "relief",
     "add_noise",
     "reduce_noise",
-    "outline",
     "brightness_contrast",
     "hue_saturation",
     "curves",

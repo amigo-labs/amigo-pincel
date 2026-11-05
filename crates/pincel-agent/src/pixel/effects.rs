@@ -750,23 +750,6 @@ mod tests {
     }
 
     #[test]
-    fn wire_params_outline_takes_a_hex_colour_in_one_slot() {
-        let w = wire_params(
-            "outline",
-            &map(json!({ "place": "both", "thickness": 3, "color": "#10203040" })),
-        )
-        .expect("ok");
-        assert_eq!(w, vec![2.0, 1.0, 3.0, f64::from(0x1020_3040u32)]);
-        let opaque = wire_params("outline", &map(json!({ "color": "#ff0000" }))).expect("ok");
-        assert_eq!(opaque[3], f64::from(0xFF00_00FFu32));
-        let err = wire_params("outline", &map(json!({ "color": "red" }))).unwrap_err();
-        assert_eq!(
-            err,
-            AgentError::tool("parameter `color` of `outline` must be \"#RRGGBB\" or \"#RRGGBBAA\"")
-        );
-    }
-
-    #[test]
     fn wire_params_choice_accepts_name_or_index() {
         let a = wire_params("radial_blur", &map(json!({ "kind": "zoom" }))).expect("ok");
         let b = wire_params("radial_blur", &map(json!({ "kind": 1 }))).expect("ok");
