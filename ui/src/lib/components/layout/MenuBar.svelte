@@ -142,6 +142,7 @@
           disabled={item.disabled}
           onclick={() => (expanded[item.label] = !(expanded[item.label] ?? false))}
         >
+          <span class="w-4 shrink-0" aria-hidden="true"></span>
           <span class="flex-1">{item.label}</span>
           <Icon name={expanded[item.label] ? 'chevron-down' : 'chevron-right'} size={14} />
         </button>
@@ -162,6 +163,7 @@
             if (e.pointerType === 'mouse') openSub(item.label, e);
           }}
         >
+          <span class="w-4 shrink-0" aria-hidden="true"></span>
           <span class="flex-1">{item.label}</span>
           <Icon name="chevron-right" size={14} />
         </button>
@@ -296,10 +298,12 @@
   }
   .menu-row {
     display: flex;
-    width: 100%;
+    width: calc(100% - 0.5rem);
+    margin: 0 0.25rem;
     align-items: center;
     gap: 0.25rem;
-    padding: 0.3rem 0.75rem 0.3rem 0.5rem;
+    border-radius: 0.25rem;
+    padding: 0.375rem 0.5rem 0.375rem 0.25rem;
     text-align: left;
     white-space: nowrap;
   }
@@ -309,6 +313,6 @@
     outline: none;
   }
   .menu-row:disabled {
-    opacity: 0.4;
+    opacity: 0.45;
   }
 </style>

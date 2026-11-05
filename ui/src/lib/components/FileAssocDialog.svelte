@@ -21,7 +21,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-4"
+  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
   role="dialog"
   aria-modal="true"
   aria-labelledby="fileassoc-title"
@@ -54,7 +54,7 @@
       {t('fileAssoc.dontShow')}
     </label>
     <div class="flex justify-end">
-      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
+      <button class="panel-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
     </div>
   </div>
 </div>

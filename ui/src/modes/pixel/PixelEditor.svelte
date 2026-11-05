@@ -1285,7 +1285,7 @@
           <option value={8}>{t('opt.bayer8')}</option>
         </select>
       </label>
-      <span class="opt text-pc-faint">{t('px.gradientHint')}</span>
+      <span class="opt opt-hint">{t('px.gradientHint')}</span>
     {:else if isShapeTool(toolState.tool)}
       <label class="opt">
         {t('opt.stroke')}
@@ -1333,11 +1333,11 @@
         </label>
       {/if}
       {#if toolState.shapeMode !== 'outline'}
-        <span class="opt text-pc-faint">{t('px.fillsBg')}</span>
+        <span class="opt opt-hint">{t('px.fillsBg')}</span>
       {/if}
     {:else if isBrushTool(toolState.tool)}
       <BrushOptions />
-      <label class="opt">
+      <label class="opt opt-divided">
         {t('opt.symmetry')}
         <select bind:value={toolState.symmetry} class="opt-field" aria-label={t('opt.symmetry')}>
           <option value="none">{t('opt.symmetryNone')}</option>
@@ -1347,7 +1347,7 @@
         </select>
       </label>
       {#if toolState.tool === 'pencil'}
-        <label class="opt">
+        <label class="opt opt-divided">
           {t('opt.ink')}
           <select bind:value={toolState.pencilInk} class="opt-field" aria-label={t('px.pencilInk')}>
             <option value="simple">{t('opt.inkSimple')}</option>
@@ -1355,7 +1355,7 @@
           </select>
         </label>
         {#if toolState.pencilInk === 'shading'}
-          <span class="opt text-pc-faint" data-testid="shading-ramp">
+          <span class="opt opt-hint" data-testid="shading-ramp">
             {colors.rampRange
               ? t('px.shadingRange', { from: colors.rampRange.from, to: colors.rampRange.to })
               : t('px.shadingWholePalette')}
@@ -1363,12 +1363,12 @@
         {/if}
       {/if}
       {#if BG_TOOLS.has(toolState.tool)}
-        <span class="opt text-pc-faint">{t('px.rightBg')}</span>
+        <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}
     {:else}
-      <span class="opt text-pc-faint">{toolLabel}</span>
+      <span class="opt opt-hint">{toolLabel}</span>
       {#if BG_TOOLS.has(toolState.tool)}
-        <span class="opt text-pc-faint">{t('px.rightBg')}</span>
+        <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}
     {/if}
   {/snippet}

@@ -43,7 +43,7 @@
     <option value="round">{t('opt.round')}</option>
   </select>
 </label>
-<label class="opt">
+<label class="opt opt-divided">
   <input
     type="checkbox"
     bind:checked={toolState.pixelPerfect}
@@ -52,7 +52,7 @@
   />
   {t('opt.pixelPerfect')}
 </label>
-<span class="opt" role="group" aria-label={t('pressure.label')} title={t('pressure.hint')}>
+<span class="opt opt-divided" role="group" aria-label={t('pressure.label')} title={t('pressure.hint')}>
   <span class="text-pc-muted">{t('pressure.label')}</span>
   <label class="flex items-center gap-1">
     <input type="checkbox" bind:checked={toolState.pressureSize} />

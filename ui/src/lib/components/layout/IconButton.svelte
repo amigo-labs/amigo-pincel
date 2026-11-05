@@ -20,7 +20,7 @@
 
 <button
   type="button"
-  class="flex shrink-0 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-35 disabled:hover:bg-transparent"
+  class="icon-btn flex shrink-0 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
   class:h-8={size === 'md'}
   class:w-8={size === 'md'}
   class:h-6={size === 'sm'}

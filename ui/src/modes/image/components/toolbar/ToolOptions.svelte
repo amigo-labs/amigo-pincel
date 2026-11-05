@@ -49,7 +49,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.shape')}</span>
-      <select bind:value={tool.shape} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.shape} class="opt-field">
         <option value="hard_round">{t('opt.hardRound')}</option>
         <option value="soft_round">{t('opt.softRound')}</option>
         <option value="flat">{t('opt.flat')}</option>
@@ -72,7 +72,7 @@
       </label>
     {/if}
 
-    <span class="flex items-center gap-3" title={t('pressure.hint')}>
+    <span class="opt opt-divided" title={t('pressure.hint')}>
       <span class="text-pc-muted">{t('pressure.label')}</span>
       <label class="flex items-center gap-1">
         <input type="checkbox" bind:checked={tool.pressureSize} />
@@ -93,7 +93,7 @@
     {#if tool.kind === 'eraser'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.mode')}</span>
-        <select bind:value={tool.eraserMode} class="rounded bg-pc-raised px-2 py-1">
+        <select bind:value={tool.eraserMode} class="opt-field">
           <option value="to_transparent">{t('opt.toTransparent')}</option>
           <option value="to_background">{t('opt.toBackground')}</option>
         </select>
@@ -132,7 +132,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.sample')}</span>
-      <select bind:value={tool.fillSample} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.fillSample} class="opt-field">
         <option value="current_layer">{t('opt.currentLayer')}</option>
         <option value="all_layers">{t('opt.allLayers')}</option>
       </select>
@@ -140,7 +140,7 @@
   {:else if tool.kind === 'eyedropper'}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.sample')}</span>
-      <select bind:value={tool.eyedropperSample} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.eyedropperSample} class="opt-field">
         <option value="current_layer">{t('opt.currentLayer')}</option>
         <option value="all_layers">{t('opt.composite')}</option>
       </select>
@@ -148,7 +148,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
-      <select bind:value={tool.sampleSize} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.sampleSize} class="opt-field">
         <option value={1}>1×1</option>
         <option value={3}>3×3</option>
         <option value={5}>5×5</option>
@@ -177,7 +177,7 @@
     </label>
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.sample')}</span>
-      <select bind:value={tool.wandSample} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.wandSample} class="opt-field">
         <option value="current_layer">{t('opt.currentLayer')}</option>
         <option value="all_layers">{t('opt.allLayers')}</option>
       </select>
@@ -185,7 +185,7 @@
   {:else if tool.kind === 'gradient'}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.gradientKind')}</span>
-      <select bind:value={tool.gradientKind} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.gradientKind} class="opt-field">
         <option value="linear">{t('opt.gradientLinear')}</option>
         <option value="reflected">{t('opt.gradientReflected')}</option>
         <option value="radial">{t('opt.gradientRadial')}</option>
@@ -196,7 +196,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.gradientChannel')}</span>
-      <select bind:value={tool.gradientChannel} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.gradientChannel} class="opt-field">
         <option value="color">{t('opt.gradientColor')}</option>
         <option value="transparency">{t('opt.gradientTransparency')}</option>
       </select>
@@ -212,7 +212,7 @@
     {#if tool.kind !== 'line'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.mode')}</span>
-        <select bind:value={tool.shapeMode} class="rounded bg-pc-raised px-2 py-1">
+        <select bind:value={tool.shapeMode} class="opt-field">
           <option value="outline">{t('opt.outline')}</option>
           <option value="fill">{t('opt.fillShape')}</option>
           <option value="fill_and_outline">{t('opt.fillOutline')}</option>
@@ -228,7 +228,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.dash')}</span>
-      <select bind:value={tool.shapeDash} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.shapeDash} class="opt-field">
         <option value="solid">{t('opt.solid')}</option>
         <option value="dashed">{t('opt.dashed')}</option>
         <option value="dotted">{t('opt.dotted')}</option>
@@ -281,7 +281,7 @@
 
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.align')}</span>
-      <select bind:value={tool.textAlign} class="rounded bg-pc-raised px-2 py-1">
+      <select bind:value={tool.textAlign} class="opt-field">
         <option value="left">{t('opt.left')}</option>
         <option value="center">{t('opt.center')}</option>
         <option value="right">{t('opt.right')}</option>

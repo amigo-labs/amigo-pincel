@@ -26,7 +26,7 @@
     {#each group.tools as tool (tool.id)}
       <button
         type="button"
-        class="flex h-7 w-7 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-35"
+        class="flex h-7 w-7 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45"
         class:variant-on={tool.id === active}
         role="radio"
         aria-checked={tool.id === active}
