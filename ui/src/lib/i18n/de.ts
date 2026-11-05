@@ -571,6 +571,7 @@ export const de: Record<MessageKey, string> = {
   'effectDlg.picking': 'Auf die Leinwand klicken, um {label} zu setzen',
   'effectDlg.reseed': 'Neu würfeln',
   'effectDlg.link': '{a} und {b} verknüpfen',
+  'effectDlg.move': 'Dialog verschieben',
   'effectDlg.reset': 'Zurücksetzen',
   'effectDlg.hex': '{label} als Hex',
   'effectDlg.hexInvalid': '#RRGGBB oder #RRGGBBAA verwenden',

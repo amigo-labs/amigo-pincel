@@ -565,6 +565,7 @@ export const en = {
   'effectDlg.picking': 'Click the canvas to set the {label}',
   'effectDlg.reseed': 'Reseed',
   'effectDlg.link': 'Link {a} and {b}',
+  'effectDlg.move': 'Move dialog',
   'effectDlg.reset': 'Reset',
   'effectDlg.hex': '{label} hex',
   'effectDlg.hexInvalid': 'Use #RRGGBB or #RRGGBBAA',

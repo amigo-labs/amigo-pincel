@@ -8,9 +8,11 @@
   import AngleDial from './AngleDial.svelte';
   import EffectColorField from './EffectColorField.svelte';
   import IconButton from './layout/IconButton.svelte';
+  import { effectHost } from './layout/effect-host';
 
-  // Docked panel for one open effect / adjustment (effect-panel spec); the
-  // editor frame shows it on top of the sidebar, drawer or bottom sheet.
+  // Modal dialog for one open effect / adjustment (effect-panel spec); the
+  // editor frame floats it over the canvas area, or docks it to the bottom
+  // edge on phones, and moves it by its title bar (`effectHost`).
   // Purely presentational: the parent owns the wasm `Document`, runs
   // `previewEffect` on every `onPreview(params)`, restores the
   // un-previewed composite on `onPreview(null)` (Preview off) and commits
@@ -41,6 +43,12 @@
   const params = $derived(toParams(def, values));
   const uid = $props.id();
 
+  const host = effectHost();
+  const floating = $derived(host?.floating ?? true);
+  // Without a hosting frame the title bar is a plain header.
+  const titleBar = host?.titleBar ?? (() => {});
+
+  let root: HTMLElement;
   let body: HTMLElement;
   let okButton: HTMLButtonElement;
 
@@ -138,6 +146,26 @@
     return target instanceof Element && target.closest(OWNS_ENTER) !== null;
   }
 
+  const TABBABLE =
+    'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex="0"]';
+
+  // A modal dialog (AC-21): Tab and Shift+Tab move among the panel's own
+  // controls, title bar included, and wrap at the ends — from anywhere,
+  // since the rest of the UI is inert.
+  function onTab(e: KeyboardEvent) {
+    if (e.key !== 'Tab' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    const stops = Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter(
+      (el) => el.getClientRects().length > 0,
+    );
+    if (stops.length === 0) return;
+    e.preventDefault();
+    const at = stops.indexOf(document.activeElement as HTMLElement);
+    const step = e.shiftKey ? -1 : 1;
+    const next =
+      at === -1 ? (e.shiftKey ? stops.length - 1 : 0) : (at + step + stops.length) % stops.length;
+    stops[next]?.focus();
+  }
+
   function onKeydown(e: KeyboardEvent) {
     // Taken by another handler already (an open menu closes on Escape).
     if (e.defaultPrevented) return;
@@ -157,22 +185,35 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onkeydowncapture={onTab} />
 
 <div
-  class="flex flex-col text-sm text-pc-text"
+  bind:this={root}
+  class={[
+    'flex min-h-0 flex-col border-pc-border bg-pc-panel text-sm text-pc-text',
+    floating
+      ? 'rounded-lg border shadow-[0_8px_30px_rgb(0_0_0/0.5)]'
+      : 'rounded-t-lg border-t shadow-[0_-8px_30px_rgb(0_0_0/0.5)]',
+  ]}
   role="dialog"
-  aria-modal="false"
+  aria-modal="true"
   aria-labelledby="{uid}-title"
 >
   <form
-    class="flex flex-col gap-3 px-3 pt-1 pb-3"
+    class="flex min-h-0 flex-col"
     onsubmit={(e) => {
       e.preventDefault();
       onApply(params);
     }}
   >
-    <header class="flex h-8 items-center gap-2">
+    <!-- Title bar: drags the panel, arrow keys move it (AC-18, AC-20). -->
+    <div
+      class="flex h-9 shrink-0 touch-none items-center gap-2 rounded-t-lg px-3 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pc-accent"
+      class:cursor-move={floating}
+      role="group"
+      aria-label={t('effectDlg.move')}
+      {@attach titleBar}
+    >
       <h2 id="{uid}-title" class="min-w-0 flex-1 truncate text-sm font-semibold">
         {effectLabel(def)}
       </h2>
@@ -180,9 +221,11 @@
         {hasSelection ? t('effectDlg.selection') : t('effectDlg.wholeLayer')}
       </span>
       <IconButton icon="close" label={t('common.close')} size="sm" onclick={onCancel} />
-    </header>
+    </div>
 
-    <div class="flex flex-col gap-3" bind:this={body}>
+    <!-- The controls scroll when the panel does not fit; title bar and
+         buttons stay in view. -->
+    <div class="flex min-h-0 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-1" bind:this={body}>
       {#if def.params.length === 0}
         <p class="text-xs text-pc-muted">{t('effectDlg.noParams')}</p>
       {/if}
@@ -346,7 +389,7 @@
       {/each}
     </div>
 
-    <footer class="mt-1 flex items-center justify-between gap-2">
+    <footer class="flex shrink-0 items-center justify-between gap-2 px-3 pt-2 pb-3">
       <label class="flex items-center gap-1 text-xs text-pc-muted">
         <input type="checkbox" bind:checked={session.preview} />
         <span>{t('effectDlg.preview')}</span>
