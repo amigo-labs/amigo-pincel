@@ -8,7 +8,9 @@ use pincel_image_core::codec::{
 use pincel_image_core::{Document, ImageBuffer, Rect, compose, compose_region};
 use serde_json::{Value, json};
 
-use super::{ImageDoc, MAX_SIDE, check_size, core_err};
+use pincel_image_core::codec::psd::{PsdFallback, PsdLimits, PsdNotice, from_psd_bytes};
+
+use super::{ImageDoc, MAX_AREA, MAX_SIDE, check_size, core_err};
 use crate::args::{Args, hex, inside_canvas, parse_region};
 use crate::pixel::{
     EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, tool_schema, with_id,
@@ -70,11 +72,73 @@ pub(crate) fn new_doc(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agen
     Ok(ToolOutput::json(with_id(info, &id)))
 }
 
-/// `doc.open` of an `.ora` project or a flat image (PNG, JPEG, WebP, BMP,
-/// GIF, TIFF), decoded as the editor's Open does.
+/// The detected format of a file's content, for error messages.
+pub(crate) fn detected_format(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(b"PK\x03\x04") {
+        "OpenRaster"
+    } else {
+        match flat_format(bytes) {
+            "image" => "unknown",
+            f => f,
+        }
+    }
+}
+
+/// One English line per item the editor's PSD open notice lists
+/// (mcp-parity-export AC-21).
+fn psd_notice(n: &PsdNotice) -> String {
+    match n {
+        PsdNotice::Fallback { reason } => {
+            let why = match reason {
+                PsdFallback::NoLayers => "the file has no layers",
+                PsdFallback::Compressed => "the layers are ZIP-compressed",
+                PsdFallback::Unreadable => "the layer section cannot be read",
+                PsdFallback::Unrepresentable => "no layer can be represented",
+            };
+            format!("opened as one flattened layer: {why}")
+        }
+        PsdNotice::Adjustment { layer } => format!("adjustment or fill layer {layer:?} left out"),
+        PsdNotice::Text { layer } => format!("text layer {layer:?} opened as pixels"),
+        PsdNotice::SmartObject { layer } => format!("smart object {layer:?} opened as pixels"),
+        PsdNotice::Effects { layer } => format!("layer effects of {layer:?} left out"),
+        PsdNotice::Mask { layer } => format!("mask of {layer:?} left out"),
+        PsdNotice::Clipping { layer } => format!("clipping mask of {layer:?} left out"),
+        PsdNotice::Blend { layer, key } => {
+            format!("blend mode {key:?} of {layer:?} opened as Normal")
+        }
+        PsdNotice::PassThrough { group } => {
+            format!("pass-through group {group:?} opened as an isolated Normal group")
+        }
+    }
+}
+
+/// `true` when the content is a PSD, or (content unknown) the name ends
+/// in `.psd`, as the editor recognizes it.
+fn is_psd(path: &str, bytes: &[u8]) -> bool {
+    bytes.starts_with(b"8BPS")
+        || (flat_format(bytes) == "image"
+            && !bytes.starts_with(b"PK\x03\x04")
+            && path.to_ascii_lowercase().ends_with(".psd"))
+}
+
+/// `doc.open` of an `.ora` project, a PSD or a flat image (PNG, JPEG,
+/// WebP, BMP, GIF, TIFF), decoded as the editor's Open does.
 pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentError> {
     let fail = |e: String| AgentError::tool(format!("cannot open `{path}`: {e}"));
     let bytes = ctx.host.read(path).map_err(fail)?;
+    if is_psd(path, &bytes) {
+        let limits = PsdLimits {
+            max_dim: MAX_SIDE,
+            max_area: MAX_AREA,
+        };
+        let import = from_psd_bytes(&bytes, limits).map_err(|e| fail(e.to_string()))?;
+        let notices: Vec<String> = import.notices.iter().map(psd_notice).collect();
+        let doc = ImageDoc::new(import.document, None, Some((path.to_owned(), "PSD")));
+        let mut info = doc.info("");
+        let id = ctx.ws.insert_image(doc);
+        info["notices"] = json!(notices);
+        return Ok(ToolOutput::json(with_id(info, &id)));
+    }
     let doc = if is_ora(path, &bytes) {
         let document = from_ora_bytes(&bytes).map_err(|e| fail(e.to_string()))?;
         check_size(document.canvas.width(), document.canvas.height())

@@ -179,15 +179,15 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-18 | `jpeg_quality_is_remembered_per_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-19 | `unwritable_formats_are_refused_listing_the_extensions` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-20 | `export_bmp_and_tiff_write_the_composite_and_leave_the_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
+| AC-21 | `doc_open_of_a_psd_opens_the_editors_layers_and_notices` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-22 | `doc_open_of_a_bad_psd_names_the_file_and_reason` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-23 | `doc_open_mode_pixel_opens_a_png_as_the_pixel_editor_does` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-24 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-25 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-26 |      | open   |        |
 | AC-27 |      | open   |        |
 | AC-28 | `bad_save_arguments_name_the_argument` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
-| AC-29 |      | open   |        |
+| AC-29 | `doc_open_mode_pixel_of_a_corrupt_png_names_the_file` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 
 ## Decisions
 

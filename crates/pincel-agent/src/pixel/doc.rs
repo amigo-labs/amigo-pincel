@@ -89,10 +89,13 @@ pub(crate) fn with_id(mut info: Value, id: &str) -> Value {
 
 pub(super) const OPEN: Tool = Tool {
     name: "doc.open",
-    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer).",
+    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects, Photoshop .psd files and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer; a PSD result lists `notices` of what was left out). `mode: \"pixel\"` opens a PNG as a Pixel document instead (one layer, no file of its own).",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative path of an .aseprite, .ora, PNG, JPEG, WebP, BMP, GIF or TIFF file") }),
+            json!({
+                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF or TIFF file"),
+                "mode": { "type": "string", "description": "pixel (a PNG opens as a Pixel document) or image; default: the file decides" },
+            }),
             &["path"],
         )
     },
@@ -101,8 +104,27 @@ pub(super) const OPEN: Tool = Tool {
 
 fn doc_open(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let path = args.req_str("path")?;
-    if !is_aseprite(path) {
-        return crate::image::doc::open(ctx, path);
+    match (args.str("mode"), is_aseprite(path)) {
+        (None, false) | (Some("image"), false) => return crate::image::doc::open(ctx, path),
+        (Some("image"), true) => {
+            return Err(AgentError::tool(format!(
+                "cannot open `{path}` with mode \"image\": it is an Aseprite file (detected format: Aseprite), which opens as a Pixel document"
+            )));
+        }
+        (Some("pixel"), false) => return open_png_as_pixel(ctx, path),
+        (Some(other), aseprite) if other != "pixel" && other != "image" => {
+            let detected = if aseprite {
+                "Aseprite"
+            } else {
+                ctx.host
+                    .read(path)
+                    .map_or("unknown", |b| crate::image::doc::detected_format(&b))
+            };
+            return Err(AgentError::tool(format!(
+                "argument `mode`: unknown mode {other:?} (pixel, image); `{path}` is {detected}"
+            )));
+        }
+        _ => {}
     }
     let bytes = ctx
         .host
@@ -111,6 +133,34 @@ fn doc_open(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let out = read_aseprite(&bytes)
         .map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
     let doc = Doc::from_parts(out.sprite, out.cels, Some(path.to_owned()));
+    let info = doc.info("");
+    let id = ctx.ws.insert(doc);
+    Ok(ToolOutput::json(with_id(info, &id)))
+}
+
+/// `doc.open` with `mode: "pixel"` of a PNG: the Pixel editor's File ▸
+/// Open of a PNG — one layer holding the pixels, one 100 ms frame, the New
+/// document's palette, no file of its own (mcp-parity-export AC-23).
+fn open_png_as_pixel(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentError> {
+    let bytes = ctx
+        .host
+        .read(path)
+        .map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        let detected = crate::image::doc::detected_format(&bytes);
+        return Err(AgentError::tool(format!(
+            "cannot open `{path}` with mode \"pixel\": Pixel documents open PNG files and .aseprite files, and this file is {detected}"
+        )));
+    }
+    let img =
+        import_png(&bytes).map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
+    let mut doc = Doc::new_pixel(img.width, img.height, Palette::db32())?;
+    let mut buf =
+        pincel_core::PixelBuffer::empty(img.width, img.height, pincel_core::ColorMode::Rgba);
+    buf.data = img.rgba;
+    let layer = pincel_core::LayerId::new(0);
+    doc.cels
+        .insert(pincel_core::Cel::image(layer, FrameIndex::new(0), buf));
     let info = doc.info("");
     let id = ctx.ws.insert(doc);
     Ok(ToolOutput::json(with_id(info, &id)))
