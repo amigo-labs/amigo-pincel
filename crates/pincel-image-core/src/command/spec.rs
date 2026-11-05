@@ -690,6 +690,10 @@ pub enum CommandSpec {
     CommitLive,
     /// Cancel the live object: the layer shows the pixels from before it.
     CancelLive,
+    /// Drop the step of the live object's handle drag `gesture` without a
+    /// redo step (Escape during the drag); nothing when the top step is not
+    /// that drag's.
+    CancelLiveGesture { gesture: u64 },
     /// Rasterize `text` onto `layer` at `(x, y)` using a `register_font` id
     /// (spec §9.2 Text; ADR-012). A no-op if the font id or geometry is invalid.
     DrawText {
@@ -1409,6 +1413,7 @@ pub fn run_command(
         }
         CommandSpec::CommitLive => bus.commit_live(),
         CommandSpec::CancelLive => bus.cancel_live(),
+        CommandSpec::CancelLiveGesture { gesture } => bus.cancel_live_gesture(gesture).map(|_| ()),
         CommandSpec::DrawText {
             layer,
             font_id,

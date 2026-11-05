@@ -770,3 +770,25 @@ fn edit_live_to_degenerate_geometry_stays_live_and_draws_nothing() {
     let now = live(&bus).expect("live").params;
     assert_eq!(pixels(&bus, 0), &immediate(&pre, 0, &now));
 }
+
+#[test]
+fn cancel_live_gesture_drops_the_drag_step_without_a_redo() {
+    let mut bus = bus();
+    let pre = bus.document.clone();
+    let params = boxed(BoxShape::Rectangle, p(4.0, 5.0), p(30.0, 20.0));
+    bus.begin_live(0, params.clone()).expect("begin");
+    bus.edit_live(&moved(&params, 1.0, 0.0), Some(9))
+        .expect("drag");
+    bus.edit_live(&moved(&params, 5.0, 3.0), Some(9))
+        .expect("drag");
+    assert!(bus.cancel_live_gesture(9).expect("cancel drag"));
+    assert_eq!(live(&bus).map(|o| o.params), Some(params.clone()));
+    assert_eq!(pixels(&bus, 0), &immediate(&pre, 0, &params));
+    assert_eq!((bus.history.undo_depth(), bus.history.redo_depth()), (1, 0));
+    // Another gesture, or one that left no step, drops nothing.
+    assert!(!bus.cancel_live_gesture(9).expect("nothing to drop"));
+    bus.edit_live(&moved(&params, 2.0, 0.0), Some(10))
+        .expect("drag");
+    assert!(!bus.cancel_live_gesture(11).expect("other gesture"));
+    assert_eq!(bus.history.undo_depth(), 2);
+}

@@ -620,6 +620,27 @@ impl CommandBus {
         Ok(())
     }
 
+    /// Drops the step of the handle drag `gesture` (Escape or Undo during
+    /// the drag, docs/specs/image-live-objects-ui.md AC-11): the object
+    /// returns to its parameters before the drag and stays live, and no
+    /// redo step is kept. Returns `false` (nothing changes) when the top
+    /// step is not that drag's.
+    ///
+    /// # Errors
+    ///
+    /// Only a failed redraw of the layer.
+    pub fn cancel_live_gesture(&mut self, gesture: u64) -> Result<bool, DocumentError> {
+        if self.live_merge != Some(MergeKey::Gesture(gesture)) || self.top_live_step().is_none() {
+            return Ok(false);
+        }
+        if let Some(mut step) = self.history.undo.pop() {
+            self.damage.add(step.damage());
+            step.revert(&mut self.document)?;
+        }
+        self.live_merge = None;
+        Ok(true)
+    }
+
     /// Commits the live object if there is one (AC-08).
     pub(crate) fn commit_if_live(&mut self) -> Result<(), DocumentError> {
         if self.top_live_step().is_some() {
