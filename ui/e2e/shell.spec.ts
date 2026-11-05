@@ -9,10 +9,12 @@ import {
   storedPref,
   waitForEditor,
 } from './helpers';
+import { editorOf, shownEditor, tabs } from './tab-helpers';
 
 // The app shell (docs/specs/app-shell.md): start screen, New cards and the
-// New dialog, one editor per session, the unsaved-changes guard and the
-// shared editor frame.
+// New dialog, at most one editor per mode behind the tab bar, and the
+// shared editor frame. The unsaved-changes prompt has its own spec
+// (unsaved-prompt.spec.ts).
 
 type Mode = 'pixel' | 'image';
 
@@ -108,19 +110,19 @@ for (const mode of ['pixel', 'image'] as const) {
     page,
   }) => {
     await createDocument(page, mode, { width: 30, height: 20 });
-    // An edit, so "unchanged" below means the edit survived. The guard in
-    // front of the dialog is AC-14's; Discard only lets the dialog open.
+    // An edit, so "unchanged" below means the edit survived; New… opens its
+    // dialog at once, an unsaved tab or not (document-tabs AC-02).
     await edit(page, mode);
     const dialog = page.getByRole('dialog', { name: 'New document' });
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
     const openNew = async () => {
       await menu(page, 'File', 'New…');
-      await page.getByRole('button', { name: 'Discard changes' }).click();
       await expect(dialog).toBeVisible();
     };
     const unchanged = async () => {
       await expect(dialog).toHaveCount(0);
-      await expect(canvasOf(page, mode)).toHaveCount(1);
+      await expect(tabs(page)).toHaveCount(1);
+      await expect(shownEditor(page)).toHaveAttribute('data-editor', mode);
       await expect(page.getByText(sizeText(mode, 30, 20), { exact: true })).toBeVisible();
       await expect(undo).toBeEnabled();
       await expect(page.getByTitle(/unsaved changes/)).toBeVisible();
@@ -150,18 +152,22 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(dialog.getByLabel('Width')).toHaveValue(defaults[other][0]);
     await expect(dialog.getByLabel('Height')).toHaveValue(defaults[other][1]);
 
-    // Create mounts a fresh editor of the chosen mode.
+    // Create opens a new tab of the chosen mode, shown in that mode's
+    // editor; the first tab keeps its document and its unsaved changes.
     await dialog.getByLabel('Width').fill('16');
     await dialog.getByLabel('Height').fill('8');
     await dialog.getByRole('button', { name: 'Create' }).click();
     await waitForEditor(page, other);
-    await expect(canvasOf(page, mode)).toHaveCount(0);
+    await expect(tabs(page)).toHaveCount(2);
+    await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(shownEditor(page)).toHaveAttribute('data-editor', other);
     await expect(page.getByText(sizeText(other, 16, 8), { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+    await expect(tabs(page).first().getByText('unsaved changes')).toHaveCount(1);
   });
 }
 
-test('AC-13: a Pixel session mounts one editor and never fetches the image wasm', async ({
+test('AC-13: a Pixel session mounts one editor and fetches the image wasm only with an Image tab', async ({
   page,
 }) => {
   const wasm: string[] = [];
@@ -176,61 +182,29 @@ test('AC-13: a Pixel session mounts one editor and never fetches the image wasm'
   expect(wasm.some((u) => u.includes('pincel_wasm_bg'))).toBe(true);
   expect(wasm.some((u) => u.includes('pincel_image_wasm'))).toBe(false);
 
-  // Switching to Image mode unmounts the Pixel editor: still exactly one.
+  // An Image tab mounts the Image editor beside the Pixel one: one per
+  // mode, only the active tab's visible, and only now the image wasm.
   await menu(page, 'File', 'New…');
-  await page.getByRole('button', { name: 'Discard changes' }).click();
   const dialog = page.getByRole('dialog', { name: 'New document' });
   await dialog.getByRole('radio', { name: /^Image/ }).click();
   await dialog.getByRole('button', { name: 'Create' }).click();
   await waitForEditor(page, 'image');
-  await expect(imageCanvas(page)).toHaveCount(1);
-  await expect(pixelCanvas(page)).toHaveCount(0);
+  await expect(editorOf(page, 'image')).toHaveCount(1);
+  await expect(editorOf(page, 'pixel')).toHaveCount(1);
+  await expect(shownEditor(page)).toHaveCount(1);
+  await expect(shownEditor(page)).toHaveAttribute('data-editor', 'image');
+  await expect(editorOf(page, 'pixel')).toHaveAttribute('inert', '');
+  await expect(imageCanvas(page)).toBeVisible();
+  await expect(pixelCanvas(page)).toBeHidden();
   await expect(page.getByRole('menubar')).toHaveCount(1);
+  expect(wasm.some((u) => u.includes('pincel_image_wasm'))).toBe(true);
 });
 
-for (const mode of ['pixel', 'image'] as const) {
-  test(`AC-14: ${mode}: New… and Open… ask before discarding unsaved changes`, async ({
-    page,
-  }) => {
-    // The <input type=file> fallback, so a file chooser shows that Open ran.
-    await page.addInitScript(() => {
-      delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker;
-    });
-    await createDocument(page, mode, { width: 30, height: 20 });
-    await edit(page, mode);
-    const confirm = page.getByRole('alertdialog', { name: 'Unsaved changes' });
-    const undo = page.getByRole('button', { name: 'Undo', exact: true });
-    const newDialog = page.getByRole('dialog', { name: 'New document' });
-
-    // New…: Cancel keeps the document, Discard proceeds.
-    await menu(page, 'File', 'New…');
-    await expect(confirm).toBeVisible();
-    await expect(newDialog).toHaveCount(0);
-    await confirm.getByRole('button', { name: 'Cancel' }).click();
-    await expect(confirm).toHaveCount(0);
-    await expect(newDialog).toHaveCount(0);
-    await expect(undo).toBeEnabled();
-    await expect(page.getByTitle(/unsaved changes/)).toBeVisible();
-    await menu(page, 'File', 'New…');
-    await confirm.getByRole('button', { name: 'Discard changes' }).click();
-    await expect(newDialog).toBeVisible();
-    await newDialog.getByRole('button', { name: 'Cancel' }).click();
-
-    // Open…: no picker before the answer; Cancel keeps, Discard opens it.
-    let choosers = 0;
-    page.on('filechooser', () => (choosers += 1));
-    await menu(page, 'File', 'Open…');
-    await expect(confirm).toBeVisible();
-    await confirm.getByRole('button', { name: 'Cancel' }).click();
-    await expect(confirm).toHaveCount(0);
-    expect(choosers).toBe(0);
-    await expect(undo).toBeEnabled();
-    const chooser = page.waitForEvent('filechooser');
-    await menu(page, 'File', 'Open…');
-    await confirm.getByRole('button', { name: 'Discard changes' }).click();
-    await chooser;
-  });
-}
+// AC-14 (the Discard / Cancel guard before New…, Open… and Open Recent) is
+// dropped: with tabs these open beside an unsaved document, proven in
+// unsaved-prompt.spec.ts › "File ▸ New… of the other mode opens a tab
+// without a prompt (AC-01)" and › "File ▸ Open… opens a tab of either mode
+// without a prompt (AC-01)", and for Open Recent in shell-open.spec.ts.
 
 for (const mode of ['pixel', 'image'] as const) {
   test(`AC-15: ${mode}: leaving the page asks only while there are unsaved changes`, async ({
@@ -377,7 +351,6 @@ for (const mode of ['pixel', 'image'] as const) {
     const active = page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
     const before = await active.getAttribute('title');
     await menu(page, 'File', 'New…');
-    await page.getByRole('button', { name: 'Discard changes' }).click();
     const dialog = page.getByRole('dialog', { name: 'New document' });
     // Focus on a dialog control that is not a text field.
     await dialog.getByRole('radio', { name: mode === 'pixel' ? /^Pixel sprite/ : /^Image/ }).focus();

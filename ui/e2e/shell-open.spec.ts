@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   RASTER_MIME,
   drag,
@@ -14,10 +14,12 @@ import {
   type RasterKind,
   waitForEditor,
 } from './helpers';
+import { shownEditor, tab, tabs } from './tab-helpers';
 
 // File → mode routing of the app shell (docs/specs/app-shell.md AC-09 to
-// AC-12, AC-14 for Open Recent): a file's leading bytes pick the editor,
-// the extension only when no signature matches.
+// AC-12): a file's leading bytes pick the editor, the extension only when
+// no signature matches. Each opened file is a tab of its mode, shown in
+// that mode's editor (docs/specs/document-tabs.md AC-02).
 
 type Mode = 'pixel' | 'image';
 
@@ -37,9 +39,11 @@ const RASTER_SIZE: Record<RasterKind, [number, number]> = {
   gif: [1, 1],
 };
 
-/** The status bar's document size of `mode`. */
-function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]) {
-  return page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`, { exact: true });
+/** The shown editor's status-bar document size of `mode`. */
+function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]): Locator {
+  return shownEditor(page).getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`, {
+    exact: true,
+  });
 }
 
 /** The editor's mode badge in the top bar. */
@@ -48,11 +52,33 @@ function badge(page: Page, mode: Mode) {
   return page.getByRole('banner').locator('span').filter({ hasText: new RegExp(`^${label}$`) });
 }
 
-/** Waits for the editor of `mode` and checks that it is the only one. */
+/** Waits for the editor of `mode` and checks that it is the shown one,
+ *  with the opened document (the other mode's editor may stay mounted,
+ *  hidden, behind its own tabs: app-shell AC-13). */
 async function expectEditor(page: Page, mode: Mode, size: [number, number]): Promise<void> {
   await waitForEditor(page, mode);
-  await expect(mode === 'pixel' ? imageCanvas(page) : pixelCanvas(page)).toHaveCount(0);
+  await expect(shownEditor(page)).toHaveCount(1);
+  await expect(shownEditor(page)).toHaveAttribute('data-editor', mode);
   await expect(sizeShown(page, mode, size)).toBeVisible();
+}
+
+/** Counts the wasm modules the page fetches from now on, per mode. */
+function wasmFetches(page: Page): { pixel: number; image: number; reset: () => void } {
+  const seen = {
+    pixel: 0,
+    image: 0,
+    reset: () => {
+      seen.pixel = 0;
+      seen.image = 0;
+    },
+  };
+  page.on('request', (req) => {
+    const url = req.url();
+    if (!url.endsWith('.wasm')) return;
+    if (url.includes('pincel_image_wasm')) seen.image += 1;
+    else if (url.includes('pincel_wasm_bg')) seen.pixel += 1;
+  });
+  return seen;
 }
 
 /** Runs `open` and answers the <input type=file> chooser it raises. */
@@ -168,14 +194,24 @@ test.describe('input fallback', () => {
     await expectEditor(page, 'image', [8, 6]);
     await openFromStart(page, 'hero.png', await sprite());
     await expectEditor(page, 'pixel', [32, 24]);
-    // No known signature: the extension routes (the editor then reports
-    // that it cannot read the bytes).
+    // No known signature: the extension routes. The editor of that mode
+    // loads (its wasm only), cannot read the bytes and opens no tab, so the
+    // shell names the file and the start screen stays.
+    const fetched = wasmFetches(page);
+    const failed = (name: string) =>
+      page.getByRole('alert').filter({ hasText: `${name} could not be opened` });
+    fetched.reset();
     await openFromStart(page, 'broken.aseprite', Buffer.from('not a sprite at all'));
-    await expect(badge(page, 'pixel')).toBeVisible();
-    await expect(imageCanvas(page)).toHaveCount(0);
+    await expect(failed('broken.aseprite')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Pincel', exact: true })).toBeVisible();
+    expect(fetched.pixel).toBeGreaterThan(0);
+    expect(fetched.image).toBe(0);
+    fetched.reset();
     await openFromStart(page, 'broken.gif', Buffer.from('not an image at all'));
-    await expect(badge(page, 'image')).toBeVisible();
-    await expect(pixelCanvas(page)).toHaveCount(0);
+    await expect(failed('broken.gif')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Pincel', exact: true })).toBeVisible();
+    expect(fetched.image).toBeGreaterThan(0);
+    expect(fetched.pixel).toBe(0);
   });
 
   test('AC-11: Pixel File ▸ Open… keeps sprites and PNGs, hands other images over', async ({
@@ -239,14 +275,15 @@ test.describe('input fallback', () => {
     await gotoStart(page);
     await openFromStart(page, 'photo.jpeg', await rasterFile(page, 'jpeg'), 'image/jpeg');
     await expectEditor(page, 'image', [8, 6]);
-    // An edit that must survive; the unsaved-changes guard asks first.
+    // An edit that must survive; Open… opens at once (document-tabs AC-02).
     await edit(page, 'image');
-    const openUnknown = async () => {
-      await menu(page, 'File', 'Open…');
-      await page.getByRole('button', { name: 'Discard changes' }).click();
-    };
-    await choose(page, openUnknown, { name: 'notes.txt', mimeType: 'text/plain', buffer: junk });
+    await choose(page, () => menu(page, 'File', 'Open…'), {
+      name: 'notes.txt',
+      mimeType: 'text/plain',
+      buffer: junk,
+    });
     await expect(notice).toBeVisible();
+    await expect(tabs(page)).toHaveCount(1);
     await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
     await expect(page.getByTitle('photo.jpeg — unsaved changes')).toBeVisible();
@@ -258,16 +295,13 @@ test.describe('input fallback', () => {
     await openFromStart(page, 'hero.aseprite', await sprite(), 'application/octet-stream');
     await expectEditor(page, 'pixel', [32, 24]);
     await edit(page, 'pixel');
-    const openUnknownInPixel = async () => {
-      await menu(page, 'File', 'Open…');
-      await page.getByRole('button', { name: 'Discard changes' }).click();
-    };
-    await choose(page, openUnknownInPixel, {
+    await choose(page, () => menu(page, 'File', 'Open…'), {
       name: 'notes.txt',
       mimeType: 'text/plain',
       buffer: junk,
     });
     await expect(notice).toBeVisible();
+    await expect(tabs(page)).toHaveCount(1);
     await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   });
@@ -306,8 +340,13 @@ test.describe('recent files', () => {
     await expectEditor(page, 'image', [8, 6]);
   });
 
+  // The old Discard / Cancel guard (app-shell AC-14) is dropped: Open
+  // Recent opens beside an unsaved tab without asking (unsaved-changes-prompt
+  // AC-01, document-tabs AC-02).
   for (const mode of ['pixel', 'image'] as const) {
-    test(`AC-14: ${mode}: Open Recent asks before discarding unsaved changes`, async ({ page }) => {
+    test(`${mode}: Open Recent opens a tab beside an unsaved one, without a prompt`, async ({
+      page,
+    }) => {
       await recordRecents(page);
       const [here, there] =
         mode === 'pixel' ? ['hero.aseprite', 'photo.png'] : ['photo.png', 'hero.aseprite'];
@@ -316,20 +355,15 @@ test.describe('recent files', () => {
         await expectEditor(page, 'pixel', [32, 24]);
       }
       await edit(page, mode);
-      const confirm = page.getByRole('alertdialog', { name: 'Unsaved changes' });
+      const before = await tabs(page).count();
 
       await menu(page, 'File', 'Open Recent', there);
-      await expect(confirm).toBeVisible();
-      await confirm.getByRole('button', { name: 'Cancel' }).click();
-      await expect(confirm).toHaveCount(0);
-      await expect(badge(page, mode)).toBeVisible();
-      await expect(page.getByTitle(`${here} — unsaved changes`)).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
-
-      await menu(page, 'File', 'Open Recent', there);
-      await confirm.getByRole('button', { name: 'Discard changes' }).click();
       const other: Mode = mode === 'pixel' ? 'image' : 'pixel';
       await expectEditor(page, other, other === 'pixel' ? [32, 24] : [8, 6]);
+      await expect(page.getByRole('alertdialog', { name: 'Unsaved changes' })).toHaveCount(0);
+      await expect(tabs(page)).toHaveCount(before + 1);
+      // The unsaved tab kept its document and its marker.
+      await expect(tab(page, here).getByText('unsaved changes')).toHaveCount(1);
     });
   }
 });
