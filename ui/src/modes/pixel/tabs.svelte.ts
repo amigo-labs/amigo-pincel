@@ -14,11 +14,18 @@ import { fitView } from './view-ops';
 
 let nextId = 1;
 
+/** The tabs whose documents are still allocated. A plain array, not the
+ *  reactive list: the editor's unmount reads it from an effect teardown,
+ *  where a `$state` read can still return the list before the last close
+ *  and would free a closed tab's document twice. */
+const allocated: PixelTab[] = [];
+
 /** Opens `doc` as a new tab after the last one, saved to `saveTarget`,
  *  and makes it active, fitted to the stage. */
 export function openTab(doc: Document, saveTarget: SaveTarget): PixelTab {
   const tab: PixelTab = $state(tabInit(nextId++, doc, saveTarget));
   tabs.list.push(tab);
+  allocated.push(tab);
   show(tab);
   // A fresh document starts with the default onion skin and a fitted view.
   applyOnion(play.onion);
@@ -47,11 +54,6 @@ function show(tab: PixelTab): void {
   ed.docRev += 1;
 }
 
-/** The tab with `id`, if it is open. */
-export function tabById(id: number): PixelTab | null {
-  return tabs.list.find((t) => t.id === id) ?? null;
-}
-
 /** Closes `tab` and frees its document; the right-hand neighbour becomes
  *  active (the left one for the last tab). Returns the tab now active,
  *  `null` when none is left. */
@@ -74,21 +76,16 @@ export function closeTab(tab: PixelTab): PixelTab | null {
 /** Closes every tab (the editor unmounts): no document stays allocated. */
 export function closeAllTabs(): void {
   stopPlayback();
-  const all = [...tabs.list];
+  const all = [...allocated];
   tabs.list.length = 0;
   tabs.active = null;
   for (const tab of all) free(tab);
 }
 
 function free(tab: PixelTab): void {
+  const at = allocated.indexOf(tab);
+  if (at < 0) return;
+  allocated.splice(at, 1);
   tab.doc.doc?.free();
   tab.doc.doc = null;
-}
-
-/** The tab `step` places from the active one, wrapping around (AC-04). */
-export function neighbourTab(step: 1 | -1): PixelTab | null {
-  const n = tabs.list.length;
-  if (n === 0 || tabs.active === null) return null;
-  const at = tabs.list.indexOf(tabs.active);
-  return tabs.list[(at + step + n) % n] ?? null;
 }

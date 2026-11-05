@@ -1,8 +1,11 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
 import {
   closeWindow,
   destroyed,
+  diskPaths,
   emit,
   installTauriMock,
   putFile,
@@ -12,8 +15,9 @@ import {
 
 // Document tabs in the desktop app (docs/specs/document-tabs.md), against
 // the mocked Tauri bridge of `tauri-mock.ts`: the same file by path
-// (AC-03), closing the window with several tabs (AC-10, AC-11, AC-13,
-// AC-17), and the tab keys of the desktop app and the web build on each
+// (AC-03), closing the window with tabs of both modes (AC-10, AC-11,
+// AC-13, AC-17, AC-18), the native menu (AC-21), OS hand-overs in order
+// (AC-24), and the tab keys of the desktop app and the web build on each
 // platform (AC-20). The platform is the user agent's.
 
 const UA = {
@@ -28,6 +32,13 @@ const UA = {
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
   'base64',
+);
+
+const SPRITE = readFile(
+  join(
+    import.meta.dirname,
+    '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite',
+  ),
 );
 
 function prompt(page: Page): Locator {
@@ -61,7 +72,9 @@ async function start(page: Page, mode: 'pixel' | 'image'): Promise<void> {
 }
 
 async function paint(page: Page, mode: 'pixel' | 'image'): Promise<void> {
-  if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
+  if (mode === 'pixel') {
+    await page.locator('[data-editor]:not([inert])').getByTitle('Pencil (B)').click();
+  }
   await drag(
     page,
     mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page),
@@ -70,25 +83,29 @@ async function paint(page: Page, mode: 'pixel' | 'image'): Promise<void> {
   );
 }
 
-/** File ▸ New… in the current mode: a new tab. */
-async function newTab(page: Page): Promise<void> {
+/** File ▸ New… in the current mode, or in `mode`: a new tab. */
+async function newTab(page: Page, mode?: 'pixel' | 'image'): Promise<void> {
   const before = await tabs(page).count();
   await menu(page, 'File', 'New…');
-  await page
-    .getByRole('dialog', { name: 'New document' })
-    .getByRole('button', { name: 'Create' })
-    .click();
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  if (mode) {
+    await dialog.getByRole('radio', { name: mode === 'image' ? /^Image/ : /^Pixel sprite/ }).click();
+  }
+  await dialog.getByRole('button', { name: 'Create' }).click();
   await expect(tabs(page)).toHaveCount(before + 1);
+  if (mode) await waitForEditor(page, mode);
 }
 
-/** Hands `path` over as the OS does until `name`'s tab is the active one:
- *  a hand-over that arrives while the previous one is still being opened
- *  is dropped, so it is repeated. */
+/** Hands `path` over as the OS does and waits until `name`'s tab is the
+ *  active one. */
 async function handOver(page: Page, path: string, name: string): Promise<void> {
-  await expect(async () => {
-    await emit(page, 'open-file', path);
-    await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true', { timeout: 1_000 });
-  }).toPass();
+  await emit(page, 'open-file', path);
+  await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
+}
+
+/** The unsaved marker of the tab at `index`. */
+function unsavedMark(page: Page, index: number): Locator {
+  return tabs(page).nth(index).getByText('unsaved changes');
 }
 
 /** A keydown as macOS sends it: ⌥W types "∑", the physical key is W. */
@@ -199,35 +216,124 @@ test.describe('desktop app', () => {
       await expect(tabs(page)).toHaveCount(1);
     });
 
-    test('closing the window with several unsaved tabs lists them; Save All saves, then closes (AC-10, AC-11, AC-13)', async ({
-      page,
-    }) => {
-      await start(page, 'pixel');
-      await paint(page, 'pixel');
-      await newTab(page);
-      await paint(page, 'pixel');
-      await newTab(page);
-      // The active tab is clean; the close still asks (AC-13).
-      await closeWindow(page);
-      await expect(prompt(page)).toContainText('Unsaved changes in 2 images');
-      await prompt(page).getByRole('button', { name: 'Cancel' }).click();
-      expect(await destroyed(page)).toBe(0);
-      await closeWindow(page);
-      await prompt(page).getByRole('button', { name: 'Save All' }).click();
-      await expect.poll(() => destroyed(page)).toBe(1);
-    });
-
-    test('one unsaved tab in the background is asked about and activated before closing (AC-10)', async ({
+    test('closing the window with unsaved tabs of both modes lists them; Save All saves them in tab order (AC-11, AC-13)', async ({
       page,
     }) => {
       await start(page, 'image');
       await paint(page, 'image');
-      await newTab(page);
+      await newTab(page, 'pixel');
+      await paint(page, 'pixel');
+      // The active tab is clean; the close still asks (AC-13).
+      await newTab(page, 'image');
+      await closeWindow(page);
+      await expect(prompt(page)).toContainText('Unsaved changes in 2 images');
+      await expect(prompt(page).getByRole('listitem')).toHaveText(['image.ora', 'pincel.aseprite']);
+      const saveAll = prompt(page).getByRole('button', { name: 'Save All' });
+      await expect(saveAll).toBeFocused();
+      // Escape cancels: nothing changes.
+      await page.keyboard.press('Escape');
+      await expect(prompt(page)).toHaveCount(0);
+      expect(await destroyed(page)).toBe(0);
+      await expect(unsavedMark(page, 0)).toHaveCount(1);
+      await expect(unsavedMark(page, 1)).toHaveCount(1);
+
+      // Save All with the second save cancelled: the first stays saved, the
+      // second unsaved and active (its mode's editor shown), the app open.
+      await setMock(page, { saveQueue: ['/docs/first.ora', null] });
+      await closeWindow(page);
+      await saveAll.click();
+      await expect(prompt(page)).toHaveCount(0);
+      await expect(unsavedMark(page, 0)).toHaveCount(0);
+      await expect(unsavedMark(page, 1)).toHaveCount(1);
+      await expectActive(page, 1);
+      await expect(pixelCanvas(page)).toBeVisible();
+      expect(await destroyed(page)).toBe(0);
+      expect(await diskPaths(page)).toEqual(['/docs/first.ora']);
+
+      // Save All once more: the rest saves, then the app closes.
+      await paint(page, 'pixel');
+      await tabs(page).first().click();
+      await paint(page, 'image');
+      await setMock(page, { saveQueue: ['/docs/second.aseprite'] });
+      await closeWindow(page);
+      await expect(prompt(page)).toContainText('Unsaved changes in 2 images');
+      await saveAll.click();
+      await expect.poll(() => destroyed(page)).toBe(1);
+      expect((await diskPaths(page)).sort()).toEqual(['/docs/first.ora', '/docs/second.aseprite']);
+    });
+
+    test('a failed save in Save All keeps the app open and the rest unsaved (AC-11)', async ({
+      page,
+    }) => {
+      await start(page, 'pixel');
+      await paint(page, 'pixel');
+      await newTab(page, 'image');
+      await paint(page, 'image');
+      await setMock(page, { writeQueue: ['fail'] });
+      await closeWindow(page);
+      await prompt(page).getByRole('button', { name: 'Save All' }).click();
+      await expect(prompt(page)).toHaveCount(0);
+      await expect(page.getByText(/disk full/).first()).toBeVisible();
+      await expect(unsavedMark(page, 0)).toHaveCount(1);
+      await expect(unsavedMark(page, 1)).toHaveCount(1);
+      expect(await destroyed(page)).toBe(0);
+    });
+
+    test("Don't Save in the list prompt closes the app and discards every unsaved tab (AC-11)", async ({
+      page,
+    }) => {
+      await start(page, 'pixel');
+      await paint(page, 'pixel');
+      await newTab(page, 'image');
+      await paint(page, 'image');
+      await closeWindow(page);
+      await prompt(page).getByRole('button', { name: "Don't Save" }).click();
+      await expect.poll(() => destroyed(page)).toBe(1);
+      expect(await diskPaths(page)).toEqual([]);
+    });
+
+    test('one unsaved tab of the hidden mode is asked about and shown before closing (AC-10)', async ({
+      page,
+    }) => {
+      await start(page, 'image');
+      await paint(page, 'image');
+      await newTab(page, 'pixel');
       await closeWindow(page);
       await expect(prompt(page)).toContainText('Save changes to "image.ora"?');
       await expectActive(page, 0);
+      await expect(imageCanvas(page)).toBeVisible();
       await prompt(page).getByRole('button', { name: "Don't Save" }).click();
       await expect.poll(() => destroyed(page)).toBe(1);
+    });
+
+    test('the native menu reaches only the active tab’s editor (AC-21)', async ({ page }) => {
+      await start(page, 'image');
+      await paint(page, 'image');
+      await newTab(page, 'pixel');
+      await paint(page, 'pixel');
+      await tabs(page).first().click();
+      await expectActive(page, 0);
+      await emit(page, 'menu', 'menu:undo');
+      await expect(unsavedMark(page, 0)).toHaveCount(0);
+      await expect(unsavedMark(page, 1)).toHaveCount(1);
+      await emit(page, 'menu', 'menu:close');
+      await expect(tabs(page)).toHaveCount(1);
+      await expect(tab(page, 'pincel.aseprite')).toHaveAttribute('aria-selected', 'true');
+      await expect(unsavedMark(page, 0)).toHaveCount(1);
+    });
+
+    test('files handed over by the OS open in the order they arrive, also while a mode loads (AC-24)', async ({
+      page,
+    }) => {
+      await start(page, 'image');
+      await putFile(page, '/docs/a.aseprite', await SPRITE);
+      await putFile(page, '/docs/b.png', PNG_1X1);
+      await emit(page, 'open-file', '/docs/a.aseprite');
+      await emit(page, 'open-file', '/docs/b.png');
+      await expect(tab(page, 'b.png')).toHaveAttribute('aria-selected', 'true');
+      expect(
+        await tabs(page).evaluateAll((els) => els.map((el) => el.querySelector('span')?.textContent)),
+      ).toEqual(['image.ora', 'a.aseprite', 'b.png']);
     });
 
     test('a close during a running save waits for it, then asks about the rest (AC-17)', async ({
@@ -254,6 +360,44 @@ test.describe('desktop app', () => {
       await expectActive(page, 0);
       await prompt(page).getByRole('button', { name: "Don't Save" }).click();
       await expect.poll(() => destroyed(page)).toBe(1);
+    });
+  });
+
+  test.describe('German', () => {
+    test.use({ locale: 'de-DE', userAgent: UA.windows });
+
+    test('the tab bar, the list prompt and File ▸ Close speak German (AC-18)', async ({ page }) => {
+      await page.goto('./');
+      await page.getByRole('button', { name: 'Verstanden' }).click();
+      await page.getByRole('button', { name: 'Neues Bild' }).click();
+      await page
+        .getByRole('form', { name: 'Neues Bild' })
+        .getByRole('button', { name: 'Erstellen' })
+        .click();
+      await waitForEditor(page, 'image');
+      await paint(page, 'image');
+      await menu(page, 'Datei', 'Neu…');
+      await page
+        .getByRole('dialog', { name: 'Neues Dokument' })
+        .getByRole('button', { name: 'Erstellen' })
+        .click();
+      await paint(page, 'image');
+      const bar = page.getByRole('tablist', { name: 'Geöffnete Dokumente' });
+      await expect(bar.getByRole('button', { name: '„image.ora“ schließen' }).first()).toHaveAttribute(
+        'title',
+        /^Schließen/,
+      );
+      await page.getByRole('menubar').getByRole('menuitem', { name: 'Datei', exact: true }).click();
+      await expect(
+        page.getByRole('menu', { name: 'Datei' }).getByRole('menuitem', { name: /^Schließen/ }),
+      ).toBeVisible();
+      await page.keyboard.press('Escape');
+      await closeWindow(page);
+      const dialog = page.getByRole('alertdialog', { name: 'Ungespeicherte Änderungen' });
+      await expect(dialog).toContainText('Ungespeicherte Änderungen in 2 Bildern');
+      await expect(dialog.getByRole('button', { name: 'Alle speichern' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Nicht speichern' })).toBeVisible();
+      await expect(dialog.getByRole('button', { name: 'Abbrechen' })).toBeVisible();
     });
   });
 

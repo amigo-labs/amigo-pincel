@@ -87,7 +87,7 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `both modes list SVG… last under File ▸ Export`, `File ▸ Export is disabled until the document is loaded` (`ui/e2e/export-svg.spec.ts`) | built |        |
+| AC-01 | `both modes list SVG… last under File ▸ Export`, `File ▸ Export is unreachable until the document is loaded` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-02 | `pixel: the dialog opens pixel-exact with defaults and exports the frame`, `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`) | built |        |
 | AC-03 | `image: the dialog opens in colour mode, shows each mode's options and updates the summary` (`ui/e2e/export-svg.spec.ts`; each mode asserts what it shows and what it hides) | built |        |
 | AC-04 | `image: the dialog opens in colour mode, …` (summary and preview `src` follow invert within 1 s), `pixel: the dialog opens pixel-exact …` (preview, undo unchanged), `Cancel and Escape close the dialog without saving or editing` (canvas screenshot unchanged) (`ui/e2e/export-svg.spec.ts`) | built |        |

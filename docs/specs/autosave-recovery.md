@@ -83,7 +83,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-01 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | built | |
 | AC-02 | | open | |
 | AC-03 | | open | |
-| AC-04 | | open | |
+| AC-04 | `ui/e2e/document-tabs-mixed.spec.ts`: "the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)" (both modes at the first editor start, newest first, each row with name, mode, time and size; Recover opens a tab of the snapshot's mode) | built | |
 | AC-05 | | open | |
 | AC-06 | | open | |
 | AC-07 | | open | |

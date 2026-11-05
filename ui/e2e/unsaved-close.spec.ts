@@ -171,16 +171,17 @@ test('a close during a save that fails asks after it (AC-10)', async ({ page }) 
   expect(await destroyed(page)).toBe(0);
 });
 
-test('a file handed over by the OS asks first (AC-01)', async ({ page }) => {
+test('a file handed over by the OS opens as a tab without a prompt (AC-01)', async ({ page }) => {
   await start(page);
   await create(page, 'pixel');
   await paint(page, 'pixel');
   await putFile(page, '/docs/dot.png', PNG_1X1);
   await emit(page, 'open-file', '/docs/dot.png');
-  await expect(prompt(page)).toBeVisible();
-  await prompt(page).getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, 'image');
   await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
 });
 
 test('a handed-over file that cannot be read shows its error and no prompt (AC-11)', async ({ page }) => {
@@ -205,7 +206,7 @@ async function openRecentEntry(page: Page, name: string): Promise<void> {
     .click();
 }
 
-/** File ▸ New… of the other mode: Create replaces the session. */
+/** File ▸ New… of the other mode: Create opens a tab of that mode. */
 async function newOfOtherMode(page: Page, mode: 'pixel' | 'image'): Promise<void> {
   await menu(page, 'File', 'New…');
   const dialog = page.getByRole('dialog', { name: 'New document' });
@@ -213,7 +214,7 @@ async function newOfOtherMode(page: Page, mode: 'pixel' | 'image'): Promise<void
   await dialog.getByRole('button', { name: 'Create' }).click();
 }
 
-test('Open Recent asks first, from both editors; a missing recent shows its error (AC-01, AC-11)', async ({
+test('Open Recent opens without a prompt, from both editors; a missing recent shows its error (AC-01, AC-11)', async ({
   page,
 }) => {
   await start(page);
@@ -231,21 +232,20 @@ test('Open Recent asks first, from both editors; a missing recent shows its erro
   await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
   await expect(page.getByRole('tab')).toHaveCount(1);
 
-  // Image mode routes Open Recent through the shell.
+  // Image mode routes Open Recent through the shell: the open Pixel tab of
+  // that file becomes active, with its changes, no prompt.
   await newOfOtherMode(page, 'image');
-  await prompt(page).getByRole('button', { name: "Don't Save" }).click();
   await waitForEditor(page, 'image');
+  await expect(prompt(page)).toHaveCount(0);
   await paint(page, 'image');
   await openRecentEntry(page, 'sprite.aseprite');
-  await expect(prompt(page)).toBeVisible();
-  await prompt(page).getByRole('button', { name: "Don't Save" }).click();
-  await waitForEditor(page, 'pixel');
-  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(2);
 
   // A recent whose file is gone: error, no prompt.
-  await newOfOtherMode(page, 'image');
-  await waitForEditor(page, 'image');
-  await paint(page, 'image');
+  await page.getByRole('tab', { name: /^image\.ora/ }).click();
+  await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
   await putFile(page, '/docs/sprite.aseprite', null);
   await openRecentEntry(page, 'sprite.aseprite');
   await expect(page.getByText(/sprite\.aseprite.*No such file/)).toBeVisible();

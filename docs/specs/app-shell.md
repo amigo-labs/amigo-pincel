@@ -105,12 +105,12 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-05 | | open | |
 | AC-06 | | open | |
 | AC-07 | `ui/e2e/auto-new.spec.ts › a ticked New card opens its document on the next launch`; `ui/e2e/auto-new.spec.ts › ticking one card clears the other` | built | |
-| AC-08 | | open | |
+| AC-08 | `ui/e2e/document-tabs-mixed.spec.ts`: "File ▸ New… preselects the active tab’s mode and its size; Create opens a tab of the chosen mode, Cancel nothing (app-shell AC-08)" (preselected mode and default size from a Pixel and an Image tab, size reset on a mode switch, Escape and Cancel, Create of the other mode), "one tab bar holds both modes; … (AC-01, AC-02, AC-22)" (Create of Image from a Pixel tab) | built | |
 | AC-09 | | open | |
 | AC-10 | | open | |
 | AC-11 | | open | |
 | AC-12 | | open | |
-| AC-13 | | open | |
+| AC-13 | `ui/e2e/document-tabs-mixed.spec.ts`: "closing a tab activates its right-hand neighbour of either mode; the last tab of a mode releases its editor (AC-07, AC-09, AC-16, AC-22)" (at most one editor per mode, released with its last tab), "switching to a tab of the other mode shows that editor, … (AC-04)" (the other editor `inert`, hidden), "one tab bar holds both modes; … (AC-01, AC-02, AC-22)" (no Pixel module before the first Pixel document), "switching between tabs of two loaded modes remounts no editor and reloads no document (AC-22)"; `ui/e2e/smoke.spec.ts`: "image mode: a brush stroke is undoable and the pixel wasm is not loaded" | built | |
 | AC-14 | | dropped | |
 | AC-15 | | open | |
 | AC-16 | | open | |
@@ -120,7 +120,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-20 | | open | |
 | AC-21 | `ui/e2e/help.spec.ts › pixel mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › image mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › the start screen reaches About without a menu bar` | built | |
 
-Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` asserts the unsaved marker appearing after an edit and disappearing after Save, not the mode badge or name; AC-01 — `smoke.spec.ts › start screen offers both modes` checks the two New cards only, Open… is clicked in `ora.spec.ts`, About in `help.spec.ts`; AC-13 — `smoke.spec.ts › image mode: a brush stroke is undoable and the pixel wasm is not loaded` asserts only the Image-mode direction; AC-14 — `recovery.spec.ts › a discarded document is not offered again, on New or after a reload` clicks Discard after File ▸ New… in Pixel mode; Cancel, Open and Image mode untested; AC-18 — `responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` covers collapse; the docked-sidebar toggle is untested; AC-20 — About (`help.spec.ts › … the About dialog holds the keyboard`) and paste in the New dialog (`paste.spec.ts › a paste inside the shell New dialog does not reach the canvas`) are covered; text-field focus and keys in the New dialog are not.
+Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` asserts the unsaved marker appearing after an edit and disappearing after Save, not the mode badge or name; AC-01 — `smoke.spec.ts › start screen offers both modes` checks the two New cards only, Open… is clicked in `ora.spec.ts`, About in `help.spec.ts`; AC-14 — `recovery.spec.ts › a discarded document is not offered again, on New or after a reload` clicks Discard after File ▸ New… in Pixel mode; Cancel, Open and Image mode untested; AC-18 — `responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` covers collapse; the docked-sidebar toggle is untested; AC-20 — About (`help.spec.ts › … the About dialog holds the keyboard`) and paste in the New dialog (`paste.spec.ts › a paste inside the shell New dialog does not reach the canvas`) are covered; text-field focus and keys in the New dialog are not.
 
 ## Decisions
 

@@ -62,10 +62,11 @@ test('both modes list SVG… last under File ▸ Export', async ({ page }) => {
   }
 });
 
-test('File ▸ Export is disabled until the document is loaded', async ({ page }) => {
+test('File ▸ Export is unreachable until the document is loaded', async ({ page }) => {
   for (const mode of ['pixel', 'image'] as const) {
-    // Hold the core's wasm: the editor mounts its menus, but no document
-    // arrives until the request is released.
+    // Hold the core's wasm: the editor mounts hidden behind the loading
+    // notice (document-tabs AC-21), so no menu is reachable until the
+    // document arrives.
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
     await page.route('**/*.wasm', async (route) => {
@@ -76,10 +77,8 @@ test('File ▸ Export is disabled until the document is loaded', async ({ page }
     const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
     await page.getByRole('button', { name }).click();
     await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
-    await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-    const file = page.getByRole('menu', { name: 'File', exact: true });
-    await expect(file.getByRole('menuitem', { name: 'Export', exact: true })).toBeDisabled();
-    await page.keyboard.press('Escape');
+    await expect(page.getByText(/^Loading the (Pixel|Image) editor…$/)).toBeVisible();
+    await expect(page.getByRole('menubar')).toHaveCount(0);
     release();
     await waitForEditor(page, mode);
     await page.unroute('**/*.wasm');

@@ -23,7 +23,7 @@ import { t } from '../../lib/i18n/index.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
 import type { RecentFile } from '../../lib/idb/recent-files';
 import { hasNativeMenu, isTauri } from '../../lib/platform';
-import type { NewDocParams } from '../../lib/shell/types';
+import type { EditorMode, NewDocParams } from '../../lib/shell/types';
 import type {
   AnimationExportOptions,
   AnimationSummary,
@@ -31,8 +31,8 @@ import type {
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { afterImageCommand } from './image-ops';
 import { DEFAULT_FILE_NAME, MAX_DOC_SIZE, dialogs, ed, file, tabs } from './stores/editor.svelte';
-import { attachTab, recentsAvailable, recordRecent } from './tab-session';
-import { activateTab, openTab } from './tabs.svelte';
+import { attachTab, focusTab, recentsAvailable, recordRecent } from './tab-session';
+import { openTab } from './tabs.svelte';
 
 export { recentsAvailable };
 
@@ -40,16 +40,17 @@ export { recentsAvailable };
 const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
-  openFile: (opened: OpenedFile) => void;
+  openFile: (opened: OpenedFile, mode?: EditorMode) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
 };
 
-/** Hand a document to the shell, which routes it by format. */
-export function openInShell(opened: OpenedFile): void {
-  shell.openFile(opened);
+/** Hand a document to the shell, which activates the tab holding the
+ *  same file or opens it as a tab of `mode` (default: by its format). */
+export function openInShell(opened: OpenedFile, mode?: EditorMode): void {
+  shell.openFile(opened, mode);
 }
 
 /** Hand the shell's callbacks to the file operations (editor mount). */
@@ -114,7 +115,9 @@ export async function openDocInner() {
     shell.openForeign(opened);
     return;
   }
-  await openOpened(opened);
+  // Through the shell, which first looks for the same file in the tabs of
+  // both modes (document-tabs AC-03); a PNG still opens as a Pixel tab.
+  shell.openFile(opened, 'pixel');
 }
 
 /** Activates the open tab whose file is `location` (document-tabs AC-03);
@@ -122,20 +125,20 @@ export async function openDocInner() {
 async function activateSameFile(location: FileLocation): Promise<boolean> {
   for (const tab of tabs.list) {
     if (await sameFile(tab.file.saveTarget, location)) {
-      activateTab(tab);
+      focusTab(tab);
       return true;
     }
   }
   return false;
 }
 
-// Open the already-read `opened` file as a new tab (Open…, a file the
-// shell routes here, or the shell's initial file on mount), or activate
-// the tab that holds it. `false` when it could not be opened; the active
-// tab stays.
-export async function openOpened(opened: OpenedFile): Promise<boolean> {
+// Open the already-read `opened` file as a new tab (a file the shell
+// routes here), or activate the tab that holds it. Resolves `null` once it
+// is open, else the error (also shown in the status bar); the active tab
+// stays.
+export async function openOpened(opened: OpenedFile): Promise<string | null> {
   try {
-    if (await activateSameFile(opened)) return true;
+    if (await activateSameFile(opened)) return null;
     // A PNG opens as a fresh single-layer sprite; its save target is a
     // sibling .aseprite (never the PNG itself), so the first Save asks.
     const png = isPngBytes(opened.bytes);
@@ -150,18 +153,17 @@ export async function openOpened(opened: OpenedFile): Promise<boolean> {
     attachTab(tab);
     ed.status = t('px.opened', { name: opened.name, w: next.width, h: next.height });
     await recordRecent(tab);
-    return true;
+    return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('status.failed', { action: t('act.open'), error: msg });
-    return false;
+    return msg;
   }
 }
 
 // File ▸ Open Recent: the file is read and recognized first. A sprite
 // opens as a tab (or activates the tab that holds it); another mode's file
-// goes to the shell, which recognizes it and asks before replacing the
-// session (unsaved-changes-prompt AC-01, AC-11).
+// goes to the shell, which opens it as a tab of its mode.
 export async function openRecent(r: RecentFile) {
   if (file.busy) return;
   if (await activateSameFile(r)) return;

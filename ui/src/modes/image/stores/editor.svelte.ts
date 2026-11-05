@@ -96,6 +96,9 @@ export const editor = tabStore(sharedEditor, DOC_KEYS, () => tabs.active?.doc ??
 export const ui = $state({
   /** True while a modal dialog is open; global shortcuts are suppressed. */
   modalOpen: false,
+  /** The active tab is this editor's: it takes keys and pointer input
+   *  (document-tabs AC-21). */
+  active: true,
 });
 
 /** A question the Save flow is waiting on (save-original-format); the

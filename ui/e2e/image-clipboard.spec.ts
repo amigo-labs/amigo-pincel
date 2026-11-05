@@ -44,7 +44,11 @@ async function select(page: Page, x: number, y: number, w: number, h: number): P
 
 /** Paint Bucket of `color` at document pixel `(x, y)`. */
 async function fill(page: Page, color: string, x: number, y: number): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill(color);
+  // The shown editor's: the other mode's editor may stay mounted, hidden.
+  await page
+    .locator('[data-editor]:not([inert])')
+    .getByLabel('Foreground color', { exact: true })
+    .fill(color);
   await page.keyboard.press('g');
   await page.mouse.click(...(await point(page, x + 0.5, y + 0.5)));
 }

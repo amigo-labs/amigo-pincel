@@ -9,7 +9,7 @@ export const en = {
   'shell.dontSave': "Don't Save",
   'shell.saveAll': 'Save All',
   'shell.unsavedIn': 'Unsaved changes in {n} images:',
-  'shell.dropSkipped': '{n} dropped file(s) of the other mode were not opened',
+  'shell.dropSkipped': '{n} dropped file(s) could not be opened',
   'shell.unsupported':
     '{name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Open failed: {error}',
@@ -18,7 +18,10 @@ export const en = {
   'shell.recentFailed': 'Opening {name} failed: {error}',
   'shell.dropFailed': 'Drop failed: {error}',
   'shell.loadingEditor': 'Loading the {mode} editor…',
-  'shell.editorFailed': 'Failed to load the {mode} editor: {error}',
+  'shell.couldNotOpen': '{name} could not be opened: {error}',
+  'shell.newDocument': 'New {mode} document',
+  'shell.ignoredPrompt': '{name} was not opened: an unsaved-changes prompt is open',
+  'shell.saveFailed': 'Saving {name} failed: {error}',
   'shell.dismiss': 'Dismiss',
 
   // Generic buttons

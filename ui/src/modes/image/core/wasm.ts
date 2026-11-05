@@ -393,7 +393,11 @@ export async function initCore(): Promise<void> {
   if (!initialized) {
     // Same pattern as the Pixel-mode adapter (src/lib/core): pass the asset
     // URL explicitly so Vite fingerprints the .wasm and the precache sees it.
-    initialized = initWasm({ module_or_path: wasmUrl });
+    initialized = initWasm({ module_or_path: wasmUrl }).catch((err: unknown) => {
+      // A failed download (offline) is retried by the next caller.
+      initialized = null;
+      throw err;
+    });
   }
   await initialized;
   publishDocumentCount('image', document_count);

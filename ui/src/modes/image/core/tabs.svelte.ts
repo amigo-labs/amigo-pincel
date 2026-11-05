@@ -17,6 +17,21 @@ import type { DocumentFile } from './document-file';
 
 let nextId = 1;
 
+/** The tabs whose core documents are still open. A plain array, not the
+ *  reactive list: the editor's unmount reads it from an effect teardown,
+ *  where a `$state` read can still return the list before the last close
+ *  and would close a closed tab's document twice. */
+const allocated: ImageTab[] = [];
+
+/** Close `tab`'s core document, once. */
+function release(tab: ImageTab): void {
+  const at = allocated.indexOf(tab);
+  if (at < 0) return;
+  allocated.splice(at, 1);
+  if (tab.doc.handle !== null) core.closeDocument(tab.doc.handle);
+  tab.doc.handle = null;
+}
+
 /** Opens `handle` (an already created / decoded core document) as a new
  *  tab after the last one and makes it active. */
 export function openTab(handle: number, file: DocumentFile): ImageTab {
@@ -27,6 +42,7 @@ export function openTab(handle: number, file: DocumentFile): ImageTab {
     file,
   });
   tabs.list.push(tab);
+  allocated.push(tab);
   activateTab(tab);
   return tab;
 }
@@ -43,11 +59,6 @@ export function activateTab(tab: ImageTab): void {
   editor.revision += 1;
 }
 
-/** The tab with `id`, if it is open. */
-export function tabById(id: number): ImageTab | null {
-  return tabs.list.find((t) => t.id === id) ?? null;
-}
-
 /** Closes `tab` and frees its core document; the right-hand neighbour
  *  becomes active (the left one for the last tab). Returns the tab now
  *  active, `null` when none is left. */
@@ -55,8 +66,7 @@ export function closeTab(tab: ImageTab): ImageTab | null {
   const at = tabs.list.indexOf(tab);
   if (at < 0) return tabs.active;
   tabs.list.splice(at, 1);
-  if (tab.doc.handle !== null) core.closeDocument(tab.doc.handle);
-  tab.doc.handle = null;
+  release(tab);
   if (tabs.active === tab) {
     const next = tabs.list[at] ?? tabs.list[at - 1] ?? null;
     if (next) activateTab(next);
@@ -67,18 +77,7 @@ export function closeTab(tab: ImageTab): ImageTab | null {
 
 /** Closes every tab (the editor unmounts): no core document stays open. */
 export function closeAllTabs(): void {
-  for (const tab of [...tabs.list]) {
-    if (tab.doc.handle !== null) core.closeDocument(tab.doc.handle);
-    tab.doc.handle = null;
-  }
+  for (const tab of [...allocated]) release(tab);
   tabs.list.length = 0;
   tabs.active = null;
-}
-
-/** The tab `step` places from the active one, wrapping around (AC-04). */
-export function neighbourTab(step: 1 | -1): ImageTab | null {
-  const n = tabs.list.length;
-  if (n === 0 || tabs.active === null) return null;
-  const at = tabs.list.indexOf(tabs.active);
-  return tabs.list[(at + step + n) % n] ?? null;
 }

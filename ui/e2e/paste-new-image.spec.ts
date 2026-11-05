@@ -67,15 +67,20 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(edit.getByRole('menuitem', { name: /Paste as New Image/ })).toContainText('Ctrl+Alt+V');
   });
 
-  test(`${mode}: Ctrl+Alt+V opens the clipboard image as a new Image document (AC-23)`, async ({
+  test(`${mode}: Ctrl+Alt+V opens the clipboard image as a new tab of this mode (AC-23, document-tabs AC-02)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
     await putClipboardImage(page, 24, 12, '#00ff00');
     await page.keyboard.press('ControlOrMeta+Alt+v');
-    await waitForEditor(page, 'image');
-    await expect(imageSize(page, 24, 12)).toBeVisible();
-    await expect(page.getByTitle('Pasted image.png', { exact: true })).toBeVisible();
+    if (mode === 'image') {
+      await expect(imageSize(page, 24, 12)).toBeVisible();
+      await expect(page.getByTitle('Pasted image.png', { exact: true })).toBeVisible();
+    } else {
+      await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
+      await expect(page.locator('footer')).toContainText('24×12');
+    }
+    await expect(page.getByRole('tab')).toHaveCount(2);
   });
 
   test(`${mode}: Paste as New Image with no image shows a notice and keeps the document (AC-25)`, async ({
@@ -91,7 +96,9 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
-test('pixel: Paste as New Image asks about unsaved changes first (AC-23)', async ({ page }) => {
+test('pixel: Paste as New Image with unsaved changes opens a tab without a prompt (AC-23, document-tabs AC-02)', async ({
+  page,
+}) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   const box = await pixelCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
@@ -99,12 +106,8 @@ test('pixel: Paste as New Image asks about unsaved changes first (AC-23)', async
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await putClipboardImage(page, 24, 12, '#00ff00');
   await menu(page, 'Edit', 'Paste as New Image');
-  const confirm = page.getByRole('alertdialog');
-  await expect(confirm).toBeVisible();
-  await confirm.getByRole('button', { name: 'Cancel' }).click();
-  await expect(pixelCanvas(page)).toBeVisible();
-  await menu(page, 'Edit', 'Paste as New Image');
-  await confirm.getByRole('button', { name: "Don't Save" }).click();
-  await waitForEditor(page, 'image');
-  await expect(imageSize(page, 24, 12)).toBeVisible();
+  await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
 });

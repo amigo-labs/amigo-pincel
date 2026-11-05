@@ -57,12 +57,12 @@
     bindTabHooks,
     detachAllTabs,
     docIdOf,
+    focusTab,
     isDirty,
     requestCloseTab,
     runningSave,
     saveTab,
   } from './core/tab-session';
-  import { activateTab, neighbourTab, tabById } from './core/tabs.svelte';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import MainCanvas from './components/canvas/MainCanvas.svelte';
@@ -105,10 +105,8 @@
   import { formatFromName, hasFsAccess, sameFile, type OpenedFile } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
-  import { RecoveryOffer } from '../../lib/idb/autosave-session.svelte';
+  import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
   import type { NewDocParams } from '../../lib/shell/types';
-  import type { TabItem } from '../../lib/components/layout/TabBar.svelte';
-  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
   import { help } from '../../lib/help/state.svelte';
@@ -120,19 +118,22 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
-  // Shell contract (src/App.svelte mounts one editor per session): the
-  // document to open / create on mount, and the callbacks the shell
-  // serves — New / Open dialogs, the unsaved-changes prompt, native-menu
-  // items.
+  // Shell contract (src/App.svelte mounts at most one editor per mode):
+  // whether the active tab is this editor's, the shared tab bar, and the
+  // callbacks the shell serves — New / Open dialogs, the unsaved-changes
+  // prompt, native-menu items.
   let {
-    initialFile,
-    initialNew,
+    active,
+    tabBar,
+    onStepTab,
     onRequestNew,
     onRequestOpen,
     onOpenRecent,
     onOpenFile,
     confirmClose,
     registerDocument,
+    activateDocument,
+    reportError,
     registerSession,
     onEmpty,
     registerMenuHandlers,
@@ -252,7 +253,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || help.about) return;
+    if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
@@ -458,12 +460,12 @@
   // documents here; each opens as a tab after the last one.
 
   /** Opens an already-read file as a new tab, or activates the tab of the
-   *  same file (AC-03). `false` when it could not be opened. */
-  async function openTabFile(opened: OpenedFile): Promise<boolean> {
+   *  same file (AC-03). Resolves `null`, else the error. */
+  async function openTabFile(opened: OpenedFile): Promise<string | null> {
     for (const tab of tabs.list) {
       if (await sameFile(fileTarget(tab), opened)) {
-        activateTab(tab);
-        return true;
+        focusTab(tab);
+        return null;
       }
     }
     try {
@@ -471,87 +473,56 @@
       attachTab(tab);
       loadError = null;
       await recordRecent(opened, docIdOf(tab));
-      return true;
+      return null;
     } catch (e) {
       loadError = t('img.openFailed', { error: String(e) });
-      return false;
+      return e instanceof Error ? e.message : String(e);
     }
   }
 
-  async function createTab(params: NewDocParams): Promise<void> {
+  /** A blank document as a new tab; resolves `null`, else the error. */
+  async function createTab(params: NewDocParams): Promise<string | null> {
     try {
       attachTab(await newDocument(params.width, params.height));
       loadError = null;
+      return null;
     } catch (e) {
       loadError = t('img.openFailed', { error: String(e) });
+      return e instanceof Error ? e.message : String(e);
     }
   }
 
-  // Autosave and recovery, shared with Pixel mode (lib/idb/autosave-session):
-  // OpenRaster snapshots tagged `mode: 'image'`; Recover opens a tab (AC-15).
-  const recovery = new RecoveryOffer({
-    mode: 'image',
-    busy: () => false,
-    open: async (bytes, meta) => {
-      // The snapshot is OpenRaster; Save keeps writing the format stored
-      // with it (a recovered PNG saves back as PNG). Older snapshots carry
-      // none: the file name's extension stands in.
-      const tab = await openBytes(bytes, meta.name, 'image/openraster', {
-        handle: null,
-        path: null,
-        format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
-      });
-      markUnsaved();
-      attachTab(tab, { docId: meta.docId, recovered: true });
-    },
-    report: (action, error) => {
-      loadError = t('status.failed', {
-        action: t(action === 'recover' ? 'act.recover' : 'act.discard'),
-        error,
-      });
-    },
-  });
-
-  /** The tab bar's tabs (AC-01). */
-  const tabItems: TabItem[] = $derived(
-    tabs.list.map((tab) => ({ id: tab.id, name: tab.doc.fileName, dirty: isDirty(tab) })),
-  );
-
-  /** Make the tab with `id` active (AC-04). */
-  function selectTab(id: number): void {
-    const tab = tabById(id);
-    if (!tab || tab === tabs.active) return;
-    gestureControl.cancel();
-    activateTab(tab);
-  }
-
-  function stepTab(step: 1 | -1): void {
-    const tab = neighbourTab(step);
-    if (tab) selectTab(tab.id);
+  /** Open a recovered autosave snapshot as an unsaved tab (AC-15). The
+   *  snapshot is OpenRaster; Save keeps writing the format stored with it
+   *  (a recovered PNG saves back as PNG). Older snapshots carry none: the
+   *  file name's extension stands in. */
+  async function recoverTab(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void> {
+    const tab = await openBytes(bytes, meta.name, 'image/openraster', {
+      handle: null,
+      path: null,
+      format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
+    });
+    markUnsaved();
+    attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
   onMount(() => {
     bindTabHooks({
       registerDocument,
       confirmClose,
+      activateDocument,
+      reportError,
       onEmpty: () => onEmpty(),
       recordRecent: (target, id) => recordRecent(target, id),
       report: (message) => (loadError = message),
     });
-    // Open what the shell handed over: an already-read file, or a blank
-    // canvas of the requested size.
-    // Nothing to show when the first document fails: the start screen names why.
-    if (initialFile) {
-      void openTabFile(initialFile).then((ok) => {
-        if (!ok && tabs.list.length === 0) onEmpty(loadError ?? undefined);
-      });
-    }
-    else void createTab({ mode: 'image', width: initialNew?.width ?? 800, height: initialNew?.height ?? 600 });
-    recovery.probe();
     void refreshRecents();
+    // The documents the shell routes here open as tabs (document-tabs
+    // AC-02, AC-15); the core loads with the first of them.
     const unregisterSession = registerSession({
       open: openTabFile,
-      create: (params) => void createTab(params),
+      create: createTab,
+      recover: recoverTab,
     });
     registerMenuHandlers({
       'menu:close': () => requestCloseTab(),
@@ -566,11 +537,17 @@
       'menu:resetZoom': () => viewCommands.fit(),
     });
     return () => {
-      recovery.stop();
       unregisterSession();
       detachAllTabs();
       registerMenuHandlers(null);
     };
+  });
+
+  // A hidden editor takes no input (AC-21): the canvas' Space pan reads
+  // this too. Leaving for another mode's tab drops a gesture in flight.
+  $effect.pre(() => {
+    ui.active = active;
+    if (!active) gestureControl.cancel();
   });
 
   const dirty = $derived(isDirty(tabs.active));
@@ -578,14 +555,19 @@
   // The window title follows the active tab (document-tabs AC-04), as in
   // Pixel mode.
   $effect(() => {
-    if (editor.handle !== null) document.title = `${dirty ? '● ' : ''}${editor.fileName} – Pincel`;
+    if (active && editor.handle !== null) {
+      document.title = `${dirty ? '● ' : ''}${editor.fileName} – Pincel`;
+    }
   });
 
   // Keyboard map shared with Pixel mode (lib/shell/shortcuts.ts).
   function onKeydown(e: KeyboardEvent): void {
-    // Ignore shortcuts while typing in a field (text-entry overlay included)
-    // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
+    // Ignore shortcuts while another mode's tab is active (AC-21), while
+    // typing in a field (text-entry overlay included) or while a modal
+    // dialog owns the keyboard.
+    // A key the other editor already handled is not handled again: a tab
+    // switch it made shows this editor before the event reaches it.
+    if (!active || e.defaultPrevented || ui.modalOpen || help.about || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
@@ -618,7 +600,7 @@
         return true;
       case 'nextTab':
       case 'prevTab':
-        stepTab(action === 'nextTab' ? 1 : -1);
+        onStepTab(action === 'nextTab' ? 1 : -1);
         return true;
       case 'closeTab':
         requestCloseTab();
@@ -932,13 +914,7 @@
   {menus}
   title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
-  tabs={{
-    tabs: tabItems,
-    active: tabs.active?.id ?? null,
-    closeHint: hint('closeTab'),
-    onSelect: selectTab,
-    onClose: (id) => requestCloseTab(tabById(id)),
-  }}
+  tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
@@ -1008,16 +984,6 @@
     value={radiusOp === 'feather' ? 2 : 1}
     onCancel={() => (radiusOp = null)}
     onApply={applyRadius}
-  />
-{/if}
-
-{#if recovery.snapshots.length > 0}
-  <RecoveryDialog
-    snapshots={recovery.snapshots}
-    errors={recovery.errors}
-    onRecover={(snap) => void recovery.recover(snap)}
-    onDiscard={(id) => void recovery.discard(id)}
-    onDismiss={() => recovery.dismiss()}
   />
 {/if}
 

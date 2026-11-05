@@ -3,7 +3,7 @@
 // File ▸ Save (AC-17), and its registration with the shell's
 // unsaved-changes prompt (AC-08, AC-10, AC-11, AC-13). Closing a tab asks
 // about its unsaved changes first, then frees it; closing the last one
-// returns to the start screen (AC-09).
+// releases the editor (AC-09, AC-16).
 import { writeTarget } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
@@ -19,6 +19,8 @@ import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 export interface TabHooks {
   registerDocument: (doc: EditorDocument) => () => void;
   confirmClose: (doc: EditorDocument, close: () => void) => void;
+  activateDocument: (doc: EditorDocument) => void;
+  reportError: (doc: EditorDocument, error: string) => void;
   onEmpty: () => void;
 }
 
@@ -34,6 +36,8 @@ const extras = new Map<number, TabExtras>();
 let hooks: TabHooks = {
   registerDocument: () => () => {},
   confirmClose: (_doc, close) => close(),
+  activateDocument: (doc) => doc.activate(),
+  reportError: () => {},
   onEmpty: () => {},
 };
 
@@ -77,14 +81,24 @@ export function attachTab(tab: PixelTab, opts: { docId?: string; recovered?: boo
   const doc: EditorDocument = {
     name: () => tab.file.saveTarget.name,
     dirty: () => isTabDirty(tab),
+    location: () => tab.file.saveTarget,
     save: () => saveTab(tab),
     running: () => runningSave(tab),
     discard: () => autosave.finish(),
     activate: () => activateTab(tab),
+    close: () => requestCloseTab(tab),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();
   if (!opts.recovered) void autosave.opened();
+}
+
+/** Make `tab` the active one through the shell, which shows this editor
+ *  (the file asked for is already open there, document-tabs AC-03). */
+export function focusTab(tab: PixelTab): void {
+  const ex = extras.get(tab.id);
+  if (ex) hooks.activateDocument(ex.doc);
+  else activateTab(tab);
 }
 
 /** Saves `tab`; resolves `true` once it is saved, `false` when the picker
@@ -121,6 +135,8 @@ async function saveInner(tab: PixelTab, ex: TabExtras, forceAs: boolean): Promis
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('status.failed', { action: t('act.save'), error: msg });
+    // A tab saved in the background names its failure at once (AC-25).
+    hooks.reportError(ex.doc, msg);
     return false;
   }
 }

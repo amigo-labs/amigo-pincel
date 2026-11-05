@@ -2,10 +2,10 @@
 // `AutosaveSession` per open document (docs/specs/document-tabs.md AC-14).
 // Every `AUTOSAVE_INTERVAL_MS` an edited, unsaved document is encoded by
 // its editor and written to the IDB snapshot store under the session's
-// `docId`; a save drops it. The first editor of a mode in a page load lists
-// the snapshots an earlier page load left (crash, closed tab) for the
-// Recovery dialog (`RecoveryOffer`); later mounts in the same page do not
-// ask again.
+// `docId`; a save drops it. When the first editor of a page load starts,
+// the shell lists the snapshots of both modes an earlier page load left
+// (crash, closed tab) in the Recovery dialog (`RecoveryOffer`); later
+// editor starts in the same page do not ask again.
 //
 // Behaviour both modes share:
 // - A clean document (undo depth at the last save) is never written —
@@ -29,8 +29,8 @@ import {
 } from './autosave';
 import { isIdbAvailable } from './db';
 
-/** Modes whose Recovery probe already ran in this page load. */
-const probedModes: Partial<Record<EditorMode, true>> = {};
+/** The Recovery probe already ran in this page load. */
+let probed = false;
 
 /** How often an edited document is snapshotted. */
 export const AUTOSAVE_INTERVAL_MS = 30_000;
@@ -174,13 +174,12 @@ export class AutosaveSession {
   }
 }
 
-/** What an editor does with a recovered snapshot. */
+/** What the shell does with a recovered snapshot. */
 export interface RecoveryHost {
-  mode: EditorMode;
   /** A file operation is running; ignore Recover for now. */
   busy(): boolean;
-  /** Open the snapshot's bytes as a new, unsaved document that continues
-   *  under `meta.docId` (document-tabs AC-15). */
+  /** Open the snapshot's bytes as a new, unsaved tab of its mode that
+   *  continues under `meta.docId` (document-tabs AC-15). */
   open(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void>;
   /** Surface a failure (`action` is what failed). */
   report(action: 'recover' | 'discard', error: string): void;
@@ -198,20 +197,20 @@ export class RecoveryOffer {
 
   constructor(private readonly host: RecoveryHost) {}
 
-  /** On the mode's first mount in this page load, list the snapshots an
-   *  earlier page load left. */
+  /** On the first editor start in this page load, list the snapshots of
+   *  both modes an earlier page load left. */
   probe(): void {
     this.live = true;
-    if (!isIdbAvailable() || probedModes[this.host.mode]) return;
-    probedModes[this.host.mode] = true;
-    listLatestSnapshots(this.host.mode)
+    if (!isIdbAvailable() || probed) return;
+    probed = true;
+    listLatestSnapshots()
       .then((snaps) => {
         if (this.live) this.snapshots = snaps;
       })
       .catch((err: unknown) => console.error('autosave probe failed', err));
   }
 
-  /** The editor unmounts: a late probe result is dropped. */
+  /** The offer is gone: a late probe result is dropped. */
   stop(): void {
     this.live = false;
   }

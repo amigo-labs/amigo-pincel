@@ -37,9 +37,16 @@ let initPromise: Promise<void> | null = null;
  */
 export function loadCore(): Promise<void> {
   if (!initPromise) {
-    initPromise = init({ module_or_path: wasmUrl }).then(() => {
-      publishDocumentCount('pixel', openDocumentCount);
-    });
+    initPromise = init({ module_or_path: wasmUrl }).then(
+      () => {
+        publishDocumentCount('pixel', openDocumentCount);
+      },
+      (err: unknown) => {
+        // A failed download (offline) is retried by the next caller.
+        initPromise = null;
+        throw err;
+      },
+    );
   }
   return initPromise;
 }

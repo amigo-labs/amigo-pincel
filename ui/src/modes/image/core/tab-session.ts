@@ -3,14 +3,15 @@
 // File ▸ Save (AC-17) and its registration with the shell's
 // unsaved-changes prompt (AC-08, AC-10, AC-11, AC-13). Closing a tab asks
 // about its unsaved changes first, then frees it; closing the last one
-// returns to the start screen (AC-09).
+// releases the editor (AC-09, AC-16).
 import { AutosaveSession } from '../../../lib/idb/autosave-session.svelte';
 import type { SaveTarget } from '../../../lib/fs';
 import type { EditorDocument } from '../../../lib/shell/types';
 import { t } from '../../../lib/i18n/index.svelte';
 import { tabs, type ImageTab } from '../stores/editor.svelte';
-import { fileFormat, fileName } from './document-file';
+import { fileFormat, fileName, fileTarget } from './document-file';
 import { saveDocument } from './save-flow';
+import { gestureControl } from '../tools/pointer';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 import { core } from './wasm';
 
@@ -18,6 +19,8 @@ import { core } from './wasm';
 export interface TabHooks {
   registerDocument: (doc: EditorDocument) => () => void;
   confirmClose: (doc: EditorDocument, close: () => void) => void;
+  activateDocument: (doc: EditorDocument) => void;
+  reportError: (doc: EditorDocument, error: string) => void;
   onEmpty: () => void;
   /** A save finished: record the file as a recent under `docId`. */
   recordRecent: (target: SaveTarget, docId: string) => Promise<void>;
@@ -37,6 +40,8 @@ const extras = new Map<number, TabExtras>();
 let hooks: TabHooks = {
   registerDocument: () => () => {},
   confirmClose: (_doc, close) => close(),
+  activateDocument: (doc) => doc.activate(),
+  reportError: () => {},
   onEmpty: () => {},
   recordRecent: async () => {},
   report: () => {},
@@ -82,14 +87,28 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
   const doc: EditorDocument = {
     name: () => tab.doc.fileName,
     dirty: () => isDirty(tab),
+    location: () => fileTarget(tab),
     save: () => saveTab(tab),
     running: () => runningSave(tab),
     discard: () => autosave.finish(),
-    activate: () => activateTab(tab),
+    activate: () => {
+      // A gesture in flight belongs to the tab being left.
+      if (tabs.active !== tab) gestureControl.cancel();
+      activateTab(tab);
+    },
+    close: () => requestCloseTab(tab),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();
   if (!opts.recovered) void autosave.opened();
+}
+
+/** Make `tab` the active one through the shell, which shows this editor
+ *  (the file asked for is already open there, document-tabs AC-03). */
+export function focusTab(tab: ImageTab): void {
+  const ex = extras.get(tab.id);
+  if (ex) hooks.activateDocument(ex.doc);
+  else activateTab(tab);
 }
 
 /** Saves `tab` (Save, or Save As with `forceAs`); resolves `true` once it
@@ -117,6 +136,8 @@ async function saveInner(tab: ImageTab, ex: TabExtras, forceAs: boolean): Promis
     return true;
   } catch (e) {
     hooks.report(t('img.saveFailed', { error: String(e) }));
+    // A tab saved in the background names its failure at once (AC-25).
+    hooks.reportError(ex.doc, e instanceof Error ? e.message : String(e));
     return false;
   }
 }

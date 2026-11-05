@@ -11,7 +11,7 @@ export const de: Record<MessageKey, string> = {
   'shell.dontSave': 'Nicht speichern',
   'shell.saveAll': 'Alle speichern',
   'shell.unsavedIn': 'Ungespeicherte Änderungen in {n} Bildern:',
-  'shell.dropSkipped': '{n} abgelegte Datei(en) des anderen Modus wurden nicht geöffnet',
+  'shell.dropSkipped': '{n} abgelegte Datei(en) konnten nicht geöffnet werden',
   'shell.unsupported':
     '{name}: kein unterstütztes Format (Sprite, OpenRaster oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
@@ -20,7 +20,10 @@ export const de: Record<MessageKey, string> = {
   'shell.recentFailed': '{name} konnte nicht geöffnet werden: {error}',
   'shell.dropFailed': 'Ablegen fehlgeschlagen: {error}',
   'shell.loadingEditor': '{mode}-Editor wird geladen…',
-  'shell.editorFailed': 'Der {mode}-Editor konnte nicht geladen werden: {error}',
+  'shell.couldNotOpen': '{name} konnte nicht geöffnet werden: {error}',
+  'shell.newDocument': 'Neues {mode}-Dokument',
+  'shell.ignoredPrompt': '{name} wurde nicht geöffnet: Eine Abfrage zu ungespeicherten Änderungen ist offen',
+  'shell.saveFailed': 'Speichern von {name} fehlgeschlagen: {error}',
   'shell.dismiss': 'Schließen',
 
   // Generic buttons

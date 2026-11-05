@@ -1,12 +1,13 @@
 // The one unsaved-changes prompt (docs/specs/unsaved-changes-prompt.md,
-// extended to several tabs by docs/specs/document-tabs.md). Every action
-// that would replace the whole session — and closing the desktop app —
-// goes through `guardUnsaved`; closing one tab goes through
-// `guardDocument`. With one unsaved document the prompt asks Save /
+// extended to several tabs by docs/specs/document-tabs.md). Opening a
+// document never replaces another (tabs of both modes), so the prompt
+// guards closing: the desktop app goes through `guardUnsaved`, one tab
+// through `guardDocument`. With one unsaved document the prompt asks Save /
 // Don't Save / Cancel about it, with several it lists them and offers
 // Save All / Don't Save / Cancel. While the prompt (or a save it started)
 // is open, further actions are ignored (unsaved-changes-prompt AC-08); a
 // session-wide action waits for running saves first (document-tabs AC-17).
+import { activateDocument, openDocuments } from './session.svelte';
 import type { EditorDocument } from './types';
 
 /** What the prompt shows; `null` while it is closed. One name asks about
@@ -18,33 +19,21 @@ export const unsaved = $state({
 /** The user's answer to the prompt (`save` is Save All for a list). */
 export type UnsavedAnswer = 'save' | 'dontSave' | 'cancel';
 
-/** The open documents, in tab order (tabs never reorder, so registration
- *  order is tab order). */
-let docs: EditorDocument[] = [];
-
 /** The question awaiting an answer; kept while a save from it runs. */
 let pending: { action: () => void; docs: EditorDocument[] } | null = null;
 /** A session-wide action is waiting for running saves to finish. */
 let waiting = false;
 
-/** The mounted editor hands over one of its documents; the returned
- *  function unregisters it (the tab closed or the editor unmounted). */
-export function registerDocument(doc: EditorDocument): () => void {
-  docs = [...docs, doc];
-  return () => {
-    docs = docs.filter((d) => d !== doc);
-  };
-}
-
 /** Some open document has unsaved changes (app-shell AC-15, the desktop
  *  close prompt; document-tabs AC-13). */
 export function hasUnsaved(): boolean {
-  return docs.some((d) => d.dirty());
+  return openDocuments().some((d) => d.dirty());
 }
 
 /** The File ▸ Save / Save As runs that are running now. */
 function runningSaves(): Promise<boolean>[] {
-  return docs.map((d) => d.running()).filter((p): p is Promise<boolean> => p !== null);
+  return openDocuments()
+    .map((d) => d.running()).filter((p): p is Promise<boolean> => p !== null);
 }
 
 /** The prompt is open, a save it started still runs, or an action waits
@@ -55,17 +44,17 @@ export function promptBusy(): boolean {
 
 /** Drop every open document's autosave snapshot (closing without saving). */
 export async function discardDocuments(): Promise<void> {
-  await Promise.all(docs.map((d) => d.discard()));
+  await Promise.all(openDocuments().map((d) => d.discard()));
 }
 
 function ask(action: () => void, dirty: EditorDocument[]): void {
   pending = { action, docs: dirty };
-  if (dirty.length === 1) dirty[0]?.activate();
+  const only = dirty.length === 1 ? dirty[0] : undefined;
+  if (only) activateDocument(only);
   unsaved.prompt = { names: dirty.map((d) => d.name()) };
 }
 
-/** Run `action` — it replaces the whole session or closes the app — at
- *  once when nothing is unsaved, otherwise once the prompt allows it.
+/** Run `action` — it closes the app — at once when nothing is unsaved, otherwise once the prompt allows it.
  *  Running saves are awaited first (document-tabs AC-17). Ignored while
  *  the prompt is busy (unsaved-changes-prompt AC-08). */
 export async function guardUnsaved(action: () => void): Promise<void> {
@@ -81,7 +70,7 @@ export async function guardUnsaved(action: () => void): Promise<void> {
     // A save started meanwhile is waited for too.
     if (runningSaves().length > 0) return guardUnsaved(action);
   }
-  const dirty = docs.filter((d) => d.dirty());
+  const dirty = openDocuments().filter((d) => d.dirty());
   if (dirty.length === 0) {
     action();
     return;
@@ -106,8 +95,8 @@ export function guardDocument(doc: EditorDocument, close: () => void): void {
  *  fails (document-tabs AC-11). */
 async function saveAll(list: EditorDocument[]): Promise<boolean> {
   for (const doc of list) {
-    if (!docs.includes(doc) || !doc.dirty()) continue;
-    doc.activate();
+    if (!openDocuments().includes(doc) || !doc.dirty()) continue;
+    activateDocument(doc);
     let ok: boolean;
     try {
       ok = await doc.save();

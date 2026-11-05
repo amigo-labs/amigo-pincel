@@ -1,9 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { loadCore } from '../../lib/core';
-  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
-  import { RecoveryOffer } from '../../lib/idb/autosave-session.svelte';
-  import type { TabItem } from '../../lib/components/layout/TabBar.svelte';
   import {
     bindTabHooks,
     detachAllTabs,
@@ -12,7 +9,6 @@
     runningSave,
     saveTab,
   } from './tab-session';
-  import { activateTab, neighbourTab, tabById } from './tabs.svelte';
   import TileEditor from './components/TileEditor.svelte';
   import TilesetPanel from './components/TilesetPanel.svelte';
   import SlicesPanel from './components/SlicesPanel.svelte';
@@ -153,18 +149,21 @@
     view,
   } from './stores/editor.svelte';
 
-  // Shell contract (src/App.svelte mounts one editor per session): the
-  // document to open / create on mount, and the callbacks the shell
-  // serves — New dialog, foreign-format re-routing, the unsaved-changes
+  // Shell contract (src/App.svelte mounts at most one editor per mode):
+  // whether the active tab is this editor's, the shared tab bar, and the
+  // callbacks the shell serves — New dialog, routing, the unsaved-changes
   // prompt, and the native-menu items this editor handles.
   let {
-    initialFile,
-    initialNew,
+    active,
+    tabBar,
+    onStepTab,
     onRequestNew,
     onOpenForeign,
     onOpenFile,
     confirmClose,
     registerDocument,
+    activateDocument,
+    reportError,
     registerSession,
     onEmpty,
     registerMenuHandlers,
@@ -175,42 +174,15 @@
   bindShell({
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
-    openFile: (opened) => onOpenFile(opened),
+    openFile: (opened, mode) => onOpenFile(opened, mode),
   });
   bindTabHooks({
     registerDocument: (doc) => registerDocument(doc),
     confirmClose: (doc, close) => confirmClose(doc, close),
+    activateDocument: (doc) => activateDocument(doc),
+    reportError: (doc, error) => reportError(doc, error),
     onEmpty: () => onEmpty(),
   });
-
-  // Autosave recovery: Recover opens the snapshot as a tab (document-tabs AC-15).
-  const recovery = new RecoveryOffer({
-    mode: 'pixel',
-    busy: () => file.busy,
-    open: async (bytes, meta) => openRecovered(bytes, meta.name, meta.docId),
-    report: (action, error) => {
-      ed.status = t('status.failed', {
-        action: t(action === 'recover' ? 'act.recover' : 'act.discard'),
-        error,
-      });
-    },
-  });
-
-  /** The tab bar's tabs (document-tabs AC-01). */
-  const tabItems: TabItem[] = $derived(
-    tabs.list.map((tab) => ({ id: tab.id, name: tab.file.saveTarget.name, dirty: isTabDirty(tab) })),
-  );
-
-  /** Make the tab with `id` active (AC-04). */
-  function selectTab(id: number) {
-    const tab = tabById(id);
-    if (tab) activateTab(tab);
-  }
-
-  function stepTab(step: 1 | -1) {
-    const tab = neighbourTab(step);
-    if (tab) activateTab(tab);
-  }
 
   function save(forceAs = false): Promise<boolean> {
     return saveTab(tabs.active, forceAs);
@@ -349,6 +321,10 @@
   );
 
   function onKeyDown(e: KeyboardEvent) {
+    // A hidden editor (another mode's tab is active) takes no keys (AC-21).
+    // A key the other editor already handled is not handled again: a tab
+    // switch it made shows this editor before the event reaches it.
+    if (!active || e.defaultPrevented) return;
     if (e.code === 'Space' && !e.repeat && !isEditableTarget(e.target)) {
       // Prevent the browser from page-scrolling on space.
       e.preventDefault();
@@ -357,7 +333,7 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg || recovery.snapshots.length > 0) return;
+    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg) return;
     if (dialogs.selectionRadius || dialogs.paste || help.about) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
@@ -418,7 +394,7 @@
         return true;
       case 'nextTab':
       case 'prevTab':
-        stepTab(action === 'nextTab' ? 1 : -1);
+        onStepTab(action === 'nextTab' ? 1 : -1);
         return true;
       case 'closeTab':
         requestCloseTab();
@@ -497,6 +473,7 @@
   // Ctrl+V / ⌘V arrives as the browser's `paste` event (spec §5.4); not
   // while an editor dialog or the About dialog is open.
   function onWindowPaste(e: ClipboardEvent) {
+    if (!active || e.defaultPrevented) return;
     const blocked = Boolean(
       dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
     );
@@ -504,7 +481,7 @@
   }
 
   function onKeyUp(e: KeyboardEvent) {
-    if (e.code === 'Space') {
+    if (active && e.code === 'Space') {
       view.spaceDown = false;
     }
   }
@@ -515,51 +492,73 @@
 
   onMount(() => {
     let cancelled = false;
-    loadCore()
-      .then(async () => {
-        if (cancelled) return;
-        // Pick the base-layer renderer before the first frame. The base
-        // canvas is bound by the time onMount runs (spec §4.4, M12.5).
-        if (view.canvas && !live.renderer) {
-          const r = await createRenderer(view.canvas);
-          if (cancelled) {
-            r.destroy();
-            return;
-          }
-          live.renderer = r;
-          ed.backend = r.backend;
+    // The core and the base-layer renderer, before the first document.
+    // The base canvas is bound by the time onMount runs (spec §4.4, M12.5).
+    const ready = loadCore().then(async () => {
+      if (cancelled) return;
+      if (view.canvas && !live.renderer) {
+        const r = await createRenderer(view.canvas);
+        if (cancelled) {
+          r.destroy();
+          return;
         }
-        live.rafHandle = requestAnimationFrame(tick);
-        // The first tab: a file the shell already read (start screen,
-        // drag-and-drop, file association, Open Recent), or a blank sprite.
-        if (initialFile) {
+        live.renderer = r;
+        ed.backend = r.backend;
+      }
+      live.rafHandle = requestAnimationFrame(tick);
+    });
+    ready.catch((err: unknown) => {
+      if (cancelled) return;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('loadCore failed', err);
+      ed.status = t('status.failed', { action: t('act.wasmInit'), error: msg });
+    });
+    // The canvas reports ready once the first document has composed: the
+    // frame is queued behind the `tick` that draws it.
+    function markReady(): void {
+      if (ed.ready) return;
+      requestAnimationFrame(() => {
+        if (!cancelled) ed.ready = true;
+      });
+    }
+    /** Runs `open` once the core is loaded; resolves `null` once the tab
+     *  is open, else the error (the core failing to load, AC-23). */
+    async function whenReady(open: () => Promise<string | null>): Promise<string | null> {
+      try {
+        await ready;
+      } catch (err) {
+        return err instanceof Error ? err.message : String(err);
+      }
+      if (cancelled) return t('px.noDocument');
+      const error = await open();
+      if (error === null) markReady();
+      return error;
+    }
+    // The documents the shell routes here open as tabs (document-tabs
+    // AC-02, AC-15).
+    const unregisterSession = registerSession({
+      open: (opened) =>
+        whenReady(async () => {
           file.busy = true;
-          let opened: boolean;
           try {
-            opened = await openOpened(initialFile);
+            return await openOpened(opened);
           } finally {
             file.busy = false;
           }
-          // Nothing to show: the start screen names the error.
-          if (!opened) {
-            if (!cancelled) onEmpty(ed.status);
-            return;
-          }
-        } else {
-          createTab({ width: initialNew?.width ?? 64, height: initialNew?.height ?? 64 });
-        }
-        // Queued behind the `tick` above, so the document has composed
-        // by the time the canvas reports ready.
-        requestAnimationFrame(() => {
-          if (!cancelled) ed.ready = true;
+        }),
+      create: (params) =>
+        whenReady(async () => {
+          createTab(params);
+          return null;
+        }),
+      recover: async (bytes, meta) => {
+        const error = await whenReady(async () => {
+          openRecovered(bytes, meta.name, meta.docId);
+          return null;
         });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error('loadCore failed', err);
-        ed.status = t('status.failed', { action: t('act.wasmInit'), error: msg });
-      });
+        if (error !== null) throw new Error(error);
+      },
+    });
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('paste', onWindowPaste);
@@ -603,21 +602,6 @@
           console.error('listRecents failed', err);
         });
     }
-    // Recovery probe; each tab runs its own autosave timer.
-    recovery.probe();
-    // Same-mode documents the shell routes here open as tabs.
-    const unregisterSession = registerSession({
-      open: async (opened) => {
-        if (file.busy) return false;
-        file.busy = true;
-        try {
-          return await openOpened(opened);
-        } finally {
-          file.busy = false;
-        }
-      },
-      create: (params) => createTab(params),
-    });
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
@@ -638,7 +622,6 @@
       cancelled = true;
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
-      recovery.stop();
       unregisterSession();
       registerMenuHandlers(null);
       window.removeEventListener('keydown', onKeyDown);
@@ -674,9 +657,20 @@
     if (idbAvailable) saveBrushPref(pref);
   });
 
-  // Reflect the document identity + dirty state in the tab title.
+  // Reflect the document identity + dirty state in the window title while
+  // this editor's tab is active.
   $effect(() => {
-    document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
+    if (active) document.title = `${isDirty ? '● ' : ''}${file.saveTarget.name} – Pincel`;
+  });
+
+  // Leaving for another mode's tab (or a shell dialog) drops the gestures,
+  // playback and sub-modes in flight, as switching tabs does (AC-21).
+  $effect(() => {
+    if (active) return;
+    stopPlayback();
+    onWindowBlur();
+    cancelPolygon();
+    view.spaceDown = false;
   });
 
 
@@ -687,7 +681,7 @@
   // surface in the UI — the toolbar dropdown remains the authoritative
   // recents UI on the web.
   $effect(() => {
-    if (!tauriHost) return;
+    if (!tauriHost || !active) return;
     const items = file.recents
       .filter((r) => r.path !== null)
       .map((r) => ({ id: r.id, name: r.name }));
@@ -881,13 +875,7 @@
   {menus}
   title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
-  tabs={{
-    tabs: tabItems,
-    active: tabs.active?.id ?? null,
-    closeHint: hint('closeTab'),
-    onSelect: selectTab,
-    onClose: (id) => requestCloseTab(tabById(id)),
-  }}
+  tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
@@ -1103,16 +1091,6 @@
     <span title={t('px.version')}>{appVersion}</span>
   {/snippet}
 </EditorFrame>
-
-{#if recovery.snapshots.length > 0}
-  <RecoveryDialog
-    snapshots={recovery.snapshots}
-    errors={recovery.errors}
-    onRecover={(snap) => void recovery.recover(snap)}
-    onDiscard={(id) => void recovery.discard(id)}
-    onDismiss={() => recovery.dismiss()}
-  />
-{/if}
 
 {#if dialogs.selectionRadius}
   {@const op = dialogs.selectionRadius}

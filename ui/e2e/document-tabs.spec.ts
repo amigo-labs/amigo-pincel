@@ -1,210 +1,42 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { createDocument, drag, gotoStart, menu, putClipboardImage, waitForEditor } from './helpers';
 import {
-  createDocument,
-  drag,
-  gotoStart,
-  imageCanvas,
-  menu,
-  pixelCanvas,
-  putClipboardImage,
-  waitForEditor,
-} from './helpers';
+  DEFAULT_NAME,
+  EXT,
+  canvas,
+  dropFiles,
+  editorOf,
+  expectActive,
+  expectDirty,
+  fileOf,
+  installPicker,
+  openDocuments,
+  openTabs,
+  other,
+  otherFile,
+  paint,
+  picker,
+  prompt,
+  queuePicker,
+  releasePicker,
+  tab,
+  tabBar,
+  tabNames,
+  tabs,
+  waitForHeldWrite,
+  zoomLabel,
+} from './tab-helpers';
 
-// Document tabs (docs/specs/document-tabs.md): several documents of one
-// mode open side by side. Same-mode documents open as tabs; another mode's
-// document replaces the session after the unsaved-changes prompt. The
-// desktop paths (file paths, close, desktop keys) are in
-// `document-tabs-desktop.spec.ts`.
-//
-// The open picker is removed (Open… falls back to the `<input>` chooser)
-// and the save picker is a stub whose answers each test queues: write,
-// cancel, or hold until the test releases it.
-
-type PickerMode = 'write' | 'cancel' | 'fail' | 'hold';
-
-interface PickerStub {
-  /** Answers for the next picker calls; `write` once the queue is empty. */
-  queue: PickerMode[];
-  calls: number;
-  written: string[];
-  release: (() => void) | null;
-}
-
-type StubWindow = Window & {
-  __picker: PickerStub;
-  __pincelDiagnostics?: { openDocuments: Partial<Record<'pixel' | 'image', () => number>> };
-};
+// Document tabs (docs/specs/document-tabs.md), within one mode: several
+// documents of a mode open side by side, each with its own state. Tabs of
+// both modes mixed are in `document-tabs-mixed.spec.ts`, the desktop paths
+// (file paths, closing the window, desktop keys) in
+// `document-tabs-desktop.spec.ts`. Helpers and the save-picker stub are in
+// `tab-helpers.ts`.
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const stub: PickerStub = { queue: [], calls: 0, written: [], release: null };
-    const w = window as unknown as StubWindow & {
-      showOpenFilePicker?: unknown;
-      showSaveFilePicker?: unknown;
-    };
-    w.__picker = stub;
-    delete w.showOpenFilePicker;
-    w.showSaveFilePicker = async (opts: { suggestedName?: string }) => {
-      stub.calls += 1;
-      const mode = stub.queue.shift() ?? 'write';
-      if (mode === 'cancel') throw new DOMException('The user aborted a request.', 'AbortError');
-      const name = opts.suggestedName ?? 'file';
-      return {
-        kind: 'file',
-        name,
-        queryPermission: async () => 'granted',
-        requestPermission: async () => 'granted',
-        isSameEntry: async () => false,
-        createWritable: async () => {
-          if (mode === 'fail') throw new Error('disk full');
-          return {
-            write: async () => {
-              if (mode === 'hold') await new Promise<void>((resolve) => (stub.release = resolve));
-            },
-            close: async () => {
-              stub.written.push(name);
-            },
-          };
-        },
-      };
-    };
-  });
+  await installPicker(page);
 });
-
-/** A valid 1×1 PNG. */
-const PNG_1X1 = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
-  'base64',
-);
-
-const SPRITE = readFile(
-  join(
-    import.meta.dirname,
-    '../../crates/pincel-core/tests/fixtures/aseprite-compat-check.aseprite',
-  ),
-);
-
-const DEFAULT_NAME = { pixel: 'pincel.aseprite', image: 'image.ora' } as const;
-const EXT = { pixel: 'aseprite', image: 'png' } as const;
-
-interface DropFile {
-  name: string;
-  bytes: Buffer;
-}
-
-/** A same-mode file named `stem` for `mode`. */
-async function fileOf(mode: 'pixel' | 'image', stem: string): Promise<DropFile> {
-  return { name: `${stem}.${EXT[mode]}`, bytes: mode === 'pixel' ? await SPRITE : PNG_1X1 };
-}
-
-/** The other mode's file named `stem`. */
-async function otherFile(mode: 'pixel' | 'image', stem: string): Promise<DropFile> {
-  return fileOf(mode === 'pixel' ? 'image' : 'pixel', stem);
-}
-
-/** Drops `files` onto the editor's canvas area, in this order. */
-async function dropFiles(page: Page, files: DropFile[]): Promise<void> {
-  await page.evaluate(
-    (list) => {
-      const dt = new DataTransfer();
-      for (const f of list) dt.items.add(new File([new Uint8Array(f.data)], f.name));
-      const target = document.querySelector('canvas') ?? document.body;
-      for (const type of ['dragenter', 'dragover', 'drop']) {
-        target.dispatchEvent(
-          new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }),
-        );
-      }
-    },
-    files.map((f) => ({ name: f.name, data: Array.from(f.bytes) })),
-  );
-}
-
-function tabBar(page: Page): Locator {
-  return page.getByRole('tablist', { name: 'Open documents' });
-}
-
-function tabs(page: Page): Locator {
-  return tabBar(page).getByRole('tab');
-}
-
-function tab(page: Page, name: string): Locator {
-  return tabBar(page).getByRole('tab', { name: new RegExp(`^${name.replace('.', '\\.')}( |$)`) });
-}
-
-function prompt(page: Page): Locator {
-  return page.getByRole('alertdialog', { name: 'Unsaved changes' });
-}
-
-/** The tab names in bar order. */
-async function tabNames(page: Page): Promise<string[]> {
-  return tabs(page).evaluateAll((els) =>
-    els.map((el) => el.querySelector('span')?.textContent?.trim() ?? ''),
-  );
-}
-
-async function expectActive(page: Page, name: string): Promise<void> {
-  await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
-  // The top bar names the active document (its tooltip adds the unsaved state).
-  const title = new RegExp(`^${name.replace('.', '\\.')}( — unsaved changes)?$`);
-  await expect(page.getByRole('banner').getByTitle(title)).toBeVisible();
-}
-
-async function expectDirty(page: Page, name: string, dirty: boolean): Promise<void> {
-  await expect(tab(page, name).getByText('unsaved changes')).toHaveCount(dirty ? 1 : 0);
-}
-
-function canvas(page: Page, mode: 'pixel' | 'image'): Locator {
-  return mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
-}
-
-/** Paints one stroke into the active tab. */
-async function paint(page: Page, mode: 'pixel' | 'image'): Promise<void> {
-  if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
-  await drag(page, canvas(page, mode), [0.3, 0.5], [0.7, 0.5]);
-}
-
-/** Opens same-mode tabs `a`, `b`, … by drop, after the created first one. */
-async function openTabs(page: Page, mode: 'pixel' | 'image', stems: string[]): Promise<void> {
-  for (const stem of stems) {
-    await dropFiles(page, [await fileOf(mode, stem)]);
-    await expectActive(page, `${stem}.${mode === 'pixel' ? 'aseprite' : 'png'}`);
-  }
-}
-
-async function picker(page: Page): Promise<{ calls: number; written: string[] }> {
-  return page.evaluate(() => {
-    const { calls, written } = (window as unknown as StubWindow).__picker;
-    return { calls, written: [...written] };
-  });
-}
-
-async function queuePicker(page: Page, answers: PickerMode[]): Promise<void> {
-  await page.evaluate((a) => {
-    (window as unknown as StubWindow).__picker.queue = a;
-  }, answers);
-}
-
-async function releasePicker(page: Page): Promise<void> {
-  await page.waitForFunction(() => (window as unknown as StubWindow).__picker.release !== null);
-  await page.evaluate(() => {
-    const stub = (window as unknown as StubWindow).__picker;
-    stub.release?.();
-    stub.release = null;
-  });
-}
-
-async function openDocuments(page: Page, mode: 'pixel' | 'image'): Promise<number | null> {
-  return page.evaluate(
-    (m) => (window as unknown as StubWindow).__pincelDiagnostics?.openDocuments[m]?.() ?? null,
-    mode,
-  );
-}
-
-function zoomLabel(page: Page): Locator {
-  return page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to window' });
-}
 
 for (const mode of ['pixel', 'image'] as const) {
   const name = (stem: string) => `${stem}.${EXT[mode]}`;
@@ -376,7 +208,7 @@ for (const mode of ['pixel', 'image'] as const) {
     expect((await picker(page)).written).toHaveLength(1);
   });
 
-  test(`${mode}: one unsaved tab is asked about before another mode replaces the session (AC-10, AC-12)`, async ({
+  test(`${mode}: another mode's document opens as a tab beside the unsaved ones, without a prompt (AC-02)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
@@ -387,107 +219,22 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(page.getByText('notes.txt: not a supported file')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
     await expect(tabs(page)).toHaveCount(2);
-
-    const other = await otherFile(mode, 'other');
-    await dropFiles(page, [other]);
-    await expect(prompt(page)).toContainText(`Save changes to "${DEFAULT_NAME[mode]}"?`);
-    await expectActive(page, DEFAULT_NAME[mode]);
-    await prompt(page).getByRole('button', { name: "Don't Save" }).click();
-    const next = mode === 'pixel' ? 'image' : 'pixel';
-    await waitForEditor(page, next);
-    expect(await tabNames(page)).toEqual([other.name]);
-    await expectActive(page, other.name);
-  });
-
-  test(`${mode}: several unsaved tabs are listed in one prompt — Save All, Don't Save, Cancel (AC-11)`, async ({
-    page,
-  }) => {
-    await createDocument(page, mode, { width: 16, height: 16 });
-    await paint(page, mode);
-    await openTabs(page, mode, ['a', 'b']);
-    await tab(page, name('a')).click();
-    await paint(page, mode);
-    await tab(page, name('b')).click();
-    const other = await otherFile(mode, 'other');
-
-    // Cancel (Escape) changes nothing.
-    await dropFiles(page, [other]);
-    await expect(prompt(page)).toContainText('Unsaved changes in 2 images');
-    await expect(prompt(page).getByRole('listitem')).toHaveText([DEFAULT_NAME[mode], name('a')]);
-    const saveAll = prompt(page).getByRole('button', { name: 'Save All' });
-    await expect(saveAll).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(prompt(page)).toHaveCount(0);
-    await expect(tabs(page)).toHaveCount(3);
-    await expectDirty(page, DEFAULT_NAME[mode], true);
-    await expectDirty(page, name('a'), true);
-
-    // Save All with the second save cancelled: the first stays saved, the
-    // second unsaved, the action is aborted.
-    await queuePicker(page, ['write', 'cancel']);
-    await dropFiles(page, [other]);
-    await saveAll.click();
-    await expect.poll(async () => (await picker(page)).calls).toBe(2);
-    await expect(prompt(page)).toHaveCount(0);
-    await expect(tabs(page)).toHaveCount(3);
-    await expectDirty(page, DEFAULT_NAME[mode], false);
-    await expectDirty(page, name('a'), true);
-    // The second tab was active while it saved.
     await expectActive(page, name('a'));
-    expect((await picker(page)).written).toEqual([DEFAULT_NAME[mode]]);
 
-    // Save All once more saves the rest in tab order and continues.
-    await paint(page, mode);
-    await tab(page, DEFAULT_NAME[mode]).click();
-    await paint(page, mode);
-    await dropFiles(page, [other]);
-    await expect(prompt(page)).toContainText('Unsaved changes in 2 images');
-    await saveAll.click();
-    const next = mode === 'pixel' ? 'image' : 'pixel';
-    await waitForEditor(page, next);
-    expect(await tabNames(page)).toEqual([other.name]);
-    expect((await picker(page)).written).toEqual([
-      DEFAULT_NAME[mode],
-      DEFAULT_NAME[mode],
-      name('a'),
-    ]);
-  });
-
-  test(`${mode}: a failed save in Save All aborts the action and keeps the rest unsaved (AC-11)`, async ({
-    page,
-  }) => {
-    await createDocument(page, mode, { width: 16, height: 16 });
-    await paint(page, mode);
-    await openTabs(page, mode, ['a']);
-    await paint(page, mode);
-    await queuePicker(page, ['fail']);
-    await dropFiles(page, [await otherFile(mode, 'other')]);
-    await prompt(page).getByRole('button', { name: 'Save All' }).click();
-    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    const x = await otherFile(mode, 'other');
+    await dropFiles(page, [x]);
+    await waitForEditor(page, other(mode));
+    await expectActive(page, x.name);
+    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), x.name]);
     await expect(prompt(page)).toHaveCount(0);
-    await waitForEditor(page, mode);
-    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a')]);
     await expectDirty(page, DEFAULT_NAME[mode], true);
-    await expectDirty(page, name('a'), true);
-    expect((await picker(page)).calls).toBe(1);
+    // Back in the first tab: its document and history are still there.
+    await tab(page, DEFAULT_NAME[mode]).click();
+    await expectActive(page, DEFAULT_NAME[mode]);
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   });
 
-  test(`${mode}: Don't Save in the list prompt discards every unsaved tab (AC-11, AC-12)`, async ({
-    page,
-  }) => {
-    await createDocument(page, mode, { width: 16, height: 16 });
-    await paint(page, mode);
-    await openTabs(page, mode, ['a']);
-    await paint(page, mode);
-    const other = await otherFile(mode, 'other');
-    await dropFiles(page, [other]);
-    await prompt(page).getByRole('button', { name: "Don't Save" }).click();
-    await waitForEditor(page, mode === 'pixel' ? 'image' : 'pixel');
-    expect(await tabNames(page)).toEqual([other.name]);
-    expect((await picker(page)).calls).toBe(0);
-  });
-
-  test(`${mode}: closing tabs and leaving the editor frees their documents (AC-16)`, async ({
+  test(`${mode}: closing tabs frees their documents; the last tab of a mode releases its editor (AC-16)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
@@ -499,10 +246,21 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(await openDocuments(page, mode)).toBe(2);
     await openTabs(page, mode, ['c']);
     expect(await openDocuments(page, mode)).toBe(3);
-    // Replacing the session releases them all.
-    await dropFiles(page, [await otherFile(mode, 'other')]);
-    await waitForEditor(page, mode === 'pixel' ? 'image' : 'pixel');
+    // A tab of the other mode, then every tab of this mode closed.
+    const x = await otherFile(mode, 'other');
+    await dropFiles(page, [x]);
+    await waitForEditor(page, other(mode));
+    expect(await openDocuments(page, other(mode))).toBe(1);
+    for (const n of [DEFAULT_NAME[mode], name('a'), name('c')]) {
+      await tabBar(page)
+        .getByRole('button', { name: `Close ${n}` })
+        .click();
+    }
+    expect(await tabNames(page)).toEqual([x.name]);
+    await expect(editorOf(page, mode)).toHaveCount(0);
+    // The count stays readable after the release: the module stays loaded.
     expect(await openDocuments(page, mode)).toBe(0);
+    expect(await openDocuments(page, other(mode))).toBe(1);
   });
 
   test(`${mode}: a running save keeps its tab open and lets other tabs be switched to (AC-17)`, async ({
@@ -514,7 +272,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await tab(page, DEFAULT_NAME[mode]).click();
     await queuePicker(page, ['hold']);
     await page.keyboard.press('Control+s');
-    await page.waitForFunction(() => (window as unknown as StubWindow).__picker.release !== null);
+    await waitForHeldWrite(page);
     // Closing the saving tab does nothing, by any means.
     await tabBar(page)
       .getByRole('button', { name: `Close ${DEFAULT_NAME[mode]}` })
@@ -522,46 +280,37 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('Alt+w');
     await expect(tabs(page)).toHaveCount(2);
     await expect(prompt(page)).toHaveCount(0);
-    // Another tab can be switched to.
+    // Another tab can be switched to, also one of the other mode.
     await tab(page, name('a')).click();
     await expectActive(page, name('a'));
-    // Replacing the session waits for the save, then goes ahead (nothing
-    // is unsaved once it finished).
-    const other = await otherFile(mode, 'other');
-    await dropFiles(page, [other]);
-    await page.waitForTimeout(300);
-    await expect(tabs(page)).toHaveCount(2);
+    const x = await otherFile(mode, 'other');
+    await dropFiles(page, [x]);
+    await waitForEditor(page, other(mode));
+    await expectActive(page, x.name);
+    await expect(tabs(page)).toHaveCount(3);
     await releasePicker(page);
-    await waitForEditor(page, mode === 'pixel' ? 'image' : 'pixel');
-    expect(await tabNames(page)).toEqual([other.name]);
+    await expectDirty(page, DEFAULT_NAME[mode], false);
     expect((await picker(page)).written).toEqual([DEFAULT_NAME[mode]]);
   });
 
-  test(`${mode}: dropping several files opens this mode's as tabs and skips the others (AC-19)`, async ({
+  test(`${mode}: dropping several files opens each as a tab of its mode, in drop order (AC-19)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
+    const x = await otherFile(mode, 'x');
     await dropFiles(page, [
       await fileOf(mode, 'a'),
-      await otherFile(mode, 'x'),
+      x,
+      { name: 'notes.txt', bytes: Buffer.from('hello') },
       await fileOf(mode, 'b'),
     ]);
     await expectActive(page, name('b'));
-    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), name('b')]);
-    await expect(
-      page.getByText('1 dropped file(s) of the other mode were not opened'),
-    ).toBeVisible();
+    expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), x.name, name('b')]);
+    await expect(page.getByText('1 dropped file(s) could not be opened')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
-
-    // Only the other mode's files: the first one replaces the session.
-    const x = await otherFile(mode, 'x');
-    const y = await otherFile(mode, 'y');
-    await dropFiles(page, [x, y]);
-    await waitForEditor(page, mode === 'pixel' ? 'image' : 'pixel');
-    expect(await tabNames(page)).toEqual([x.name]);
-    await expect(
-      page.getByText('1 dropped file(s) of the other mode were not opened'),
-    ).toBeVisible();
+    await tab(page, x.name).click();
+    await expectActive(page, x.name);
+    await expect(canvas(page, other(mode))).toHaveAttribute('data-ready', 'true');
   });
 }
 
@@ -704,39 +453,6 @@ for (const mode of ['pixel', 'image'] as const)
       await expect(tab(page, DEFAULT_NAME[mode])).toBeInViewport();
     }
   });
-
-test.describe('German', () => {
-  test.use({ locale: 'de-DE' });
-
-  test('the tab bar, the list prompt and File ▸ Close speak German (AC-18)', async ({ page }) => {
-    await page.goto('./');
-    await page.getByRole('button', { name: 'Neues Bild' }).click();
-    await page
-      .getByRole('form', { name: 'Neues Bild' })
-      .getByRole('button', { name: 'Erstellen' })
-      .click();
-    await waitForEditor(page, 'image');
-    await paint(page, 'image');
-    await dropFiles(page, [await fileOf('image', 'a')]);
-    await paint(page, 'image');
-    const bar = page.getByRole('tablist', { name: 'Geöffnete Dokumente' });
-    await expect(bar.getByRole('button', { name: '„a.png“ schließen' })).toHaveAttribute(
-      'title',
-      /^Schließen/,
-    );
-    await page.getByRole('menubar').getByRole('menuitem', { name: 'Datei', exact: true }).click();
-    await expect(
-      page.getByRole('menu', { name: 'Datei' }).getByRole('menuitem', { name: 'Schließen' }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
-    await dropFiles(page, [await fileOf('pixel', 'x')]);
-    const dialog = page.getByRole('alertdialog', { name: 'Ungespeicherte Änderungen' });
-    await expect(dialog).toContainText('Ungespeicherte Änderungen in 2 Bildern');
-    await expect(dialog.getByRole('button', { name: 'Alle speichern' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Nicht speichern' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Abbrechen' })).toBeVisible();
-  });
-});
 
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: opening the file of an open tab activates that tab and keeps its changes (AC-03)`, async ({
@@ -925,5 +641,21 @@ test.describe('clipboard', () => {
     await expect(prompt(page)).toHaveCount(0);
     await tab(page, 'image.ora').click();
     await expect(page.locator('footer')).toContainText('16 × 16 · sRGB');
+  });
+
+  test('pixel: Paste as New Image opens a Pixel tab after the unsaved one, without a prompt (AC-02)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await paint(page, 'pixel');
+    await putClipboardImage(page, 24, 12, '#00ff00');
+    await page.keyboard.press('ControlOrMeta+Alt+v');
+    // A tab of the active tab's mode (document-tabs Terms).
+    await expectActive(page, 'Pasted image.aseprite');
+    expect(await tabNames(page)).toEqual(['pincel.aseprite', 'Pasted image.aseprite']);
+    await expect(page.locator('footer')).toContainText('24×12');
+    await expect(editorOf(page, 'image')).toHaveCount(0);
+    await expectDirty(page, 'pincel.aseprite', true);
+    await expect(prompt(page)).toHaveCount(0);
   });
 });

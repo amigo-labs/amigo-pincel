@@ -14,6 +14,11 @@ export interface TauriMock {
   writeMode: WriteMode;
   release: (() => void) | null;
   savePick: string | null;
+  /** Answers for the next save dialogs (`null` is a cancel); `savePick`
+   *  once the queue is empty. */
+  saveQueue: (string | null)[];
+  /** Write modes for the next writes; `writeMode` once the queue is empty. */
+  writeQueue: WriteMode[];
   /** The path the native open dialog answers with; `null` is a cancel. */
   openPick: string | null;
   disk: Record<string, number[]>;
@@ -36,6 +41,8 @@ export async function installTauriMock(page: Page): Promise<void> {
       writeMode: 'write',
       release: null,
       savePick: '/docs/sprite.aseprite',
+      saveQueue: [],
+      writeQueue: [],
       openPick: null,
       disk: {},
     };
@@ -51,7 +58,7 @@ export async function installTauriMock(page: Page): Promise<void> {
           mock.destroyed += 1;
           return null;
         case 'plugin:dialog|save':
-          return mock.savePick;
+          return mock.saveQueue.length > 0 ? mock.saveQueue.shift() : mock.savePick;
         case 'plugin:dialog|open':
           return mock.openPick;
         case 'read_file_bytes': {
@@ -59,13 +66,16 @@ export async function installTauriMock(page: Page): Promise<void> {
           if (!bytes) throw new Error('No such file or directory');
           return bytes;
         }
-        case 'write_file_bytes':
-          if (mock.writeMode === 'hold') {
+        case 'write_file_bytes': {
+          const queued = mock.writeQueue.shift();
+          if ((queued ?? mock.writeMode) === 'hold') {
             await new Promise<void>((resolve) => (mock.release = resolve));
           }
-          if (mock.writeMode === 'fail') throw new Error('disk full');
+          // A test may switch `writeMode` while the write is held.
+          if ((queued ?? mock.writeMode) === 'fail') throw new Error('disk full');
           mock.disk[String(args.path)] = args.bytes as number[];
           return null;
+        }
         default:
           return null;
       }
@@ -111,7 +121,9 @@ export async function destroyed(page: Page): Promise<number> {
 
 export async function setMock(
   page: Page,
-  patch: Partial<Pick<TauriMock, 'writeMode' | 'savePick' | 'openPick'>>,
+  patch: Partial<
+    Pick<TauriMock, 'writeMode' | 'savePick' | 'openPick' | 'saveQueue' | 'writeQueue'>
+  >,
 ): Promise<void> {
   await page.evaluate((p) => Object.assign((window as unknown as MockWindow).__mock, p), patch);
 }

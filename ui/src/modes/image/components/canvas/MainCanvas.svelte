@@ -8,6 +8,7 @@
     viewCommands,
     MIN_ZOOM,
     MAX_ZOOM,
+    ui,
   } from '../../stores/editor.svelte';
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
@@ -189,7 +190,7 @@
   let panStart = { x: 0, y: 0, panX: 0, panY: 0 };
 
   function onSpace(e: KeyboardEvent): void {
-    if (e.code !== 'Space' || isTypingTarget(e.target)) return;
+    if (e.code !== 'Space' || !ui.active || isTypingTarget(e.target)) return;
     if (e.type === 'keydown') {
       e.preventDefault();
       spaceDown = true;
