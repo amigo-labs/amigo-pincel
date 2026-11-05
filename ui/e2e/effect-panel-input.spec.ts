@@ -12,9 +12,11 @@ import {
   pixelOf,
   waitForEditor,
 } from './helpers';
+import { brightness } from './effect-panel-helpers';
 
 // What the editor does while an effect panel is open (effect-panel AC-03,
-// AC-16, AC-17): other panels are inert and the canvas only zooms and pans;
+// AC-16, AC-17): the regions around the canvas area are dimmed and inert
+// and the canvas only zooms and pans;
 // a failing effect keeps the panel; the preview never reaches the document.
 
 type Mode = 'pixel' | 'image';
@@ -87,10 +89,48 @@ for (const mode of ['pixel', 'image'] as const) {
       .nth(1)
       .locator('button[aria-pressed]:not(.row-icon)');
     await expect(lower).toHaveAttribute('aria-pressed', 'false');
+    // The Eraser is armed: a stroke would show on the canvas.
+    const tools = page.getByRole('toolbar', { name: 'Tools' });
+    await tools.getByRole('button', { name: 'Eraser' }).click();
+    const regions = {
+      tools,
+      options: page.getByRole('toolbar', { name: 'Tool options' }),
+      tabs: page.getByRole('tablist', { name: 'Open documents' }),
+      sidebar: page.getByRole('complementary', { name: 'Panels' }),
+      status: page.getByRole('contentinfo'),
+    };
+    const lit: Record<string, number> = {};
+    for (const [name, region] of Object.entries(regions)) lit[name] = await brightness(page, region);
+    // A strip of stage left of the canvas, clear of the panel.
+    const area = await page.getByRole('main').boundingBox();
+    const canvasBox = await canvasOf(page, mode).boundingBox();
+    if (!area || !canvasBox) throw new Error('canvas area is not visible');
+    const stageClip = {
+      x: area.x + 2,
+      y: area.y + area.height - 24,
+      width: Math.max(4, Math.min(20, canvasBox.x - area.x - 4)),
+      height: 20,
+    };
+    const stage = await page.screenshot({ clip: stageClip });
 
     await openInvert(page);
     await expect.poll(async () => (await centre(page, mode)).equals(filled)).toBe(false);
     const preview = await centre(page, mode);
+
+    // Around the canvas area: dimmed; the canvas area itself is not.
+    for (const [name, region] of Object.entries(regions)) {
+      expect(await brightness(page, region), name).toBeLessThan((lit[name] ?? 0) * 0.8);
+    }
+    expect((await page.screenshot({ clip: stageClip })).equals(stage)).toBe(true);
+
+    // Tool rail, options bar and tab bar take no focus.
+    for (const control of [
+      tools.getByRole('button', { name: 'Eraser' }),
+      page.getByRole('tab', { selected: true }),
+    ]) {
+      await control.focus();
+      await expect(control).not.toBeFocused();
+    }
 
     // Other panels: visible, but no focus and no clicks.
     await expect(layers).toBeVisible();
@@ -110,10 +150,6 @@ for (const mode of ['pixel', 'image'] as const) {
     }
 
     // Drawing tools don't reach the canvas; Undo stays blocked.
-    await page
-      .getByRole('toolbar', { name: 'Tools' })
-      .getByRole('button', { name: 'Eraser' })
-      .click();
     await drag(page, canvasOf(page, mode), [0.3, 0.5], [0.7, 0.5]);
     await page.keyboard.press('Control+z');
 

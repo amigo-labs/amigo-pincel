@@ -92,13 +92,13 @@ test('point: X / Y in percent, default centre, the effect follows it (AC-10)', a
   await dialog.getByLabel('Amount value').fill('60');
   const canvas = imageCanvas(page);
   await page.waitForTimeout(300);
-  const centred = await canvas.screenshot();
+  const centred = await canvas.screenshot({ mask: [dialog] });
   await x.fill('5');
   await y.fill('95');
-  await expect.poll(async () => (await canvas.screenshot()).equals(centred)).toBe(false);
+  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(false);
   await x.fill('50');
   await y.fill('50');
-  await expect.poll(async () => (await canvas.screenshot()).equals(centred)).toBe(true);
+  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(true);
 });
 
 test('point: Pick on canvas sets the point without a tool stroke (AC-11)', async ({ page }) => {
@@ -193,12 +193,12 @@ test('point: a picked point updates the preview (AC-11)', async ({ page }) => {
   await dialog.getByLabel('Amount value').fill('60');
   const canvas = imageCanvas(page);
   await page.waitForTimeout(300);
-  const centred = await canvas.screenshot();
+  const centred = await canvas.screenshot({ mask: [dialog] });
   await dialog.getByRole('button', { name: 'Pick on canvas' }).click();
   await pressAt(page, canvas, 0.05, 0.95);
   await page.mouse.up();
   await expect(dialog.getByLabel('Center X in percent')).toHaveValue('5');
-  await expect.poll(async () => (await canvas.screenshot()).equals(centred)).toBe(false);
+  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(false);
 });
 
 test.describe('touch device', () => {
@@ -268,7 +268,7 @@ test('seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12)
   await expect(seed).toHaveValue('1');
   const canvas = imageCanvas(page);
   await page.waitForTimeout(300);
-  const first = await canvas.screenshot();
+  const first = await canvas.screenshot({ mask: [dialog] });
   for (let i = 0; i < 5; i++) {
     const before = await seed.inputValue();
     await dialog.getByRole('button', { name: 'Reseed' }).click();
@@ -276,9 +276,9 @@ test('seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12)
     expect(String(after)).not.toBe(before);
     expect(Number.isInteger(after) && after >= 0 && after <= 9999).toBe(true);
   }
-  await expect.poll(async () => (await canvas.screenshot()).equals(first)).toBe(false);
+  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first)).toBe(false);
   await seed.fill('1');
-  await expect.poll(async () => (await canvas.screenshot()).equals(first)).toBe(true);
+  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first)).toBe(true);
 });
 
 test('linked pair: Square Blur width and height move together while linked (AC-13)', async ({
