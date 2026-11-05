@@ -175,17 +175,15 @@ fn image_document_open_edit_save_and_export_over_stdio() {
     assert_eq!(at(25, 18), [0x33, 0x66, 0xff, 255]);
     assert_eq!(at(0, 0), [0, 0, 0, 0]);
 
-    // The PNG reopens as an Image document; saving it without a path asks
-    // for a .ora path and leaves the PNG alone.
-    let before = std::fs::read(ws.join("out").join("mock.png")).expect("png");
+    // The PNG reopens as an Image document; saving it without a path
+    // writes the PNG back (mcp-parity-export AC-14), with the same pixels.
     let r = c.tool("doc.open", json!({ "path": "out/mock.png" }));
     assert_eq!(r["structuredContent"]["mode"], "image", "{r}");
     let r = c.tool("doc.save", json!({}));
-    assert_eq!(r["isError"], true);
-    assert_eq!(
-        std::fs::read(ws.join("out").join("mock.png")).expect("png"),
-        before
-    );
+    assert_eq!(r["isError"], false, "{r}");
+    let again =
+        import_png(&std::fs::read(ws.join("out").join("mock.png")).expect("png")).expect("png");
+    assert_eq!(again.rgba, png.rgba);
 }
 
 #[test]
@@ -312,6 +310,91 @@ fn export_selection_that_cannot_write_leaves_the_document_unchanged() {
         0
     );
     assert!(!root.join("out.png").exists());
+}
+
+#[test]
+fn file_tools_refuse_read_only_and_escaping_paths() {
+    // mcp-parity-export AC-03, AC-04.
+    let root = temp_workspace("export-ro");
+    std::fs::write(
+        root.join("p.png"),
+        pincel_core::encode_png(&[0, 0, 0, 255], 1, 1).expect("png"),
+    )
+    .expect("seed");
+    let mut c = Client::spawn(&["--read-only"], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "pixel", "width": 2, "height": 2 }),
+    );
+    for (name, args) in [
+        ("export.svg", json!({ "path": "a.svg" })),
+        ("export.apng", json!({ "path": "a.png" })),
+        ("export.gif", json!({ "path": "a.gif" })),
+    ] {
+        let r = c.tool(name, args);
+        assert_eq!(r["isError"], true, "{name}");
+        assert!(
+            r["content"][0]["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("read-only"),
+            "{name}: {r}"
+        );
+    }
+    c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 2, "height": 2 }),
+    );
+    for (name, args) in [
+        ("export.bmp", json!({ "path": "a.bmp" })),
+        ("export.tiff", json!({ "path": "a.tif" })),
+        ("doc.save", json!({ "path": "a.jpg" })),
+        ("doc.save", json!({ "path": "a.ora" })),
+    ] {
+        let r = c.tool(name, args);
+        assert_eq!(r["isError"], true, "{name}");
+        assert!(
+            r["content"][0]["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("read-only"),
+            "{name}: {r}"
+        );
+    }
+    // Opening keeps working, `mode` included.
+    let r = c.tool("doc.open", json!({ "path": "p.png", "mode": "pixel" }));
+    assert_eq!(r["isError"], false, "{r}");
+    assert_eq!(r["structuredContent"]["mode"], "pixel");
+    let names: Vec<String> = std::fs::read_dir(&root)
+        .expect("dir")
+        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+        .collect();
+    assert_eq!(names, ["p.png"]);
+    drop(c);
+
+    let mut c = Client::spawn(&[], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 2, "height": 2 }),
+    );
+    for (name, args) in [
+        ("export.svg", json!({ "path": "../a.svg" })),
+        ("export.bmp", json!({ "path": "../a.bmp" })),
+        ("doc.save", json!({ "path": "../a.png" })),
+        ("doc.open", json!({ "path": "../a.psd" })),
+    ] {
+        let r = c.tool(name, args);
+        assert_eq!(r["isError"], true, "{name}");
+        assert!(
+            r["content"][0]["text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("E007"),
+            "{name}: {r}"
+        );
+    }
 }
 
 #[test]
