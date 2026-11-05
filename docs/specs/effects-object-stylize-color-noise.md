@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: M
 mode: both
@@ -43,18 +43,18 @@ Drop Shadow's colour uses the colour parameter kind that `outline-effect` introd
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Object ▸ Drop Shadow… and Color ▸ Quantize… appear in both modes; Stylize ▸ Outline… and Noise ▸ Reduce Noise… appear in Image mode only; entries are sorted as `effect-catalog-v2` AC-04 specifies.
-- [ ] AC-02 (event): When the user opens one of the four, then the effect dialog shows exactly its parameters from the table with their ranges and defaults; Drop Shadow's Blur radius defaults to 4 in Image mode and 0 in Pixel mode, and its Colour defaults to opaque black.
-- [ ] AC-03 (always): Drop Shadow never changes a fully opaque pixel, and with Opacity 0 or a fully transparent Colour it changes nothing.
-- [ ] AC-04 (always): Drop Shadow with Blur 0 on a single opaque pixel at (x, y) on transparency, Offset (4, 4), Opacity 100 and an opaque Colour sets the pixel at (x+4, y+4) to exactly that colour, and no other pixel changes; with Blur 0 on a target whose pixels are all fully opaque or fully transparent, it adds at most one new colour (the shadow colour at its alpha).
-- [ ] AC-05 (always): Stylize ▸ Outline leaves a solid single-colour layer unchanged and with Intensity 0 leaves every layer unchanged; at the boundary between a white and a black area it makes white pixels within Thickness of the boundary darker and leaves white pixels farther away unchanged.
-- [ ] AC-06 (always): After Quantize the target's opaque pixels hold at most Colours distinct colours and every pixel's alpha is unchanged; a target that already has at most Colours distinct colours and Dithering 0 is unchanged, because both algorithms must return the input's own colours when there are no more of them than Colours.
-- [ ] AC-07 (option): Where Quantize's Dithering is 0, two input pixels of the same colour get the same output colour; where Dithering is above 0, the result is still deterministic (same input, same output).
-- [ ] AC-08 (always): Reduce Noise with Strength 0 leaves the layer unchanged, and with Strength 100 replaces each pixel by its neighbourhood median; a wire call with only the radius (the old form) behaves as Strength 100 (old calls with a radius above 10 now use that radius instead of 10).
-- [ ] AC-09 (always): Stylize ▸ Outline and Reduce Noise never let a fully transparent pixel's stored colour tint an opaque neighbour (premultiplied, as `effects-adjustments` AC-18).
-- [ ] AC-10 (error): If a wire call names one of the four with the wrong number of parameters, or Drop Shadow's colour slot is not an integer in 0…2³²−1 (a non-finite colour slot included), then it is rejected and changes nothing; in the number slots non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-11 (error): If the Pixel-mode document is not RGBA, then Drop Shadow and Quantize are refused with the same message as every other effect and the document is unchanged.
-- [ ] AC-12 (option): Where the UI language is German, the names and parameter labels are German.
+- [x] AC-01 (always): Object ▸ Drop Shadow… and Color ▸ Quantize… appear in both modes; Stylize ▸ Outline… and Noise ▸ Reduce Noise… appear in Image mode only; entries are sorted as `effect-catalog-v2` AC-04 specifies.
+- [x] AC-02 (event): When the user opens one of the four, then the effect dialog shows exactly its parameters from the table with their ranges and defaults; Drop Shadow's Blur radius defaults to 4 in Image mode and 0 in Pixel mode, and its Colour defaults to opaque black.
+- [x] AC-03 (always): Drop Shadow never changes a fully opaque pixel, and with Opacity 0 or a fully transparent Colour it changes nothing.
+- [x] AC-04 (always): Drop Shadow with Blur 0 on a single opaque pixel at (x, y) on transparency, Offset (4, 4), Opacity 100 and an opaque Colour sets the pixel at (x+4, y+4) to exactly that colour, and no other pixel changes; with Blur 0 on a target whose pixels are all fully opaque or fully transparent, it adds at most one new colour (the shadow colour at its alpha).
+- [x] AC-05 (always): Stylize ▸ Outline leaves a solid single-colour layer unchanged and with Intensity 0 leaves every layer unchanged; at the boundary between a white and a black area it makes white pixels within Thickness of the boundary darker and leaves white pixels farther away unchanged.
+- [x] AC-06 (always): After Quantize the target's opaque pixels hold at most Colours distinct colours and every pixel's alpha is unchanged; a target that already has at most Colours distinct colours and Dithering 0 is unchanged, because both algorithms must return the input's own colours when there are no more of them than Colours.
+- [x] AC-07 (option): Where Quantize's Dithering is 0, two input pixels of the same colour get the same output colour; where Dithering is above 0, the result is still deterministic (same input, same output).
+- [x] AC-08 (always): Reduce Noise with Strength 0 leaves the layer unchanged, and with Strength 100 replaces each pixel by its neighbourhood median; a wire call with only the radius (the old form) behaves as Strength 100 (old calls with a radius above 10 now use that radius instead of 10).
+- [x] AC-09 (always): Stylize ▸ Outline and Reduce Noise never let a fully transparent pixel's stored colour tint an opaque neighbour (premultiplied, as `effects-adjustments` AC-18).
+- [x] AC-10 (error): If a wire call names one of the four with the wrong number of parameters, or Drop Shadow's colour slot is not an integer in 0…2³²−1 (a non-finite colour slot included), then it is rejected and changes nothing; in the number slots non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-11 (error): If the Pixel-mode document is not RGBA, then Drop Shadow and Quantize are refused with the same message as every other effect and the document is unchanged.
+- [x] AC-12 (option): Where the UI language is German, the names and parameter labels are German.
 
 ## Technical notes
 
@@ -91,18 +91,28 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the four entries sit in their submenus, Outline and Reduce Noise in Image mode only (AC-01); `ui/e2e/effect-menus.spec.ts` › pixel mode: only per-pixel effects, no neighbourhood effect | built |  |
-| AC-02 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the dialogs show exactly the parameters of the table with their defaults (AC-02); › pixel mode: Drop Shadow with its defaults casts a hard half-opaque black shadow; `ui/e2e/effect-catalog.spec.ts` › drop_shadow: each mode starts at its own blur default, › drop_shadow / stylize_outline / quantize / reduce_noise: wire vectors equal the previous catalog's | built |  |
-| AC-03 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_never_changes_an_opaque_pixel, drop_shadow_opacity_zero_or_clear_colour_changes_nothing | built |  |
-| AC-04 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_blur_zero_single_pixel_lands_at_the_offset, drop_shadow_blur_zero_on_hard_alpha_adds_at_most_one_colour, drop_shadow_offset_outside_the_layer_changes_nothing; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_drop_shadow_casts_at_the_offset_in_one_undo_step, effects::tests::apply_effect_drop_shadow_clips_at_a_trimmed_cel | built |  |
-| AC-05 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` stylize_outline_solid_layer_is_unchanged, stylize_outline_intensity_zero_changes_nothing, stylize_outline_darkens_white_within_thickness_only, stylize_outline_thickness_beyond_the_layer_works | built |  |
-| AC-06 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_leaves_at_most_colours_and_keeps_alpha, quantize_few_colours_stay_unchanged, quantize_reads_its_colours_from_the_target; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_quantize_takes_its_palette_from_the_selection | built |  |
-| AC-07 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_is_a_colour_map_without_dither_and_deterministic_with | built |  |
-| AC-08 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` reduce_noise_strength_zero_changes_nothing, reduce_noise_strength_100_and_the_old_form_are_the_median | built |  |
-| AC-09 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` neighbourhood_effects_ignore_transparent_colour | built |  |
-| AC-10 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` from_params_wrong_parameter_count_is_rejected, drop_shadow_bad_colour_slot_is_rejected, from_params_non_finite_reads_as_zero_and_numbers_clamp; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_errors_change_nothing | built |  |
-| AC-11 | `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_on_an_indexed_document_are_refused | built |  |
-| AC-12 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › German names and parameter labels (AC-12) | built |  |
+| AC-01 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the four entries sit in their submenus, Outline and Reduce Noise in Image mode only (AC-01); `ui/e2e/effect-menus.spec.ts` › pixel mode: only per-pixel effects, no neighbourhood effect | verified | 6560b2e |
+| AC-02 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the dialogs show exactly the parameters of the table with their defaults (AC-02); › pixel mode: Drop Shadow with its defaults casts a hard half-opaque black shadow; `ui/e2e/effect-catalog.spec.ts` › drop_shadow: each mode starts at its own blur default, › drop_shadow / stylize_outline / quantize / reduce_noise: wire vectors equal the previous catalog's | verified | 6560b2e |
+| AC-03 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_never_changes_an_opaque_pixel, drop_shadow_opacity_zero_or_clear_colour_changes_nothing | verified | ac5d299 |
+| AC-04 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_blur_zero_single_pixel_lands_at_the_offset, drop_shadow_blur_zero_on_hard_alpha_adds_at_most_one_colour, drop_shadow_offset_outside_the_layer_changes_nothing; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_drop_shadow_casts_at_the_offset_in_one_undo_step, effects::tests::apply_effect_drop_shadow_clips_at_a_trimmed_cel | verified | ac5d299 |
+| AC-05 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` stylize_outline_solid_layer_is_unchanged, stylize_outline_intensity_zero_changes_nothing, stylize_outline_darkens_white_within_thickness_only, stylize_outline_thickness_beyond_the_layer_works | verified | ac5d299 |
+| AC-06 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_leaves_at_most_colours_and_keeps_alpha, quantize_few_colours_stay_unchanged, quantize_reads_its_colours_from_the_target; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_quantize_takes_its_palette_from_the_selection | verified | ac5d299 |
+| AC-07 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_is_a_colour_map_without_dither_and_deterministic_with | verified | ac5d299 |
+| AC-08 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` reduce_noise_strength_zero_changes_nothing, reduce_noise_strength_100_and_the_old_form_are_the_median | verified | ac5d299 |
+| AC-09 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` neighbourhood_effects_ignore_transparent_colour | verified | ac5d299 |
+| AC-10 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` from_params_wrong_parameter_count_is_rejected, drop_shadow_bad_colour_slot_is_rejected, from_params_non_finite_reads_as_zero_and_numbers_clamp; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_errors_change_nothing | verified | ac5d299 |
+| AC-11 | `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_on_an_indexed_document_are_refused | verified | caa3a85 |
+| AC-12 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › German names and parameter labels (AC-12) | verified | 6560b2e |
+
+## Summary
+
+> Completed: 2026-11-05
+
+- Object ▸ Drop Shadow (both modes, Blur radius default 4 in Image mode and 0 in Pixel mode, colour slot `0xRRGGBBAA`) paints a shifted, Gaussian-blurred copy of the shape behind the existing pixels, clipped at the layer or cel edge
+- Stylize ▸ Outline (Image mode) darkens pixels toward the darkest-luma pixel of a square neighbourhood, scaled by the local luma range; transparent pixels take no part
+- Color ▸ Quantize (both modes) reduces the target's colours by Median Cut or Octree with optional Floyd–Steinberg dithering, taking its palette from the target (`EffectSpec::run_in`)
+- Noise ▸ Reduce Noise rebuilt as paint.net's: radius 1–200 plus Strength, blending premultiplied toward the Median at percentile 50; the old one-slot wire form is Strength 100
+- Agent catalog, en + de names and labels updated
 
 ## Decisions
 
