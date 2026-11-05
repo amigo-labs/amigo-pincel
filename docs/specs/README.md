@@ -37,7 +37,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
-| 18 | [outline-effect](outline-effect.md) | both | M | effect-catalog-v2 | Adds a color param kind to effects; Object ▸ Outline Object |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
 | 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
@@ -79,6 +78,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [effects-blurs](effects-blurs.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [outline-effect](outline-effect.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-pencil](pixel-pencil.md)
