@@ -160,6 +160,7 @@ export const de: Record<MessageKey, string> = {
   'color.blue': 'Blau',
   'color.alphaChannel': 'Alphawert',
   'color.recent': 'Zuletzt verwendete Farben',
+  'color.palette': 'Farbpalette',
 
   // Language menu
   'menu.language': 'Sprache',

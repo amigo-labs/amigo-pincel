@@ -157,6 +157,7 @@ export const en = {
   'color.blue': 'Blue',
   'color.alphaChannel': 'Alpha value',
   'color.recent': 'Recent colors',
+  'color.palette': 'Color palette',
 
   // Language menu
   'menu.language': 'Language',
