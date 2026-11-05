@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, pixelCanvas } from './helpers';
+import { colorOf, createDocument, pixelCanvas, setColor } from './helpers';
 
 // Pixel-mode drawing tools (docs/specs/pixel-drawing-tools.md). Pixels are
 // read back with the Eyedropper (left click: into the foreground color),
@@ -27,8 +27,6 @@ async function open(page: Page, size = 16): Promise<Editor> {
   return { page, canvas, at, box };
 }
 
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
-const bg = (page: Page) => page.getByLabel('Background color', { exact: true });
 const alpha = (page: Page) => page.getByLabel('Foreground alpha');
 const statusBar = (page: Page) => page.locator('footer', { hasText: /\d+×\d+/ });
 const activeTool = (page: Page) =>
@@ -47,8 +45,8 @@ async function pick(page: Page, key: string, variant?: string): Promise<void> {
 
 /** Opaque foreground and background colors for the next gesture. */
 async function colors(page: Page, fore: string, back: string): Promise<void> {
-  await fg(page).fill(fore);
-  await bg(page).fill(back);
+  await setColor(page, 'fg', fore);
+  await setColor(page, 'bg', back);
   await alpha(page).fill('255');
 }
 
@@ -56,7 +54,7 @@ async function colors(page: Page, fore: string, back: string): Promise<void> {
 async function sample(ed: Editor, px: number, py: number): Promise<string> {
   await pick(ed.page, 'i');
   await ed.page.mouse.click(...ed.at(px, py));
-  return `${await fg(ed.page).inputValue()}/${await alpha(ed.page).inputValue()}`;
+  return `${await colorOf(ed.page, 'fg')}/${await alpha(ed.page).inputValue()}`;
 }
 
 /** Presses at `from`, moves to each of `to` in one sample, releases. */
@@ -161,8 +159,8 @@ test('pixel mode: the right button paints the background color', async ({ page }
   await colors(page, '#ffffff', '#ffffff');
   await pick(page, 'i');
   await stroke(ed, ed.at(20, 2), [], right);
-  await expect(bg(page)).toHaveValue('#00ff00');
-  await expect(fg(page)).toHaveValue('#ffffff');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#00ff00');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#ffffff');
 
   // Other tools ignore the right button: the eraser leaves the pixel,
   // the Text tool opens no dialog.

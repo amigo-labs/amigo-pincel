@@ -138,29 +138,29 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |  | open |  |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-01 | `pixel: …` / `image: the swatches open the own picker, never a native dialog (AC-01, AC-02, AC-03)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-02 | `pixel: …` / `image: the swatches open the own picker, never a native dialog (AC-01, AC-02, AC-03)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-03 | `pixel: …` / `image: the swatches open the own picker, never a native dialog (AC-01, AC-02, AC-03)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-04 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-05 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts`; `the hex field accepts RRGGBB, #RRGGBB, #RRGGBBAA and #RGB (AC-05, AC-23)` — `ui/e2e/color-math.spec.ts` | built |  |
+| AC-06 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts`; `other hex text is refused (AC-06)` — `ui/e2e/color-math.spec.ts` | built |  |
+| AC-07 | `R / G / B / A fields clamp to 0–255 (AC-07)` — `ui/e2e/color-picker.spec.ts`; `channel values clamp to 0–255 (AC-07)` — `ui/e2e/color-math.spec.ts` | built |  |
+| AC-08 | `a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-09 | `a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)`, `touch › a touch drag on the S/V area moves the color (AC-09)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-10 | `arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-10, AC-11)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-11 | `arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-10, AC-11)` — `ui/e2e/color-picker.spec.ts`; `HSV conversion keeps hue and saturation when they are undefined (AC-11)` — `ui/e2e/color-math.spec.ts` | built |  |
 | AC-12 |  | open |  |
 | AC-13 |      | open   |        |
 | AC-14 |  | open |  |
 | AC-15 |  | open |  |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
+| AC-16 | `pixel: the Eyedropper reads back a translucent foreground (AC-16, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-17 | `image: painted alpha is color alpha × opacity, and the Eyedropper keeps it (AC-17, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-18 | `Escape discards typed text; an outside click commits it (AC-18)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-19 | `pixel: …` / `image: swap and reset keep working, with alpha (AC-19)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-20 | `phone › pixel: …` / `phone › image: the popover stays inside a 360 px window (AC-20)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-21 | `the picker is German in the German UI (AC-21)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-22 | `pixel: the Eyedropper reads back a translucent foreground (AC-16, AC-22)`, `image: painted alpha is color alpha × opacity, and the Eyedropper keeps it (AC-17, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
+| AC-23 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts`; `the hex field accepts RRGGBB, #RRGGBB, #RRGGBBAA and #RGB (AC-05, AC-23)` — `ui/e2e/color-math.spec.ts` | built |  |
 | AC-24 |  | open |  |
 | AC-25 |  | open |  |
 | AC-26 |  | open |  |
@@ -170,6 +170,13 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-30 |  | open |  |
 
 ## Decisions
+
+- 2026-11-05 (spec-build): The swatches are buttons that open the picker in a popover (`ColorPair.svelte`, `color/ColorPicker.svelte`); the panel keeps its foreground hex field and alpha slider, which Image mode now shows too. Both modes pass `ColorPair` colors as `{r, g, b, a}`; the stores keep `#rrggbb` plus a separate alpha (Image mode gained `tool.foregroundAlpha` / `backgroundAlpha`).
+- 2026-11-05 (spec-build): The popover takes focus when it opens, so Escape and Tab act on it; a field's blur commit that arrives after the popover closed is ignored, which is what makes Escape discard typed text (AC-18). The S/V area is a `slider` named "Saturation and value" whose `aria-valuetext` gives both; hue and alpha are native range inputs, with Shift + arrow stepping by 10 (AC-10).
+- 2026-11-05 (spec-build): Hex parsing, HSV conversion, the recent-colors list rules and the default palette live in the rune-free `ui/src/lib/color.ts`, tested in Node by `color-math.spec.ts`; Image mode's own `hexToRgb` / `rgbToHex` copies in the controller stay for now (they serve the core's `Rgba` tuples).
+- 2026-11-05 (spec-build): Image mode sends the color's own alpha with brush, fill and gradient commands (the core multiplies it with the tool opacity), and bakes round(alpha × opacity / 100) into shape and text colors; its Eyedropper now keeps the sampled alpha. AC-17's test paints single dabs: each pointer batch of a drag is its own source-over application, so overlapping dabs of one drag build up alpha — for color alpha as for tool opacity, which predates this spec.
+- 2026-11-05 (spec-build): Pixel mode's Eyedropper already kept alpha; AC-16's test was green at once and was red against a temporary break (the sampled alpha forced to 255), reverted afterwards.
+- 2026-11-05 (spec-build): The existing e2e specs that typed into the native swatch inputs now go through `setColor` / `colorOf` in `ui/e2e/helpers.ts`, which drive the picker's hex field.
 
 - 2026-11-05: AC-25 shows "the Image-mode palette", which is the default palette until the user replaces it; loading, saving and editing it moved to `image-palette-gradient` (owner chose that spec on 2026-11-05).
 - 2026-11-05: AC-15 names the desktop app's quit and restart explicitly and covers Image mode's Colors panel — the owner asked for the last colors to survive program starts.

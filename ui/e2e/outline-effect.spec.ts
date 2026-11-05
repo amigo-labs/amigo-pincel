@@ -7,6 +7,7 @@ import {
   menu,
   pixelCanvas,
   pixelOf,
+  setColor,
   type ClipImage,
 } from './helpers';
 import { effectById, toParams, defaultValues } from '../src/lib/effects/catalog';
@@ -25,7 +26,6 @@ const N = 5;
 const GREEN = [0, 255, 0, 255];
 const CLEAR = [0, 0, 0, 0];
 
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 const redoButton = (page: Page) => page.getByRole('button', { name: 'Redo', exact: true });
 const hexField = (dialog: Locator) => dialog.getByLabel('Color hex', { exact: true });
@@ -50,12 +50,12 @@ async function activeLayer(page: Page): Promise<ClipImage> {
 async function dot(page: Page, mode: 'pixel' | 'image', color: string): Promise<Locator> {
   await createDocument(page, mode, { width: N, height: N });
   const canvas = mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
   // Image mode starts on its Brush (hard round); 1 px paints one pixel.
   else await page.getByRole('slider', { name: /^Size / }).fill('1');
   await page.mouse.click(...(await at(canvas, 2, 2)));
-  await fg(page).fill(color);
+  await setColor(page, 'fg', color);
   return canvas;
 }
 
@@ -177,7 +177,17 @@ test('the catalog sends the colour as one 0xRRGGBBAA slot and names it in both l
   expect(toParams(def, values)).toEqual([0, 1, 1, 0x3366ccff]);
   expect(en['effect.outline']).toBe('Outline Object');
   expect(de['effect.outline']).toBe('Objekt umranden');
-  for (const key of ['Place', 'Outside', 'Inside', 'Both', 'Shape', 'Circle', 'Square', 'Thickness', 'Color'] as const) {
+  for (const key of [
+    'Place',
+    'Outside',
+    'Inside',
+    'Both',
+    'Shape',
+    'Circle',
+    'Square',
+    'Thickness',
+    'Color',
+  ] as const) {
     expect(en[`fx.${key}`], key).toBe(key);
     expect(de[`fx.${key}`], key).toBeTruthy();
   }

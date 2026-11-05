@@ -6,6 +6,7 @@ import {
   imageCanvas,
   menu,
   pixelCanvas,
+  setColor,
 } from './helpers';
 
 // The Magic Wand link: after a wand click, new wand settings recompute that
@@ -48,7 +49,7 @@ async function drag(page: Page, from: [number, number], to: [number, number]): P
  */
 async function splitSprite(page: Page): Promise<void> {
   await createDocument(page, 'pixel', { width: PX, height: PX });
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press('b');
   await drag(page, await mid(page, 8, 0), await mid(page, 8, 15));
   await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
@@ -200,7 +201,7 @@ async function splitImage(page: Page): Promise<void> {
   await createDocument(page, 'image', { width: IMG, height: IMG });
   // Black: its RGBA distance to transparent black is exactly 255, the
   // largest tolerance (Image mode compares the Euclidean RGBA distance).
-  await page.getByLabel('Foreground color', { exact: true }).fill('#000000');
+  await setColor(page, 'fg', '#000000');
   await page.keyboard.press('g');
   await page.mouse.click(...(await imgPt(page, 4, 4)));
   await page.keyboard.press('m');

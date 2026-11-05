@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   clearClipboard,
+  colorOf,
   copiedImage,
   createDocument,
   drag,
@@ -318,26 +319,25 @@ test('pixel mode: Alt+] / Alt+[ step through the palette, [ / ] still size the b
   page,
 }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const fg = page.getByLabel('Foreground color', { exact: true });
   await page.keyboard.press('d');
-  await expect(fg).toHaveValue('#000000');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
   // DB32: #000000, #222034, #45283c, …
   await page.keyboard.press('Alt+BracketRight');
-  await expect(fg).toHaveValue('#222034');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#222034');
   await page.keyboard.press('Alt+BracketRight');
-  await expect(fg).toHaveValue('#45283c');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#45283c');
   await page.keyboard.press('Alt+BracketLeft');
-  await expect(fg).toHaveValue('#222034');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#222034');
   await page.keyboard.press('Alt+BracketLeft');
   await page.keyboard.press('Alt+BracketLeft');
-  await expect(fg).toHaveValue('#000000');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
 
   await page.keyboard.press('b');
   const size = page.getByRole('spinbutton', { name: 'Brush size' });
   await expect(size).toHaveValue('1');
   await page.keyboard.press(']');
   await expect(size).toHaveValue('2');
-  await expect(fg).toHaveValue('#000000');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
 });
 
 test('pixel mode: Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not (AC-19)', async ({

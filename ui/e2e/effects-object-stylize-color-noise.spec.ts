@@ -6,6 +6,7 @@ import {
   menu,
   pixelCanvas,
   pixelOf,
+  setColor,
   type ClipImage,
 } from './helpers';
 
@@ -187,7 +188,7 @@ test('pixel mode: Drop Shadow with its defaults casts a hard half-opaque black s
 }) => {
   const n = 8;
   await createDocument(page, 'pixel', { width: n, height: n });
-  await page.getByLabel('Foreground color', { exact: true }).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await page.getByTitle('Pencil (B)').click();
   const box = await pixelCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
