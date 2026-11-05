@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas } from './helpers';
+import { createDocument, drag, imageCanvas, setColor } from './helpers';
 
 // Image-mode live objects in the editor (docs/specs/image-live-objects-ui.md):
 // a Line, Shapes or Gradient drag leaves the object live with handles until
@@ -51,8 +51,8 @@ async function shown(page: Page, [fx, fy]: [number, number]): Promise<string> {
 
 /** Sets the foreground and background swatches. */
 async function setColors(page: Page, fg: string, bg: string): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill(fg);
-  await page.getByLabel('Background color', { exact: true }).fill(bg);
+  await setColor(page, 'fg', fg);
+  await setColor(page, 'bg', bg);
 }
 
 /** Picks the Rectangle shape, filled with the background color. */
