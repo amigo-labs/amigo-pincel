@@ -113,6 +113,16 @@ impl SelectionMask {
         }
     }
 
+    /// A mask from `width * height` coverage bytes, row-major; `None` when
+    /// `data` has another length.
+    pub fn from_raw(width: u32, height: u32, data: Vec<u8>) -> Option<Self> {
+        (data.len() == width as usize * height as usize).then_some(Self {
+            width,
+            height,
+            data,
+        })
+    }
+
     /// Creates a mask with everything selected (all 255) — i.e. Select All.
     pub fn new_full(width: u32, height: u32) -> Self {
         Self {

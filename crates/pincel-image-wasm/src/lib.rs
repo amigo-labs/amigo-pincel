@@ -120,6 +120,27 @@ pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
     Ok(insert(CommandBus::new(doc)))
 }
 
+/// An uncompressed copy of the whole document for another wasm instance —
+/// the job worker that encodes autosaves and exports
+/// (docs/specs/performance-background-jobs.md). [`open_snapshot`] turns it
+/// back into a document.
+#[wasm_bindgen]
+pub fn snapshot_document(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        Ok(pincel_image_core::codec::snapshot::to_snapshot_bytes(
+            &bus.document,
+        ))
+    })
+}
+
+/// Opens bytes from [`snapshot_document`] as a new document and returns
+/// its handle; the copy equals the document the snapshot was taken of.
+#[wasm_bindgen]
+pub fn open_snapshot(data: &[u8]) -> Result<u32, JsError> {
+    let doc = pincel_image_core::codec::snapshot::from_snapshot_bytes(data).map_err(to_js)?;
+    Ok(insert(CommandBus::new(doc)))
+}
+
 /// What [`open_psd`] hands back: the new document's handle and what the
 /// import left out or changed (docs/specs/psd-import.md).
 #[derive(Debug, Serialize)]
