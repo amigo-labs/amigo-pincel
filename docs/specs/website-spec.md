@@ -172,25 +172,52 @@ Short prose, no bullets. Roughly:
 
 #### 4.1.4 The Honest Comparison
 
-A small comparison table. Honest about where Aseprite is still ahead. No "vs Aseprite, we win in every category" tables.
+Two small comparison tables, one per mode. Honest about where others are still ahead. No "vs Aseprite, we win in every category" tables. Every competitor cell follows `pincel.md` §18 (feature spec `website-comparison`).
 
-| | Pincel | Aseprite | Piskel |
-|---|---|---|---|
-| Aseprite file format (read+write) | ✅ | ✅ native | ❌ |
-| Tilemaps | ✅ | ✅ | ❌ |
-| Slices (9-patch, pivot) | ✅ | ✅ | ❌ |
-| Animation timeline + tags | ✅ | ✅ | ✅ (basic) |
-| Tablet / pen support | ✅ | ✅ | ❌ |
-| Runs in browser | ✅ | ❌ | ✅ |
-| Native desktop app | ✅ Tauri | ✅ | ✅ (via NW.js, ageing) |
-| Embeddable as a library | ✅ | ❌ | partial |
-| Lua scripting / extensions | ❌ Phase 2 | ✅ | ❌ |
-| Custom brushes | ❌ Phase 2 | ✅ | ✅ |
-| Price | Free | Paid | Free |
-| Open source | ✅ MIT/Apache | 🟡 source-available, EULA forbids redistribution | ✅ Apache 2.0 |
-| Active development | ✅ | ✅ | 🟡 no tagged release since 0.15.0 (2018); master still gets fixes |
+**Pixel art**
 
-The footer of the table reads: *"Pincel is new and Aseprite has 14 years of features. We're catching up where it matters for game-dev workflows. Where it doesn't, we're not."*
+| | Pincel | Aseprite | Pixelorama | Piskel |
+|---|---|---|---|---|
+| Aseprite file format (read+write) | 🟡 RGBA only | ✅ native | ✅ import / export | ❌ |
+| Tilemaps | ✅ | ✅ | ✅ | ❌ |
+| Slices (9-patch, pivot) | ✅ | ✅ | ❌ | ❌ |
+| Animation timeline + tags | ✅ | ✅ | ✅ | ✅ basic |
+| Tablet / pen support | ✅ | ✅ | ✅ | ❌ |
+| Runs in browser | ✅ | ❌ | ✅ | ✅ |
+| Layered image editing (photos, screenshots) | ✅ Image mode | ❌ pixel art only | ❌ pixel art only | ❌ |
+| Native desktop app | ✅ Tauri | ✅ | ✅ | ✅ via NW.js, ageing |
+| Embeddable as a library | ✅ | ❌ | ❌ | ❌ |
+| Lua scripting / extensions | ❌ Phase 2 | ✅ | ✅ extensions | ❌ |
+| Custom brushes | ❌ Phase 2 | ✅ | ✅ | ❌ |
+| Pixel-perfect pencil | ✅ | ✅ | ✅ | ❌ |
+| Animated export (GIF / APNG) | ✅ | 🟡 GIF only | ✅ | 🟡 GIF only |
+| Pen pressure | ✅ | ✅ | ✅ | ❌ |
+| Indexed-color painting | ❌ | ✅ | ✅ | ❌ |
+| PSD import | 🟡 read, 8-bit RGB (Image mode) | ❌ | ✅ import | ❌ |
+| Price | Free | Paid | Free | Free |
+| Open source | ✅ MIT/Apache | 🟡 source-available, EULA forbids redistribution | ✅ MIT | ✅ Apache 2.0 |
+| Active development | ✅ | ✅ | ✅ | 🟡 no tagged release since 0.15.0 (2018); master still gets fixes |
+
+**Image editing**
+
+| | Pincel | Paint.NET | Pinta | Photopea |
+|---|---|---|---|---|
+| Windows | ✅ | ✅ | ✅ | 🟡 in the browser |
+| Mac | ✅ | 🟡 Wine, beta | ✅ | 🟡 in the browser |
+| Linux | ✅ | 🟡 Wine, beta | ✅ | 🟡 in the browser |
+| Web | ✅ | ❌ | ❌ | ✅ |
+| Layers + blend modes | ✅ | ✅ | ✅ | ✅ |
+| Adjustments and effects | ✅ | ✅ | ✅ | ✅ |
+| Selections + magic wand | ✅ | ✅ | ✅ | ✅ |
+| Text | ✅ | 🟡 simple | ✅ | ✅ |
+| Pen pressure | ✅ | ✅ | ❌ | ✅ |
+| PSD import | 🟡 read, 8-bit RGB (Image mode) | 🟡 third-party plugin | ❌ | ✅ |
+| Price / license | Free, MIT/Apache | Free, proprietary | Free, MIT | Free with ads; Premium subscription |
+| Offline use | ✅ | ✅ | ✅ | ✅ once loaded |
+
+Under the Pixel art table: *"Pincel is new and Aseprite has 14 years of features. We're catching up where it matters for game-dev workflows. Where it doesn't, we're not."* Under each table: the snapshot month ("Competitor data as of 2026-11 …") and a Sources disclosure listing the §18.6 sources of that table's tools; the Pixel art one also names LibreSprite and Resprite as related tools not compared.
+
+**Upkeep.** Re-check both tables when a feature spec that flips a Pincel cell lands (indexed painting, custom brushes, scripting, `.aseprite` color modes, PSD) and at least quarterly — competitors ship monthly. Update `pincel.md` §18 first, then the tables and the snapshot month.
 
 #### 4.1.5 How It Works (3 steps)
 

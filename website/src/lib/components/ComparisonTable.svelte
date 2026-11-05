@@ -1,90 +1,172 @@
 <script lang="ts">
   import { m, type Messages } from '#lib/i18n/index.ts';
 
-  type NoteKey = keyof Messages['comparison']['notes'];
+  // The two comparison tables of the home page (docs/specs/website-comparison.md,
+  // website-spec §4.1.4). Every competitor cell follows pincel.md §18.
+
+  type Copy = Messages['comparison'];
+  type NoteKey = keyof Copy['notes'];
   type Mark = '✅' | '❌' | '🟡';
-  // A plain mark, a mark with a note, or a price word.
-  type Cell = Mark | { mark: Mark; note: NoteKey } | 'free' | 'paid';
+  type Price = 'free' | 'paid';
+  // A plain mark, a price word, or either with a note.
+  type Cell = Mark | Price | { mark: Mark | Price; note: NoteKey };
 
   interface Row {
-    feature: keyof Messages['comparison']['rows'];
-    pincel: Cell;
-    aseprite: Cell;
-    piskel: Cell;
+    feature: keyof Copy['rows'];
+    cells: readonly [Cell, Cell, Cell, Cell];
   }
 
-  const rows: Row[] = [
-    { feature: 'format', pincel: '✅', aseprite: { mark: '✅', note: 'native' }, piskel: '❌' },
-    { feature: 'tilemaps', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    { feature: 'slices', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    { feature: 'timeline', pincel: '✅', aseprite: '✅', piskel: { mark: '✅', note: 'basic' } },
-    { feature: 'tablet', pincel: '✅', aseprite: '✅', piskel: '❌' },
-    { feature: 'browser', pincel: '✅', aseprite: '❌', piskel: '✅' },
-    {
-      feature: 'photo',
-      pincel: { mark: '✅', note: 'imageMode' },
-      aseprite: { mark: '❌', note: 'pixelOnly' },
-      piskel: '❌',
-    },
-    {
-      feature: 'desktop',
-      pincel: { mark: '✅', note: 'tauri' },
-      aseprite: '✅',
-      piskel: { mark: '✅', note: 'nwjs' },
-    },
-    { feature: 'library', pincel: '✅', aseprite: '❌', piskel: '❌' },
-    { feature: 'scripting', pincel: { mark: '❌', note: 'phase2' }, aseprite: '✅', piskel: '❌' },
-    { feature: 'brushes', pincel: { mark: '❌', note: 'phase2' }, aseprite: '✅', piskel: '✅' },
-    { feature: 'price', pincel: 'free', aseprite: 'paid', piskel: 'free' },
-    {
-      feature: 'openSource',
-      pincel: { mark: '✅', note: 'mitApache' },
-      aseprite: { mark: '🟡', note: 'sourceAvailable' },
-      piskel: { mark: '✅', note: 'apache' },
-    },
-    {
-      feature: 'active',
-      pincel: '✅',
-      aseprite: '✅',
-      piskel: { mark: '🟡', note: 'noRelease' },
-    },
-  ];
+  interface Table {
+    id: 'pixel' | 'image';
+    columns: readonly [string, string, string, string];
+    rows: readonly Row[];
+    sources: readonly string[];
+  }
+
+  const n = (mark: Mark | Price, note: NoteKey): Cell => ({ mark, note });
+
+  const pixel: Table = {
+    id: 'pixel',
+    columns: ['Pincel', 'Aseprite', 'Pixelorama', 'Piskel'],
+    rows: [
+      {
+        feature: 'format',
+        cells: [n('🟡', 'rgbaOnly'), n('✅', 'native'), n('✅', 'importExport'), '❌'],
+      },
+      { feature: 'tilemaps', cells: ['✅', '✅', '✅', '❌'] },
+      { feature: 'slices', cells: ['✅', '✅', '❌', '❌'] },
+      { feature: 'timeline', cells: ['✅', '✅', '✅', n('✅', 'basic')] },
+      { feature: 'tablet', cells: ['✅', '✅', '✅', '❌'] },
+      { feature: 'browser', cells: ['✅', '❌', '✅', '✅'] },
+      {
+        feature: 'photo',
+        cells: [n('✅', 'imageMode'), n('❌', 'pixelOnly'), n('❌', 'pixelOnly'), '❌'],
+      },
+      { feature: 'desktop', cells: [n('✅', 'tauri'), '✅', '✅', n('✅', 'nwjs')] },
+      { feature: 'library', cells: ['✅', '❌', '❌', '❌'] },
+      { feature: 'scripting', cells: [n('❌', 'phase2'), '✅', n('✅', 'extensions'), '❌'] },
+      { feature: 'brushes', cells: [n('❌', 'phase2'), '✅', '✅', '❌'] },
+      { feature: 'pixelPerfect', cells: ['✅', '✅', '✅', '❌'] },
+      { feature: 'animatedExport', cells: ['✅', n('🟡', 'gifOnly'), '✅', n('🟡', 'gifOnly')] },
+      { feature: 'penPressure', cells: ['✅', '✅', '✅', '❌'] },
+      { feature: 'indexed', cells: ['❌', '✅', '✅', '❌'] },
+      { feature: 'psd', cells: [n('🟡', 'psdRead'), '❌', n('✅', 'importOnly'), '❌'] },
+      { feature: 'price', cells: ['free', 'paid', 'free', 'free'] },
+      {
+        feature: 'openSource',
+        cells: [n('✅', 'mitApache'), n('🟡', 'sourceAvailable'), n('✅', 'mit'), n('✅', 'apache')],
+      },
+      { feature: 'active', cells: ['✅', '✅', '✅', n('🟡', 'noRelease')] },
+    ],
+    sources: [
+      'aseprite.org (docs, release notes, FAQ), github.com/aseprite/aseprite',
+      'github.com/Orama-Interactive/Pixelorama, pixelorama.org',
+      'github.com/piskelapp/piskel',
+    ],
+  };
+
+  const image: Table = {
+    id: 'image',
+    columns: ['Pincel', 'Paint.NET', 'Pinta', 'Photopea'],
+    rows: [
+      { feature: 'windows', cells: ['✅', '✅', '✅', n('🟡', 'inBrowser')] },
+      { feature: 'mac', cells: ['✅', n('🟡', 'wineBeta'), '✅', n('🟡', 'inBrowser')] },
+      { feature: 'linux', cells: ['✅', n('🟡', 'wineBeta'), '✅', n('🟡', 'inBrowser')] },
+      { feature: 'web', cells: ['✅', '❌', '❌', '✅'] },
+      { feature: 'layersBlend', cells: ['✅', '✅', '✅', '✅'] },
+      { feature: 'adjustments', cells: ['✅', '✅', '✅', '✅'] },
+      { feature: 'magicWand', cells: ['✅', '✅', '✅', '✅'] },
+      { feature: 'text', cells: ['✅', n('🟡', 'simple'), '✅', '✅'] },
+      { feature: 'penPressure', cells: ['✅', '✅', '❌', '✅'] },
+      { feature: 'psd', cells: [n('🟡', 'psdRead'), n('🟡', 'plugin'), '❌', '✅'] },
+      {
+        feature: 'priceLicense',
+        cells: [
+          n('free', 'mitApache'),
+          n('free', 'proprietary'),
+          n('free', 'mit'),
+          n('free', 'adsPremium'),
+        ],
+      },
+      { feature: 'offline', cells: ['✅', '✅', '✅', n('✅', 'onceLoaded')] },
+    ],
+    sources: [
+      'paint.net (features, documentation, roadmap), forums.paint.net (PSD plugin)',
+      'github.com/PintaProject/Pinta, pinta-project.com',
+      'photopea.com/learn, photopea.com/api',
+    ],
+  };
+
+  const tables = [pixel, image] as const;
+
+  const markText = (mark: Mark | Price): string =>
+    mark === 'free' || mark === 'paid' ? m().comparison[mark] : mark;
 </script>
 
-<div class="table-wrap" role="region" aria-label={m().comparison.label}>
-  <table>
-    <thead>
-      <tr>
-        <th scope="col">{m().comparison.feature}</th>
-        <th scope="col" class="pincel">Pincel</th>
-        <th scope="col">Aseprite</th>
-        <th scope="col">Piskel</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each rows as row (row.feature)}
+{#each tables as table (table.id)}
+  <h3 class="table-title">{m().comparison[table.id].title}</h3>
+  <div
+    class="table-wrap"
+    role="region"
+    aria-label={m().comparison[table.id].label}
+    data-table={table.id}
+  >
+    <table>
+      <thead>
         <tr>
-          <th scope="row">{m().comparison.rows[row.feature]}</th>
-          {#each [row.pincel, row.aseprite, row.piskel] as cell, i (i)}
-            <td class:pincel={i === 0}>
-              {#if cell === 'free' || cell === 'paid'}
-                <span class="mark">{m().comparison[cell]}</span>
-              {:else if typeof cell === 'string'}
-                <span class="mark">{cell}</span>
-              {:else}
-                <span class="mark">{cell.mark}</span>
-                <span class="note">{m().comparison.notes[cell.note]}</span>
-              {/if}
-            </td>
+          <th scope="col">{m().comparison.feature}</th>
+          {#each table.columns as column, i (column)}
+            <th scope="col" class:pincel={i === 0}>{column}</th>
           {/each}
         </tr>
-      {/each}
-    </tbody>
-  </table>
-</div>
-<p class="footnote">{m().comparison.footnote}</p>
+      </thead>
+      <tbody>
+        {#each table.rows as row (row.feature)}
+          <tr>
+            <th scope="row">{m().comparison.rows[row.feature]}</th>
+            {#each row.cells as cell, i (i)}
+              <td class:pincel={i === 0}>
+                {#if typeof cell === 'string'}
+                  <span class="mark">{markText(cell)}</span>
+                {:else}
+                  <span class="mark">{markText(cell.mark)}</span>
+                  <span class="note">{m().comparison.notes[cell.note]}</span>
+                {/if}
+              </td>
+            {/each}
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+  <div class="footnotes" data-footnotes={table.id}>
+    {#if table.id === 'pixel'}
+      <p class="footnote">{m().comparison.footnote}</p>
+    {/if}
+    <p class="footnote">{m().comparison.snapshot}</p>
+    <details class="sources">
+      <summary>{m().comparison.sources}</summary>
+      <ul>
+        {#each table.sources as source (source)}
+          <li>{source}</li>
+        {/each}
+      </ul>
+      {#if table.id === 'pixel'}
+        <p>{m().comparison.related}</p>
+      {/if}
+    </details>
+  </div>
+{/each}
 
 <style>
+  .table-title {
+    margin: 2.5rem 0 1rem;
+    font-size: 1.15rem;
+    color: var(--color-fg-primary);
+  }
+  .table-title:first-child {
+    margin-top: 0;
+  }
   .table-wrap {
     overflow-x: auto;
     border: 1px solid var(--color-border-subtle);
@@ -136,11 +218,27 @@
     font-size: 0.8rem;
     color: var(--color-fg-muted);
   }
+  .footnotes {
+    margin-top: 1rem;
+  }
   .footnote {
-    margin: 1.5rem 0 0;
+    margin: 0.5rem 0 0;
     color: var(--color-fg-muted);
     font-size: 0.9rem;
     max-width: 60ch;
+  }
+  .sources {
+    margin-top: 0.75rem;
+    color: var(--color-fg-muted);
+    font-size: 0.85rem;
+    max-width: 60ch;
+  }
+  .sources summary {
+    cursor: pointer;
+  }
+  .sources ul {
+    margin: 0.5rem 0;
+    padding-left: 1.25rem;
   }
   /* Phones: the table keeps readable columns and scrolls inside its wrapper
      (never the page); the feature labels and the Pincel column stay in view

@@ -52,7 +52,7 @@ Migrated from the legacy plan `24-website-comparison` (removed 2026-10-29, see g
 - [ ] AC-05 (always): Pincel's cells show what ships, as `pincel.md` §18 records it (re-checked 2026-11-05): pixel-perfect pencil ✅, animated export (GIF / APNG) ✅, pen pressure ✅ in both modes, PSD 🟡 "read, 8-bit RGB" (Image mode) in both tables, indexed painting ❌, and "Aseprite file format (read + write)" 🟡 "RGBA only" (indexed and grayscale `.aseprite` files are refused).
 - [ ] AC-06 (always): Aseprite's license cell reads "source-available" and does not show ✅ or "open source".
 - [ ] AC-07 (always): Piskel's activity cell says that there has been no tagged release since 0.15.0 (2018) while master still gets fixes, and no longer says "modernization in progress".
-- [ ] AC-08 (always): Each table has a footnote naming its snapshot ("as of 2026-10") and a Sources disclosure that lists the §18.6 sources for that table's tools; the "Pixel art" table's disclosure also names LibreSprite and Resprite as related tools not compared; the existing honesty footnote about Aseprite's head start stays.
+- [ ] AC-08 (always): Each table has a footnote naming its snapshot month (today "as of 2026-11") and a Sources disclosure that lists the §18.6 sources for that table's tools; the "Pixel art" table's disclosure also names LibreSprite and Resprite as related tools not compared; the existing honesty footnote about Aseprite's head start stays.
 - [ ] AC-09 (state): While the viewport is 390 px wide, each table scrolls horizontally inside its own wrapper, the page itself does not scroll horizontally, and the Pincel column stays visible while the table is scrolled.
 - [ ] AC-10 (state): While the German site (`/de/`) is shown, every table heading, row label, note, footnote and Sources text is German; on the English site it is English.
 - [ ] AC-11 (always): `pnpm lint`, `pnpm check` and `pnpm build` in `website/` pass.
@@ -94,17 +94,17 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
+| AC-01 | `website/e2e/comparison.spec.ts`: "website-comparison AC-01: two tables, Pixel art and Image editing, with their columns" | built | |
+| AC-02 | `website/e2e/comparison.spec.ts`: "website-comparison AC-02: the Pixel art table keeps the old rows and adds the gap rows" (all 19 rows, every cell) | built | |
+| AC-03 | `website/e2e/comparison.spec.ts`: "website-comparison AC-03: the Image editing table has its twelve rows" (every cell) | built | |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 | `website/e2e/comparison.spec.ts`: "website-comparison AC-06: Aseprite is source-available, not open source" | built |        |
-| AC-07 | `website/e2e/comparison.spec.ts`: "website-comparison AC-07: Piskel has had no tagged release since 0.15.0" | built |        |
-| AC-08 |      | open   |        |
-| AC-09 | `website/e2e/comparison.spec.ts`: "website-comparison AC-09: / tables scroll inside their wrappers with Pincel in view", "… /de tables …" (390 px; every `.table-wrap`, so it covers both tables once they exist) | built |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-05 | `website/e2e/comparison.spec.ts`: "website-comparison AC-05: Pincel cells show what ships, with notes for the limits" | built | |
+| AC-06 | `website/e2e/comparison.spec.ts`: "website-comparison AC-06: Aseprite is source-available, not open source" | built | |
+| AC-07 | `website/e2e/comparison.spec.ts`: "website-comparison AC-07: Piskel has had no tagged release since 0.15.0" | built | |
+| AC-08 | `website/e2e/comparison.spec.ts`: "website-comparison AC-08: each table names its snapshot and its sources" | built | |
+| AC-09 | `website/e2e/comparison.spec.ts`: "on a phone › website-comparison AC-09: / tables scroll inside their wrappers with Pincel in view", "… /de tables …" (390 px, both tables) | built | |
+| AC-10 | `website/e2e/comparison.spec.ts`: "website-comparison AC-10: the German site shows every heading, label, note and footnote in German" | built | |
+| AC-11 | gates `website lint` (`pnpm lint`), `website type-check` (`pnpm check`), `website build` (`pnpm build`) in `.claude/gates.json` | built | |
 | AC-12 |      | open   |        |
 
 ## Decisions
@@ -124,3 +124,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths drift — grep for
 - 2026-11-04 (spec-build): Below 720 px the feature labels stay sticky beside the Pincel column, and every column has a fixed width (7.5rem, Pincel 6.5rem) — with only Pincel sticky the row labels would scroll away, and without fixed widths a competitor column wider than the strip left free could never be read in full (the test asserts the last column ends up beside Pincel, not under it). Long words break (`overflow-wrap: anywhere`, `hyphens: auto`), and the table uses separate zero-spaced borders so sticky cells keep their row lines.
 - 2026-11-05 (owner): The cells for features that have shipped since the spec was written show the shipped state — pixel-perfect pencil, animated export and Pixel-mode pen pressure ✅, PSD 🟡 "read, 8-bit RGB" (Image mode) — and AC-05 says so; the honesty rule (AC-04, website-spec §4.1.4) forbids showing shipped features as missing. PSD counts as shipped once built, before `psd-import` is accepted, with the 🟡 note naming the limits.
 - 2026-11-05 (owner): spec-build re-checks the competitor cells that §18 marks `?` / `*` or does not cover against §18.6's sources and records the result in §18 with source and date; the owner reviews the §18 diff in the PR. Done 2026-11-05 (pincel.md §18.2 "Re-checked 2026-11-05", §18.4): the source code of Piskel, Pixelorama and Pinta, and the Aseprite, Paint.NET and Photopea docs. Result for the tables: Pixelorama has no slices; Piskel has no pixel-perfect mode, pen pressure, tags, indexed mode, `.aseprite`, custom brushes or APNG (GIF only); Aseprite exports GIF, not APNG; Pinta has no pen pressure, PSD or layer groups; Paint.NET has 14 blend modes and PSD only through a third-party plugin; Photopea has folders, blend modes and a magic wand and works offline once loaded. The current site's Piskel ✅ for custom brushes was wrong.
+- 2026-11-05 (spec-build): `ComparisonTable.svelte` is data-driven: one `Table` record per table (id, four columns, rows of four cells, sources), rendered twice with a heading, a region named per table ("Pixel-art comparison table" / "Image-editing comparison table"), the snapshot footnote and a `<details>` Sources disclosure; the honesty footnote stays under the Pixel art table only. A cell is a mark, a price word, or either with a note, so the Image table's "Price / license" row reads "Free" plus the license.
+- 2026-11-05 (spec-build): The snapshot reads "as of 2026-11": the competitor cells were re-checked on 2026-11-05 (pincel.md §18.2 "Re-checked 2026-11-05"), and the edge case on flipped cells already moves the date with the data; AC-08 now names the month as an example rather than a fixed value.
+- 2026-11-05 (spec-build): The site's earlier Piskel ✅ for custom brushes was wrong (Piskel has pen sizes only); the Pixel art table shows ❌. Pixelorama's "Embeddable" is ❌ in the table although §18.1 records "~ CLI export": a command-line exporter is not a library, and the row asks for one.
+- 2026-11-05 (spec-build): Red run: all ten tests failed against the previous single table (two of them only because the region is now named per table). AC-04 (facts against §18) and AC-12 (tone) stay manual.
