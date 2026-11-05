@@ -289,7 +289,8 @@ export const EFFECTS: EffectDef[] = [
     label: 'Reduce Noise',
     group: 'noise',
     modes: IMAGE,
-    params: [num('radius', 'Radius', 1, 10, 1)],
+    // effects-object-stylize-color-noise: paint.net's Reduce Noise.
+    params: [num('radius', 'Radius', 1, 200, 6), num('strength', 'Strength', 0, 100, 40)],
   },
   {
     id: 'brightness_contrast',
@@ -579,6 +580,41 @@ export const EFFECTS: EffectDef[] = [
       num('size', 'Size %', 1, 200, 100),
       center(),
       edge(),
+    ],
+  },
+  // docs/specs/effects-object-stylize-color-noise.md: Drop Shadow with Blur 0
+  // and Quantize keep pixels hard-edged, so Pixel mode shows them too.
+  {
+    id: 'drop_shadow',
+    label: 'Drop Shadow',
+    group: 'object',
+    modes: BOTH,
+    params: [
+      num('offset_x', 'Offset X', -100, 100, 4),
+      num('offset_y', 'Offset Y', -100, 100, 4),
+      num('blur', 'Blur radius', 0, 50, 4),
+      color('color', 'Color', 0x000000ff),
+      num('opacity', 'Opacity', 0, 100, 50),
+    ],
+    // A blurred shadow adds anti-aliased colours to a sprite.
+    modeDefaults: { pixel: { blur: 0 } },
+  },
+  {
+    id: 'stylize_outline',
+    label: 'Outline',
+    group: 'stylize',
+    modes: IMAGE,
+    params: [num('thickness', 'Thickness', 1, 200, 3), num('intensity', 'Intensity', 0, 100, 50)],
+  },
+  {
+    id: 'quantize',
+    label: 'Quantize',
+    group: 'color',
+    modes: BOTH,
+    params: [
+      num('colors', 'Colors', 2, 256, 16),
+      choice('algorithm', 'Algorithm', ['Median Cut', 'Octree']),
+      num('dithering', 'Dithering', 0, 100, 0),
     ],
   },
 ];

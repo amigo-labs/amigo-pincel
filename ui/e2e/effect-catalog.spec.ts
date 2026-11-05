@@ -93,7 +93,15 @@ const PINS: Record<string, Pin> = {
       ['seed', 4242, [20, 0, 0, 4242]],
     ],
   },
-  reduce_noise: { defaults: [1], changes: [['radius', 4, [4]]] },
+  // effects-object-stylize-color-noise rebuilds Reduce Noise: radius
+  // 1–200 (6) and a Strength slot (40).
+  reduce_noise: {
+    defaults: [6, 40],
+    changes: [
+      ['radius', 4, [4, 40]],
+      ['strength', 100, [6, 100]],
+    ],
+  },
   brightness_contrast: {
     defaults: [0, 0, 0],
     changes: [
@@ -306,6 +314,33 @@ const PINS: Record<string, Pin> = {
       ['edge', 3, [30, 100, 0.5, 0.5, 3]],
     ],
   },
+  // effects-object-stylize-color-noise (Drop Shadow at Image mode's Blur 4;
+  // the colour as one 0xRRGGBBAA slot).
+  drop_shadow: {
+    defaults: [4, 4, 4, 0x000000ff, 50],
+    changes: [
+      ['offset_x', -10, [-10, 4, 4, 0x000000ff, 50]],
+      ['offset_y', 100, [4, 100, 4, 0x000000ff, 50]],
+      ['blur', 0, [4, 4, 0, 0x000000ff, 50]],
+      ['color', 0xff8010c0, [4, 4, 4, 0xff8010c0, 50]],
+      ['opacity', 100, [4, 4, 4, 0x000000ff, 100]],
+    ],
+  },
+  stylize_outline: {
+    defaults: [3, 50],
+    changes: [
+      ['thickness', 200, [200, 50]],
+      ['intensity', 0, [3, 0]],
+    ],
+  },
+  quantize: {
+    defaults: [16, 0, 0],
+    changes: [
+      ['colors', 2, [2, 0, 0]],
+      ['algorithm', 1, [16, 1, 0]],
+      ['dithering', 75, [16, 0, 75]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {
@@ -339,6 +374,18 @@ test('pixelate: each mode starts at its own colour default', () => {
   expect(inMode('pixel')).toEqual([8, 1]);
   expect(inMode('image')).toEqual([8, 0]);
   expect(entriesFor('distort', 'pixel').map((e) => e.id)).toEqual(['morphology', 'pixelate']);
+});
+
+// effects-object-stylize-color-noise AC-02: Drop Shadow's Blur radius
+// starts at 0 in Pixel mode (a hard-edged shadow), at 4 in Image mode.
+test('drop_shadow: each mode starts at its own blur default', () => {
+  const inMode = (mode: 'pixel' | 'image') => {
+    const def = entriesFor('object', mode).find((e) => e.id === 'drop_shadow');
+    if (!def) throw new Error(`drop_shadow missing from ${mode} mode`);
+    return toParams(def, defaultValues(def));
+  };
+  expect(inMode('pixel')).toEqual([4, 4, 0, 0x000000ff, 50]);
+  expect(inMode('image')).toEqual([4, 4, 4, 0x000000ff, 50]);
 });
 
 // AC-01 / AC-06: the nine submenus in paint.net's order and their names;

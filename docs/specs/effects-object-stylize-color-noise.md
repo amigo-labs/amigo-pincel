@@ -91,8 +91,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the four entries sit in their submenus, Outline and Reduce Noise in Image mode only (AC-01); `ui/e2e/effect-menus.spec.ts` › pixel mode: only per-pixel effects, no neighbourhood effect | built |  |
+| AC-02 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › the dialogs show exactly the parameters of the table with their defaults (AC-02); › pixel mode: Drop Shadow with its defaults casts a hard half-opaque black shadow; `ui/e2e/effect-catalog.spec.ts` › drop_shadow: each mode starts at its own blur default, › drop_shadow / stylize_outline / quantize / reduce_noise: wire vectors equal the previous catalog's | built |  |
 | AC-03 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_never_changes_an_opaque_pixel, drop_shadow_opacity_zero_or_clear_colour_changes_nothing | built |  |
 | AC-04 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_blur_zero_single_pixel_lands_at_the_offset, drop_shadow_blur_zero_on_hard_alpha_adds_at_most_one_colour, drop_shadow_offset_outside_the_layer_changes_nothing; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_drop_shadow_casts_at_the_offset_in_one_undo_step, effects::tests::apply_effect_drop_shadow_clips_at_a_trimmed_cel | built |  |
 | AC-05 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` stylize_outline_solid_layer_is_unchanged, stylize_outline_intensity_zero_changes_nothing, stylize_outline_darkens_white_within_thickness_only, stylize_outline_thickness_beyond_the_layer_works | built |  |
@@ -102,7 +102,7 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-09 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` neighbourhood_effects_ignore_transparent_colour | built |  |
 | AC-10 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` from_params_wrong_parameter_count_is_rejected, drop_shadow_bad_colour_slot_is_rejected, from_params_non_finite_reads_as_zero_and_numbers_clamp; `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_errors_change_nothing | built |  |
 | AC-11 | `crates/pincel-wasm/src/effects.rs` effects::tests::apply_effect_object_stylize_color_noise_on_an_indexed_document_are_refused | built |  |
-| AC-12 |      | open   |        |
+| AC-12 | `ui/e2e/effects-object-stylize-color-noise.spec.ts` › German names and parameter labels (AC-12) | built |  |
 
 ## Decisions
 
@@ -114,3 +114,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-05 (spec-build): Quantize reads its palette from the target (`EffectSpec::run_in`), because AC-06 requires a target with few colours to stay unchanged even when the rest of the layer has many. Pixels map to the nearest palette colour (RGB distance, earlier entry on a tie) for both algorithms; dithering diffuses only among the target's opaque pixels, left to right, top to bottom. Octree merges the deepest internal nodes with the fewest pixels first and may end below Colours (a merge removes up to seven leaves).
 - 2026-11-05 (spec-build): Reduce Noise is Blurs ▸ Median at percentile 50 blended premultiplied by Strength; Strength 0 and 100 return the layer and the median exactly. New code lives in the submenu's module where one exists: `object::DropShadow`, `distort::StylizeOutline` (beside Emboss, Edge Detect and Relief, the other Stylize effects), a new `color` module for `Quantize`, `noise::ReduceNoise`.
 - 2026-11-05 (spec-build): The Pixel-core tests for AC-10, AC-11 and the trimmed cel were green at once: the refusal of non-RGBA cels, the wire errors and the clipping at the cel are generic paths every effect shares. The selection test of AC-06 is not: with `run_in` bypassed for Quantize (a whole-layer palette) it and `quantize_reads_its_colours_from_the_target` fail.
+- 2026-11-05 (spec-build): German labels: Versatz X / Y, Weichzeichnungsradius, Deckkraft (as the layer opacity), Farben, Median-Schnitt, Octree, Dithering, Stärke; Reduce Noise's German name changes from "Rauschen reduzieren" to the table's "Rauschen entfernen". The colour label reuses `fx.Color` (Farbe), as Outline Object does.
+- 2026-11-05 (spec-build): Red run of the UI block, built with the catalog and i18n changes reverted: 10 of the 54 tests in `effects-object-stylize-color-noise.spec.ts` and `effect-catalog.spec.ts` failed — the new entries missing from the catalog and the menus ("Drop Shadow…" not in ["Outline Object…"], "Schlagschatten…" not in ["Objekt umranden…"]), Reduce Noise's pin and dialog on the old one-slot vector.
