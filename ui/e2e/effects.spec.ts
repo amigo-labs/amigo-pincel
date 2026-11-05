@@ -138,84 +138,15 @@ test('image mode: an effect stays inside the selection', async ({ page }) => {
   expect((await corner()).equals(cornerBefore)).toBe(true);
 });
 
-/** Effects ▸ submenus and their entries, then the Adjustments menu (AC-01). */
-const EFFECT_MENUS: [string, string[]][] = [
-  ['Blur', ['Gaussian Blur…', 'Box Blur…', 'Motion Blur…', 'Radial Blur…']],
-  ['Sharpen', ['Sharpen', 'Unsharp Mask…']],
-  ['Distort', ['Emboss…', 'Edge Detect…', 'Relief…']],
-  ['Noise', ['Add Noise…', 'Reduce Noise…']],
-];
-/** The Effects menu's own rows: the submenus, then Outline… (outline-effect.md AC-01). */
-const EFFECT_TOP = [...EFFECT_MENUS.map(([group]) => group), 'Outline…'];
-const ADJUSTMENTS = [
-  'Brightness / Contrast…',
-  'Hue / Saturation…',
-  'Curves…',
-  'Levels…',
-  'Color Balance…',
-  'Invert Colors',
-  'Grayscale…',
-  'Posterize…',
-  'Threshold…',
-];
-
-for (const mode of MODES) {
-  test(`${mode}: Effects and Adjustments list every entry, disabled without a document (AC-01)`, async ({
-    page,
-  }) => {
-    const bar = page.getByRole('menubar');
-    const effects = page.getByRole('menu', { name: 'Effects', exact: true });
-    const adjustments = page.getByRole('menu', { name: 'Adjustments', exact: true });
-
-    // Hold the core's wasm: the editor mounts its menus, but no document
-    // arrives until the request is released.
-    let release = () => {};
-    const held = new Promise<void>((resolve) => (release = resolve));
-    await page.route('**/*.wasm', async (route) => {
-      await held;
-      await route.continue();
-    });
-    await gotoStart(page);
-    const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
-    await page.getByRole('button', { name }).click();
-    await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
-    await bar.getByRole('menuitem', { name: 'Effects', exact: true }).click();
-    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_TOP);
-    for (const item of await effects.getByRole('menuitem').all()) await expect(item).toBeDisabled();
-    await page.keyboard.press('Escape');
-    await bar.getByRole('menuitem', { name: 'Adjustments', exact: true }).click();
-    await expect(adjustments.getByRole('menuitem')).toHaveText(ADJUSTMENTS);
-    for (const item of await adjustments.getByRole('menuitem').all()) {
-      await expect(item).toBeDisabled();
-    }
-    await page.keyboard.press('Escape');
-    release();
-    await waitForEditor(page, mode);
-    await page.unroute('**/*.wasm');
-
-    await bar.getByRole('menuitem', { name: 'Effects', exact: true }).click();
-    await expect(effects.getByRole('menuitem')).toHaveText(EFFECT_TOP);
-    await expect(effects.getByRole('menuitem', { name: 'Outline…', exact: true })).toBeEnabled();
-    for (const [group, entries] of EFFECT_MENUS) {
-      await effects.getByRole('menuitem', { name: group, exact: true }).click();
-      const sub = page.getByRole('menu', { name: group, exact: true }).getByRole('menuitem');
-      await expect(sub).toHaveText(entries);
-      for (const item of await sub.all()) await expect(item).toBeEnabled();
-    }
-    await page.keyboard.press('Escape');
-    await bar.getByRole('menuitem', { name: 'Adjustments', exact: true }).click();
-    await expect(adjustments.getByRole('menuitem')).toHaveText(ADJUSTMENTS);
-    for (const item of await adjustments.getByRole('menuitem').all()) {
-      await expect(item).toBeEnabled();
-    }
-  });
-}
-
-/** A dialog parameter: its label, kind, default and a different valid value. */
+/** An effect parameter: its label, kind, default and a different valid value. */
 type Param =
   | { kind: 'number'; label: string; value: number; other: number }
   | { kind: 'bool'; label: string; value: boolean }
-  | { kind: 'choice'; label: string; value: string };
+  | { kind: 'choice'; label: string; value: string }
+  | { kind: 'angle'; label: string; value: number }
+  | { kind: 'point'; label: string; x: string; y: string; value: number }
+  | { kind: 'seed'; label: string; value: number; other: number }
+  | { kind: 'pair'; first: string; second: string; value: number; other: number };
 
 /** A number parameter `min`–`max` with default `value`. */
 const num = (label: string, value: number, min: number, max: number): Param => ({
@@ -226,73 +157,98 @@ const num = (label: string, value: number, min: number, max: number): Param => (
 });
 const bool = (label: string, value: boolean): Param => ({ kind: 'bool', label, value });
 const choice = (label: string, value: string): Param => ({ kind: 'choice', label, value });
+const angle = (label: string, value: number): Param => ({ kind: 'angle', label, value });
+/** The Center point, X / Y in percent of the image (effect-catalog-v2). */
+const center: Param = { kind: 'point', label: 'Center', x: 'Center X', y: 'Center Y', value: 50 };
+const seed = (label: string, value: number, other: number): Param => ({
+  kind: 'seed',
+  label,
+  value,
+  other,
+});
 
-/** Every effect with its menu path and the defaults of the spec's table (AC-02). */
-const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[] = [
+/** Every effect of the Technical notes table, with its menu path in the
+ *  current catalog (effect-catalog-v2), the modes that list it and its
+ *  defaults as the later effect specs set them (effects-blurs,
+ *  effects-object-stylize-color-noise, adjustments-paintnet) (AC-02). */
+const IMAGE_ONLY = ['image'] as const;
+const BOTH_MODES = ['pixel', 'image'] as const;
+const DIALOGS: {
+  path: [string, ...string[]];
+  title: string;
+  modes: readonly Mode[];
+  params: Param[];
+}[] = [
   {
-    path: ['Effects', 'Blur', 'Gaussian Blur…'],
+    path: ['Effects', 'Blurs', 'Gaussian Blur…'],
     title: 'Gaussian Blur',
+    modes: IMAGE_ONLY,
     params: [num('Radius', 2, 0.1, 250)],
   },
   {
-    path: ['Effects', 'Blur', 'Box Blur…'],
-    title: 'Box Blur',
-    params: [num('Width', 3, 1, 251), num('Height', 3, 1, 251)],
+    path: ['Effects', 'Blurs', 'Square Blur…'],
+    title: 'Square Blur',
+    modes: IMAGE_ONLY,
+    params: [{ kind: 'pair', first: 'Width', second: 'Height', value: 3, other: 251 }],
   },
   {
-    path: ['Effects', 'Blur', 'Motion Blur…'],
+    path: ['Effects', 'Blurs', 'Motion Blur…'],
     title: 'Motion Blur',
-    params: [num('Distance', 6, 1, 100), num('Angle', 0, 0, 360)],
+    modes: IMAGE_ONLY,
+    params: [num('Distance', 6, 1, 100), angle('Angle', 0), bool('Centered', true)],
   },
   {
-    path: ['Effects', 'Blur', 'Radial Blur…'],
+    path: ['Effects', 'Blurs', 'Radial Blur…'],
     title: 'Radial Blur',
-    params: [
-      num('Amount', 10, 1, 100),
-      num('Center X', 0.5, 0, 1),
-      num('Center Y', 0.5, 0, 1),
-      choice('Kind', 'Spin'),
-    ],
+    modes: IMAGE_ONLY,
+    params: [num('Amount', 10, 1, 100), center],
   },
-  { path: ['Effects', 'Sharpen', 'Sharpen'], title: 'Sharpen', params: [] },
+  { path: ['Effects', 'Photo', 'Sharpen'], title: 'Sharpen', modes: IMAGE_ONLY, params: [] },
   {
-    path: ['Effects', 'Sharpen', 'Unsharp Mask…'],
+    path: ['Effects', 'Photo', 'Unsharp Mask…'],
     title: 'Unsharp Mask',
+    modes: IMAGE_ONLY,
     params: [num('Amount %', 50, 1, 500), num('Radius', 1, 0.1, 50), num('Threshold', 0, 0, 255)],
   },
   {
-    path: ['Effects', 'Distort', 'Emboss…'],
+    path: ['Effects', 'Stylize', 'Emboss…'],
     title: 'Emboss',
-    params: [num('Angle', 45, 0, 360), num('Elevation', 45, 0, 90), num('Relief', 1, 0.1, 10)],
+    modes: IMAGE_ONLY,
+    params: [angle('Angle', 45), num('Elevation', 45, 0, 90), num('Relief', 1, 0.1, 10)],
   },
   {
-    path: ['Effects', 'Distort', 'Edge Detect…'],
+    path: ['Effects', 'Stylize', 'Edge Detect…'],
     title: 'Edge Detect',
+    modes: IMAGE_ONLY,
     params: [choice('Algorithm', 'Sobel'), num('Amount %', 100, 1, 400)],
   },
   {
-    path: ['Effects', 'Distort', 'Relief…'],
+    path: ['Effects', 'Stylize', 'Relief…'],
     title: 'Relief',
-    params: [num('Angle', 45, 0, 360), num('Amount', 1, 0.1, 10)],
+    modes: IMAGE_ONLY,
+    params: [angle('Angle', 45), num('Amount', 1, 0.1, 10)],
   },
   {
     path: ['Effects', 'Noise', 'Add Noise…'],
     title: 'Add Noise',
+    modes: BOTH_MODES,
     params: [
       num('Amount', 20, 1, 100),
       choice('Distribution', 'Uniform'),
       choice('Channels', 'RGB'),
-      num('Seed', 1, 0, 9999),
+      seed('Seed', 1, 9999),
     ],
   },
   {
     path: ['Effects', 'Noise', 'Reduce Noise…'],
     title: 'Reduce Noise',
-    params: [num('Radius', 1, 1, 10)],
+    modes: IMAGE_ONLY,
+    params: [num('Radius', 6, 1, 200), num('Strength', 40, 0, 100)],
   },
   {
     path: ['Adjustments', 'Brightness / Contrast…'],
     title: 'Brightness / Contrast',
+    modes: BOTH_MODES,
     params: [
       num('Brightness', 0, -150, 150),
       num('Contrast', 0, -150, 150),
@@ -302,6 +258,7 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
   {
     path: ['Adjustments', 'Hue / Saturation…'],
     title: 'Hue / Saturation',
+    modes: BOTH_MODES,
     params: [
       num('Hue', 0, -180, 180),
       num('Saturation', 0, -100, 100),
@@ -312,6 +269,7 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
   {
     path: ['Adjustments', 'Curves…'],
     title: 'Curves',
+    modes: BOTH_MODES,
     params: [
       choice('Channel', 'Composite'),
       ...[0, 64, 128, 192, 255].map((x) => num(`Out @ ${x}`, x, 0, 255)),
@@ -320,6 +278,7 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
   {
     path: ['Adjustments', 'Levels…'],
     title: 'Levels',
+    modes: BOTH_MODES,
     params: [
       choice('Channel', 'Composite'),
       num('Input black', 0, 0, 255),
@@ -332,6 +291,7 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
   {
     path: ['Adjustments', 'Color Balance…'],
     title: 'Color Balance',
+    modes: BOTH_MODES,
     params: [
       ...['Shadows', 'Midtones', 'Highlights'].flatMap((range) =>
         ['cyan–red', 'magenta–green', 'yellow–blue'].map((axis) =>
@@ -341,10 +301,16 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
       bool('Preserve luminosity', true),
     ],
   },
-  { path: ['Adjustments', 'Invert Colors'], title: 'Invert Colors', params: [] },
   {
-    path: ['Adjustments', 'Grayscale…'],
-    title: 'Grayscale',
+    path: ['Adjustments', 'Invert Colors'],
+    title: 'Invert Colors',
+    modes: BOTH_MODES,
+    params: [],
+  },
+  {
+    path: ['Adjustments', 'Black and White…'],
+    title: 'Black and White',
+    modes: BOTH_MODES,
     params: [
       choice('Method', 'Luminosity'),
       num('Red weight', 0.3, 0, 1),
@@ -355,85 +321,174 @@ const DIALOGS: { path: [string, ...string[]]; title: string; params: Param[] }[]
   {
     path: ['Adjustments', 'Posterize…'],
     title: 'Posterize',
+    modes: BOTH_MODES,
     params: [num('Levels', 4, 2, 64)],
   },
   {
     path: ['Adjustments', 'Threshold…'],
     title: 'Threshold',
+    modes: BOTH_MODES,
     params: [num('Threshold', 128, 0, 255)],
   },
 ];
 
-/** Asserts every parameter of `dialog` shows its default, as the right control. */
-async function expectDefaults(dialog: Locator, params: Param[]): Promise<void> {
+const valueField = (panel: Locator, label: string) =>
+  panel.getByRole('spinbutton', { name: `${label} value`, exact: true });
+
+/** Asserts every parameter of `panel` shows its default, as the right control. */
+async function expectDefaults(panel: Locator, params: Param[]): Promise<void> {
   for (const p of params) {
-    if (p.kind === 'number') {
-      await expect(dialog.getByRole('slider', { name: p.label, exact: true })).toHaveValue(
-        String(p.value),
-      );
-      await expect(
-        dialog.getByRole('spinbutton', { name: `${p.label} value`, exact: true }),
-      ).toHaveValue(String(p.value));
-    } else if (p.kind === 'bool') {
-      const box = dialog.getByRole('checkbox', { name: p.label, exact: true });
-      if (p.value) await expect(box).toBeChecked();
-      else await expect(box).not.toBeChecked();
-    } else {
-      const select = dialog.getByRole('combobox', { name: p.label, exact: true });
-      await expect(select.locator('option:checked')).toHaveText(p.value);
+    switch (p.kind) {
+      case 'number':
+        await expect(panel.getByRole('slider', { name: p.label, exact: true })).toHaveValue(
+          String(p.value),
+        );
+        await expect(valueField(panel, p.label)).toHaveValue(String(p.value));
+        break;
+      case 'bool': {
+        const box = panel.getByRole('checkbox', { name: p.label, exact: true });
+        if (p.value) await expect(box).toBeChecked();
+        else await expect(box).not.toBeChecked();
+        break;
+      }
+      case 'choice': {
+        const select = panel.getByRole('combobox', { name: p.label, exact: true });
+        await expect(select.locator('option:checked')).toHaveText(p.value);
+        break;
+      }
+      case 'angle':
+        await expect(
+          panel.getByRole('slider', { name: `${p.label} dial`, exact: true }),
+        ).toHaveAttribute('aria-valuenow', String(p.value));
+        await expect(
+          panel.getByRole('spinbutton', { name: `${p.label} in degrees`, exact: true }),
+        ).toHaveValue(String(p.value));
+        break;
+      case 'point':
+        for (const axis of [p.x, p.y]) {
+          await expect(
+            panel.getByRole('spinbutton', { name: `${axis} in percent`, exact: true }),
+          ).toHaveValue(String(p.value));
+        }
+        break;
+      case 'seed':
+        await expect(valueField(panel, p.label)).toHaveValue(String(p.value));
+        await expect(panel.getByRole('button', { name: 'Reseed', exact: true })).toBeVisible();
+        break;
+      case 'pair':
+        for (const label of [p.first, p.second]) {
+          await expect(panel.getByRole('slider', { name: label, exact: true })).toHaveValue(
+            String(p.value),
+          );
+          await expect(valueField(panel, label)).toHaveValue(String(p.value));
+        }
+        await expect(
+          panel.getByRole('checkbox', { name: `Link ${p.first} and ${p.second}`, exact: true }),
+        ).toBeChecked();
+        break;
     }
   }
 }
 
-/** Gives every parameter of `dialog` a value other than its default. */
-async function changeAll(dialog: Locator, params: Param[]): Promise<void> {
+/** Gives every parameter of `panel` a value other than its default. */
+async function changeAll(panel: Locator, params: Param[]): Promise<void> {
   for (const p of params) {
-    if (p.kind === 'number') {
-      const field = dialog.getByRole('spinbutton', { name: `${p.label} value`, exact: true });
-      await field.fill(String(p.other));
-      await expect(dialog.getByRole('slider', { name: p.label, exact: true })).toHaveValue(
-        String(p.other),
-      );
-    } else if (p.kind === 'bool') {
-      const box = dialog.getByRole('checkbox', { name: p.label, exact: true });
-      await box.setChecked(!p.value);
-    } else {
-      const select = dialog.getByRole('combobox', { name: p.label, exact: true });
-      await select.selectOption({ index: 1 });
-      await expect(select.locator('option:checked')).not.toHaveText(p.value);
+    switch (p.kind) {
+      case 'number':
+        await valueField(panel, p.label).fill(String(p.other));
+        await expect(panel.getByRole('slider', { name: p.label, exact: true })).toHaveValue(
+          String(p.other),
+        );
+        break;
+      case 'bool':
+        await panel.getByRole('checkbox', { name: p.label, exact: true }).setChecked(!p.value);
+        break;
+      case 'choice': {
+        const select = panel.getByRole('combobox', { name: p.label, exact: true });
+        await select.selectOption({ index: 1 });
+        await expect(select.locator('option:checked')).not.toHaveText(p.value);
+        break;
+      }
+      case 'angle': {
+        const field = panel.getByRole('spinbutton', { name: `${p.label} in degrees`, exact: true });
+        await field.fill(String((p.value + 90) % 360));
+        await field.press('Tab');
+        await expect(
+          panel.getByRole('slider', { name: `${p.label} dial`, exact: true }),
+        ).toHaveAttribute('aria-valuenow', String((p.value + 90) % 360));
+        break;
+      }
+      case 'point':
+        for (const axis of [p.x, p.y]) {
+          await panel
+            .getByRole('spinbutton', { name: `${axis} in percent`, exact: true })
+            .fill('20');
+        }
+        break;
+      case 'seed':
+        await valueField(panel, p.label).fill(String(p.other));
+        break;
+      case 'pair':
+        // Linked: moving the first moves the second too.
+        await valueField(panel, p.first).fill(String(p.other));
+        await expect(valueField(panel, p.second)).toHaveValue(String(p.other));
+        await panel
+          .getByRole('checkbox', { name: `Link ${p.first} and ${p.second}`, exact: true })
+          .setChecked(false);
+        break;
     }
   }
+}
+
+/** The controls each parameter kind adds, for the exact-count check. */
+function controlCounts(params: Param[]): { sliders: number; fields: number; boxes: number } {
+  let sliders = 0;
+  let fields = 0;
+  let boxes = 0;
+  for (const p of params) {
+    if (p.kind === 'number') [sliders, fields] = [sliders + 1, fields + 1];
+    else if (p.kind === 'angle') [sliders, fields] = [sliders + 1, fields + 1];
+    else if (p.kind === 'point') fields += 2;
+    else if (p.kind === 'seed') fields += 1;
+    else if (p.kind === 'pair') [sliders, fields, boxes] = [sliders + 2, fields + 2, boxes + 1];
+    else if (p.kind === 'bool') boxes += 1;
+  }
+  return { sliders, fields, boxes };
 }
 
 for (const mode of MODES) {
-  test(`${mode}: every effect dialog shows its parameters at their defaults; Reset restores them (AC-02)`, async ({
+  test(`${mode}: every effect panel shows its parameters at their defaults; Reset restores them (AC-02)`, async ({
     page,
   }) => {
     test.slow();
     await createDocument(page, mode, { width: 16, height: 16 });
-    const dialog = effectDialog(page);
-    const noParams = dialog.getByText('This effect has no parameters.');
-    for (const { path, title, params } of DIALOGS) {
+    const panel = effectDialog(page);
+    const noParams = panel.getByText('This effect has no parameters.');
+    for (const { path, title, params } of DIALOGS.filter((d) => d.modes.includes(mode))) {
       await menu(page, ...path);
-      await expect(dialog.getByRole('heading', { name: title, exact: true })).toBeVisible();
-      // Exactly these controls: a slider and a number field per number, a
-      // dropdown per choice, a checkbox per switch (plus Preview).
-      const count = (kind: Param['kind']) => params.filter((p) => p.kind === kind).length;
-      await expect(dialog.getByRole('slider')).toHaveCount(count('number'));
-      await expect(dialog.getByRole('spinbutton')).toHaveCount(count('number'));
-      await expect(dialog.getByRole('combobox')).toHaveCount(count('choice'));
-      await expect(dialog.getByRole('checkbox')).toHaveCount(count('bool') + 1);
+      await expect(panel.getByRole('heading', { name: title, exact: true })).toBeVisible();
+      // Exactly these controls: per number a slider and a number field, per
+      // angle a dial and a degree field, per point two percent fields, per
+      // seed a field and Reseed, per linked pair two sliders, two fields and
+      // the link; a dropdown per choice, a checkbox per switch (plus Preview).
+      const counts = controlCounts(params);
+      await expect(panel.getByRole('slider')).toHaveCount(counts.sliders);
+      await expect(panel.getByRole('spinbutton')).toHaveCount(counts.fields);
+      await expect(panel.getByRole('combobox')).toHaveCount(
+        params.filter((p) => p.kind === 'choice').length,
+      );
+      await expect(panel.getByRole('checkbox')).toHaveCount(counts.boxes + 1);
       if (params.length === 0) {
         await expect(noParams).toBeVisible();
       } else {
         await expect(noParams).toHaveCount(0);
-        await expectDefaults(dialog, params);
-        await changeAll(dialog, params);
-        await dialog.getByRole('button', { name: 'Reset', exact: true }).click();
-        await expectDefaults(dialog, params);
+        await expectDefaults(panel, params);
+        await changeAll(panel, params);
+        await panel.getByRole('button', { name: 'Reset', exact: true }).click();
+        await expectDefaults(panel, params);
       }
-      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
-      await expect(dialog).toHaveCount(0);
+      await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(panel).toHaveCount(0);
     }
   });
 }
@@ -540,9 +595,12 @@ for (const mode of MODES) {
     await menu(page, 'Adjustments', 'Invert Colors');
     const dialog = effectDialog(page);
     await dialog.getByRole('button', { name: 'OK', exact: true }).click();
-    // Both modes close the dialog and report the refusal.
-    await expect(dialog).toHaveCount(0);
+    // Both modes report the refusal and keep the panel open with its values
+    // (effect-panel AC-16); Cancel then closes it.
     await expect(page.getByText(/^Invert Colors failed: .*locked/)).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'Invert Colors', exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
     if (mode === 'pixel') {
       await expect(page.getByText('undo 2 / redo 0')).toBeVisible();
     }
@@ -663,9 +721,15 @@ test('pixel: a layer without a cel on the current frame refuses the effect (AC-1
   await expect(timeline.getByText('frame 2/2')).toBeVisible();
   const depth = (await depthText(page).textContent()) ?? '';
   await menu(page, 'Adjustments', 'Invert Colors');
-  await effectDialog(page).getByRole('button', { name: 'OK', exact: true }).click();
+  const panel = effectDialog(page);
+  await panel.getByRole('button', { name: 'OK', exact: true }).click();
   await expect(page.getByText(/^Invert Colors failed: /)).toBeVisible();
   await expect(depthText(page)).toHaveText(depth);
+  // The failed effect keeps its panel (effect-panel AC-16), which keeps the
+  // timeline inert (AC-03) until it closes.
+  await expect(panel.getByRole('heading', { name: 'Invert Colors', exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(panel).toHaveCount(0);
   // Frame 1 still holds the red fill.
   await timeline.getByRole('button', { name: 'Frame 1', exact: true }).click();
   expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);

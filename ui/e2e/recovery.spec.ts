@@ -237,7 +237,7 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
-test('the dialog lists each document’s latest snapshot of its own mode, newest first', async ({
+test('the dialog lists each document’s latest snapshot of both modes, newest first (AC-04)', async ({
   page,
 }) => {
   await gotoStart(page);
@@ -251,24 +251,25 @@ test('the dialog lists each document’s latest snapshot of its own mode, newest
   ];
   await seedSnapshots(page, metas);
   const when = (ts: number) => page.evaluate((t) => new Date(t).toLocaleString(), ts);
-
-  await page.reload();
-  await createDocument(page, 'pixel', { width: 16, height: 16 });
   const dialog = recoveryDialog(page);
   const rows = dialog.getByRole('listitem');
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toContainText('newer.aseprite');
-  await expect(rows.nth(0)).toContainText(`${await when(base - 60_000)} · 512 B`);
-  await expect(rows.nth(1)).toContainText('older.aseprite');
-  await expect(rows.nth(1)).toContainText(`${await when(base - 3_600_000)} · 2.0 KB`);
-  await expect(dialog).not.toContainText('photo.ora');
-  await expect(dialog).not.toContainText('stale.aseprite');
 
-  await page.reload();
-  await createDocument(page, 'image', { width: 16, height: 16 });
-  await expect(rows).toHaveCount(1);
-  await expect(rows.nth(0)).toContainText('photo.ora');
-  await expect(rows.nth(0)).toContainText(`${await when(base)} · 4.0 KB`);
+  // Whichever mode's editor starts first, the dialog lists both modes.
+  for (const mode of ['pixel', 'image'] as const) {
+    await page.reload();
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText('photo.ora');
+    await expect(rows.nth(0)).toContainText('Image');
+    await expect(rows.nth(0)).toContainText(`${await when(base)} · 4.0 KB`);
+    await expect(rows.nth(1)).toContainText('newer.aseprite');
+    await expect(rows.nth(1)).toContainText('Pixel');
+    await expect(rows.nth(1)).toContainText(`${await when(base - 60_000)} · 512 B`);
+    await expect(rows.nth(2)).toContainText('older.aseprite');
+    await expect(rows.nth(2)).toContainText('Pixel');
+    await expect(rows.nth(2)).toContainText(`${await when(base - 3_600_000)} · 2.0 KB`);
+    await expect(dialog).not.toContainText('stale.aseprite');
+  }
 });
 
 test('a discarded snapshot is gone for good; discarding the last one closes the dialog', async ({
