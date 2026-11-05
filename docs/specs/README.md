@@ -51,6 +51,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 45 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
+| 46 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
 
 ## Done
 
@@ -64,7 +65,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
-- [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
