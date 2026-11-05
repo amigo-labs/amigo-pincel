@@ -12,8 +12,6 @@ import {
   selectRectangle,
   selectEllipse,
   selectPolygon,
-  drawShape,
-  drawGradient,
   moveSelectionContent,
   moveSelectionMask,
   deselect,
@@ -21,13 +19,17 @@ import {
 import {
   editor,
   isShapeTool,
+  live,
   shapeOf,
   tool,
   selectionPreview,
   shapePreview,
+  view,
   type ToolKind,
 } from '../stores/editor.svelte';
-import type { SelectionMode, ShapeKind } from '../core/wasm';
+import type { PointPair, SelectionMode, ShapeKind } from '../core/wasm';
+import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
+import { cursorOf, dragPoints, hitLive, type LiveHit, type Pt } from './live-handles';
 import { editRefused } from '../core/layer-tree';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
@@ -238,6 +240,76 @@ export function attachTools(
   // undo step but keeps separate strokes separate.
   let nextStrokeId = 1;
   let strokeId = 0;
+  // A handle or body drag on the live object: one gesture id per drag, so
+  // the core keeps the drag as one undo step (image-live-objects AC-03).
+  let liveDrag: {
+    pointer: number;
+    hit: LiveHit;
+    from: PointPair;
+    start: Pt;
+    gesture: number;
+    pending: PointPair | null;
+    frame: number;
+  } | null = null;
+
+  /** Sends the drag's latest points, at most once per frame. */
+  const flushLive = (): void => {
+    if (liveDrag === null || liveDrag.pending === null) return;
+    const points = liveDrag.pending;
+    liveDrag.pending = null;
+    if (!editLive({ gesture: liveDrag.gesture, points })) {
+      // Committed elsewhere meanwhile (AC-19): drop the drag silently.
+      endLiveDrag();
+    }
+    redraw();
+  };
+
+  const endLiveDrag = (): void => {
+    if (liveDrag === null) return;
+    cancelAnimationFrame(liveDrag.frame);
+    if (stage.hasPointerCapture(liveDrag.pointer)) stage.releasePointerCapture(liveDrag.pointer);
+    liveDrag = null;
+  };
+
+  /** Drops the drag in progress and its step (Escape, Undo: AC-11). */
+  const cancelLiveDrag = (): boolean => {
+    if (liveDrag === null) return false;
+    const gesture = liveDrag.gesture;
+    endLiveDrag();
+    cancelLiveGesture(gesture);
+    redraw();
+    return true;
+  };
+
+  /**
+   * A press while an object is live (image-live-objects-ui AC-02 – AC-05,
+   * AC-09, AC-10): a handle or the body starts a drag; a Line's stroke is
+   * reserved; anywhere else commits. `true` when the press is used up.
+   */
+  const pressLive = (e: PointerEvent, point: Pt): boolean => {
+    const obj = live.object;
+    if (obj === null) return false;
+    // The right button does nothing while an object is live.
+    if (e.button !== 0) return true;
+    const hit = hitLive(obj, point, view.zoom, e.pointerType !== 'mouse');
+    if (hit?.kind === 'stroke') return true;
+    if (hit !== null) {
+      liveDrag = {
+        pointer: e.pointerId,
+        hit,
+        from: obj.points,
+        start: point,
+        gesture: nextStrokeId++,
+        pending: null,
+        frame: 0,
+      };
+      stage.setPointerCapture(e.pointerId);
+      return true;
+    }
+    commitLive();
+    redraw();
+    return false;
+  };
 
   /** Commits the placed polygon if it has enough vertices, then resets. */
   const commitPolygon = (): void => {
@@ -254,7 +326,10 @@ export function attachTools(
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
-    if (active) {
+    if (active || liveDrag !== null) {
+      return;
+    }
+    if (pressLive(e, toCanvasPoint(canvas, e))) {
       return;
     }
     // Selection, shapes and text respond to the primary button only; the right
@@ -402,6 +477,26 @@ export function attachTools(
   };
 
   const onMove = (e: PointerEvent): void => {
+    if (liveDrag !== null) {
+      if (e.pointerId !== liveDrag.pointer) return;
+      const p = toCanvasPoint(canvas, e);
+      liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      if (liveDrag.frame === 0) {
+        liveDrag.frame = requestAnimationFrame(() => {
+          if (liveDrag !== null) liveDrag.frame = 0;
+          flushLive();
+        });
+      }
+      return;
+    }
+    // The cursor over the live object's handles and body (AC-13).
+    if (!active) {
+      const obj = live.object;
+      live.cursor =
+        obj === null
+          ? null
+          : cursorOf(hitLive(obj, toCanvasPoint(canvas, e), view.zoom, e.pointerType !== 'mouse'));
+    }
     // Only the pointer that started the gesture may drive it.
     if (active && e.pointerId !== activePointer) {
       return;
@@ -479,6 +574,12 @@ export function attachTools(
   };
 
   const onUp = (e: PointerEvent): void => {
+    if (liveDrag !== null && e.pointerId === liveDrag.pointer) {
+      cancelAnimationFrame(liveDrag.frame);
+      flushLive();
+      endLiveDrag();
+      return;
+    }
     if (!active || e.pointerId !== activePointer) {
       return;
     }
@@ -509,14 +610,15 @@ export function attachTools(
       }
       selectionPreview.value = null;
     } else if (gestureKind === 'gradient' && start && last) {
-      drawGradient(start, last);
+      // The object stays live until it is committed (image-live-objects-ui).
+      beginGradient(start, last);
       redraw();
     } else if (isShapeTool(gestureKind) && start && last) {
       // The shape the gesture began with, not whatever `U` has selected
-      // since: the commit has to match the preview being dragged.
-      const committed = shapeOf(gestureKind);
-      if (committed !== null) {
-        drawShape(start, last, committed);
+      // since: the object has to match the preview being dragged.
+      const drawn = shapeOf(gestureKind);
+      if (drawn !== null) {
+        beginShape(start, last, drawn);
         redraw();
       }
     } else if (MOVE_TOOLS.has(gestureKind) && start && last) {
@@ -546,6 +648,7 @@ export function attachTools(
    * pixels already applied stay — as a single undoable stroke (stroke_id).
    */
   const abort = (): boolean => {
+    if (cancelLiveDrag()) return true;
     const inProgress = active || polygonPoints.length > 0;
     if (activePointer !== null && stage.hasPointerCapture(activePointer)) {
       stage.releasePointerCapture(activePointer);
@@ -564,6 +667,14 @@ export function attachTools(
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
   // the in-flight gesture — unless the cancel is for a bystander pointer.
   const onCancel = (e: PointerEvent): void => {
+    if (liveDrag !== null) {
+      if (e.pointerId === liveDrag.pointer) {
+        cancelAnimationFrame(liveDrag.frame);
+        flushLive();
+        endLiveDrag();
+      }
+      return;
+    }
     if (active && e.pointerId !== activePointer) {
       return;
     }
@@ -587,9 +698,12 @@ export function attachTools(
   stage.addEventListener('dblclick', onDblClick);
   stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
+  gestureControl.cancelLiveDrag = cancelLiveDrag;
 
   return () => {
     gestureControl.cancel = () => false;
+    gestureControl.cancelLiveDrag = () => false;
+    endLiveDrag();
     stage.removeEventListener('pointerdown', onDown);
     stage.removeEventListener('pointermove', onMove);
     stage.removeEventListener('pointerup', onUp);

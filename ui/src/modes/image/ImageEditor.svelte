@@ -5,6 +5,9 @@
   import {
     clampCanvasSize,
     editor,
+    isShapeTool,
+    live,
+    shapeOf,
     tabs,
     tool,
     ui,
@@ -15,6 +18,7 @@
     viewCommands,
     type ToolKind,
   } from './stores/editor.svelte';
+  import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import {
     addGroup,
     addLayer,
@@ -735,6 +739,22 @@
     if (!active) gestureControl.cancel();
   });
 
+  // Another tool commits a live object; another box shape converts a live
+  // box shape (image-live-objects-ui AC-08, AC-09).
+  $effect(() => {
+    const kind = tool.kind;
+    untrack(() => {
+      const own = liveToolOf();
+      if (own === null || own === kind) return;
+      const shape = shapeOf(kind);
+      if (shape !== null && shape !== 'line' && isShapeTool(own) && own !== 'line') {
+        editLive({ shape });
+      } else {
+        commitLive();
+      }
+    });
+  });
+
   const dirty = $derived(isDirty(tabs.active));
 
   // The window title follows the active tab (document-tabs AC-04), as in
@@ -755,6 +775,13 @@
     if (!active || e.defaultPrevented || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
       return;
     }
+    // Enter commits a live object (image-live-objects-ui AC-09); Image
+    // mode has no Play for the key to mean otherwise.
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.object !== null) {
+      e.preventDefault();
+      commitLive();
+      return;
+    }
     const action = actionFor(e);
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.
@@ -767,10 +794,11 @@
       if (runShortcut(action)) e.preventDefault();
       return;
     }
-    // Escape drops a gesture in progress; with none, it deselects
+    // Escape drops a gesture in progress; with none it cancels a live
+    // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
       return;
     }
     const group = toolGroupForKey(e);

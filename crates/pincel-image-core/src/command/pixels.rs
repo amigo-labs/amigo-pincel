@@ -98,6 +98,38 @@ impl SetPixels {
     pub fn edit_count(&self) -> usize {
         self.edits.len()
     }
+
+    /// An already-applied edit whose prior pixels are known: undo pastes
+    /// `before`, redo pastes `after` (a committed live object).
+    pub(crate) fn applied(
+        layer_index: usize,
+        region: Rect,
+        before: ImageBuffer,
+        after: ImageBuffer,
+        label: impl Into<String>,
+    ) -> Self {
+        Self {
+            edits: vec![PixelEdit {
+                layer_index,
+                region,
+                before: Some(before),
+                after,
+            }],
+            label: label.into(),
+            stroke_id: None,
+        }
+    }
+
+    /// The region and new pixels of a single-edit command, as a tool's
+    /// `draw` builds it; `None` for a merged multi-edit stroke.
+    pub(crate) fn into_single(self) -> Option<(Rect, ImageBuffer)> {
+        let mut edits = self.edits;
+        if edits.len() != 1 {
+            return None;
+        }
+        let edit = edits.pop()?;
+        Some((edit.region, edit.after))
+    }
 }
 
 impl Command for SetPixels {

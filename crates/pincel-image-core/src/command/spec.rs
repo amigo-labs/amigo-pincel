@@ -170,7 +170,7 @@ fn parse_selection_mode(s: &str) -> SelectionMode {
 }
 
 /// Maps a shape-mode string to a [`ShapeMode`], defaulting to outline.
-fn parse_shape_mode(s: &str) -> ShapeMode {
+pub(super) fn parse_shape_mode(s: &str) -> ShapeMode {
     match s {
         "fill" => ShapeMode::Fill,
         "fill_and_outline" => ShapeMode::FillAndOutline,
@@ -178,7 +178,7 @@ fn parse_shape_mode(s: &str) -> ShapeMode {
     }
 }
 
-fn parse_gradient_kind(s: &str) -> GradientKind {
+pub(super) fn parse_gradient_kind(s: &str) -> GradientKind {
     match s {
         "reflected" => GradientKind::Reflected,
         "radial" => GradientKind::Radial,
@@ -188,7 +188,7 @@ fn parse_gradient_kind(s: &str) -> GradientKind {
     }
 }
 
-fn parse_gradient_channel(s: &str) -> GradientChannel {
+pub(super) fn parse_gradient_channel(s: &str) -> GradientChannel {
     match s {
         "transparency" => GradientChannel::Transparency,
         _ => GradientChannel::Color,
@@ -216,7 +216,7 @@ fn default_dash() -> String {
 }
 
 /// Maps a dash-pattern string to a [`DashPattern`], defaulting to solid.
-fn parse_dash(s: &str) -> DashPattern {
+pub(super) fn parse_dash(s: &str) -> DashPattern {
     match s {
         "dashed" => DashPattern::Dashed,
         "dotted" => DashPattern::Dotted,
@@ -585,6 +585,115 @@ pub enum CommandSpec {
         #[serde(default = "default_opacity")]
         opacity: f32,
     },
+    /// Begin a live Line or box shape (docs/specs/image-live-objects.md):
+    /// drawn as `draw_shape` draws it, but editable until `commit_live`.
+    /// `shape` is `line`, `rectangle`, `rounded_rectangle`, `ellipse` or
+    /// `polygon`; `points` are the endpoints or two opposite box corners (a
+    /// polygon is inscribed in the box). Degenerate geometry begins nothing.
+    BeginLiveShape {
+        layer: usize,
+        shape: String,
+        points: [[f32; 2]; 2],
+        #[serde(default)]
+        corner_radius: f32,
+        #[serde(default)]
+        sides: u32,
+        #[serde(default = "default_shape_mode")]
+        mode: String,
+        #[serde(default = "default_stroke_width")]
+        stroke_width: f32,
+        #[serde(default)]
+        stroke_color: [u8; 4],
+        #[serde(default)]
+        fill_color: [u8; 4],
+        #[serde(default)]
+        anti_alias: bool,
+        #[serde(default = "default_dash")]
+        dash: String,
+    },
+    /// Begin a live gradient along `(x0, y0)` -> `(x1, y1)`, drawn as
+    /// `draw_gradient` draws it (docs/specs/image-live-objects.md).
+    BeginLiveGradient {
+        layer: usize,
+        #[serde(default = "default_gradient_kind")]
+        kind: String,
+        #[serde(default = "default_gradient_channel")]
+        channel: String,
+        x0: f32,
+        y0: f32,
+        x1: f32,
+        y1: f32,
+        #[serde(default)]
+        from: [u8; 4],
+        #[serde(default)]
+        to: [u8; 4],
+        #[serde(default = "default_opacity")]
+        opacity: f32,
+    },
+    /// Edit the live object: absent fields keep their value. Edits sharing
+    /// a `gesture` (one handle drag), or consecutive edits of one parameter
+    /// group, form one undo step. `points` are endpoints, box corners or the
+    /// gradient's drag points; `kind` / `channel` / `from` / `to` /
+    /// `opacity` apply to a gradient, the other fields to a shape.
+    EditLive {
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        gesture: Option<u64>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        points: Option<[[f32; 2]; 2]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        shape: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        mode: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        stroke_width: Option<f32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        dash: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        anti_alias: Option<bool>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        corner_radius: Option<f32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        sides: Option<u32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        stroke_color: Option<[u8; 4]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        fill_color: Option<[u8; 4]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        kind: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        channel: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        from: Option<[u8; 4]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        to: Option<[u8; 4]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        opacity: Option<f32>,
+    },
+    /// Commit the live object: its steps become one (or none, if it changes
+    /// no pixel).
+    CommitLive,
+    /// Cancel the live object: the layer shows the pixels from before it.
+    CancelLive,
+    /// Drop the step of the live object's handle drag `gesture` without a
+    /// redo step (Escape during the drag); nothing when the top step is not
+    /// that drag's.
+    CancelLiveGesture { gesture: u64 },
     /// Rasterize `text` onto `layer` at `(x, y)` using a `register_font` id
     /// (spec §9.2 Text; ADR-012). A no-op if the font id or geometry is invalid.
     DrawText {
@@ -626,6 +735,8 @@ impl CommandSpec {
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
             | Self::DrawShape { layer, .. }
+            | Self::BeginLiveShape { layer, .. }
+            | Self::BeginLiveGradient { layer, .. }
             | Self::DrawText { layer, .. } => Some(*layer),
             _ => None,
         }
@@ -1198,6 +1309,111 @@ pub fn run_command(
                 None => Ok(()), // zero-length drag, empty selection, bad layer
             }
         }
+        CommandSpec::BeginLiveShape {
+            layer,
+            shape,
+            points,
+            corner_radius,
+            sides,
+            mode,
+            stroke_width,
+            stroke_color,
+            fill_color,
+            anti_alias,
+            dash,
+        } => {
+            let Some(kind) = super::live_spec::parse_live_shape(&shape) else {
+                return Ok(()); // unknown shape: a no-op, as for draw_shape
+            };
+            let params = super::LiveParams::Shape(super::LiveShape {
+                kind,
+                a: Point::new(points[0][0], points[0][1]),
+                b: Point::new(points[1][0], points[1][1]),
+                style: ShapeStyle {
+                    mode: parse_shape_mode(&mode),
+                    stroke_width,
+                    stroke_color: rgba(stroke_color),
+                    fill_color: rgba(fill_color),
+                    anti_alias,
+                    dash: parse_dash(&dash),
+                },
+                corner_radius,
+                sides,
+            });
+            bus.begin_live(layer, params).map(|_| ())
+        }
+        CommandSpec::BeginLiveGradient {
+            layer,
+            kind,
+            channel,
+            x0,
+            y0,
+            x1,
+            y1,
+            from,
+            to,
+            opacity,
+        } => {
+            let params = super::LiveParams::Gradient(super::LiveGradient {
+                gradient: Gradient {
+                    kind: parse_gradient_kind(&kind),
+                    channel: parse_gradient_channel(&channel),
+                    from: rgba(from),
+                    to: rgba(to),
+                    opacity,
+                },
+                a: Point::new(x0, y0),
+                b: Point::new(x1, y1),
+            });
+            bus.begin_live(layer, params).map(|_| ())
+        }
+        CommandSpec::EditLive {
+            gesture,
+            points,
+            shape,
+            mode,
+            stroke_width,
+            dash,
+            anti_alias,
+            corner_radius,
+            sides,
+            stroke_color,
+            fill_color,
+            kind,
+            channel,
+            from,
+            to,
+            opacity,
+        } => {
+            let shape = match shape {
+                Some(s) => Some(
+                    super::live_spec::parse_live_shape(&s)
+                        .ok_or(DocumentError::LiveEditMismatch)?,
+                ),
+                None => None,
+            };
+            let edit = super::LiveEdit {
+                points: points.map(|[a, b]| [Point::new(a[0], a[1]), Point::new(b[0], b[1])]),
+                shape,
+                mode: mode.as_deref().map(parse_shape_mode),
+                stroke_width,
+                dash: dash.as_deref().map(parse_dash),
+                anti_alias,
+                corner_radius,
+                sides,
+                stroke_color: stroke_color.map(rgba),
+                fill_color: fill_color.map(rgba),
+                gradient_kind: kind.as_deref().map(parse_gradient_kind),
+                gradient_channel: channel.as_deref().map(parse_gradient_channel),
+                gradient_from: from.map(rgba),
+                gradient_to: to.map(rgba),
+                gradient_opacity: opacity,
+            };
+            bus.edit_live(&edit, gesture)
+        }
+        CommandSpec::CommitLive => bus.commit_live(),
+        CommandSpec::CancelLive => bus.cancel_live(),
+        CommandSpec::CancelLiveGesture { gesture } => bus.cancel_live_gesture(gesture).map(|_| ()),
         CommandSpec::DrawText {
             layer,
             font_id,
@@ -1228,6 +1444,11 @@ pub fn run_command(
             }
         }
     }
+}
+
+/// A [`Color`] from wire RGBA bytes.
+fn rgba(c: [u8; 4]) -> Color {
+    Color::rgba(c[0], c[1], c[2], c[3])
 }
 
 /// Combines `shape` with the current selection per `mode` and applies it as an

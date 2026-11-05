@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import {
     editor,
+    live,
     tool,
     ui,
     view,
@@ -19,6 +20,7 @@
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
+  import LiveHandles from './LiveHandles.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
   // store-free element covering the document inside the transformed stage
@@ -399,7 +401,7 @@
         ? 'grab'
         : canvasPick.handler !== null
           ? 'crosshair'
-          : (toolCursors[tool.kind] ?? 'default'),
+          : (live.cursor ?? toolCursors[tool.kind] ?? 'default'),
   );
   // A right-button drag zooms out, so it frames no box.
   const zoomRect = $derived(
@@ -467,6 +469,7 @@
 <div
   bind:this={viewport}
   class="relative h-full w-full touch-none overflow-hidden bg-pc-bg select-none"
+  style={live.cursor ? `cursor: ${live.cursor}` : undefined}
   onwheel={onWheel}
   onpointerdowncapture={onPointerDownCapture}
   onpointermovecapture={onPointerMoveCapture}
@@ -522,6 +525,7 @@
   </div>
 
   <CanvasOverlay />
+  <LiveHandles />
 
   {#if zoomRect}
     <div
