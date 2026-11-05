@@ -426,13 +426,103 @@ pub fn apply_effect(
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        let Some((region, after)) = effect_region(&bus.document, layer, &spec)? else {
-            return Ok(false);
-        };
-        let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
-        bus.apply(Box::new(cmd)).map_err(to_js)?;
-        Ok(true)
+        let region = effect_region(&bus.document, layer, &spec)?;
+        commit_region(bus, layer, &spec, region)
     })
+}
+
+/// Commits an effect's region as one undoable `SetPixels` labelled like
+/// the effect; `false` (no undo step) for `None`.
+fn commit_region(
+    bus: &mut CommandBus,
+    layer: usize,
+    spec: &EffectSpec,
+    region: Option<(Rect, ImageBuffer)>,
+) -> Result<bool, JsError> {
+    let Some((region, after)) = region else {
+        return Ok(false);
+    };
+    let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
+    bus.apply(Box::new(cmd)).map_err(to_js)?;
+    Ok(true)
+}
+
+/// Runs effect `name` / `params` on the layer at `layer` the way
+/// [`apply_effect`] does, but returns the result instead of committing it:
+/// empty when the selection is empty, otherwise a 16-byte header (x, y as
+/// little-endian `i32`, width, height as little-endian `u32`) followed by
+/// the region's RGBA8 pixels. The Image job worker computes it on a
+/// document snapshot and the page commits it with [`apply_effect_region`]
+/// (docs/specs/performance-background-jobs.md AC-07).
+#[wasm_bindgen]
+pub fn effect_region_bytes(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+) -> Result<Vec<u8>, JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    with_bus(handle, |bus| {
+        Ok(encode_region(effect_region(&bus.document, layer, &spec)?))
+    })
+}
+
+/// Commits `region` (bytes from [`effect_region_bytes`] for the same
+/// effect, layer and document state) to the layer at `layer` as the one
+/// undoable step [`apply_effect`] makes. Returns `false` (no undo step)
+/// for an empty region.
+#[wasm_bindgen]
+pub fn apply_effect_region(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+    region: &[u8],
+) -> Result<bool, JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    let region = decode_region(region).map_err(|e| JsError::new(&e))?;
+    with_bus(handle, |bus| {
+        if layer_locked(&bus.document, layer) {
+            return Err(JsError::new(LOCKED));
+        }
+        commit_region(bus, layer, &spec, region)
+    })
+}
+
+/// The wire form of an effect region (see [`effect_region_bytes`]).
+fn encode_region(region: Option<(Rect, ImageBuffer)>) -> Vec<u8> {
+    let Some((rect, pixels)) = region else {
+        return Vec::new();
+    };
+    let mut out = Vec::with_capacity(16 + pixels.data().len());
+    out.extend_from_slice(&rect.x.to_le_bytes());
+    out.extend_from_slice(&rect.y.to_le_bytes());
+    out.extend_from_slice(&rect.w.to_le_bytes());
+    out.extend_from_slice(&rect.h.to_le_bytes());
+    out.extend_from_slice(pixels.data());
+    out
+}
+
+/// Reads [`encode_region`]'s wire form back.
+fn decode_region(bytes: &[u8]) -> Result<Option<(Rect, ImageBuffer)>, String> {
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+    let field = |i: usize| -> Result<[u8; 4], String> {
+        bytes
+            .get(i * 4..i * 4 + 4)
+            .and_then(|b| b.try_into().ok())
+            .ok_or_else(|| "effect region header is truncated".to_string())
+    };
+    let rect = Rect {
+        x: i32::from_le_bytes(field(0)?),
+        y: i32::from_le_bytes(field(1)?),
+        w: u32::from_le_bytes(field(2)?),
+        h: u32::from_le_bytes(field(3)?),
+    };
+    let pixels =
+        ImageBuffer::from_raw(rect.w, rect.h, bytes[16..].to_vec()).map_err(|e| e.to_string())?;
+    Ok(Some((rect, pixels)))
 }
 
 /// Runs `spec` on the layer at `layer` and keeps the result inside the
@@ -1481,5 +1571,89 @@ mod effect_handle_tests {
             "half selected"
         );
         assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT, "unselected");
+    }
+}
+
+#[cfg(test)]
+mod effect_region_tests {
+    use super::*;
+
+    /// A 6 × 5 document with a pattern on its single layer and a 3 × 2
+    /// selection, open twice.
+    fn twins() -> (u32, u32) {
+        let make = || {
+            let mut doc = Document::new(6, 5).expect("doc");
+            for y in 0..5 {
+                for x in 0..6 {
+                    let v = (x * 40 + y * 13) as u8;
+                    doc.active_layer_mut().pixels.set_pixel(
+                        x,
+                        y,
+                        Color::rgba(v, 255 - v, v / 2, 255),
+                    );
+                }
+            }
+            insert(CommandBus::new(doc))
+        };
+        let (a, b) = (make(), make());
+        for h in [a, b] {
+            with_bus(h, |bus| {
+                bus.document.selection = Some(pincel_image_core::SelectionMask::rectangle(
+                    6,
+                    5,
+                    Rect {
+                        x: 1,
+                        y: 1,
+                        w: 3,
+                        h: 2,
+                    },
+                ));
+                Ok(())
+            })
+            .expect("select");
+        }
+        (a, b)
+    }
+
+    fn pixels_and_depth(handle: u32) -> (Vec<u8>, usize) {
+        with_bus(handle, |bus| {
+            Ok((
+                bus.document.layers()[0].pixels.data().to_vec(),
+                bus.history.undo_depth(),
+            ))
+        })
+        .expect("read")
+    }
+
+    #[test]
+    fn apply_effect_region_matches_apply_effect() {
+        for (name, params) in [("invert", vec![]), ("gaussian_blur", vec![2.0])] {
+            let (a, b) = twins();
+            assert!(apply_effect(a, 0, name, &params).expect("apply"));
+            let region = effect_region_bytes(b, 0, name, &params).expect("region");
+            assert!(apply_effect_region(b, 0, name, &params, &region).expect("commit"));
+            assert_eq!(pixels_and_depth(a), pixels_and_depth(b), "{name}");
+        }
+    }
+
+    #[test]
+    fn effect_region_bytes_round_trips_through_decode() {
+        let rect = Rect {
+            x: -2,
+            y: 3,
+            w: 2,
+            h: 1,
+        };
+        let pixels = ImageBuffer::from_raw(2, 1, vec![1, 2, 3, 4, 5, 6, 7, 8]).expect("buf");
+        let bytes = encode_region(Some((rect, pixels.clone())));
+        let (r, p) = decode_region(&bytes).expect("decode").expect("some");
+        assert_eq!((r.x, r.y, r.w, r.h), (-2, 3, 2, 1));
+        assert_eq!(p.data(), pixels.data());
+        assert!(
+            decode_region(&encode_region(None))
+                .expect("empty")
+                .is_none()
+        );
+        assert!(decode_region(&bytes[..10]).is_err());
     }
 }
