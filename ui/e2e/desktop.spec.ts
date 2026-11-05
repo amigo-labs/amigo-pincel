@@ -430,7 +430,9 @@ test.describe('desktop rotation keys', () => {
     await card.getByRole('button', { name: 'Create' }).click();
     await waitForEditor(page, 'image');
     const size = page.locator('footer');
-    await expect(size).toContainText('32 × 16');
+    // Whole numbers only: "12332 × 16" must not pass for "32 × 16".
+    const docSize = (w: number, h: number) => new RegExp(String.raw`(^|\D)${w} × ${h}(\D|$)`);
+    await expect(size).toContainText(docSize(32, 16));
 
     await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
     const imageMenu = page.getByRole('menu', { name: 'Image', exact: true });
@@ -457,20 +459,20 @@ test.describe('desktop rotation keys', () => {
 
     // Clockwise: the top-left corner goes to the top-right.
     await page.keyboard.press('Control+r');
-    await expect(size).toContainText('16 × 32');
+    await expect(size).toContainText(docSize(16, 32));
     const cw = await image();
     expect(opaque(cw, cw.width - 1, 0)).toBe(true);
     expect(opaque(cw, 0, 0)).toBe(false);
 
     // Counter-clockwise turns it back.
     await page.keyboard.press('Control+Shift+R');
-    await expect(size).toContainText('32 × 16');
+    await expect(size).toContainText(docSize(32, 16));
     const back = await image();
     expect(opaque(back, 0, 0)).toBe(true);
 
     // Counter-clockwise once more: the top-left corner goes to the bottom-left.
     await page.keyboard.press('Control+Shift+R');
-    await expect(size).toContainText('16 × 32');
+    await expect(size).toContainText(docSize(16, 32));
     const ccw = await image();
     expect(opaque(ccw, 0, ccw.height - 1)).toBe(true);
     expect(opaque(ccw, 0, 0)).toBe(false);

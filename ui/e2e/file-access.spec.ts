@@ -653,6 +653,36 @@ test.describe('clipboard sizing', () => {
     );
   }
 
+  test('AC-19: a prefill landing on the focused width field keeps it selected, so typing replaces it', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    await copyImage(page, 123, 45);
+    const card = page.getByRole('form', { name: 'New image' });
+    const width = card.getByLabel('Width');
+
+    // The card selects its width field on open; the prefill lands while the
+    // user is about to type into it.
+    await page.getByRole('button', { name: 'New image' }).click();
+    await expect(width).toBeFocused();
+    await releaseClipboard(page);
+    await expect(width).toHaveValue('123');
+    await page.keyboard.type('32');
+    await expect(width).toHaveValue('32');
+
+    // The same in File ▸ New….
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+    await menu(page, 'File', 'New…');
+    const dialog = page.getByRole('dialog', { name: 'New document' });
+    await dialog.getByLabel('Width').focus();
+    await dialog.getByLabel('Width').selectText();
+    await releaseClipboard(page);
+    await expect(dialog.getByLabel('Width')).toHaveValue('123');
+    await page.keyboard.type('48');
+    await expect(dialog.getByLabel('Width')).toHaveValue('48');
+  });
+
   test('AC-19: a size typed before the clipboard read finishes is kept', async ({ page }) => {
     await gotoStart(page);
     await copyImage(page, 123, 45);
