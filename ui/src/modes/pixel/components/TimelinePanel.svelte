@@ -421,7 +421,8 @@
     padding: 0.125rem;
   }
   .frame-current {
-    border-color: color-mix(in srgb, var(--color-pc-accent) 60%, transparent);
+    /* Opaque: the tinted fill alone is ~1.2:1, the edge carries the 3:1. */
+    border-color: var(--color-pc-accent);
     background-color: var(--color-pc-selected);
   }
   .tag-bar {

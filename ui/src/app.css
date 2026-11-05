@@ -20,8 +20,8 @@
   --color-pc-accent-text: #7eaaff;
   /* Control outlines (checkbox / radio): >= 3:1 on panels. */
   --color-pc-control: #8a8a94;
-  /* Slider track: ~3:1 on panels, so the rail stays findable. */
-  --color-pc-track: #6a6a74;
+  /* Slider track: >= 3:1 on panels (3.3:1), so the rail stays findable. */
+  --color-pc-track: #73737e;
   /* Selected rows: accent tint, the accent bar marks the edge. */
   --color-pc-selected: rgb(59 130 246 / 0.16);
 }
@@ -135,6 +135,15 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
+  /* Forced colors drop gradients and override the white tick, so the
+     themed checked state vanishes: hand the widgets back to the OS. */
+  @media (forced-colors: active) {
+    input[type='checkbox'],
+    input[type='radio'] {
+      appearance: auto;
+      background: none;
+    }
+  }
 
   /* Selects draw the theme's chevron, not the OS one. */
   select:not([multiple]):not([size]) {
@@ -245,14 +254,11 @@
   .scroll-fade-x {
     mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   }
-  /* A hint after the tool's controls, set off by a divider. */
-  /* Block, not flex, so a long hint ellipsizes instead of overflowing. */
+  /* A hint after the tool's controls, set off by a divider. It keeps its
+     full width (`.opt` does not shrink): on a narrow bar the strip scrolls
+     to it instead of clipping it. */
   .opt-hint {
     display: block;
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--color-pc-faint);
   }
   .opt-hint::before {
