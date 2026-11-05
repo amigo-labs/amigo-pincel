@@ -247,6 +247,29 @@ fn paths_resolve_in_cwd_without_workspace_and_escapes_fail() {
 }
 
 #[test]
+fn read_only_mode_refuses_palette_export_and_allows_palette_import() {
+    let root = temp_workspace("ro-palette");
+    std::fs::write(root.join("p.gpl"), "GIMP Palette\n255 0 0 Red\n").expect("seed");
+    let mut c = Client::spawn(&["--read-only"], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "pixel", "width": 2, "height": 2 }),
+    );
+    let r = c.tool("palette.import", json!({ "path": "p.gpl" }));
+    assert_eq!(r["isError"], false, "{r}");
+    assert_eq!(r["structuredContent"]["colors"], 1);
+    let r = c.tool(
+        "palette.export",
+        json!({ "path": "out.gpl", "format": "gpl" }),
+    );
+    assert_eq!(r["isError"], true, "{r}");
+    let text = r["content"][0]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("read-only"), "{text}");
+    assert!(!root.join("out.gpl").exists());
+}
+
+#[test]
 fn workspace_option_and_read_only_mode() {
     let root = temp_workspace("ro");
     let ws = root.join("ws");
