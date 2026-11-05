@@ -88,6 +88,12 @@ const EXPECTED_TOOLS: &[&str] = &[
     "select.delete",
     "layer.flip",
     "layer.rotate",
+    // mcp-parity-selection-transform-content
+    "layer.translate",
+    "select.move_content",
+    "select.move",
+    "layer.import",
+    "export.selection",
 ];
 
 /// One valid example call per tool.
@@ -142,6 +148,10 @@ fn example(name: &str) -> Value {
         "select.delete" => json!({ "layer": 0, "frame": 0 }),
         "layer.flip" => json!({ "direction": "horizontal", "layer": 0, "frame": 0 }),
         "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
+        "layer.translate" | "select.move_content" => json!({ "dx": 2, "dy": -1, "layer": 0 }),
+        "select.move" => json!({ "dx": 1, "dy": 1 }),
+        "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
+        "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
         "draw.stroke" => {
             json!({ "points": [[1, 2], [8.5, 3]], "tool": "brush", "color": "#ff000080", "size": 4, "hardness": 50, "opacity": 80, "shape": "soft_round", "layer": 0 })

@@ -51,6 +51,21 @@ Shared tools work on both: `doc.*`, `layer.*` (except the two below),
   whatever is selected. Pixel canvas transforms drop the selection; undo
   brings it back.
 
+## Moving content and the clipboard
+
+- `select.move_content` (both modes) moves the selected pixels with the
+  selection, one undo step; Pixel documents need a selection, Image
+  documents move the whole layer without one.
+- Image documents only: `layer.translate` (the Move tool on a whole layer
+  or group) and `select.move` (the selection outline alone).
+- There is no system clipboard; a workspace PNG takes its place.
+  `export.selection` is the headless Copy (`merged: true`: Copy Merged;
+  `cut: true`: Cut): it writes the selected pixels of a layer as a PNG and
+  reports the area `{x, y, w, h}`. `layer.import` is the headless Paste:
+  it puts an image file on a new layer above the active one at `x`, `y`
+  (`expand: true` grows the canvas). Both modes; Pixel documents paste
+  PNG only.
+
 ## Document structure
 
 - Layers, both modes: `layer.add` (`kind: "group"` for a group;

@@ -123,28 +123,28 @@ Every capability exists already. Grep for these names, because line numbers drif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-02 | `layer_translate_and_select_move_on_a_pixel_document_fail_naming_the_mode` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-03 | `layer_translate_equals_the_editors_move_tool` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-04 | `select_move_content_equals_the_editors_move_selected_pixels` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-05 | `select_move_content_without_selection_follows_each_editor` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-06 | `select_move_shifts_only_the_selection` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-07 | `moves_are_one_undo_step_restoring_pixels_and_selection` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-08 | `moves_on_locked_group_or_tilemap_layers_fail_with_the_reason` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-09 | `layer_import_pastes_above_the_active_layer_like_the_editor` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-10 | `layer_import_expands_or_crops_like_the_editors_paste` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-11 | `layer_import_accepts_each_modes_formats_by_content` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-12 | `layer_import_failures_state_the_reason_and_change_nothing`, `layer_import_accepts_each_modes_formats_by_content` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-13 | `layer_import_with_expand_beyond_the_limit_fails_naming_it` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-14 | `export_selection_writes_the_editors_copy` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-15 | `export_selection_merged_writes_the_editors_copy_merged` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-16 | `export_selection_cut_clears_like_the_editors_cut` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-17 | `export_selection_round_trips_through_layer_import` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-18 | `export_selection_bad_combinations_write_nothing` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-19 | `export_selection_that_cannot_write_leaves_the_document_unchanged` (`crates/pincel-mcp/tests/stdio.rs`) | built  |        |
+| AC-20 | `clipboard_tools_naming_a_missing_layer_or_frame_or_a_fractional_offset_fail` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-21 | `a_refusing_move_command_fails_with_its_reason` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-22 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
 
 ## Decisions
 
@@ -154,3 +154,7 @@ Every capability exists already. Grep for these names, because line numbers drif
 - 2026-11-05: `merged: true` with `layer` is an error, not silently ignored (AC-18), because the agent asked for two different sources and should learn which one it gets.
 - 2026-11-05: `select.move_content` on a Pixel document without a selection is an error, not a whole-layer move. The Pixel editor offers no whole-layer move (its Move tool pans), and parity forbids inventing one.
 - 2026-11-05: `select.move` and `layer.translate` are Image-only (AC-02), per Decision Log 2026-11-05 "MCP tool parity", because only the Image editor offers them.
+- 2026-11-05 (spec-build): Paste, Copy and Cut were not moved out of the wasm crates: they are thin compositions of public core API (`import_png` + `PasteLayer`, `copy_pixels` + `encode_png`, `ClearRegion`; Image `codec::decode` + `PasteLayer::at`, `copy_selection`, `DeleteSelection`), which `pincel-agent` calls directly; only the Pixel copy-layer rule (the selected layer, else the paint target) is repeated, four lines.
+- 2026-11-05 (spec-build): `export.selection` of an Image layer that is not the active one runs the editor's `copy_selection` on a copy of the document with that layer active, because the core's Copy reads the active layer only.
+- 2026-11-05 (spec-build): A Pixel `select.move_content` on a layer without a cel at the target frame adds an empty cel in the same undo step, as the editor's paint target does, so a move of transparent pixels still moves the selection (AC-07).
+- 2026-11-05 (spec-build): `export.selection` reports `{doc, path, area: {x, y, w, h}, cut, changed}`, `layer.import` `{doc, layer, width, height}` (the canvas size after an `expand`).

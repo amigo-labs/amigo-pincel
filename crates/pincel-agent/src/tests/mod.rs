@@ -1,6 +1,7 @@
 //! Tool-level tests over the public `call` entry point, with access to the
 //! session internals for exact-state assertions.
 
+mod clipboard;
 mod doc;
 mod draw;
 mod image;

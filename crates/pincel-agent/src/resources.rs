@@ -163,6 +163,7 @@ mod tests {
             "## Common pitfalls",
             "## Document structure",
             "## Selections and transforms",
+            "## Moving content and the clipboard",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
@@ -227,6 +228,24 @@ mod tests {
             "`bilinear` (Image)",
             "Without a selection, Image documents clear the whole",
             "turn only the selection's bounds",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-selection-transform-content AC-22.
+        for tool in [
+            "layer.translate",
+            "select.move_content",
+            "select.move",
+            "layer.import",
+            "export.selection",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "Image documents only: `layer.translate`",
+            "`export.selection` is the headless Copy",
+            "`layer.import` is the headless Paste",
+            "`select.move_content` (both modes)",
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }

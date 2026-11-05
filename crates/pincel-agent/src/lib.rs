@@ -10,6 +10,7 @@
 //! `docs/specs/pincel.md` §15 (2026-10-29).
 
 mod args;
+mod clipboard;
 mod image;
 mod pixel;
 mod preview;
@@ -118,6 +119,7 @@ fn all_tools() -> impl Iterator<Item = &'static Tool> {
         .iter()
         .chain(select::TOOLS)
         .chain(transform::TOOLS)
+        .chain(clipboard::TOOLS)
         .chain(image::TOOLS)
 }
 
