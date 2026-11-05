@@ -19,6 +19,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { installLiveSync } from './core/live-sync.svelte';
   import {
     addGroup,
     addLayer,
@@ -738,6 +739,9 @@
     ui.active = active;
     if (!active) gestureControl.cancel();
   });
+
+  // Option and color changes reach the live object (AC-06, AC-07).
+  installLiveSync();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).

@@ -122,9 +122,9 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 | AC-03 | `ui/e2e/image-live-objects.spec.ts` `Shift squares a corner drag and snaps a line end to 45 degrees` | built |        |
 | AC-04 | `ui/e2e/image-live-objects.spec.ts` `the body moves a box, the grip moves a line, the stroke does nothing` | built |        |
 | AC-05 | `ui/e2e/image-live-objects.spec.ts` `handles keep their size and reach at every zoom, on the stage too` | built |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-06 | `ui/e2e/image-live-objects.spec.ts` `toolbar options change the live object, one step per option` | built |        |
+| AC-07 | `ui/e2e/image-live-objects.spec.ts` `color changes and swaps recolor the live object` | built |        |
+| AC-08 | `ui/e2e/image-live-objects.spec.ts` `another box shape converts the live shape` | built |        |
 | AC-09 |      | open   |        |
 | AC-10 | `ui/e2e/image-live-objects.spec.ts` `another tool, a new drag or a press beside the object commits it` | built |        |
 | AC-11 | `ui/e2e/image-live-objects.spec.ts` `Escape or Undo during a handle drag drops only that drag`, `Escape cancels the live object and the document is clean again` | built |        |
@@ -153,3 +153,4 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 - 2026-11-05 (spec-build) — Progress (paused by the coordinator after the first block): built AC-01, AC-10, AC-12, AC-16, AC-17; the pointer code for handle / body / grip drags, cursors, Escape / Undo during a drag, the box-shape conversion on a tool change and the tool-change commit are in place but not yet covered by tests, so AC-02 – AC-09, AC-11, AC-13 stay `open`. Red run of this block: all five specs of `image-live-objects.spec.ts` failed against the editor before the change (no handles, the drag committed at once).
 - 2026-11-05 (spec-build, block 2) — The drag code of AC-02 – AC-05, AC-11, AC-13 and AC-19 was written in block 1, before its tests; their red run was against deliberate temporary breaks, each reverted: no drag start on a handle or the body and no hover cursor (all seven block-2 specs red), and for AC-19 the refused edit rethrown with the editor's no-live short cut removed (`pageerror` red).
 - 2026-11-05 (spec-build, block 2) — AC-19 is checked with a document shortcut (Shift+N, New Layer) pressed during a handle drag: the core commits the object and the editor syncs before the drag's next move. An edit that reaches the core after an outside commit it has not seen yet (an MCP call) takes the same silent path through the core's `NoLiveObject` refusal.
+- 2026-11-05 (spec-build, block 3) — Toolbar and color changes are forwarded by per-option change watchers (`core/live-sync.svelte.ts`) that send only a changed value, because a value-driven sync would push the toolbar onto an object that reappears through Undo / Redo (Assumptions: the toolbar is not set from the object, and the object is not set from an unchanged toolbar). Red run: the AC-06 and AC-07 specs failed before the watchers existed; the AC-08 conversion was written in block 1, and its spec failed only on a sample point inside the anti-aliased edge, which was moved.

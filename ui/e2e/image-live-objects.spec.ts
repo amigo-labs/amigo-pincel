@@ -394,3 +394,90 @@ test('a drag on an object committed meanwhile is dropped silently', async ({ pag
   await undoButton(page).click(); // the committed box
   await expect(undoButton(page)).toBeDisabled();
 });
+
+test('toolbar options change the live object, one step per option', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  await liveRedBox(page);
+  const mode = page.getByRole('combobox', { name: 'Mode', exact: true });
+  await mode.selectOption('outline');
+  await expect.poll(() => shown(page, [0.3, 0.3])).not.toBe('#ff0000');
+  await mode.selectOption('fill_and_outline');
+  await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#ff0000');
+  await mode.selectOption('outline');
+  await expect(handles(page)).toHaveCount(8);
+  // Consecutive changes of one option are one step.
+  await undoButton(page).click();
+  expect(await shown(page, [0.3, 0.3])).toBe('#ff0000');
+  await expect(handles(page)).toHaveCount(8);
+
+  // A slider: the opacity blends the fill.
+  await page.getByRole('slider', { name: 'Opacity 100%' }).fill('40');
+  await expect.poll(() => shown(page, [0.3, 0.3])).not.toBe('#ff0000');
+  await undoButton(page).click();
+  expect(await shown(page, [0.3, 0.3])).toBe('#ff0000');
+  await undoButton(page).click();
+  await expect(undoButton(page)).toBeDisabled();
+
+  // The gradient takes its kind.
+  await setColors(page, '#000000', '#ffffff');
+  await page.keyboard.press('n');
+  await drag(page, imageCanvas(page), [0.1, 0.5], [0.5, 0.5]);
+  const linear = await shown(page, [0.3, 0.1]);
+  await page.getByLabel('Ramp').selectOption('radial');
+  await expect.poll(() => shown(page, [0.3, 0.1])).not.toBe(linear);
+  await expect(handles(page)).toHaveCount(2);
+  await undoButton(page).click();
+  expect(await shown(page, [0.3, 0.1])).toBe(linear);
+});
+
+test('color changes and swaps recolor the live object', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  await liveRedBox(page);
+  const background = page.getByLabel('Background color', { exact: true });
+  await background.fill('#00ff00');
+  await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#00ff00');
+  await background.fill('#0000ff');
+  await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#0000ff');
+  await expect(handles(page)).toHaveCount(8);
+  await undoButton(page).click(); // both color changes are one step
+  expect(await shown(page, [0.3, 0.3])).toBe('#ff0000');
+  await page.locator('body').click({ position: { x: 1, y: 1 } }).catch(() => undefined);
+  await page.keyboard.press('x');
+  await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#000000');
+  await expect(handles(page)).toHaveCount(8);
+  await undoButton(page).click();
+  await undoButton(page).click();
+  await expect(undoButton(page)).toBeDisabled();
+
+  // A Transparency gradient ignores the colors: no step.
+  await page.keyboard.press('n');
+  await page.getByLabel('Channel').selectOption('transparency');
+  await drag(page, imageCanvas(page), [0.1, 0.5], [0.5, 0.5]);
+  await expect(handles(page)).toHaveCount(2);
+  await background.fill('#123456');
+  await undoButton(page).click();
+  await expect(handles(page)).toHaveCount(0);
+  await expect(undoButton(page)).toBeDisabled();
+});
+
+test('another box shape converts the live shape', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  await liveRedBox(page);
+  await page
+    .getByRole('radiogroup', { name: 'Shapes variant' })
+    .getByRole('radio', { name: 'Ellipse' })
+    .click();
+  await expect(handles(page)).toHaveCount(8);
+  await expect.poll(() => shown(page, [0.22, 0.22])).not.toBe('#ff0000');
+  expect(await shown(page, [0.3, 0.3])).toBe('#ff0000');
+  await undoButton(page).click();
+  expect(await shown(page, [0.22, 0.22])).toBe('#ff0000');
+  await expect(handles(page)).toHaveCount(8);
+
+  // U cycles the group: the shape converts and stays live.
+  await page.keyboard.press('u');
+  await expect(handles(page)).toHaveCount(8);
+  await undoButton(page).click();
+  await undoButton(page).click();
+  await expect(undoButton(page)).toBeDisabled();
+});
