@@ -31,6 +31,9 @@ use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
 use crate::object::{Outline, OutlinePlace, OutlineShape};
+use crate::photo::{
+    Glow, RedEyeRemoval, SoftenPortrait, Straighten, StraightenFill, Vignette, VignetteColor,
+};
 use crate::sharpen::{Sharpen, UnsharpMask};
 use wire::{b, clamped, color, edge, expect_len, f, option, u};
 
@@ -224,6 +227,21 @@ pub enum EffectSpec {
     /// `pencil_sketch`: `[tip_size, color_range]` (`1..=20` px,
     /// `-20..=20`).
     PencilSketch(PencilSketch),
+    /// `glow`: `[radius, brightness, contrast]` (`1..=20` px, `-100..=100`,
+    /// `-100..=100`).
+    Glow(Glow),
+    /// `red_eye_removal`: `[tolerance, saturation]` (`0..=100`, `0..=100` %).
+    RedEyeRemoval(RedEyeRemoval),
+    /// `soften_portrait`: `[softness, lighting, warmth]` (`0..=10`,
+    /// `-20..=20`, `0..=20`).
+    SoftenPortrait(SoftenPortrait),
+    /// `straighten`: `[angle_degrees, fill]` (`-45..=45`, `fill` `0` = zoom
+    /// to fill, `1` = transparent corners).
+    Straighten(Straighten),
+    /// `vignette`: `[center_x, center_y, radius_percent, density, color]`
+    /// (the centre as fractions `0..=1`, `10..=400`, `0..=100`, `color`
+    /// `0` = black, `1` = white).
+    Vignette(Vignette),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -273,6 +291,11 @@ pub const EFFECT_NAMES: &[&str] = &[
     "ink_sketch",
     "oil_painting",
     "pencil_sketch",
+    "glow",
+    "red_eye_removal",
+    "soften_portrait",
+    "straighten",
+    "vignette",
 ];
 
 impl EffectSpec {
@@ -607,6 +630,34 @@ impl EffectSpec {
                 expect_len(name, p, 2)?;
                 Self::PencilSketch(PencilSketch::new(f(p[0]), f(p[1])))
             }
+            "glow" => {
+                expect_len(name, p, 3)?;
+                Self::Glow(Glow::new(f(p[0]), f(p[1]), f(p[2])))
+            }
+            "red_eye_removal" => {
+                expect_len(name, p, 2)?;
+                Self::RedEyeRemoval(RedEyeRemoval::new(f(p[0]), f(p[1])))
+            }
+            "soften_portrait" => {
+                expect_len(name, p, 3)?;
+                Self::SoftenPortrait(SoftenPortrait::new(f(p[0]), f(p[1]), f(p[2])))
+            }
+            "straighten" => {
+                expect_len(name, p, 2)?;
+                let fill = match option(p[1], 1) {
+                    1 => StraightenFill::TransparentCorners,
+                    _ => StraightenFill::ZoomToFill,
+                };
+                Self::Straighten(Straighten::new(f(p[0]), fill))
+            }
+            "vignette" => {
+                expect_len(name, p, 5)?;
+                let color = match option(p[4], 1) {
+                    1 => VignetteColor::White,
+                    _ => VignetteColor::Black,
+                };
+                Self::Vignette(Vignette::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), color))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -759,6 +810,11 @@ impl EffectSpec {
             Self::InkSketch(e) => e.apply(src),
             Self::OilPainting(e) => e.apply(src),
             Self::PencilSketch(e) => e.apply(src),
+            Self::Glow(e) => e.apply(src),
+            Self::RedEyeRemoval(e) => e.apply(src),
+            Self::SoftenPortrait(e) => e.apply(src),
+            Self::Straighten(e) => e.apply(src),
+            Self::Vignette(e) => e.apply(src),
         }
     }
 
@@ -810,6 +866,11 @@ impl EffectSpec {
             Self::InkSketch(_) => "Ink Sketch",
             Self::OilPainting(_) => "Oil Painting",
             Self::PencilSketch(_) => "Pencil Sketch",
+            Self::Glow(_) => "Glow",
+            Self::RedEyeRemoval(_) => "Red Eye Removal",
+            Self::SoftenPortrait(_) => "Soften Portrait",
+            Self::Straighten(_) => "Straighten",
+            Self::Vignette(_) => "Vignette",
         }
     }
 }

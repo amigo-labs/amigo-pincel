@@ -91,15 +91,15 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
 | AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-03 | `every_effect_keeps_size_and_alpha`, `straighten_keeps_the_size_and_rotates_the_alpha` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
+| AC-04 | `neutral_settings_leave_the_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-05 | `pencil_sketch_is_gray_and_whitens_a_flat_area` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-06 | `ink_sketch_draws_dark_lines_on_edges` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-07 | `oil_painting_keeps_a_solid_layer_and_merges_a_ramp`, `oil_painting_leaves_a_transparent_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-08 | `red_eye_removal_lowers_dominant_red_only` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
+| AC-09 | `vignette_darkens_or_lightens_toward_the_edges`, `vignette_centred_on_a_corner_darkens_around_it` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
+| AC-10 | `straighten_zoom_to_fill_keeps_every_pixel_opaque`, `straighten_transparent_corners_clears_the_corners` (crates/pincel-effects/tests/effects_artistic_photo.rs); `source_zoom_to_fill_scales_just_enough_to_cover_the_layer` (crates/pincel-effects/src/photo/straighten.rs) | built |        |
+| AC-11 | `glow_never_darkens` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 
@@ -107,3 +107,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 - 2026-11-04: Written without a dialogue while the owner's goal "all planned specs implemented" was active, following the approved plan (#7).
 - 2026-11-04: Clarification pass settled without a dialogue: Red Eye Removal and Vignette stay Image-only (photo-specific, though per pixel); Pencil Sketch, red dominance and Warmth formulas pinned; Straighten rotates the whole layer and masks by the selection; Oil Painting and Vignette ACs use fixed fixtures; non-finite numbers read as 0.
+
+- 2026-11-05 (spec-build): Wire order per effect: `ink_sketch` [ink_outline, coloring], `oil_painting` [brush_size, coarseness], `pencil_sketch` [tip_size, color_range], `glow` [radius, brightness, contrast], `red_eye_removal` [tolerance, saturation], `soften_portrait` [softness, lighting, warmth], `straighten` [angle, fill] (0 = Zoom to fill, 1 = Transparent corners), `vignette` [center_x, center_y, radius, density, color] (centre as fractions 0–1 read as Radial Blur reads them, color 0 = Black, 1 = White). Choices are rounded and clamped to their options; Brush size, Coarseness, Pencil tip size and Colour range are rounded to whole numbers, every other number stays continuous. The new wire names follow `twist` at the end of `EFFECT_NAMES`.
+- 2026-11-05 (spec-build): Formulas the table leaves open: Ink Sketch inks with d = min(1, |Sobel| · Ink outline / 25), the normalised Sobel gradient (taps clamped at the edge) of the premultiplied luma — so a silhouette against transparency is inked too — and gives each channel (l + (c − l) · Colouring / 100) · (1 − d); Oil Painting sorts the opaque pixels of the clipped (2 · Brush size + 1)² square into Coarseness bins of the BT.709 luma, takes the alpha-weighted average colour of the fullest bin (ties: the darker bin) in integer arithmetic and keeps the pixel when it has no opaque neighbour; Pencil Sketch uses whole-number lumas and blurs the negative as an opaque gray image with the existing Gaussian blur, so a flat area dodges to exactly 255; Glow screen-blends a Gaussian blur (radius) passed through the existing legacy Brightness / Contrast; Soften Portrait mixes Softness · 5 % of a Gaussian blur with radius 2 · Softness into the straight colours, then adds 2.5 · Lighting to every channel, then applies Temperature 5 · Warmth; Vignette moves each channel toward black or white by Density % · smoothstep((d − r0) / r0), r0 = Radius % of half the diagonal, so the fade completes at 2 · r0.
+- 2026-11-05 (spec-build): Every effect except Straighten keeps the source alpha, also where it blurs (the blurred copies contribute only colour) — AC-03 says so for all of them. Straighten rotates clockwise on screen for a positive angle, like the angle dial, around the layer centre ((w − 1) / 2, (h − 1) / 2), resampling premultiplied pixels bilinearly through the distortions' `remap`: Zoom to fill scales by cos|a| + max(w / h, h / w) · sin|a| with Clamp taps, Transparent corners keeps scale 1 with the Transparent edge behaviour (a position outside the pixel area reads transparent).
+- 2026-11-05 (spec-build): AC-10's "for any Angle ≠ 0" is proven on an 800 × 800 layer at ±0.1°, ±1°, ±10° and ±45° — because a corner pixel's centre leaves the layer only once the rotation moves it by more than half a pixel, which on a small layer needs more than 0.1°; Transparent corners does not antialias (as the Transparent edge behaviour of `effects-distort`).
