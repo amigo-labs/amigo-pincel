@@ -5,12 +5,15 @@
 import { effectMenus } from '../../lib/effects/menu';
 import { helpMenus } from '../../lib/help/menu';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
 import { languageMenu } from '../../lib/i18n/locale';
+import { reduceMotionMenuItem } from '../../lib/motion.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
+import type { AxisMode } from './stores/editor.svelte';
 
 /** Layer / canvas transform ids the wasm `Document` takes. */
 export type TransformOp =
@@ -38,6 +41,12 @@ export interface PixelMenuContext {
   currentFrame: number;
   playing: boolean;
   probeOn: boolean;
+  /** View ▸ Show Pixel Grid / Show Grid (pixel-grid). */
+  showPixelGrid: boolean;
+  showGrid: boolean;
+  /** View ▸ Tiled Mode (symmetry-tiled-mode AC-12). */
+  tiled: AxisMode;
+  setTiled(mode: AxisMode): void;
 
   newDoc(): void;
   open(): void;
@@ -85,15 +94,29 @@ export interface PixelMenuContext {
   zoomFit(): void;
   zoomActual(): void;
   toggleProbe(): void;
+  togglePixelGrid(): void;
+  toggleGrid(): void;
+  openGridSettings(): void;
+  /** Help ▸ Keyboard Shortcuts. */
+  openShortcuts(): void;
+  /** View ▸ Toggle UI (power-user-shortcuts-coverage AC-17). */
+  toggleUi(): void;
 }
 
-function transforms(run: (op: TransformOp) => void, disabled: boolean): MenuItem[] {
+/** Flips and rotations; `layer` picks whose keys the hints show (flips: layer, 90°: image). */
+function transforms(
+  run: (op: TransformOp) => void,
+  disabled: boolean,
+  layer: boolean,
+): MenuItem[] {
+  const flipKey = (a: 'flipLayerH' | 'flipLayerV') => (layer ? hint(a) : '');
+  const rotateKey = (a: 'rotateCw' | 'rotateCcw') => (layer ? '' : hint(a));
   return [
-    { label: t('menu.flipH'), disabled, run: () => run('flip_horizontal') },
-    { label: t('menu.flipV'), disabled, run: () => run('flip_vertical') },
+    { label: t('menu.flipH'), shortcut: flipKey('flipLayerH'), disabled, run: () => run('flip_horizontal') },
+    { label: t('menu.flipV'), shortcut: flipKey('flipLayerV'), disabled, run: () => run('flip_vertical') },
     { kind: 'separator' },
-    { label: t('menu.rotateCw'), disabled, run: () => run('rotate_90_cw') },
-    { label: t('menu.rotateCcw'), disabled, run: () => run('rotate_90_ccw') },
+    { label: t('menu.rotateCw'), shortcut: rotateKey('rotateCw'), disabled, run: () => run('rotate_90_cw') },
+    { label: t('menu.rotateCcw'), shortcut: rotateKey('rotateCcw'), disabled, run: () => run('rotate_90_ccw') },
     { label: t('menu.rotate180'), disabled, run: () => run('rotate_180') },
   ];
 }
@@ -109,6 +132,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.new'), disabled: c.busy, run: c.newDoc },
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
         ...recentMenuItems(c.recents, c.openRecent, c.busy),
+        droppedImagesMenu(),
         { kind: 'separator' },
         {
           label: c.canSaveInPlace ? t('menu.save') : t('menu.saveDownload'),
@@ -182,7 +206,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       id: 'image',
       label: t('menu.image'),
       items: [
-        ...transforms(c.transformCanvas, noDoc),
+        ...transforms(c.transformCanvas, noDoc, false),
         { kind: 'separator' },
         { label: t('menu.resizeCanvas'), disabled: noDoc, run: c.resizeCanvas },
         { label: t('menu.scaleImage'), disabled: noDoc, run: c.scaleImage },
@@ -193,16 +217,31 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       id: 'layer',
       label: t('menu.layer'),
       items: [
-        { label: t('menu.newLayer'), disabled: noDoc, run: c.addLayer },
+        { label: t('menu.newLayer'), shortcut: hint('newLayer'), disabled: noDoc, run: c.addLayer },
         { label: t('menu.newGroup'), disabled: noDoc, run: c.addGroup },
-        { label: t('menu.duplicateLayer'), disabled: noDoc, run: c.duplicateLayer },
+        {
+          label: t('menu.duplicateLayer'),
+          shortcut: hint('duplicateLayer'),
+          disabled: noDoc,
+          run: c.duplicateLayer,
+        },
         { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
-        { label: t('menu.deleteLayer'), disabled: noDoc || c.layerCount <= 1, run: c.removeLayer },
+        {
+          label: t('menu.deleteLayer'),
+          shortcut: hint('deleteLayer'),
+          disabled: noDoc || c.layerCount <= 1,
+          run: c.removeLayer,
+        },
         { kind: 'separator' },
-        { label: t('menu.mergeDown'), disabled: noDoc || !c.canMergeDown, run: c.mergeDown },
+        {
+          label: t('menu.mergeDown'),
+          shortcut: hint('mergeDown'),
+          disabled: noDoc || !c.canMergeDown,
+          run: c.mergeDown,
+        },
         { label: t('menu.flatten'), disabled: noDoc || c.layerCount < 2, run: c.flatten },
         { kind: 'separator' },
-        ...transforms(c.transformLayer, noDoc),
+        ...transforms(c.transformLayer, noDoc, true),
       ],
     },
     {
@@ -228,7 +267,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           run: () => c.stepFrame(1),
         },
         { kind: 'separator' },
-        { label: t('menu.newFrame'), disabled: noDoc, run: c.addFrame },
+        { label: t('menu.newFrame'), shortcut: hint('newFrame'), disabled: noDoc, run: c.addFrame },
         { label: t('menu.deleteFrame'), disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
       ],
     },
@@ -242,11 +281,34 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.zoomFit'), shortcut: hint('zoomFit'), disabled: !c.hasDoc, run: c.zoomFit },
         { label: t('menu.zoomActual'), shortcut: hint('zoomActual'), disabled: !c.hasDoc, run: c.zoomActual },
         { kind: 'separator' },
+        {
+          label: t('menu.showPixelGrid'),
+          shortcut: hint('togglePixelGrid'),
+          checked: c.showPixelGrid,
+          run: c.togglePixelGrid,
+        },
+        { label: t('menu.showGrid'), shortcut: hint('toggleGrid'), checked: c.showGrid, run: c.toggleGrid },
+        { label: t('menu.gridSettings'), disabled: !c.hasDoc, run: c.openGridSettings },
+        {
+          kind: 'submenu',
+          label: t('menu.tiledMode'),
+          items: (
+            [
+              ['none', t('menu.tiledNone')],
+              ['x', t('menu.tiledX')],
+              ['y', t('menu.tiledY')],
+              ['xy', t('menu.tiledBoth')],
+            ] as const
+          ).map(([mode, label]) => ({ label, checked: c.tiled === mode, run: () => c.setTiled(mode) })),
+        },
+        { kind: 'separator' },
+        { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
+        reduceMotionMenuItem(),
         { kind: 'separator' },
         languageMenu(),
       ],
     },
-    ...helpMenus(),
+    ...helpMenus(c.openShortcuts),
   ];
 }

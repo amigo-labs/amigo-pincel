@@ -30,4 +30,14 @@ pub enum EffectError {
         expected: usize,
         got: usize,
     },
+
+    /// [`crate::EffectSpec::from_params`] got a parameter value that has
+    /// no meaning for the effect (e.g. a colour slot that is not an
+    /// integer `0xRRGGBBAA`), so nothing is clamped and nothing runs.
+    #[error("effect `{effect}` parameter {index} is invalid: {reason}")]
+    InvalidParam {
+        effect: String,
+        index: usize,
+        reason: &'static str,
+    },
 }

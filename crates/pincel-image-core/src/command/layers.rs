@@ -1,24 +1,36 @@
-//! Layer-structure commands: `AddLayer`, `RemoveLayer`, `MoveLayer` (spec §7.3).
+//! Layer-structure commands: `AddLayer`, `AddGroup`, `RemoveLayer`,
+//! `MoveLayer`, `MoveLayerTo`, `DuplicateLayer` (spec §7.3).
+//!
+//! Groups keep their subtree as one contiguous run after the group entry
+//! (docs/specs/image-layer-groups.md); removing, moving or duplicating a
+//! group acts on that whole run in one undo step.
 
-use super::Command;
-use crate::document::{Document, Layer};
+use super::{Command, Damage};
+use crate::document::tree::SubtreeMove;
+use crate::document::{Document, Layer, LayerPlacement};
 use crate::error::DocumentError;
 use std::any::Any;
+use std::collections::HashMap;
 use uuid::Uuid;
 
-/// Inserts a new transparent layer at a given index.
+/// Inserts a new transparent layer above the active layer, at its level:
+/// directly above a raster layer, or above a group's whole subtree.
 pub struct AddLayer {
-    index: usize,
+    active: usize,
+    /// Where the layer went on first apply; redo reuses it.
+    index: Option<usize>,
     /// The inserted layer, captured on first apply so redo restores it exactly.
     layer: Option<Layer>,
     prev_active: usize,
 }
 
 impl AddLayer {
-    /// Adds a layer directly above layer `active`.
+    /// Adds a layer directly above layer `active` (above its subtree when it
+    /// is a group), sharing its parent.
     pub fn above(active: usize) -> Self {
         Self {
-            index: active + 1,
+            active,
+            index: None,
             layer: None,
             prev_active: active,
         }
@@ -28,17 +40,81 @@ impl AddLayer {
 impl Command for AddLayer {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
         self.prev_active = doc.active_layer_index();
+        let parent = doc.layers().get(self.active).and_then(|l| l.parent);
+        let index = *self
+            .index
+            .get_or_insert_with(|| doc.subtree_end(self.active));
         let layer = match self.layer.take() {
             Some(l) => l,
             None => Layer::new_transparent(
                 format!("Layer {}", doc.layers.len() + 1),
                 doc.canvas.width(),
                 doc.canvas.height(),
-            ),
+            )
+            .with_parent(parent),
         };
         let restored = layer.clone();
-        doc.insert_layer(self.index, layer)?;
+        doc.insert_layer(index, layer)?;
         self.layer = Some(restored);
+        Ok(())
+    }
+
+    fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        let index = self.index.ok_or(DocumentError::RegionOutOfBounds)?;
+        doc.remove_layer(index)?;
+        doc.set_active_layer(self.prev_active.min(doc.layers.len() - 1))
+    }
+
+    fn label(&self) -> &str {
+        "Add Layer"
+    }
+
+    /// The inserted layer is fully transparent (redo restores the layer
+    /// captured on first apply, before anything was painted on it), and
+    /// compose skips transparent pixels, so the composite is unchanged.
+    fn damage(&self) -> Damage {
+        Damage::None
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+/// Adds an empty group named `Group N` on top of the root stack and makes it
+/// the active layer (docs/specs/image-layer-groups.md AC-01).
+pub struct AddGroup {
+    /// The inserted group, captured on first apply so redo restores it.
+    group: Option<Layer>,
+    index: usize,
+    prev_active: usize,
+}
+
+impl AddGroup {
+    /// Adds the group on top of the root stack.
+    pub fn on_top() -> Self {
+        Self {
+            group: None,
+            index: 0,
+            prev_active: 0,
+        }
+    }
+}
+
+impl Command for AddGroup {
+    fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        self.prev_active = doc.active_layer_index();
+        let group = match self.group.take() {
+            Some(g) => g,
+            None => {
+                let n = doc.layers().iter().filter(|l| l.is_group()).count() + 1;
+                Layer::new_group(format!("Group {n}"))
+            }
+        };
+        self.index = doc.layer_count();
+        let restored = group.clone();
+        doc.insert_layer(self.index, group)?;
+        self.group = Some(restored);
         Ok(())
     }
 
@@ -48,7 +124,12 @@ impl Command for AddLayer {
     }
 
     fn label(&self) -> &str {
-        "Add Layer"
+        "Add Group"
+    }
+
+    /// An empty group contributes nothing to the composite.
+    fn damage(&self) -> Damage {
+        Damage::None
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -56,10 +137,11 @@ impl Command for AddLayer {
     }
 }
 
-/// Removes the layer at `index`, remembering it for undo.
+/// Removes the layer at `index` — a group with its whole subtree —
+/// remembering it for undo. Refused when no raster layer would remain.
 pub struct RemoveLayer {
     index: usize,
-    removed: Option<Layer>,
+    removed: Option<Vec<Layer>>,
     prev_active: usize,
 }
 
@@ -77,16 +159,16 @@ impl RemoveLayer {
 impl Command for RemoveLayer {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
         self.prev_active = doc.active_layer_index();
-        self.removed = Some(doc.remove_layer(self.index)?);
+        self.removed = Some(doc.remove_subtree(self.index)?);
         Ok(())
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        let layer = self
+        let block = self
             .removed
             .take()
             .ok_or(DocumentError::RegionOutOfBounds)?;
-        doc.insert_layer(self.index, layer)?;
+        doc.insert_subtree(self.index, block)?;
         doc.set_active_layer(self.prev_active)
     }
 
@@ -99,7 +181,8 @@ impl Command for RemoveLayer {
     }
 }
 
-/// Reorders a layer from one index to another.
+/// Reorders a layer from one index to another. Refused when the move would
+/// split a group's run or leave a child outside its group.
 pub struct MoveLayer {
     from: usize,
     to: usize,
@@ -138,14 +221,66 @@ impl Command for MoveLayer {
     }
 }
 
-/// Duplicates the layer at `index`, inserting the copy directly above it.
+/// Moves the layer at `index` with its subtree next to (or into) the layer
+/// at `target` and makes it active: one undo step (docs/specs/pincel.md §15,
+/// 2026-10-12). Refused into its own subtree and `Into` a raster layer.
+pub struct MoveLayerTo {
+    index: usize,
+    target: usize,
+    place: LayerPlacement,
+    applied: Option<SubtreeMove>,
+    prev_active: usize,
+}
+
+impl MoveLayerTo {
+    /// Moves the layer at `index` relative to the layer at `target`.
+    pub fn new(index: usize, target: usize, place: LayerPlacement) -> Self {
+        Self {
+            index,
+            target,
+            place,
+            applied: None,
+            prev_active: 0,
+        }
+    }
+}
+
+impl Command for MoveLayerTo {
+    fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        self.prev_active = doc.active_layer_index();
+        self.applied = Some(doc.move_subtree(self.index, self.target, self.place)?);
+        Ok(())
+    }
+
+    fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        let m = self
+            .applied
+            .take()
+            .ok_or(DocumentError::RegionOutOfBounds)?;
+        doc.unmove_subtree(m)?;
+        doc.set_active_layer(self.prev_active)
+    }
+
+    fn label(&self) -> &str {
+        "Move Layer"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+/// Duplicates the layer at `index` — a group with its whole subtree —
+/// inserting the copy directly above it, at its level.
 ///
-/// The copy is an independent layer (fresh id) with name `"<name> copy"`,
-/// preserving the original's pixels, opacity, blend mode, visibility, and lock.
+/// The copy is independent (fresh ids) and its root is named
+/// `"<name> copy"`, preserving pixels, opacity, blend mode, visibility and
+/// lock. Refused as a whole when it would exceed the layer limit.
 pub struct DuplicateLayer {
     index: usize,
     /// The inserted copy, captured on first apply so redo restores it exactly.
-    copy: Option<Layer>,
+    copy: Option<Vec<Layer>>,
+    inserted_at: usize,
     prev_active: usize,
 }
 
@@ -155,38 +290,55 @@ impl DuplicateLayer {
         Self {
             index,
             copy: None,
+            inserted_at: 0,
             prev_active: 0,
         }
     }
 }
 
+/// Clones a run of whole subtrees with fresh ids, re-pointing the parents
+/// inside the run at the copies.
+pub(crate) fn clone_subtree(block: &[Layer]) -> Vec<Layer> {
+    let mut ids: HashMap<Uuid, Uuid> = HashMap::new();
+    block
+        .iter()
+        .map(|l| {
+            let mut c = l.clone();
+            c.id = Uuid::new_v4();
+            ids.insert(l.id, c.id);
+            c.parent = l.parent.map(|p| ids.get(&p).copied().unwrap_or(p));
+            c
+        })
+        .collect()
+}
+
 impl Command for DuplicateLayer {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
         self.prev_active = doc.active_layer_index();
+        if self.index >= doc.layer_count() {
+            return Err(DocumentError::LayerIndexOutOfBounds {
+                index: self.index,
+                len: doc.layer_count(),
+            });
+        }
+        let end = doc.subtree_end(self.index);
         let copy = match self.copy.take() {
-            Some(l) => l,
+            Some(c) => c,
             None => {
-                let original =
-                    doc.layers()
-                        .get(self.index)
-                        .ok_or(DocumentError::LayerIndexOutOfBounds {
-                            index: self.index,
-                            len: doc.layer_count(),
-                        })?;
-                let mut copy = original.clone();
-                copy.id = Uuid::new_v4();
-                copy.name = format!("{} copy", original.name);
+                let mut copy = clone_subtree(&doc.layers()[self.index..end]);
+                copy[0].name = format!("{} copy", doc.layers()[self.index].name);
                 copy
             }
         };
         let restored = copy.clone();
-        doc.insert_layer(self.index + 1, copy)?;
+        self.inserted_at = end;
+        let result = doc.insert_subtree(end, copy);
         self.copy = Some(restored);
-        Ok(())
+        result
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        doc.remove_layer(self.index + 1)?;
+        doc.remove_subtree(self.inserted_at)?;
         doc.set_active_layer(self.prev_active)
     }
 
@@ -305,6 +457,230 @@ mod tests {
         cmd.revert(&mut doc).unwrap();
         assert_eq!(doc.layers.len(), 2);
         assert_eq!(doc.active_layer_index(), 0);
+    }
+
+    use crate::command::CommandBus;
+    use crate::document::LayerPlacement;
+    use crate::document::tree::tests::{names, parent_name, tree_doc};
+
+    fn index(doc: &Document, name: &str) -> usize {
+        doc.layers().iter().position(|l| l.name == name).unwrap()
+    }
+
+    #[test]
+    fn add_group_adds_empty_group_on_top_active_and_undo_removes_it() {
+        let mut bus = CommandBus::new(tree_doc(&[("bg", None, false), ("a", None, false)]));
+        bus.document.set_active_layer(0).unwrap();
+        bus.apply(Box::new(AddGroup::on_top())).unwrap();
+        let doc = &bus.document;
+        assert_eq!(names(doc), ["bg", "a", "Group 1"]);
+        assert!(doc.layers()[2].is_group());
+        assert_eq!(doc.active_layer_index(), 2);
+        assert!(bus.undo().unwrap());
+        assert_eq!(names(&bus.document), ["bg", "a"]);
+        assert_eq!(bus.document.active_layer_index(), 0);
+    }
+
+    #[test]
+    fn move_layer_to_into_group_and_back_out_are_one_undo_step_each() {
+        let mut bus = CommandBus::new(tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", None, false),
+        ]));
+        let into = MoveLayerTo::new(2, 1, LayerPlacement::Into);
+        bus.apply(Box::new(into)).unwrap();
+        assert_eq!(names(&bus.document), ["bg", "G", "a"]);
+        assert_eq!(parent_name(&bus.document, "a").as_deref(), Some("G"));
+
+        let out = MoveLayerTo::new(2, 0, LayerPlacement::Below);
+        bus.apply(Box::new(out)).unwrap();
+        assert_eq!(names(&bus.document), ["a", "bg", "G"]);
+        assert_eq!(parent_name(&bus.document, "a"), None);
+
+        assert!(bus.undo().unwrap());
+        assert_eq!(parent_name(&bus.document, "a").as_deref(), Some("G"));
+        assert!(bus.undo().unwrap());
+        assert_eq!(names(&bus.document), ["bg", "G", "a"]);
+        assert_eq!(parent_name(&bus.document, "a"), None);
+    }
+
+    #[test]
+    fn move_layer_to_into_own_subtree_is_refused_and_tree_unchanged() {
+        let doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("H", Some("G"), true),
+            ("a", Some("H"), false),
+        ]);
+        let before = doc.layers().to_vec();
+        let mut bus = CommandBus::new(doc);
+        for (target, place) in [(2, LayerPlacement::Into), (3, LayerPlacement::Above)] {
+            let err = bus
+                .apply(Box::new(MoveLayerTo::new(1, target, place)))
+                .unwrap_err();
+            assert_eq!(err, DocumentError::LayerIntoOwnSubtree);
+        }
+        assert_eq!(bus.document.layers(), before.as_slice());
+        assert!(!bus.history.can_undo());
+    }
+
+    #[test]
+    fn move_layer_to_carries_the_group_subtree_in_one_undo_step() {
+        let mut bus = CommandBus::new(tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("b", Some("G"), false),
+            ("top", None, false),
+        ]));
+        bus.apply(Box::new(MoveLayerTo::new(1, 4, LayerPlacement::Above)))
+            .unwrap();
+        assert_eq!(names(&bus.document), ["bg", "top", "G", "a", "b"]);
+        assert!(bus.document.is_well_formed());
+        assert!(bus.undo().unwrap());
+        assert_eq!(names(&bus.document), ["bg", "G", "a", "b", "top"]);
+    }
+
+    #[test]
+    fn remove_layer_on_group_removes_subtree_and_one_undo_restores_it() {
+        let doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("top", None, false),
+        ]);
+        let before = doc.layers().to_vec();
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(RemoveLayer::at(1))).unwrap();
+        assert_eq!(names(&bus.document), ["bg", "top"]);
+        assert!(bus.undo().unwrap());
+        assert_eq!(bus.document.layers(), before.as_slice());
+    }
+
+    #[test]
+    fn remove_layer_leaving_no_raster_layer_is_refused() {
+        let doc = tree_doc(&[
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("E", None, true),
+        ]);
+        let before = doc.layers().to_vec();
+        let mut bus = CommandBus::new(doc);
+        for i in [0, 1] {
+            let err = bus.apply(Box::new(RemoveLayer::at(i))).unwrap_err();
+            assert_eq!(err, DocumentError::LastLayer);
+        }
+        assert_eq!(bus.document.layers(), before.as_slice());
+        // An empty group can go.
+        bus.apply(Box::new(RemoveLayer::at(2))).unwrap();
+        assert_eq!(names(&bus.document), ["G", "a"]);
+    }
+
+    #[test]
+    fn duplicate_layer_on_group_copies_an_independent_subtree() {
+        let mut doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("top", None, false),
+        ]);
+        doc.layers[2].pixels.data_mut().fill(9);
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(DuplicateLayer::at(1))).unwrap();
+        let doc = &bus.document;
+        assert_eq!(names(doc), ["bg", "G", "a", "G copy", "a", "top"]);
+        assert!(doc.is_well_formed());
+        assert_eq!(
+            doc.parent_index(4),
+            Some(3),
+            "the copied child is in the copy"
+        );
+        assert_eq!(doc.active_layer_index(), 3);
+        assert_ne!(doc.layers()[3].id, doc.layers()[1].id);
+        assert_ne!(doc.layers()[4].id, doc.layers()[2].id);
+
+        // Editing the copy leaves the original alone.
+        bus.document.layers[4].pixels.data_mut().fill(1);
+        assert!(
+            bus.document.layers()[2]
+                .pixels
+                .data()
+                .iter()
+                .all(|&b| b == 9)
+        );
+
+        assert!(bus.undo().unwrap());
+        assert_eq!(names(&bus.document), ["bg", "G", "a", "top"]);
+    }
+
+    #[test]
+    fn duplicate_group_beyond_the_layer_limit_is_refused_as_a_whole() {
+        let mut doc = Document::new(1, 1).unwrap();
+        for _ in 1..crate::document::MAX_LAYERS - 3 {
+            doc.add_layer("l").unwrap();
+        }
+        let g = Layer::new_group("G");
+        let gid = g.id;
+        let len = doc.layer_count();
+        doc.insert_layer(len, g).unwrap();
+        for n in 0..2 {
+            let c = Layer::new_transparent(format!("c{n}"), 1, 1).with_parent(Some(gid));
+            doc.insert_layer(doc.layer_count(), c).unwrap();
+        }
+        assert_eq!(doc.layer_count(), crate::document::MAX_LAYERS);
+        let mut bus = CommandBus::new(doc);
+        let before = bus.document.layer_count();
+        let err = bus.apply(Box::new(DuplicateLayer::at(len))).unwrap_err();
+        assert_eq!(err, DocumentError::LayerLimit { max: 999 });
+        assert_eq!(bus.document.layer_count(), before);
+    }
+
+    #[test]
+    fn add_layer_above_a_child_stays_in_its_group() {
+        let mut doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+        ]);
+        doc.set_active_layer(2).unwrap();
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(AddLayer::above(2))).unwrap();
+        assert_eq!(bus.document.parent_index(3), Some(1));
+        assert!(bus.document.is_well_formed());
+    }
+
+    #[test]
+    fn add_layer_with_a_group_active_goes_above_the_group_at_its_level() {
+        let mut bus = CommandBus::new(tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+        ]));
+        bus.apply(Box::new(AddLayer::above(1))).unwrap();
+        assert_eq!(bus.document.active_layer_index(), 3);
+        assert_eq!(bus.document.parent_index(3), None);
+        assert!(bus.document.is_well_formed());
+        assert!(bus.undo().unwrap());
+        assert_eq!(names(&bus.document), ["bg", "G", "a"]);
+    }
+
+    #[test]
+    fn move_layer_that_would_split_a_group_is_refused() {
+        let mut bus = CommandBus::new(tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("b", Some("G"), false),
+        ]));
+        let before = bus.document.layers().to_vec();
+        let err = bus.apply(Box::new(MoveLayer::new(0, 2))).unwrap_err();
+        assert_eq!(err, DocumentError::LayerTreeBroken);
+        assert_eq!(bus.document.layers(), before.as_slice());
+        // Reordering siblings inside the group is fine.
+        bus.apply(Box::new(MoveLayer::new(2, 3))).unwrap();
+        assert_eq!(names(&bus.document), ["bg", "G", "b", "a"]);
+        let _ = index(&bus.document, "a");
     }
 
     #[test]

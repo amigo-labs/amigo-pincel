@@ -434,3 +434,29 @@ test('pixel: a paste the core cannot use shows a notice and changes nothing', as
   await expect(layerRows(page)).toHaveCount(1);
   await expect(depths(page, 0)).toBeVisible();
 });
+
+// docs/specs/pixel-selection-move.md AC-11: Select ▸ Expand… / Contract…
+// grow or shrink the selection by the radius; the copied box shows it.
+test('pixel: Select ▸ Expand and Contract change the selection by the radius', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  const radius = async (op: 'Expand…' | 'Contract…', value: string) => {
+    await menu(page, 'Select', op);
+    const dialog = page.getByRole('dialog', { name: op });
+    await dialog.getByLabel('Radius (px)').fill(value);
+    await dialog.getByRole('button', { name: 'Apply' }).click();
+    await expect(dialog).toBeHidden();
+  };
+  const copied = () => copyVia(page, () => page.keyboard.press('ControlOrMeta+c'));
+
+  await select(page, 4, 4, 7, 7);
+  expect(await copied()).toMatchObject({ width: 4, height: 4 });
+  await radius('Expand…', '1');
+  expect(await copied()).toMatchObject({ width: 6, height: 6 });
+  await radius('Contract…', '2');
+  expect(await copied()).toMatchObject({ width: 2, height: 2 });
+  // Contracting past its size clears the selection: Copy takes the layer.
+  await radius('Contract…', '5');
+  expect(await copied()).toMatchObject({ width: 16, height: 16 });
+});

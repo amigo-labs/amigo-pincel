@@ -4,6 +4,8 @@
 //! undone and redone. The [`CommandBus`] applies a command and records it on the
 //! [`UndoStack`].
 
+mod batch;
+mod damage;
 mod layers;
 mod merge;
 mod paste;
@@ -15,8 +17,10 @@ mod snapshot;
 pub mod spec;
 mod transform;
 
-pub use layers::{AddLayer, DuplicateLayer, MoveLayer, RemoveLayer};
-pub use merge::{FlattenImage, MergeDown, MergeVisible};
+pub(crate) use batch::Batch;
+pub use damage::Damage;
+pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
+pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::{PixelEdit, SetPixels};
 pub use properties::{
@@ -54,6 +58,14 @@ pub trait Command: Send + Sync {
     /// `newer` is assumed already applied to the document.
     fn merge_with(&mut self, _newer: &dyn Command) -> bool {
         false
+    }
+
+    /// The part of the composite that [`apply`](Command::apply) or
+    /// [`revert`](Command::revert) may change, for render caches
+    /// (docs/specs/performance-image-cache.md). The default, [`Damage::Full`],
+    /// is always correct; commands override it to report less.
+    fn damage(&self) -> Damage {
+        Damage::Full
     }
 
     /// Downcast support, required for type-aware merging.
@@ -140,6 +152,16 @@ impl UndoStack {
         }
     }
 
+    /// The damage the next [`undo`](UndoStack::undo) reports, if any.
+    fn next_undo_damage(&self) -> Option<Damage> {
+        self.undo.last().map(|cmd| cmd.damage())
+    }
+
+    /// The damage the next [`redo`](UndoStack::redo) reports, if any.
+    fn next_redo_damage(&self) -> Option<Damage> {
+        self.redo.last().map(|cmd| cmd.damage())
+    }
+
     /// Re-applies the most recently undone command.
     ///
     /// Returns `Ok(false)` if there was nothing to redo.
@@ -167,6 +189,9 @@ pub struct CommandBus {
     pub document: Document,
     /// The undo/redo history for `document`.
     pub history: UndoStack,
+    /// What the commands applied, undone or redone since the last
+    /// [`take_damage`](CommandBus::take_damage) changed in the composite.
+    damage: Damage,
 }
 
 impl CommandBus {
@@ -175,24 +200,54 @@ impl CommandBus {
         Self {
             document,
             history: UndoStack::new(),
+            damage: Damage::Full,
         }
     }
 
     /// Applies `cmd` to the document and records it in history.
     pub fn apply(&mut self, mut cmd: Box<dyn Command>) -> Result<(), DocumentError> {
-        cmd.apply(&mut self.document)?;
+        let applied = cmd.apply(&mut self.document);
+        // A failed command may have changed part of the document.
+        self.damage.add(match applied {
+            Ok(()) => cmd.damage(),
+            Err(_) => Damage::Full,
+        });
+        applied?;
         self.history.push(cmd);
         Ok(())
     }
 
     /// Undoes the last command. Returns `false` if nothing to undo.
     pub fn undo(&mut self) -> Result<bool, DocumentError> {
-        self.history.undo(&mut self.document)
+        let damage = self.history.next_undo_damage();
+        let undone = self.history.undo(&mut self.document);
+        self.record(damage, undone.is_ok());
+        undone
     }
 
     /// Redoes the last undone command. Returns `false` if nothing to redo.
     pub fn redo(&mut self) -> Result<bool, DocumentError> {
-        self.history.redo(&mut self.document)
+        let damage = self.history.next_redo_damage();
+        let redone = self.history.redo(&mut self.document);
+        self.record(damage, redone.is_ok());
+        redone
+    }
+
+    /// Returns what changed in the composite since the last call (all of it
+    /// for a new bus) and starts collecting afresh. A render cache calls this
+    /// before presenting (docs/specs/performance-image-cache.md).
+    pub fn take_damage(&mut self) -> Damage {
+        std::mem::take(&mut self.damage)
+    }
+
+    /// Adds the damage of an undo or redo; a failed one may have changed
+    /// anything.
+    fn record(&mut self, damage: Option<Damage>, ok: bool) {
+        match (damage, ok) {
+            (Some(d), true) => self.damage.add(d),
+            (Some(_), false) => self.damage.add(Damage::Full),
+            (None, _) => {}
+        }
     }
 }
 
@@ -231,6 +286,49 @@ mod tests {
         bus.apply(Box::new(AddLayer::above(0))).unwrap();
         assert_eq!(bus.history.redo_depth(), 0);
         assert!(!bus.redo().unwrap());
+    }
+
+    #[test]
+    fn take_damage_on_a_new_bus_is_full_then_none() {
+        let mut bus = CommandBus::new(Document::new(4, 4).unwrap());
+        assert_eq!(bus.take_damage(), Damage::Full);
+        assert_eq!(bus.take_damage(), Damage::None);
+    }
+
+    #[test]
+    fn take_damage_after_pixels_undo_and_redo_is_their_rect() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.take_damage();
+        let patch = crate::ImageBuffer::new_transparent(2, 3);
+        bus.apply(Box::new(SetPixels::new(0, Rect::new(1, 2, 2, 3), patch)))
+            .unwrap();
+        let rect = Damage::rect(Rect::new(1, 2, 2, 3));
+        assert_eq!(bus.take_damage(), rect);
+        bus.undo().unwrap();
+        assert_eq!(bus.take_damage(), rect);
+        bus.redo().unwrap();
+        assert_eq!(bus.take_damage(), rect);
+    }
+
+    #[test]
+    fn take_damage_after_selection_rename_and_new_layer_is_none() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.take_damage();
+        let mask = crate::selection::SelectionMask::rectangle(8, 8, Rect::new(0, 0, 2, 2));
+        bus.apply(Box::new(SetSelection::replace(mask))).unwrap();
+        bus.apply(Box::new(RenameLayer::new(0, "Sky"))).unwrap();
+        bus.apply(Box::new(SetLayerLocked::new(0, true))).unwrap();
+        bus.apply(Box::new(AddLayer::above(0))).unwrap();
+        bus.undo().unwrap();
+        assert_eq!(bus.take_damage(), Damage::None);
+    }
+
+    #[test]
+    fn take_damage_after_a_canvas_resize_is_full() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.take_damage();
+        bus.apply(Box::new(ResizeCanvas::new(4, 4))).unwrap();
+        assert_eq!(bus.take_damage(), Damage::Full);
     }
 
     #[test]

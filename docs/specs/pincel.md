@@ -146,7 +146,7 @@ pub struct Sprite {
 pub enum ColorMode {
     Rgba,                              // 32 bpp
     Indexed { transparent_index: u8 }, // 8 bpp + palette
-    Grayscale,                         // 16 bpp (V+A) — Phase 2
+    Grayscale,                         // 16 bpp (V+A) — rendering Phase 1, editing Phase 2
 }
 ```
 
@@ -294,6 +294,10 @@ A new Pixel-mode document starts with the **DB32** palette (DawnBringer 32, Asep
 
 The Palette panel also loads a **preset** — DB32, DB16, PICO-8, Game Boy (four greens), NES (54-colour 2C02 table) — and imports / exports the **GIMP palette** format (`.gpl`: `GIMP Palette` header, optional `Name:` / `Columns:`, `#` comments, `R G B name` rows, at most 256 entries). Both replace the whole palette through one undoable `ReplacePalette`, refused on indexed sprites for the same reason as remove / reorder.
 
+Next to `.gpl` the panel reads and writes Lospec **`.hex`** (one `RRGGBB` per line), **JASC `.pal`** (`JASC-PAL`, `0100`, a count, `R G B [A]` rows) and **PNG palette images** (every distinct non-transparent colour in reading order; exported as a one-row strip of 1 px or 8 px cells) — `codec::palette_formats`, wasm `importPalette` / `exportPalette`. Import detects the format by content (PNG signature → `GIMP Palette` → `JASC-PAL` → hex), so the file extension does not matter; a file without colours, with an unreadable colour line or with more than 256 colours is refused and leaves the palette unchanged. `importGpl` / `exportGpl` stay for the npm API, deprecated (Decision Log 2026-10-29).
+
+Shift+click in the Palette panel selects the contiguous range from the selected entry to the clicked one as the Pencil's shading ramp. The range is transient UI state, never part of the document: a plain click, adding / removing / moving an entry and a preset or import clear it, a recolour keeps it (`shading-ink.md`).
+
 ---
 
 ## 4. Render Pipeline
@@ -415,8 +419,10 @@ Tools never mutate the document directly. They emit `Command`s. The command bus 
 | Tool | Behavior |
 |------|----------|
 | Pencil | Freehand stroke with a square or round brush of size 1–8 (`[` / `]`), hold Shift = constrain to 0/45/90°, optional pixel-perfect (drops L-corner pixels at size 1, off by default); one stroke is one `PencilStroke` undo entry |
+| Pencil ink | Simple (paints the color) or Shading: each touched pixel whose color before the stroke is exactly ramp entry *i* becomes entry *i* + 1 (left button) or *i* − 1 (right button), clamped to the ramp, once per stroke; other colors stay. The ramp is the Palette panel's Shift+click range, else the whole palette (§3.7). A fresh session starts Simple (`shading-ink.md`) |
 | Eraser | Clears to transparent (RGBA) or transparent-index (Indexed); shares the Pencil's size, shape and pixel-perfect setting |
 | Bucket | Paint-fill, contiguous (default) or all-matching, tolerance 0 in MVP |
+| Gradient | Shares the Bucket's `G` group. A drag fills the selection (or the target cel, never grown) with a ramp from the foreground color at the start to the background color at the end — linear or radial, dithered with a Bayer 2×2 / 4×4 / 8×8 threshold or split hard at the middle — so only those two colors are written; one `DrawDitherGradient` undo entry. The `t` math is shared with Image mode through `pincel-effects` (`dithered-gradient.md`) |
 | Line | Bresenham line between press and release |
 | Rectangle | Outline + filled variants, hold Shift = square |
 | Ellipse | Midpoint algorithm, outline + filled, hold Shift = circle |
@@ -510,6 +516,8 @@ Two modes:
 
 Sprite-sheet export emits an optional sidecar JSON describing frame durations, tags, and slice rects. Format follows Aseprite's `--data` JSON output for ecosystem compatibility (LDtk, Phaser, etc. consume this format).
 
+Both take an integer scale 1–10 (feature spec `scaled-export.md`, Decision Log 2026-10-29): the frame or sheet is composed at zoom 1 and upscaled nearest-neighbour, capped at 16384 px per edge; the sheet JSON describes the scaled sheet as Aseprite's `--scale` does (geometry ×N, `meta.scale` `"1"`). The wasm `exportPng` / `exportAtlas` take the scale as an optional trailing argument.
+
 ### 7.4 Engine Build Pipeline
 
 Pincel does **not** export to `.ait` directly. The engine's existing `amigo_assets` pipeline reads `.aseprite` files and produces engine-internal formats. Pincel's only contract with the engine is: produce a valid `.aseprite` file at a known location.
@@ -526,6 +534,8 @@ Animated WebP and video are deferred (no encoder in the workspace).
 ### 7.6 Image-mode save
 
 Save writes back to the opened file in its own format (PNG, JPEG, lossless WebP, BMP, TIFF — detected from the content at open), under its own name, through its FSA handle / Tauri path when there is one. A document with more than one layer, a hidden layer, or a layer whose opacity or blend mode would be lost, first asks "Flatten image?" (*Flatten*, *Save as .ora…*, *Cancel*, "Don't ask again for this document"); Flatten writes the flattened composite and the open document keeps its layers. JPEG asks its quality once per document. GIF and formats without an encoder go to Save As with a notice. New documents and opened `.ora` files save as OpenRaster. Save As offers every writable format. Decision Log 2026-10-29; feature spec `save-original-format.md`.
+
+Image mode also opens 8-bit RGB Photoshop files (`.psd`) with an in-crate reader (`pincel-image-core/src/codec/psd.rs`): raster layers at their bounds with name, opacity, blend mode and visibility, section dividers as groups, unrepresentable content dropped with one notice, and the flattened composite when the layer section is unusable. PSB, 16 / 32-bit and non-RGB files are rejected. PSD is never written: Save goes to Save As with `.ora` preselected. Decision Log 2026-10-29; feature spec `psd-import.md`.
 
 ---
 
@@ -599,6 +609,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 │ Tool │ Options bar: variants of the active tool group │  Colors        │
 │ rail │ + that tool's options                          ├────────────────┤
 │      ├────────────────────────────────────────────────┤  Palette       │
+│      │                                                │  Preview ▸     │
 │      │                                                ├────────────────┤
 │      │            Canvas viewport                     │  Layers        │
 │      │           (WebGPU / Canvas2D)       [− % + 1:1]├────────────────┤
@@ -619,6 +630,8 @@ Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists 
 | 640–1023 px (tablet) | menu bar (scrolls if needed) | vertical rail | drawer over the canvas |
 | < 640 px (phone) | ☰ sheet with every menu | horizontal strip at the bottom | bottom sheet, one tab per panel (timeline included) |
 
+**Preview panel.** Pixel mode only, collapsed by default and placed above Layers: the animation at 1×, 2×, 4× or Fit, played on its own loop (play / pause in the panel header) through the timeline's loop tag and frame durations, while the main canvas stays on the current frame and keeps taking strokes. Paused, it shows the current frame. It composites through wasm `composeFrame(frame, zoom, false)`, so it never shows onion-skin ghosts, and recomposes only when the shown frame or the document changes; collapsing the panel stops its playback (`docs/specs/animation-preview.md`, Decision Log 2026-10-29).
+
 **Layers panel.** Both modes render the same panel (`ui/src/lib/components/layers/`): each row has a drag grip (pointer events, so it works with touch and pen; arrow keys on a focused grip), visibility, lock, a thumbnail, the name and a rename button; the active layer's opacity and blend mode sit below the list. Pixel mode lists layers as a tree — a group's header above its indented children — tags tilemap / group rows, and lets a drag cross groups: the outer quarters of a row drop above / below it, a group's middle drops into it (Alt+← / → on a grip: out of / into a group); Layer ▸ New Group adds an empty group. A locked layer — or one inside a locked group — refuses pixel edits with a status-bar notice. Layer ▸ Rename… opens the same rename dialog in both modes.
 
 **Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background.
@@ -636,6 +649,8 @@ await init();
 const doc = new Document(64, 64);
 doc.applyTool('pencil', x, y, 0xff0000ff); // 0xRRGGBBAA, single pixel
 doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gesture
+doc.setStrokeMirror(axisX2, axisY2);      // optional symmetry axes (half pixels), before the first strokeTo
+doc.setStrokeWrap(wrapX, wrapY);           // optional tiled-mode wrapping, before the first strokeTo
 doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
@@ -651,15 +666,44 @@ const events = doc.drainEvents();
 // event kinds: dirty-rect, dirty-canvas, selection-changed (new kinds are only appended)
 ```
 
-A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent.
+A Pencil / Eraser press-drag-release is one gesture: `beginStroke(tool, color, size, shape, pixelPerfect)` (`tool` `"pencil"` / `"eraser"`, `size` 1–8, `shape` `"square"` / `"round"`) starts it, `strokeTo(x, y, pressure?)` stamps the brush along the straight line from the previous point (out-of-canvas pixels are skipped; an optional pen pressure 0–1 scales each stamp to max(1, round(size × p)), interpolated between points, absent = 1), and `endStroke()` closes it. The whole gesture is one `PencilStroke` command and one undo entry (Decision Log 2026-10-29). Shift constraint is resolved in the UI before the point is sent. Before the first `strokeTo`, `setStrokeMirror(axisX2?, axisY2?)` mirrors the gesture across a vertical and / or horizontal axis in half pixels (column x mirrors to axisX2 − 1 − x) and `setStrokeWrap(x, y)` wraps it across the canvas edges for tiled mode; a stamp on the canvas outside the target cel grows the cel within the same undo entry (feature spec `symmetry-tiled-mode`, Decision Log 2026-10-29).
 
 `drainEvents()` is called every frame (RAF-driven). Stores update from events; views re-render via Svelte reactivity. The full package contract, including errors and the event fields, is the feature spec `docs/specs/wasm-npm-api.md`.
 
 ### 9.4 Input Handling
 
-Mouse and pen input is captured with the full `PointerEvent` API (pressure, tilt, pointer-type) on the stage — the canvas and the editor area around it — so a selection gesture can start beside the canvas and still reach its edge pixels; tools that change pixels ignore a press that starts off the canvas (`pixel-selection-move` AC-21 – AC-24, `image-editing` AC-29 – AC-32). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
+Mouse and pen input is captured with the full `PointerEvent` API (pressure, tilt, pointer-type) on the stage — the canvas and the editor area around it — so a selection gesture can start beside the canvas and still reach its edge pixels; tools that change pixels ignore a press that starts off the canvas (`pixel-selection-move` AC-21 – AC-24, `image-editing` AC-29 – AC-32). Touch input is supported with two-finger pan/zoom. Keyboard shortcuts are defined in a single `shortcuts.ts` map (`ui/src/lib/shell/shortcuts.ts`) that mirrors Aseprite's defaults where reasonable and is shared by both modes: the same key means the same thing in Pixel and Image mode, menus and tooltips print their hints from it, and each editor binds the actions it has. Tool keys select a tool group and repeated presses cycle its variants: `V` move, `M` marquee, `Q` lasso, `W` magic wand, `B` pencil / brush, `E` eraser, `G` fill, `I` eyedropper, `L` line, `U` shapes, `T` text, and in Image mode `H` pan, `Z` zoom, `R` recolor, `S` smudge, `N` gradient (§5.4). A key a mode has no group for does nothing there rather than meaning something else. Bare `+` / `-` / `0` / `1` zoom in, out, to fit and to 1:1; Space-drag pans; `[` / `]` resize the brush; `,` / `.` / Enter step and play frames. Help ▸ Keyboard Shortcuts and `Ctrl+/` (⌘/ on macOS) open an overview of every shortcut and pointer gesture of the current mode, generated from the same map plus the actions and tool groups the editor binds, so it can't drift from the keys (`ui/src/lib/shell/shortcut-list.ts`, feature spec `shortcut-overview`). The same dialog rebinds any action or tool-group key (Change, Reset, Reset all, JSON export / import; feature spec `power-user-shortcuts-keymap`): user overrides sit on top of the defaults in the IndexedDB pref `keymap`, stored with the platform-neutral `mod`, and every hint, tooltip and key handler reads the effective map; rebound native-menu actions reach the macOS menu through `set_menu_accelerators`. On macOS the desktop app's native menu owns its accelerators (open / save / export / undo / redo / the shortcut overview) so they never fire twice; on Windows, Linux and the web the editors bind them themselves. The gate is `hasNativeMenu()` (`ui/src/lib/platform/`), not `isTauri()`.
+
+Default keymap (Ctrl is ⌘ on macOS; feature specs `power-user-shortcuts-coverage`, `shortcut-overview`, `pixel-grid`). No default is a chord a browser tab cannot capture (Ctrl+N / T / W with or without Shift, Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+R, F5); keys only the desktop app can take are bound only there. Chords whose typed character depends on the layout (Shift+digit, Alt+[ / ], Alt+N, Ctrl+Alt+E, which Windows reports as AltGr) match the physical key (`KeyboardEvent.code`). Action chords are matched before tool keys, so Shift+N / H / V never select a tool group.
+
+| Area | Action | Keys | Modes |
+| ---- | ------ | ---- | ----- |
+| File | Open / Save / Save As | Ctrl+O / Ctrl+S / Ctrl+Shift+S | both |
+| File | Export (PNG) / Export Sprite Sheet | Ctrl+E / Ctrl+Alt+E | both / Pixel |
+| Edit | Undo / Redo | Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y | both |
+| Edit | Cut / Copy / Paste / Paste as New Image | Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+Alt+V | both |
+| Edit | Delete selection | Delete, Backspace | both |
+| Select | Select All / Deselect / Invert | Ctrl+A / Ctrl+D / Ctrl+Shift+I | both |
+| Layer | New / Duplicate / Delete layer | Shift+N / Ctrl+J / Ctrl+Shift+Delete | both |
+| Layer | Merge Down | Ctrl+Shift+E | both |
+| Layer | Select layer above / below | Alt+↑ / Alt+↓ | both |
+| Layer | Flip layer horizontally / vertically | Shift+H / Shift+V | both |
+| Image | Rotate image 90° CW / CCW | Ctrl+R / Ctrl+Shift+R (desktop app only) | both |
+| Frame | New frame / previous / next / play | Alt+N / `,` / `.` / Enter | Pixel |
+| View | Zoom in / out / fit / 1:1 | `+` / `-` / `0` / `1` | both |
+| View | Grid / pixel grid | Ctrl+' / Ctrl+Shift+' | Pixel |
+| View | Toggle UI (tool rail, options bar, panels) | Tab while the canvas stage has focus | both |
+| Help | Keyboard Shortcuts | Ctrl+/ | both |
+| Help | Command palette: search every menu command and tool, with its shortcut (`power-user-shortcuts-palette`) | Ctrl+K | both |
+| Colors | Swap / default colors | X / D | both |
+| Colors | Next / previous palette color | Alt+] / Alt+[ | Pixel |
+| Brush | Smaller / larger | `[` / `]` | both |
+| Brush | Opacity 10 % … 90 % / 100 % | Shift+1 … Shift+9 / Shift+0 | Image |
+| Tools | Tool groups | the letters above | per mode |
 
 Touch and pen have no keyboard, so the editor frame shows two latching toggles, Shift and Alt, on touch-first devices (and once a touch or pen pointer touches the stage). Tool code asks `shiftHeld(e)` / `altHeld(e)` (`ui/src/lib/shell/modifiers.svelte.ts`), so a latched toggle and a held key mean the same: Shift squares shapes, snaps lines and Pixel-mode Pencil / Eraser strokes to 45°, adds to a selection; Alt subtracts; both intersect.
+
+Pincel honours "reduce motion" (Decision Log 2026-10-29, feature spec `reduced-motion.md`): while the system asks for `prefers-reduced-motion: reduce` (followed live) or View ▸ Reduce Motion is checked (an IndexedDB pref that can only add the request, never force motion on), the selection outline and the other marching outlines stand still and UI transitions and animations finish instantly; frame playback and the animation preview are content and keep running. Both editors and the shell read one flag, `motion.reduced` in `ui/src/lib/motion.svelte.ts`.
 
 ### 9.5 Language
 
@@ -728,7 +772,7 @@ The native build uses these instead of the File System Access API. `pincel-core`
 
 - File-association: register `.aseprite` and `.ase` (with user opt-in on first launch)
 - Recent-files in OS jump lists (Windows) / dock menu (macOS)
-- Native menu bar **on macOS only** — there it is the screen's menu bar, not a second row inside the window, and the App menu with Quit / About is a platform requirement. Windows and Linux show the in-app menu bar alone, which lists a superset of the native menu's entries (Help included).
+- Native menu bar **on macOS only** — there it is the screen's menu bar, not a second row inside the window, and the App menu with Quit / About is a platform requirement. Windows and Linux show the in-app menu bar alone, which lists a superset of the native menu's entries (Help included). Both Help menus open the Keyboard Shortcuts overview (§9.4); the native item carries the ⌘/ accelerator and emits `menu:shortcuts` to the mounted editor.
 
 ### 11.4 Capability Detection in UI
 
@@ -795,7 +839,6 @@ User defines a brush from a selection rect. Brush is stored on the document (Ase
 
 ### 13.4 Filters
 
-- Outline (configurable thickness, inside/outside/both)
 - Drop Shadow
 - Hue/Saturation/Lightness shift
 - Color replace
@@ -855,7 +898,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-05-26 | §11.4 `isTauri` check accepts both `__TAURI_INTERNALS__` (Tauri 2) and `__TAURI__` (Tauri 1) | The spec originally specified only `__TAURI__`, but Tauri 2 renamed the global. The shipping implementation in `ui/src/lib/platform/index.ts` accepts both so the same probe works against either runtime. Spec aligned with the implementation. |
 | 2026-05-31 | Add `@webgpu/types` as a UI devDependency (M12.5) | Type-only, dev-only, W3C `gpuweb`-maintained. TypeScript's bundled `lib.dom` still omits WebGPU types, so the §4.4 WebGPU adapter can't typecheck without it. No runtime bundle impact. |
 | 2026-05-31 | Layer reorder (M13) is a sibling block-swap, group-atomic | `MoveLayer { Up \| Down }` swaps a layer's whole subtree with the adjacent sibling's subtree, so a group moves with its children and no layer crosses a group boundary. Preserves the flat-Vec contiguity invariant that `validate_layer_order` enforces, keeping write round-trips lossless. Cross-group / arbitrary drag-and-drop reorder is deferred (needs reparenting + a richer command). **Superseded 2026-10-12 by `MoveLayerTo`.** |
-| 2026-07-09 | `compose()` skips group layers and propagates group visibility to children | A group entry in the flat layer Vec carries no pixels; erroring on it made every grouped file unrenderable. Hiding a group hides its subtree (Aseprite semantics). Group opacity / blend-mode folding (render children into a temp buffer) stays Phase 2. |
+| 2026-07-09 | `compose()` skips group layers and propagates group visibility to children | A group entry in the flat layer Vec carries no pixels; erroring on it made every grouped file unrenderable. Hiding a group hides its subtree (Aseprite semantics). Group opacity / blend-mode folding (render children into a temp buffer) stays Phase 2 (folding superseded 2026-10-29). |
 | 2026-07-09 | `compose()` implements all separable blend modes; the four non-separable HSL modes (Hue / Saturation / Color / Luminosity) render as Normal until Phase 2 | Files using Multiply/Screen/etc. previously opened but failed compose entirely. Separable modes are cheap per-channel functions under the W3C compositing formula; pixel-exact parity with Aseprite's fixed-point blender is explicitly out of scope (values assert against our own integer formula). HSL modes need lum/sat clip helpers and are rare — Normal fallback keeps the file usable. |
 | 2026-07-09 | Pencil/eraser strokes merge into one undo entry, delimited by `Bus::seal()` / wasm `endStroke()` | One `SetPixel` per pixel flooded the 100-entry history cap mid-stroke and made undo peel single pixels. `SetPixel` batches writes and merges while unsealed; the UI seals on pointerup, and `undo()`/`redo()` seal so a new stroke never merges into restored history. |
 | 2026-08-20 | Add the `png` crate (0.18) as a `pincel-core` dependency for the §7.3 PNG export | Export needs a real PNG encoder — deflate streams, per-chunk CRCs, IHDR/IDAT framing. Hand-rolling that inside `pincel-core` would be a second codec to maintain with no upside. `png` is the de-facto Rust choice (MIT OR Apache-2.0, `image-rs`-maintained), compiles for `wasm32-unknown-unknown`, and its only transitive deps are `crc32fast` / `flate2` / `miniz_oxide` (already in the tree via `aseprite-loader`) plus `fdeflate`. Encoder-only in the library; the decoder is used in tests to read back what we wrote. |
@@ -1069,7 +1112,7 @@ Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry mark
 
 | Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
 |------|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ✗ |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ~ (read, 8-bit RGB) |
 | Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
 | LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
 | Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
@@ -1097,7 +1140,7 @@ Lospec and Pyxel Edit are left out of the feature table: neither publishes a fea
 
 | Tool | Layers / groups / blend | Adjustments / filters | Magic wand | Text | Pen pressure | PSD | Animation | Pixel-art features |
 |------|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ✗ | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
+| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ~ (read, 8-bit RGB) | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
 | Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓\* | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ | ~ third-party plugin\* | ✗ | ✗ |
 | Pinta | ✓ / ✗\* / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ? | ? | ✗ | ✗ |
 | Photopea | ✓ / ✓\* / ✓\* | ✓ | ✓\* | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
@@ -1129,7 +1172,7 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 
 - **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
 - **Indexed painting, autotiling, scripting.** Already listed in §13.
-- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens neither PSD nor Krita files.
+- **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens 8-bit RGB PSD files in Image mode (read only, feature spec `psd-import.md`) but not Krita files.
 - **Layer groups in Image mode.** Pixel mode already has them.
 
 ### 18.6 Sources

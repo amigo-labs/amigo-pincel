@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, pixelCanvas } from './helpers';
+import { createDocument, drag, pixelCanvas, storedPref } from './helpers';
 
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -56,6 +56,9 @@ test('desktop: panels collapse and stay collapsed across sessions', async ({ pag
   await expect(palette.getByRole('group', { name: 'Palette colors' })).toBeVisible();
   await palette.getByRole('button', { name: /^Palette/, expanded: true }).click();
   await expect(palette.getByRole('group', { name: 'Palette colors' })).toHaveCount(0);
+  await expect
+    .poll(() => storedPref(page, 'layout:pixel'))
+    .toMatchObject({ collapsed: { palette: true } });
 
   await createDocument(page, 'pixel', { width: 8, height: 8 });
   await expect(

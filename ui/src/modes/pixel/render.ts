@@ -1,16 +1,21 @@
 // Rendering: mirror wasm state, recompose, overlays and the rAF loop.
 
 import { Canvas2DRenderer } from '../../lib/render/canvas2d-renderer';
+import { blitDirtyFrame, blitFrame } from '../../lib/render/canvas2d';
+import type { ComposeFrame } from '../../lib/core';
 import type { CanvasRenderer } from '../../lib/render/types';
 import { WebGPURenderer } from '../../lib/render/webgpu-renderer';
+import { paintGridIfChanged } from './grid';
 import {
   type OverlayState,
   clearOverlay as clearOverlayLayer,
   overlayIsIdle,
   paintOverlays as paintOverlayLayer,
 } from './overlay-painter';
-import { colors, ed, live, probe, toolState, view } from './stores/editor.svelte';
+import { motion } from '../../lib/motion.svelte';
+import { colors, ed, live, preview, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
+import { clampAxes } from './symmetry';
 
 // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
 // fallback so WebGPU can be A/B'd against it on the same build.
@@ -44,6 +49,7 @@ export function syncMeta() {
   ed.redoDepth = ed.doc.redoDepth;
   ed.canvasW = ed.doc.width;
   ed.canvasH = ed.doc.height;
+  clampAxes(ed.canvasW, ed.canvasH);
   ed.frameCount = ed.doc.frameCount;
   ed.currentFrame = ed.doc.currentFrame;
 }
@@ -73,10 +79,22 @@ export function recompose() {
   const frame = ed.doc.compose(ed.currentFrame, 1);
   try {
     live.renderer.draw(frame);
+    paintTileCopies(frame, false);
   } finally {
     frame.free();
   }
   paintOverlays();
+}
+
+// Tiled mode (symmetry-tiled-mode AC-13): the repeated copies around the
+// canvas show the same composed frame — one compose, blitted again into
+// each copy, never read back from a canvas.
+function paintTileCopies(frame: ComposeFrame, dirty: boolean) {
+  if (view.tiled === 'none' || !view.stage) return;
+  for (const copy of view.stage.querySelectorAll<HTMLCanvasElement>('canvas[data-tile-copy]')) {
+    if (dirty) blitDirtyFrame(copy, frame);
+    else blitFrame(copy, frame);
+  }
 }
 
 // Snapshot of everything the overlay layer paints from
@@ -132,6 +150,7 @@ export function recomposeDirty(rect: { x: number; y: number; w: number; h: numbe
   const frame = ed.doc.composeDirty(ed.currentFrame, 1, rect.x, rect.y, rect.w, rect.h);
   try {
     live.renderer.drawDirty(frame);
+    paintTileCopies(frame, true);
   } finally {
     frame.free();
   }
@@ -228,8 +247,16 @@ export function tick() {
     // active, advance `marchPhase` once every
     // `MARCH_FRAMES_PER_STEP` ticks and force a re-render so the
     // overlay redraws. With no selection the counters reset and the
-    // recompose path stays idle.
-    if (
+    // recompose path stays idle. Under reduced motion the phase rests at
+    // 0 and the outlines stand still (docs/specs/reduced-motion.md); they
+    // are still repainted whenever the selection or a drag changes.
+    if (motion.reduced) {
+      live.marchTicks = 0;
+      if (view.marchPhase !== 0) {
+        view.marchPhase = 0;
+        if (!live.needsRecompose) paintOverlays();
+      }
+    } else if (
       ed.selection ||
       (live.dragStart &&
         (live.dragTool === 'selection-rect' ||
@@ -256,6 +283,8 @@ export function tick() {
     }
     if (live.needsRecompose) {
       live.needsRecompose = false;
+      // The Preview panel recomposes whenever the main canvas does.
+      preview.contentRev += 1;
       const t0 = probe.on ? performance.now() : 0;
       if (dirtyKind === 'rect' && canRecomposeDirty()) {
         recomposeDirty({
@@ -271,6 +300,9 @@ export function tick() {
       syncMeta();
     }
   }
+  // The grids repaint only when zoom, pan, size, settings or the
+  // sprite's grid changed (pixel-grid, grid.ts).
+  paintGridIfChanged();
   live.rafHandle = requestAnimationFrame(tick);
 }
 

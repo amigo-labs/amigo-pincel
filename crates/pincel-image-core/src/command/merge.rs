@@ -12,7 +12,7 @@
 use super::Command;
 use super::snapshot::{DocSnapshot, restore, snapshot};
 use crate::color::{BlendMode, Color};
-use crate::document::{Document, Layer};
+use crate::document::{Document, ImageBuffer, Layer, LayerKind};
 use crate::error::DocumentError;
 use crate::render::{compose, compose_over};
 use std::any::Any;
@@ -49,6 +49,17 @@ impl Command for MergeDown {
                 len,
             });
         }
+        // Groups have no pixels to merge, and merging across a group
+        // boundary would change what the group composites
+        // (docs/specs/image-layer-groups.md AC-13).
+        for i in [self.index - 1, self.index] {
+            if doc.layers()[i].is_group() {
+                return Err(DocumentError::GroupLayer { index: i });
+            }
+        }
+        if doc.layers()[self.index - 1].parent != doc.layers()[self.index].parent {
+            return Err(DocumentError::MergeAcrossGroups);
+        }
         self.before = Some(snapshot(doc));
 
         let mut merged = doc.layers()[self.index - 1].clone();
@@ -83,6 +94,76 @@ impl Command for MergeDown {
     }
 }
 
+/// [`compose`] of `layers`, or a transparent canvas when they hold no raster
+/// layer (an empty group).
+fn canvas_composite(doc: &Document, layers: &[Layer]) -> ImageBuffer {
+    if layers.iter().all(|l| l.is_group()) {
+        return ImageBuffer::new_transparent(doc.canvas.width(), doc.canvas.height());
+    }
+    compose(layers)
+}
+
+/// Replaces the group at `index` and its subtree with one raster layer at
+/// the group's place (Layer ▸ Merge Group, docs/specs/image-layer-groups.md
+/// AC-14).
+///
+/// The raster layer holds the isolated composite of the group's children
+/// and keeps the group's id, name, parent, opacity, blend mode, visibility
+/// and lock, so the document composite is unchanged. Errors with
+/// `NotAGroup` on a raster layer.
+pub struct MergeGroup {
+    index: usize,
+    before: Option<DocSnapshot>,
+}
+
+impl MergeGroup {
+    /// Merges the group at `index`.
+    pub fn at(index: usize) -> Self {
+        Self {
+            index,
+            before: None,
+        }
+    }
+}
+
+impl Command for MergeGroup {
+    fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        let group = doc
+            .layers()
+            .get(self.index)
+            .ok_or(DocumentError::LayerIndexOutOfBounds {
+                index: self.index,
+                len: doc.layer_count(),
+            })?;
+        if !group.is_group() {
+            return Err(DocumentError::NotAGroup { index: self.index });
+        }
+        let end = doc.subtree_end(self.index);
+        let pixels = canvas_composite(doc, &doc.layers()[self.index + 1..end]);
+        let merged = Layer {
+            kind: LayerKind::Raster,
+            pixels,
+            ..group.clone()
+        };
+        self.before = Some(snapshot(doc));
+        doc.layers.splice(self.index..end, [merged]);
+        doc.set_active_layer(self.index)
+    }
+
+    fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
+        let snap = self.before.take().ok_or(DocumentError::RegionOutOfBounds)?;
+        restore(doc, snap)
+    }
+
+    fn label(&self) -> &str {
+        "Merge Group"
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 /// Flattens all visible layers into a single layer, leaving hidden layers
 /// untouched.
 ///
@@ -106,31 +187,46 @@ impl Default for MergeVisible {
 }
 
 impl Command for MergeVisible {
+    /// Merges every visible root-level layer — a group with its whole
+    /// subtree — into one; hidden root-level layers and groups stay.
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        let visible: Vec<usize> = doc
-            .layers()
+        // The root-level runs `(start, end)` of whole subtrees, bottom first.
+        let mut roots = Vec::new();
+        let mut i = 0;
+        while i < doc.layer_count() {
+            let end = doc.subtree_end(i);
+            roots.push((i, end));
+            i = end;
+        }
+        let visible: Vec<(usize, usize)> = roots
             .iter()
-            .enumerate()
-            .filter(|(_, l)| l.visible)
-            .map(|(i, _)| i)
+            .copied()
+            .filter(|&(s, _)| doc.layers()[s].visible)
             .collect();
         if visible.is_empty() {
             return Ok(()); // nothing visible to merge
         }
         self.before = Some(snapshot(doc));
 
-        let lowest = visible[0];
-        let visible_layers: Vec<Layer> = visible.iter().map(|&i| doc.layers()[i].clone()).collect();
-        let merged = Layer::from_pixels("Merged", compose(&visible_layers));
+        let visible_layers: Vec<Layer> = visible
+            .iter()
+            .flat_map(|&(s, e)| doc.layers()[s..e].iter().cloned())
+            .collect();
+        let merged = Layer::from_pixels("Merged", canvas_composite(doc, &visible_layers));
 
-        // Remove visible layers high-to-low so earlier indices stay valid, then
-        // insert the merged layer where the lowest visible layer was. All layers
-        // below `lowest` are hidden (it is the minimum visible index), so they
-        // keep positions 0..lowest and the insert index is exactly `lowest`.
-        for &i in visible.iter().rev() {
-            doc.layers.remove(i);
+        // Keep the hidden runs in order and put the merged layer where the
+        // lowest visible run was; everything below it is hidden.
+        let lowest = visible[0].0;
+        let mut kept = Vec::with_capacity(doc.layer_count());
+        let mut merged = Some(merged);
+        for &(s, e) in &roots {
+            if doc.layers()[s].visible {
+                kept.extend(merged.take());
+            } else {
+                kept.extend(doc.layers()[s..e].iter().cloned());
+            }
         }
-        doc.layers.insert(lowest, merged);
+        doc.layers = kept;
         doc.set_active_layer(lowest)
     }
 
@@ -207,6 +303,139 @@ mod tests {
 
     fn composites_equal(a: &Document, b: &Document) -> bool {
         compose(a.layers()).data() == compose(b.layers()).data()
+    }
+
+    use crate::command::CommandBus;
+    use crate::document::tree::tests::{names, tree_doc};
+
+    /// bg, G (50 %, Multiply) { a, H (hidden) { b } , c }, top — each raster
+    /// layer painted with its own partly transparent pattern.
+    fn grouped_doc() -> Document {
+        let mut doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("H", Some("G"), true),
+            ("b", Some("H"), false),
+            ("c", Some("G"), false),
+            ("top", None, false),
+        ]);
+        for (i, layer) in doc.layers.iter_mut().enumerate() {
+            if layer.is_group() {
+                continue;
+            }
+            let n = i as u8;
+            for y in 0..4 {
+                for x in 0..4 {
+                    let a = if (x + y + u32::from(n)) % 3 == 0 {
+                        0
+                    } else {
+                        90 + n * 20
+                    };
+                    layer.pixels.set_pixel(
+                        x,
+                        y,
+                        Color::rgba(n * 30, x as u8 * 60, y as u8 * 50, a),
+                    );
+                }
+            }
+        }
+        doc.layers[1].opacity = 0.5;
+        doc.layers[1].blend_mode = BlendMode::Multiply;
+        doc.layers[3].visible = false;
+        doc.layers[5].blend_mode = BlendMode::Screen;
+        doc
+    }
+
+    #[test]
+    fn merge_down_with_a_group_or_across_parents_is_refused() {
+        let doc = grouped_doc();
+        let before = doc.layers().to_vec();
+        let mut bus = CommandBus::new(doc);
+        // a onto the group G, G onto bg, top onto c (another parent), the
+        // group H onto a, and b onto the group H.
+        for index in [2, 1, 6, 3, 4] {
+            assert!(
+                bus.apply(Box::new(MergeDown::at(index))).is_err(),
+                "{index}"
+            );
+        }
+        assert_eq!(bus.document.layers(), before.as_slice());
+        // Two siblings in the same group still merge.
+        bus.apply(Box::new(MergeDown::at(1)))
+            .expect_err("group refused");
+        let mut doc = tree_doc(&[
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("b", Some("G"), false),
+        ]);
+        doc.set_active_layer(2).unwrap();
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(MergeDown::at(2))).unwrap();
+        assert_eq!(names(&bus.document), ["G", "a"]);
+        assert_eq!(bus.document.parent_index(1), Some(0));
+    }
+
+    #[test]
+    fn merge_group_matches_composite() {
+        let doc = grouped_doc();
+        let before = doc.layers().to_vec();
+        let composite = compose(doc.layers());
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(MergeGroup::at(1))).unwrap();
+        let doc = &bus.document;
+        assert_eq!(names(doc), ["bg", "G", "top"]);
+        assert!(!doc.layers()[1].is_group());
+        assert_eq!(doc.active_layer_index(), 1);
+        assert_eq!(compose(doc.layers()), composite);
+        assert!(bus.undo().unwrap());
+        assert_eq!(bus.document.layers(), before.as_slice());
+    }
+
+    #[test]
+    fn merge_group_of_a_nested_group_keeps_its_place_and_undo_restores_it() {
+        let doc = grouped_doc();
+        let before = doc.layers().to_vec();
+        let composite = compose(doc.layers());
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(MergeGroup::at(3))).unwrap();
+        let doc = &bus.document;
+        assert_eq!(names(doc), ["bg", "G", "a", "H", "c", "top"]);
+        assert_eq!(doc.parent_index(3), Some(1), "still inside G");
+        assert!(doc.is_well_formed());
+        assert_eq!(compose(doc.layers()), composite);
+        assert!(bus.undo().unwrap());
+        assert_eq!(bus.document.layers(), before.as_slice());
+    }
+
+    #[test]
+    fn merge_group_on_a_raster_layer_is_refused() {
+        let mut bus = CommandBus::new(grouped_doc());
+        let err = bus.apply(Box::new(MergeGroup::at(0))).unwrap_err();
+        assert_eq!(err, DocumentError::NotAGroup { index: 0 });
+    }
+
+    #[test]
+    fn merge_visible_with_groups_preserves_composite() {
+        let mut doc = grouped_doc();
+        doc.layers[6].visible = false; // a hidden root layer stays
+        let composite = compose(doc.layers());
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(MergeVisible::new())).unwrap();
+        assert_eq!(compose(bus.document.layers()), composite);
+        assert_eq!(names(&bus.document), ["Merged", "top"]);
+        assert!(bus.document.is_well_formed());
+    }
+
+    #[test]
+    fn flatten_image_with_groups_preserves_composite() {
+        let doc = grouped_doc();
+        let expected = compose_over(doc.layers(), Color::WHITE);
+        let mut bus = CommandBus::new(doc);
+        bus.apply(Box::new(FlattenImage::new())).unwrap();
+        assert_eq!(bus.document.layer_count(), 1);
+        assert_eq!(bus.document.layers()[0].pixels, expected);
+        assert_eq!(compose(bus.document.layers()), expected);
     }
 
     #[test]

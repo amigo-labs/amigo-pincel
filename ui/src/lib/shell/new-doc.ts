@@ -3,6 +3,7 @@
 // default and the 4096 cap; images default to 800×600 and are capped by
 // the edge / area limits of the image core's memory (see MAX_CANVAS_DIM /
 // clampCanvasSize).
+import { tick } from 'svelte';
 import type { EditorMode, NewDocParams } from './types';
 import { clipboardImage, imageSize } from '../clipboard';
 import { MAX_CANVAS_DIM, clampCanvasSize } from '../../modes/image/stores/editor.svelte';
@@ -43,4 +44,19 @@ export async function clipboardDocSize(mode: EditorMode): Promise<NewDocParams |
   const blob = await clipboardImage({ onlyIfAllowed: true });
   const size = blob ? await imageSize(blob) : null;
   return size ? newDocParams(mode, size.width, size.height) : null;
+}
+
+/**
+ * Runs `apply` (the clipboard prefill) and keeps a focused size field
+ * fully selected afterwards. Replacing a number input's value drops its
+ * selection, so digits the user types next would append to the prefilled
+ * size ("123" + "32" = "12332") instead of replacing it.
+ */
+export function prefillKeepingSelection(apply: () => void): void {
+  const focused = document.activeElement;
+  apply();
+  if (!(focused instanceof HTMLInputElement) || focused.type !== 'number') return;
+  void tick().then(() => {
+    if (document.activeElement === focused) focused.select();
+  });
 }

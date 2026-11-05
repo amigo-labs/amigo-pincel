@@ -99,7 +99,7 @@ impl FlipCanvas {
     }
 
     fn flip_all(&self, doc: &mut Document) {
-        for layer in &mut doc.layers {
+        for layer in doc.layers.iter_mut().filter(|l| !l.is_group()) {
             layer.pixels = if self.horizontal {
                 flip_horizontal(&layer.pixels)
             } else {
@@ -180,7 +180,7 @@ impl RotateCanvas {
 
     /// Rotates every layer and updates the canvas size accordingly.
     fn rotate_all(doc: &mut Document, rotation: CanvasRotation) -> Result<(), DocumentError> {
-        for layer in &mut doc.layers {
+        for layer in doc.layers.iter_mut().filter(|l| !l.is_group()) {
             layer.pixels = match rotation {
                 CanvasRotation::Cw90 => rotate_90_cw(&layer.pixels),
                 CanvasRotation::Ccw90 => rotate_90_ccw(&layer.pixels),
@@ -255,7 +255,7 @@ impl Command for ScaleImage {
         if self.before.is_none() {
             self.before = Some(snapshot(doc));
         }
-        for layer in &mut doc.layers {
+        for layer in doc.layers.iter_mut().filter(|l| !l.is_group()) {
             layer.pixels = scale(&layer.pixels, self.width, self.height, self.interp);
         }
         doc.canvas = new_canvas;
@@ -307,7 +307,7 @@ impl Command for CropToSelection {
         if self.before.is_none() {
             self.before = Some(snapshot(doc));
         }
-        for layer in &mut doc.layers {
+        for layer in doc.layers.iter_mut().filter(|l| !l.is_group()) {
             layer.pixels = layer.pixels.copy_region(bbox)?;
         }
         doc.canvas = new_canvas;
@@ -410,6 +410,29 @@ mod tests {
     use super::*;
     use crate::color::Color;
     use crate::geometry::Rect;
+
+    #[test]
+    fn canvas_transforms_skip_group_buffers() {
+        use crate::command::{Anchor, Command, ResizeCanvas};
+        use crate::document::tree::tests::tree_doc;
+        let mut doc = tree_doc(&[("G", None, true), ("a", Some("G"), false)]);
+        doc.selection = Some(SelectionMask::rectangle(4, 4, Rect::new(1, 1, 2, 3)));
+        let cmds: Vec<Box<dyn Command>> = vec![
+            Box::new(FlipCanvas::new(true)),
+            Box::new(RotateCanvas::new(CanvasRotation::Cw90)),
+            Box::new(ScaleImage::new(6, 8, Interpolation::Nearest)),
+            Box::new(ResizeCanvas::new(5, 5).with_anchor(Anchor::Center)),
+        ];
+        for mut cmd in cmds {
+            cmd.apply(&mut doc).unwrap();
+            assert_eq!(doc.layers[0].pixels.width(), 0, "{}", cmd.label());
+            assert_eq!(doc.layers[0].pixels.height(), 0, "{}", cmd.label());
+        }
+        doc.selection = Some(SelectionMask::rectangle(5, 5, Rect::new(1, 1, 2, 2)));
+        CropToSelection::new().apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[0].pixels.width(), 0);
+        assert_eq!(doc.layers[1].pixels.width(), 2);
+    }
 
     fn doc_with_corner(w: u32, h: u32) -> Document {
         // A single bright pixel at the top-left corner marks orientation.

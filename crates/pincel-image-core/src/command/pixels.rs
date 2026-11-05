@@ -1,6 +1,6 @@
 //! The `SetPixels` command — the basis of every drawing tool (spec §7.3).
 
-use super::Command;
+use super::{Command, Damage};
 use crate::document::{Document, ImageBuffer};
 use crate::error::DocumentError;
 use crate::geometry::Rect;
@@ -132,6 +132,14 @@ impl Command for SetPixels {
             }
             _ => false,
         }
+    }
+
+    fn damage(&self) -> Damage {
+        let mut damage = Damage::None;
+        for edit in &self.edits {
+            damage.add(Damage::rect(edit.region));
+        }
+        damage
     }
 
     fn as_any(&self) -> &dyn Any {

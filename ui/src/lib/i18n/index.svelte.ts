@@ -65,3 +65,25 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
   if (!params) return s;
   return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in params ? String(params[k]) : m));
 }
+
+// Reverse lookups per locale: a message (parameterless) → its key.
+const REVERSE: Partial<Record<Locale, Readonly<Record<string, MessageKey>>>> = {};
+
+/**
+ * The English text of `label`, a message of the active locale without
+ * parameters (`Nach unten vereinen` → `Merge Down`); `null` when `label`
+ * is no such message (a file name, a filled-in template). The command
+ * palette matches English queries in every locale with it.
+ */
+export function englishLabel(label: string): string | null {
+  const loc = state.locale;
+  let map = REVERSE[loc];
+  if (!map) {
+    // Reversed, so the first key with a given text wins.
+    const pairs = (Object.entries(DICTS[loc]) as [MessageKey, string][]).reverse();
+    map = Object.fromEntries(pairs.map(([key, text]) => [text, key])) as Record<string, MessageKey>;
+    REVERSE[loc] = map;
+  }
+  const key = Object.hasOwn(map, label) ? map[label] : undefined;
+  return key === undefined ? null : en[key];
+}

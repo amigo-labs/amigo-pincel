@@ -21,9 +21,10 @@ export function openEffect(def: EffectDef) {
   dialogs.effect = def;
 }
 
-export function previewEffectParams(params: number[]) {
+/** Live preview of the open effect; `null` (Preview off) shows the document. */
+export function previewEffectParams(params: number[] | null) {
   if (!ed.doc || !live.renderer || !dialogs.effect) return;
-  if (params.length === 0 && dialogs.effect.params.length > 0) {
+  if (params === null) {
     recompose();
     return;
   }

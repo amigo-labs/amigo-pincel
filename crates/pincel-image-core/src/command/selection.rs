@@ -6,7 +6,7 @@
 //! existing selection via [`crate::selection::apply_mode`], or applying a
 //! modifier such as Invert / Expand — and hand the final mask to this command.
 
-use super::{Command, SetPixels};
+use super::{Command, Damage, SetPixels};
 use crate::document::Document;
 use crate::error::DocumentError;
 use crate::selection::SelectionMask;
@@ -70,6 +70,11 @@ impl Command for SetSelection {
         self.label
     }
 
+    /// The selection is not part of the composite.
+    fn damage(&self) -> Damage {
+        Damage::None
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -130,6 +135,10 @@ impl Command for MoveSelection {
 
     fn label(&self) -> &str {
         "Move Selection"
+    }
+
+    fn damage(&self) -> Damage {
+        self.pixels.damage()
     }
 
     fn as_any(&self) -> &dyn Any {

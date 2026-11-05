@@ -122,9 +122,9 @@ export const en = {
       nwjs: 'via NW.js, ageing',
       phase2: 'Phase 2',
       mitApache: 'MIT/Apache',
-      eula: 'EULA-restricted',
+      sourceAvailable: 'source-available, EULA forbids redistribution',
       apache: 'Apache 2.0',
-      modernizing: 'modernization in progress',
+      noRelease: 'no tagged release since 0.15.0 (2018); master still gets fixes',
     },
   },
   home: {

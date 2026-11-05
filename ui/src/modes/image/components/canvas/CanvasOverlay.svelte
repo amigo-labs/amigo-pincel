@@ -11,6 +11,7 @@
   // document) and draws the document-space paths through the view
   // transform, so lines stay one device pixel wide at every zoom and the
   // backing store never exceeds the viewport (spec §8.5).
+  import { motion } from '../../../../lib/motion.svelte';
   import { selectionMask } from '../../core/controller';
   import { selectionOutline } from './selection-outline';
 
@@ -153,9 +154,15 @@
     return selectionPath !== null || selectionPreview.value !== null || shapePreview.value !== null;
   }
 
-  // The dash animation only runs while there is something to animate; an idle
-  // editor burns no frames.
+  // The dash animation only runs while there is something to animate and
+  // motion is not reduced; an idle editor burns no frames. Under reduced
+  // motion the ants stand still at offset 0 and the effect below redraws
+  // them once per change (docs/specs/reduced-motion.md).
   function loop(): void {
+    if (motion.reduced) {
+      running = false;
+      return;
+    }
     dashOffset = (dashOffset + 0.5) % 8;
     draw();
     if (hasContent()) {
@@ -168,8 +175,14 @@
   onMount(() => () => cancelAnimationFrame(raf));
 
   // Start the animation when overlay content appears; clear once when it goes.
+  // Under reduced motion draw the still outline once per change instead.
   $effect(() => {
-    if (hasContent()) {
+    if (motion.reduced) {
+      cancelAnimationFrame(raf);
+      running = false;
+      dashOffset = 0;
+      draw();
+    } else if (hasContent()) {
       if (!running) {
         running = true;
         raf = requestAnimationFrame(loop);

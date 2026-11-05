@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../../../lib/i18n/index.svelte';
+  import { EXPORT_SCALES } from '../export-scale';
   // Export Sprite Sheet dialog (spec §7.3). Presentational: the parent
   // runs `exportAtlas` from `onSubmit`. Frames pack left-to-right,
   // top-to-bottom into a grid of `columns` cells; `tag` restricts the
@@ -10,6 +11,8 @@
     /** Tag name, or `null` for every frame. */
     tag: string | null;
     data: boolean;
+    /** Integer nearest-neighbour upscale, 1–10 (scaled-export). */
+    scale: number;
   }
 
   let {
@@ -17,6 +20,7 @@
     tags,
     frameWidth,
     frameHeight,
+    scale: initialScale,
     onSubmit,
     onCancel,
   }: {
@@ -24,6 +28,8 @@
     tags: { name: string; from: number; to: number }[];
     frameWidth: number;
     frameHeight: number;
+    /** The preselected scale (the last one used). */
+    scale: number;
     onSubmit: (options: SpriteSheetOptions) => void;
     onCancel: () => void;
   } = $props();
@@ -33,6 +39,8 @@
   let columns = $state(Math.max(1, Math.ceil(Math.sqrt(frameCount))));
   let tag = $state<string | null>(null);
   let data = $state(true);
+  // svelte-ignore state_referenced_locally
+  let scale = $state(initialScale);
 
   const count = $derived.by(() => {
     const found = tags.find((x) => x.name === tag);
@@ -61,7 +69,7 @@
     class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
-      onSubmit({ columns: cols, tag, data });
+      onSubmit({ columns: cols, tag, data, scale });
     }}
   >
     <h2 class="text-base font-semibold">{t('sheet.title')}</h2>
@@ -90,8 +98,20 @@
         aria-label={t('sheet.columns')}
       />
     </label>
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('export.scale')}</span>
+      <select
+        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        bind:value={scale}
+        aria-label={t('export.scale')}
+      >
+        {#each EXPORT_SCALES as s (s)}
+          <option value={s}>×{s}</option>
+        {/each}
+      </select>
+    </label>
     <p class="text-xs text-pc-muted" aria-live="polite">
-      {cols} × {rows} cells · {cols * frameWidth}×{rows * frameHeight} px
+      {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
     </p>
     <label class="flex items-center gap-2 text-xs text-pc-text">
       <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -40,30 +40,30 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the Rectangle marquee is dragged from pixel A to pixel B and released, the selection becomes the rectangle with A and B as inclusive corners and its outline is shown as marching ants.
-- [ ] AC-02 (event): When the Ellipse marquee is dragged over a box, the selection becomes the ellipse inscribed in that box; for a 4×4 box the four corner pixels are not selected.
-- [ ] AC-03 (event): When the Lasso is dragged along a path and released, the selection becomes the interior of the polygon the path forms.
-- [ ] AC-04 (event): When the Polygonal Lasso is clicked repeatedly, each click adds a vertex; a double-click or Enter closes the polygon and selects its interior; Escape discards the vertices without changing the selection.
-- [ ] AC-05 (event): When the Magic Wand is clicked on a pixel, the selection becomes the pixels whose every RGBA channel is within the tolerance (0–255) of the clicked pixel — only those 4-connected to it while Contiguous is on, all of them on the canvas while it is off — sampled from the active layer or from the composite as chosen; all fully transparent pixels count as one color.
-- [ ] AC-06 (event): When a new selection shape is combined, replace discards the old selection, add unites them, subtract removes the shape from it, and intersect keeps only their overlap.
-- [ ] AC-07 (state): While Shift is held (key or latched toggle) at the press of a selection tool the mode is add, while Alt is held it is subtract, while both are held it is intersect, otherwise replace.
-- [ ] AC-08 (error): If subtract or intersect is used with nothing selected, then the selection stays empty.
-- [ ] AC-09 (event): When a Rectangle or Ellipse marquee is clicked without dragging, or a Lasso gesture has fewer than three points, in replace mode, then the selection is cleared.
-- [ ] AC-10 (event): When Select All, Deselect or Invert is chosen, the selection becomes the whole canvas, nothing, or the canvas minus the current selection (the whole canvas when nothing was selected).
-- [ ] AC-11 (event): When Select ▸ Expand… or Contract… is chosen, a dialog asks for a radius in pixels, and applying it grows or shrinks the selection by that radius; contracting past its size clears it.
-- [ ] AC-12 (event): When Ctrl/Cmd+A, Ctrl/Cmd+D, Ctrl/Cmd+Shift+I or Escape (no pointer gesture and no polygon in progress, focus not in a text field) is pressed, the editor runs Select All, Deselect, Invert and Deselect respectively; Delete or Backspace runs Delete while a selection exists.
-- [ ] AC-13 (always): Selection changes are not undo entries: undoing an edit made after a selection change leaves the selection as it is.
-- [ ] AC-14 (event): When Delete runs with a selection, every selected pixel of the paint target layer at the current frame becomes transparent, unselected pixels inside the selection's bounding box stay unchanged, the selection stays, and the change is one undo entry.
-- [ ] AC-15 (state): While nothing is selected, Delete changes no pixel and adds no undo entry.
-- [ ] AC-16 (event): When the Move tool is dragged with a selection active and released at a non-zero offset, the selected pixels of the paint target layer move by that offset, their old place becomes transparent, the selection moves with them, pixels moved off the canvas are dropped, and the move is one undo entry whose undo restores both the pixels and the selection position.
-- [ ] AC-17 (event): When the Move tool is released at the press position, no pixel changes and no undo entry is added.
-- [ ] AC-18 (state): While nothing is selected, a Move-tool drag pans the view and leaves the document unchanged.
-- [ ] AC-19 (state): While a selection is active, Layer flip horizontal / vertical and rotate 90° / 180° transform only the pixels inside the selection's bounding box, as one undo entry.
-- [ ] AC-20 (event): When Crop is chosen with a selection, the canvas becomes the selection's bounding box clipped to the canvas and the selection is cleared; with no selection on the canvas nothing changes.
-- [ ] AC-21 (event): When a Rectangle or Ellipse marquee, Lasso or Polygonal Lasso gesture starts on the stage — the part of the editor's canvas area that the canvas does not cover, excluding controls floating over it (zoom control, on-screen modifier toggles) — then it builds the shape it would build if the canvas extended under the pointer, and the selection keeps only that shape's canvas pixels: a Rectangle marquee dragged from the stage beyond the canvas's top-left corner to pixel (x, y) selects (0, 0)–(x, y) inclusive, and a Lasso or Polygonal Lasso traced around the canvas's top-left corner selects pixel (0, 0).
-- [ ] AC-22 (event): When a Rectangle or Ellipse marquee, Lasso or Polygonal Lasso gesture, or a Magic Wand click, whose shape's bounding box lies entirely off the canvas (for example a click on the stage), then in replace mode the selection is cleared and in add, subtract or intersect mode nothing changes.
-- [ ] AC-23 (event): When Escape is pressed while a Rectangle or Ellipse marquee or a Lasso drag is in progress, then the gesture ends without changing the selection and its outline disappears; moving and releasing the pointer afterwards changes nothing.
-- [ ] AC-24 (event): When a press with the Pencil, Eraser, Bucket, Line, a shape tool, Text, Eyedropper, Slice, Tilemap stamp, or the Move tool while a selection exists starts on the stage, then no pixel changes, no undo entry is added and the selection stays; the Move tool with nothing selected and Space-drag pan the view from the stage as they do from the canvas.
+- [x] AC-01 (event): When the Rectangle marquee is dragged from pixel A to pixel B and released, the selection becomes the rectangle with A and B as inclusive corners and its outline is shown as marching ants.
+- [x] AC-02 (event): When the Ellipse marquee is dragged over a box, the selection becomes the ellipse inscribed in that box; for a 4×4 box the four corner pixels are not selected.
+- [x] AC-03 (event): When the Lasso is dragged along a path and released, the selection becomes the interior of the polygon the path forms.
+- [x] AC-04 (event): When the Polygonal Lasso is clicked repeatedly, each click adds a vertex; a double-click or Enter closes the polygon and selects its interior; Escape discards the vertices without changing the selection.
+- [x] AC-05 (event): When the Magic Wand is clicked on a pixel, the selection becomes the pixels whose every RGBA channel is within the tolerance (0–255) of the clicked pixel — only those 4-connected to it while Contiguous is on, all of them on the canvas while it is off — sampled from the active layer or from the composite as chosen; all fully transparent pixels count as one color.
+- [x] AC-06 (event): When a new selection shape is combined, replace discards the old selection, add unites them, subtract removes the shape from it, and intersect keeps only their overlap.
+- [x] AC-07 (state): While Shift is held (key or latched toggle) at the press of a selection tool the mode is add, while Alt is held it is subtract, while both are held it is intersect, otherwise replace.
+- [x] AC-08 (error): If subtract or intersect is used with nothing selected, then the selection stays empty.
+- [x] AC-09 (event): When a Rectangle or Ellipse marquee is clicked without dragging, or a Lasso gesture has fewer than three points, in replace mode, then the selection is cleared.
+- [x] AC-10 (event): When Select All, Deselect or Invert is chosen, the selection becomes the whole canvas, nothing, or the canvas minus the current selection (the whole canvas when nothing was selected).
+- [x] AC-11 (event): When Select ▸ Expand… or Contract… is chosen, a dialog asks for a radius in pixels, and applying it grows or shrinks the selection by that radius; contracting past its size clears it.
+- [x] AC-12 (event): When Ctrl/Cmd+A, Ctrl/Cmd+D, Ctrl/Cmd+Shift+I or Escape (no pointer gesture and no polygon in progress, focus not in a text field) is pressed, the editor runs Select All, Deselect, Invert and Deselect respectively; Delete or Backspace runs Delete while a selection exists.
+- [x] AC-13 (always): Selection changes are not undo entries: undoing an edit made after a selection change leaves the selection as it is.
+- [x] AC-14 (event): When Delete runs with a selection, every selected pixel of the paint target layer at the current frame becomes transparent, unselected pixels inside the selection's bounding box stay unchanged, the selection stays, and the change is one undo entry.
+- [x] AC-15 (state): While nothing is selected, Delete changes no pixel and adds no undo entry.
+- [x] AC-16 (event): When the Move tool is dragged with a selection active and released at a non-zero offset, the selected pixels of the paint target layer move by that offset, their old place becomes transparent, the selection moves with them, pixels moved off the canvas are dropped, and the move is one undo entry whose undo restores both the pixels and the selection position.
+- [x] AC-17 (event): When the Move tool is released at the press position, no pixel changes and no undo entry is added.
+- [x] AC-18 (state): While nothing is selected, a Move-tool drag pans the view and leaves the document unchanged.
+- [x] AC-19 (state): While a selection is active, Layer flip horizontal / vertical and rotate 90° / 180° transform only the pixels inside the selection's bounding box, as one undo entry.
+- [x] AC-20 (event): When Crop is chosen with a selection, the canvas becomes the selection's bounding box clipped to the canvas and the selection is cleared; with no selection on the canvas nothing changes.
+- [x] AC-21 (event): When a Rectangle or Ellipse marquee, Lasso or Polygonal Lasso gesture starts on the stage — the part of the editor's canvas area that the canvas does not cover, excluding controls floating over it (zoom control, on-screen modifier toggles) — then it builds the shape it would build if the canvas extended under the pointer, and the selection keeps only that shape's canvas pixels: a Rectangle marquee dragged from the stage beyond the canvas's top-left corner to pixel (x, y) selects (0, 0)–(x, y) inclusive, and a Lasso or Polygonal Lasso traced around the canvas's top-left corner selects pixel (0, 0).
+- [x] AC-22 (event): When a Rectangle or Ellipse marquee, Lasso or Polygonal Lasso gesture, or a Magic Wand click, whose shape's bounding box lies entirely off the canvas (for example a click on the stage), then in replace mode the selection is cleared and in add, subtract or intersect mode nothing changes.
+- [x] AC-23 (event): When Escape is pressed while a Rectangle or Ellipse marquee or a Lasso drag is in progress, then the gesture ends without changing the selection and its outline disappears; moving and releasing the pointer afterwards changes nothing.
+- [x] AC-24 (event): When a press with the Pencil, Eraser, Bucket, Line, a shape tool, Text, Eyedropper, Slice, Tilemap stamp, or the Move tool while a selection exists starts on the stage, then no pixel changes, no undo entry is added and the selection stays; the Move tool with nothing selected and Space-drag pan the view from the stage as they do from the canvas.
 
 ## Technical notes
 
@@ -109,40 +109,49 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 | Right or middle button pressed on the stage with a selection tool | Nothing happens |
 | Escape during a Pencil, shape, Slice or Move drag | The drag continues and the selection stays (AC-12 needs no gesture in progress) |
 
-## Open questions
+## Summary
 
-- AC-11: in an e2e run, Select ▸ Expand… with radius 1 on a 4 × 4 marquee left the copied selection at 4 × 4 (expected 6 × 6), so Apply may not reach the core in Pixel mode — the earlier evidence only checked that the dialog opens and closes. Investigate (bug fix with a red test) before AC-11 is marked built again.
+> Completed: 2026-11-03
+
+- Pixel-mode selections: marquee, ellipse, lasso, polygonal lasso and magic wand (contiguous or global, layer or composite) with Shift add, Alt subtract and Shift+Alt intersect
+- Select All / Deselect / Invert and Select ▸ Expand… / Contract… with a radius dialog (the dialog's Apply now reaches the core)
+- Delete clears the selected pixels as one undo step; the Move tool drags the selected pixels or pans without a selection; flips and rotations stay inside the selection
+- Selections start from the stage beside the canvas; Escape and a click deselect
+
+## Open questions
 
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee selects A–B inclusive and draws its outline (AC-01) | built | |
-| AC-02 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_ellipse_sets_bounds_and_a_shaped_mask`; `crates/pincel-core/src/selection.rs › tests::ellipse_drops_the_corners` | built | |
-| AC-03 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_polygon_lasso_triangle`; `crates/pincel-core/src/selection.rs › tests::polygon_fills_a_triangle_and_ignores_degenerate_input` | built | |
-| AC-04 | `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso closes on Enter, Escape discards its vertices (AC-04); `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso vertices may sit on the stage (double-click closes) | built | |
-| AC-05 | `crates/pincel-core/src/selection.rs › tests::wand_contiguous_vs_global_and_tolerance`, `tests::wand_treats_all_transparent_pixels_as_one_colour`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_wand_on_layer_and_composite` | built | |
-| AC-06 | `crates/pincel-wasm/src/selection_ops.rs › tests::modes_combine_and_a_rectangular_result_collapses_to_a_rect`; `crates/pincel-core/src/selection.rs › tests::combine_modes` | built | |
-| AC-07 | `ui/e2e/selection-stage.spec.ts` › pixel: Shift adds, Alt subtracts, Shift+Alt intersects (AC-07) | built | |
-| AC-08 | `crates/pincel-wasm/src/selection_ops.rs › tests::subtract_or_intersect_with_nothing_selected_stays_empty` | built | |
-| AC-09 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the canvas deselects; `ui/e2e/selection-stage.spec.ts` › pixel: a lasso click without a drag deselects; `ui/e2e/selection-stage.spec.ts` › pixel: an ellipse click on the canvas deselects | built | |
-| AC-10 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract`; `crates/pincel-wasm/src/lib.rs › tests::clear_selection_drops_the_rect_and_emits_zeros`; `crates/pincel-wasm/src/selection_ops.rs › tests::invert_without_selection_selects_the_whole_canvas` | built | |
-| AC-11 | `ui/e2e/tools.spec.ts › pixel mode: Select ▸ Expand asks for a radius`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract`; Select ▸ Expand… / Contract… not proven in the UI — see Open questions | open | |
-| AC-12 | `ui/e2e/selection-stage.spec.ts` › pixel: Ctrl+A, Ctrl+Shift+I and Ctrl+D select all, invert and deselect (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Delete clears the selected pixels as one undo entry (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects | built | |
-| AC-13 | `crates/pincel-wasm/src/lib.rs › tests::selection_is_not_undoable_in_the_m7_8_slice` | built | |
-| AC-14 | `crates/pincel-wasm/src/lib.rs › tests::delete_selection_clears_pixels_and_undoes`; `crates/pincel-wasm/src/selection_ops.rs › tests::delete_and_move_honour_the_shaped_mask`; `crates/pincel-wasm/src/lib.rs › tests::delete_selection_keeps_the_selection_and_adds_one_undo_entry` | built | |
-| AC-15 | `crates/pincel-wasm/src/lib.rs › tests::delete_selection_without_selection_returns_false` | built | |
-| AC-16 | `crates/pincel-wasm/src/lib.rs › tests::apply_move_selection_translates_pixels_and_selection`, `tests::apply_move_selection_joins_the_undo_bus`; `crates/pincel-wasm/src/selection_ops.rs › tests::delete_and_move_honour_the_shaped_mask`; `crates/pincel-core/src/command/move_selection_content.rs › tests::destination_outside_cel_drops_pixels` | built | |
-| AC-17 | `ui/e2e/selection-stage.spec.ts` › pixel: a Move drag released where it started changes nothing (AC-17) | built | |
-| AC-18 | `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans and leaves the document alone (AC-18) | built | |
-| AC-19 | `crates/pincel-wasm/src/transforms.rs › tests::transform_layer_flips_and_respects_selection`; `crates/pincel-core/src/command/transform_cel.rs › tests::within_rect_leaves_outside_pixels_alone`; `crates/pincel-wasm/src/transforms.rs › tests::transform_layer_flip_v_and_rotations_stay_inside_the_selection` | built | |
-| AC-20 | `crates/pincel-wasm/src/transforms.rs › tests::resize_canvas_and_crop_change_dimensions_and_clear_selection`; `crates/pincel-wasm/src/transforms.rs › tests::crop_clips_a_selection_past_the_edge_and_ignores_one_off_the_canvas` | built | |
-| AC-21 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee dragged from the stage past the top-left corner selects from (0, 0); `ui/e2e/selection-stage.spec.ts` › pixel: a lasso traced partly over the stage selects the edge pixel; `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso vertices may sit on the stage; `ui/e2e/selection-stage.spec.ts` › pixel: an ellipse dragged from the stage reaches the edge column | built | |
-| AC-22 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: a Magic Wand click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: lasso, polygon and ellipse entirely on the stage deselect, Shift keeps | built | |
-| AC-23 | `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects; `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a lasso or ellipse drag drops it; moving and releasing then changes nothing | built | |
-| AC-24 | `ui/e2e/selection-stage.spec.ts` › pixel: a paint press on the stage changes nothing; `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans from the stage; `ui/e2e/selection-stage.spec.ts` › pixel: a paint or Move press on the stage keeps the selection; `ui/e2e/selection-stage.spec.ts` › pixel: Space-drag pans from the stage | built | |
+| AC-01 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee selects A–B inclusive and draws its outline (AC-01) | verified | |
+| AC-02 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_ellipse_sets_bounds_and_a_shaped_mask`; `crates/pincel-core/src/selection.rs › tests::ellipse_drops_the_corners` | verified | |
+| AC-03 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_polygon_lasso_triangle`; `crates/pincel-core/src/selection.rs › tests::polygon_fills_a_triangle_and_ignores_degenerate_input` | verified | |
+| AC-04 | `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso closes on Enter, Escape discards its vertices (AC-04); `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso vertices may sit on the stage (double-click closes) | verified | |
+| AC-05 | `crates/pincel-core/src/selection.rs › tests::wand_contiguous_vs_global_and_tolerance`, `tests::wand_treats_all_transparent_pixels_as_one_colour`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_wand_on_layer_and_composite` | verified | |
+| AC-06 | `crates/pincel-wasm/src/selection_ops.rs › tests::modes_combine_and_a_rectangular_result_collapses_to_a_rect`; `crates/pincel-core/src/selection.rs › tests::combine_modes` | verified | |
+| AC-07 | `ui/e2e/selection-stage.spec.ts` › pixel: Shift adds, Alt subtracts, Shift+Alt intersects (AC-07) | verified | |
+| AC-08 | `crates/pincel-wasm/src/selection_ops.rs › tests::subtract_or_intersect_with_nothing_selected_stays_empty` | verified | |
+| AC-09 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the canvas deselects; `ui/e2e/selection-stage.spec.ts` › pixel: a lasso click without a drag deselects; `ui/e2e/selection-stage.spec.ts` › pixel: an ellipse click on the canvas deselects | verified | |
+| AC-10 | `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract`; `crates/pincel-wasm/src/lib.rs › tests::clear_selection_drops_the_rect_and_emits_zeros`; `crates/pincel-wasm/src/selection_ops.rs › tests::invert_without_selection_selects_the_whole_canvas` | verified | |
+| AC-11 | `ui/e2e/pixel-clipboard.spec.ts › pixel: Select ▸ Expand and Contract change the selection by the radius` (copied box 4 × 4 → 6 × 6 → 2 × 2 → whole layer once cleared), `ui/e2e/tools.spec.ts › pixel mode: Select ▸ Expand asks for a radius`; `crates/pincel-wasm/src/selection_ops.rs › tests::select_all_invert_expand_contract` | verified | 5dd2afe |
+| AC-12 | `ui/e2e/selection-stage.spec.ts` › pixel: Ctrl+A, Ctrl+Shift+I and Ctrl+D select all, invert and deselect (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Delete clears the selected pixels as one undo entry (AC-12); `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects | verified | |
+| AC-13 | `crates/pincel-wasm/src/lib.rs › tests::selection_is_not_undoable_in_the_m7_8_slice` | verified | |
+| AC-14 | `crates/pincel-wasm/src/lib.rs › tests::delete_selection_clears_pixels_and_undoes`; `crates/pincel-wasm/src/selection_ops.rs › tests::delete_and_move_honour_the_shaped_mask`; `crates/pincel-wasm/src/lib.rs › tests::delete_selection_keeps_the_selection_and_adds_one_undo_entry` | verified | |
+| AC-15 | `crates/pincel-wasm/src/lib.rs › tests::delete_selection_without_selection_returns_false` | verified | |
+| AC-16 | `crates/pincel-wasm/src/lib.rs › tests::apply_move_selection_translates_pixels_and_selection`, `tests::apply_move_selection_joins_the_undo_bus`; `crates/pincel-wasm/src/selection_ops.rs › tests::delete_and_move_honour_the_shaped_mask`; `crates/pincel-core/src/command/move_selection_content.rs › tests::destination_outside_cel_drops_pixels` | verified | |
+| AC-17 | `ui/e2e/selection-stage.spec.ts` › pixel: a Move drag released where it started changes nothing (AC-17) | verified | |
+| AC-18 | `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans and leaves the document alone (AC-18) | verified | |
+| AC-19 | `crates/pincel-wasm/src/transforms.rs › tests::transform_layer_flips_and_respects_selection`; `crates/pincel-core/src/command/transform_cel.rs › tests::within_rect_leaves_outside_pixels_alone`; `crates/pincel-wasm/src/transforms.rs › tests::transform_layer_flip_v_and_rotations_stay_inside_the_selection` | verified | |
+| AC-20 | `crates/pincel-wasm/src/transforms.rs › tests::resize_canvas_and_crop_change_dimensions_and_clear_selection`; `crates/pincel-wasm/src/transforms.rs › tests::crop_clips_a_selection_past_the_edge_and_ignores_one_off_the_canvas` | verified | |
+| AC-21 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee dragged from the stage past the top-left corner selects from (0, 0); `ui/e2e/selection-stage.spec.ts` › pixel: a lasso traced partly over the stage selects the edge pixel; `ui/e2e/selection-stage.spec.ts` › pixel: polygonal lasso vertices may sit on the stage; `ui/e2e/selection-stage.spec.ts` › pixel: an ellipse dragged from the stage reaches the edge column | verified | |
+| AC-22 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: a Magic Wand click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: lasso, polygon and ellipse entirely on the stage deselect, Shift keeps | verified | |
+| AC-23 | `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects; `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a lasso or ellipse drag drops it; moving and releasing then changes nothing | verified | |
+| AC-24 | `ui/e2e/selection-stage.spec.ts` › pixel: a paint press on the stage changes nothing; `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans from the stage; `ui/e2e/selection-stage.spec.ts` › pixel: a paint or Move press on the stage keeps the selection; `ui/e2e/selection-stage.spec.ts` › pixel: Space-drag pans from the stage | verified | |
 
 ## Decisions
+
+- 2026-11-03 — AC-11's open question was a bug: the radius dialog's Apply cleared `dialogs.selectionRadius` before calling `selectAction(op, …)`, and `op` is a `{@const}` that follows that state, so the call got `null` and changed nothing. Apply now reads the operation first, as the Rename dialog already did. The new e2e test was red before the fix (copied box stayed 4 × 4).
 
 - 2026-10-29: Extracted from the code as it stands; differences to `pincel.md` §5.2 / §13.1 are not ACs — see the extraction report.
 - 2026-10-30: Revision — selection gestures may start on the stage around the canvas (AC-21 – AC-24), so the edge column and row can be selected without hitting a one-pixel target; a click on the stage deselects in replace mode, and Escape now also discards a marquee drag in progress. Requested by the owner, who wants the selection tools to "grab outside the canvas".

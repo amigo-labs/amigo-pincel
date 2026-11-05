@@ -11,10 +11,11 @@ import {
   formatFromName,
   hasFsAccess,
   isPngBytes,
+  mimeFromName,
   pickAndOpen,
-  saveBytes,
   saveExport,
   sniffFormat,
+  writeTarget,
 } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
@@ -27,6 +28,7 @@ import type {
 } from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
 import { disposeDoc, resetDocViewState } from './doc-ops';
+import { rememberExportScale } from './export-scale';
 import { afterImageCommand } from './image-ops';
 import { dialogs, ed, file } from './stores/editor.svelte';
 
@@ -35,10 +37,12 @@ const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
   openFile: (opened: OpenedFile) => void;
+  notice: (message: string) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
+  notice: () => {},
 };
 
 /** Hand a document to the shell, which guards unsaved changes and opens it. */
@@ -110,16 +114,17 @@ export async function openDocInner() {
   try {
     opened = await pickAndOpen();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('status.failed', { action: t('act.open'), error: msg });
+    // A file that cannot be read gets the shell's notice (file-access AC-16).
+    shell.notice(t('shell.openFailed', { error: err instanceof Error ? err.message : String(err) }));
     return;
   }
   if (!opened) return;
   // Anything that is neither a sprite nor a PNG belongs to the Image
-  // mode; the shell re-routes it (unknown bytes fall through so the
-  // codec error below names the problem).
+  // mode, and an unknown file gets the shell's notice naming it
+  // (app-shell AC-11, AC-12): the shell routes both and leaves the open
+  // document alone when nothing can open the file.
   const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
-  if (format !== null && format !== 'aseprite' && format !== 'png') {
+  if (format !== 'aseprite' && format !== 'png') {
     shell.openForeign(opened);
     return;
   }
@@ -160,7 +165,9 @@ export async function save(opts: { forceAs?: boolean } = {}) {
   file.busy = true;
   try {
     const bytes = new Uint8Array(ed.doc.saveAseprite());
-    const next = await saveBytes(bytes, file.saveTarget, { forceAs });
+    const next = await writeTarget(bytes, file.saveTarget, { forceAs });
+    // A cancelled save picker or dialog wrote nothing: still unsaved.
+    if (next === null) return;
     file.saveTarget = next;
     ed.lastSavedUndoDepth = ed.doc.undoDepth;
     ed.status = t('px.saved', { bytes: bytes.length, name: next.name });
@@ -253,9 +260,9 @@ export async function openRecent(r: RecentFile) {
       nextTarget = { name: r.name, handle: null, path: r.path };
     } else if (r.handle) {
       // Read access is enough to open. The next save will prompt
-      // for write via `saveBytes` → `ensureReadWritePermission`.
+      // for write via `writeTarget` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
-        ed.status = t('px.recentDenied', { name: r.name });
+        shell.notice(t('shell.permissionDenied', { name: r.name }));
         return;
       }
       const file = await r.handle.getFile();
@@ -263,7 +270,21 @@ export async function openRecent(r: RecentFile) {
       name = file.name;
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
-      ed.status = t('px.recentNoHandle', { name: r.name });
+      shell.notice(t('shell.noHandle', { name: r.name }));
+      return;
+    }
+    // The registry also lists Image-mode files: anything that is not a
+    // sprite goes to the shell, which routes it like any other open
+    // (app-shell AC-09, AC-10).
+    const format = sniffFormat(bytes) ?? formatFromName(name);
+    if (format !== null && format !== 'aseprite') {
+      shell.openForeign({
+        name,
+        bytes,
+        mime: mimeFromName(name),
+        handle: nextTarget.handle,
+        path: nextTarget.path,
+      });
       return;
     }
     const next = Document.openAseprite(bytes);
@@ -278,7 +299,7 @@ export async function openRecent(r: RecentFile) {
     await recordRecent();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    shell.notice(t('shell.recentFailed', { name: r.name, error: msg }));
   } finally {
     file.busy = false;
   }
@@ -309,12 +330,21 @@ export async function importPngLayer() {
   }
 }
 
-// Export the current frame's visible composite as a PNG (spec §7.3).
-export async function exportPng() {
+// File ▸ Export ▸ PNG (current frame) asks for the scale first
+// (docs/specs/scaled-export.md).
+export function openPngDialog() {
+  if (ed.doc && !file.busy) dialogs.png = true;
+}
+
+// Export the current frame's visible composite as a PNG (spec §7.3),
+// upscaled by `scale` (1–10).
+export async function exportPng(scale: number) {
+  dialogs.png = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(scale);
   file.busy = true;
   try {
-    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame));
+    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame, scale));
     const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
     const suffix = ed.frameCount > 1 ? `-${ed.currentFrame + 1}` : '';
     if (await saveExport(bytes, `${base}${suffix}.png`)) {
@@ -446,12 +476,18 @@ export function openSheetDialog() {
 export async function exportSheet(options: SpriteSheetOptions) {
   dialogs.sheet = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(options.scale);
   file.busy = true;
   try {
     const base =
       file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '') +
       (options.tag ? `-${options.tag}` : '');
-    const atlas = ed.doc.exportAtlas(options.columns, options.tag ?? undefined, `${base}.png`);
+    const atlas = ed.doc.exportAtlas(
+      options.columns,
+      options.tag ?? undefined,
+      `${base}.png`,
+      options.scale,
+    );
     let png: Uint8Array<ArrayBuffer>;
     let data: string;
     try {

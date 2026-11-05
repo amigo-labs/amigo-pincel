@@ -73,13 +73,17 @@ Hints from the legacy plan (2026-10-28); line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-01 | `render::tests::fast_kernel_is_byte_identical_to_the_float_path` (proptest, 2 000 random stacks of 1 – 4 layers: every mode, opacity 0, 1/255, 254/255, 1 and random, hidden layers, layers smaller than the canvas, random regions), `render::tests::every_mode_opacity_and_alpha_pair_matches_the_float_path`, `render::tests::encoder_matches_the_float_conversion_around_every_threshold`, `render::tests::decode_table_matches_the_float_conversion_for_every_byte`, `render::tests::round_byte_matches_round_for_every_float_up_to_255`, `render::tests::an_opaque_normal_source_takes_the_copy_path` (`crates/pincel-image-core/src/render/mod.rs`) | built |        |
+| AC-02 | `compose_normal_over_gradient_snapshot`, `compose_multiply_and_screen_stack_snapshot` (`crates/pincel-image-core/tests/compose_snapshots.rs`, snapshots unchanged) | built |        |
+| AC-03 | `cargo bench -p pincel-image-core --bench compose -- image_compose` before (`--save-baseline before`) and after on the same machine; numbers under Decisions | built |        |
+| AC-04 | `render::tests::hidden_layer_is_skipped`, `render::tests::zero_opacity_layer_leaves_the_output_unchanged` (`crates/pincel-image-core/src/render/mod.rs`); hidden and opacity-0 layers also in the AC-01 proptest | built |        |
 
 ## Decisions
 
 - Exactness first: today's output defines correctness; a faster path must produce the same bytes, or at most 1 LSB per channel where documented here (plan, 2026-10-28).
 - Target ≥ 10× on full compose, measured by the `performance-benchmarks` compose bench (plan).
 - The size of the linear → sRGB table (4096 or 8192 entries) is chosen by the exactness test: the smallest table that passes AC-01 (plan).
+- 2026-11-03 (spec-build) — Exact without a wider tolerance: AC-01 holds byte for byte, so no 1-LSB case is documented. sRGB → linear and `a / 255` are 256-entry tables of the very values the float path computed. Linear → sRGB is not a table of rounded values but the 255 thresholds where the float path's rounding steps up (binary search over the float bit patterns, which order like the floats for non-negative values); the byte is the number of thresholds at or below the value. Buckets of 2¹⁶ neighbouring floats hold at most one threshold each (2¹⁷ does not; the build asserts it), so encoding is one table read and one comparison. Exactness of the encoder rests on the float path being monotonic between thresholds: the test checks ±4 096 floats around every threshold, both ends of every bucket and a million spread values.
+- 2026-11-03 (spec-build) — Further exact shortcuts: the blend mode is monomorphized per layer; `co / ao` is skipped when `ao == 1.0`; the alpha byte rounds with integer arithmetic instead of `f32::round`, which is a `roundf` call on baseline x86-64 (checked against `round` on every 7th float up to 255); an opaque Normal source is copied, enabled only after an exhaustive check that all 65 536 (source byte, backdrop alpha) pairs give the source byte back. The old float path stays in the unit tests as the reference.
+- 2026-11-03 (spec-build) — Red runs: with the encoder comparing `>` instead of `>=` at a threshold, and with the backdrop decoded one byte off, the equivalence tests failed.
+- 2026-11-03 (spec-build) — AC-03 measured in this container (4-core Intel Xeon @ 2.10 GHz, Linux), `cargo bench -p pincel-image-core --bench compose -- image_compose`, criterion medians before → after: 1024² × 2 / 5 / 10 layers 175.6 / 507.5 / 1 111 ms → 14.3 / 51.6 / 107.6 ms; 2048² 738 / 2 081 / 5 478 ms → 50.6 / 160.4 / 458.5 ms; 4096² 3 501 / 10 050 / 17 893 ms → 239 / 784 / 1 613 ms. Other jobs shared the machine during both runs.

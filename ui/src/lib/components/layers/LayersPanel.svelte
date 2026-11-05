@@ -74,9 +74,37 @@
 
   const active = $derived(rows.find((r) => r.key === activeKey) ?? null);
 
+  // Collapsed groups, by row key: per-session view state, neither saved
+  // with the document nor an undo step (docs/specs/image-layer-groups.md
+  // AC-17). A collapsed group hides the rows of its whole subtree.
+  let collapsed = $state<string[]>([]);
+  const shown = $derived.by(() => {
+    const out: LayerRow[] = [];
+    let hideDeeperThan: number | null = null;
+    for (const row of rows) {
+      const depth = row.depth ?? 0;
+      if (hideDeeperThan !== null && depth > hideDeeperThan) continue;
+      hideDeeperThan = row.isGroup && collapsed.includes(row.key) ? depth : null;
+      out.push(row);
+    }
+    return out;
+  });
+
+  function toggleCollapsed(row: LayerRow): void {
+    collapsed = collapsed.includes(row.key)
+      ? collapsed.filter((k) => k !== row.key)
+      : [...collapsed, row.key];
+  }
+
   // Inline rename: double-click the name or press the rename button.
   let editingKey = $state<string | null>(null);
   let draft = $state('');
+
+  // `autofocus` only works on page load, not on an element inserted later.
+  function focusAndSelect(el: HTMLInputElement): void {
+    el.focus();
+    el.select();
+  }
 
   function startRename(row: LayerRow): void {
     editingKey = row.key;
@@ -104,7 +132,7 @@
   // Pointer drag on a row's grip; `over` is the row under the pointer and
   // `place` where on it the drop lands (with `onMove`).
   let drag = $state<{ key: string; over: string | null; place: DropPlace } | null>(null);
-  const dragIndex = $derived(drag ? rows.findIndex((r) => r.key === drag?.key) : -1);
+  const dragIndex = $derived(drag ? shown.findIndex((r) => r.key === drag?.key) : -1);
 
   // Above / below / into from the pointer's height on the row: the outer
   // quarters are the gaps above and below it; a group's middle takes the
@@ -116,7 +144,7 @@
     if (f < 0.25) return 'above';
     if (row.isGroup) return 'into';
     if (f > 0.75) return 'below';
-    return rows.indexOf(row) < dragIndex ? 'above' : 'below';
+    return shown.indexOf(row) < dragIndex ? 'above' : 'below';
   }
 
   function onGripDown(e: PointerEvent, row: LayerRow): void {
@@ -154,11 +182,11 @@
       const depth = row.depth ?? 0;
       if (e.key === 'ArrowLeft') {
         // Out of the enclosing group: just above it.
-        const parent = rows.slice(0, i).findLast((r) => (r.depth ?? 0) < depth);
+        const parent = shown.slice(0, i).findLast((r) => (r.depth ?? 0) < depth);
         if (parent) onMove(row, parent, 'above');
       } else {
         // Into the nearest group above at the same level.
-        const group = rows.slice(0, i).findLast((r) => r.isGroup && (r.depth ?? 0) === depth);
+        const group = shown.slice(0, i).findLast((r) => r.isGroup && (r.depth ?? 0) === depth);
         if (group) onMove(row, group, 'into');
       }
       return;
@@ -167,7 +195,7 @@
     if (step === 0) return;
     e.preventDefault();
     e.stopPropagation();
-    const target = rows[i + step];
+    const target = shown[i + step];
     if (target) onReorder(row, target);
   }
 
@@ -207,7 +235,7 @@
     <p class="px-1 text-xs text-pc-faint">{t('layers.none')}</p>
   {:else}
     <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label={t('layers.list')}>
-      {#each rows as row, i (row.key)}
+      {#each shown as row, i (row.key)}
         {@const isActive = row.key === activeKey}
         {@const isOver = drag !== null && drag.over === row.key && drag.key !== row.key}
         <li
@@ -235,6 +263,19 @@
           >
             <Icon name="grip" size={14} />
           </button>
+          {#if row.isGroup}
+            {@const isCollapsed = collapsed.includes(row.key)}
+            <button
+              type="button"
+              class="row-icon"
+              aria-expanded={!isCollapsed}
+              aria-label={t(isCollapsed ? 'layers.expand' : 'layers.collapse', { name: row.name })}
+              title={t(isCollapsed ? 'layers.expand' : 'layers.collapse', { name: row.name })}
+              onclick={() => toggleCollapsed(row)}
+            >
+              <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+            </button>
+          {/if}
           <button
             type="button"
             class="row-icon"
@@ -261,11 +302,10 @@
           <LayerThumbnail source={() => thumbnail(row)} {revision} />
           <div class="ml-1 min-w-0 flex-1">
             {#if editingKey === row.key}
-              <!-- svelte-ignore a11y_autofocus -->
               <input
                 class="opt-field w-full"
                 bind:value={draft}
-                autofocus
+                use:focusAndSelect
                 aria-label={t('layers.renameLabel', { name: row.name })}
                 onkeydown={(e) => onRenameKey(e, row)}
                 onblur={() => commitRename(row)}

@@ -3,10 +3,12 @@
 mod buffer;
 mod canvas;
 mod layer;
+pub(crate) mod tree;
 
 pub use buffer::ImageBuffer;
 pub use canvas::{CanvasSize, MAX_CANVAS_DIM, MIN_CANVAS_DIM};
 pub use layer::{Layer, LayerKind};
+pub use tree::LayerPlacement;
 
 use crate::error::DocumentError;
 use serde::{Deserialize, Serialize};
@@ -153,20 +155,10 @@ impl Document {
     /// Inserts a layer at `index`, shifting later layers up.
     ///
     /// The inserted layer becomes active. Returns `LayerLimit` at 999 layers,
-    /// or `LayerIndexOutOfBounds` if `index > layers.len()`.
+    /// `LayerIndexOutOfBounds` if `index > layers.len()`, or `LayerTreeBroken`
+    /// if the layer's `parent` does not fit the place it is inserted at.
     pub fn insert_layer(&mut self, index: usize, layer: Layer) -> Result<(), DocumentError> {
-        if self.layers.len() >= MAX_LAYERS {
-            return Err(DocumentError::LayerLimit { max: MAX_LAYERS });
-        }
-        if index > self.layers.len() {
-            return Err(DocumentError::LayerIndexOutOfBounds {
-                index,
-                len: self.layers.len(),
-            });
-        }
-        self.layers.insert(index, layer);
-        self.active_layer = index;
-        Ok(())
+        self.insert_subtree(index, vec![layer])
     }
 
     /// Adds a new transparent layer directly above the active layer.
@@ -177,27 +169,23 @@ impl Document {
 
     /// Removes the layer at `index`.
     ///
-    /// Returns `LastLayer` if it is the only layer (a document always keeps
-    /// ≥1 layer, spec §3.2), or `LayerIndexOutOfBounds` for a bad index.
-    /// The returned `Layer` lets callers (e.g. undo) restore it.
+    /// Returns `LastLayer` if no raster layer would remain (a document always
+    /// keeps ≥1 raster layer, spec §3.2 and docs/specs/image-layer-groups.md
+    /// AC-20), `LayerTreeBroken` for a group that still has children, or
+    /// `LayerIndexOutOfBounds` for a bad index. The returned `Layer` lets
+    /// callers (e.g. undo) restore it.
     pub fn remove_layer(&mut self, index: usize) -> Result<Layer, DocumentError> {
-        if index >= self.layers.len() {
-            return Err(DocumentError::LayerIndexOutOfBounds {
-                index,
-                len: self.layers.len(),
-            });
+        if index < self.layers.len() && self.subtree_end(index) != index + 1 {
+            return Err(DocumentError::LayerTreeBroken);
         }
-        if self.layers.len() == 1 {
-            return Err(DocumentError::LastLayer);
-        }
-        let removed = self.layers.remove(index);
-        if self.active_layer >= self.layers.len() {
-            self.active_layer = self.layers.len() - 1;
-        }
-        Ok(removed)
+        let mut removed = self.remove_subtree(index)?;
+        Ok(removed.remove(0))
     }
 
     /// Moves the layer at `from` to `to`, shifting others to fill the gap.
+    ///
+    /// Returns `LayerTreeBroken` (and changes nothing) when the move would
+    /// split a group's run of descendants or leave a child outside its group.
     pub fn move_layer(&mut self, from: usize, to: usize) -> Result<(), DocumentError> {
         let len = self.layers.len();
         if from >= len || to >= len {
@@ -208,6 +196,11 @@ impl Document {
         }
         let layer = self.layers.remove(from);
         self.layers.insert(to, layer);
+        if !self.is_well_formed() {
+            let layer = self.layers.remove(to);
+            self.layers.insert(from, layer);
+            return Err(DocumentError::LayerTreeBroken);
+        }
         self.active_layer = to;
         Ok(())
     }

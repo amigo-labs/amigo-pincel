@@ -156,3 +156,26 @@ jobs:
         run: pnpm check
       - name: build
         run: pnpm build
+      # Playwright drives the static build through `vite preview`
+      # (website/playwright.config.ts), cached and installed as in the ui
+      # job; the key follows website/pnpm-lock.yaml, which pins the version.
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}
+      - name: install playwright chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps chromium
+      - name: install playwright system libraries
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm exec playwright install-deps chromium
+      - name: e2e
+        run: pnpm test:e2e
+      - name: upload playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-playwright-report
+          path: website/playwright-report
+          retention-days: 7

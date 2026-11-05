@@ -15,6 +15,11 @@ use super::png::{AtlasManifest, escape_json};
 ///
 /// `image` is the PNG's file name as the JSON's `meta.image` should name
 /// it (e.g. `"hero.png"`); frame `filename`s are derived from its stem.
+///
+/// A scaled sheet ([`AtlasManifest::scale`] above 1) is described as
+/// Aseprite's CLI `--scale` describes one: frame rects, sizes, slice
+/// bounds, centers and pivots are multiplied by the scale, `meta.size` is
+/// the scaled PNG's size, and `meta.scale` stays `"1"`.
 pub fn aseprite_sheet_json(sprite: &Sprite, manifest: &AtlasManifest, image: &str) -> String {
     let stem = image.rsplit_once('.').map_or(image, |(s, _)| s);
     let exported: Vec<FrameIndex> = manifest.frames.iter().map(|f| f.frame).collect();
@@ -64,7 +69,7 @@ pub fn aseprite_sheet_json(sprite: &Sprite, manifest: &AtlasManifest, image: &st
         .slices
         .iter()
         .filter_map(|s| {
-            let keys = remap_keys(&s.keys, &exported);
+            let keys = remap_keys(&s.keys, &exported, i64::from(manifest.scale));
             if keys.is_empty() {
                 return None;
             }
@@ -112,7 +117,10 @@ fn direction_name(d: TagDirection) -> &'static str {
 /// Re-emit `keys` at atlas indices: for every exported frame, the key in
 /// effect there (the last key at or before it); a new JSON key is written
 /// only where that geometry changes.
-fn remap_keys(keys: &[SliceKey], exported: &[FrameIndex]) -> Vec<String> {
+///
+/// Geometry is multiplied by `scale` (the sheet's integer upscale).
+fn remap_keys(keys: &[SliceKey], exported: &[FrameIndex], scale: i64) -> Vec<String> {
+    let n = u32::try_from(scale).unwrap_or(1);
     let mut out = Vec::new();
     let mut last: Option<&SliceKey> = None;
     for (atlas_index, frame) in exported.iter().enumerate() {
@@ -126,15 +134,26 @@ fn remap_keys(keys: &[SliceKey], exported: &[FrameIndex]) -> Vec<String> {
         let mut json = format!(
             "{{\"frame\":{},\"bounds\":{}",
             atlas_index,
-            rect_json(i64::from(b.x), i64::from(b.y), b.width, b.height)
+            rect_json(
+                i64::from(b.x) * scale,
+                i64::from(b.y) * scale,
+                b.width.saturating_mul(n),
+                b.height.saturating_mul(n)
+            )
         );
         if let Some(c) = key.center {
             json.push_str(&format!(
                 ",\"center\":{}",
-                rect_json(i64::from(c.x), i64::from(c.y), c.width, c.height)
+                rect_json(
+                    i64::from(c.x) * scale,
+                    i64::from(c.y) * scale,
+                    c.width.saturating_mul(n),
+                    c.height.saturating_mul(n)
+                )
             ));
         }
         if let Some((px, py)) = key.pivot {
+            let (px, py) = (i64::from(px) * scale, i64::from(py) * scale);
             json.push_str(&format!(",\"pivot\":{{\"x\":{px},\"y\":{py}}}"));
         }
         json.push('}');
@@ -219,5 +238,31 @@ mod tests {
         // frame-2 key lands at atlas frame 1.
         assert!(json.contains("{\"frame\":0,\"bounds\":{\"x\":0,\"y\":0"));
         assert!(json.contains("{\"frame\":1,\"bounds\":{\"x\":1,\"y\":1"));
+    }
+
+    /// Expected values follow Aseprite's CLI `--scale 3`: the sprite is
+    /// resized before the export, so every rect, size and pivot is 3×,
+    /// `meta.size` is the sheet PNG's size and `meta.scale` stays `"1"`.
+    #[test]
+    fn scaled_sheet_multiplies_geometry_and_keeps_meta_scale_one() {
+        let mut s = sprite();
+        s.slices[0].keys[0].center = Some(Rect::new(0, 0, 1, 1));
+        let out = export_atlas_png(&s, &CelMap::new(), &AtlasOptions::new(3).with_scale(3))
+            .expect("atlas");
+        let json = aseprite_sheet_json(&s, &out.manifest, "hero.png");
+        assert!(json.contains(
+            "{\"filename\":\"hero 1\",\"frame\":{\"x\":6,\"y\":0,\"w\":6,\"h\":6},\
+             \"rotated\":false,\"trimmed\":false,\
+             \"spriteSourceSize\":{\"x\":0,\"y\":0,\"w\":6,\"h\":6},\
+             \"sourceSize\":{\"w\":6,\"h\":6},\"duration\":50}"
+        ));
+        assert!(json.contains("\"size\":{\"w\":18,\"h\":6},\"scale\":\"1\""));
+        assert!(json.contains(
+            "\"keys\":[{\"frame\":0,\"bounds\":{\"x\":0,\"y\":0,\"w\":3,\"h\":3},\
+             \"center\":{\"x\":0,\"y\":0,\"w\":3,\"h\":3},\"pivot\":{\"x\":3,\"y\":3}},\
+             {\"frame\":2,\"bounds\":{\"x\":3,\"y\":3,\"w\":3,\"h\":3}}]"
+        ));
+        // A key without center or pivot keeps them absent.
+        assert!(!json.contains("\"w\":3,\"h\":3},\"center\":{\"x\":3"));
     }
 }

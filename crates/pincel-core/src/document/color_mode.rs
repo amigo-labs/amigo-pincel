@@ -2,7 +2,8 @@
 
 /// The pixel encoding used by all image cels and tile images in a sprite.
 ///
-/// Mirrors the Aseprite color mode field. `Grayscale` is Phase 2.
+/// Mirrors the Aseprite color mode field. `compose()` renders all three;
+/// editing Indexed and Grayscale pixels is Phase 2.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum ColorMode {
     /// 32 bpp, non-premultiplied RGBA.
@@ -10,7 +11,7 @@ pub enum ColorMode {
     Rgba,
     /// 8 bpp palette indices. The given index is treated as fully transparent.
     Indexed { transparent_index: u8 },
-    /// 16 bpp value + alpha. Phase 2.
+    /// 16 bpp value + alpha.
     Grayscale,
 }
 

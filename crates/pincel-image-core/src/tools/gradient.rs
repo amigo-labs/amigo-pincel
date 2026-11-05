@@ -11,6 +11,8 @@
 
 use std::f32::consts::TAU;
 
+use pincel_effects::gradient::GradientLine;
+
 use crate::color::Color;
 use crate::command::SetPixels;
 use crate::document::Document;
@@ -44,12 +46,10 @@ pub enum GradientChannel {
     Transparency,
 }
 
-/// The drag, pre-computed once per gradient instead of per pixel.
+/// The drag, pre-computed once per gradient instead of per pixel. The
+/// linear / radial math is shared with Pixel mode (`pincel-effects`).
 struct Ramp {
-    dx: f32,
-    dy: f32,
-    len: f32,
-    len_sq: f32,
+    line: GradientLine,
     base_angle: f32,
 }
 
@@ -93,15 +93,8 @@ impl Gradient {
         let src = &doc.layers.get(layer_index)?.pixels;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
-        let len_sq = dx * dx + dy * dy;
-        if len_sq <= f32::EPSILON {
-            return None;
-        }
         let ramp = Ramp {
-            dx,
-            dy,
-            len: len_sq.sqrt(),
-            len_sq,
+            line: GradientLine::new(dx, dy)?,
             base_angle: dy.atan2(dx),
         };
 
@@ -129,9 +122,9 @@ impl Gradient {
     /// `t` in `[0, 1]` for the pixel offset `(px, py)` from the drag's start.
     fn parameter(&self, px: f32, py: f32, r: &Ramp) -> f32 {
         match self.kind {
-            GradientKind::Linear => ((px * r.dx + py * r.dy) / r.len_sq).clamp(0.0, 1.0),
-            GradientKind::Reflected => ((px * r.dx + py * r.dy) / r.len_sq).abs().clamp(0.0, 1.0),
-            GradientKind::Radial => ((px * px + py * py).sqrt() / r.len).clamp(0.0, 1.0),
+            GradientKind::Linear => r.line.linear(px, py),
+            GradientKind::Reflected => r.line.projection(px, py).abs().clamp(0.0, 1.0),
+            GradientKind::Radial => r.line.radial(px, py),
             GradientKind::Conical => {
                 // `rem_euclid` wraps the turn into [0, TAU) so the seam sits
                 // exactly along the drag.
@@ -140,11 +133,12 @@ impl Gradient {
             GradientKind::Diamond => {
                 // Manhattan distance in the drag's own frame: the axes are
                 // the drag direction and its perpendicular.
-                let ux = r.dx / r.len;
-                let uy = r.dy / r.len;
+                let len = r.line.len();
+                let ux = r.line.dx() / len;
+                let uy = r.line.dy() / len;
                 let along = px * ux + py * uy;
                 let across = -px * uy + py * ux;
-                ((along.abs() + across.abs()) / r.len).clamp(0.0, 1.0)
+                ((along.abs() + across.abs()) / len).clamp(0.0, 1.0)
             }
         }
     }
@@ -322,6 +316,58 @@ mod tests {
                 .is_none()
         );
     }
+
+    /// FNV-1a over the layer's RGBA bytes after drawing `kind` from
+    /// (1.25, 2.5) to (7.5, 5.75) over a 9×7 opaque grey layer.
+    fn kind_digest(kind: GradientKind, channel: GradientChannel) -> u64 {
+        let mut doc = opaque_doc(9, 7, Color::rgba(90, 120, 150, 255));
+        let mut cmd = Gradient {
+            kind,
+            channel,
+            from: Color::rgba(200, 30, 10, 255),
+            to: Color::rgba(10, 60, 240, 128),
+            opacity: 0.8,
+        }
+        .draw(0, Point::new(1.25, 2.5), Point::new(7.5, 5.75), &doc)
+        .unwrap();
+        cmd.apply(&mut doc).unwrap();
+        doc.layers[0]
+            .pixels
+            .data()
+            .iter()
+            .fold(0xcbf2_9ce4_8422_2325, |h, &b| {
+                (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+            })
+    }
+
+    /// Pins every kind's output to the values from before the linear /
+    /// radial parameter math moved into `pincel-effects`
+    /// (`docs/specs/dithered-gradient.md` AC-14).
+    #[test]
+    fn draw_every_kind_matches_the_pinned_output() {
+        let digests = [
+            GradientKind::Linear,
+            GradientKind::Reflected,
+            GradientKind::Radial,
+            GradientKind::Conical,
+            GradientKind::Diamond,
+        ]
+        .map(|k| {
+            (
+                kind_digest(k, GradientChannel::Color),
+                kind_digest(k, GradientChannel::Transparency),
+            )
+        });
+        assert_eq!(digests, PINNED_DIGESTS);
+    }
+
+    const PINNED_DIGESTS: [(u64, u64); 5] = [
+        (6_338_608_836_344_469_668, 1_557_870_034_624_219_300),
+        (2_370_596_846_134_834_344, 1_612_726_249_743_352_031),
+        (14_321_446_003_203_966_033, 15_671_960_150_631_404_222),
+        (2_078_452_278_065_046_774, 12_820_304_232_706_594_046),
+        (12_999_643_837_064_416_437, 12_984_060_960_515_096_344),
+    ];
 
     #[test]
     fn gradient_is_undoable() {

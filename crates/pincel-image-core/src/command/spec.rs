@@ -9,12 +9,13 @@
 use serde::Deserialize;
 
 use super::{
-    AddLayer, Anchor, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer, FlattenImage,
-    FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, MoveSelection, RemoveLayer,
-    RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
-    SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetSelection, TransformLayer,
+    AddGroup, AddLayer, Anchor, Batch, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer,
+    FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible, MoveLayer,
+    MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
+    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
+    SetSelection, TransformLayer,
 };
-use crate::document::Document;
+use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
     BlendMode, Brush, BrushShape, Color, DashPattern, Eraser, EraserMode, Fill, FillOptions,
@@ -439,6 +440,17 @@ pub enum CommandSpec {
     MergeVisible,
     /// Flatten every layer onto an opaque white background.
     FlattenImage,
+    /// Add an empty group named `Group N` on top of the root stack.
+    AddGroup,
+    /// Move the layer at `index` (with its subtree) next to or into the
+    /// layer at `target`; `place` is `above`, `below` or `into`.
+    MoveLayerTo {
+        index: usize,
+        target: usize,
+        place: String,
+    },
+    /// Replace the group at `index` and its subtree with one raster layer.
+    MergeGroup { index: usize },
     /// Rectangular selection over `(x, y, w, h)` combined per `mode`.
     SelectRectangle {
         x: i32,
@@ -618,6 +630,67 @@ impl CommandSpec {
             _ => None,
         }
     }
+
+    /// Whether the command moves or turns a layer's whole content (Move
+    /// layer, layer flips and rotations) — the pixel edits that act on every
+    /// raster descendant when they target a group (docs/specs/image-layer-groups.md AC-18).
+    fn transforms_layer(&self) -> bool {
+        matches!(
+            self,
+            Self::TranslateLayer { .. } | Self::TransformLayer { .. } | Self::RotateLayer90 { .. }
+        )
+    }
+
+    /// Whether the editor refuses this command on `doc` with the
+    /// locked-layer notice: a pixel edit on a layer that is locked itself
+    /// or through a parent group, or on a group (which has no pixels).
+    /// Move (layer) and layer flips / rotations on a group are allowed
+    /// unless the group or a layer inside it is locked. Commands that edit
+    /// no pixels, and out-of-range layers, are never refused here.
+    pub fn refused(&self, doc: &Document) -> bool {
+        let Some(index) = self.edited_layer() else {
+            return false;
+        };
+        match doc.layers().get(index) {
+            Some(layer) if layer.is_group() && self.transforms_layer() => {
+                (index..doc.subtree_end(index)).any(|i| doc.effectively_locked(i))
+            }
+            Some(_) => layer_locked(doc, index),
+            None => false,
+        }
+    }
+}
+
+/// The commands that move or turn the content of every raster layer in the
+/// group at `group` (docs/specs/image-layer-groups.md AC-18), built by `one`
+/// per layer. `None` when `group` is not a group.
+fn group_edits(
+    doc: &Document,
+    group: usize,
+    one: impl Fn(usize) -> Option<Box<dyn super::Command>>,
+) -> Option<Vec<Box<dyn super::Command>>> {
+    if !doc.layers().get(group)?.is_group() {
+        return None;
+    }
+    Some(
+        (group + 1..doc.subtree_end(group))
+            .filter(|&i| !doc.layers()[i].is_group())
+            .filter_map(one)
+            .collect(),
+    )
+}
+
+/// Applies the per-layer `cmds` of a group edit as one undo step; nothing
+/// when there are none (an empty group or an edit that changes nothing).
+fn apply_group_edits(
+    bus: &mut CommandBus,
+    cmds: Vec<Box<dyn super::Command>>,
+    label: &str,
+) -> Result<(), DocumentError> {
+    if cmds.is_empty() {
+        return Ok(());
+    }
+    bus.apply(Box::new(Batch::new(cmds, label)))
 }
 
 /// Applies `spec` to `bus` exactly as the editor does: one tool or command,
@@ -830,6 +903,13 @@ pub fn run_command(
             }
         }
         CommandSpec::TranslateLayer { layer, dx, dy } => {
+            let doc = &bus.document;
+            if let Some(cmds) = group_edits(doc, layer, |i| {
+                Move.translate(i, dx, dy, doc)
+                    .map(|c| Box::new(c) as Box<dyn super::Command>)
+            }) {
+                return apply_group_edits(bus, cmds, "Move Layer");
+            }
             match Move.translate(layer, dx, dy, &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()),
@@ -881,6 +961,20 @@ pub fn run_command(
         CommandSpec::MergeDown { index } => bus.apply(Box::new(MergeDown::at(index))),
         CommandSpec::MergeVisible => bus.apply(Box::new(MergeVisible::new())),
         CommandSpec::FlattenImage => bus.apply(Box::new(FlattenImage::new())),
+        CommandSpec::AddGroup => bus.apply(Box::new(AddGroup::on_top())),
+        CommandSpec::MoveLayerTo {
+            index,
+            target,
+            place,
+        } => {
+            let place = match place.as_str() {
+                "above" => LayerPlacement::Above,
+                "below" => LayerPlacement::Below,
+                _ => LayerPlacement::Into,
+            };
+            bus.apply(Box::new(MoveLayerTo::new(index, target, place)))
+        }
+        CommandSpec::MergeGroup { index } => bus.apply(Box::new(MergeGroup::at(index))),
         CommandSpec::SelectRectangle {
             x,
             y,
@@ -976,9 +1070,19 @@ pub fn run_command(
                 "rotate_180" => LayerTransform::Rotate180,
                 _ => LayerTransform::FlipHorizontal,
             };
+            if let Some(cmds) = group_edits(&bus.document, layer, |i| {
+                Some(Box::new(TransformLayer::new(i, op)))
+            }) {
+                return apply_group_edits(bus, cmds, "Transform Layer");
+            }
             bus.apply(Box::new(TransformLayer::new(layer, op)))
         }
         CommandSpec::RotateLayer90 { layer, ccw } => {
+            if let Some(cmds) = group_edits(&bus.document, layer, |i| {
+                Some(Box::new(RotateLayer90::new(i, ccw)))
+            }) {
+                return apply_group_edits(bus, cmds, "Rotate Layer");
+            }
             bus.apply(Box::new(RotateLayer90::new(layer, ccw)))
         }
         CommandSpec::FlipCanvas { horizontal } => bus.apply(Box::new(FlipCanvas::new(horizontal))),
@@ -1152,14 +1256,155 @@ fn modify_selection(
     bus.apply(Box::new(SetSelection::replace(mask).with_label(label)))
 }
 
-/// `true` when the layer at `index` exists and is locked against edits.
+/// `true` when pixel edits on the layer at `index` are refused: it exists
+/// and is locked itself or through a parent group, or it is a group, which
+/// has no pixels to edit (docs/specs/image-layer-groups.md AC-11, AC-12).
 pub fn layer_locked(doc: &Document, index: usize) -> bool {
-    doc.layers().get(index).is_some_and(|l| l.locked)
+    doc.layers()
+        .get(index)
+        .is_some_and(|l| l.is_group() || doc.effectively_locked(index))
 }
 
 #[cfg(test)]
 mod tests {
     use super::CommandSpec;
+
+    mod groups {
+        use super::super::{CommandBus, CommandSpec, StrokeScratch, layer_locked, run_command};
+        use crate::Color;
+        use crate::document::tree::tests::tree_doc;
+
+        fn parse(json: &str) -> CommandSpec {
+            serde_json::from_str(json).expect("parses")
+        }
+
+        /// bg, G { a, H { b } }, each raster layer with one opaque pixel at
+        /// its own spot.
+        fn bus() -> CommandBus {
+            let mut doc = tree_doc(&[
+                ("bg", None, false),
+                ("G", None, true),
+                ("a", Some("G"), false),
+                ("H", Some("G"), true),
+                ("b", Some("H"), false),
+            ]);
+            for (i, x) in [(0, 0), (2, 1), (4, 2)] {
+                doc.layers[i]
+                    .pixels
+                    .set_pixel(x, 0, Color::rgba(255, 0, 0, 255));
+            }
+            CommandBus::new(doc)
+        }
+
+        const PIXEL_EDITS: [&str; 5] = [
+            r#"{"type":"pencil_stroke","layer":L,"size":1,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
+            r#"{"type":"fill_bucket","layer":L,"x":1,"y":1,"color":[0,0,0,255],"opacity":1,"tolerance":0,"contiguous":true}"#,
+            r#"{"type":"translate_selection","layer":L,"dx":1,"dy":0}"#,
+            r#"{"type":"delete_selection","layer":L}"#,
+            r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#,
+        ];
+
+        fn edit(json: &str, layer: usize) -> CommandSpec {
+            parse(&json.replace(":L", &format!(":{layer}")))
+        }
+
+        #[test]
+        fn locked_group_refuses_edits_on_its_descendants() {
+            let mut bus = bus();
+            bus.document.layers[1].locked = true;
+            for layer in [2, 4] {
+                assert!(layer_locked(&bus.document, layer), "{layer}");
+                for json in PIXEL_EDITS {
+                    assert!(
+                        edit(json, layer).refused(&bus.document),
+                        "{json} on {layer}"
+                    );
+                }
+            }
+            assert!(!edit(PIXEL_EDITS[0], 0).refused(&bus.document));
+            assert!(
+                !bus.document.layers[2].locked,
+                "the child's own flag is untouched"
+            );
+        }
+
+        #[test]
+        fn pixel_edits_on_a_group_are_refused() {
+            let bus = bus();
+            assert!(layer_locked(&bus.document, 1));
+            for json in &PIXEL_EDITS[..4] {
+                assert!(edit(json, 1).refused(&bus.document), "{json}");
+            }
+            // Move (layer) on a group is allowed: it moves its content.
+            assert!(!edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+        }
+
+        #[test]
+        fn move_and_flip_on_a_group_transform_all_raster_descendants_in_one_undo_step() {
+            let mut bus = bus();
+            let before = bus.document.layers().to_vec();
+            let mut scratch = StrokeScratch::default();
+            for json in [
+                r#"{"type":"translate_layer","layer":1,"dx":0,"dy":2}"#,
+                r#"{"type":"transform_layer","layer":1,"op":"flip_h"}"#,
+                r#"{"type":"rotate_layer_90","layer":1,"ccw":false}"#,
+            ] {
+                let depth = bus.history.undo_depth();
+                run_command(&mut bus, parse(json), &mut scratch, &[]).expect(json);
+                assert_eq!(bus.history.undo_depth(), depth + 1, "{json}: one step");
+                let doc = &bus.document;
+                assert_eq!(doc.layers()[0], before[0], "{json}: bg untouched");
+                assert_ne!(doc.layers()[2].pixels, before[2].pixels, "{json}: a moved");
+                assert_ne!(doc.layers()[4].pixels, before[4].pixels, "{json}: b moved");
+                assert_eq!(
+                    doc.layers()[1].pixels.width(),
+                    0,
+                    "{json}: group stays empty"
+                );
+                assert!(bus.undo().unwrap());
+                assert_eq!(bus.document.layers(), before.as_slice(), "{json}: undone");
+            }
+        }
+
+        #[test]
+        fn group_wire_commands_add_move_and_merge_groups() {
+            let mut bus = bus();
+            let mut scratch = StrokeScratch::default();
+            let mut run = |bus: &mut CommandBus, json: &str| {
+                run_command(bus, parse(json), &mut scratch, &[]).expect(json);
+            };
+            run(&mut bus, r#"{"type":"add_group"}"#);
+            assert_eq!(bus.document.layers()[5].name, "Group 3");
+            assert_eq!(bus.document.active_layer_index(), 5);
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":0,"target":5,"place":"into"}"#,
+            );
+            assert_eq!(bus.document.layers()[4].name, "Group 3");
+            assert_eq!(bus.document.parent_index(5), Some(4));
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":5,"target":0,"place":"below"}"#,
+            );
+            assert_eq!(bus.document.layers()[0].name, "bg");
+            assert_eq!(bus.document.parent_index(0), None);
+            run(
+                &mut bus,
+                r#"{"type":"move_layer_to","index":0,"target":1,"place":"above"}"#,
+            );
+            assert_eq!(bus.document.parent_index(4), None, "above the whole group");
+            run(&mut bus, r#"{"type":"merge_group","index":0}"#);
+            assert!(!bus.document.layers()[0].is_group());
+            assert!(bus.document.is_well_formed());
+        }
+
+        #[test]
+        fn move_on_a_group_with_a_locked_descendant_is_refused() {
+            let mut bus = bus();
+            bus.document.layers[4].locked = true;
+            assert!(edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+        }
+    }
 
     /// Regression: serde's snake_case puts no separator before digits, so the
     /// variant carries an explicit rename to keep the documented wire tag.

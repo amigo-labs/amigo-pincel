@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: both
@@ -38,25 +38,25 @@ This spec gives every frequent action a default shortcut, following Aseprite, Ph
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user presses Ctrl+J, then the active layer is duplicated, as Layer ▸ Duplicate Layer does — in Pixel and in Image mode.
-- [ ] AC-02 (event): When the user presses Ctrl+Shift+E, then the active layer is merged down, as Layer ▸ Merge Down does, and no sprite sheet export starts; Ctrl+E still exports.
-- [ ] AC-03 (event): When the user presses Ctrl+Shift+Delete, then the active layer is deleted, as Layer ▸ Delete Layer does.
-- [ ] AC-04 (event): When the user presses Shift+N, then a new layer is added, as Layer ▸ New Layer does — in the browser and in the desktop app — and the Gradient tool group (N) is not selected.
-- [ ] AC-05 (event): When the user presses Alt+↑ or Alt+↓, then the layer above or below the active one becomes active; at the top or bottom of the stack nothing changes.
-- [ ] AC-06 (event): When the user presses Alt+N in Pixel mode, then a new frame is added, as Frame ▸ New Frame does.
-- [ ] AC-07 (event): When the user presses Shift+H or Shift+V, then the active layer is flipped horizontally or vertically, as Layer ▸ Flip Horizontal / Flip Vertical does, and the selected tool does not change.
-- [ ] AC-08 (option): Where Pincel runs as the desktop app, Ctrl+R rotates the whole image 90° clockwise and Ctrl+Shift+R 90° counter-clockwise, as Image ▸ Rotate does; in the browser these keys keep their browser meaning and have no default binding.
-- [ ] AC-09 (event): When the user presses Tab while the canvas stage has focus, then the tool rail, the options bar and the panels hide while the menu bar and the status bar stay; pressing Tab again shows them. While focus is on the page body or any other control, Tab moves focus as usual.
-- [ ] AC-10 (event): When the user presses Shift+1 … Shift+9 in Image mode, then the brush opacity becomes 10 % … 90 %; Shift+0 sets 100 %. The bare digits keep their zoom meaning.
-- [ ] AC-11 (event): When the user presses Alt+] or Alt+[ in Pixel mode, then the next or previous palette entry becomes the foreground color; `[` / `]` without Alt still resize the brush.
-- [ ] AC-12 (always): Each menu item that has one of the new shortcuts shows it as its shortcut hint.
-- [ ] AC-13 (always): Within each mode, no two actions or tool-group keys share a chord (checked by an automated test over the whole keymap).
-- [ ] AC-14 (always): No default chord is one a browser tab cannot capture (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab and the others listed in Technical notes); keys that only work in the desktop app are bound only there.
-- [ ] AC-15 (state): While a text field has focus, none of the new shortcuts fires; the key reaches the field.
-- [ ] AC-16 (error): If the action a new shortcut triggers is unavailable (e.g. merge down on the bottom layer, delete on the only layer, no document), then nothing happens and no error is raised — the same as the disabled menu item.
-- [ ] AC-17 (event): When the user chooses View ▸ Toggle UI, then the UI toggles exactly as Tab on the canvas stage does (AC-09).
-- [ ] AC-18 (state): While the UI is hidden, a reload shows the full UI — the hidden state is not persisted.
-- [ ] AC-19 (event): When the user presses Ctrl+Alt+E (⌥⌘E on macOS) in Pixel mode, then the sprite sheet export dialog opens, as File ▸ Export ▸ Sprite Sheet does; the menu item, the native macOS menu item and the shortcut overview show Ctrl+Alt+E, and Ctrl+Shift+E no longer opens it.
+- [x] AC-01 (event): When the user presses Ctrl+J, then the active layer is duplicated, as Layer ▸ Duplicate Layer does — in Pixel and in Image mode.
+- [x] AC-02 (event): When the user presses Ctrl+Shift+E, then the active layer is merged down, as Layer ▸ Merge Down does, and no sprite sheet export starts; Ctrl+E still exports.
+- [x] AC-03 (event): When the user presses Ctrl+Shift+Delete, then the active layer is deleted, as Layer ▸ Delete Layer does.
+- [x] AC-04 (event): When the user presses Shift+N, then a new layer is added, as Layer ▸ New Layer does — in the browser and in the desktop app — and the Gradient tool group (N) is not selected.
+- [x] AC-05 (event): When the user presses Alt+↑ or Alt+↓, then the layer above or below the active one becomes active; at the top or bottom of the stack nothing changes.
+- [x] AC-06 (event): When the user presses Alt+N in Pixel mode, then a new frame is added, as Frame ▸ New Frame does.
+- [x] AC-07 (event): When the user presses Shift+H or Shift+V, then the active layer is flipped horizontally or vertically, as Layer ▸ Flip Horizontal / Flip Vertical does, and the selected tool does not change.
+- [x] AC-08 (option): Where Pincel runs as the desktop app, Ctrl+R rotates the whole image 90° clockwise and Ctrl+Shift+R 90° counter-clockwise, as Image ▸ Rotate does; in the browser these keys keep their browser meaning and have no default binding.
+- [x] AC-09 (event): When the user presses Tab while the canvas stage has focus, then the tool rail, the options bar and the panels hide while the menu bar and the status bar stay; pressing Tab again shows them. While focus is on the page body or any other control, Tab moves focus as usual.
+- [x] AC-10 (event): When the user presses Shift+1 … Shift+9 in Image mode, then the brush opacity becomes 10 % … 90 %; Shift+0 sets 100 %. The bare digits keep their zoom meaning.
+- [x] AC-11 (event): When the user presses Alt+] or Alt+[ in Pixel mode, then the next or previous palette entry becomes the foreground color; `[` / `]` without Alt still resize the brush.
+- [x] AC-12 (always): Each menu item that has one of the new shortcuts shows it as its shortcut hint.
+- [x] AC-13 (always): Within each mode, no two actions or tool-group keys share a chord (checked by an automated test over the whole keymap).
+- [x] AC-14 (always): No default chord is one a browser tab cannot capture (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab and the others listed in Technical notes); keys that only work in the desktop app are bound only there.
+- [x] AC-15 (state): While a text field has focus, none of the new shortcuts fires; the key reaches the field.
+- [x] AC-16 (error): If the action a new shortcut triggers is unavailable (e.g. merge down on the bottom layer, delete on the only layer, no document), then nothing happens and no error is raised — the same as the disabled menu item.
+- [x] AC-17 (event): When the user chooses View ▸ Toggle UI, then the UI toggles exactly as Tab on the canvas stage does (AC-09).
+- [x] AC-18 (state): While the UI is hidden, a reload shows the full UI — the hidden state is not persisted.
+- [x] AC-19 (event): When the user presses Ctrl+Alt+E (⌥⌘E on macOS) in Pixel mode, then the sprite sheet export dialog opens, as File ▸ Export ▸ Sprite Sheet does; the menu item, the native macOS menu item and the shortcut overview show Ctrl+Alt+E, and Ctrl+Shift+E no longer opens it.
 
 ## Technical notes
 
@@ -121,25 +121,34 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-01 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | verified | 85f381e |
+| AC-02 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/export.spec.ts` (Ctrl+E, Ctrl+Alt+E) | verified | 85f381e |
+| AC-03 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | verified | 85f381e |
+| AC-04 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+N, Ctrl+J, Ctrl+Shift+E and Ctrl+Shift+Delete edit layers" (pixel, image) | verified | 85f381e |
+| AC-05 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+↑ / Alt+↓ select the layer above / below" (pixel, image) | verified | 85f381e |
+| AC-06 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+N adds a frame" | verified | 85f381e |
+| AC-07 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+H / Shift+V flip the active layer, the tool stays" (pixel, image) | verified | 85f381e |
+| AC-08 | `ui/e2e/desktop.spec.ts` "Ctrl+R and Ctrl+Shift+R rotate the image 90°"; `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (browser: no hint); `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) (corner mark checks the turn direction, 5d0caba) | verified | 85f381e |
+| AC-09 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | verified | 85f381e |
+| AC-10 | `ui/e2e/shortcuts-coverage.spec.ts` "Shift+digits set the brush opacity, bare digits still zoom" | verified | 85f381e |
+| AC-11 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+] / Alt+[ step through the palette, [ / ] still size the brush" | verified | 85f381e |
+| AC-12 | `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not" (Export ▸ Sprite Sheet…) | verified | 85f381e |
+| AC-13 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) | verified | 85f381e |
+| AC-14 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image); `ui/e2e/desktop.spec.ts` "Ctrl+R and Ctrl+Shift+R rotate the image 90°" | verified | 85f381e |
+| AC-15 | `ui/e2e/shortcuts-coverage.spec.ts` "a focused text field gets the keys" (pixel, image) | verified | 85f381e |
+| AC-16 | `ui/e2e/shortcuts-coverage.spec.ts` "a layer key whose menu item is disabled does nothing" (pixel, image) | verified | 85f381e |
+| AC-17 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | verified | 85f381e |
+| AC-18 | `ui/e2e/shortcuts-coverage.spec.ts` "a reload shows the full UI again" | verified | 85f381e |
+| AC-19 | `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E does nothing" (image); native macOS accelerator in `src-tauri/src/main.rs` (CI only) | verified | 85c6702 |
+
+## Summary
+
+> Completed: 2026-11-04
+
+- Default chords for layer commands (Shift+N, Ctrl+J, Ctrl+Shift+E merge down, Ctrl+Shift+Delete), Alt+↑ / Alt+↓ layer selection, Alt+N new frame and Shift+H / Shift+V layer flips in both modes.
+- Desktop-only Ctrl+R / Ctrl+Shift+R image rotation; Shift+digit brush opacity (Image mode) and Alt+] / Alt+[ palette stepping (Pixel mode), matched on the physical key.
+- Tab on the focused canvas stage and View ▸ Toggle UI hide the tool rail, options bar and panels for the session.
+- Export Sprite Sheet moved to Ctrl+Alt+E in the web keymap and the native macOS menu; the §9.4 keymap table and an e2e conflict check over the whole keymap guard the defaults.
 
 ## Decisions
 
@@ -154,3 +163,12 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-29: Shift+H / Shift+V flip the active layer (Layer menu); Ctrl+R / Ctrl+Shift+R rotate the whole image (Image menu) — flipping is a per-layer drawing aid as in Aseprite, while a 90° layer rotation on a non-square canvas clips (owner accepted the recommendation).
 - 2026-10-29: Tab toggles the UI only while the canvas stage has focus, and View ▸ Toggle UI does the same — painters get the Photoshop / Krita key and keyboard users keep Tab navigation (WCAG 2.1.1 / 2.1.2) (owner accepted the recommendation).
 - 2026-10-29: Toggle UI hides the tool rail, options bar and panels, keeps the menu bar and status bar, and is not persisted — the way back stays visible and nobody is stuck in a bare UI after a reload (owner accepted the recommendation).
+- 2026-11-04 (build): Alt+↑ / Alt+↓ step through every row of the layers panel's order, including the children of collapsed groups — collapsing is the panel's own view state, and the keys also work while Toggle UI hides the panel.
+- 2026-11-04 (build): Alt+] / Alt+[ with a foreground color the palette doesn't hold pick the palette's first / last entry — the obvious start of a walk through the palette.
+- 2026-11-04 (build): The new rows of the shortcut overview sit in its existing sections (layer and image keys under Edit, Toggle UI under View, opacity and palette keys under Tools, New Frame under Frames) — `shortcut-overview` AC-07 fixes the section list.
+- 2026-11-04 (build): Brush opacity is ten actions (`opacity10` … `opacity100`) — each step gets its own overview row and can be rebound on its own.
+- 2026-11-04 (build): Chords with a layout-dependent character carry the physical key (`Chord.code`: Shift+digit, Alt+[ / ], Alt+N, Ctrl+Alt+E) and are matched before the `e.key` chords — German Shift+0 types `=`, which is also zoom in; a captured rebinding records such chords the same way.
+- 2026-11-04 (build): Shift now counts for named keys (Tab, Delete, Enter, arrows) — Shift+Tab stays focus navigation and Ctrl+Delete is not Ctrl+Shift+Delete; Shift+Enter and Shift+Delete therefore no longer play / delete the selection.
+- 2026-11-04 (build): A layer key whose menu item is disabled is still consumed (no browser default) — the key belongs to the editor even when its command can't run.
+- 2026-11-04 (build): View ▸ Toggle UI has no check mark, and the hidden state lasts until a reload, across the documents of the session — the item names a toggle, and AC-18 only asks for a reset on reload.
+- 2026-11-04 (build): The AC-13 / AC-14 test was already green before the build (the old keymap had no conflict) — it guards the new chords; the red run covered every other block.

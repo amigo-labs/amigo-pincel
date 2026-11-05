@@ -100,20 +100,20 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `psd_two_layers_keep_order_opacity_blend`, `psd_fill_opacity_multiplies_into_the_layer_opacity`, `psd_imagemagick_file_opens_its_layers` (`crates/pincel-image-core/tests/psd.rs`); "AC-01, AC-05, AC-06, AC-14: a layered PSD opens with its layers, group and one notice" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-02 | `psd_offset_layer_is_placed_at_bounds` (`crates/pincel-image-core/tests/psd.rs`) | built | |
+| AC-03 | `psd_blend_keys_map_to_blend_modes` (`crates/pincel-image-core/tests/psd.rs`) | built | |
+| AC-04 | `psd_unknown_blend_key_falls_back_to_normal` (`crates/pincel-image-core/tests/psd.rs`) | built | |
+| AC-05 | `psd_groups_open_as_groups`, `psd_hidden_group_children_never_show` (`crates/pincel-image-core/tests/psd.rs`); "AC-01, AC-05, AC-06, AC-14: …" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-06 | `psd_unrepresentable_content_is_dropped_with_notices` (`crates/pincel-image-core/tests/psd.rs`); `open_psd_document_opens_layers_and_reports_notices` (`crates/pincel-image-wasm/src/lib.rs`); "AC-01, AC-05, AC-06, AC-14: …" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-07 | `psd_without_layers_opens_composite`, `psd_zip_or_unreadable_layers_fall_back_to_composite`, `psd_only_unrepresentable_layers_open_composite`, `psd_layer_bounds_larger_than_their_data_fall_back_to_composite` (`crates/pincel-image-core/tests/psd.rs`); "AC-07: a PSD without layers opens its flattened image with a notice saying why" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-08 | `psd_16_bit_is_rejected_with_error`, `psd_psb_and_non_rgb_modes_are_rejected_naming_the_property` (`crates/pincel-image-core/tests/psd.rs`); "AC-08, AC-09, AC-10: a PSD that cannot be opened leaves the start screen and the open document as they were" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-09 | `psd_canvas_over_the_limits_is_an_error`, `psd_over_the_layer_limit_is_an_error` (`crates/pincel-image-core/tests/psd.rs`); `open_psd_document_over_the_canvas_limits_opens_nothing` (`crates/pincel-image-wasm/src/lib.rs`); "AC-08, AC-09, AC-10: …" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-10 | `psd_truncated_or_invalid_header_is_an_error`, `psd_unreadable_composite_is_an_error` (`crates/pincel-image-core/tests/psd.rs`); "AC-08, AC-09, AC-10: …" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-11 | "AC-11: the open picker offers .psd and the start screen names PSD", "AC-11: the start screen names PSD in German", "a .psd whose content is a PNG opens by its content" (`ui/e2e/psd.spec.ts`); "a .psd the OS hands over opens in Image mode; the open dialog offers .psd" (`ui/e2e/desktop.spec.ts`) | built | |
+| AC-12 | "AC-12: Save of a document opened from a PSD asks for an .ora target" (`ui/e2e/psd.spec.ts`) | built | |
+| AC-13 | "a .psd the OS hands over opens in Image mode; the open dialog offers .psd" (`ui/e2e/desktop.spec.ts`, stand-in Tauri bridge); `.psd` association with `"role": "Viewer"` in `src-tauri/tauri.conf.json`, `windows/hooks.nsh`, `linux_install.rs`. Manual sign-off on an installed desktop build still open | built | |
+| AC-14 | `psd_pass_group_opens_normal_and_is_noticed_only_with_a_blending_descendant` (`crates/pincel-image-core/tests/psd.rs`); "AC-01, AC-05, AC-06, AC-14: …" (`ui/e2e/psd.spec.ts`) | built | |
 
 ## Decisions
 
@@ -127,3 +127,16 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - 2026-10-29: A bad or truncated header, PSB, depth ≠ 8 or mode ≠ RGB reject the file (AC-08, AC-10); a missing, empty, ZIP-compressed or unreadable layer section, or only unrepresentable layers, fall back to the flattened composite with a notice (AC-07) — the composite is what the file looks like and is always raw / RLE, so falling back to it beats both an error and an empty layer (owner accepted the recommendation).
 - 2026-10-29: A PSD with more than 999 layers and groups fails with the existing layer-limit error and the previous document stays open — consistent with the ORA spec's edge case, and a partial stack would render wrong without saying so (owner accepted the recommendation).
 - 2026-10-29: The desktop file association for `.psd` uses `"role": "Viewer"` — Pincel can't write PSD (saves go to `.ora`), so it shouldn't claim to be the editor of Photoshop files in the Open-with lists (owner accepted the recommendation).
+- 2026-11-04 (spec-build): The shell opens a PSD (`preparePsd`, `ui/src/modes/image/core/psd-open.ts`) before it mounts the Image editor, and the editor's `openBytes` takes that document instead of decoding again — every open remounts the editor, so this is the only way a failed open leaves the start screen or the open document unchanged (AC-08 – AC-10).
+- 2026-11-04 (spec-build): `open_psd(data, max_dim, max_area)` takes Image mode's canvas limits (16384 px per edge, 64 M px) from the UI, which owns them (`editor.svelte.ts`), and checks them right after the header, before any pixel is decoded (AC-09) — the planned `open_psd(data)` had no way to know them.
+- 2026-11-04 (spec-build): An open error shows as "Open failed: {reason}", where the reason is the reader's English message naming the property (e.g. "16 bits per channel is not supported (only 8-bit)") — the same as every other decoder error in the app.
+- 2026-11-04 (spec-build): The notice is one line, "Opened with changes: …", one item per dropped or changed thing in layer order (bottom first). An unknown blend mode is named by its PSD key (e.g. `hue`), because Photoshop's mode names are not in Pincel's translations.
+- 2026-11-04 (spec-build): Fill layers (solid color, gradient, pattern) count as adjustment layers and are left out; vector masks count as masks; a clipping mask is left out with its own notice item and the layer shows unclipped — Image mode has none of these.
+- 2026-11-04 (spec-build): Fill opacity (`iOpa`) is multiplied into the layer's opacity. It differs from opacity only for layer effects, which are left out anyway, so the pixels stay exact and nothing is lost silently.
+- 2026-11-04 (spec-build): For AC-14, a descendant "uses a non-Normal blend mode" when its PSD key is neither `norm` nor `pass`, so a key that opened as Normal (AC-04) still counts — what the group isolates is the Photoshop blending.
+- 2026-11-04 (spec-build): The composite's fourth channel is used as transparency only when the layer count is negative, as the format specifies; otherwise it is a saved selection and the composite opens opaque.
+- 2026-11-04 (spec-build): Layer bounds larger than their channel data could hold make the layer section unreadable (composite fallback), so a corrupt rect cannot allocate gigabytes. An unclosed group's children join the level below it; a group close without an opener becomes an empty group.
+- 2026-11-04 (spec-build): An opened PSD saves like an opened GIF: Save goes to Save As with "PSD files cannot be written back" and `.ora` preselected even for a single layer (AC-12).
+- 2026-11-04 (spec-build): A `.psd` dropped onto an open editor opens as the document, as `.ora` and `.aseprite` do, never as an added layer.
+- 2026-11-04 (spec-build): The reader went in as one core commit, not the planned header / composite and layers / groups pair, because the composite fallback depends on the layer parse (AC-07). The edge case "a `.psd` whose content is PNG opens by its content" passed at once: content sniffing already wins over the extension.
+- 2026-11-04 (spec-build): The fixtures `sample.psd` and `flat.psd` are generated by the writer in `crates/pincel-image-core/tests/psd.rs` (`PINCEL_WRITE_PSD_FIXTURES=1` rewrites them, `psd_fixtures_match_the_writer` checks them). `imagemagick-layers.psd` comes from ImageMagick, an independent writer.

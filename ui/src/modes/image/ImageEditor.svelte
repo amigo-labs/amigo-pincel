@@ -7,12 +7,14 @@
     tool,
     ui,
     resetColors,
+    savePrompt,
     swapColors,
     view,
     viewCommands,
     type ToolKind,
   } from './stores/editor.svelte';
   import {
+    addGroup,
     addLayer,
     applyEffect,
     clearEffectPreview,
@@ -22,6 +24,7 @@
     flattenImage,
     flipCanvas,
     mergeDown,
+    mergeGroup,
     renameLayer,
     mergeVisible,
     previewEffect,
@@ -29,6 +32,7 @@
     rotateCanvas,
     rotateLayer90,
     scaleImage,
+    selectLayer,
     transformLayer,
     newDocument,
     openBytes,
@@ -73,6 +77,7 @@
     storeCopy,
   } from '../../lib/clipboard';
   import { core } from './core/wasm';
+  import { canDeleteLayer, canMergeDown, editRefused, treeOrder } from './core/layer-tree';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectDialog from '../../lib/components/EffectDialog.svelte';
@@ -83,15 +88,21 @@
   import { tidy, type MenuDef } from '../../lib/components/layout/menu';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
-  import type { EffectDef } from '../../lib/effects/catalog';
+  import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import {
-    NATIVE_MENU_ACTIONS,
+    OPACITY_ACTIONS,
     actionFor,
     hint,
+    isStageTarget,
     isTypingTarget,
+    nativeMenuOwns,
+    opacityPercent,
     toolGroupForKey,
     toolHint,
+    type OpacityAction,
+    type ShortcutAction,
   } from '../../lib/shell/shortcuts';
+  import { toggleUi } from '../../lib/components/layout/chrome.svelte';
   import { formatFromName, hasFsAccess } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
@@ -99,10 +110,18 @@
   import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
-  import { help } from '../../lib/help/state.svelte';
+  import {
+    closeShortcuts,
+    helpDialogOpen,
+    openPalette,
+    openShortcuts,
+  } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
+  import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
+  import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
+  import { reduceMotionMenuItem } from '../../lib/motion.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
@@ -119,6 +138,7 @@
     onDirtyChange,
     onOpenRecent,
     onOpenFile,
+    registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -131,6 +151,7 @@
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
+  // `resolve` is set for a dropped file, whose caller places the layer.
   let pasteDialog = $state<{
     handle: number;
     bytes: Uint8Array;
@@ -139,10 +160,28 @@
     width: number;
     height: number;
     canExpand: boolean;
+    resolve?: (answer: PasteAnswer) => void;
   } | null>(null);
+
+  /** The larger-image dialog's answer; `null` is Cancel. */
+  type PasteAnswer = 'expand' | 'keep' | null;
 
   /** Source tag of the in-app copy record; handles are never reused. */
   const docSource = (handle: number): string => `image:${handle}`;
+
+  /** Runs a pixel edit on the active layer unless it is refused — the layer
+   *  or a group it sits in is locked, or it is a group — and shows the
+   *  locked-layer notice instead (docs/specs/image-layer-groups.md AC-11,
+   *  AC-12). `movesContent`: Move / flips / rotations, which a group allows. */
+  function layerEdit(movesContent: boolean, run: () => void): void {
+    const layer = editor.layers[editor.activeLayer];
+    if (layer && editRefused(editor.layers, editor.activeLayer, movesContent)) {
+      editor.notice = t('layers.locked', { name: layer.name });
+      return;
+    }
+    editor.notice = null;
+    run();
+  }
 
   // Edit ▸ Copy / Copy Merged / Cut (spec §5.4): the PNG goes to the system
   // clipboard from this click / keydown (user activation) and into the
@@ -204,6 +243,52 @@
     };
   }
 
+  /** Closes the larger-image dialog with the user's answer. */
+  function answerPaste(answer: PasteAnswer): void {
+    const p = pasteDialog;
+    if (!p) return;
+    pasteDialog = null;
+    if (p.resolve) p.resolve(answer);
+    else if (answer !== null) runPaste(p.handle, p.bytes, p.x, p.y, answer === 'expand');
+  }
+
+  // A raster file dropped onto the editor (docs/specs/file-access.md
+  // AC-21): a new layer placed like a paste of another image, one undo
+  // step. Resolves once added or skipped (the larger-image dialog's
+  // Cancel); throws when the core cannot decode it.
+  async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
+    const handle = editor.handle;
+    if (handle === null) return;
+    const size = await imageSize(new Blob([bytes.slice()], { type: mime || 'image/png' }));
+    if (editor.handle !== handle) return;
+    const canvas = { width: editor.width, height: editor.height };
+    const at = size
+      ? pastePosition({ x: -view.panX / view.zoom, y: -view.panY / view.zoom }, size, canvas)
+      : { x: 0, y: 0 };
+    let expand = false;
+    if (size && (size.width > canvas.width || size.height > canvas.height)) {
+      const w = Math.max(canvas.width, at.x + size.width);
+      const h = Math.max(canvas.height, at.y + size.height);
+      const [cw, ch] = clampCanvasSize(w, h);
+      const answer = await new Promise<PasteAnswer>((resolve) => {
+        pasteDialog = {
+          handle,
+          bytes,
+          x: at.x,
+          y: at.y,
+          width: size.width,
+          height: size.height,
+          canExpand: cw === w && ch === h,
+          resolve,
+        };
+      });
+      if (answer === null || editor.handle !== handle) return;
+      expand = answer === 'expand';
+    }
+    pasteImage(bytes, at.x, at.y, expand);
+    editor.notice = null;
+  }
+
   function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
     pasteDialog = null;
     if (editor.handle !== handle) return;
@@ -236,7 +321,7 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    if (handle === null || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
@@ -368,6 +453,54 @@
     ].map((g) => ({ ...g, shortcut: toolHint(g.id) }) as ToolGroup<ToolKind>),
   );
 
+  /**
+   * Every shared action `runShortcut` (or, for `paste`, the paste event)
+   * serves. No frames in Image mode, so no frame keys and no sheet export.
+   */
+  const IMAGE_ACTIONS: readonly ShortcutAction[] = [
+    'open',
+    'save',
+    'saveAs',
+    'export',
+    'undo',
+    'redo',
+    'cut',
+    'copy',
+    'paste',
+    'pasteNewImage',
+    'deleteSelection',
+    'selectAll',
+    'deselect',
+    'invertSelection',
+    'zoomIn',
+    'zoomOut',
+    'zoomFit',
+    'zoomActual',
+    'shortcuts',
+    'swapColors',
+    'resetColors',
+    'brushSmaller',
+    'brushLarger',
+    'newLayer',
+    'duplicateLayer',
+    'deleteLayer',
+    'mergeDown',
+    'layerAbove',
+    'layerBelow',
+    'flipLayerH',
+    'flipLayerV',
+    'rotateCw',
+    'rotateCcw',
+    'toggleUi',
+    'commandPalette',
+    ...OPACITY_ACTIONS,
+  ];
+
+  /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
+  function openOverview(): void {
+    openShortcuts({ actions: IMAGE_ACTIONS, groups: toolGroups });
+  }
+
   const toolLabel = $derived(
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
   );
@@ -401,6 +534,17 @@
   // File ▸ Open Recent. `null` keeps the entry out of the menu where the
   // registry cannot work at all; an empty array shows it disabled.
   let recents = $state<RecentFile[]>([]);
+
+  // Keep the native Open Recent submenu in step with the recents, as the
+  // shell and the Pixel editor do (desktop-app.md AC-19). Only entries
+  // with a path can be reopened from the native menu.
+  $effect(() => {
+    if (!isTauri()) return;
+    const items = recents.filter((r) => r.path !== null).map((r) => ({ id: r.id, name: r.name }));
+    syncRecentMenu(items).catch((err: unknown) => {
+      console.error('syncRecentMenu failed', err);
+    });
+  });
 
   async function refreshRecents(): Promise<void> {
     if (!recentsAvailable) return;
@@ -489,6 +633,19 @@
     start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
     autosave.start();
     void refreshRecents();
+    // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
+    // AC-28): the shell asks and opens documents; Image mode adds every
+    // raster format its core decodes.
+    registerDropTarget({
+      accepts: () =>
+        editor.handle !== null &&
+        !ui.modalOpen &&
+        renaming === null &&
+        savePrompt.value === null &&
+        autosave.snapshots.length === 0,
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
+      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+    });
     registerMenuHandlers({
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
@@ -499,10 +656,15 @@
       'menu:zoomIn': () => viewCommands.zoomIn(),
       'menu:zoomOut': () => viewCommands.zoomOut(),
       'menu:resetZoom': () => viewCommands.fit(),
+      'menu:shortcuts': openOverview,
     });
     return () => {
       autosave.close();
+      // A drop waiting on the larger-image dialog ends with the editor.
+      answerPaste(null);
+      registerDropTarget(null);
       registerMenuHandlers(null);
+      closeShortcuts();
     };
   });
 
@@ -518,15 +680,19 @@
   function onKeydown(e: KeyboardEvent): void {
     // Ignore shortcuts while typing in a field (text-entry overlay included)
     // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
+    if (ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.
-    if (action !== null && hasNativeMenu() && NATIVE_MENU_ACTIONS.has(action)) return;
-    if (action !== null && runShortcut(action)) {
-      e.preventDefault();
+    if (action !== null && hasNativeMenu() && nativeMenuOwns(action)) return;
+    // An action chord wins over a tool key, so Shift+H flips instead of
+    // picking the Hand (power-user-shortcuts-coverage AC-04, AC-07). Tab
+    // toggles the UI only on the canvas stage; elsewhere it moves focus.
+    if (action !== null) {
+      if (action === 'toggleUi' && !isStageTarget(e.target)) return;
+      if (runShortcut(action)) e.preventDefault();
       return;
     }
     // Escape drops a gesture in progress; with none, it deselects
@@ -582,7 +748,7 @@
         invertSelection();
         return true;
       case 'deleteSelection':
-        deleteSelection();
+        layerEdit(false, deleteSelection);
         return true;
       case 'zoomIn':
         viewCommands.zoomIn();
@@ -607,6 +773,67 @@
         return true;
       case 'brushLarger':
         tool.size = Math.min(500, tool.size + (tool.size >= 10 ? 5 : 1));
+        return true;
+      case 'shortcuts':
+        openOverview();
+        return true;
+      case 'toggleUi':
+        toggleUi();
+        return true;
+      case 'commandPalette':
+        // Ctrl+K: the command palette over these menus and tools.
+        openPalette({
+          menus: () => menus,
+          groups: () => toolGroups,
+          selectTool: (id) => {
+            if (groupOf(toolGroups, id as ToolKind)) tool.kind = id as ToolKind;
+          },
+        });
+        return true;
+      default:
+        return runLayerShortcut(action);
+    }
+  }
+
+  /**
+   * Layer, transform and opacity keys: they run what their menu items run,
+   * and where the item is disabled they do nothing (AC-16).
+   */
+  function runLayerShortcut(action: ReturnType<typeof actionFor>): boolean {
+    if (action === null || editor.handle === null) return false;
+    const active = editor.activeLayer;
+    if (OPACITY_ACTIONS.includes(action as OpacityAction)) {
+      tool.opacity = opacityPercent(action as OpacityAction);
+      return true;
+    }
+    switch (action) {
+      case 'newLayer':
+        addLayer();
+        return true;
+      case 'duplicateLayer':
+        duplicateLayer(active);
+        return true;
+      case 'deleteLayer':
+        if (canDeleteLayer(editor.layers, active)) deleteLayer(active);
+        return true;
+      case 'mergeDown':
+        if (canMergeDown(editor.layers, active)) mergeDown(active);
+        return true;
+      case 'layerAbove':
+      case 'layerBelow': {
+        const order = treeOrder(editor.layers);
+        const at = order.indexOf(active);
+        const next = at < 0 ? undefined : order[at + (action === 'layerAbove' ? -1 : 1)];
+        if (next !== undefined) selectLayer(next);
+        return true;
+      }
+      case 'flipLayerH':
+      case 'flipLayerV':
+        layerEdit(true, () => transformLayer(action === 'flipLayerH' ? 'flip_h' : 'flip_v'));
+        return true;
+      case 'rotateCw':
+      case 'rotateCcw':
+        rotateCanvas(action === 'rotateCw' ? 'cw90' : 'ccw90');
         return true;
       default:
         return false;
@@ -636,6 +863,7 @@
         { label: t('menu.new'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
+        droppedImagesMenu(),
         { kind: 'separator' },
         {
           label: t('menu.save'),
@@ -699,7 +927,7 @@
           label: t('menu.deleteSelection'),
           shortcut: hint('deleteSelection'),
           disabled: !editor.hasSelection,
-          run: deleteSelection,
+          run: () => layerEdit(false, deleteSelection),
         },
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
@@ -752,8 +980,18 @@
         { label: t('menu.flipH'), disabled: !hasDoc, run: () => flipCanvas(true) },
         { label: t('menu.flipV'), disabled: !hasDoc, run: () => flipCanvas(false) },
         { kind: 'separator' },
-        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateCanvas('cw90') },
-        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateCanvas('ccw90') },
+        {
+          label: t('menu.rotateCw'),
+          shortcut: hint('rotateCw'),
+          disabled: !hasDoc,
+          run: () => rotateCanvas('cw90'),
+        },
+        {
+          label: t('menu.rotateCcw'),
+          shortcut: hint('rotateCcw'),
+          disabled: !hasDoc,
+          run: () => rotateCanvas('ccw90'),
+        },
         { label: t('menu.rotate180'), disabled: !hasDoc, run: () => rotateCanvas('rotate_180') },
         { kind: 'separator' },
         {
@@ -769,9 +1007,11 @@
       id: 'layer',
       label: t('menu.layer'),
       items: [
-        { label: t('menu.newLayer'), disabled: !hasDoc, run: addLayer },
+        { label: t('menu.newLayer'), shortcut: hint('newLayer'), disabled: !hasDoc, run: addLayer },
+        { label: t('menu.newGroup'), disabled: !hasDoc, run: addGroup },
         {
           label: t('menu.duplicateLayer'),
+          shortcut: hint('duplicateLayer'),
           disabled: !hasDoc,
           run: () => duplicateLayer(editor.activeLayer),
         },
@@ -785,23 +1025,52 @@
         },
         {
           label: t('menu.deleteLayer'),
-          disabled: editor.layers.length <= 1,
+          shortcut: hint('deleteLayer'),
+          disabled: !canDeleteLayer(editor.layers, editor.activeLayer),
           run: () => deleteLayer(editor.activeLayer),
         },
         { kind: 'separator' },
         {
           label: t('menu.mergeDown'),
-          disabled: editor.activeLayer === 0,
+          shortcut: hint('mergeDown'),
+          disabled: !canMergeDown(editor.layers, editor.activeLayer),
           run: () => mergeDown(editor.activeLayer),
+        },
+        {
+          label: t('menu.mergeGroup'),
+          disabled: editor.layers[editor.activeLayer]?.kind !== 'group',
+          run: () => mergeGroup(editor.activeLayer),
         },
         { label: t('menu.mergeVisible'), disabled: !hasDoc, run: mergeVisible },
         { label: t('menu.flatten'), disabled: !hasDoc, run: flattenImage },
         { kind: 'separator' },
-        { label: t('menu.flipH'), disabled: !hasDoc, run: () => transformLayer('flip_h') },
-        { label: t('menu.flipV'), disabled: !hasDoc, run: () => transformLayer('flip_v') },
-        { label: t('menu.rotateCw'), disabled: !hasDoc, run: () => rotateLayer90(false) },
-        { label: t('menu.rotateCcw'), disabled: !hasDoc, run: () => rotateLayer90(true) },
-        { label: t('menu.rotate180'), disabled: !hasDoc, run: () => transformLayer('rotate_180') },
+        {
+          label: t('menu.flipH'),
+          shortcut: hint('flipLayerH'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('flip_h')),
+        },
+        {
+          label: t('menu.flipV'),
+          shortcut: hint('flipLayerV'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('flip_v')),
+        },
+        {
+          label: t('menu.rotateCw'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => rotateLayer90(false)),
+        },
+        {
+          label: t('menu.rotateCcw'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => rotateLayer90(true)),
+        },
+        {
+          label: t('menu.rotate180'),
+          disabled: !hasDoc,
+          run: () => layerEdit(true, () => transformLayer('rotate_180')),
+        },
       ],
     },
     ...effectMenus((def) => (effectOpen = def), !hasDoc),
@@ -834,10 +1103,13 @@
           run: () => viewCommands.actual(),
         },
         { kind: 'separator' },
+        { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
+        reduceMotionMenuItem(),
+        { kind: 'separator' },
         languageMenu(),
       ],
     },
-    ...helpMenus(),
+    ...helpMenus(openOverview),
   ]);
 
   // Warn before discarding edits on reload/close.
@@ -964,18 +1236,31 @@
   {#key effectOpen.id}
     <EffectDialog
       def={effectOpen}
+      foreground={rgbaOf(tool.foreground)}
       hasSelection={editor.hasSelection}
       onPreview={(params) => {
         if (!effectOpen) return;
-        // An empty vector means "preview off": show the real composite.
-        if (params.length === 0 && effectOpen.params.length > 0) clearEffectPreview();
+        // `null` means "preview off": show the real composite.
+        if (params === null) clearEffectPreview();
         else previewEffect(effectOpen.id, params);
       }}
       onApply={(params) => {
-        if (effectOpen && !applyEffect(effectOpen.id, params)) {
-          editor.notice = t('fx.selectionEmpty', { effect: effectLabel(effectOpen) });
-        }
+        const def = effectOpen;
         effectOpen = null;
+        if (!def) return;
+        try {
+          if (!applyEffect(def.id, params)) {
+            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(def) });
+          }
+        } catch (err) {
+          // A refusal (a locked layer) leaves the document as it was; report
+          // it like Pixel mode instead of throwing out of the dialog.
+          clearEffectPreview();
+          editor.notice = t('px.effectFailed', {
+            effect: effectLabel(def),
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }}
       onCancel={() => {
         clearEffectPreview();
@@ -990,14 +1275,11 @@
   <Modal
     title={t('paste.largerTitle')}
     applyLabel={paste.canExpand ? t('paste.expand') : t('paste.keep')}
-    onApply={() => runPaste(paste.handle, paste.bytes, paste.x, paste.y, paste.canExpand)}
+    onApply={() => answerPaste(paste.canExpand ? 'expand' : 'keep')}
     secondary={paste.canExpand
-      ? {
-          label: t('paste.keep'),
-          onClick: () => runPaste(paste.handle, paste.bytes, paste.x, paste.y, false),
-        }
+      ? { label: t('paste.keep'), onClick: () => answerPaste('keep') }
       : undefined}
-    onClose={() => (pasteDialog = null)}
+    onClose={() => answerPaste(null)}
   >
     <p class="mb-4 text-pc-muted">
       {t(paste.canExpand ? 'paste.larger' : 'paste.tooLarge', { w: paste.width, h: paste.height })}

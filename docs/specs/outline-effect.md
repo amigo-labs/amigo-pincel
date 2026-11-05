@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: both
@@ -34,19 +34,19 @@ Effects are stateless and shared by both cores through `pincel-effects`; both mo
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses Effects ▸ Outline… in Pixel mode or in Image mode, then the effect dialog opens with Place (Outside, Inside, Both; default Outside), Shape (Circle, Square; default Square), Thickness (1–8 px; default 1) and Color (default: the current foreground colour).
-- [ ] AC-02 (always): A pixel counts as part of the sprite ("opaque") when its alpha is above 0; pixels beyond the cel's edge (Pixel mode) or the layer's edge (Image mode) count as transparent, and no pixel outside the cel is written.
-- [ ] AC-03 (option): Where Place is Outside and Shape is Square with thickness t, every transparent pixel whose Chebyshev distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 8 neighbours coloured).
-- [ ] AC-04 (option): Where Place is Outside and Shape is Circle with thickness t, every transparent pixel whose Manhattan distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 4 edge neighbours coloured).
-- [ ] AC-05 (option): Where Place is Inside with thickness t, every opaque pixel that has a transparent pixel within distance t (by the chosen shape's metric) becomes the outline colour, and opaque pixels farther inside and all transparent pixels stay unchanged.
-- [ ] AC-06 (always): An outline pixel that is fully selected (or any outline pixel when there is no selection) takes the chosen colour exactly, including its alpha.
-- [ ] AC-07 (state): While a selection exists, only pixels inside the selection change, and opaque pixels outside the selection still produce outline pixels inside it; in Image mode a feathered selection blends the result by coverage, as every Image-mode effect does.
-- [ ] AC-08 (state): While the Outline dialog is open, the canvas shows the result live for the current options; when the user cancels, the layer is unchanged.
-- [ ] AC-09 (event): When the user applies the Outline, then one undo restores the layer exactly as before, and redo applies the same outline again.
-- [ ] AC-10 (error): If the Pixel-mode document is indexed, then the Outline is refused with the same message as every other effect and the document is unchanged.
-- [ ] AC-11 (error): If the Color field's hex text is not `#RRGGBB` or `#RRGGBBAA`, then the dialog marks the field invalid and does not use that value.
-- [ ] AC-12 (always): A thickness outside 1–8 arriving through the wire format is clamped to 1–8, like every other effect parameter, and a wrong number of parameters is an error that changes nothing; a colour slot that is not an integer in 0…2^32−1 is an error that changes nothing.
-- [ ] AC-13 (option): Where Place is Both, the changed pixels are exactly the union of AC-03 / AC-04 and AC-05 for the same shape and thickness.
+- [x] AC-01 (event): When the user chooses Effects ▸ Outline… in Pixel mode or in Image mode, then the effect dialog opens with Place (Outside, Inside, Both; default Outside), Shape (Circle, Square; default Square), Thickness (1–8 px; default 1) and Color (default: the current foreground colour).
+- [x] AC-02 (always): A pixel counts as part of the sprite ("opaque") when its alpha is above 0; pixels beyond the cel's edge (Pixel mode) or the layer's edge (Image mode) count as transparent, and no pixel outside the cel is written.
+- [x] AC-03 (option): Where Place is Outside and Shape is Square with thickness t, every transparent pixel whose Chebyshev distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 8 neighbours coloured).
+- [x] AC-04 (option): Where Place is Outside and Shape is Circle with thickness t, every transparent pixel whose Manhattan distance to an opaque pixel is at most t becomes the outline colour, and no other pixel changes (a single opaque pixel with t = 1 gets its 4 edge neighbours coloured).
+- [x] AC-05 (option): Where Place is Inside with thickness t, every opaque pixel that has a transparent pixel within distance t (by the chosen shape's metric) becomes the outline colour, and opaque pixels farther inside and all transparent pixels stay unchanged.
+- [x] AC-06 (always): An outline pixel that is fully selected (or any outline pixel when there is no selection) takes the chosen colour exactly, including its alpha.
+- [x] AC-07 (state): While a selection exists, only pixels inside the selection change, and opaque pixels outside the selection still produce outline pixels inside it; in Image mode a feathered selection blends the result by coverage, as every Image-mode effect does.
+- [x] AC-08 (state): While the Outline dialog is open, the canvas shows the result live for the current options; when the user cancels, the layer is unchanged.
+- [x] AC-09 (event): When the user applies the Outline, then one undo restores the layer exactly as before, and redo applies the same outline again.
+- [x] AC-10 (error): If the Pixel-mode document is indexed, then the Outline is refused with the same message as every other effect and the document is unchanged.
+- [x] AC-11 (error): If the Color field's hex text is not `#RRGGBB` or `#RRGGBBAA`, then the dialog marks the field invalid and does not use that value.
+- [x] AC-12 (always): A thickness outside 1–8 arriving through the wire format is clamped to 1–8, like every other effect parameter, and a wrong number of parameters is an error that changes nothing; a colour slot that is not an integer in 0…2^32−1 is an error that changes nothing.
+- [x] AC-13 (option): Where Place is Both, the changed pixels are exactly the union of AC-03 / AC-04 and AC-05 for the same shape and thickness.
 
 ## Technical notes
 
@@ -84,6 +84,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | Defaults Shape = Square and Thickness = 1 (AC-01) | The legacy plan's e2e test says Outline "with defaults colors the 8 neighbours" of a single pixel | Low |
 | Invalid hex text is rejected in the dialog (AC-11) | The colour param accepts `#RRGGBB[AA]` only; any other value has no colour to apply | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- `pincel-effects` gains Outline: outside, inside or both, square or circle, thickness 1 – 8 by a two-pass distance transform, any colour; out-of-range parameters are errors
+- The effect catalog and dialog gain a colour parameter (native colour input plus `#RRGGBB` / `#RRGGBBAA` text); Effects ▸ Outline… previews live and applies as one undo step in both modes
+- The agent tools list the outline effect with a hex colour parameter
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -92,19 +100,19 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-01 | `pixel: Effects ▸ Outline… opens with Place, Shape, Thickness and Color at their defaults (AC-01)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`); `pixel: Effects and Adjustments list every entry, disabled without a document (AC-01)`, `image: …` (`ui/e2e/effects.spec.ts`) | verified | ba53299 |
+| AC-02 | `apply_outside_at_the_edge_writes_only_inside_the_buffer`, `apply_alpha_1_counts_as_opaque`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_never_writes_outside_a_trimmed_cel` (`crates/pincel-wasm/src/effects.rs`) | verified | ba53299 |
+| AC-03 | `apply_outside_square_single_pixel_colours_its_8_neighbours`, `apply_outside_square_thickness_3_colours_a_7x7_block`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | verified | 6aed618 |
+| AC-04 | `apply_outside_circle_single_pixel_colours_its_4_edge_neighbours`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | verified | ba53299 |
+| AC-05 | `apply_matches_the_distance_definition_for_every_option`, `apply_inside_fully_opaque_thickness_1_recolours_the_border_ring`, `apply_alpha_1_counts_as_opaque` (`crates/pincel-effects/src/outline.rs`) | verified | 35f631c |
+| AC-06 | `apply_outside_square_single_pixel_colours_its_8_neighbours` (`crates/pincel-effects/src/outline.rs`); `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | verified | 6aed618 |
+| AC-07 | `apply_effect_outline_fills_the_selection_from_an_opaque_pixel_outside_it` (`crates/pincel-wasm/src/effects.rs`); `apply_effect_outline_blends_a_feathered_selection_by_coverage` (`crates/pincel-image-wasm/src/lib.rs`) | verified | 35f631c |
+| AC-08 | `pixel: the canvas previews the outline live; Cancel leaves the layer unchanged (AC-08)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | verified | 9af6b69 |
+| AC-09 | `apply_effect_outline_is_one_undo_step_and_redo_reapplies_it` (`crates/pincel-wasm/src/effects.rs`, `crates/pincel-image-wasm/src/lib.rs`); `pixel: the outline applies as one undo step and redo brings it back (AC-09)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | verified | 9a7f4f0 |
+| AC-10 | `apply_effect_outline_on_an_indexed_sprite_errors_with_the_rgba_message` (`crates/pincel-wasm/src/effects.rs`) | verified | c43a845 |
+| AC-11 | `pixel: a hex that is not #RRGGBB or #RRGGBBAA is marked invalid and not used (AC-11)`, `image: …` (same title) (`ui/e2e/outline.spec.ts`) | verified | 5dd2afe |
+| AC-12 | `from_params_outline_clamps_thickness_to_1_through_8`, `from_params_outline_wrong_arity_is_an_error`, `from_params_outline_color_not_a_u32_integer_is_an_error` (`crates/pincel-effects/src/spec.rs`); `apply_effect_outline_bad_color_or_arity_errors_and_changes_nothing` (`crates/pincel-wasm/src/effects.rs`) | verified | 22f5a52 |
+| AC-13 | `apply_both_is_the_union_of_outside_and_inside`, `apply_matches_the_distance_definition_for_every_option` (`crates/pincel-effects/src/outline.rs`) | verified | 3678aba |
 
 ## Decisions
 
@@ -115,3 +123,11 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: Place Both (= Inside ∪ Outside, same thickness and metric) is in scope (AC-13), and a Decision Log entry moves Outline from §13.4 Phase 2 into Phase 1, removing it from §13.4 — §13.4 names "both", a feature spec shouldn't contradict the design spec, and Both is a union of two paths that already exist (owner accepted the recommendation).
 - 2026-10-29: In Pixel mode the outline clips at the cel's edge and never grows a trimmed cel (AC-02) — Phase 1 never auto-grows cels (`MoveSelectionContent`), and trimmed cels only come from imported files (owner accepted the recommendation).
 - 2026-10-29: No alpha threshold parameter; opaque stays alpha > 0 — pixel art has hard alpha and the parameter would only add UI; it can be added later as an extra slot (owner accepted the recommendation).
+- 2026-11-03 (build): The wire order is `outline: [place, shape, thickness, color]` with choice indices in the dialog's option order (place 0 = Outside, 1 = Inside, 2 = Both; shape 0 = Circle, 1 = Square) — it follows AC-01's field order like every other catalog entry.
+- 2026-11-03 (build): Distances come from a two-pass chamfer transform (exact for the city-block and chessboard metrics) instead of t dilation passes — it is O(w·h) whatever the thickness, which matters for large Image-mode layers.
+- 2026-11-03 (build): A colour slot that is not an integer in `0..=u32::MAX` is a new `EffectError::InvalidParam { effect, index, reason }` — `ParamCount` and `UnknownEffect` do not describe a bad value, and AC-12 needs an error, not a clamp.
+- 2026-11-03 (build): `pincel-wasm` and `pincel-image-wasm` needed no change: both already run an effect over the whole cel / layer and keep the result inside the selection, so an opaque pixel outside the selection still outlines into it (AC-07); their outline tests were red only against the effects crate without the outline (`unknown effect`).
+- 2026-11-03 (build): Outline sits directly in the Effects menu after a separator below the Blur / Sharpen / Distort / Noise submenus (catalog group `effects`) — AC-01 names it Effects ▸ Outline…, not a submenu entry; `effects.spec.ts`'s AC-01 test of `effects-adjustments.md` now expects that row after the submenus.
+- 2026-11-03 (build): The hex field shows `#rrggbb` for an opaque colour and `#rrggbbaa` otherwise, accepts at most 9 characters, and the native colour input changes only RGB and keeps the alpha — the native input has no alpha, and the shorter form matches the foreground hex field.
+- 2026-11-03 (build): The colour default is Pixel mode's foreground with its alpha slider value and Image mode's foreground as opaque — Image mode has no foreground alpha yet (`color-picker.md` adds it).
+- 2026-11-04 (build): The agent's effect catalog (`pincel-agent`, tools `effect.apply` and the `pincel://effects` resource) gains `outline` with a `color` parameter kind taking `"#RRGGBB"` / `"#RRGGBBAA"` and defaulting to opaque black — its tests require it to list every `EFFECT_NAMES` id, and an agent has no foreground colour to default to.

@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use crate::AgentError;
 use crate::args::hex;
-use crate::pixel::effects::{EFFECTS, Kind, is_adjustment};
+use crate::pixel::effects::{EFFECTS, Kind, color_hex, is_adjustment};
 
 const PALETTE_PREFIX: &str = "pincel://palettes/";
 const GUIDE_URI: &str = "pincel://guide";
@@ -102,6 +102,9 @@ fn effects_json() -> Value {
                     }
                     Kind::Choice { options, default } => json!({
                         "name": p.key, "type": "choice", "options": options, "default": options[default],
+                    }),
+                    Kind::Color { default } => json!({
+                        "name": p.key, "type": "color", "default": color_hex(default),
                     }),
                 })
                 .collect();

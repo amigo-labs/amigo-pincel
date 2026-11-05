@@ -1,5 +1,6 @@
 // Viewport: zoom, fit, wheel and pinch.
 
+import { tick } from 'svelte';
 import { fitZoom } from '../../lib/view/fit';
 import type { PinchFrame } from '../../lib/view/pinch';
 import { ed, live, view } from './stores/editor.svelte';
@@ -38,12 +39,25 @@ export function zoomOut() {
 // historical 8× default when the stage hasn't been measured yet
 // (e.g. first paint before layout settles).
 export function fitView() {
+  // Measure the stage itself: the bound `stageW` / `stageH` follow a
+  // layout change only a frame later (ResizeObserver).
+  const stageW = view.stage?.clientWidth || view.stageW;
+  const stageH = view.stage?.clientHeight || view.stageH;
   view.zoom =
-    view.stageW > 0 && view.stageH > 0
-      ? fitZoom(view.stageW, view.stageH, ed.canvasW, ed.canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
+    stageW > 0 && stageH > 0
+      ? fitZoom(stageW, stageH, ed.canvasW, ed.canvasH, MIN_ZOOM, MAX_ZOOM, FIT_MARGIN)
       : 8;
   view.panX = 0;
   view.panY = 0;
+}
+
+// Fit a document that just replaced the previous one (or the first one):
+// once now, and again once the DOM shows it — panels that fill in with a
+// document (the timeline's frame row) shrink the stage only then
+// (pen-input AC-11).
+export function fitNewDocument() {
+  fitView();
+  void tick().then(fitView);
 }
 
 // 1:1 — one screen pixel per sprite pixel, re-centered.

@@ -119,28 +119,28 @@ Both features hook into the stamping of the Pencil / Eraser stroke from the `pix
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-01 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_x_even_width_axis_on_edge`, `mirror_x_odd_width_axis_through_centre_pixel`, `mirror_random_strokes_paint_primary_plus_mirror_images`; `crates/pincel-wasm/src/stroke.rs` `set_stroke_mirror_paints_mirror_images`; `ui/e2e/symmetry-tiled.spec.ts` "a left-right stroke paints the mirror image across the centre axis" | built |        |
+| AC-02 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_y_stamps_across_horizontal_axis`; `ui/e2e/symmetry-tiled.spec.ts` "top-bottom and both mirror across the horizontal axis too" | built |        |
+| AC-03 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_xy_stamps_four_points`; `crates/pincel-wasm/src/stroke.rs` `set_stroke_mirror_paints_mirror_images`; `ui/e2e/symmetry-tiled.spec.ts` "top-bottom and both mirror across the horizontal axis too" | built |        |
+| AC-04 | `ui/e2e/symmetry-tiled.spec.ts` "an odd width puts the axis through the middle pixel", "a left-right stroke paints the mirror image across the centre axis", "an unmoved axis follows a resize and another document resets a moved one" | built |        |
+| AC-05 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_stroke_is_one_undo_step`; `ui/e2e/symmetry-tiled.spec.ts` "a symmetric stroke is one undo step" | built |        |
+| AC-06 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_with_pixel_perfect_follows_primary_path`, `mirror_random_strokes_paint_primary_plus_mirror_images` | built |        |
+| AC-07 | `crates/pincel-core/src/command/pencil_stroke.rs` `mirror_image_outside_canvas_is_skipped`; `ui/e2e/symmetry-tiled.spec.ts` "dragging a handle moves the axis; double-click resets it" | built |        |
+| AC-08 | `ui/e2e/symmetry-tiled.spec.ts` "axis lines show with pencil and eraser, handles with any tool" | built |        |
+| AC-09 | `ui/e2e/symmetry-tiled.spec.ts` "dragging a handle moves the axis; double-click resets it", "a press inside the canvas never moves an axis" | built |        |
+| AC-10 | `ui/e2e/symmetry-tiled.spec.ts` "pencil and eraser offer none, left-right, top-bottom and both" | built |        |
+| AC-11 | `ui/e2e/symmetry-tiled.spec.ts` "the eraser mirrors too, and line and bucket do not" (Line, Shapes, Bucket) | built |        |
+| AC-12 | `ui/e2e/symmetry-tiled.spec.ts` "View ▸ Tiled Mode offers None, X, Y and Both, None by default" | built |        |
+| AC-13 | `ui/e2e/symmetry-tiled.spec.ts` "the frame repeats at the neighbouring offsets" | built |        |
+| AC-14 | copies drawn at 50 % opacity beside the bordered canvas (`ui/e2e/symmetry-tiled.spec.ts` "the frame repeats at the neighbouring offsets"); manual sign-off open | built |        |
+| AC-15 | `crates/pincel-core/src/command/pencil_stroke.rs` `wrap_x_stroke_across_right_edge_continues_on_left`, `wrap_y_stroke_across_bottom_edge_continues_on_top`, `wrap_both_size_8_stamp_at_corner_reaches_all_corners`; `crates/pincel-wasm/src/stroke.rs` `set_stroke_wrap_continues_across_the_seam`; `ui/e2e/symmetry-tiled.spec.ts` "a stroke past the right edge continues at the left edge" | built |        |
+| AC-16 | `crates/pincel-core/src/command/pencil_stroke.rs` `wrap_x_press_on_copy_paints_canvas_pixel`; `ui/e2e/symmetry-tiled.spec.ts` "pressing on a repeated copy paints the corresponding canvas pixel" | built |        |
+| AC-17 | `crates/pincel-core/src/command/pencil_stroke.rs` `wrap_off_skips_out_of_bounds`; `ui/e2e/symmetry-tiled.spec.ts` "an axis tiled mode does not cover clips the stroke" | built |        |
+| AC-18 | `ui/e2e/symmetry-tiled.spec.ts` "tiled mode never changes the document and a reload starts with None" | built |        |
+| AC-19 | `crates/pincel-core/src/command/pencil_stroke.rs` `wrap_stroke_is_one_undo_entry`; `ui/e2e/symmetry-tiled.spec.ts` "a stroke past the right edge continues at the left edge" | built |        |
+| AC-20 | `ui/e2e/symmetry-tiled.spec.ts` "an unmoved axis follows a resize and another document resets a moved one" | built |        |
+| AC-21 | `crates/pincel-core/src/command/pencil_stroke.rs` `stroke_outside_small_cel_grows_it_and_undo_restores_it`, `mirror_image_outside_small_cel_grows_it`, `wrapped_stroke_grows_cel_to_full_canvas_extent_on_wrapped_axis`, `stroke_outside_canvas_and_cel_does_not_grow_the_cel` | built |        |
+| AC-22 | `ui/e2e/symmetry-tiled.spec.ts` "line, shapes and bucket clip at the edges in tiled mode" | built |        |
 
 ## Decisions
 
@@ -156,3 +156,11 @@ Both features hook into the stamping of the Pencil / Eraser stroke from the `pix
 - 2026-10-29: An unmoved axis is stored as `null` (= centre) and follows resizes; a moved axis keeps its position, clamped to 0 … 2 × size; opening or creating another document resets both (AC-20) — the default stays centred, and an explicit choice survives where it still makes sense (owner accepted the recommendation).
 - 2026-10-29: The stroke command grows a target cel smaller than the stamped extent and keeps the prior bounds and pixels in its undo record; `ensure_paint_cel` stays unchanged (AC-21) — Aseprite grows cels on paint, and keeping the growth in the stroke command keeps the one-undo-entry rule (owner accepted the recommendation).
 - 2026-10-29: Only the Pencil and Eraser wrap in tiled mode; Line, shapes and Bucket clip as before (AC-22), and wrapping for them is a follow-up — the design wraps only the stroke command, matching the symmetry scope of AC-11 (owner accepted the recommendation).
+- 2026-11-04: The wasm gesture gets two calls, `setStrokeMirror(axisX2?, axisY2?)` and `setStrokeWrap(x, y)`, made between `beginStroke` / `beginShadingStroke` and the first `strokeTo` — because both begin calls keep their npm signatures and the shading stroke gets the aids too.
+- 2026-11-04: The repeated copies are Canvas2D canvases in the canvas wrapper, each blitted from the same composed frame on the full and the dirty path (`render.ts`), and the `CanvasRenderer` interface stays as it is — because the copies lie outside the sprite-sized base canvas, and one blit per copy keeps one `compose()` under either base renderer.
+- 2026-11-04: The copies are drawn at 50 % opacity next to the bordered canvas (AC-14) — because a dimmed copy reads as not editable at every zoom without hiding the pixels being matched across the seam.
+- 2026-11-04: Axis lines and handles are DOM elements in the canvas wrapper, not overlay-canvas paint — because the overlay is sprite-resolution and cannot draw a half-pixel line or anything outside the sprite.
+- 2026-11-04: A stamp on the canvas outside the target cel grows the cel for every Pencil / Eraser stroke, mirrored, wrapped or plain; pixels off the canvas are still skipped, and an oversize cel is still painted where it reaches beyond the canvas — because AC-21 names any stroke, and growth past the canvas would store invisible pixels.
+- 2026-11-04: A cel grows per stamp to the union of its bounds and the stamp's on-canvas pixels, along a wrapped axis to the full canvas width / height — because that covers what AC-21 asks while a small cel stays small for a short stroke.
+- 2026-11-04: Only the Pencil and Eraser start on a repeated copy; every other tool ignores a press there as it does beside the canvas — because AC-22 keeps the other tools clipping as without tiled mode.
+- 2026-11-04: A moved axis is clamped when the canvas shrinks and keeps the clamped position when it grows again — because AC-20 clamps on the resize, not on use.

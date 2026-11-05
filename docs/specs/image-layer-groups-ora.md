@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: Image
@@ -32,13 +32,13 @@ Already decided: `.ora` is the Image-mode project format, and `stack.xml` is rea
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When an `.ora` whose `stack.xml` contains nested `<stack>` elements is opened, then each nested stack becomes a group with the stack's name, opacity, visibility, blend mode and lock, and each layer sits inside the group of the stack that contains it, in the file's order.
-- [ ] AC-02 (state): While a group opened from a nested stack is hidden or below 100 % opacity, its children are hidden or composited at that opacity as a whole, exactly as for a group created in Pincel — never fully visible.
-- [ ] AC-03 (event): When a document with groups is saved as `.ora`, then each group is written as a nested `<stack>` carrying its name, opacity, visibility, blend mode, lock (`edit-locked="true"` when locked) and `isolation="isolate"`, with its children inside it in document order.
-- [ ] AC-04 (always): Writing a document with nested groups to `.ora` and reading it back yields the same layer tree: names, order, parents, visibility, opacity, blend modes, locks and pixels.
-- [ ] AC-05 (always): An `.ora` with a single flat `<stack>` opens with the same layers, offsets and properties as before this feature.
-- [ ] AC-06 (event): When the user saves a document with a group as `.ora` in Image mode and reopens the file, then the layers panel still shows the group with its child indented below it.
-- [ ] AC-07 (always): The `mergedimage.png` written into the `.ora` equals the document composite, with groups applied in isolation.
+- [x] AC-01 (event): When an `.ora` whose `stack.xml` contains nested `<stack>` elements is opened, then each nested stack becomes a group with the stack's name, opacity, visibility, blend mode and lock, and each layer sits inside the group of the stack that contains it, in the file's order.
+- [x] AC-02 (state): While a group opened from a nested stack is hidden or below 100 % opacity, its children are hidden or composited at that opacity as a whole, exactly as for a group created in Pincel — never fully visible.
+- [x] AC-03 (event): When a document with groups is saved as `.ora`, then each group is written as a nested `<stack>` carrying its name, opacity, visibility, blend mode, lock (`edit-locked="true"` when locked) and `isolation="isolate"`, with its children inside it in document order.
+- [x] AC-04 (always): Writing a document with nested groups to `.ora` and reading it back yields the same layer tree: names, order, parents, visibility, opacity, blend modes, locks and pixels.
+- [x] AC-05 (always): An `.ora` with a single flat `<stack>` opens with the same layers, offsets and properties as before this feature.
+- [x] AC-06 (event): When the user saves a document with a group as `.ora` in Image mode and reopens the file, then the layers panel still shows the group with its child indented below it.
+- [x] AC-07 (always): The `mergedimage.png` written into the `.ora` equals the document composite, with groups applied in isolation.
 
 ## Technical notes
 
@@ -66,6 +66,13 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | ---------- | ------ | ---- |
 | Stacks without `isolation="isolate"` are read as isolated groups | Pass-through groups are out of scope in `image-layer-groups` | Medium — a file from Krita / GIMP with pass-through groups and non-Normal child blend modes renders differently than in those apps |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- OpenRaster nested stacks open as Image-mode groups with their visibility, opacity and blend mode; flat files open as before; malformed or oversized stacks are handled
+- Saving writes groups as nested isolated stacks, round-trips the layer tree, and the merged image applies the groups
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -74,13 +81,13 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-01 | `from_ora_bytes_keeps_nested_stack_attributes`, `from_ora_bytes_recovers_unbalanced_stacks`, `from_ora_bytes_over_the_layer_limit_fails` (`crates/pincel-image-core/src/codec/ora.rs`) | verified | ba53299 |
+| AC-02 | `from_ora_bytes_keeps_nested_stack_attributes` (hidden stack), `from_ora_bytes_composites_a_half_opaque_stack_as_a_whole` (`codec/ora.rs`) | verified | ba53299 |
+| AC-03 | `to_ora_bytes_writes_groups_as_nested_isolated_stacks` (`codec/ora.rs`) | verified | 6aed618 |
+| AC-04 | `to_ora_bytes_then_from_ora_bytes_keeps_the_layer_tree` (`codec/ora.rs`) | verified | ba53299 |
+| AC-05 | `from_ora_bytes_reads_a_flat_stack_at_the_root`, `to_ora_bytes_then_from_ora_bytes_round_trips_layers` (`codec/ora.rs`) | verified | 35f631c |
+| AC-06 | `image mode: a saved group reopens with its child indented (image-layer-groups-ora AC-06)` (`ui/e2e/ora.spec.ts`) | verified | 6aed618 |
+| AC-07 | `to_ora_bytes_merged_image_applies_groups_in_isolation`, `to_ora_bytes_merged_image_is_the_visible_composite` (`codec/ora.rs`) | verified | 35f631c |
 
 ## Decisions
 
@@ -88,3 +95,7 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 - Groups are written with `isolation="isolate"` — because Image-mode groups composite isolated (spec `image-layer-groups`), and the attribute tells other ORA readers to do the same.
 - 2026-10-29: A group's lock is written as `edit-locked="true"` on `<stack>` and read back, exactly as for `<layer>` (AC-01, AC-03, AC-04) — otherwise a locked group loses its lock on every save, and it is one attribute through the existing scanner (owner accepted the recommendation).
 - 2026-10-29: Unbalanced `<stack>` tags are recovered best-effort: open stacks close at the end of `stack.xml`, a stray `</stack>` is ignored, and no notice is shown — the reader is already lenient (an attribute scanner, not a validating parser), and the layers and pixels are intact (owner accepted the recommendation).
+- 2026-11-04 (spec-build): A `stack.xml` whose nested stacks hold no `<layer>` at all opens as a blank document (one transparent layer) — because a document needs a raster layer (image-layer-groups AC-20) and there are no pixels to keep.
+- 2026-11-04 (spec-build): A group's `x` / `y` on `<stack>` are ignored and Pincel writes none — because groups have no pixels of their own and the spec maps only name, opacity, visibility, blend mode and lock.
+- 2026-11-04 (spec-build): A stack without a `name` opens as `Group N` (N counting the groups read so far), like a nameless layer opens as `Layer N` — because every layer needs a name in the panel.
+- 2026-11-04 (spec-build): The AC-06 e2e was written after the codec change, so it never ran red; the codec tests ran red first (nested stacks were flattened, and writing a group failed on its 0×0 buffer).

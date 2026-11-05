@@ -17,7 +17,11 @@ pnpm build        # static output in build/
 pnpm preview      # serve build/
 pnpm check        # svelte-check
 pnpm lint
+pnpm test:e2e     # Playwright against `pnpm preview` of build/ (pnpm build first)
 ```
+
+The e2e specs live under `e2e/`. `PINCEL_SITE_E2E_PORT` (default 4174) moves the preview
+server, so the editor's suite (4173) or a second checkout can run alongside.
 
 ## Layout
 

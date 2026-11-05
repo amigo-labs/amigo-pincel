@@ -22,19 +22,19 @@ pub mod transform;
 
 pub use color::{BlendMode, Color};
 pub use command::{
-    AddLayer, Anchor, CanvasRotation, Command, CommandBus, CropToSelection, DuplicateLayer,
-    FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeVisible, MoveLayer, PasteLayer,
-    RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage,
-    SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection,
-    TransformLayer, UndoStack,
+    AddGroup, AddLayer, Anchor, CanvasRotation, Command, CommandBus, CropToSelection,
+    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
+    MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
+    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
+    SetPixels, SetSelection, TransformLayer, UndoStack,
 };
 pub use document::{
     CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,
-    MAX_CANVAS_DIM, MAX_LAYERS, MIN_CANVAS_DIM,
+    LayerPlacement, MAX_CANVAS_DIM, MAX_LAYERS, MIN_CANVAS_DIM,
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect, Size};
-pub use render::{compose, compose_over, compose_region};
+pub use render::{RenderCache, compose, compose_over, compose_region};
 pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand, masked_region};
 pub use tools::{
     Brush, BrushShape, DEFAULT_BRUSH_ANGLE, DashPattern, Eraser, EraserMode, Eyedropper, Fill,

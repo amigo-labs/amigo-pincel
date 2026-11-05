@@ -5,11 +5,13 @@
 // Mirrors `pincel_effects::EffectSpec`: every entry names the wasm wire
 // id and lists its parameters in the exact order `applyEffect` /
 // `previewEffect` expect them. Choice parameters travel as their option
-// index, booleans as 0 / 1. Keep this table in step with the Rust enum;
+// index, booleans as 0 / 1, colours as one integer 0xRRGGBBAA (spec §15,
+// 2026-10-29). Keep this table in step with the Rust enum;
 // the `every_effect_name_is_accepted` test on the Rust side and
 // `assertCatalogCoversAllEffects` below guard the id set from each end.
 
-export type EffectGroup = 'blur' | 'sharpen' | 'distort' | 'noise' | 'adjust';
+/** `effects` entries sit directly in the Effects menu, after its submenus. */
+export type EffectGroup = 'blur' | 'sharpen' | 'distort' | 'noise' | 'effects' | 'adjust';
 
 export type ParamDef =
   | {
@@ -22,7 +24,16 @@ export type ParamDef =
       default: number;
     }
   | { kind: 'bool'; key: string; label: string; default: boolean }
-  | { kind: 'choice'; key: string; label: string; options: string[]; default: number };
+  | { kind: 'choice'; key: string; label: string; options: string[]; default: number }
+  /** A straight-alpha colour as the integer 0xRRGGBBAA; it defaults to the
+   *  current foreground colour (`EffectContext`), to `default` without one. */
+  | { kind: 'color'; key: string; label: string; default: number };
+
+/** What a dialog knows beyond the catalog when it opens. */
+export type EffectContext = {
+  /** The foreground colour as 0xRRGGBBAA. */
+  foreground?: number | undefined;
+};
 
 export type EffectDef = {
   id: string;
@@ -55,6 +66,13 @@ const choice = (key: string, label: string, options: string[], def = 0): ParamDe
   label,
   options,
   default: def,
+});
+
+const color = (key: string, label: string): ParamDef => ({
+  kind: 'color',
+  key,
+  label,
+  default: 0x000000ff,
 });
 
 // Curves is exposed as five output sliders at fixed input positions —
@@ -143,6 +161,17 @@ export const EFFECTS: EffectDef[] = [
     label: 'Reduce Noise',
     group: 'noise',
     params: [num('radius', 'Radius', 1, 10, 1)],
+  },
+  {
+    id: 'outline',
+    label: 'Outline',
+    group: 'effects',
+    params: [
+      choice('place', 'Place', ['Outside', 'Inside', 'Both']),
+      choice('shape', 'Shape', ['Circle', 'Square'], 1),
+      num('thickness', 'Thickness', 1, 8, 1),
+      color('color', 'Color'),
+    ],
   },
   {
     id: 'brightness_contrast',
@@ -249,23 +278,51 @@ export const GROUP_LABELS: Record<EffectGroup, string> = {
   sharpen: 'Sharpen',
   distort: 'Distort',
   noise: 'Noise',
+  effects: 'Effects',
   adjust: 'Adjustments',
 };
 
-/** Groups that live under the Effects menu; `adjust` has its own menu. */
+/** Groups that are submenus of the Effects menu; `effects` entries follow
+ *  them directly, `adjust` has its own menu. */
 export const EFFECT_MENU_GROUPS: EffectGroup[] = ['blur', 'sharpen', 'distort', 'noise'];
 
 export function effectById(id: string): EffectDef | undefined {
   return EFFECTS.find((e) => e.id === id);
 }
 
-/** Default value map for a definition (numbers; bools as 0/1). */
-export function defaultValues(def: EffectDef): Record<string, number> {
+/** Default value map for a definition (numbers; bools as 0/1; colours as
+ *  0xRRGGBBAA, the foreground from `ctx` when given). */
+export function defaultValues(def: EffectDef, ctx: EffectContext = {}): Record<string, number> {
   const out: Record<string, number> = {};
   for (const p of def.params) {
-    out[p.key] = p.kind === 'bool' ? (p.default ? 1 : 0) : p.default;
+    if (p.kind === 'bool') out[p.key] = p.default ? 1 : 0;
+    else if (p.kind === 'color') out[p.key] = ctx.foreground ?? p.default;
+    else out[p.key] = p.default;
   }
   return out;
+}
+
+/** `#RRGGBB` or `#RRGGBBAA` as 0xRRGGBBAA (alpha 255 without `AA`);
+ *  `null` for any other text. */
+export function parseHexColor(text: string): number | null {
+  const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(text.trim());
+  if (!m) return null;
+  return parseInt(`${m[1]}${m[2] ?? 'ff'}`, 16);
+}
+
+/** 0xRRGGBBAA as `#rrggbb`, with `aa` appended unless it is opaque. */
+export function formatHexColor(rgba: number): string {
+  const v = rgba >>> 0;
+  const rgb = (v >>> 8).toString(16).padStart(6, '0');
+  const a = v & 0xff;
+  return a === 0xff ? `#${rgb}` : `#${rgb}${a.toString(16).padStart(2, '0')}`;
+}
+
+/** `#rrggbb` plus an alpha 0–255 as 0xRRGGBBAA (black for a bad hex). */
+export function rgbaOf(hex: string, alpha = 255): number {
+  const rgb = parseHexColor(hex);
+  const base = rgb === null ? 0 : rgb >>> 8;
+  return (base * 256 + (Math.round(alpha) & 0xff)) >>> 0;
 }
 
 /** Wire parameter vector in the order `pincel_effects::EffectSpec` expects. */

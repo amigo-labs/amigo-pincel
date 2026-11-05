@@ -20,9 +20,11 @@ impl SliceId {
 pub struct SliceKey {
     pub frame: FrameIndex,
     pub bounds: Rect,
-    /// 9-patch inner rectangle, if this slice is a 9-patch.
+    /// 9-patch inner rectangle, if this slice is a 9-patch. Relative to the
+    /// origin of `bounds`, as the Aseprite format stores it.
     pub center: Option<Rect>,
-    /// Optional pivot point, in sprite coordinates.
+    /// Optional pivot point, relative to the origin of `bounds` (as the
+    /// Aseprite format stores it); it may lie outside the bounds.
     pub pivot: Option<(i32, i32)>,
 }
 

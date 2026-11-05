@@ -12,7 +12,11 @@ import {
 } from './playback';
 import { syncMeta, syncSelection } from './render';
 import { colors, dialogs, ed, live, play, toolState } from './stores/editor.svelte';
-import { fitView } from './view-ops';
+import { fitNewDocument } from './view-ops';
+import { stopPreview } from './preview';
+import { resetAxes } from './symmetry';
+import { layerTreeOrder } from './layer-order';
+import { packColor, unpackColor } from '../../lib/color';
 
 /** A Select-menu command. */
 export type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
@@ -225,12 +229,14 @@ export function togglePlay() {
 // document (stamp target, active slice / layer, tile editor) are
 // meaningless against the new one and are dropped.
 export function resetDocViewState() {
+  resetAxes();
   stopPlayback();
+  stopPreview();
   play.loopTag = null;
   applyOnion(play.onion);
   live.needsRecompose = true;
   syncMeta();
-  fitView();
+  fitNewDocument();
   syncSelection();
   ed.docRev += 1;
   toolState.stampTile = null;
@@ -413,6 +419,44 @@ export function removeLayerById(layerId: number) {
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/**
+ * Alt+↑ / Alt+↓: activates the row above (`-1`) or below (`1`) the active
+ * one in the layers panel's order; nothing at the ends of the stack.
+ */
+export function stepActiveLayer(delta: -1 | 1) {
+  if (!ed.doc) return;
+  const order = layerTreeOrder(ed.doc);
+  const current = targetLayer();
+  const at = current === null ? -1 : order.indexOf(current);
+  const next = at < 0 ? undefined : order[at + delta];
+  if (next === undefined) return;
+  ed.activeLayerId = next;
+  ed.doc.setActiveLayer(next);
+}
+
+/**
+ * Alt+] / Alt+[: makes the next (`1`) or previous (`-1`) palette entry the
+ * foreground color, stopping at the palette's ends. A foreground color the
+ * palette lacks steps to its first / last entry.
+ */
+export function stepPaletteColor(delta: -1 | 1) {
+  const doc = ed.doc;
+  if (!doc || doc.paletteCount === 0) return;
+  const count = doc.paletteCount;
+  const fg = packColor(colors.color, colors.alpha);
+  let at = -1;
+  for (let i = 0; i < count; i += 1) {
+    if (doc.paletteColor(i) >>> 0 === fg >>> 0) {
+      at = i;
+      break;
+    }
+  }
+  const next = at < 0 ? (delta > 0 ? 0 : count - 1) : Math.max(0, Math.min(count - 1, at + delta));
+  const packed = doc.paletteColor(next);
+  colors.color = unpackColor(packed);
+  colors.alpha = packed & 0xff;
 }
 
 // The active layer, falling back to the paint target the core picks.

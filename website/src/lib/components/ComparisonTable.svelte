@@ -39,14 +39,14 @@
     {
       feature: 'openSource',
       pincel: { mark: '✅', note: 'mitApache' },
-      aseprite: { mark: '✅', note: 'eula' },
+      aseprite: { mark: '🟡', note: 'sourceAvailable' },
       piskel: { mark: '✅', note: 'apache' },
     },
     {
       feature: 'active',
       pincel: '✅',
       aseprite: '✅',
-      piskel: { mark: '🟡', note: 'modernizing' },
+      piskel: { mark: '🟡', note: 'noRelease' },
     },
   ];
 </script>
@@ -92,7 +92,10 @@
   }
   table {
     width: 100%;
-    border-collapse: collapse;
+    /* Separate (zero-spaced) borders belong to their cells, so a sticky
+       cell keeps its row line while it scrolls. */
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 0.95rem;
   }
   th,
@@ -106,7 +109,9 @@
     font-family: var(--font-body);
     font-weight: 600;
     color: var(--color-fg-primary);
-    background-color: color-mix(in srgb, var(--color-bg-elevated) 30%, transparent);
+    /* Opaque (mixed into the card colour, not into transparent) so a sticky
+       cell hides what scrolls beneath it on a phone. */
+    background-color: color-mix(in srgb, var(--color-bg-elevated) 30%, var(--color-bg-card));
     border-bottom: 2px solid var(--color-border-strong);
   }
   tbody tr:last-child th,
@@ -116,10 +121,11 @@
   th[scope='row'] {
     color: var(--color-fg-secondary);
     font-weight: 500;
+    background-color: var(--color-bg-card);
   }
   td.pincel,
   th.pincel {
-    background-color: color-mix(in srgb, var(--color-brand-primary) 8%, transparent);
+    background-color: color-mix(in srgb, var(--color-brand-primary) 8%, var(--color-bg-card));
   }
   .mark {
     font-size: 1.05rem;
@@ -135,5 +141,43 @@
     color: var(--color-fg-muted);
     font-size: 0.9rem;
     max-width: 60ch;
+  }
+  /* Phones: the table keeps readable columns and scrolls inside its wrapper
+     (never the page); the feature labels and the Pincel column stay in view
+     while the competitor columns scroll past (website-comparison AC-09). */
+  /* Fixed column widths keep every competitor column narrower than the strip
+     the two sticky columns leave free at 390 px, so scrolling reveals each
+     one completely. */
+  @media (max-width: 720px) {
+    table {
+      width: max-content;
+      font-size: 0.875rem;
+    }
+    th,
+    td {
+      padding: 0.6rem 0.75rem;
+      width: 7.5rem;
+      min-width: 7.5rem;
+      max-width: 7.5rem;
+      /* A long word ("Kostenpflichtig") breaks instead of running into
+         the next column. */
+      overflow-wrap: anywhere;
+      hyphens: auto;
+    }
+    th[scope='row'],
+    thead th:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+    }
+    td.pincel,
+    th.pincel {
+      position: sticky;
+      left: 7.5rem;
+      z-index: 1;
+      width: 6.5rem;
+      min-width: 6.5rem;
+      max-width: 6.5rem;
+    }
   }
 </style>

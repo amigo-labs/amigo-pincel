@@ -5,6 +5,7 @@
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
 use pincel_effects::{EffectImage, EffectSpec};
+use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::{
     to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
@@ -13,9 +14,8 @@ use pincel_image_core::command::spec::{
 };
 use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
 use pincel_image_core::{
-    BlendMode, Color, Document, Eyedropper, ImageBuffer, Interpolation, Point, Rect, SampleSize,
-    compose, compose_region, copy_selection as copy_selection_pixels, delete_selection,
-    masked_region, scale,
+    BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
+    compose, copy_selection as copy_selection_pixels, delete_selection, masked_region,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -38,6 +38,10 @@ thread_local! {
     /// single undo step by `stroke_id` — so a tool that remembers something
     /// between dabs has to remember it here, not inside one call.
     static STROKES: RefCell<HashMap<u32, StrokeScratch>> = RefCell::new(HashMap::new());
+    /// The presented composite of each document (docs/specs/performance-image-cache.md),
+    /// created on its first `composite_region` and fed the bus's damage on
+    /// every one after.
+    static CACHES: RefCell<HashMap<u32, RenderCache>> = RefCell::new(HashMap::new());
     /// Registered font byte blobs, indexed by font id (see `register_font`).
     /// The Text tool re-parses these per commit (ADR-012), so JS uploads each
     /// face once and references it by id rather than passing bytes per command.
@@ -114,6 +118,40 @@ pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
     let doc =
         pincel_image_core::codec::from_ora_bytes(data).map_err(|e| JsError::new(&e.to_string()))?;
     Ok(insert(CommandBus::new(doc)))
+}
+
+/// What [`open_psd`] hands back: the new document's handle and what the
+/// import left out or changed (docs/specs/psd-import.md).
+#[derive(Debug, Serialize)]
+struct PsdOpened {
+    handle: u32,
+    notices: Vec<PsdNotice>,
+}
+
+/// Opens a PSD into the arena, refusing a canvas over `max_dim` per edge
+/// or `max_area` pixels before decoding any pixel.
+fn open_psd_document(data: &[u8], max_dim: u32, max_area: u32) -> Result<PsdOpened, String> {
+    let limits = PsdLimits {
+        max_dim,
+        max_area: u64::from(max_area),
+    };
+    let import = from_psd_bytes(data, limits).map_err(|e| e.to_string())?;
+    Ok(PsdOpened {
+        handle: insert(CommandBus::new(import.document)),
+        notices: import.notices,
+    })
+}
+
+/// Opens a Photoshop (`.psd`) file — 8-bit RGB, its layers and groups, or
+/// its flattened composite — and returns `{ handle, notices }`; `notices`
+/// lists what the import left out or changed (`kind`-tagged objects, see
+/// `PsdNotice`). Fails, opening nothing, for PSB, other depths and color
+/// modes, a canvas over `max_dim` per edge or `max_area` pixels, or a file
+/// that cannot be read (docs/specs/psd-import.md).
+#[wasm_bindgen]
+pub fn open_psd(data: &[u8], max_dim: u32, max_area: u32) -> Result<JsValue, JsError> {
+    let opened = open_psd_document(data, max_dim, max_area).map_err(|e| JsError::new(&e))?;
+    serde_wasm_bindgen::to_value(&opened).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Pastes an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a new layer above
@@ -209,6 +247,9 @@ pub fn close_document(handle: u32) {
     STROKES.with(|strokes| {
         strokes.borrow_mut().remove(&handle);
     });
+    CACHES.with(|caches| {
+        caches.borrow_mut().remove(&handle);
+    });
 }
 
 /// Returns the flattened composite as an RGBA8 `Uint8ClampedArray`, ready to
@@ -277,9 +318,8 @@ fn sample_size(edge: u32) -> SampleSize {
 pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
     let spec: CommandSpec =
         serde_json::from_str(command).map_err(|e| JsError::new(&e.to_string()))?;
-    let target = spec.edited_layer();
     with_bus(handle, |bus| {
-        if target.is_some_and(|i| layer_locked(&bus.document, i)) {
+        if spec.refused(&bus.document) {
             return Err(JsError::new(LOCKED));
         }
         STROKES.with(|strokes| {
@@ -418,12 +458,14 @@ pub fn redo(handle: u32) -> Result<bool, JsError> {
     with_bus(handle, |bus| bus.redo().map_err(to_js))
 }
 
-/// Composites only the canvas rect `(x, y, w, h)` (clipped to the canvas)
-/// and resamples it to `out_w × out_h` — the UI's viewport renderer, so
-/// a canvas larger than any browser canvas still displays (spec §6.4).
-/// Pass the clipped size as `out_w` / `out_h` for 1:1 pixels; smaller
-/// sizes downscale bilinearly (zoomed-out views). Returns RGBA8 rows of
-/// the output size; an empty region yields an empty array.
+/// Presents the canvas rect `(x, y, w, h)` (clipped to the canvas) at
+/// `out_w × out_h` — the UI's viewport renderer, so a canvas larger than
+/// any browser canvas still displays (spec §6.4). The pixels come from the
+/// document's cached composite, updated only where commands changed it
+/// (docs/specs/performance-image-cache.md): the clipped size as `out_w` /
+/// `out_h` gives 1:1 pixels identical to a fresh compose; smaller sizes
+/// (zoomed-out views) sample the cache's downscaled pyramid. Returns RGBA8
+/// rows of the output size; an empty region yields an empty array.
 #[wasm_bindgen]
 pub fn composite_region(
     handle: u32,
@@ -435,20 +477,16 @@ pub fn composite_region(
     out_h: u32,
 ) -> Result<Clamped<Vec<u8>>, JsError> {
     with_bus(handle, |bus| {
-        let region = compose_region(bus.document.layers(), Rect::new(x, y, w, h));
-        if region.width() == 0 || region.height() == 0 {
-            return Ok(Clamped(Vec::new()));
-        }
-        let (ow, oh) = (
-            out_w.clamp(1, region.width()),
-            out_h.clamp(1, region.height()),
-        );
-        let out = if (ow, oh) == (region.width(), region.height()) {
-            region
-        } else {
-            scale(&region, ow, oh, Interpolation::Bilinear)
-        };
-        Ok(Clamped(out.into_raw()))
+        let damage = bus.take_damage();
+        CACHES.with(|caches| {
+            let mut caches = caches.borrow_mut();
+            let cache = caches
+                .entry(handle)
+                .or_insert_with(|| RenderCache::new(&bus.document));
+            cache.update(&bus.document, damage);
+            let out = cache.region(&bus.document, Rect::new(x, y, w, h), out_w, out_h);
+            Ok(Clamped(out.into_raw()))
+        })
     })
 }
 
@@ -505,6 +543,34 @@ struct LayerInfo {
     blend_mode: String,
     visible: bool,
     locked: bool,
+    /// `"raster"` or `"group"`.
+    kind: &'static str,
+    /// Index of the group the layer sits in; `None` at the root.
+    parent: Option<usize>,
+    /// Number of groups the layer is nested in.
+    depth: usize,
+    /// Whether a group the layer sits in is locked.
+    locked_by_parent: bool,
+}
+
+/// The layers panel's view of every layer, bottom first.
+fn layer_infos(doc: &Document) -> Vec<LayerInfo> {
+    doc.layers()
+        .iter()
+        .enumerate()
+        .map(|(i, l)| LayerInfo {
+            id: l.id.to_string(),
+            name: l.name.clone(),
+            opacity: l.opacity,
+            blend_mode: blend_mode_str(l.blend_mode).to_string(),
+            visible: l.visible,
+            locked: l.locked,
+            kind: if l.is_group() { "group" } else { "raster" },
+            parent: doc.parent_index(i),
+            depth: doc.depth(i),
+            locked_by_parent: doc.locked_by_parent(i),
+        })
+        .collect()
 }
 
 /// Lightweight document state for the UI (spec §17 `DocumentInfo`).
@@ -529,19 +595,7 @@ struct DocumentInfo {
 #[wasm_bindgen]
 pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     with_bus(handle, |bus| {
-        let layers = bus
-            .document
-            .layers()
-            .iter()
-            .map(|l| LayerInfo {
-                id: l.id.to_string(),
-                name: l.name.clone(),
-                opacity: l.opacity,
-                blend_mode: blend_mode_str(l.blend_mode).to_string(),
-                visible: l.visible,
-                locked: l.locked,
-            })
-            .collect();
+        let layers = layer_infos(&bus.document);
         let info = DocumentInfo {
             width: bus.document.canvas.width(),
             height: bus.document.canvas.height(),
@@ -562,14 +616,27 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
 #[wasm_bindgen]
 pub fn get_layer_thumbnail(handle: u32, layer_id: &str) -> Result<Clamped<Vec<u8>>, JsError> {
     with_bus(handle, |bus| {
-        let layer = bus
-            .document
-            .layers()
-            .iter()
-            .find(|l| l.id.to_string() == layer_id)
-            .ok_or_else(|| JsError::new("layer not found"))?;
-        Ok(Clamped(thumbnail(&layer.pixels)))
+        layer_thumbnail_pixels(&bus.document, layer_id)
+            .map(Clamped)
+            .ok_or_else(|| JsError::new("layer not found"))
     })
+}
+
+/// The 32×32 thumbnail of the layer with `layer_id`: its pixels, or for a
+/// group the composite of its subtree, hidden or not. `None` for an
+/// unknown id.
+fn layer_thumbnail_pixels(doc: &Document, layer_id: &str) -> Option<Vec<u8>> {
+    let index = doc
+        .layers()
+        .iter()
+        .position(|l| l.id.to_string() == layer_id)?;
+    let layer = &doc.layers()[index];
+    if !layer.is_group() {
+        return Some(thumbnail(&layer.pixels));
+    }
+    let mut subtree = doc.layers()[index..doc.subtree_end(index)].to_vec();
+    subtree[0].visible = true;
+    Some(thumbnail(&compose(&subtree)))
 }
 
 /// Returns the selection's bounding box as `[x, y, w, h]`, or an empty array
@@ -632,6 +699,47 @@ mod ts_bindings {
 }
 
 #[cfg(test)]
+mod group_tests {
+    use super::*;
+    use pincel_image_core::Layer;
+
+    /// bg, G { a } with a red pixel at (0, 0) on `a`.
+    fn grouped() -> Document {
+        let mut doc = Document::new(4, 4).expect("doc");
+        let group = Layer::new_group("G");
+        let gid = group.id;
+        doc.insert_layer(1, group).expect("group");
+        let mut a = Layer::new_transparent("a", 4, 4).with_parent(Some(gid));
+        a.pixels.set_pixel(0, 0, Color::rgba(255, 0, 0, 255));
+        doc.insert_layer(2, a).expect("a");
+        doc
+    }
+
+    #[test]
+    fn layer_infos_report_kind_depth_parent_and_inherited_lock() {
+        let mut doc = grouped();
+        doc.set_active_layer(1).expect("active");
+        doc.active_layer_mut().locked = true;
+        let infos = layer_infos(&doc);
+        assert_eq!(infos[0].kind, "raster");
+        assert_eq!(infos[1].kind, "group");
+        assert_eq!((infos[2].depth, infos[2].parent), (1, Some(1)));
+        assert!(infos[2].locked_by_parent && !infos[2].locked);
+        assert!(!infos[1].locked_by_parent);
+    }
+
+    #[test]
+    fn group_thumbnail_shows_its_subtree() {
+        let mut doc = grouped();
+        doc.set_active_layer(1).expect("active");
+        doc.active_layer_mut().visible = false;
+        let id = doc.layers()[1].id.to_string();
+        let thumb = layer_thumbnail_pixels(&doc, &id).expect("thumbnail");
+        assert_eq!(&thumb[..4], &[255, 0, 0, 255], "hidden or not");
+    }
+}
+
+#[cfg(test)]
 mod project_tests {
     use super::*;
 
@@ -652,6 +760,41 @@ mod project_tests {
         })
         .expect("read");
         assert_eq!(names, vec!["Layer 1".to_string(), "Top".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod psd_tests {
+    use super::*;
+
+    const SAMPLE: &[u8] = include_bytes!("../../pincel-image-core/tests/fixtures/sample.psd");
+
+    #[test]
+    fn open_psd_document_opens_layers_and_reports_notices() {
+        let opened = open_psd_document(SAMPLE, 16384, 8192 * 8192).expect("opens");
+        let names: Vec<String> = with_bus(opened.handle, |bus| {
+            Ok(bus
+                .document
+                .layers()
+                .iter()
+                .map(|l| l.name.clone())
+                .collect())
+        })
+        .expect("read");
+        assert_eq!(names, ["Base", "Folder", "Ink", "Title"]);
+        assert!(opened.notices.contains(&PsdNotice::Adjustment {
+            layer: "Curves".into()
+        }));
+    }
+
+    #[test]
+    fn open_psd_document_over_the_canvas_limits_opens_nothing() {
+        let before = DOCUMENTS.with(|d| d.borrow().len());
+        let err = open_psd_document(SAMPLE, 39, 8192 * 8192).expect_err("too wide");
+        assert!(err.contains("40 × 30"), "{err}");
+        let err = open_psd_document(SAMPLE, 16384, 1199).expect_err("too large");
+        assert!(err.contains("size limit"), "{err}");
+        assert_eq!(DOCUMENTS.with(|d| d.borrow().len()), before);
     }
 }
 
@@ -805,6 +948,7 @@ mod paste_tests {
 #[cfg(test)]
 mod region_tests {
     use super::*;
+    use pincel_image_core::compose_region;
 
     #[test]
     fn composite_region_crops_and_downscales() {
@@ -816,6 +960,113 @@ mod region_tests {
         assert_eq!(small.0.len(), 4 * 3 * 4);
         let outside = composite_region(handle, 20, 20, 4, 4, 4, 4).expect("empty");
         assert!(outside.0.is_empty());
+    }
+
+    /// A 3-layer 40×30 document with differently colored, half-transparent
+    /// upper layers.
+    fn layered() -> u32 {
+        let handle = insert(CommandBus::new(Document::new(40, 30).expect("doc")));
+        for (layer, color) in [(0, [200, 40, 10, 255]), (1, [10, 90, 220, 140])] {
+            if layer > 0 {
+                apply_command(
+                    handle,
+                    &format!(r#"{{"type":"add_layer","active":{}}}"#, layer - 1),
+                )
+                .expect("add layer");
+            }
+            let dab = format!(
+                r#"{{"type":"pencil_stroke","layer":{layer},"size":30,"color":{color:?},"opacity":1,"points":[[{x},15]],"stroke_id":{layer}}}"#,
+                x = 12 + layer * 14
+            );
+            apply_command(handle, &dab).expect("paint");
+        }
+        apply_command(handle, r#"{"type":"add_layer","active":1}"#).expect("add layer");
+        handle
+    }
+
+    fn fresh_compose(handle: u32, x: i32, y: i32, w: u32, h: u32) -> Vec<u8> {
+        with_bus(handle, |bus| {
+            Ok(compose_region(bus.document.layers(), Rect::new(x, y, w, h)).into_raw())
+        })
+        .expect("compose")
+    }
+
+    fn canvas(handle: u32) -> (u32, u32) {
+        with_bus(handle, |bus| {
+            Ok((bus.document.canvas.width(), bus.document.canvas.height()))
+        })
+        .expect("size")
+    }
+
+    #[test]
+    fn composite_region_matches_a_fresh_compose_after_edits_undo_and_redo() {
+        // AC-01, AC-06: each step is presented (so the cache is warm) and
+        // must equal a fresh compose at zoom 1, whole canvas and a crop.
+        let handle = layered();
+        let steps = [
+            r#"{"type":"pencil_stroke","layer":2,"size":6,"color":[0,0,0,255],"opacity":1,"points":[[5,5],[30,20]],"stroke_id":9}"#,
+            r#"{"type":"pencil_stroke","layer":2,"size":6,"color":[0,0,0,255],"opacity":1,"points":[[30,20],[35,4]],"stroke_id":9}"#,
+            "undo",
+            "redo",
+            r#"{"type":"set_layer_opacity","index":1,"opacity":0.3}"#,
+            r#"{"type":"set_layer_blend_mode","index":1,"mode":"multiply"}"#,
+            r#"{"type":"set_layer_visible","index":0,"visible":false}"#,
+            "undo",
+            r#"{"type":"move_layer","from":0,"to":2}"#,
+            r#"{"type":"pencil_stroke","layer":0,"size":9,"color":[0,255,0,90],"opacity":1,"points":[[20,10]],"stroke_id":10}"#,
+            "undo",
+            "undo",
+            r#"{"type":"resize_canvas","width":33,"height":41}"#,
+            r#"{"type":"pencil_stroke","layer":1,"size":5,"color":[255,255,0,255],"opacity":1,"points":[[3,38]],"stroke_id":11}"#,
+            "undo",
+            "undo",
+        ];
+        composite_region(handle, 0, 0, 40, 30, 40, 30).expect("warm the cache");
+        for step in steps {
+            match step {
+                "undo" => assert!(undo(handle).expect("undo")),
+                "redo" => assert!(redo(handle).expect("redo")),
+                json => apply_command(handle, json).expect(json),
+            }
+            let (w, h) = canvas(handle);
+            let whole = composite_region(handle, 0, 0, w, h, w, h).expect("whole");
+            assert_eq!(whole.0, fresh_compose(handle, 0, 0, w, h), "after {step}");
+            let crop = composite_region(handle, 7, 3, 20, 11, 20, 11).expect("crop");
+            assert_eq!(crop.0, fresh_compose(handle, 7, 3, 20, 11), "after {step}");
+        }
+    }
+
+    #[test]
+    fn composite_region_below_zoom_one_samples_the_pyramid_of_a_fresh_compose() {
+        // AC-07: zoomed out, the presented pixels are the pyramid sample of
+        // the current document, also after edits and an undo.
+        let handle = layered();
+        let views = [
+            (0, 0, 40, 30, 13, 10),
+            (5, 4, 30, 20, 11, 7),
+            (0, 0, 40, 30, 39, 29),
+        ];
+        let fresh = |handle: u32, (x, y, w, h, ow, oh): (i32, i32, u32, u32, u32, u32)| {
+            with_bus(handle, |bus| {
+                let mut cache = pincel_image_core::RenderCache::new(&bus.document);
+                Ok(cache
+                    .region(&bus.document, Rect::new(x, y, w, h), ow, oh)
+                    .into_raw())
+            })
+            .expect("fresh pyramid")
+        };
+        let stroke = r#"{"type":"pencil_stroke","layer":2,"size":7,"color":[0,0,0,255],"opacity":1,"points":[[8,8],[33,22]],"stroke_id":5}"#;
+        for step in ["none", stroke, "undo"] {
+            match step {
+                "none" => {}
+                "undo" => assert!(undo(handle).expect("undo")),
+                json => apply_command(handle, json).expect(json),
+            }
+            for view @ (x, y, w, h, ow, oh) in views {
+                let shown = composite_region(handle, x, y, w, h, ow, oh).expect("shown");
+                assert_eq!(shown.0, fresh(handle, view), "{view:?} after {step}");
+            }
+        }
     }
 }
 
@@ -835,5 +1086,113 @@ mod export_tests {
             let back = decode(bytes).expect("decode");
             assert_eq!((back.width(), back.height()), (5, 3));
         }
+    }
+}
+
+#[cfg(test)]
+mod effect_tests {
+    use super::*;
+    use pincel_image_core::SelectionMask;
+
+    fn red() -> Color {
+        Color::rgba(255, 0, 0, 255)
+    }
+
+    /// 4×4 document with red at (1, 1) on its only layer.
+    fn painted() -> u32 {
+        let mut doc = Document::new(4, 4).expect("doc");
+        doc.active_layer_mut().pixels.set_pixel(1, 1, red());
+        insert(CommandBus::new(doc))
+    }
+
+    fn layer_pixel(handle: u32, x: u32, y: u32) -> Color {
+        with_bus(handle, |bus| {
+            Ok(bus.document.layers()[0]
+                .pixels
+                .get_pixel(x, y)
+                .expect("in bounds"))
+        })
+        .expect("read")
+    }
+
+    fn can_undo(handle: u32) -> bool {
+        with_bus(handle, |bus| Ok(bus.history.can_undo())).expect("read")
+    }
+
+    #[test]
+    fn preview_effect_shows_the_effect_and_leaves_document_and_history_untouched() {
+        let handle = painted();
+        let frame = preview_effect(handle, 0, "invert", &[]).expect("preview");
+        let i = (4 + 1) * 4;
+        assert_eq!(
+            &frame.0[i..i + 4],
+            &[0, 255, 255, 255],
+            "preview is inverted"
+        );
+        assert_eq!(layer_pixel(handle, 1, 1), red(), "document unchanged");
+        assert!(!can_undo(handle), "no undo step");
+    }
+
+    #[test]
+    fn apply_effect_with_an_empty_selection_changes_nothing() {
+        let handle = painted();
+        with_bus(handle, |bus| {
+            bus.document.selection = Some(SelectionMask::new_empty(4, 4));
+            Ok(())
+        })
+        .expect("select");
+        assert!(!apply_effect(handle, 0, "invert", &[]).expect("apply"));
+        assert_eq!(layer_pixel(handle, 1, 1), red());
+        assert!(!can_undo(handle), "no undo step");
+    }
+
+    /// Outline wire params: Outside, Square, thickness 1, blue at alpha 0x80.
+    const OUTLINE: [f64; 4] = [0.0, 1.0, 1.0, 0x0000_FF80 as f64];
+
+    fn blue() -> Color {
+        Color::rgba(0, 0, 255, 0x80)
+    }
+
+    #[test]
+    fn apply_effect_outline_is_one_undo_step_and_redo_reapplies_it() {
+        let handle = painted();
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        assert_eq!(layer_pixel(handle, 0, 0), blue(), "neighbour, exact colour");
+        assert_eq!(layer_pixel(handle, 2, 2), blue());
+        assert_eq!(
+            layer_pixel(handle, 3, 3),
+            Color::TRANSPARENT,
+            "not a neighbour"
+        );
+        assert_eq!(layer_pixel(handle, 1, 1), red());
+        assert!(undo(handle).expect("undo"));
+        assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT);
+        assert_eq!(layer_pixel(handle, 2, 2), Color::TRANSPARENT);
+        assert!(!can_undo(handle), "the outline was one undo step");
+        assert!(redo(handle).expect("redo"));
+        assert_eq!(layer_pixel(handle, 2, 2), blue());
+    }
+
+    #[test]
+    fn apply_effect_outline_blends_a_feathered_selection_by_coverage() {
+        let handle = painted();
+        with_bus(handle, |bus| {
+            let mut mask = SelectionMask::new_empty(4, 4);
+            mask.set(2, 1, 255);
+            mask.set(2, 2, 128);
+            bus.document.selection = Some(mask);
+            Ok(())
+        })
+        .expect("select");
+        assert!(apply_effect(handle, 0, "outline", &OUTLINE).expect("apply"));
+        assert_eq!(layer_pixel(handle, 2, 1), blue(), "fully selected");
+        // Rounded lerp from transparent at coverage 128 (masked_region).
+        let half = |c: u8| ((u32::from(c) * 128 + 127) / 255) as u8;
+        assert_eq!(
+            layer_pixel(handle, 2, 2),
+            Color::rgba(0, 0, half(255), half(0x80)),
+            "half selected"
+        );
+        assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT, "unselected");
     }
 }

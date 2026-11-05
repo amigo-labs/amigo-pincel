@@ -34,7 +34,8 @@ export type EditorMenuId =
   | 'menu:redo'
   | 'menu:zoomIn'
   | 'menu:zoomOut'
-  | 'menu:resetZoom';
+  | 'menu:resetZoom'
+  | 'menu:shortcuts';
 
 export type EditorMenuHandlers = Partial<Record<EditorMenuId, MenuHandler>>;
 
@@ -68,6 +69,11 @@ export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<Unlis
 export interface RecentMenuEntry {
   id: string;
   name: string;
+}
+
+/** Pushes the keymap's rebound native-menu accelerators (no-op without a native menu). */
+export async function syncMenuAccelerators(map: Record<string, string>): Promise<void> {
+  await invoke('set_menu_accelerators', { map });
 }
 
 export async function syncRecentMenu(items: RecentMenuEntry[]): Promise<void> {

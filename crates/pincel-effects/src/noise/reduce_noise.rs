@@ -5,7 +5,8 @@ use crate::image::EffectImage;
 
 /// Reduce Noise: replaces each RGB channel with the median of its
 /// `(2·radius+1)²` neighbourhood, which removes impulse (salt-and-pepper) noise
-/// while keeping edges sharp. Alpha is preserved. `radius` is 1–10 px.
+/// while keeping edges sharp. Fully transparent pixels are left out of the
+/// window (their colour is invisible). Alpha is preserved. `radius` is 1–10 px.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReduceNoise {
     /// Median window radius in pixels.
@@ -43,10 +44,17 @@ impl Effect for ReduceNoise {
                         let sy = (y + dy).clamp(0, h - 1);
                         for dx in -r..=r {
                             let sx = (x + dx).clamp(0, w - 1);
-                            window.push(data[((sy * w + sx) * 4 + c) as usize]);
+                            let o = ((sy * w + sx) * 4) as usize;
+                            // A fully transparent pixel's colour is invisible:
+                            // it must not tint its neighbours.
+                            if data[o + 3] > 0 {
+                                window.push(data[o + c as usize]);
+                            }
                         }
                     }
-                    out[((y * w + x) * 4 + c) as usize] = median(&mut window);
+                    if !window.is_empty() {
+                        out[((y * w + x) * 4 + c) as usize] = median(&mut window);
+                    }
                 }
                 // Alpha is copied through unchanged.
             }
