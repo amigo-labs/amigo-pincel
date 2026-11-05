@@ -52,6 +52,31 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
 | 49 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
+| 50 | [mcp-parity-selection-transform](mcp-parity-selection-transform.md) | both | L | mcp-parity-structure | MCP select.* for both modes, Delete, canvas and layer transforms |
+| 51 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
+| 52 | [mcp-parity-drawing](mcp-parity-drawing.md) | both | L | mcp-parity-structure | MCP Pixel drawing via draw.stroke / shape / text / gradient |
+| 53 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
+| 54 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
+| 55 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
+| 56 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
+| 57 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
+| 58 | [image-live-text](image-live-text.md) | Image | L | image-live-objects | Text stays editable until commit; underline / strikethrough |
+| 59 | [image-shapes-curves](image-shapes-curves.md) | Image | L | image-live-objects | Line / Curve with control points, arrow heads, dash-dot |
+| 60 | [image-shapes-curves-shapes](image-shapes-curves-shapes.md) | Image | L | image-live-objects-ui, image-shapes-curves | Six new shapes: triangle, diamond, star, block arrow, heart, callout |
+| 61 | [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md) | Image | M | — | Layer ▸ Rotate / Zoom as an Image-only effect; builds the resampler |
+| 62 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
+| 63 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
+| 64 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
+| 65 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
+| 66 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
+| 67 | [clone-stamp](clone-stamp.md) | Image | L | — | Clone Stamp (key C) plus MCP draw.clone |
+| 68 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
+| 69 | [image-palette-gradient-spiral](image-palette-gradient-spiral.md) | Image | M | — | Spiral gradients, also in MCP draw.gradient |
+| 70 | [system-fonts](system-fonts.md) | both | L | — | Installed fonts in both Text tools (fontdb, Local Font Access, font files) |
+| 71 | [system-fonts-mcp](system-fonts-mcp.md) | both | M | system-fonts, mcp-parity-drawing | MCP draw.text font argument and font.list |
+| 72 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
+| 73 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
+| 74 | [image-formats-more-print](image-formats-more-print.md) | Image | L | — | File ▸ Print… |
 
 ## Done
 
@@ -119,21 +144,7 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
-| MCP parity: selection and transform (`mcp-parity-selection-transform`) | `select.*` for both modes (ellipse, lasso, wand, modes, invert / expand / contract / feather, select all, mask, delete) replacing `selection.*`; canvas and layer transforms in Pixel mode; move content; clipboard as `layer.import` / selection export |
-| MCP parity: drawing (`mcp-parity-drawing`) | Pixel brush stroke (size, shape, pixel-perfect, eraser), shading ink, symmetry and wrap, styled shapes, dithered gradient, text; Image recolor, smudge, eraser to background, bucket sampling all layers; Image-mode effect defaults |
-| MCP parity: Pixel assets (`mcp-parity-pixel-assets`) | Slices, tilesets / tiles / tilemap layers, document grid, their counts in `doc.info` |
-| MCP parity: import / export (`mcp-parity-export`) | Vectorize to SVG, APNG / GIF, BMP / TIFF, PSD open, save in the original format, PNG as a Pixel document |
-| paint.net parity: `image-transform-handles` | Image: scale and rotate selected pixels with handles; Layer ▸ Rotate / Zoom at any angle (the core already resamples arbitrary angles) |
-| paint.net parity: `image-resize-autocrop` | Image: resize by percent and physical units with a supersampling filter; Image ▸ Auto Crop |
-| paint.net parity: `image-live-objects` | Image: shapes, line and gradient keep their handles until committed; needs a Decision Log entry (uncommitted layer above the document) |
-| paint.net parity: `image-live-text` | Image: text stays editable until committed; underline and strikethrough. After image-live-objects |
-| paint.net parity: `image-shapes-curves` | Image: Bézier curves and more shapes (arrows, stars, callouts). After image-live-objects |
-| paint.net parity: `system-fonts` | Text with the system fonts; needs a dependency or browser-API decision (Local Font Access, desktop font enumeration) |
-| paint.net parity: `image-view-aids` | Image: rulers, pixel grid at high zoom, units |
-| paint.net parity: `image-edit-extras` | Image: Edit ▸ Fill Selection (Backspace); tool switches for antialiasing and overwrite blending |
-| paint.net parity: `clone-stamp` | Image: clone stamp tool (spec §5.4) |
-| paint.net parity: `image-palette-gradient` | Image: save and load palettes; spiral gradient |
-| paint.net parity: `image-formats-more` | Image: TGA, DDS, AVIF, JPEG XL, printing; needs dependency decisions |
+| Pixel tools clip to the selection | Bucket, strokes and shapes ignore the selection in the Pixel editor; MCP `draw.fill` already clips (mcp-parity-drawing) |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
