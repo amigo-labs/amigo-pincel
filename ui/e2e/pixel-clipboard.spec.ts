@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   clearClipboard,
+  colorOf,
   copiedImage,
   createDocument,
   menu,
@@ -8,6 +9,7 @@ import {
   pixelOf,
   putClipboardImage,
   readClipboardImage,
+  setColor,
   type ClipImage,
 } from './helpers';
 
@@ -36,7 +38,7 @@ async function at(page: Page, x: number, y: number, size: number): Promise<[numb
 /** Pencil dots of `color` at sprite pixels `pts`. */
 async function paint(page: Page, color: string, pts: [number, number][], size = 16): Promise<void> {
   await page.getByTitle('Pencil (B)').click();
-  await page.getByLabel('Foreground color', { exact: true }).fill(color);
+  await setColor(page, 'fg', color);
   for (const [x, y] of pts) await page.mouse.click(...(await at(page, x, y, size)));
 }
 
@@ -368,7 +370,9 @@ test('pixel: Copy on a group takes its rendered pixels; Cut on it is refused', a
   const grip = page.getByRole('button', { name: 'Drag to reorder Layer 1', exact: true });
   const groupRow = page
     .getByRole('list', { name: 'Layer list' })
-    .locator('li', { has: page.getByRole('button', { name: 'Drag to reorder Group 1', exact: true }) });
+    .locator('li', {
+      has: page.getByRole('button', { name: 'Drag to reorder Group 1', exact: true }),
+    });
   const a = await grip.boundingBox();
   const b = await groupRow.boundingBox();
   if (!a || !b) throw new Error('layer rows not visible');
@@ -410,12 +414,11 @@ test('pixel: a refused clipboard write keeps the copy in Pincel for Paste, at it
   await page.keyboard.press('ControlOrMeta+d');
   await menu(page, 'Edit', 'Paste');
   await expect(layerRows(page)).toHaveCount(2);
-  const fg = page.getByLabel('Foreground color', { exact: true });
   const probe = async (x: number, y: number): Promise<string> => {
-    await fg.fill('#123456');
+    await setColor(page, 'fg', '#123456');
     await page.keyboard.press('i');
     await page.mouse.click(...(await at(page, x, y, 16)));
-    return fg.inputValue();
+    return colorOf(page, 'fg');
   };
   // The cut pixels are back where they came from, not the stale blue image.
   expect(await probe(6, 6)).toBe('#ff0000');
@@ -437,9 +440,7 @@ test('pixel: a paste the core cannot use shows a notice and changes nothing', as
 
 // docs/specs/pixel-selection-move.md AC-11: Select ▸ Expand… / Contract…
 // grow or shrink the selection by the radius; the copied box shows it.
-test('pixel: Select ▸ Expand and Contract change the selection by the radius', async ({
-  page,
-}) => {
+test('pixel: Select ▸ Expand and Contract change the selection by the radius', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   const radius = async (op: 'Expand…' | 'Contract…', value: string) => {
     await menu(page, 'Select', op);

@@ -79,14 +79,14 @@ const VIEW_KEYS = Object.keys(viewInit()) as (keyof ViewState)[];
 
 // The state all tabs share.
 const sharedEditor = $state({
-    /** Bumped after every mutation (and on a tab switch) so the canvas
-     *  and thumbnails refresh. */
-    revision: 0,
-    /** A live effect preview composite that overrides the canvas while an
-     * effect dialog is open; `null` shows the real composite (spec §11). */
-    previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
-    /** One-line notice for the status bar (e.g. painting on a locked layer). */
-    notice: null as string | null,
+  /** Bumped after every mutation (and on a tab switch) so the canvas
+   *  and thumbnails refresh. */
+  revision: 0,
+  /** A live effect preview composite that overrides the canvas while an
+   * effect dialog is open; `null` shows the real composite (spec §11). */
+  previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+  /** One-line notice for the status bar (e.g. painting on a locked layer). */
+  notice: null as string | null,
 });
 
 /** The active tab's document and its derived state, plus the state all
@@ -282,6 +282,10 @@ export const tool = $state({
   foreground: '#000000',
   /** Background color as #RRGGBB (spec §4.2 default white). */
   background: '#ffffff',
+  /** Foreground alpha 0–255 (color-picker spec). */
+  foregroundAlpha: 255,
+  /** Background alpha 0–255 (color-picker spec). */
+  backgroundAlpha: 255,
   /** Recolor: how far a pixel may differ from the background color, 0–255. */
   recolorTolerance: 32,
   /** Smudge: how far a color is dragged, 1–100 (%). */
@@ -319,12 +323,17 @@ export function swapColors(): void {
   const fg = tool.foreground;
   tool.foreground = tool.background;
   tool.background = fg;
+  const fgAlpha = tool.foregroundAlpha;
+  tool.foregroundAlpha = tool.backgroundAlpha;
+  tool.backgroundAlpha = fgAlpha;
 }
 
 /** Resets colors to black/white defaults (spec §4.2, `D`). */
 export function resetColors(): void {
   tool.foreground = '#000000';
   tool.background = '#ffffff';
+  tool.foregroundAlpha = 255;
+  tool.backgroundAlpha = 255;
 }
 
 /** View commands the menus and shortcuts call; `MainCanvas` installs the

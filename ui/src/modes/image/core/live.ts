@@ -32,8 +32,8 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     sides: tool.shapeSides,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
-    stroke_color: colorWithOpacity(tool.foreground),
-    fill_color: colorWithOpacity(tool.background),
+    stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
+    fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   });

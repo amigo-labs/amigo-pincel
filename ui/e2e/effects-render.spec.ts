@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, setColor } from './helpers';
 
 // docs/specs/effects-render.md: paint.net's Render effects in the Render
 // submenu, per mode (AC-01), their dialogs with the colours starting at the
@@ -43,8 +43,8 @@ async function open(page: Page, entry: string, top = 'Effects', sub = 'Render'):
 }
 
 async function setColors(page: Page): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill(FG);
-  await page.getByLabel('Background color', { exact: true }).fill(BG);
+  await setColor(page, 'fg', FG);
+  await setColor(page, 'bg', BG);
 }
 
 type Slider = readonly [label: string, min: string, max: string, value: string];

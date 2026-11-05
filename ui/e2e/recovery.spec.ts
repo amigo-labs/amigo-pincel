@@ -1,11 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  colorOf,
   createDocument,
   drag,
   gotoStart,
   imageCanvas,
   menu,
   pixelCanvas,
+  setColor,
   storedPref,
   waitForEditor,
 } from './helpers';
@@ -287,7 +289,13 @@ test('the dialog lists each document’s latest snapshot of both modes, newest f
   await gotoStart(page);
   const base = Date.UTC(2026, 9, 1, 12, 0);
   const metas: Meta[] = [
-    { docId: 'older', ts: base - 3_600_000, name: 'older.aseprite', byteLength: 2048, mode: 'pixel' },
+    {
+      docId: 'older',
+      ts: base - 3_600_000,
+      name: 'older.aseprite',
+      byteLength: 2048,
+      mode: 'pixel',
+    },
     { docId: 'newer', ts: base - 60_000, name: 'newer.aseprite', byteLength: 512, mode: 'pixel' },
     // An earlier row of the same document (a partial write): not listed.
     { docId: 'newer', ts: base - 7_200_000, name: 'stale.aseprite', byteLength: 1, mode: 'pixel' },
@@ -453,17 +461,15 @@ for (const mode of ['pixel', 'image'] as const) {
 
 test('the last Pixel colors start the next session’s new documents', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const fg = page.getByRole('textbox', { name: 'Foreground color', exact: true });
-  const bg = page.getByRole('textbox', { name: 'Background color', exact: true });
-  await fg.fill('#123456');
-  await bg.fill('#abcdef');
-  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456');
-  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdef');
+  await setColor(page, 'fg', '#123456');
+  await setColor(page, 'bg', '#abcdef');
+  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456ff');
+  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdefff');
 
   await page.reload();
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await expect(fg).toHaveValue('#123456');
-  await expect(bg).toHaveValue('#abcdef');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#123456');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#abcdef');
 });
 
 test.describe('without IndexedDB', () => {

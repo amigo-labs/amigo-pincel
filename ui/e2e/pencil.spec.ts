@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { createDocument, menu, pixelCanvas, storedPref } from './helpers';
+import { colorOf, createDocument, menu, pixelCanvas, setColor, storedPref } from './helpers';
 
 // Pixel-mode Pencil / Eraser (docs/specs/pixel-pencil.md): brush size and
 // shape, Shift constraint, pixel-perfect, shared and persisted options.
@@ -17,7 +17,6 @@ async function setup(page: Page): Promise<At> {
     [box.x + ((px + 0.5) * box.width) / N, box.y + ((py + 0.5) * box.height) / N] as const;
 }
 
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
 const sizeField = (page: Page) => page.getByLabel('Brush size', { exact: true });
 const sizeSlider = (page: Page) => page.getByLabel('Brush size slider');
 const shapeSelect = (page: Page) => page.getByLabel('Brush shape');
@@ -40,7 +39,7 @@ async function setSize(page: Page, value: string): Promise<void> {
 async function pick(page: Page, at: At, x: number, y: number): Promise<string> {
   await page.getByTitle(/Eyedropper/).click();
   await page.mouse.click(...at(x, y));
-  return fg(page).inputValue();
+  return colorOf(page, 'fg');
 }
 
 /** Press at the first point, move through the rest one sample each, release. */
@@ -56,7 +55,7 @@ async function stroke(page: Page, at: At, pts: [number, number][]): Promise<void
 test('pixel mode: a fast pencil stroke stays connected', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   // One jump from (1, 1) to (14, 14): no pointer samples in between.
   await stroke(page, at, [
     [1, 1],
@@ -64,7 +63,7 @@ test('pixel mode: a fast pencil stroke stays connected', async ({ page }) => {
   ]);
   // Sample every pixel of the diagonal with the eyedropper.
   for (let i = 1; i <= 14; i += 1) {
-    await fg(page).fill('#000000');
+    await setColor(page, 'fg', '#000000');
     expect(await pick(page, at, i, i), `pixel (${i}, ${i})`).toBe('#00ff00');
   }
 });
@@ -143,7 +142,7 @@ test('[ and ] step the brush size within 1-8', async ({ page }) => {
 test('a size-3 pencil click paints a 3x3 block', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await setSize(page, '3');
   await page.mouse.click(...at(5, 5));
   expect(await pick(page, at, 4, 4)).toBe('#00ff00');
@@ -155,7 +154,7 @@ test('a size-3 pencil click paints a 3x3 block', async ({ page }) => {
 test('a pixel-perfect staircase leaves its corners empty', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await pixelPerfect(page).check();
   await stroke(page, at, [
     [2, 2],
@@ -173,7 +172,7 @@ test('a pixel-perfect staircase leaves its corners empty', async ({ page }) => {
 test('a Shift pencil drag snaps to the nearest 45 degree direction', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await page.mouse.move(...at(2, 3));
   await page.mouse.down();
   await page.keyboard.down('Shift');
@@ -212,27 +211,42 @@ async function shiftDrag(
 test('a Shift drag keeps the direction its first movement chose', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   // Starts horizontal, then swings towards the diagonal: stays on row 3.
-  await shiftDrag(page, at, [2, 3], [
-    [8, 4],
-    [12, 10],
-  ]);
+  await shiftDrag(
+    page,
+    at,
+    [2, 3],
+    [
+      [8, 4],
+      [12, 10],
+    ],
+  );
   // Starts vertical (90°) and drifts sideways: stays on column 5.
-  await shiftDrag(page, at, [5, 6], [
-    [6, 9],
-    [8, 12],
-  ]);
+  await shiftDrag(
+    page,
+    at,
+    [5, 6],
+    [
+      [6, 9],
+      [8, 12],
+    ],
+  );
   // The Eraser constrains the same way.
   await stroke(page, at, [
     [1, 14],
     [14, 14],
   ]);
   await eraser(page);
-  await shiftDrag(page, at, [3, 14], [
-    [7, 15],
-    [11, 11],
-  ]);
+  await shiftDrag(
+    page,
+    at,
+    [3, 14],
+    [
+      [7, 15],
+      [11, 11],
+    ],
+  );
 
   expect(await pick(page, at, 12, 3)).toBe('#00ff00');
   expect(await pick(page, at, 10, 8)).toBe('#000000');
@@ -247,7 +261,7 @@ test('a Shift drag keeps the direction its first movement chose', async ({ page 
 test('Shift pressed mid-drag anchors at the last painted point', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await page.mouse.move(...at(2, 3));
   await page.mouse.down();
   await page.mouse.move(...at(6, 6), { steps: 1 });
@@ -271,7 +285,7 @@ test('Shift pressed mid-drag anchors at the last painted point', async ({ page }
 test('a size-3 right click paints the background color', async ({ page }) => {
   const at = await setup(page);
   await pencil(page);
-  await page.getByLabel('Background color', { exact: true }).fill('#0000ff');
+  await setColor(page, 'bg', '#0000ff');
   await setSize(page, '3');
   await page.mouse.click(...at(5, 5), { button: 'right' });
   expect(await pick(page, at, 4, 4)).toBe('#0000ff');
@@ -310,7 +324,7 @@ const swatch = (page: Page, index: number) =>
 async function dab(page: Page, at: At, x: number, y: number, color: string): Promise<void> {
   await pencil(page);
   await inkSelect(page).selectOption('simple');
-  await fg(page).fill(color);
+  await setColor(page, 'fg', color);
   await stroke(page, at, [[x, y]]);
 }
 
@@ -392,7 +406,7 @@ test('a plain click or a structural palette edit clears the ramp range; a recolo
   await swatch(page, 5).click({ modifiers: ['Shift'] });
   await expect(rampHint(page)).toHaveText('ramp: palette entries 2–5');
   // Shift+click does not change the foreground.
-  await expect(fg(page)).toHaveValue(E2);
+  await expect.poll(() => colorOf(page, 'fg')).toBe(E2);
   await swatch(page, 4).click();
   await expect(rampHint(page)).toHaveText(whole);
 
@@ -464,7 +478,7 @@ test.describe('touch device', () => {
     const at: At = (px, py) =>
       [box.x + ((px + 0.5) * box.width) / N, box.y + ((py + 0.5) * box.height) / N] as const;
     await pencil(page);
-    await fg(page).fill('#00ff00');
+    await setColor(page, 'fg', '#00ff00');
     await stroke(page, at, [
       [2, 3],
       [12, 5],

@@ -254,6 +254,17 @@
   .scroll-fade-x {
     mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   }
+  /* A region outside the canvas area while an effect is open (effect-panel
+     AC-03): a translucent shade over it, so it reads as unavailable. The
+     region is positioned (`relative`, or absolute) and `inert`. */
+  [data-dimmed]::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 45;
+    background: rgb(0 0 0 / 0.5);
+    pointer-events: none;
+  }
   /* A hint after the tool's controls, set off by a divider. It keeps its
      full width (`.opt` does not shrink): on a narrow bar the strip scrolls
      to it instead of clipping it. */

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { hexToRgb, toHex } from '../../lib/color';
+  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
   import { onMount, untrack } from 'svelte';
   import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
@@ -314,7 +316,13 @@
     editor.notice = null;
   }
 
-  function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
+  function runPaste(
+    handle: number,
+    bytes: Uint8Array,
+    x: number,
+    y: number,
+    expand: boolean,
+  ): void {
     pasteDialog = null;
     if (editor.handle !== handle) return;
     try {
@@ -346,7 +354,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen()) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen())
+      return;
     if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
@@ -374,7 +383,9 @@
       jpegDialogOpen = true;
       return;
     }
-    exportImage(format, quality).catch((e) => (loadError = t('img.exportFailed', { error: String(e) })));
+    exportImage(format, quality).catch(
+      (e) => (loadError = t('img.exportFailed', { error: String(e) })),
+    );
   }
 
   // Tool rail (spec §9.2): same groups, order and keys as Pixel mode
@@ -673,7 +684,27 @@
     attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
+  const FG_PREF = 'lastColor:image';
+  const BG_PREF = 'lastBgColor:image';
+  // The last foreground / background colors and the recent colors, per
+  // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
+  // so a slow store cannot overwrite them with the defaults.
+  let colorPrefsLoaded = $state(false);
+  $effect(() => {
+    const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
+    const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
+    if (!colorPrefsLoaded) return;
+    saveColorPref(FG_PREF, fg);
+    saveColorPref(BG_PREF, bg);
+  });
+
   onMount(() => {
+    void loadRecent('image');
+    void Promise.all([loadColorPref(FG_PREF), loadColorPref(BG_PREF)]).then(([fg, bg]) => {
+      if (fg) [tool.foreground, tool.foregroundAlpha] = [toHex(fg), fg.a];
+      if (bg) [tool.background, tool.backgroundAlpha] = [toHex(bg), bg.a];
+      colorPrefsLoaded = true;
+    });
     bindTabHooks({
       registerDocument,
       confirmClose,
@@ -772,7 +803,13 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
-    if (!active || e.defaultPrevented || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
+    if (
+      !active ||
+      e.defaultPrevented ||
+      ui.modalOpen ||
+      helpDialogOpen() ||
+      isTypingTarget(e.target)
+    ) {
       return;
     }
     // Enter commits a live object (image-live-objects-ui AC-09); Image
@@ -1300,7 +1337,10 @@
           else runEffect(() => previewEffect(session.def.id, params), t('act.preview'));
         }}
         onApply={(params) => {
-          const changed = runEffect(() => applyEffect(session.def.id, params), effectLabel(session.def));
+          const changed = runEffect(
+            () => applyEffect(session.def.id, params),
+            effectLabel(session.def),
+          );
           // A failed effect keeps the panel open with its values (AC-16).
           if (changed === null) return;
           if (!changed) {
