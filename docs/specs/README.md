@@ -111,13 +111,24 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Layer masks and clipping masks | Probably Image mode first |
 | Non-destructive layer effects and adjustment layers | Large; touches compose in both cores |
 | Reference layers | Small: a non-exported, non-editable layer kind |
-| Clone stamp, Bézier curves, custom brushes | Spec §5.4 / §13.3 |
-| History panel (list of undo steps) | Undo exists; only the panel is missing |
+| Custom brushes | Spec §13.3 |
 | CLI batch export (`pincel-cli`) | Design in `cli.md`; PNG / atlas export already exists in `pincel-core` |
 | Isometric and hexagonal tilemaps; Godot / Tiled export | Extends tilemaps |
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
+| paint.net parity: `image-transform-handles` | Image: scale and rotate selected pixels with handles; Layer ▸ Rotate / Zoom at any angle (the core already resamples arbitrary angles) |
+| paint.net parity: `image-resize-autocrop` | Image: resize by percent and physical units with a supersampling filter; Image ▸ Auto Crop |
+| paint.net parity: `image-live-objects` | Image: shapes, line and gradient keep their handles until committed; needs a Decision Log entry (uncommitted layer above the document) |
+| paint.net parity: `image-live-text` | Image: text stays editable until committed; underline and strikethrough. After image-live-objects |
+| paint.net parity: `image-shapes-curves` | Image: Bézier curves and more shapes (arrows, stars, callouts). After image-live-objects |
+| paint.net parity: `system-fonts` | Text with the system fonts; needs a dependency or browser-API decision (Local Font Access, desktop font enumeration) |
+| paint.net parity: `history-panel` | Both modes: a panel listing the undo steps, a click jumps to a step |
+| paint.net parity: `image-view-aids` | Image: rulers, pixel grid at high zoom, units |
+| paint.net parity: `image-edit-extras` | Image: Edit ▸ Fill Selection (Backspace); tool switches for antialiasing and overwrite blending |
+| paint.net parity: `clone-stamp` | Image: clone stamp tool (spec §5.4) |
+| paint.net parity: `image-palette-gradient` | Image: save and load palettes; spiral gradient |
+| paint.net parity: `image-formats-more` | Image: TGA, DDS, AVIF, JPEG XL, printing; needs dependency decisions |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
