@@ -149,10 +149,10 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-09 | `a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)`, `touch › a touch drag on the S/V area moves the color (AC-09)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-10 | `arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-10, AC-11)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-11 | `arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-10, AC-11)` — `ui/e2e/color-picker.spec.ts`; `HSV conversion keeps hue and saturation when they are undefined (AC-11)` — `ui/e2e/color-math.spec.ts` | built |  |
-| AC-12 |  | open |  |
-| AC-13 |      | open   |        |
-| AC-14 |  | open |  |
-| AC-15 |  | open |  |
+| AC-12 | `pixel: …` / `image: painting adds its color, most recent first, once (AC-12, AC-24)` — `ui/e2e/color-recent.spec.ts`; `recent colors: most recent first, no duplicates, at most 12 (AC-12)` — `ui/e2e/color-math.spec.ts` | built |  |
+| AC-13 | `a recent color sets the edited color, alpha included (AC-13)` — `ui/e2e/color-recent.spec.ts` | built |  |
+| AC-14 | `each mode keeps its own recent colors (AC-14)` — `ui/e2e/color-recent.spec.ts` | built |  |
+| AC-15 | `recent colors and the last colors survive a reload, per mode (AC-15)` — `ui/e2e/color-recent.spec.ts`; `the last Pixel colors start the next session’s new documents` — `ui/e2e/recovery.spec.ts` | built |  |
 | AC-16 | `pixel: the Eyedropper reads back a translucent foreground (AC-16, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-17 | `image: painted alpha is color alpha × opacity, and the Eyedropper keeps it (AC-17, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-18 | `Escape discards typed text; an outside click commits it (AC-18)` — `ui/e2e/color-picker.spec.ts` | built |  |
@@ -161,13 +161,13 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-21 | `the picker is German in the German UI (AC-21)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-22 | `pixel: the Eyedropper reads back a translucent foreground (AC-16, AC-22)`, `image: painted alpha is color alpha × opacity, and the Eyedropper keeps it (AC-17, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-23 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts`; `the hex field accepts RRGGBB, #RRGGBB, #RRGGBBAA and #RGB (AC-05, AC-23)` — `ui/e2e/color-math.spec.ts` | built |  |
-| AC-24 |  | open |  |
+| AC-24 | `pixel: …` / `image: painting adds its color, most recent first, once (AC-12, AC-24)`, `pixel: …` / `image: a filled and outlined shape adds the foreground, then the background (AC-24)` — `ui/e2e/color-recent.spec.ts`; `a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-25 |  | open |  |
 | AC-26 |  | open |  |
 | AC-27 |  | open |  |
 | AC-28 |  | open |  |
 | AC-29 |  | open |  |
-| AC-30 |  | open |  |
+| AC-30 | `unreadable stored colors fall back silently (AC-30)` — `ui/e2e/color-recent.spec.ts`; `stored colors that cannot be read fall back, keeping readable entries (AC-30)` — `ui/e2e/color-math.spec.ts` | built |  |
 
 ## Decisions
 
@@ -176,6 +176,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-05 (spec-build): Hex parsing, HSV conversion, the recent-colors list rules and the default palette live in the rune-free `ui/src/lib/color.ts`, tested in Node by `color-math.spec.ts`; Image mode's own `hexToRgb` / `rgbToHex` copies in the controller stay for now (they serve the core's `Rgba` tuples).
 - 2026-11-05 (spec-build): Image mode sends the color's own alpha with brush, fill and gradient commands (the core multiplies it with the tool opacity), and bakes round(alpha × opacity / 100) into shape and text colors; its Eyedropper now keeps the sampled alpha. AC-17's test paints single dabs: each pointer batch of a drag is its own source-over application, so overlapping dabs of one drag build up alpha — for color alpha as for tool opacity, which predates this spec.
 - 2026-11-05 (spec-build): Pixel mode's Eyedropper already kept alpha; AC-16's test was green at once and was red against a temporary break (the sampled alpha forced to 255), reverted afterwards.
+- 2026-11-05 (spec-build): A paint change counts when the document's undo depth grew during it (AC-24): a stroke, fill, shape, line, gradient or text that alters no pixel adds no undo step in either core, and a merged stroke adds its step once. At the 100-step cap the depth no longer grows, so a change there adds no recent color — the same limit the dirty marker already has. Pixel mode's shading ink paints ramp colors, not a chosen one, and adds nothing; Image mode's Recolor, Smudge and Clone Stamp add nothing either, since AC-24 does not list them.
+- 2026-11-05 (spec-build): The recent lists live in `ui/src/lib/colors/recent.svelte.ts` (`recentColors:<mode>` prefs, `#rrggbbaa` strings). The last colors are stored as `#rrggbbaa`: Pixel mode keeps its `lastColor` / `lastBgColor` keys (old `#rrggbb` values load opaque), Image mode uses `lastColor:image` / `lastBgColor:image`. `recovery.spec.ts` now expects the 8-digit form.
 - 2026-11-05 (spec-build): The existing e2e specs that typed into the native swatch inputs now go through `setColor` / `colorOf` in `ui/e2e/helpers.ts`, which drive the picker's hex field.
 
 - 2026-11-05: AC-25 shows "the Image-mode palette", which is the default palette until the user replaces it; loading, saving and editing it moved to `image-palette-gradient` (owner chose that spec on 2026-11-05).

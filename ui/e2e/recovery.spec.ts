@@ -463,8 +463,8 @@ test('the last Pixel colors start the next session’s new documents', async ({ 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await setColor(page, 'fg', '#123456');
   await setColor(page, 'bg', '#abcdef');
-  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456');
-  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdef');
+  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456ff');
+  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdefff');
 
   await page.reload();
   await createDocument(page, 'pixel', { width: 16, height: 16 });
