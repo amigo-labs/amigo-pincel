@@ -44,6 +44,7 @@ pub mod blur;
 pub mod distort;
 pub mod noise;
 pub mod object;
+pub mod render;
 pub mod sharpen;
 
 pub use effect::Effect;
