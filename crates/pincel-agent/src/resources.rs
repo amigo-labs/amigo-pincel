@@ -180,6 +180,7 @@ mod tests {
             "## Selections and transforms",
             "## Moving content and the clipboard",
             "## Drawing in each mode",
+            "## Slices, tilesets and the grid",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
@@ -262,6 +263,33 @@ mod tests {
             "`export.selection` is the headless Copy",
             "`layer.import` is the headless Paste",
             "`select.move_content` (both modes)",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-pixel-assets AC-32.
+        for tool in [
+            "slice.list",
+            "slice.add",
+            "slice.remove",
+            "slice.set_key",
+            "tileset.list",
+            "tileset.add",
+            "tile.add",
+            "tile.read_pixels",
+            "tile.set_pixels",
+            "tilemap.get",
+            "tilemap.place",
+            "grid.set",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "work on Pixel documents only",
+            "tile 0, the empty tile",
+            "`tile: 0` clears a cell",
+            "painting tile 0 with `tile.set_pixels` shows in\n  every empty cell",
+            "relative to the\n  key's bounds",
+            "cannot paint on tilemap layers",
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }

@@ -78,6 +78,7 @@ pub(crate) fn layers_json(doc: &ImageDoc) -> Value {
                 "index": i,
                 "name": l.name,
                 "kind": if l.is_group() { "group" } else { "image" },
+                "tileset": null,
                 "parent": d.parent_index(i).map(|p| doc.layer_id(p)),
                 "visible": l.visible,
                 "opacity": opacity_255(l.opacity),
@@ -175,6 +176,11 @@ pub(crate) fn list(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
 /// by `parent` / `target` + `place`; made active.
 pub(crate) fn add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let (id, doc) = ctx.ws.image_mut(args)?;
+    if args.str("kind") == Some("tilemap") || args.get("tileset").is_some() {
+        return Err(AgentError::tool(format!(
+            "document `{id}` is an Image document, which has no tilemap layers; `kind: \"tilemap\"` and `tileset` work on Pixel documents only"
+        )));
+    }
     let placement = placement(args)?;
     if placement.is_some() && args.get("parent").is_some() {
         return Err(AgentError::tool(

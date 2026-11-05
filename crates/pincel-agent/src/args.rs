@@ -18,6 +18,12 @@ impl Args {
         self.0.get(key).filter(|v| !v.is_null())
     }
 
+    /// `true` when `key` was given as JSON `null` (which [`Args::get`]
+    /// treats as absent).
+    pub fn is_null(&self, key: &str) -> bool {
+        self.0.get(key).is_some_and(Value::is_null)
+    }
+
     pub fn str(&self, key: &str) -> Option<&str> {
         self.get(key).and_then(Value::as_str)
     }

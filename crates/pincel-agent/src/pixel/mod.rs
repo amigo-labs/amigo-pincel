@@ -1,6 +1,7 @@
 //! The shared document tools and the Pixel-mode tools over `pincel-core`.
 //! See docs/specs/mcp-headless-pixel.md (Technical notes, "Tools").
 
+mod assets;
 mod doc;
 mod draw;
 pub(crate) mod effects;
@@ -9,6 +10,7 @@ pub(crate) mod paint;
 mod palette;
 mod structure;
 
+pub(crate) use assets::TOOLS as ASSET_TOOLS;
 pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
 pub(crate) use draw::apply_effect;
 pub(crate) use structure::layer_arg as layer_id_arg;

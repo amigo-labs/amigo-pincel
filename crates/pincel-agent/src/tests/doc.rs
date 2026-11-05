@@ -97,6 +97,19 @@ const EXPECTED_TOOLS: &[&str] = &[
     // mcp-parity-drawing-image
     "draw.recolor",
     "draw.smudge",
+    // mcp-parity-pixel-assets
+    "slice.list",
+    "slice.add",
+    "slice.remove",
+    "slice.set_key",
+    "tileset.list",
+    "tileset.add",
+    "tile.add",
+    "tile.read_pixels",
+    "tile.set_pixels",
+    "tilemap.get",
+    "tilemap.place",
+    "grid.set",
 ];
 
 /// One valid example call per tool.
@@ -156,6 +169,20 @@ fn example(name: &str) -> Value {
         "draw.recolor" => {
             json!({ "points": [[1, 2]], "from": "#ff0000", "color": "#00ff00", "tolerance": 10, "size": 4, "angle": 30 })
         }
+        "slice.add" => json!({ "name": "hit", "bounds": region, "color": "#ff0000" }),
+        "slice.remove" => json!({ "slice": 0 }),
+        "slice.set_key" => {
+            json!({ "slice": 0, "frame": 1, "bounds": region, "center": { "x": 1, "y": 1, "width": 1, "height": 1 }, "pivot": null })
+        }
+        "tileset.add" => json!({ "name": "ground", "tile_width": 8, "tile_height": 8 }),
+        "tile.add" => json!({ "tileset": 0 }),
+        "tile.read_pixels" => json!({ "tileset": 0, "tile": 1, "region": region, "format": "index" }),
+        "tile.set_pixels" => {
+            json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 1, "color": { "index": 2 } }] })
+        }
+        "tilemap.get" => json!({ "layer": 1, "frame": 0 }),
+        "tilemap.place" => json!({ "layer": 1, "cells": [{ "col": 0, "row": 1, "tile": 1 }] }),
+        "grid.set" => json!({ "x": -4, "y": 0, "width": 8, "height": 16 }),
         "draw.smudge" => json!({ "points": [[1, 2], [3, 4]], "strength": 40, "shape": "flat" }),
         "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
         "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),

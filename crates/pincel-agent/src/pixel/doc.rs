@@ -277,24 +277,7 @@ fn doc_read_pixels(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
         Some(layer) => layer_pixels(doc, layer, frame, r)?,
     };
     let index = args.str("format") == Some("index");
-    let rows: Vec<String> = pixels
-        .chunks_exact(r.width as usize * 4)
-        .map(|row| {
-            row.as_chunks::<4>()
-                .0
-                .iter()
-                .map(|p| {
-                    let c = Rgba::new(p[0], p[1], p[2], p[3]);
-                    if index {
-                        palette_index(&doc.sprite.palette, c)
-                    } else {
-                        hex(c)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .collect();
+    let rows = format_rows(&pixels, r.width, index, &doc.sprite.palette);
     Ok(ToolOutput::json(json!({
         "doc": id,
         "frame": frame.0,
@@ -302,6 +285,35 @@ fn doc_read_pixels(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
         "format": if index { "index" } else { "hex" },
         "rows": rows,
     })))
+}
+
+/// RGBA8 `pixels` of a `width`-wide area as text rows: `#RRGGBBAA` per
+/// pixel, or with `index` the first palette index with that color (or
+/// `-`).
+pub(super) fn format_rows(
+    pixels: &[u8],
+    width: u32,
+    index: bool,
+    palette: &Palette,
+) -> Vec<String> {
+    pixels
+        .chunks_exact(width.max(1) as usize * 4)
+        .map(|row| {
+            row.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| {
+                    let c = Rgba::new(p[0], p[1], p[2], p[3]);
+                    if index {
+                        palette_index(palette, c)
+                    } else {
+                        hex(c)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
 }
 
 fn palette_index(palette: &Palette, c: Rgba) -> String {
@@ -319,7 +331,10 @@ fn layer_pixels(doc: &Doc, layer: u32, frame: FrameIndex, r: Rect) -> Result<Vec
     let l = doc
         .sprite
         .layer(id)
-        .ok_or_else(|| AgentError::tool(format!("no layer with id {layer}")))?;
+        .ok_or_else(|| AgentError::tool(format!("argument `layer`: no layer with id {layer}")))?;
+    if matches!(l.kind, LayerKind::Tilemap { .. }) {
+        return tilemap_pixels(doc, id, frame, r);
+    }
     if !matches!(l.kind, LayerKind::Image) {
         return Err(AgentError::tool(format!(
             "layer {layer} ({:?}) is not an image layer",
@@ -346,6 +361,35 @@ fn layer_pixels(doc: &Doc, layer: u32, frame: FrameIndex, r: Rect) -> Result<Vec
         }
     }
     Ok(out)
+}
+
+/// A tilemap layer alone at `frame`, as the editor composes it at full
+/// opacity with normal blending, inside `r` (mcp-parity-pixel-assets
+/// AC-27).
+fn tilemap_pixels(
+    doc: &Doc,
+    id: pincel_core::LayerId,
+    frame: FrameIndex,
+    r: Rect,
+) -> Result<Vec<u8>, AgentError> {
+    let mut sprite = doc.sprite.clone();
+    let mut layer = doc
+        .sprite
+        .layer(id)
+        .cloned()
+        .ok_or_else(|| AgentError::tool("the layer vanished"))?;
+    layer.parent = None;
+    layer.visible = true;
+    layer.opacity = 255;
+    layer.blend_mode = pincel_core::BlendMode::Normal;
+    sprite.layers = vec![layer];
+    let mut cels = pincel_core::CelMap::new();
+    if let Some(cel) = doc.cels.get(id, frame) {
+        let mut cel = cel.clone();
+        cel.opacity = 255;
+        cels.insert(cel);
+    }
+    compose_region(&sprite, &cels, frame, r)
 }
 
 pub(super) const UNDO: Tool = Tool {

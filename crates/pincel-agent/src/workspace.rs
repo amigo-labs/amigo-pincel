@@ -136,8 +136,13 @@ impl Doc {
                     LayerKind::Tilemap { .. } => Some("a tilemap layer"),
                 };
                 if let Some(kind) = kind {
+                    let hint = if kind == "a tilemap layer" {
+                        "; edit its tiles with tile.set_pixels and its cells with tilemap.place"
+                    } else {
+                        ""
+                    };
                     return Err(AgentError::tool(format!(
-                        "layer {} ({:?}) is {kind}, not an image layer; pixel tools need an image layer",
+                        "layer {} ({:?}) is {kind}, not an image layer; pixel tools need an image layer{hint}",
                         id.0, layer.name
                     )));
                 }
@@ -195,6 +200,8 @@ impl Doc {
 
     /// Summary reported by `doc.info` / `doc.list`.
     pub fn info(&self, id: &str) -> Value {
+        let g = self.sprite.metadata.grid_or_default();
+        let grid = json!({ "x": g.x, "y": g.y, "width": g.width, "height": g.height });
         json!({
             "doc": id,
             "mode": "pixel",
@@ -205,6 +212,9 @@ impl Doc {
             "tags": self.sprite.tags.len(),
             "palette_size": self.sprite.palette.len(),
             "color_mode": color_mode_name(self.sprite.color_mode),
+            "slices": self.sprite.slices.len(),
+            "tilesets": self.sprite.tilesets.len(),
+            "grid": grid,
             "selection": self.selection_bounds(),
             "active_layer": self.sprite.paint_target_layer(self.active_layer).map(|l| l.0),
             "active_frame": self.active_frame.0,

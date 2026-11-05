@@ -90,6 +90,23 @@ and so does an argument only the other mode's editor offers.
   whatever is selected. Pixel canvas transforms drop the selection; undo
   brings it back.
 
+## Slices, tilesets and the grid
+
+These tools work on Pixel documents only: `slice.list`, `slice.add`,
+`slice.remove`, `slice.set_key`, `tileset.list`, `tileset.add`,
+`tile.add`, `tile.read_pixels`, `tile.set_pixels`, `tilemap.get`,
+`tilemap.place` and `grid.set`.
+
+- A slice key's 9-patch `center` and its `pivot` are relative to the
+  key's bounds, as in the Aseprite format.
+- Every tileset starts with tile 0, the empty tile. `tilemap.place` with
+  `tile: 0` clears a cell; painting tile 0 with `tile.set_pixels` shows in
+  every empty cell.
+- `layer.add` with `kind: "tilemap"` and a `tileset` adds a tilemap layer.
+  `draw.*` and `effect.apply` cannot paint on tilemap layers: edit the
+  tiles with `tile.set_pixels` and the cells with `tilemap.place`.
+- `grid.set` changes the document grid stored in the `.aseprite` file.
+
 ## Moving content and the clipboard
 
 - `select.move_content` (both modes) moves the selected pixels with the

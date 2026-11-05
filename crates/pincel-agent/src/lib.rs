@@ -120,6 +120,7 @@ fn all_tools() -> impl Iterator<Item = &'static Tool> {
         .chain(select::TOOLS)
         .chain(transform::TOOLS)
         .chain(clipboard::TOOLS)
+        .chain(pixel::ASSET_TOOLS)
         .chain(image::TOOLS)
 }
 

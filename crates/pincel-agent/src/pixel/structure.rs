@@ -1,10 +1,11 @@
 //! `layer.*`, `frame.*` and `tag.*`: the document structure.
 
 use pincel_core::{
-    AddFrame, AddLayer, AddTag, AnyCommand, BlendMode, Cel, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, LayerPlacement, MoveLayerTo, PutCel, RemoveFrame, RemoveLayer, RemoveTag, Rgba,
-    SetFrameDuration, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity,
-    SetLayerVisible, SetTagDirection, SetTagName, SetTagRange, Sprite, Tag, TagDirection,
+    AddFrame, AddLayer, AddTag, AddTilemapLayer, AnyCommand, BlendMode, Cel, Frame, FrameIndex,
+    Layer, LayerId, LayerKind, LayerPlacement, MoveLayerTo, PutCel, RemoveFrame, RemoveLayer,
+    RemoveTag, Rgba, SetFrameDuration, SetLayerBlendMode, SetLayerEditable, SetLayerName,
+    SetLayerOpacity, SetLayerVisible, SetTagDirection, SetTagName, SetTagRange, Sprite, Tag,
+    TagDirection, TilesetId,
 };
 use serde_json::{Value, json};
 
@@ -23,6 +24,13 @@ const DIRECTIONS: [(&str, TagDirection); 4] = [
 
 fn blend_names() -> Vec<&'static str> {
     BlendMode::ALL.iter().map(|m| m.name()).collect()
+}
+
+fn tileset_of(kind: &LayerKind) -> Option<u32> {
+    match kind {
+        LayerKind::Tilemap { tileset_id } => Some(tileset_id.0),
+        _ => None,
+    }
 }
 
 fn kind_name(kind: &LayerKind) -> &'static str {
@@ -44,6 +52,7 @@ pub(super) fn layers_json(sprite: &Sprite) -> Value {
                 "index": i,
                 "name": l.name,
                 "kind": kind_name(&l.kind),
+                "tileset": tileset_of(&l.kind),
                 "parent": l.parent.map(|p| p.0),
                 "visible": l.visible,
                 "opacity": l.opacity,
@@ -162,7 +171,8 @@ pub(super) const LAYER_ADD: Tool = Tool {
         if let (Some(p), Value::Object(extra)) = (props.as_object_mut(), placement_props()) {
             p.extend(extra);
         }
-        props["kind"] = json!({ "type": "string", "enum": ["image", "group"], "description": "Layer kind; default image" });
+        props["kind"] = json!({ "type": "string", "enum": ["image", "group", "tilemap"], "description": "Layer kind; default image. tilemap (Pixel documents) needs `tileset`" });
+        props["tileset"] = json!({ "type": "integer", "minimum": 0, "description": "kind tilemap: id of the tileset (tileset.list) the layer uses" });
         tool_schema(props, &[])
     },
     run: layer_add,
@@ -179,15 +189,48 @@ fn layer_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
         Some(m) => m + 1,
     };
     let lid = LayerId::new(new_id);
+    let tilemap = args.str("kind") == Some("tilemap");
+    let tileset = match (tilemap, args.u32("tileset")?) {
+        (true, None) => {
+            return Err(AgentError::tool(
+                "argument `tileset` is needed with `kind: \"tilemap\"` (tileset.list shows the ids)",
+            ));
+        }
+        (false, Some(_)) => {
+            return Err(AgentError::tool(
+                "argument `tileset` needs `kind: \"tilemap\"`",
+            ));
+        }
+        (true, Some(t)) => Some(doc.sprite.tileset(TilesetId::new(t)).ok_or_else(|| {
+            AgentError::tool(format!(
+                "argument `tileset`: no tileset with id {t}; tileset.list shows the ids"
+            ))
+        })?),
+        (false, None) => None,
+    };
     let name = args.str("name").map_or_else(
-        || format!("Layer {}", doc.sprite.layers.len() + 1),
+        || match tileset {
+            Some(ts) => format!("{} Layer", ts.name),
+            None => format!("Layer {}", doc.sprite.layers.len() + 1),
+        },
         str::to_owned,
     );
-    let mut layer = if args.str("kind") == Some("group") {
-        Layer::group(lid, name)
-    } else {
-        Layer::image(lid, name)
+    let mut layer = match (args.str("kind"), tileset) {
+        (Some("group"), _) => Layer::group(lid, name),
+        (_, Some(ts)) => Layer::tilemap(lid, name, ts.id),
+        _ => Layer::image(lid, name),
     };
+    // A tilemap layer gets an empty grid on every frame (AC-19).
+    let seeded: Option<Vec<Cel>> = tileset.map(|ts| {
+        let (tw, th) = ts.tile_size;
+        let (gw, gh) = (
+            doc.sprite.width.div_ceil(tw.max(1)),
+            doc.sprite.height.div_ceil(th.max(1)),
+        );
+        (0..doc.sprite.frames.len())
+            .map(|f| Cel::tilemap(lid, FrameIndex::new(f as u32), gw, gh))
+            .collect()
+    });
     if let Some(v) = args.bool("visible") {
         layer.visible = v;
     }
@@ -216,7 +259,10 @@ fn layer_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
         }
         None => parent.map(|p| (p, LayerPlacement::Into)),
     };
-    let mut cmds: Vec<AnyCommand> = vec![AddLayer::on_top(layer).into()];
+    let mut cmds: Vec<AnyCommand> = vec![match seeded {
+        Some(cels) => AddTilemapLayer::new(layer, cels).into(),
+        None => AddLayer::on_top(layer).into(),
+    }];
     if let Some((t, place)) = target {
         cmds.push(MoveLayerTo::new(lid, t, place).into());
     }
