@@ -182,9 +182,10 @@ const LABELS_DE: Labels = Labels {
 /// True while the native menu shows German labels.
 static GERMAN: AtomicBool = AtomicBool::new(false);
 
-/// Labels for a renderer language code; anything but `de` is English.
-fn labels_for(lang: &str) -> &'static Labels {
-    if lang == "de" { &LABELS_DE } else { &LABELS_EN }
+/// True when the native menu shows German labels for a renderer language
+/// code; anything but `de` is English.
+fn is_german(lang: &str) -> bool {
+    lang == "de"
 }
 
 fn current_labels() -> &'static Labels {
@@ -199,7 +200,7 @@ fn current_labels() -> &'static Labels {
 // entries the renderer pushed earlier.
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
-    GERMAN.store(lang == "de", Ordering::Relaxed);
+    GERMAN.store(is_german(&lang), Ordering::Relaxed);
     if !NATIVE_MENU {
         // Nothing to relabel: the in-app menu bar follows the locale itself.
         return Ok(());
@@ -571,10 +572,12 @@ mod tests {
     }
 
     #[test]
-    fn labels_for_german_and_fallback() {
-        assert_eq!(labels_for("de").file, "Datei");
-        assert_eq!(labels_for("en").file, "File");
-        assert_eq!(labels_for("fr").file, "File");
+    fn is_german_only_for_de_with_english_fallback() {
+        assert!(is_german("de"));
+        assert!(!is_german("en"));
+        assert!(!is_german("fr"));
+        assert_eq!(LABELS_DE.file, "Datei");
+        assert_eq!(LABELS_EN.file, "File");
     }
 
     /// IHDR colour type of a PNG, `None` if `bytes` is no PNG.
