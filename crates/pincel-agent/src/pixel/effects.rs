@@ -400,6 +400,69 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             choice("edge", EDGES),
         ],
     ),
+    // docs/specs/effects-artistic-photo.md: paint.net's Artistic and Photo
+    // menus.
+    plain(
+        "ink_sketch",
+        &[
+            num("ink_outline", 0.0, 99.0, 50.0),
+            num("coloring", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "oil_painting",
+        &[
+            num("brush_size", 1.0, 8.0, 3.0),
+            num("coarseness", 3.0, 255.0, 50.0),
+        ],
+    ),
+    plain(
+        "pencil_sketch",
+        &[
+            num("tip_size", 1.0, 20.0, 2.0),
+            num("color_range", -20.0, 20.0, 0.0),
+        ],
+    ),
+    plain(
+        "glow",
+        &[
+            num("radius", 1.0, 20.0, 6.0),
+            num("brightness", -100.0, 100.0, 10.0),
+            num("contrast", -100.0, 100.0, 10.0),
+        ],
+    ),
+    plain(
+        "red_eye_removal",
+        &[
+            num("tolerance", 0.0, 100.0, 70.0),
+            num("saturation", 0.0, 100.0, 90.0),
+        ],
+    ),
+    plain(
+        "soften_portrait",
+        &[
+            num("softness", 0.0, 10.0, 5.0),
+            num("lighting", -20.0, 20.0, 0.0),
+            num("warmth", 0.0, 20.0, 10.0),
+        ],
+    ),
+    plain(
+        "straighten",
+        &[
+            num("angle", -45.0, 45.0, 0.0),
+            choice("fill", &["zoom_to_fill", "transparent_corners"]),
+        ],
+    ),
+    plain(
+        "vignette",
+        &[
+            num("center_x", 0.0, 1.0, 0.5),
+            num("center_y", 0.0, 1.0, 0.5),
+            num("radius", 10.0, 400.0, 100.0),
+            num("density", 0.0, 100.0, 100.0),
+            choice("color", &["black", "white"]),
+        ],
+    ),
 ];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {

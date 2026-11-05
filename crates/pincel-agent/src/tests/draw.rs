@@ -456,8 +456,8 @@ fn effect_apply_unknown_id_or_out_of_range_param_fails() {
     let mut s = S::new();
     let id = scene(&mut s);
     let before = s.state(&id);
-    let e = s.err("effect.apply", json!({ "id": "glow" }));
-    assert!(e.contains("glow"), "{e}");
+    let e = s.err("effect.apply", json!({ "id": "no_such_effect" }));
+    assert!(e.contains("no_such_effect"), "{e}");
     let e = s.err(
         "effect.apply",
         json!({ "id": "posterize", "params": { "levels": 100 } }),
@@ -519,4 +519,71 @@ fn paint_target_defaults_to_active_layer_and_frame() {
         )
         .contains("frame 5")
     );
+}
+
+/// effects-artistic-photo: the Artistic and Photo effects take named
+/// parameters (choices by name) and give the editor's pixels.
+#[test]
+fn effect_apply_artistic_and_photo_effects_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "ink_sketch",
+            json!({ "ink_outline": 80, "coloring": 0 }),
+            &[80.0, 0.0],
+        ),
+        (
+            "oil_painting",
+            json!({ "brush_size": 2, "coarseness": 8 }),
+            &[2.0, 8.0],
+        ),
+        (
+            "pencil_sketch",
+            json!({ "tip_size": 3, "color_range": -4 }),
+            &[3.0, -4.0],
+        ),
+        (
+            "glow",
+            json!({ "radius": 2, "brightness": 30 }),
+            &[2.0, 30.0, 10.0],
+        ),
+        (
+            "red_eye_removal",
+            json!({ "tolerance": 100, "saturation": 50 }),
+            &[100.0, 50.0],
+        ),
+        (
+            "soften_portrait",
+            json!({ "softness": 3, "lighting": -5, "warmth": 4 }),
+            &[3.0, -5.0, 4.0],
+        ),
+        (
+            "straighten",
+            json!({ "angle": 12.5, "fill": "transparent_corners" }),
+            &[12.5, 1.0],
+        ),
+        (
+            "vignette",
+            json!({ "center_x": 0.2, "radius": 40, "color": "white" }),
+            &[0.2, 0.5, 40.0, 100.0, 1.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
 }
