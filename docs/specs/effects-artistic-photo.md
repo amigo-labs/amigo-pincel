@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: L
 mode: Image
@@ -7,6 +7,15 @@ design: [pincel.md §15 (2026-10-11 "One effect wire format", 2026-11-04 paint.n
 ---
 
 # paint.net Artistic and Photo effects
+
+## Summary
+
+> Completed: 2026-11-05
+
+- Eight paint.net effects in `pincel-effects`: Artistic (`ink_sketch`, `oil_painting`, `pencil_sketch`) and Photo (`glow`, `red_eye_removal`, `soften_portrait`, `straighten`, `vignette`), on the shared wire format with count checks, non-finite-as-0 and clamping
+- Image mode lists them in the Artistic and Photo submenus (sorted, en + de), with sliders, choices and Vignette's point control; Pixel mode shows neither submenu
+- Both cores and the agent catalog accept the eight names (`pincel-wasm`, `pincel-image-wasm`, `pincel-agent`)
+- Straighten rotates the whole layer bilinearly, with Zoom to fill or Transparent corners
 
 ## Context
 
@@ -44,19 +53,19 @@ Six of them mix neighbouring pixels or resample; Red Eye Removal and Vignette wo
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): In Image mode the Artistic submenu lists Ink Sketch…, Oil Painting… and Pencil Sketch…, and the Photo submenu lists Glow…, Red Eye Removal…, Sharpen, Soften Portrait…, Straighten…, Unsharp Mask… and Vignette…, sorted as `effect-catalog-v2` AC-04 specifies; Pixel mode shows neither submenu.
-- [ ] AC-02 (event): When the user opens one of the eight, then the effect dialog shows exactly its parameters from the table with their ranges and defaults, using the point control where the table says so.
-- [ ] AC-03 (always): Each effect returns an image of the same size as its input and leaves alpha unchanged, except Straighten (which rotates the alpha with the image and, with Transparent corners, makes the uncovered corners transparent).
-- [ ] AC-04 (always): Soften Portrait, Straighten and Vignette at their neutral settings leave the layer unchanged; Red Eye Removal with Saturation 0 leaves it unchanged.
-- [ ] AC-05 (always): Pencil Sketch output is gray (R = G = B ± 1 for every pixel) and, with Colour range 0, a flat area of any colour becomes white (luma ≥ 250).
-- [ ] AC-06 (always): Ink Sketch draws dark lines on edges: at the boundary between two flat areas the boundary pixels are darker than pixels deep inside either area; Colouring 0 gives a gray image.
-- [ ] AC-07 (always): Oil Painting leaves a solid single-colour layer unchanged, and on a horizontal gray ramp 0 – 255 over 256 px with Brush size 3 and Coarseness 8 the output has fewer distinct colours than the input.
-- [ ] AC-08 (always): Red Eye Removal lowers the red channel of a saturated red pixel (255, 30, 30) and leaves a pixel with red not dominant (100, 120, 110) unchanged.
-- [ ] AC-09 (always): Vignette with Radius 50, Colour Black and Density 100 leaves the centre pixel unchanged and makes corner pixels darker; with White, lighter.
-- [ ] AC-10 (option): Where Straighten's Fill is Zoom to fill, no pixel that was opaque in a fully opaque layer becomes transparent; where it is Transparent corners, the corners of a fully opaque layer become transparent for any Angle ≠ 0.
-- [ ] AC-11 (always): Glow makes a mid-gray layer lighter or equal everywhere for Brightness ≥ 0 and Contrast 0 (screen blend never darkens).
-- [ ] AC-12 (error): If a wire call names one of the eight with the wrong number of parameters, then it is rejected and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-13 (option): Where the UI language is German, the names and parameter labels are German.
+- [x] AC-01 (always): In Image mode the Artistic submenu lists Ink Sketch…, Oil Painting… and Pencil Sketch…, and the Photo submenu lists Glow…, Red Eye Removal…, Sharpen, Soften Portrait…, Straighten…, Unsharp Mask… and Vignette…, sorted as `effect-catalog-v2` AC-04 specifies; Pixel mode shows neither submenu.
+- [x] AC-02 (event): When the user opens one of the eight, then the effect dialog shows exactly its parameters from the table with their ranges and defaults, using the point control where the table says so.
+- [x] AC-03 (always): Each effect returns an image of the same size as its input and leaves alpha unchanged, except Straighten (which rotates the alpha with the image and, with Transparent corners, makes the uncovered corners transparent).
+- [x] AC-04 (always): Soften Portrait, Straighten and Vignette at their neutral settings leave the layer unchanged; Red Eye Removal with Saturation 0 leaves it unchanged.
+- [x] AC-05 (always): Pencil Sketch output is gray (R = G = B ± 1 for every pixel) and, with Colour range 0, a flat area of any colour becomes white (luma ≥ 250).
+- [x] AC-06 (always): Ink Sketch draws dark lines on edges: at the boundary between two flat areas the boundary pixels are darker than pixels deep inside either area; Colouring 0 gives a gray image.
+- [x] AC-07 (always): Oil Painting leaves a solid single-colour layer unchanged, and on a horizontal gray ramp 0 – 255 over 256 px with Brush size 3 and Coarseness 8 the output has fewer distinct colours than the input.
+- [x] AC-08 (always): Red Eye Removal lowers the red channel of a saturated red pixel (255, 30, 30) and leaves a pixel with red not dominant (100, 120, 110) unchanged.
+- [x] AC-09 (always): Vignette with Radius 50, Colour Black and Density 100 leaves the centre pixel unchanged and makes corner pixels darker; with White, lighter.
+- [x] AC-10 (option): Where Straighten's Fill is Zoom to fill, no pixel that was opaque in a fully opaque layer becomes transparent; where it is Transparent corners, the corners of a fully opaque layer become transparent for any Angle ≠ 0.
+- [x] AC-11 (always): Glow makes a mid-gray layer lighter or equal everywhere for Brightness ≥ 0 and Contrast 0 (screen blend never darkens).
+- [x] AC-12 (error): If a wire call names one of the eight with the wrong number of parameters, then it is rejected and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-13 (option): Where the UI language is German, the names and parameter labels are German.
 
 ## Technical notes
 
@@ -89,19 +98,19 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `image mode lists the Artistic and Photo entries, sorted; pixel mode neither submenu (AC-01)` (ui/e2e/effects-artistic-photo.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
-| AC-02 | `the Artistic and Photo dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-artistic-photo.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | built |        |
-| AC-03 | `every_effect_keeps_size_and_alpha`, `straighten_keeps_the_size_and_rotates_the_alpha` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-04 | `neutral_settings_leave_the_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-05 | `pencil_sketch_is_gray_and_whitens_a_flat_area` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-06 | `ink_sketch_draws_dark_lines_on_edges` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-07 | `oil_painting_keeps_a_solid_layer_and_merges_a_ramp`, `oil_painting_leaves_a_transparent_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-08 | `red_eye_removal_lowers_dominant_red_only` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-09 | `vignette_darkens_or_lightens_toward_the_edges`, `vignette_centred_on_a_corner_darkens_around_it` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-10 | `straighten_zoom_to_fill_keeps_every_pixel_opaque`, `straighten_transparent_corners_clears_the_corners` (crates/pincel-effects/tests/effects_artistic_photo.rs); `source_zoom_to_fill_scales_just_enough_to_cover_the_layer` (crates/pincel-effects/src/photo/straighten.rs) | built |        |
-| AC-11 | `glow_never_darkens` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
-| AC-12 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range`, `photo_numbers_read_non_finite_as_zero_then_clamp` (crates/pincel-effects/tests/effects_artistic_photo.rs); `apply_effect_artistic_photo_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-13 | `German names and parameter labels (AC-13)` (ui/e2e/effects-artistic-photo.spec.ts) | built |        |
+| AC-01 | `image mode lists the Artistic and Photo entries, sorted; pixel mode neither submenu (AC-01)` (ui/e2e/effects-artistic-photo.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | verified | e5c8fdf |
+| AC-02 | `the Artistic and Photo dialogs show exactly the parameters of the table (AC-02)` (ui/e2e/effects-artistic-photo.spec.ts); pinned wire vectors in `ui/e2e/effect-catalog.spec.ts` | verified | e5c8fdf |
+| AC-03 | `every_effect_keeps_size_and_alpha`, `straighten_keeps_the_size_and_rotates_the_alpha` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 32ad03b |
+| AC-04 | `neutral_settings_leave_the_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 32ad03b |
+| AC-05 | `pencil_sketch_is_gray_and_whitens_a_flat_area` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 3dafe15 |
+| AC-06 | `ink_sketch_draws_dark_lines_on_edges` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 3dafe15 |
+| AC-07 | `oil_painting_keeps_a_solid_layer_and_merges_a_ramp`, `oil_painting_leaves_a_transparent_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 3dafe15 |
+| AC-08 | `red_eye_removal_lowers_dominant_red_only` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 32ad03b |
+| AC-09 | `vignette_darkens_or_lightens_toward_the_edges`, `vignette_centred_on_a_corner_darkens_around_it` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 32ad03b |
+| AC-10 | `straighten_zoom_to_fill_keeps_every_pixel_opaque`, `straighten_transparent_corners_clears_the_corners` (crates/pincel-effects/tests/effects_artistic_photo.rs); `source_zoom_to_fill_scales_just_enough_to_cover_the_layer` (crates/pincel-effects/src/photo/straighten.rs) | verified | 32ad03b |
+| AC-11 | `glow_never_darkens` (crates/pincel-effects/tests/effects_artistic_photo.rs) | verified | 32ad03b |
+| AC-12 | `wrong_parameter_count_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range`, `photo_numbers_read_non_finite_as_zero_then_clamp` (crates/pincel-effects/tests/effects_artistic_photo.rs); `apply_effect_artistic_photo_wrong_parameter_count_changes_nothing` (crates/pincel-wasm/src/effects.rs) | verified | 8336105 |
+| AC-13 | `German names and parameter labels (AC-13)` (ui/e2e/effects-artistic-photo.spec.ts) | verified | e5c8fdf |
 
 ## Decisions
 
