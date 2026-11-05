@@ -1,20 +1,23 @@
-// One autosave / recovery loop for both editors (spec §10, M10.3). Every
-// `AUTOSAVE_INTERVAL_MS` an edited, unsaved document is encoded by its
-// editor and written to the IDB snapshot store under the session's
-// `docId`; a save or a fresh open drops it. The first editor of a mode in a
-// page load lists the snapshots an earlier page load left (crash, closed
-// tab) for the Recovery dialog; later New / Open in the same page do not
-// ask again.
+// One autosave / recovery loop for both editors (spec §10, M10.3), one
+// `AutosaveSession` per open document (docs/specs/document-tabs.md AC-14).
+// Every `AUTOSAVE_INTERVAL_MS` an edited, unsaved document is encoded by
+// its editor and written to the IDB snapshot store under the session's
+// `docId`; a save drops it. When the first editor of a page load starts,
+// the shell lists the snapshots of both modes an earlier page load left
+// (crash, closed tab) in the Recovery dialog (`RecoveryOffer`); later
+// editor starts in the same page do not ask again.
 //
 // Behaviour both modes share:
 // - A clean document (undo depth at the last save) is never written —
 //   unless the save lost part of it (`keep()`, a flattened image).
-// - A document swapped during the async write keeps its own baseline.
 // - A recovered document counts as unsaved, and its snapshot stays until
-//   the user saves — closing the tab right after recovering loses nothing.
-// - Discarding the last listed snapshot closes the dialog.
-// - Leaving a document (New / Open after "Discard changes", or the editor
-//   unmounting) deletes its snapshots: the user chose to drop it.
+//   the user saves — closing the browser tab right after recovering loses
+//   nothing.
+// - Recovering a snapshot opens it as a new document; the dialog stays
+//   while snapshots remain, and discarding or recovering the last listed
+//   snapshot closes it.
+// - Leaving a document (closing its tab after "Don't Save", or the editor
+//   unmounting) deletes its snapshot: the user chose to drop it.
 
 import type { EditorMode } from '../shell/types';
 import {
@@ -26,20 +29,20 @@ import {
 } from './autosave';
 import { isIdbAvailable } from './db';
 
-/** Modes whose Recovery probe already ran in this page load. */
-const probedModes: Partial<Record<EditorMode, true>> = {};
+/** The Recovery probe already ran in this page load. */
+let probed = false;
 
 /** How often an edited document is snapshotted. */
 export const AUTOSAVE_INTERVAL_MS = 30_000;
 
-/** What an editor tells the session about its document. */
+/** What an editor tells the session about one of its documents. */
 export interface AutosaveHost {
   mode: EditorMode;
-  /** Undo depth of the open document, or `null` while there is none. */
+  /** Undo depth of the document, or `null` while there is none. */
   depth(): number | null;
   /** Undo depth at the last save; equal to `depth()` means clean. */
   savedDepth(): number;
-  /** A file operation is running; skip this tick / recovery. */
+  /** A file operation on the document is running; skip this tick. */
   busy(): boolean;
   /** Display name stored with the snapshot. */
   name(): string;
@@ -48,54 +51,60 @@ export interface AutosaveHost {
   format?(): string | null;
   /** The document's project bytes (`.aseprite` / OpenRaster). */
   encode(): Uint8Array | null;
-  /** Replace the open document with recovered bytes and mark it unsaved. */
-  open(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void>;
-  /** Surface a failure (`action` is what failed). */
-  report(action: 'autosave' | 'recover' | 'discard', error: string): void;
+  /** Surface a failed snapshot write. */
+  report(error: string): void;
 }
 
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** The autosave loop of one open document. */
 export class AutosaveSession {
-  /** Snapshots offered for recovery; empty once dealt with. */
-  snapshots = $state<AutosaveSnapshotMeta[]>([]);
-  /** Per-snapshot error from a failed recover / discard. */
-  errors = $state<Record<string, string>>({});
-  /** Identity of the open document; snapshots are keyed by it. */
-  docId: string = crypto.randomUUID();
+  /** Identity of the document; its snapshot is keyed by it. */
+  docId: string;
 
   readonly available = isIdbAvailable();
   private lastWriteDepth = 0;
   /** The file on disk lost part of the document (`keep()`): the snapshot
-   *  stays current even at the saved depth, until a full save or another
-   *  document. */
+   *  stays current even at the saved depth, until a full save. */
   private retainAtSaved = false;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private recovering = false;
+  /** The snapshot write in flight, so `finish()` removes what it wrote. */
+  private writing: Promise<void> | null = null;
 
-  constructor(private readonly host: AutosaveHost) {}
+  /** `docId` continues an earlier identity (a recent's id, or a recovered
+   *  snapshot's); by default the document gets a fresh one. */
+  constructor(
+    private readonly host: AutosaveHost,
+    docId: string = crypto.randomUUID(),
+  ) {
+    this.docId = docId;
+    this.lastWriteDepth = host.depth() ?? 0;
+  }
 
-  /** Arm the timer; on the mode's first mount in this page load, also
-   *  probe for snapshots an earlier page load left. */
+  /** Arm the timer. */
   start(): void {
     if (!this.available || this.timer !== null) return;
-    if (!probedModes[this.host.mode]) {
-      probedModes[this.host.mode] = true;
-      listLatestSnapshots(this.host.mode)
-        .then((snaps) => {
-          if (this.timer !== null) this.snapshots = snaps;
-        })
-        .catch((err: unknown) => console.error('autosave probe failed', err));
-    }
     this.timer = setInterval(() => void this.tick(), AUTOSAVE_INTERVAL_MS);
   }
 
-  /** Editor unmount: disarm the timer and drop the open document's
-   *  snapshots — the shell only remounts after "Discard changes" or on a
-   *  clean document. A page unload never unmounts, so a crash or a closed
-   *  tab still leaves the snapshot for recovery. */
+  /** The document is left (its tab closed after "Don't Save" or while
+   *  clean, or the editor unmounted): disarm the timer and drop its
+   *  snapshot. */
   close(): void {
+    void this.finish();
+  }
+
+  /** Disarm the timer and drop the document's snapshot, resolving once it
+   *  is gone — after a write still in flight, so that write leaves nothing
+   *  behind (document-tabs edge cases). A storage error is logged, never
+   *  thrown: closing must not hang on it (unsaved-changes-prompt AC-05). */
+  async finish(): Promise<void> {
     if (this.timer !== null) clearInterval(this.timer);
     this.timer = null;
-    void this.clear();
+    if (this.writing) await this.writing;
+    await this.clear();
   }
 
   /** Write a snapshot if the document changed since the last one. */
@@ -118,31 +127,32 @@ export class AutosaveSession {
   }
 
   /** Encode the document and store it as the session's snapshot. */
-  private async write(depth: number): Promise<void> {
-    const id = this.docId;
+  private write(depth: number): Promise<void> {
+    const run = this.writeNow(depth).finally(() => {
+      if (this.writing === run) this.writing = null;
+    });
+    this.writing = run;
+    return run;
+  }
+
+  private async writeNow(depth: number): Promise<void> {
     try {
       const bytes = this.host.encode();
       if (bytes === null) return;
       const format = this.host.format?.() ?? undefined;
-      await writeSnapshot(id, this.host.name(), bytes, this.host.mode, format);
-      // A New / Open may have swapped the document during the await; its
-      // own baseline must not be clobbered with this stale depth.
-      if (this.docId === id) this.lastWriteDepth = depth;
+      await writeSnapshot(this.docId, this.host.name(), bytes, this.host.mode, format);
+      this.lastWriteDepth = depth;
     } catch (err) {
       console.error('autosave failed', err);
-      this.host.report('autosave', err instanceof Error ? err.message : String(err));
+      this.host.report(message(err));
     }
   }
 
-  /** A document was opened or created: give it an identity (a recent's
-   *  id keeps re-opens grouped) and drop stale snapshots for it and for
-   *  the document it replaced (discarded, or clean). */
-  async opened(id: string = crypto.randomUUID()): Promise<void> {
-    const previous = this.docId;
-    this.docId = id;
+  /** The document was opened from a file (or created): drop a stale
+   *  snapshot for its identity — the file is newer. */
+  async opened(): Promise<void> {
     this.lastWriteDepth = this.host.depth() ?? 0;
     this.retainAtSaved = false;
-    if (previous !== id) await this.clear(previous);
     await this.clear();
   }
 
@@ -153,7 +163,60 @@ export class AutosaveSession {
     await this.clear();
   }
 
-  /** Load `meta`'s snapshot into the editor and continue under its id. */
+  private async clear(): Promise<void> {
+    if (!this.available) return;
+    try {
+      await removeSnapshots(this.docId);
+    } catch (err) {
+      // Best-effort: the save / open itself succeeded.
+      console.error('autosave clear failed', err);
+    }
+  }
+}
+
+/** What the shell does with a recovered snapshot. */
+export interface RecoveryHost {
+  /** A file operation is running; ignore Recover for now. */
+  busy(): boolean;
+  /** Open the snapshot's bytes as a new, unsaved tab of its mode that
+   *  continues under `meta.docId` (document-tabs AC-15). */
+  open(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void>;
+  /** Surface a failure (`action` is what failed). */
+  report(action: 'recover' | 'discard', error: string): void;
+}
+
+/** The Recovery dialog's list: snapshots an earlier page load left. */
+export class RecoveryOffer {
+  /** Snapshots offered for recovery; empty once dealt with. */
+  snapshots = $state<AutosaveSnapshotMeta[]>([]);
+  /** Per-snapshot error from a failed recover / discard. */
+  errors = $state<Record<string, string>>({});
+
+  private live = false;
+  private recovering = false;
+
+  constructor(private readonly host: RecoveryHost) {}
+
+  /** On the first editor start in this page load, list the snapshots of
+   *  both modes an earlier page load left. */
+  probe(): void {
+    this.live = true;
+    if (!isIdbAvailable() || probed) return;
+    probed = true;
+    listLatestSnapshots()
+      .then((snaps) => {
+        if (this.live) this.snapshots = snaps;
+      })
+      .catch((err: unknown) => console.error('autosave probe failed', err));
+  }
+
+  /** The offer is gone: a late probe result is dropped. */
+  stop(): void {
+    this.live = false;
+  }
+
+  /** Open `meta`'s snapshot as a new document; the dialog keeps the other
+   *  snapshots (document-tabs AC-15). */
   async recover(meta: AutosaveSnapshotMeta): Promise<void> {
     if (this.recovering || this.host.busy()) return;
     this.recovering = true;
@@ -161,12 +224,9 @@ export class AutosaveSession {
       const full = await latestSnapshot(meta.docId);
       if (!full) throw new Error('snapshot bytes not found');
       await this.host.open(full.bytes, meta);
-      this.docId = meta.docId;
-      this.lastWriteDepth = this.host.depth() ?? 0;
-      this.retainAtSaved = false;
-      this.dismiss();
+      this.remove(meta.docId);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = message(err);
       this.errors = { ...this.errors, [meta.docId]: msg };
       this.host.report('recover', msg);
     } finally {
@@ -179,17 +239,13 @@ export class AutosaveSession {
     try {
       await removeSnapshots(id);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = message(err);
       console.error('discard snapshot failed', err);
       this.errors = { ...this.errors, [id]: msg };
       this.host.report('discard', msg);
       return;
     }
-    this.snapshots = this.snapshots.filter((s) => s.docId !== id);
-    const errors = { ...this.errors };
-    delete errors[id];
-    this.errors = errors;
-    if (this.snapshots.length === 0) this.dismiss();
+    this.remove(id);
   }
 
   /** Close the Recovery dialog; the snapshots stay for a later session. */
@@ -198,13 +254,11 @@ export class AutosaveSession {
     this.errors = {};
   }
 
-  private async clear(id: string = this.docId): Promise<void> {
-    if (!this.available) return;
-    try {
-      await removeSnapshots(id);
-    } catch (err) {
-      // Best-effort: the save / open itself succeeded.
-      console.error('autosave clear failed', err);
-    }
+  private remove(id: string): void {
+    this.snapshots = this.snapshots.filter((s) => s.docId !== id);
+    const errors = { ...this.errors };
+    delete errors[id];
+    this.errors = errors;
+    if (this.snapshots.length === 0) this.dismiss();
   }
 }

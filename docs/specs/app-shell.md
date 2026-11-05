@@ -49,12 +49,12 @@ Already decided: "Two cores, one shell" (Decision Log 2026-09-06); "Open like th
 - [ ] AC-05 (event): When the user submits the New pixel sprite card, then the Pixel editor opens with a sprite of exactly the typed width and height.
 - [ ] AC-06 (error): If a typed size is empty or not a number, then the mode's default size is used; if it is outside the mode's limits, then it is clamped (Pixel: 1–4096 per edge; Image: 1–16384 per edge and at most 8192 × 8192 px in area, scaling both edges down together).
 - [ ] AC-07 (option): Where "Open like this on startup" is ticked on a New card or in the New dialog, the next app launch skips the start screen and opens an empty document of that mode and size; at most one mode is remembered (ticking one card clears the other), and unticking it in File ▸ New… brings the start screen back on the next launch.
-- [ ] AC-08 (event): When the user chooses File ▸ New… in an editor, then the "New document" dialog opens with the current editor's mode preselected and that mode's default size; switching the mode resets the size to the new mode's default; Create opens the new document as a new tab when the chosen mode is the mounted editor's mode, and otherwise replaces the session with a fresh editor of the chosen mode (`document-tabs` AC-02, AC-10 – AC-12); Cancel or Escape closes the dialog and leaves the open documents unchanged.
+- [ ] AC-08 (event): When the user chooses File ▸ New… in an editor, then the "New document" dialog opens with the current editor's mode preselected and that mode's default size; switching the mode resets the size to the new mode's default; Create opens the new document as a new tab of the chosen mode (`document-tabs` AC-02); Cancel or Escape closes the dialog and leaves the open documents unchanged.
 - [ ] AC-09 (event): When a file is opened from the shell (start screen Open…, File ▸ Open… in Image mode, Open Recent, drop), then an Aseprite sprite opens in the Pixel editor and an OpenRaster, PNG, JPEG, WebP, BMP, GIF or TIFF file opens in the Image editor.
 - [ ] AC-10 (always): A file's format is decided by its leading bytes; the file-name extension decides only when no known signature matches (a PNG named `x.aseprite` opens in Image mode).
 - [ ] AC-11 (event): When the user opens a file through the Pixel editor's own File ▸ Open…, then a sprite or PNG stays in Pixel mode (a PNG becomes a one-layer sprite) and any other supported format is handed to the Image editor.
 - [ ] AC-12 (error): If the opened file is neither a known signature nor a known extension, then a dismissable error notice names the file and the start screen or open document stays as it was.
-- [ ] AC-13 (always): Exactly one editor is mounted at a time, and a session in one mode never downloads the other mode's wasm module.
+- [ ] AC-13 (always): At most one editor per mode is mounted and only the editor of the active tab is visible (`document-tabs` AC-21); a session that never opened a document of a mode never downloads that mode's wasm module (`document-tabs` AC-22).
 - ~~AC-14 (state): While the open document has unsaved changes, File ▸ New…, File ▸ Open… and Open Recent first ask "Discard changes" / "Cancel"; Discard proceeds with the action, Cancel keeps the document unchanged.~~ dropped: superseded by [unsaved-changes-prompt](unsaved-changes-prompt.md) (Save / Don't Save / Cancel, also before closing the desktop app).
 - [ ] AC-15 (state): While the open document has unsaved changes, closing or reloading the page triggers the browser's leave-page confirmation; with no unsaved changes it does not.
 - [ ] AC-16 (always): The editor top bar shows the mode badge, the active tab's document name and, while that document has unsaved changes, an unsaved marker whose tooltip reads "<name> — unsaved changes"; after a successful save the marker disappears.
@@ -105,12 +105,12 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-05 | | open | |
 | AC-06 | | open | |
 | AC-07 | `ui/e2e/auto-new.spec.ts › a ticked New card opens its document on the next launch`; `ui/e2e/auto-new.spec.ts › ticking one card clears the other` | built | |
-| AC-08 | | open | |
+| AC-08 | `ui/e2e/document-tabs-mixed.spec.ts`: "File ▸ New… preselects the active tab’s mode and its size; Create opens a tab of the chosen mode, Cancel nothing (app-shell AC-08)" (preselected mode and default size from a Pixel and an Image tab, size reset on a mode switch, Escape and Cancel, Create of the other mode), "one tab bar holds both modes; … (AC-01, AC-02, AC-22)" (Create of Image from a Pixel tab) | built | |
 | AC-09 | | open | |
 | AC-10 | | open | |
 | AC-11 | | open | |
 | AC-12 | | open | |
-| AC-13 | | open | |
+| AC-13 | `ui/e2e/document-tabs-mixed.spec.ts`: "closing a tab activates its right-hand neighbour of either mode; the last tab of a mode releases its editor (AC-07, AC-09, AC-16, AC-22)" (at most one editor per mode, released with its last tab), "switching to a tab of the other mode shows that editor, … (AC-04)" (the other editor `inert`, hidden), "one tab bar holds both modes; … (AC-01, AC-02, AC-22)" (no Pixel module before the first Pixel document), "switching between tabs of two loaded modes remounts no editor and reloads no document (AC-22)"; `ui/e2e/smoke.spec.ts`: "image mode: a brush stroke is undoable and the pixel wasm is not loaded" | built | |
 | AC-14 | | dropped | |
 | AC-15 | | open | |
 | AC-16 | | open | |
@@ -120,10 +120,11 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-20 | | open | |
 | AC-21 | `ui/e2e/help.spec.ts › pixel mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › image mode: Help ▸ About Pincel names the version`; `ui/e2e/help.spec.ts › the start screen reaches About without a menu bar` | built | |
 
-Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` asserts the unsaved marker appearing after an edit and disappearing after Save, not the mode badge or name; AC-01 — `smoke.spec.ts › start screen offers both modes` checks the two New cards only, Open… is clicked in `ora.spec.ts`, About in `help.spec.ts`; AC-13 — `smoke.spec.ts › image mode: a brush stroke is undoable and the pixel wasm is not loaded` asserts only the Image-mode direction; AC-14 — `recovery.spec.ts › a discarded document is not offered again, on New or after a reload` clicks Discard after File ▸ New… in Pixel mode; Cancel, Open and Image mode untested; AC-18 — `responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` covers collapse; the docked-sidebar toggle is untested; AC-20 — About (`help.spec.ts › … the About dialog holds the keyboard`) and paste in the New dialog (`paste.spec.ts › a paste inside the shell New dialog does not reach the canvas`) are covered; text-field focus and keys in the New dialog are not.
+Partial coverage (status stays `open`): AC-16 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` asserts the unsaved marker appearing after an edit and disappearing after Save, not the mode badge or name; AC-01 — `smoke.spec.ts › start screen offers both modes` checks the two New cards only, Open… is clicked in `ora.spec.ts`, About in `help.spec.ts`; AC-14 — `recovery.spec.ts › a discarded document is not offered again, on New or after a reload` clicks Discard after File ▸ New… in Pixel mode; Cancel, Open and Image mode untested; AC-18 — `responsive.spec.ts › desktop: panels collapse and stay collapsed across sessions` covers collapse; the docked-sidebar toggle is untested; AC-20 — About (`help.spec.ts › … the About dialog holds the keyboard`) and paste in the New dialog (`paste.spec.ts › a paste inside the shell New dialog does not reach the canvas`) are covered; text-field focus and keys in the New dialog are not.
 
 ## Decisions
 
 - 2026-10-29: Extracted from the code as built (reverse engineering); ACs describe current behavior.
 - 2026-11-04: AC-14 dropped — the unsaved-changes guard moves to `unsaved-changes-prompt`, which adds Save to the prompt and asks before the desktop app closes.
 - 2026-11-04: AC-08 and AC-16 reworded for `document-tabs` (Create in the same mode adds a tab; the top bar shows the active tab's name and marker); both back to `open`.
+- 2026-11-04: AC-08 and AC-13 reworded for mixed-mode tabs (`document-tabs` revision): New opens a tab of either mode; at most one editor per mode is mounted, only the active tab's is visible, and a mode's wasm loads with its first document; both back to `open`.

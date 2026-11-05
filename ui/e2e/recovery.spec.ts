@@ -54,12 +54,12 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   await page.clock.fastForward(31_000);
   await page.waitForTimeout(500);
 
-  await menu(page, 'File', 'New…');
-  await page.getByRole('button', { name: 'Discard changes' }).click();
-  const newDialog = page.getByRole('dialog', { name: 'New document' });
-  await newDialog.getByRole('button', { name: 'Create' }).click();
-  await expect(newDialog).toBeHidden();
-  await waitForEditor(page, 'pixel');
+  // Closing the tab with Don't Save drops the work (unsaved-changes-prompt
+  // AC-05); a New document of the other mode opens afterwards.
+  await menu(page, 'File', 'Close');
+  await page.getByRole('button', { name: "Don't Save" }).click();
+  await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
+  await createDocument(page, 'image', { width: 16, height: 16 });
   const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
   // The probe is async; give it time to (not) open the dialog.
   await page.waitForTimeout(500);

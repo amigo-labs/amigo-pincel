@@ -5,9 +5,13 @@ import type { MessageKey } from './en';
 
 export const de: Record<MessageKey, string> = {
   // Shell
-  'shell.discardPrompt': 'Ungespeicherte Änderungen am offenen Dokument verwerfen?',
   'shell.unsavedChanges': 'Ungespeicherte Änderungen',
-  'shell.discard': 'Änderungen verwerfen',
+  'shell.saveChangesTo': 'Änderungen an „{name}“ speichern?',
+  'shell.save': 'Speichern',
+  'shell.dontSave': 'Nicht speichern',
+  'shell.saveAll': 'Alle speichern',
+  'shell.unsavedIn': 'Ungespeicherte Änderungen in {n} Bildern:',
+  'shell.dropSkipped': '{n} abgelegte Datei(en) konnten nicht geöffnet werden',
   'shell.unsupported':
     '{name}: kein unterstütztes Format (Sprite, OpenRaster oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
@@ -16,7 +20,10 @@ export const de: Record<MessageKey, string> = {
   'shell.recentFailed': '{name} konnte nicht geöffnet werden: {error}',
   'shell.dropFailed': 'Ablegen fehlgeschlagen: {error}',
   'shell.loadingEditor': '{mode}-Editor wird geladen…',
-  'shell.editorFailed': 'Der {mode}-Editor konnte nicht geladen werden: {error}',
+  'shell.couldNotOpen': '{name} konnte nicht geöffnet werden: {error}',
+  'shell.newDocument': 'Neues {mode}-Dokument',
+  'shell.ignoredPrompt': '{name} wurde nicht geöffnet: Eine Abfrage zu ungespeicherten Änderungen ist offen',
+  'shell.saveFailed': 'Speichern von {name} fehlgeschlagen: {error}',
   'shell.dismiss': 'Schließen',
 
   // Generic buttons
@@ -102,6 +109,10 @@ export const de: Record<MessageKey, string> = {
   'frame.togglePanels': 'Bedienfelder ein/aus',
   'frame.closePanels': 'Bedienfelder schließen',
   'frame.sidebarWidth': 'Breite der Seitenleiste',
+  'tabs.label': 'Geöffnete Dokumente',
+  'tabs.close': 'Schließen',
+  'tabs.closeNamed': '„{name}“ schließen',
+  'tabs.unsaved': 'ungespeicherte Änderungen',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -209,6 +220,7 @@ export const de: Record<MessageKey, string> = {
   'menu.save': 'Speichern',
   'menu.saveDownload': 'Speichern (Download)',
   'menu.saveAs': 'Speichern unter…',
+  'menu.close': 'Schließen',
   'menu.importPng': 'PNG als Ebene importieren…',
   'menu.export': 'Exportieren',
   'menu.exportPngFrame': 'PNG (aktueller Frame)',
@@ -259,6 +271,11 @@ export const de: Record<MessageKey, string> = {
   'paste.newImageName': 'Eingefügtes Bild.png',
   'paste.noImage': 'Die Zwischenablage enthält kein Bild',
   'paste.failed': 'Einfügen fehlgeschlagen: {error}',
+  'offer.title': 'Bild in der Zwischenablage',
+  'offer.preview': 'Vorschau des Bildes in der Zwischenablage',
+  'offer.size': '{w} × {h}',
+  'offer.open': 'Öffnen',
+  'offer.ignore': 'Ignorieren',
   'menu.deleteSelection': 'Auswahl löschen',
   'menu.swapColors': 'Farben tauschen',
   'menu.defaultColors': 'Standardfarben',
@@ -791,7 +808,6 @@ export const de: Record<MessageKey, string> = {
   'px.ready': 'bereit',
   'px.needTilemap': 'zuerst eine Tilemap-Ebene anlegen (+ Ebene im Tilesets-Bedienfeld)',
   'px.toolFailed': '{tool} fehlgeschlagen: {error}',
-  'px.discardNamed': 'Ungespeicherte Änderungen an {name} verwerfen?',
   'px.opened': '{name} geöffnet · {w}×{h}',
   'px.saved': '{bytes} Bytes gespeichert · {name}',
   'px.recovered': '{name} wiederhergestellt · {w}×{h}',

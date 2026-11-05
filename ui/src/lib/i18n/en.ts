@@ -3,9 +3,13 @@
 
 export const en = {
   // Shell
-  'shell.discardPrompt': 'Discard unsaved changes to the open document?',
   'shell.unsavedChanges': 'Unsaved changes',
-  'shell.discard': 'Discard changes',
+  'shell.saveChangesTo': 'Save changes to "{name}"?',
+  'shell.save': 'Save',
+  'shell.dontSave': "Don't Save",
+  'shell.saveAll': 'Save All',
+  'shell.unsavedIn': 'Unsaved changes in {n} images:',
+  'shell.dropSkipped': '{n} dropped file(s) could not be opened',
   'shell.unsupported':
     '{name}: not a supported file (sprite, OpenRaster or PNG / JPEG / WebP / BMP / GIF / TIFF)',
   'shell.openFailed': 'Open failed: {error}',
@@ -14,7 +18,10 @@ export const en = {
   'shell.recentFailed': 'Opening {name} failed: {error}',
   'shell.dropFailed': 'Drop failed: {error}',
   'shell.loadingEditor': 'Loading the {mode} editor…',
-  'shell.editorFailed': 'Failed to load the {mode} editor: {error}',
+  'shell.couldNotOpen': '{name} could not be opened: {error}',
+  'shell.newDocument': 'New {mode} document',
+  'shell.ignoredPrompt': '{name} was not opened: an unsaved-changes prompt is open',
+  'shell.saveFailed': 'Saving {name} failed: {error}',
   'shell.dismiss': 'Dismiss',
 
   // Generic buttons
@@ -95,6 +102,10 @@ export const en = {
   'frame.togglePanels': 'Toggle panels',
   'frame.closePanels': 'Close panels',
   'frame.sidebarWidth': 'Sidebar width',
+  'tabs.label': 'Open documents',
+  'tabs.close': 'Close',
+  'tabs.closeNamed': 'Close {name}',
+  'tabs.unsaved': 'unsaved changes',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -202,6 +213,7 @@ export const en = {
   'menu.save': 'Save',
   'menu.saveDownload': 'Save (download)',
   'menu.saveAs': 'Save As…',
+  'menu.close': 'Close',
   'menu.importPng': 'Import PNG as Layer…',
   'menu.export': 'Export',
   'menu.exportPngFrame': 'PNG (current frame)',
@@ -252,6 +264,11 @@ export const en = {
   'paste.newImageName': 'Pasted image.png',
   'paste.noImage': 'The clipboard holds no image',
   'paste.failed': 'Could not paste: {error}',
+  'offer.title': 'Image on the clipboard',
+  'offer.preview': 'Preview of the clipboard image',
+  'offer.size': '{w} × {h}',
+  'offer.open': 'Open',
+  'offer.ignore': 'Ignore',
   'menu.deleteSelection': 'Delete Selection',
   'menu.swapColors': 'Swap Colors',
   'menu.defaultColors': 'Default Colors',
@@ -784,7 +801,6 @@ export const en = {
   'px.pasted': 'pasted',
   'px.needTilemap': 'add a tilemap layer first (+ Layer in the Tilesets panel)',
   'px.toolFailed': '{tool} failed: {error}',
-  'px.discardNamed': 'Discard unsaved changes to {name}?',
   'px.opened': 'opened {name} · {w}×{h}',
   'px.saved': 'saved {bytes} bytes · {name}',
   'px.recovered': 'recovered {name} · {w}×{h}',

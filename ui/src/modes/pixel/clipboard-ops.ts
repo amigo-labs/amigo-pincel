@@ -158,7 +158,8 @@ export async function pasteAsNewImage(): Promise<void> {
     ed.status = t('paste.noImage');
     return;
   }
-  openInShell(pastedImageFile(bytes, system?.type ?? 'image/png'));
+  // A tab of this mode (document-tabs Terms, "A document's mode").
+  openInShell(pastedImageFile(bytes, system?.type ?? 'image/png'), 'pixel');
 }
 
 /** Ctrl+V / ⌘V: the browser's `paste` event, which needs no permission. */

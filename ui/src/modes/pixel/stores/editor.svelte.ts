@@ -3,10 +3,15 @@
 // mounts one editor per session, so these are module singletons;
 // `resetPixelStore()` runs when `PixelEditor` mounts.
 //
+// Several documents are open as tabs (docs/specs/document-tabs.md): the
+// per-document keys of `ed`, `view`, `play` and `file` belong to the
+// active tab (`lib/shell/tab-store`), the rest is shared by all tabs.
+//
 // The wasm `Document` stays the source of truth for sprite state
 // (CLAUDE.md §9); the fields here mirror what the UI renders from it.
 
 import type { Document } from '../../../lib/core';
+import { tabStore } from '../../../lib/shell/tab-store';
 import type { SaveTarget } from '../../../lib/fs';
 import type { RecentFile } from '../../../lib/idb/recent-files';
 import type { EffectSession } from '../../../lib/effects/session.svelte';
@@ -36,15 +41,10 @@ export const MAX_DOC_SIZE = 4096;
 /** Default suggested filename for a new document. */
 export const DEFAULT_FILE_NAME = 'pincel.aseprite';
 
-function edInit() {
+/** A tab's document and what the UI mirrors from it. */
+function docInit() {
   return {
     doc: null as Document | null,
-    /** The mount's document is loaded, fitted and composed once — the
-     *  editor takes input. Published as `data-ready` on the canvas. */
-    ready: false,
-    /** Bumped whenever the wasm side may have changed what panels derive
-     *  from; the wasm getters are opaque to Svelte's reactive graph. */
-    docRev: 0,
     undoDepth: 0,
     redoDepth: 0,
     /** Undo depth at the last save / load; `-1` marks a recovered
@@ -60,6 +60,17 @@ function edInit() {
     activeLayerId: null as number | null,
     /** Slice focused in the Slices panel. */
     activeSliceId: null as number | null,
+  };
+}
+
+function edInit() {
+  return {
+    /** The mount's document is loaded, fitted and composed once — the
+     *  editor takes input. Published as `data-ready` on the canvas. */
+    ready: false,
+    /** Bumped whenever the wasm side may have changed what panels derive
+     *  from; the wasm getters are opaque to Svelte's reactive graph. */
+    docRev: 0,
     /** Footer status line. */
     status: t('px.initializing'),
     /** Active base-layer renderer, surfaced in the footer. */
@@ -67,13 +78,19 @@ function edInit() {
   };
 }
 
-function viewInit() {
+/** A tab's viewport transform. */
+function tabViewInit() {
   return {
     /** Integer display zoom (sprite px → CSS px). */
     zoom: 8,
     /** Pan offset (CSS px) from the centred layout box. */
     panX: 0,
     panY: 0,
+  };
+}
+
+function viewInit() {
+  return {
     /** Live size of the canvas stage, for `fitView`. */
     stageW: 0,
     stageH: 0,
@@ -124,19 +141,29 @@ function colorsInit() {
   return { color: '#f87171', alpha: 255, bgColor: '#ffffff', bgAlpha: 255 };
 }
 
-function playInit() {
+/** A tab's playback range and onion skin. */
+function tabPlayInit() {
   return {
-    playing: false,
     /** Tag index playback loops over (`null` = every frame). */
     loopTag: null as number | null,
     onion: { enabled: false, back: 1, forward: 1, alpha: 76 } as OnionSettings,
   };
 }
 
-function fileInit() {
+function playInit() {
+  return { playing: false };
+}
+
+/** A tab's on-disk identity. */
+function tabFileInit() {
   return {
     saveTarget: { name: DEFAULT_FILE_NAME, handle: null, path: null } as SaveTarget,
-    /** An async open / save / recover is in flight. */
+  };
+}
+
+function fileInit() {
+  return {
+    /** An async open / recover / export is in flight. */
     busy: false,
     recents: [] as RecentFile[],
   };
@@ -144,8 +171,6 @@ function fileInit() {
 
 function dialogsInit() {
   return {
-    /** Unsaved-changes confirmation awaiting an answer. */
-    confirm: null as { message: string; run: () => void } | null,
     effect: null as EffectSession | null,
     resize: null as ResizeMode | null,
     sheet: false,
@@ -209,18 +234,68 @@ function liveInit() {
   };
 }
 
-/** The open document and what the UI mirrors from it. */
-export const ed = $state(edInit());
-/** Viewport transform and canvas elements. */
-export const view = $state(viewInit());
+/** One tab's document state. */
+export type TabDoc = ReturnType<typeof docInit>;
+
+/** One open document (docs/specs/document-tabs.md): its wasm document and
+ *  mirrors, view, playback range, onion skin and file. `id` is unique for
+ *  the page load. */
+export interface PixelTab {
+  id: number;
+  doc: TabDoc;
+  view: ReturnType<typeof tabViewInit>;
+  play: ReturnType<typeof tabPlayInit>;
+  file: ReturnType<typeof tabFileInit>;
+}
+
+/** A fresh tab's state around `doc`, saved to `saveTarget`. */
+export function tabInit(id: number, doc: Document, saveTarget: SaveTarget): PixelTab {
+  return {
+    id,
+    doc: { ...docInit(), doc },
+    view: tabViewInit(),
+    play: tabPlayInit(),
+    file: { saveTarget },
+  };
+}
+
+/** The open tabs in opening order, and the active one. */
+export const tabs = $state({
+  list: [] as PixelTab[],
+  active: null as PixelTab | null,
+});
+
+// Stand-ins read while no tab is open (before the first document loads).
+const idle = $state({
+  doc: docInit(),
+  view: tabViewInit(),
+  play: tabPlayInit(),
+  file: tabFileInit(),
+});
+
+function keysOf<T extends object>(init: () => T): (keyof T & string)[] {
+  return Object.keys(init()) as (keyof T & string)[];
+}
+
+// The editor-wide halves of the split stores.
+const sharedEd = $state(edInit());
+const sharedView = $state(viewInit());
+const sharedPlay = $state(playInit());
+const sharedFile = $state(fileInit());
+
+/** The active tab's document and what the UI mirrors from it, plus the
+ *  editor-wide state. */
+export const ed = tabStore(sharedEd, keysOf(docInit), () => tabs.active?.doc ?? idle.doc);
+/** The active tab's viewport transform, plus the canvas elements. */
+export const view = tabStore(sharedView, keysOf(tabViewInit), () => tabs.active?.view ?? idle.view);
 /** Active tool and its options. */
 export const toolState = $state(toolInit());
 /** Foreground / background colours. */
 export const colors = $state(colorsInit());
-/** Timeline playback and onion skin. */
-export const play = $state(playInit());
-/** On-disk identity and recents. */
-export const file = $state(fileInit());
+/** Timeline playback, and the active tab's loop tag and onion skin. */
+export const play = tabStore(sharedPlay, keysOf(tabPlayInit), () => tabs.active?.play ?? idle.play);
+/** The active tab's on-disk identity, plus recents. */
+export const file = tabStore(sharedFile, keysOf(tabFileInit), () => tabs.active?.file ?? idle.file);
 /** Which dialog is open. */
 export const dialogs = $state(dialogsInit());
 /** Frame-time probe (F2). */
@@ -230,6 +305,9 @@ export const live = liveInit();
 
 /** Restore every field to its initial value (editor mount). */
 export function resetPixelStore(): void {
+  tabs.list = [];
+  tabs.active = null;
+  Object.assign(idle, { doc: docInit(), view: tabViewInit(), play: tabPlayInit(), file: tabFileInit() });
   Object.assign(ed, edInit());
   Object.assign(view, viewInit());
   Object.assign(toolState, toolInit());

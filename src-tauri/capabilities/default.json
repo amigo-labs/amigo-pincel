@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main Pincel window. M11.2 adds `dialog:default` for the native open / save pickers; the read_file_bytes / write_file_bytes commands wrap std::fs directly, so no fs-plugin permissions are needed.",
+  "description": "Default permissions for the main Pincel window. M11.2 adds `dialog:default` for the native open / save pickers; `core:window:allow-destroy` lets the UI close the window after its unsaved-changes prompt (docs/specs/unsaved-changes-prompt.md); the read_file_bytes / write_file_bytes commands wrap std::fs directly, so no fs-plugin permissions are needed; `clipboard-manager:allow-read-image` lets the start screen offer a clipboard image (docs/specs/copy-cut-paste.md AC-27 – AC-33) — read-image only, no other clipboard command.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": ["core:default", "core:window:allow-destroy", "dialog:default", "clipboard-manager:allow-read-image"]
 }

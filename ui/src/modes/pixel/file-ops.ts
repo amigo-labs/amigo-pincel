@@ -1,59 +1,61 @@
-// File operations: open, save, recents, autosave, PNG / sheet / animation
-// export.
+// File operations: open, recents, PNG / sheet / animation export. Every
+// opened document becomes a tab (docs/specs/document-tabs.md); saving and
+// autosave live per tab in `tab-session.ts`.
 
 import { invoke } from '@tauri-apps/api/core';
 import { Document, type Vectorizer } from '../../lib/core';
 import type { SvgTrace } from '../../lib/components/SvgExportDialog.svelte';
 import {
+  type FileLocation,
   type OpenedFile,
   type SaveTarget,
   ensureReadPermission,
   formatFromName,
   hasFsAccess,
   isPngBytes,
+  mimeFromName,
   pickAndOpen,
-  saveBytes,
+  sameFile,
   saveExport,
   sniffFormat,
 } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
-import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
-import { type RecentFile, listRecents, upsertRecent } from '../../lib/idb/recent-files';
+import type { RecentFile } from '../../lib/idb/recent-files';
 import { hasNativeMenu, isTauri } from '../../lib/platform';
+import type { EditorMode, NewDocParams } from '../../lib/shell/types';
 import type {
   AnimationExportOptions,
   AnimationSummary,
 } from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
-import { disposeDoc, resetDocViewState } from './doc-ops';
-import { afterImageCommand, endOpenEffect } from './image-ops';
-import { dialogs, ed, file } from './stores/editor.svelte';
+import { afterImageCommand } from './image-ops';
+import { DEFAULT_FILE_NAME, MAX_DOC_SIZE, dialogs, ed, file, tabs } from './stores/editor.svelte';
+import { attachTab, focusTab, recentsAvailable, recordRecent } from './tab-session';
+import { openTab } from './tabs.svelte';
+
+export { recentsAvailable };
 
 /** Shell callbacks this module serves (`EditorProps`). */
 const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
-  openFile: (opened: OpenedFile) => void;
+  openFile: (opened: OpenedFile, mode?: EditorMode) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
 };
 
-/** Hand a document to the shell, which guards unsaved changes and opens it. */
-export function openInShell(opened: OpenedFile): void {
-  shell.openFile(opened);
+/** Hand a document to the shell, which activates the tab holding the
+ *  same file or opens it as a tab of `mode` (default: by its format). */
+export function openInShell(opened: OpenedFile, mode?: EditorMode): void {
+  shell.openFile(opened, mode);
 }
 
 /** Hand the shell's callbacks to the file operations (editor mount). */
 export function bindShell(next: typeof shell): void {
   Object.assign(shell, next);
-}
-
-/** "Modified since last save": the undo depth moved off the saved one. */
-export function isDocDirty(): boolean {
-  return ed.doc !== null && ed.undoDepth !== ed.lastSavedUndoDepth;
 }
 
 // Stable across the session; drives Save / Save As button labels.
@@ -67,35 +69,22 @@ export const nativeMenuHost = hasNativeMenu();
 
 export const idbAvailable = isIdbAvailable();
 
-export const recentsAvailable = (fsAccessAvailable || tauriHost) && idbAvailable;
-
-// Run `action` immediately when the document is clean; otherwise park
-// it behind the inline "discard unsaved changes?" confirm dialog.
-export function guardUnsaved(action: () => void) {
-  // The open effect's preview is not part of the document: end it before
-  // the prompt or the switch (effect-panel AC-17).
-  endOpenEffect();
-  if (!isDocDirty()) {
-    action();
-    return;
-  }
-  dialogs.confirm = {
-    message: t('px.discardNamed', { name: file.saveTarget.name }),
-    run: action,
-  };
-}
-
-export function confirmDiscard() {
-  const pending = dialogs.confirm;
-  dialogs.confirm = null;
-  pending?.run();
-}
-
-// The New dialog lives in the shell (it offers both editor modes and
-// runs the unsaved-changes guard from the mirrored dirty state).
+// The New dialog lives in the shell (it offers both editor modes); Create
+// in Pixel mode comes back as `createTab`.
 export function openNewDialog() {
   if (file.busy) return;
   shell.requestNew();
+}
+
+/** A blank sprite as a new tab (File ▸ New… in Pixel mode, or the
+ *  editor's first document). */
+export function createTab(params: Pick<NewDocParams, 'width' | 'height'>): void {
+  const w = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(params.width)));
+  const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(params.height)));
+  const tab = openTab(new Document(w, h), { name: DEFAULT_FILE_NAME, handle: null, path: null });
+  tab.doc.lastSavedUndoDepth = tab.doc.undoDepth;
+  attachTab(tab);
+  ed.status = t('px.ready');
 }
 
 export async function openDoc() {
@@ -126,122 +115,80 @@ export async function openDocInner() {
     shell.openForeign(opened);
     return;
   }
-  await openOpened(opened);
+  // Through the shell, which first looks for the same file in the tabs of
+  // both modes (document-tabs AC-03); a PNG still opens as a Pixel tab.
+  shell.openFile(opened, 'pixel');
 }
 
-// Replace the current document with the already-read `opened` file
-// (Open…, or the shell's initial file on mount).
-export async function openOpened(opened: OpenedFile) {
+/** Activates the open tab whose file is `location` (document-tabs AC-03);
+ *  `false` when no tab holds it. */
+async function activateSameFile(location: FileLocation): Promise<boolean> {
+  for (const tab of tabs.list) {
+    if (await sameFile(tab.file.saveTarget, location)) {
+      focusTab(tab);
+      return true;
+    }
+  }
+  return false;
+}
+
+// Open the already-read `opened` file as a new tab (a file the shell
+// routes here), or activate the tab that holds it. Resolves `null` once it
+// is open, else the error (also shown in the status bar); the active tab
+// stays.
+export async function openOpened(opened: OpenedFile): Promise<string | null> {
   try {
+    if (await activateSameFile(opened)) return null;
     // A PNG opens as a fresh single-layer sprite; its save target is a
     // sibling .aseprite (never the PNG itself), so the first Save asks.
     const png = isPngBytes(opened.bytes);
     const next = png ? Document.openPng(opened.bytes) : Document.openAseprite(opened.bytes);
-    disposeDoc();
-    ed.doc = next;
-    resetDocViewState();
-    file.saveTarget = png
-      ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
-      : {
-          name: opened.name,
-          handle: opened.handle,
-          path: opened.path,
-        };
-    ed.lastSavedUndoDepth = ed.doc.undoDepth;
-    ed.status = t('px.opened', { name: opened.name, w: ed.doc.width, h: ed.doc.height });
-    await autosave.opened();
-    await recordRecent();
+    const tab = openTab(
+      next,
+      png
+        ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
+        : { name: opened.name, handle: opened.handle, path: opened.path },
+    );
+    tab.doc.lastSavedUndoDepth = next.undoDepth;
+    attachTab(tab);
+    ed.status = t('px.opened', { name: opened.name, w: next.width, h: next.height });
+    await recordRecent(tab);
+    return null;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('status.failed', { action: t('act.open'), error: msg });
+    return msg;
   }
 }
 
-export async function save(opts: { forceAs?: boolean } = {}) {
-  if (!ed.doc || file.busy) return;
-  const forceAs = opts.forceAs ?? false;
-  file.busy = true;
-  try {
-    const bytes = new Uint8Array(ed.doc.saveAseprite());
-    const next = await saveBytes(bytes, file.saveTarget, { forceAs });
-    file.saveTarget = next;
-    ed.lastSavedUndoDepth = ed.doc.undoDepth;
-    ed.status = t('px.saved', { bytes: bytes.length, name: next.name });
-    await autosave.saved();
-    await recordRecent();
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('status.failed', { action: t('act.save'), error: msg });
-  } finally {
-    file.busy = false;
-  }
-}
-
-// Autosave and recovery, shared with Image mode
-// (lib/idb/autosave-session): `.aseprite` snapshots tagged `pixel`.
-/** The editor's autosave session; recreated per mount by `initAutosave`. */
-export let autosave: AutosaveSession;
-
-/** Start a fresh autosave session (editor mount). */
-export function initAutosave(): void {
-  autosave = new AutosaveSession({
-    mode: 'pixel',
-    depth: () => ed.doc?.undoDepth ?? null,
-    savedDepth: () => ed.lastSavedUndoDepth,
-    busy: () => file.busy,
-    name: () => file.saveTarget.name,
-    encode: () => (ed.doc ? new Uint8Array(ed.doc.saveAseprite()) : null),
-    open: async (bytes, meta) => {
-      const next = Document.openAseprite(bytes);
-      disposeDoc();
-      ed.doc = next;
-      resetDocViewState();
-      file.saveTarget = { name: meta.name, handle: null, path: null };
-      // Recovered work is not on disk yet: it reads as unsaved.
-      ed.lastSavedUndoDepth = -1;
-      ed.status = t('px.recovered', { name: meta.name, w: ed.doc.width, h: ed.doc.height });
-    },
-    report: (action, error) => {
-      const act =
-        action === 'autosave'
-          ? 'act.autosave'
-          : action === 'recover'
-            ? 'act.recover'
-            : 'act.discard';
-      ed.status = t('status.failed', { action: t(act), error });
-    },
-  });
-}
-
-// Persist the current `saveTarget` to the recent-files registry and
-// refresh the in-memory list. No-op when the registry isn't
-// available (non-FSA browsers / IDB disabled) or the current target
-// doesn't carry a handle (a download-only save, or a New document
-// that hasn't been written yet).
-export async function recordRecent() {
-  if (!recentsAvailable) return;
-  // A recent needs something a future re-open can use: an FSA handle
-  // (web) or a path (Tauri).
-  if (!file.saveTarget.handle && !file.saveTarget.path) return;
-  try {
-    await upsertRecent({
-      id: autosave.docId,
-      name: file.saveTarget.name,
-      handle: file.saveTarget.handle,
-      path: file.saveTarget.path,
-      mode: 'pixel',
-    });
-    file.recents = await listRecents();
-  } catch (err) {
-    // Persistence is best-effort; surface to the status line but
-    // don't block the save / open the user already completed.
-    const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('px.recentsFailed', { status: ed.status, error: msg });
-  }
-}
-
+// File ▸ Open Recent: the file is read and recognized first. A sprite
+// opens as a tab (or activates the tab that holds it); another mode's file
+// goes to the shell, which opens it as a tab of its mode.
 export async function openRecent(r: RecentFile) {
   if (file.busy) return;
+  if (await activateSameFile(r)) return;
+  const read = await readRecent(r);
+  if (read === null) return;
+  if ((sniffFormat(read.bytes) ?? formatFromName(read.name)) !== 'aseprite') {
+    shell.openFile({
+      name: read.name,
+      bytes: read.bytes,
+      mime: mimeFromName(read.name),
+      handle: read.target.handle,
+      path: read.target.path,
+    });
+    return;
+  }
+  await applyRecent(r, read);
+}
+
+interface ReadRecent {
+  name: string;
+  bytes: Uint8Array;
+  target: SaveTarget;
+}
+
+async function readRecent(r: RecentFile): Promise<ReadRecent | null> {
   file.busy = true;
   try {
     let name: string;
@@ -259,7 +206,7 @@ export async function openRecent(r: RecentFile) {
       // for write via `saveBytes` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
         ed.status = t('px.recentDenied', { name: r.name });
-        return;
+        return null;
       }
       const file = await r.handle.getFile();
       bytes = new Uint8Array(await file.arrayBuffer());
@@ -267,24 +214,44 @@ export async function openRecent(r: RecentFile) {
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
       ed.status = t('px.recentNoHandle', { name: r.name });
-      return;
+      return null;
     }
-    const next = Document.openAseprite(bytes);
-    disposeDoc();
-    ed.doc = next;
-    resetDocViewState();
-    file.saveTarget = nextTarget;
-    ed.lastSavedUndoDepth = ed.doc.undoDepth;
-    ed.status = t('px.opened', { name, w: ed.doc.width, h: ed.doc.height });
-    // Keep the recent's id so re-opens count as the same document.
-    await autosave.opened(r.id);
-    await recordRecent();
+    return { name, bytes, target: nextTarget };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    return null;
   } finally {
     file.busy = false;
   }
+}
+
+async function applyRecent(r: RecentFile, read: ReadRecent): Promise<void> {
+  let next: Document;
+  try {
+    next = Document.openAseprite(read.bytes);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    return;
+  }
+  const tab = openTab(next, read.target);
+  tab.doc.lastSavedUndoDepth = next.undoDepth;
+  // Keep the recent's id so re-opens count as the same document.
+  attachTab(tab, { docId: r.id });
+  ed.status = t('px.opened', { name: read.name, w: next.width, h: next.height });
+  await recordRecent(tab);
+}
+
+/** Open a recovered snapshot as a new, unsaved tab that continues under
+ *  the snapshot's id (document-tabs AC-15). */
+export function openRecovered(bytes: Uint8Array, name: string, docId: string): void {
+  const next = Document.openAseprite(bytes);
+  const tab = openTab(next, { name, handle: null, path: null });
+  // Recovered work is not on disk yet: it reads as unsaved.
+  tab.doc.lastSavedUndoDepth = -1;
+  attachTab(tab, { docId, recovered: true });
+  ed.status = t('px.recovered', { name, w: next.width, h: next.height });
 }
 
 // Import a PNG as a new layer on top of the current document.

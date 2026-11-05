@@ -315,6 +315,65 @@ export interface SaveTarget {
   path: string | null;
 }
 
+/** Where a document's file lives: an FSA handle (browser) or a path
+ *  (desktop app). */
+export type FileLocation = Pick<SaveTarget, 'handle' | 'path'>;
+
+/** Paths name the same file regardless of case on Windows and macOS. */
+function foldsPathCase(): boolean {
+  return typeof navigator !== 'undefined' && /Win|Mac/i.test(navigator.userAgent);
+}
+
+/**
+ * Whether `a` and `b` are the same file (docs/specs/document-tabs.md
+ * "Same file"): in the desktop app the same path — case-insensitive on
+ * Windows and macOS, exact on Linux, links not resolved; in the browser
+ * two handles the File System Access API reports as the same entry. A
+ * document without a path or handle is never the same file as another.
+ */
+export async function sameFile(a: FileLocation, b: FileLocation): Promise<boolean> {
+  if (a.path !== null && b.path !== null) {
+    return foldsPathCase() ? a.path.toLowerCase() === b.path.toLowerCase() : a.path === b.path;
+  }
+  if (a.handle !== null && b.handle !== null) {
+    try {
+      return await a.handle.isSameEntry(b.handle);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/** `DataTransferItem.getAsFileSystemHandle` (Chromium), not yet in the
+ *  TypeScript DOM library. */
+interface HandleItem {
+  getAsFileSystemHandle?: (this: DataTransferItem) => Promise<FileSystemHandle | null>;
+}
+
+/**
+ * The File System Access handles of a drop's files, in `dataTransfer.files`
+ * order; `null` where the browser offers none. Must be called while the
+ * `drop` event is dispatched: the items are only readable then. The
+ * handles let a dropped file be recognized as the file of an open tab
+ * (docs/specs/document-tabs.md AC-03).
+ */
+export function droppedHandles(dt: DataTransfer | null): Promise<(FileSystemFileHandle | null)[]> {
+  const items = Array.from(dt?.items ?? []).filter((item) => item.kind === 'file');
+  return Promise.all(
+    items.map(async (item): Promise<FileSystemFileHandle | null> => {
+      const get = (item as DataTransferItem & HandleItem).getAsFileSystemHandle;
+      if (!get) return null;
+      try {
+        const handle = await get.call(item);
+        return handle !== null && handle.kind === 'file' ? (handle as FileSystemFileHandle) : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+}
+
 /** True when the current browser exposes `window.showOpenFilePicker`,
  *  i.e. supports in-place save. Used to drive UI labels. */
 export function hasFsAccess(): boolean {

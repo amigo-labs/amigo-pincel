@@ -3,15 +3,24 @@
 // and Image mode; each editor binds the actions it supports. Menus and
 // tooltips print their hints from here, so labels never drift from keys.
 
-import { isMac } from '../platform';
+import { hasNativeMenu, isMac, isTauri } from '../platform';
 
 /** A key chord. `key` is matched case-insensitively against `KeyboardEvent.key`. */
 export interface Chord {
   key: string;
+  /** On macOS the chord matches this `KeyboardEvent.code` (the physical
+   *  key) instead of `key`: ⌥ turns letters into other characters (⌥W
+   *  types "∑"), and ⇧ turns `]` into `}`. */
+  code?: string;
   /** Ctrl on Windows / Linux, ⌘ on macOS. */
   mod?: boolean;
+  /** The Control key itself, ⌃ on macOS too (⌘Tab is the app switcher). */
+  ctrl?: boolean;
   shift?: boolean;
   alt?: boolean;
+  /** The native menu bar (macOS desktop app) owns this chord as an
+   *  accelerator and fires the menu item instead; the editors leave it. */
+  menu?: boolean;
 }
 
 /** Editor actions with a shortcut. */
@@ -41,7 +50,45 @@ export type ShortcutAction =
   | 'brushLarger'
   | 'prevFrame'
   | 'nextFrame'
-  | 'togglePlay';
+  | 'togglePlay'
+  | 'nextTab'
+  | 'prevTab'
+  | 'closeTab';
+
+const IS_MAC = isMac();
+
+/**
+ * The tab keys (docs/specs/document-tabs.md "Tab keys"). The web build gets
+ * no Ctrl / ⌘ chords, which the browser keeps for its own tabs; on macOS
+ * next / previous use the Control key (⌘Tab is the app switcher) and ⇧⌘[ / ]
+ * as in Safari, and the native menu owns ⌘W (File ▸ Close).
+ */
+function tabChords(): Record<'nextTab' | 'prevTab' | 'closeTab', Chord[]> {
+  const next: Chord = { key: 'PageDown', alt: true };
+  const prev: Chord = { key: 'PageUp', alt: true };
+  const altW: Chord = { key: 'w', code: 'KeyW', alt: true };
+  if (!isTauri()) return { nextTab: [next], prevTab: [prev], closeTab: [altW] };
+  if (IS_MAC) {
+    return {
+      nextTab: [
+        { key: 'Tab', ctrl: true },
+        { key: ']', code: 'BracketRight', mod: true, shift: true },
+        next,
+      ],
+      prevTab: [
+        { key: 'Tab', ctrl: true, shift: true },
+        { key: '[', code: 'BracketLeft', mod: true, shift: true },
+        prev,
+      ],
+      closeTab: [{ key: 'w', mod: true, menu: true }, altW],
+    };
+  }
+  return {
+    nextTab: [{ key: 'Tab', ctrl: true }, next],
+    prevTab: [{ key: 'Tab', ctrl: true, shift: true }, prev],
+    closeTab: [{ key: 'w', mod: true }, altW],
+  };
+}
 
 /** Primary chord per action, plus alternates matched but not displayed. */
 export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
@@ -79,6 +126,7 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   prevFrame: [{ key: ',' }],
   nextFrame: [{ key: '.' }],
   togglePlay: [{ key: 'Enter' }],
+  ...tabChords(),
 };
 
 /**
@@ -121,20 +169,23 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'redo',
 ]);
 
-const IS_MAC = isMac();
-
 function keyLabel(key: string): string {
   if (key === 'Delete') return 'Del';
   if (key === 'Enter') return '↵';
+  if (key === 'PageDown') return IS_MAC ? '⇟' : 'Page Down';
+  if (key === 'PageUp') return IS_MAC ? '⇞' : 'Page Up';
   return key.length === 1 ? key.toUpperCase() : key;
 }
 
-/** Human label of a chord: `Ctrl+Shift+S`, or `⇧⌘S` on macOS. */
+/** Human label of a chord: `Ctrl+Shift+S`, or `⇧⌘S` on macOS (modifiers
+ *  in the macOS order ⌃ ⌥ ⇧ ⌘). */
 export function chordLabel(c: Chord): string {
   if (IS_MAC) {
-    return `${c.alt ? '⌥' : ''}${c.shift ? '⇧' : ''}${c.mod ? '⌘' : ''}${keyLabel(c.key)}`;
+    const mods = `${c.ctrl ? '⌃' : ''}${c.alt ? '⌥' : ''}${c.shift ? '⇧' : ''}${c.mod ? '⌘' : ''}`;
+    return `${mods}${keyLabel(c.key)}`;
   }
-  const parts = [c.mod ? 'Ctrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : '', keyLabel(c.key)];
+  const ctrl = c.mod === true || c.ctrl === true;
+  const parts = [ctrl ? 'Ctrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : '', keyLabel(c.key)];
   return parts.filter(Boolean).join('+');
 }
 
@@ -150,12 +201,20 @@ export function toolHint(groupId: string): string | undefined {
   return k ? k.toUpperCase() : undefined;
 }
 
+/** Keys whose chords tell Shift apart (Ctrl+Tab vs Ctrl+Shift+Tab). */
+const SHIFT_STRICT_KEYS: ReadonlySet<string> = new Set(['Tab', 'PageUp', 'PageDown']);
+
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
+  if (c.menu === true && hasNativeMenu()) return false;
   const mod = e.ctrlKey || e.metaKey;
-  if (Boolean(c.mod) !== mod || Boolean(c.alt) !== e.altKey) return false;
+  if ((c.mod === true || c.ctrl === true) !== mod || Boolean(c.alt) !== e.altKey) return false;
+  if (c.ctrl === true && (!e.ctrlKey || e.metaKey)) return false;
   // Shifted punctuation (`+`, `_`) arrives with shiftKey set; only enforce
-  // Shift for letter chords.
-  if (/^[a-z]$/i.test(c.key) && Boolean(c.shift) !== e.shiftKey) return false;
+  // Shift for letter chords, physical-key chords and the named keys above.
+  const strictShift =
+    /^[a-z]$/i.test(c.key) || c.code !== undefined || SHIFT_STRICT_KEYS.has(c.key);
+  if (strictShift && Boolean(c.shift) !== e.shiftKey) return false;
+  if (IS_MAC && c.code !== undefined) return e.code === c.code;
   return e.key.toLowerCase() === c.key.toLowerCase();
 }
 

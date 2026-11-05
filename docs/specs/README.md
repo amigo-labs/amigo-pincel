@@ -63,12 +63,12 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
-| 47 | [document-tabs](document-tabs.md) | both | L | unsaved-changes-prompt | Several documents in tabs within one mode; other mode replaces the session. Revises app-shell AC-08 / AC-16, autosave-recovery AC-05 |
 
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
+- [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
 - [effect-panel](effect-panel.md)
 - [effects-artistic-photo](effects-artistic-photo.md)

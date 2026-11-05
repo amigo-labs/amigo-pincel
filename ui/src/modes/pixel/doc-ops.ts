@@ -10,9 +10,8 @@ import {
   advance,
   startCursor,
 } from './playback';
-import { syncMeta, syncSelection } from './render';
-import { colors, dialogs, ed, live, play, toolState } from './stores/editor.svelte';
-import { fitView } from './view-ops';
+import { syncMeta } from './render';
+import { colors, ed, live, play, toolState } from './stores/editor.svelte';
 
 /** A Select-menu command. */
 export type SelectAction = 'all' | 'none' | 'invert' | 'expand' | 'contract';
@@ -54,18 +53,6 @@ export function selectAction(action: SelectAction, radius = 1) {
       action: t('act.selection'),
       error: err instanceof Error ? err.message : String(err),
     });
-  }
-}
-
-// wasm-bindgen classes own Rust-side allocations; freeing the prior
-// `Document` before replacing it avoids leaking memory across
-// repeated New / Open operations. Safe to call when `doc` is null.
-export function disposeDoc() {
-  // An effect open on the old document ends with it (effect-panel AC-17).
-  dialogs.effect = null;
-  if (ed.doc) {
-    ed.doc.free();
-    ed.doc = null;
   }
 }
 
@@ -220,26 +207,6 @@ export function togglePlay() {
     live.playHandle = requestAnimationFrame(step);
   };
   live.playHandle = requestAnimationFrame(step);
-}
-
-// Re-derive every piece of view / panel state that tracks the
-// document after it has been replaced. Ids held from the previous
-// document (stamp target, active slice / layer, tile editor) are
-// meaningless against the new one and are dropped.
-export function resetDocViewState() {
-  stopPlayback();
-  play.loopTag = null;
-  applyOnion(play.onion);
-  live.needsRecompose = true;
-  syncMeta();
-  fitView();
-  syncSelection();
-  ed.docRev += 1;
-  toolState.stampTile = null;
-  toolState.stampHover = null;
-  dialogs.editingTile = null;
-  ed.activeSliceId = null;
-  ed.activeLayerId = null;
 }
 
 export function undo() {

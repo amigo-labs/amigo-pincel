@@ -85,6 +85,7 @@ struct Labels {
     no_recent: &'static str,
     save: &'static str,
     save_as: &'static str,
+    close: &'static str,
     export_png: &'static str,
     export_sheet: &'static str,
     export_animation: &'static str,
@@ -120,6 +121,7 @@ const LABELS_EN: Labels = Labels {
     no_recent: "(no recent files)",
     save: "Save",
     save_as: "Save As\u{2026}",
+    close: "Close",
     export_png: "Export as PNG\u{2026}",
     export_sheet: "Export Sprite Sheet\u{2026}",
     export_animation: "Export Animation\u{2026}",
@@ -152,6 +154,7 @@ const LABELS_DE: Labels = Labels {
     no_recent: "(keine zuletzt ge\u{f6}ffneten Dateien)",
     save: "Speichern",
     save_as: "Speichern unter\u{2026}",
+    close: "Schlie\u{df}en",
     export_png: "Als PNG exportieren\u{2026}",
     export_sheet: "Sprite-Sheet exportieren\u{2026}",
     export_animation: "Animation exportieren\u{2026}",
@@ -179,9 +182,10 @@ const LABELS_DE: Labels = Labels {
 /// True while the native menu shows German labels.
 static GERMAN: AtomicBool = AtomicBool::new(false);
 
-/// Labels for a renderer language code; anything but `de` is English.
-fn labels_for(lang: &str) -> &'static Labels {
-    if lang == "de" { &LABELS_DE } else { &LABELS_EN }
+/// True when the native menu shows German labels for a renderer language
+/// code; anything but `de` is English.
+fn is_german(lang: &str) -> bool {
+    lang == "de"
 }
 
 fn current_labels() -> &'static Labels {
@@ -196,7 +200,7 @@ fn current_labels() -> &'static Labels {
 // entries the renderer pushed earlier.
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
-    GERMAN.store(lang == "de", Ordering::Relaxed);
+    GERMAN.store(is_german(&lang), Ordering::Relaxed);
     if !NATIVE_MENU {
         // Nothing to relabel: the in-app menu bar follows the locale itself.
         return Ok(());
@@ -299,6 +303,11 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let save_as_item = MenuItemBuilder::with_id("menu:saveAs", l.save_as)
         .accelerator("CmdOrCtrl+Shift+S")
         .build(app)?;
+    // File ▸ Close closes the active tab; the menu owns Cmd+W on macOS
+    // (docs/specs/document-tabs.md "Tab keys").
+    let close_item = MenuItemBuilder::with_id("menu:close", l.close)
+        .accelerator("CmdOrCtrl+W")
+        .build(app)?;
 
     // Export items: the mounted editor serves them (Pixel mode both,
     // Image mode the PNG export); unserved ids are ignored by the shell.
@@ -312,10 +321,20 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
     let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
 
+    // A custom Quit: the predefined one ends the app without a window
+    // close request, so the UI could not ask about unsaved changes first
+    // (docs/specs/unsaved-changes-prompt.md AC-09). The UI closes the
+    // window itself once the prompt allows it.
+    let quit_item = MenuItemBuilder::with_id("menu:quit", l.quit)
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+
     let file = SubmenuBuilder::new(app, l.file)
         .item(&new_item)
         .item(&open_item)
         .item(&recent_submenu)
+        .separator()
+        .item(&close_item)
         .separator()
         .item(&save_item)
         .item(&save_as_item)
@@ -325,7 +344,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&export_animation_item)
         .item(&export_svg_item)
         .separator()
-        .item(&PredefinedMenuItem::quit(app, Some(l.quit))?)
+        .item(&quit_item)
         .build()?;
 
     // Edit items
@@ -425,6 +444,7 @@ fn main() {
         // After single-instance, so a second launch exits before it runs.
         .plugin(webview_data::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::UpdaterState::default())
         .invoke_handler(tauri::generate_handler![
@@ -553,10 +573,12 @@ mod tests {
     }
 
     #[test]
-    fn labels_for_german_and_fallback() {
-        assert_eq!(labels_for("de").file, "Datei");
-        assert_eq!(labels_for("en").file, "File");
-        assert_eq!(labels_for("fr").file, "File");
+    fn is_german_only_for_de_with_english_fallback() {
+        assert!(is_german("de"));
+        assert!(!is_german("en"));
+        assert!(!is_german("fr"));
+        assert_eq!(LABELS_DE.file, "Datei");
+        assert_eq!(LABELS_EN.file, "File");
     }
 
     /// IHDR colour type of a PNG, `None` if `bytes` is no PNG.

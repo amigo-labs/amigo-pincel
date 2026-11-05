@@ -26,7 +26,7 @@ import {
   type Vectorizer,
 } from './wasm';
 import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
-import { editor, tool } from '../stores/editor.svelte';
+import { editor, tool, type ImageTab } from '../stores/editor.svelte';
 import {
   formatFromName,
   saveExport,
@@ -34,14 +34,8 @@ import {
   type ImageExportFormat as ExportFormat,
   type SaveTarget,
 } from '../../../lib/fs';
-import {
-  docFormat,
-  fileStem,
-  markSaved,
-  resetFile,
-  setOpenedFile,
-  type DocFormat,
-} from './document-file';
+import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
+import { openTab } from './tabs.svelte';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -97,8 +91,9 @@ function penFields(
   };
 }
 
-/** Refreshes derived document state from the core after a mutation. */
-function syncInfo(): void {
+/** Refreshes the active tab's derived document state from the core after a
+ *  mutation (and when a tab becomes active). */
+export function syncInfo(): void {
   if (editor.handle === null) {
     return;
   }
@@ -522,20 +517,14 @@ export function projectBytes(fast = false): Uint8Array | null {
   return core.saveProject(editor.handle, fast ? 1 : 6);
 }
 
-/** Creates a blank document and makes it the active one. */
-export async function newDocument(width: number, height: number): Promise<void> {
+/** Creates a blank document as a new tab and makes it the active one
+ *  (docs/specs/document-tabs.md AC-02). */
+export async function newDocument(width: number, height: number): Promise<ImageTab> {
   await initCore();
-  // Create the new document first; only replace (and close) the current one on
-  // success, so a failure leaves the open document untouched.
-  const handle = core.createDocument(width, height);
-  if (editor.handle !== null) {
-    core.closeDocument(editor.handle);
-  }
-  editor.handle = handle;
-  // A blank document must not inherit a previously opened file's name.
-  resetFile();
+  const tab = openTab(core.createDocument(width, height), blankFile());
   syncInfo();
   markSaved();
+  return tab;
 }
 
 /** Opens already-read bytes: an OpenRaster project with all its layers, or
@@ -552,27 +541,24 @@ export async function openBytes(
     handle: null,
     path: null,
   },
-): Promise<void> {
+): Promise<ImageTab> {
   await initCore();
   const sniffed = sniffFormat(bytes);
   const ora = sniffed === 'ora';
-  // Decode before closing the current document: a corrupt file must not
-  // destroy the open document or leave `editor.handle` pointing at a closed slot.
+  // A corrupt file throws here, before a tab exists: no tab opens and the
+  // active tab stays (document-tabs edge cases).
   const handle = ora ? core.openProject(bytes) : core.openImage(bytes, mime || 'image/png');
-  if (editor.handle !== null) {
-    core.closeDocument(editor.handle);
-  }
-  editor.handle = handle;
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
-  setOpenedFile(name, format, target);
+  const tab = openTab(handle, openedFile(name, format, target));
   syncInfo();
   markSaved();
+  return tab;
 }
 
 /** Opens an encoded image file as a new single-layer document. */
-export async function openFile(file: File): Promise<void> {
-  await openBytes(new Uint8Array(await file.arrayBuffer()), file.name, file.type);
+export async function openFile(file: File): Promise<ImageTab> {
+  return openBytes(new Uint8Array(await file.arrayBuffer()), file.name, file.type);
 }
 
 /** Applies a pencil stroke over the given canvas-space points.

@@ -4,6 +4,7 @@
   import {
     clampCanvasSize,
     editor,
+    tabs,
     tool,
     ui,
     resetColors,
@@ -35,7 +36,6 @@
     pasteImage,
     copyImage,
     exportImage,
-    projectBytes,
     markUnsaved,
     undo,
     redo,
@@ -51,8 +51,18 @@
     traceSvg,
     type ExportFormat,
   } from './core/controller';
-  import { docFormat, fileFormat, fileName, parseDocFormat } from './core/document-file';
-  import { saveDocument } from './core/save-flow';
+  import { docFormat, fileTarget, parseDocFormat } from './core/document-file';
+  import {
+    attachTab,
+    bindTabHooks,
+    detachAllTabs,
+    docIdOf,
+    focusTab,
+    isDirty,
+    requestCloseTab,
+    runningSave,
+    saveTab,
+  } from './core/tab-session';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import MainCanvas from './components/canvas/MainCanvas.svelte';
@@ -93,11 +103,11 @@
     toolGroupForKey,
     toolHint,
   } from '../../lib/shell/shortcuts';
-  import { formatFromName, hasFsAccess } from '../../lib/fs';
+  import { formatFromName, hasFsAccess, sameFile, type OpenedFile } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
-  import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
-  import RecoveryDialog from '../../lib/components/RecoveryDialog.svelte';
+  import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
+  import type { NewDocParams } from '../../lib/shell/types';
   import type { SaveTarget } from '../../lib/fs';
   import { helpMenus } from '../../lib/help/menu';
   import { help } from '../../lib/help/state.svelte';
@@ -109,17 +119,24 @@
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
 
-  // Shell contract (src/App.svelte mounts one editor per session): the
-  // document to open / create on mount, and the callbacks the shell
-  // serves — New / Open dialogs, dirty mirror, native-menu items.
+  // Shell contract (src/App.svelte mounts at most one editor per mode):
+  // whether the active tab is this editor's, the shared tab bar, and the
+  // callbacks the shell serves — New / Open dialogs, the unsaved-changes
+  // prompt, native-menu items.
   let {
-    initialFile,
-    initialNew,
+    active,
+    tabBar,
+    onStepTab,
     onRequestNew,
     onRequestOpen,
-    onDirtyChange,
     onOpenRecent,
     onOpenFile,
+    confirmClose,
+    registerDocument,
+    activateDocument,
+    reportError,
+    registerSession,
+    onEmpty,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -238,7 +255,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || ui.modalOpen || help.about || isTypingTarget(e.target)) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || help.about) return;
+    if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
     if (e.target instanceof Element && e.target.closest('[role="dialog"], [role="alertdialog"]')) {
@@ -415,11 +433,12 @@
 
   async function recordRecent(
     file: Pick<SaveTarget, 'name' | 'handle' | 'path'> | null,
+    id: string | null,
   ): Promise<void> {
-    if (!recentsAvailable || !file || (!file.handle && !file.path)) return;
+    if (!recentsAvailable || !file || id === null || (!file.handle && !file.path)) return;
     try {
       await upsertRecent({
-        id: autosave.docId,
+        id,
         name: file.name,
         handle: file.handle,
         path: file.path,
@@ -433,65 +452,82 @@
 
   // Save / Save As write back to the opened file in its own format, or the
   // OpenRaster project (save-original-format, core/save-flow.ts); Export
-  // stays the flat PNG / JPEG / WebP path.
-  let saving = false;
-  async function save(forceAs = false): Promise<void> {
-    if (saving || editor.handle === null) return;
-    saving = true;
+  // stays the flat PNG / JPEG / WebP path. Each tab saves on its own
+  // (core/tab-session.ts).
+  function save(forceAs = false): Promise<boolean> {
+    return saveTab(tabs.active, forceAs);
+  }
+
+  // Tabs (docs/specs/document-tabs.md): the shell routes same-mode
+  // documents here; each opens as a tab after the last one.
+
+  /** Opens an already-read file as a new tab, or activates the tab of the
+   *  same file (AC-03). Resolves `null`, else the error. */
+  async function openTabFile(opened: OpenedFile): Promise<string | null> {
+    for (const tab of tabs.list) {
+      if (await sameFile(fileTarget(tab), opened)) {
+        focusTab(tab);
+        return null;
+      }
+    }
     try {
-      const result = await saveDocument(forceAs);
-      if (result === null) return;
-      // A flattened file lost the layers: the snapshot keeps them (AC-13).
-      await (result.flattened ? autosave.keep() : autosave.saved());
-      await recordRecent(result.target);
+      const tab = await openBytes(opened.bytes, opened.name, opened.mime, opened);
+      attachTab(tab);
+      loadError = null;
+      await recordRecent(opened, docIdOf(tab));
+      return null;
     } catch (e) {
-      loadError = t('img.saveFailed', { error: String(e) });
-    } finally {
-      saving = false;
+      loadError = t('img.openFailed', { error: String(e) });
+      return e instanceof Error ? e.message : String(e);
     }
   }
 
-  // Autosave and recovery, shared with Pixel mode (lib/idb/autosave-session):
-  // OpenRaster snapshots tagged `mode: 'image'`.
-  const autosave = new AutosaveSession({
-    mode: 'image',
-    depth: () => (editor.handle === null ? null : editor.undoDepth),
-    savedDepth: () => editor.savedUndoDepth,
-    busy: () => saving,
-    name: () => fileName(),
-    format: () => fileFormat(),
-    encode: () => projectBytes(true),
-    open: async (bytes, meta) => {
-      // The snapshot is OpenRaster; Save keeps writing the format stored
-      // with it (a recovered PNG saves back as PNG). Older snapshots carry
-      // none: the file name's extension stands in.
-      await openBytes(bytes, meta.name, 'image/openraster', {
-        handle: null,
-        path: null,
-        format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
-      });
-      markUnsaved();
-    },
-    report: (action, error) => {
-      loadError =
-        action === 'autosave'
-          ? t('img.autosaveFailed', { error })
-          : t('status.failed', { action: t(action === 'recover' ? 'act.recover' : 'act.discard'), error });
-    },
-  });
+  /** A blank document as a new tab; resolves `null`, else the error. */
+  async function createTab(params: NewDocParams): Promise<string | null> {
+    try {
+      attachTab(await newDocument(params.width, params.height));
+      loadError = null;
+      return null;
+    } catch (e) {
+      loadError = t('img.openFailed', { error: String(e) });
+      return e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Open a recovered autosave snapshot as an unsaved tab (AC-15). The
+   *  snapshot is OpenRaster; Save keeps writing the format stored with it
+   *  (a recovered PNG saves back as PNG). Older snapshots carry none: the
+   *  file name's extension stands in. */
+  async function recoverTab(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void> {
+    const tab = await openBytes(bytes, meta.name, 'image/openraster', {
+      handle: null,
+      path: null,
+      format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
+    });
+    markUnsaved();
+    attachTab(tab, { docId: meta.docId, recovered: true });
+  }
 
   onMount(() => {
-    // Open what the shell handed over: an already-read file, or a blank
-    // canvas of the requested size.
-    const start = initialFile
-      ? openBytes(initialFile.bytes, initialFile.name, initialFile.mime, initialFile).then(() =>
-          recordRecent(initialFile),
-        )
-      : newDocument(initialNew?.width ?? 800, initialNew?.height ?? 600);
-    start.catch((e) => (loadError = t('img.openFailed', { error: String(e) })));
-    autosave.start();
+    bindTabHooks({
+      registerDocument,
+      confirmClose,
+      activateDocument,
+      reportError,
+      onEmpty: () => onEmpty(),
+      recordRecent: (target, id) => recordRecent(target, id),
+      report: (message) => (loadError = message),
+    });
     void refreshRecents();
+    // The documents the shell routes here open as tabs (document-tabs
+    // AC-02, AC-15); the core loads with the first of them.
+    const unregisterSession = registerSession({
+      open: openTabFile,
+      create: createTab,
+      recover: recoverTab,
+    });
     registerMenuHandlers({
+      'menu:close': () => requestCloseTab(),
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
@@ -503,24 +539,37 @@
       'menu:resetZoom': () => viewCommands.fit(),
     });
     return () => {
-      autosave.close();
+      unregisterSession();
+      detachAllTabs();
       registerMenuHandlers(null);
     };
   });
 
-  const dirty = $derived(editor.undoDepth !== editor.savedUndoDepth);
+  // A hidden editor takes no input (AC-21): the canvas' Space pan reads
+  // this too. Leaving for another mode's tab drops a gesture in flight.
+  $effect.pre(() => {
+    ui.active = active;
+    if (!active) gestureControl.cancel();
+  });
 
-  // Mirror the dirty state to the shell (its guards for mode switches,
-  // native New / Open and open-file events): edits since the last save.
+  const dirty = $derived(isDirty(tabs.active));
+
+  // The window title follows the active tab (document-tabs AC-04), as in
+  // Pixel mode.
   $effect(() => {
-    onDirtyChange(dirty);
+    if (active && editor.handle !== null) {
+      document.title = `${dirty ? '● ' : ''}${editor.fileName} – Pincel`;
+    }
   });
 
   // Keyboard map shared with Pixel mode (lib/shell/shortcuts.ts).
   function onKeydown(e: KeyboardEvent): void {
-    // Ignore shortcuts while typing in a field (text-entry overlay included)
-    // or while a modal dialog owns the keyboard.
-    if (ui.modalOpen || help.about || isTypingTarget(e.target)) {
+    // Ignore shortcuts while another mode's tab is active (AC-21), while
+    // typing in a field (text-entry overlay included) or while a modal
+    // dialog owns the keyboard.
+    // A key the other editor already handled is not handled again: a tab
+    // switch it made shows this editor before the event reaches it.
+    if (!active || e.defaultPrevented || ui.modalOpen || help.about || isTypingTarget(e.target)) {
       return;
     }
     const action = actionFor(e);
@@ -550,6 +599,13 @@
     switch (action) {
       case 'open':
         onRequestOpen();
+        return true;
+      case 'nextTab':
+      case 'prevTab':
+        onStepTab(action === 'nextTab' ? 1 : -1);
+        return true;
+      case 'closeTab':
+        requestCloseTab();
         return true;
       case 'save':
         void save();
@@ -692,6 +748,13 @@
         { label: t('menu.new'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
+        { kind: 'separator' },
+        {
+          label: t('menu.close'),
+          shortcut: hint('closeTab'),
+          disabled: !hasDoc || runningSave() !== null,
+          run: () => requestCloseTab(),
+        },
         { kind: 'separator' },
         {
           label: t('menu.save'),
@@ -895,18 +958,9 @@
     },
     ...helpMenus(),
   ]);
-
-  // Warn before discarding edits on reload/close.
-  function onBeforeUnload(e: BeforeUnloadEvent): void {
-    if (dirty) {
-      e.preventDefault();
-      // Legacy browsers gate the confirmation prompt on a set returnValue.
-      e.returnValue = '';
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} onpaste={onPaste} onbeforeunload={onBeforeUnload} />
+<svelte:window onkeydown={onKeydown} onpaste={onPaste} />
 
 {#snippet colorsBody()}<ColorsPanel />{/snippet}
 {#snippet effectBody()}
@@ -943,6 +997,7 @@
   title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
   effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
+  tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
@@ -1012,16 +1067,6 @@
     value={radiusOp === 'feather' ? 2 : 1}
     onCancel={() => (radiusOp = null)}
     onApply={applyRadius}
-  />
-{/if}
-
-{#if autosave.snapshots.length > 0}
-  <RecoveryDialog
-    snapshots={autosave.snapshots}
-    errors={autosave.errors}
-    onRecover={(snap) => void autosave.recover(snap)}
-    onDiscard={(id) => void autosave.discard(id)}
-    onDismiss={() => autosave.dismiss()}
   />
 {/if}
 
