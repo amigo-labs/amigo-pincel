@@ -22,9 +22,9 @@
   },
   "dependencies": {
     "@amigo-labs/pincel-wasm": "link:../crates/pincel-wasm/pkg",
-    "@tauri-apps/api": "~2.11.1",
-    "@tauri-apps/plugin-clipboard-manager": "~2.3.3",
-    "@tauri-apps/plugin-dialog": "~2.7.3",
+    "@tauri-apps/api": "~2.12.4",
+    "@tauri-apps/plugin-clipboard-manager": "~2.5.0",
+    "@tauri-apps/plugin-dialog": "~2.8.4",
     "pincel-image-wasm": "link:../crates/pincel-image-wasm/pkg"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "@playwright/test": "1.64.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@tauri-apps/cli": "~2.11.5",
+    "@tauri-apps/cli": "~2.12.4",
     "@types/node": "^26.6.6",
     "@webgpu/types": "^0.1.74",
     "eslint": "^10.14.0",
