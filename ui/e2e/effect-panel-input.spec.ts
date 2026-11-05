@@ -70,6 +70,13 @@ for (const mode of ['pixel', 'image'] as const) {
     page,
   }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
+    // The zoom below reaches the pixel grid's zoom, and the canvas centre of
+    // an even-sized sprite is a grid crossing: hide the grid, so the centre
+    // shows only the image (canvas screenshots include overlays).
+    if (mode === 'pixel') {
+      await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+      await page.getByRole('menuitemcheckbox', { name: 'Show Pixel Grid' }).click();
+    }
     const layers = page.getByRole('list', { name: 'Layer list' });
     await page.getByRole('button', { name: 'Add layer' }).click();
     await expect(layers.getByRole('listitem')).toHaveCount(2);

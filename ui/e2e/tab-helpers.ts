@@ -103,8 +103,29 @@ export async function otherFile(mode: Mode, stem: string): Promise<DropFile> {
   return fileOf(other(mode), stem);
 }
 
-/** Drops `files` onto the shown editor, in this order. */
+const RASTER = /\.(png|jpe?g|webp|bmp|gif|tiff?)$/i;
+const PROJECT = /\.(aseprite|ase|ora|psd)$/i;
+
+/**
+ * Drops `files` onto the shown editor, in this order, to open them. A drop
+ * of raster images onto an open editor asks first whether to add them as
+ * layers (file-access AC-20); this answers "Open as document", which opens
+ * each as a tab (file-access AC-23, document-tabs AC-19).
+ */
 export async function dropFiles(page: Page, files: DropFile[]): Promise<void> {
+  const asks =
+    (await tabs(page).count()) > 0 &&
+    files.some((f) => RASTER.test(f.name)) &&
+    !files.some((f) => PROJECT.test(f.name));
+  await dispatchDrop(page, files);
+  if (!asks) return;
+  const dialog = page.getByRole('dialog', { name: 'Dropped images' });
+  await dialog.getByRole('button', { name: 'Open as document' }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Dispatches a drop of `files` onto the shown editor, answering nothing. */
+export async function dispatchDrop(page: Page, files: DropFile[]): Promise<void> {
   await page.evaluate(
     (list) => {
       const dt = new DataTransfer();

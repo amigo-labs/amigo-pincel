@@ -176,6 +176,14 @@ async function dropFile(page: Page, name: string, mime: string, bytes: Buffer): 
   );
 }
 
+/** Drops a raster image onto the open editor and answers its drop dialog
+ *  (file-access AC-20) with "Open as document" (AC-23). */
+async function dropToOpen(page: Page, name: string, mime: string, bytes: Buffer): Promise<void> {
+  await dropFile(page, name, mime, bytes);
+  const dialog = page.getByRole('dialog', { name: 'Dropped images' });
+  await dialog.getByRole('button', { name: 'Open as document' }).click();
+}
+
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: the prompt names the document and offers Save, Don't Save, Cancel (AC-02)`, async ({
     page,
@@ -373,7 +381,7 @@ test('File ▸ Open… opens a tab of either mode without a prompt (AC-01)', asy
 
 test('dropping a file onto an open editor opens a tab without a prompt (AC-01)', async ({ page }) => {
   await dirtyDocument(page, 'pixel');
-  await dropFile(page, 'dot.png', 'image/png', PNG_1X1);
+  await dropToOpen(page, 'dot.png', 'image/png', PNG_1X1);
   await waitForEditor(page, 'image');
   await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
@@ -421,7 +429,7 @@ test('a clean document runs every action at once (AC-07)', async ({ page }) => {
   await expect(prompt(page)).toHaveCount(0);
   await chooser.setFiles([]);
 
-  await dropFile(page, 'dot.png', 'image/png', PNG_1X1);
+  await dropToOpen(page, 'dot.png', 'image/png', PNG_1X1);
   await waitForEditor(page, 'image');
   await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
