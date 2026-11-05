@@ -1,6 +1,7 @@
 //! The shared document tools and the Pixel-mode tools over `pincel-core`.
 //! See docs/specs/mcp-headless-pixel.md (Technical notes, "Tools").
 
+mod animation;
 mod assets;
 mod doc;
 mod draw;
@@ -34,6 +35,8 @@ pub(crate) static TOOLS: &[Tool] = &[
     doc::SAVE,
     doc::EXPORT_PNG,
     doc::EXPORT_SHEET,
+    animation::EXPORT_APNG,
+    animation::EXPORT_GIF,
     structure::LAYER_ADD,
     structure::LAYER_REMOVE,
     structure::LAYER_LIST,

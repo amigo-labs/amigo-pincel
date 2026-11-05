@@ -160,7 +160,7 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-02 | `animation_exports_on_image_documents_fail_naming_the_mode`, `export_bmp_and_tiff_write_the_composite_and_leave_the_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
@@ -169,9 +169,9 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-11 | `export_apng_and_gif_equal_the_editors_animation_export` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-12 | `export_apng_and_gif_equal_the_editors_animation_export` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-13 | `export_gif_warns_about_what_gif_cannot_keep` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-14 | `doc_save_without_path_writes_back_the_opened_format` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-15 | `a_lossy_flatten_needs_flatten_true_and_names_every_cause` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-16 | `a_lossy_flatten_needs_flatten_true_and_names_every_cause` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
@@ -185,7 +185,7 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-24 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-25 | `doc_open_mode_selects_or_refuses_the_mode` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
+| AC-27 | `bad_animation_arguments_write_nothing` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-28 | `bad_save_arguments_name_the_argument` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-29 | `doc_open_mode_pixel_of_a_corrupt_png_names_the_file` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 
