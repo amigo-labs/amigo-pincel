@@ -340,6 +340,7 @@ pub(super) const FILL: Tool = Tool {
                 "contiguous": { "type": "boolean", "description": "Only the connected area; default true" },
                 "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Image documents: color distance still filled; default 32" },
                 "opacity": { "type": "number", "minimum": 0, "maximum": 100, "description": "Image documents: fill opacity in %; default 100" },
+                "sample": { "type": "string", "enum": ["current_layer", "all_layers"], "description": "Image documents: match colors on the target layer (default) or on the composed image" },
             }),
             &["x", "y", "color"],
         )
@@ -348,10 +349,11 @@ pub(super) const FILL: Tool = Tool {
         if ctx.ws.is_image(args)? {
             return crate::image::draw::fill(ctx, args);
         }
-        for key in ["tolerance", "opacity"] {
+        for key in ["tolerance", "opacity", "sample"] {
             if args.get(key).is_some() {
+                let id = ctx.ws.resolve(args)?;
                 return Err(AgentError::tool(format!(
-                    "`{key}` of draw.fill applies to Image documents; Pixel fills match the seed color exactly"
+                    "argument `{key}` of draw.fill works on Image documents only; document `{id}` is a Pixel document, whose fills match the seed color exactly"
                 )));
             }
         }
@@ -456,7 +458,7 @@ pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput,
         .get("params")
         .and_then(Value::as_object)
         .unwrap_or(&empty);
-    let wire = wire_params(effect, params)?;
+    let wire = wire_params(effect, params, false)?;
     let spec =
         EffectSpec::from_params(effect, &wire).map_err(|e| AgentError::tool(e.to_string()))?;
     paint(ctx, args, |doc, cel| {

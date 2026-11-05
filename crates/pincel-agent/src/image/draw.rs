@@ -99,6 +99,28 @@ fn edit(
     })))
 }
 
+/// Like [`edit`], but a call that changes no pixel records no undo step:
+/// `build` runs twice (a dry run on a copy decides), with the same stroke
+/// id (mcp-parity-drawing-image AC-13).
+fn edit_checked(
+    ctx: &mut Ctx<'_>,
+    args: &Args,
+    build: impl Fn(usize, u64) -> Result<CommandSpec, AgentError>,
+) -> Result<ToolOutput, AgentError> {
+    let (id, doc) = ctx.ws.image_mut(args)?;
+    let layer = doc.target(args)?;
+    build(layer, 0)?;
+    let stroke = doc.next_stroke();
+    let changed = doc.run_if_changed(|| {
+        build(layer, stroke).expect("the arguments were checked by the first build")
+    })?;
+    Ok(ToolOutput::json(json!({
+        "doc": id,
+        "layer": doc.layer_id(layer),
+        "changed": changed,
+    })))
+}
+
 fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
     let items = args
         .get("points")
@@ -150,6 +172,9 @@ pub(crate) const STROKE: Tool = Tool {
                 "axis_x2": { "type": "integer", "description": "Pixel: vertical symmetry axis in half pixels from the left edge; default the canvas width (the centre)" },
                 "axis_y2": { "type": "integer", "description": "Pixel: horizontal symmetry axis in half pixels from the top edge; default the canvas height" },
                 "wrap": choice(&["x", "y", "xy"], "Pixel: tiled mode, wrap across the canvas edges"),
+                "eraser_mode": choice(&["to_transparent", "to_background"], "Image eraser: erase to transparency (default) or paint `background`"),
+                "background": shared_color("Image eraser with to_background: the color; default #FFFFFF"),
+                "angle": angle_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
@@ -193,14 +218,17 @@ pub(crate) const STROKE: Tool = Tool {
                     opacity,
                     shape,
                     hardness,
-                    mode: "to_transparent".to_owned(),
-                    background: [255, 255, 255, 255],
+                    mode: str_or(args, "eraser_mode", "to_transparent").to_owned(),
+                    background: match args.get("background") {
+                        Some(_) => color_arg(args, "background")?,
+                        None => [255, 255, 255, 255],
+                    },
                     points,
                     pressure: Vec::new(),
                     pressure_size: false,
                     pressure_opacity: false,
                     azimuth: Vec::new(),
-                    angle: DEFAULT_BRUSH_ANGLE,
+                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
                     stroke_id,
                 }
@@ -221,7 +249,7 @@ pub(crate) const STROKE: Tool = Tool {
                     pressure_size: false,
                     pressure_opacity: false,
                     azimuth: Vec::new(),
-                    angle: DEFAULT_BRUSH_ANGLE,
+                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
                     stroke_id,
                 }
@@ -229,6 +257,124 @@ pub(crate) const STROKE: Tool = Tool {
         })
     },
 };
+
+fn angle_prop() -> Value {
+    json!({ "type": "number", "minimum": 0, "maximum": 180, "description": "Image: flat-nib angle in degrees 0–180; default 45 (a round tip ignores it)" })
+}
+
+/// The brush arguments `draw.recolor` and `draw.smudge` share with Image
+/// `draw.stroke`.
+fn brush_props() -> Value {
+    json!({
+        "points": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+            "description": "Stroke path as [x, y] pairs",
+        },
+        "size": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Brush size in px 1–500; default 8" },
+        "hardness": percent_prop("Edge hardness"),
+        "opacity": percent_prop("Stroke opacity"),
+        "shape": choice(&["hard_round", "soft_round", "flat"], "Brush tip; default hard_round"),
+        "angle": angle_prop(),
+    })
+}
+
+fn with_props(mut base: Value, extra: Value) -> Value {
+    if let (Some(b), Value::Object(e)) = (base.as_object_mut(), extra) {
+        b.extend(e);
+    }
+    base
+}
+
+pub(crate) const RECOLOR: Tool = Tool {
+    name: "draw.recolor",
+    description: "Image documents: the editor's Recolor tool along `points`: pixels within `tolerance` (0–255, default 32) of the color `from` become `color` (default #000000), with the brush arguments of draw.stroke (size default 8, hardness, opacity, shape, angle). Respects the selection. One undo step.",
+    schema: || {
+        edit_schema(
+            with_props(
+                brush_props(),
+                json!({
+                    "from": color_prop_image("The color to replace"),
+                    "color": color_prop_image("The replacement; default #000000"),
+                    "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Color distance still replaced; default 32" },
+                }),
+            ),
+            &["points", "from"],
+        )
+    },
+    run: |ctx, args| {
+        edit_checked(ctx, args, |layer, stroke_id| {
+            let points = points_arg(args)?;
+            let from = color_arg(args, "from")?;
+            let to = match args.get("color") {
+                Some(_) => color_arg(args, "color")?,
+                None => [0, 0, 0, 255],
+            };
+            Ok(CommandSpec::RecolorStroke {
+                layer,
+                size: args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32,
+                opacity: percent(args, "opacity"),
+                shape: str_or(args, "shape", "hard_round").to_owned(),
+                hardness: percent(args, "hardness"),
+                from,
+                to,
+                tolerance: args.i64("tolerance").map_or(TOLERANCE, |t| t as u64) as u8,
+                points,
+                pressure: Vec::new(),
+                pressure_size: false,
+                pressure_opacity: false,
+                azimuth: Vec::new(),
+                angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
+                tilt_angle: false,
+                stroke_id,
+            })
+        })
+    },
+};
+
+pub(crate) const SMUDGE: Tool = Tool {
+    name: "draw.smudge",
+    description: "Image documents: the editor's Smudge tool along `points`: drags color along the path with `strength` 1–100 % (default 60) and the brush arguments of draw.stroke (size default 8, hardness, opacity, shape, angle). Respects the selection. One undo step.",
+    schema: || {
+        edit_schema(
+            with_props(
+                brush_props(),
+                json!({
+                    "strength": { "type": "number", "minimum": 1, "maximum": 100, "description": "How much color is carried, in %; default 60" },
+                }),
+            ),
+            &["points"],
+        )
+    },
+    run: |ctx, args| {
+        edit_checked(ctx, args, |layer, stroke_id| {
+            let points = points_arg(args)?;
+            Ok(CommandSpec::SmudgeStroke {
+                layer,
+                size: args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32,
+                opacity: percent(args, "opacity"),
+                shape: str_or(args, "shape", "hard_round").to_owned(),
+                hardness: percent(args, "hardness"),
+                strength: num_or(args, "strength", 60.0) / 100.0,
+                points,
+                pressure: Vec::new(),
+                pressure_size: false,
+                pressure_opacity: false,
+                azimuth: Vec::new(),
+                angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
+                tilt_angle: false,
+                stroke_id,
+            })
+        })
+    },
+};
+
+/// An Image-only color argument: `#RRGGBB` or `#RRGGBBAA` (the schema
+/// also admits the Pixel `{index}` form, so its use gets a named error).
+fn color_prop_image(description: &str) -> Value {
+    crate::args::color_schema(description)
+}
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
@@ -389,7 +535,7 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
             tolerance: u8::try_from(tolerance)
                 .map_err(|_| AgentError::tool("tolerance must be 0–255"))?,
             contiguous: args.bool("contiguous").unwrap_or(true),
-            sample: "current_layer".to_owned(),
+            sample: str_or(args, "sample", "current_layer").to_owned(),
             x: num(args, "x")?,
             y: num(args, "y")?,
         })
@@ -448,7 +594,7 @@ fn effect_spec(args: &Args) -> Result<EffectSpec, AgentError> {
         .get("params")
         .and_then(Value::as_object)
         .unwrap_or(&empty);
-    let wire = wire_params(id, params)?;
+    let wire = wire_params(id, params, true)?;
     EffectSpec::from_params(id, &wire).map_err(|e| AgentError::tool(e.to_string()))
 }
 

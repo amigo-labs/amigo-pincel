@@ -5,6 +5,7 @@ mod clipboard;
 mod doc;
 mod draw;
 mod image;
+mod image_brushes;
 mod image_draw;
 mod layers;
 mod pixel_paint;

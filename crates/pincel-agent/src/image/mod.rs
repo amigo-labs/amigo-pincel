@@ -36,6 +36,8 @@ pub(crate) static TOOLS: &[Tool] = &[
     draw::SHAPE,
     draw::TEXT,
     draw::GRADIENT,
+    draw::RECOLOR,
+    draw::SMUDGE,
     draw::ADJUST_APPLY,
     doc::EXPORT_JPEG,
     doc::EXPORT_WEBP,

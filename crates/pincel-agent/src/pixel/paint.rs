@@ -198,7 +198,11 @@ fn run_stroke(
 pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     {
         let (id, doc) = ctx.ws.doc(args)?;
-        refuse_image_args(&id, args, &["opacity", "hardness"])?;
+        refuse_image_args(
+            &id,
+            args,
+            &["opacity", "hardness", "eraser_mode", "background", "angle"],
+        )?;
         if let Some(s @ ("hard_round" | "soft_round" | "flat")) = args.str("shape") {
             return Err(AgentError::tool(format!(
                 "argument `shape`: {s:?} works on Image documents only; document `{id}` is a Pixel document (square, round)"

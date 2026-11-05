@@ -93,19 +93,34 @@ fn effects_json() -> Value {
             let params: Vec<Value> = e
                 .params
                 .iter()
-                .map(|p| match p.kind {
-                    Kind::Number { min, max, default } => json!({
-                        "name": p.key, "type": "number", "min": min, "max": max, "default": default,
-                    }),
-                    Kind::Bool { default } => {
-                        json!({ "name": p.key, "type": "boolean", "default": default })
+                .map(|p| {
+                    let mut v = match p.kind {
+                        Kind::Number { min, max, .. } => {
+                            json!({ "name": p.key, "type": "number", "min": min, "max": max })
+                        }
+                        Kind::Bool { .. } => json!({ "name": p.key, "type": "boolean" }),
+                        Kind::Choice { options, .. } => {
+                            json!({ "name": p.key, "type": "choice", "options": options })
+                        }
+                        Kind::Color { .. } => json!({ "name": p.key, "type": "color" }),
+                    };
+                    let shown = |image: bool| -> Value {
+                        let d = e.default_of(p, image);
+                        match p.kind {
+                            Kind::Number { .. } => json!(d),
+                            Kind::Bool { .. } => json!(d != 0.0),
+                            Kind::Choice { options, .. } => json!(options[d as usize]),
+                            Kind::Color { .. } => json!(format!("#{:08X}", d as u32)),
+                        }
+                    };
+                    let (pixel, image) = (shown(false), shown(true));
+                    // mcp-parity-drawing-image AC-12: per-mode defaults.
+                    if pixel == image {
+                        v["default"] = image;
+                    } else {
+                        v["defaults"] = json!({ "pixel": pixel, "image": image });
                     }
-                    Kind::Choice { options, default } => json!({
-                        "name": p.key, "type": "choice", "options": options, "default": options[default],
-                    }),
-                    Kind::Color { default } => json!({
-                        "name": p.key, "type": "color", "default": format!("#{default:08X}"),
-                    }),
+                    v
                 })
                 .collect();
             json!({
@@ -247,6 +262,18 @@ mod tests {
             "`export.selection` is the headless Copy",
             "`layer.import` is the headless Paste",
             "`select.move_content` (both modes)",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-drawing-image AC-14.
+        for fact in [
+            "`draw.recolor` (the Recolor tool: `from`",
+            "`draw.smudge`\n  (`strength`",
+            "`eraser_mode`",
+            "`background` (default `#FFFFFF`)",
+            "flat-nib `angle`",
+            "`draw.fill` takes `sample`",
+            "Effect defaults follow the document's mode",
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }

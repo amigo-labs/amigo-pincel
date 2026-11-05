@@ -21,7 +21,7 @@ Shared tools work on both: `doc.*`, `layer.*` (except the two below),
 `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
 `draw.ellipse`, `draw.clear`, `export.sheet`. Image-only:
 `layer.merge_visible`, `layer.merge_group`, `select.feather`,
-`export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
+`draw.recolor`, `draw.smudge`, `export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
 and so does an argument only the other mode's editor offers.
 
 ## Drawing in each mode
@@ -51,6 +51,16 @@ and so does an argument only the other mode's editor offers.
   ignore it, as in the Pixel editor. Pixel `draw.fill` clips to the
   selection although the Pixel editor's Bucket does not. In Image
   documents every drawing tool stays inside the selection.
+- Image documents only: `draw.recolor` (the Recolor tool: `from`, the
+  replacement `color`, `tolerance` default 32) and `draw.smudge`
+  (`strength` 1–100, default 60) take the brush arguments of
+  `draw.stroke`; the Image eraser takes `eraser_mode` `to_transparent`
+  (default) or `to_background` with `background` (default `#FFFFFF`);
+  Image strokes take the flat-nib `angle` 0–180 (default 45); Image
+  `draw.fill` takes `sample` `current_layer` (default) or `all_layers`.
+- Effect defaults follow the document's mode, as each editor's effect
+  dialog does: `pincel://effects` lists `defaults` per mode where they
+  differ (e.g. `pixelate` and `drop_shadow`).
 
 ## Selections and transforms
 

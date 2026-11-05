@@ -94,6 +94,9 @@ const EXPECTED_TOOLS: &[&str] = &[
     "select.move",
     "layer.import",
     "export.selection",
+    // mcp-parity-drawing-image
+    "draw.recolor",
+    "draw.smudge",
 ];
 
 /// One valid example call per tool.
@@ -150,6 +153,10 @@ fn example(name: &str) -> Value {
         "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
         "layer.translate" | "select.move_content" => json!({ "dx": 2, "dy": -1, "layer": 0 }),
         "select.move" => json!({ "dx": 1, "dy": 1 }),
+        "draw.recolor" => {
+            json!({ "points": [[1, 2]], "from": "#ff0000", "color": "#00ff00", "tolerance": 10, "size": 4, "angle": 30 })
+        }
+        "draw.smudge" => json!({ "points": [[1, 2], [3, 4]], "strength": 40, "shape": "flat" }),
         "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
         "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
