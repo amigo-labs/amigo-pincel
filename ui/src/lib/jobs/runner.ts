@@ -10,6 +10,12 @@ export interface JobRequest<Req> {
   readonly req: Req;
 }
 
+/** What the page sends a job worker once, before its first job: what the
+ *  worker needs to set itself up (e.g. the page's compiled wasm module). */
+export interface JobInit<Init> {
+  readonly init: Init;
+}
+
 /** What a job worker answers. */
 export type JobResponse<Res> =
   | { readonly id: number; readonly ok: true; readonly res: Res }
@@ -30,8 +36,15 @@ interface Pending<Res> {
   reject(err: Error): void;
 }
 
-/** A runner over workers made by `spawn`; `label` names it in logs. */
-export function jobRunner<Req, Res>(spawn: () => Worker, label: string): JobRunner<Req, Res> {
+/**
+ * A runner over workers made by `spawn`; `label` names it in logs. `init`,
+ * if given, is sent to every worker it starts, ahead of the first job.
+ */
+export function jobRunner<Req, Res, Init = never>(
+  spawn: () => Worker,
+  label: string,
+  init?: () => Init,
+): JobRunner<Req, Res> {
   let worker: Worker | null = null;
   let nextId = 1;
   const pending = new Map<number, Pending<Res>>();
@@ -61,6 +74,10 @@ export function jobRunner<Req, Res>(spawn: () => Worker, label: string): JobRunn
       fail(e.message || 'the job worker failed');
     };
     w.onmessageerror = () => fail('a job message could not be read');
+    if (init) {
+      const msg: JobInit<Init> = { init: init() };
+      w.postMessage(msg);
+    }
     worker = w;
     return w;
   };
@@ -100,17 +117,27 @@ export function jobRunner<Req, Res>(spawn: () => Worker, label: string): JobRunn
 }
 
 /** Answers job requests in a worker: `handle` computes a job's result and
- *  the buffers to transfer back with it. */
-export function serveJobs<Req, Res>(
+ *  the buffers to transfer back with it. `setup` takes the page's
+ *  `JobInit` message; jobs wait for it to finish (whether it succeeds or
+ *  not — `handle` must cope without it). */
+export function serveJobs<Req, Res, Init = never>(
   scope: {
-    onmessage: ((e: MessageEvent<JobRequest<Req>>) => unknown) | null;
+    onmessage: ((e: MessageEvent<JobRequest<Req> | JobInit<Init>>) => unknown) | null;
     postMessage(msg: JobResponse<Res>, transfer: Transferable[]): void;
   },
   handle: (req: Req) => Promise<{ res: Res; transfer: Transferable[] }>,
+  setup?: (init: Init) => Promise<void>,
 ): void {
+  let ready: Promise<void> = Promise.resolve();
   scope.onmessage = async (e) => {
-    const { id, req } = e.data;
+    const msg = e.data;
+    if ('init' in msg) {
+      if (setup) ready = setup(msg.init).catch(() => undefined);
+      return;
+    }
+    const { id, req } = msg;
     try {
+      await ready;
       const { res, transfer } = await handle(req);
       scope.postMessage({ id, ok: true, res }, transfer);
     } catch (err) {

@@ -4,14 +4,16 @@
 // and the job worker encodes it.
 
 import { jobRunner } from '../../../lib/jobs/runner';
-import { core } from '../core/wasm';
+import { compiledCore, core } from '../core/wasm';
 import { encodeSnapshot, type EncodeFormat, type EncodeJob } from './encode';
 
 export type { EncodeFormat };
 
-const encoder = jobRunner<EncodeJob, Uint8Array>(
+// Each worker gets the page's compiled core, so it only instantiates it.
+const encoder = jobRunner<EncodeJob, Uint8Array, WebAssembly.Module | null>(
   () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
   'image encode',
+  compiledCore,
 );
 
 /** Encodes document `handle` as it is now, in the job worker. */

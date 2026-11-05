@@ -145,3 +145,22 @@ test('an autosave tick due while one is still encoding is skipped (AC-10)', asyn
   await page.clock.fastForward(30_000);
   await expect.poll(() => snapshotWrites(page), { timeout: 45_000 }).toBe(2);
 });
+
+// Regression: a job worker that fetched and compiled the 12 MB core again
+// took one to two and a half seconds for its first job, so an autosave
+// landed in IndexedDB long after its tick (recovery.spec.ts reloads 500 ms
+// later). The worker instantiates the module the page has compiled.
+test('the job worker reuses the page’s compiled core instead of fetching it again', async ({
+  page,
+}) => {
+  const wasmFetches: string[] = [];
+  page.context().on('request', (r) => {
+    if (/pincel_image_wasm_bg[^/]*\.wasm$/.test(r.url())) wasmFetches.push(r.url());
+  });
+  const workers: string[] = [];
+  page.on('worker', (w) => workers.push(w.url()));
+  await paintedDocument(page);
+  await download(page, () => menu(page, 'File', 'Export', 'PNG'));
+  expect(workers.some((u) => /\/assets\/worker-/.test(u)), 'a job worker ran').toBe(true);
+  expect(wasmFetches, 'the Image core is fetched once').toHaveLength(1);
+});

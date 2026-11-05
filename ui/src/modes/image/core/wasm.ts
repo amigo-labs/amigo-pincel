@@ -425,20 +425,50 @@ export type ToolCommand =
   | DrawTextCommand;
 
 let initialized: Promise<unknown> | null = null;
+let compiled: WebAssembly.Module | null = null;
 
-/** Initializes the WASM module exactly once. Safe to call repeatedly. */
-export async function initCore(): Promise<void> {
+/** Fetches and compiles the core. Like wasm-bindgen's own loader, it
+ *  compiles the whole body when a host serves the .wasm without the
+ *  `application/wasm` type that streaming compilation needs. */
+async function compileCore(): Promise<WebAssembly.Module> {
+  // Pass the asset URL explicitly (as the Pixel-mode adapter does) so Vite
+  // fingerprints the .wasm and the precache sees it.
+  const response = await fetch(wasmUrl);
+  if (!response.ok) throw new Error(`could not load the Image core (${response.status})`);
+  if (response.headers.get('Content-Type')?.startsWith('application/wasm')) {
+    return WebAssembly.compileStreaming(response);
+  }
+  return WebAssembly.compile(await response.arrayBuffer());
+}
+
+/**
+ * Initializes the WASM module exactly once. Safe to call repeatedly.
+ * `module` is a core the page already compiled (a job worker gets it from
+ * `compiledCore`): it is instantiated instead of fetched and compiled a
+ * second time.
+ */
+export async function initCore(module?: WebAssembly.Module): Promise<void> {
   if (!initialized) {
-    // Same pattern as the Pixel-mode adapter (src/lib/core): pass the asset
-    // URL explicitly so Vite fingerprints the .wasm and the precache sees it.
-    initialized = initWasm({ module_or_path: wasmUrl }).catch((err: unknown) => {
-      // A failed download (offline) is retried by the next caller.
-      initialized = null;
-      throw err;
-    });
+    initialized = (module ? Promise.resolve(module) : compileCore())
+      .then((m) => {
+        compiled = m;
+        return initWasm({ module_or_path: m });
+      })
+      .catch((err: unknown) => {
+        // A failed download (offline) is retried by the next caller.
+        initialized = null;
+        compiled = null;
+        throw err;
+      });
   }
   await initialized;
   publishDocumentCount('image', document_count);
+}
+
+/** The compiled core once `initCore` has loaded it, for a job worker to
+ *  instantiate (docs/specs/performance-background-jobs.md). */
+export function compiledCore(): WebAssembly.Module | null {
+  return compiled;
 }
 
 export const core = {
