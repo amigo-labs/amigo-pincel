@@ -16,6 +16,7 @@ use crate::adjust::{
     GrayscaleMethod, HighlightsShadows, HueSaturation, Invert, InvertAlpha, Levels, LevelsChannel,
     Posterize, Sepia, TemperatureTint, Threshold,
 };
+use crate::artistic::{InkSketch, OilPainting, PencilSketch};
 use crate::blur::{
     Bokeh, BoxBlur, Fragment, GaussianBlur, Median, MotionBlur, RadialBlur, RadialKind, SketchBlur,
     SurfaceBlur,
@@ -215,6 +216,14 @@ pub enum EffectSpec {
     /// (`-100..=100`, `1..=200`, the centre as fractions, edge as for
     /// `bulge`).
     Twist(Twist),
+    /// `ink_sketch`: `[ink_outline, coloring]` (`0..=99`, `0..=100` %).
+    InkSketch(InkSketch),
+    /// `oil_painting`: `[brush_size, coarseness]` (`1..=8` px, `3..=255`
+    /// luma bins).
+    OilPainting(OilPainting),
+    /// `pencil_sketch`: `[tip_size, color_range]` (`1..=20` px,
+    /// `-20..=20`).
+    PencilSketch(PencilSketch),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -261,6 +270,9 @@ pub const EFFECT_NAMES: &[&str] = &[
     "polar_inversion",
     "tile_reflection",
     "twist",
+    "ink_sketch",
+    "oil_painting",
+    "pencil_sketch",
 ];
 
 impl EffectSpec {
@@ -583,6 +595,18 @@ impl EffectSpec {
                 expect_len(name, p, 5)?;
                 Self::Twist(Twist::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
             }
+            "ink_sketch" => {
+                expect_len(name, p, 2)?;
+                Self::InkSketch(InkSketch::new(f(p[0]), f(p[1])))
+            }
+            "oil_painting" => {
+                expect_len(name, p, 2)?;
+                Self::OilPainting(OilPainting::new(f(p[0]), f(p[1])))
+            }
+            "pencil_sketch" => {
+                expect_len(name, p, 2)?;
+                Self::PencilSketch(PencilSketch::new(f(p[0]), f(p[1])))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -732,6 +756,9 @@ impl EffectSpec {
             Self::PolarInversion(e) => e.apply(src),
             Self::TileReflection(e) => e.apply(src),
             Self::Twist(e) => e.apply(src),
+            Self::InkSketch(e) => e.apply(src),
+            Self::OilPainting(e) => e.apply(src),
+            Self::PencilSketch(e) => e.apply(src),
         }
     }
 
@@ -780,6 +807,9 @@ impl EffectSpec {
             Self::PolarInversion(_) => "Polar Inversion",
             Self::TileReflection(_) => "Tile Reflection",
             Self::Twist(_) => "Twist",
+            Self::InkSketch(_) => "Ink Sketch",
+            Self::OilPainting(_) => "Oil Painting",
+            Self::PencilSketch(_) => "Pencil Sketch",
         }
     }
 }

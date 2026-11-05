@@ -93,9 +93,9 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-05 | `pencil_sketch_is_gray_and_whitens_a_flat_area` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
+| AC-06 | `ink_sketch_draws_dark_lines_on_edges` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
+| AC-07 | `oil_painting_keeps_a_solid_layer_and_merges_a_ramp`, `oil_painting_leaves_a_transparent_layer_unchanged` (crates/pincel-effects/tests/effects_artistic_photo.rs) | built |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
