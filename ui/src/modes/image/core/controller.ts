@@ -1,5 +1,7 @@
 // Application logic bridging the WASM core and reactive state. Components call
 // these functions on events; no business logic lives in components (CLAUDE.md §5.4).
+import type { Rgba8 } from '../../../lib/color';
+import { noteUsed } from '../../../lib/colors/recent.svelte';
 import {
   core,
   initCore,
@@ -71,6 +73,19 @@ function opacity01(): number {
 function activeColor(useBackground: boolean): Rgba {
   const [r, g, b] = hexToRgb(useBackground ? tool.background : tool.foreground);
   return [r, g, b, useBackground ? tool.backgroundAlpha : tool.foregroundAlpha];
+}
+
+/** The foreground (or background) color as RGBA bytes with its alpha. */
+function usedColor(useBackground: boolean): Rgba8 {
+  const [r, g, b, a] = activeColor(useBackground);
+  return { r, g, b, a };
+}
+
+/** Records `used` (foreground first) as painted with when the document
+ *  gained an undo step since `depthBefore` (color-picker AC-24). A merged
+ *  stroke adds its step once, so it is recorded once. */
+function notePainted(depthBefore: number, used: readonly Rgba8[]): void {
+  if (editor.undoDepth > depthBefore) noteUsed('image', used);
 }
 
 /** A color with the tool opacity baked into its alpha: round(alpha ×
@@ -471,8 +486,19 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
       cmd.corner_radius = tool.cornerRadius;
     }
   }
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  // A line strokes only; a shape strokes with the foreground and fills
+  // with the background, as its mode says.
+  const mode = shape === 'line' ? 'outline' : tool.shapeMode;
+  const used =
+    mode === 'outline'
+      ? [usedColor(false)]
+      : mode === 'fill'
+        ? [usedColor(true)]
+        : [usedColor(false), usedColor(true)];
+  notePainted(before, used);
 }
 
 // The default font is fetched once and registered with the core (ADR-012,
@@ -533,8 +559,10 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
     anti_alias: tool.textAntiAlias,
     align: tool.textAlign,
   };
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(false)]);
 }
 
 /** Marks the document as having unsaved changes (e.g. after recovering an
@@ -620,6 +648,7 @@ export function paintStroke(
   if (editor.handle === null || points.length === 0) {
     return;
   }
+  const before = editor.undoDepth;
   const cmd: PencilStrokeCommand = {
     type: 'pencil_stroke',
     layer: editor.activeLayer,
@@ -634,6 +663,7 @@ export function paintStroke(
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(useBackground)]);
 }
 
 /** Applies an eraser stroke over the given canvas-space points. */
@@ -723,6 +753,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
   if (editor.handle === null) {
     return;
   }
+  const before = editor.undoDepth;
   const cmd: FillBucketCommand = {
     type: 'fill_bucket',
     layer: editor.activeLayer,
@@ -736,6 +767,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(useBackground)]);
 }
 
 /** Erases the selected pixels of the active layer (Delete / Edit ▸ Clear).
@@ -803,8 +835,11 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
     to: activeColor(true),
     opacity: opacity01(),
   };
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  // Transparency mode fades what is there and paints no color.
+  if (tool.gradientChannel === 'color') notePainted(before, [usedColor(false), usedColor(true)]);
 }
 
 /** Move Selection: drags the outline only. */

@@ -3,7 +3,7 @@
 // Kept per mode in the IndexedDB prefs `recentColors:<mode>` (never
 // localStorage, AGENTS.md §9); not document state, so no undo entries.
 
-import { pushRecent, readRecent, toHex, type Rgba8 } from '../color';
+import { pushRecent, readColor, readRecent, toHex, type Rgba8 } from '../color';
 import { getPref, setPref } from '../idb/prefs';
 
 /** Editor mode a recent-colors list belongs to. */
@@ -34,4 +34,19 @@ export async function loadRecent(mode: ColorMode): Promise<void> {
   } catch {
     recentColors[mode] = [];
   }
+}
+
+/** A stored foreground / background color (`#rrggbb[aa]`), or `null` when
+ *  it is missing, unreadable or the store is unavailable (AC-15, AC-30). */
+export async function loadColorPref(key: string): Promise<Rgba8 | null> {
+  try {
+    return readColor(await getPref(key));
+  } catch {
+    return null;
+  }
+}
+
+/** Stores a foreground / background color with its alpha; best effort. */
+export function saveColorPref(key: string, c: Rgba8): void {
+  void setPref(key, toHex(c, true)).catch(() => {});
 }
