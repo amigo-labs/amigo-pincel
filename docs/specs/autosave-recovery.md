@@ -41,7 +41,7 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [x] AC-06 (state): While a recovered document has not been saved, its snapshot stays, so closing the tab right after recovering loses nothing.
 - [x] AC-07 (event): When the user clicks Discard on a listed snapshot, then that snapshot is deleted for good; discarding the last listed snapshot closes the dialog.
 - [x] AC-08 (event): When the user clicks "Not now", then the dialog closes, is not shown again for the rest of the page load (also not after File ▸ New…), and the snapshots are offered again after the next reload.
-- [x] AC-09 (event): When the user leaves an edited document through "Discard changes" (File ▸ New… or Open…), then its snapshot is deleted and it is offered neither in this page load nor after a reload.
+- [ ] AC-09 (event): When the user closes an edited tab and answers "Don't Save" (`document-tabs` AC-08, `unsaved-changes-prompt` AC-05), then its snapshot is deleted and it is offered neither in this page load nor after a reload.
 - [x] AC-10 (error): If recovering a snapshot fails (missing or unreadable bytes), then the error is shown on that snapshot's row and the dialog stays open.
 - [x] AC-11 (error): If writing a snapshot fails, then the status line (Pixel) or error notice (Image) reports "Autosave failed: …" and editing continues.
 - [x] AC-12 (event): When the user changes the foreground or background color in Pixel mode and reloads, then a new Pixel document starts with those colors.
@@ -70,7 +70,7 @@ Hints, not contracts — paths drift; grep for the names.
 | Recover clicked twice quickly | Only the first runs |
 | Stored color pref is not a `#rrggbb` string | Ignored; default colors stay |
 | Two snapshot rows for one document left by a partial write | Only the newest is listed |
-| Second editor mount of the same mode in a page load (after New / Open) | No Recovery dialog |
+| A further tab of an already mounted mode in a page load (after New / Open) | No Recovery dialog |
 
 ## Summary
 
@@ -92,12 +92,12 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-01 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | verified | ba53299 |
 | AC-02 | `ui/e2e/recovery.spec.ts › pixel: a clean or unchanged document is not snapshotted`; `ui/e2e/recovery.spec.ts › image: a clean or unchanged document is not snapshotted` | verified | ba53299 |
 | AC-03 | `ui/e2e/recovery.spec.ts › pixel: saving deletes the snapshot and it is not offered again`; `ui/e2e/recovery.spec.ts › image: saving deletes the snapshot and it is not offered again` | verified | 6aed618 |
-| AC-04 | `ui/e2e/document-tabs-mixed.spec.ts`: "the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)" (both modes at the first editor start, newest first, each row with name, mode, time and size; Recover opens a tab of the snapshot's mode) | built | |
+| AC-04 | `ui/e2e/recovery.spec.ts › the dialog lists each document’s latest snapshot of both modes, newest first (AC-04)`; `ui/e2e/document-tabs-mixed.spec.ts`: "the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)" (both modes at the first editor start, newest first, each row with name, mode, time and size; Recover opens a tab of the snapshot's mode) | built | |
 | AC-05 | `ui/e2e/recovery.spec.ts`: "{pixel,image}: each Recover opens its document as a new active, unsaved tab; the dialog stays for the rest (AC-05)" | built | |
 | AC-06 | `ui/e2e/recovery.spec.ts › pixel: a recovered document keeps its snapshot until it is saved`; `ui/e2e/recovery.spec.ts › image: a recovered document keeps its snapshot until it is saved` | verified | 6aed618 |
 | AC-07 | `ui/e2e/recovery.spec.ts › a discarded snapshot is gone for good; discarding the last one closes the dialog` | verified | 35f631c |
 | AC-08 | `ui/e2e/recovery.spec.ts › "Not now" keeps the dialog away for the rest of the page load, not after a reload` | verified | 9af6b69 |
-| AC-09 | `ui/e2e/recovery.spec.ts › a discarded document is not offered again, on New or after a reload` | verified | 9a7f4f0 |
+| AC-09 | `ui/e2e/recovery.spec.ts › a discarded document is not offered again, on New or after a reload` (File ▸ Close → Don't Save, then a New document of the other mode and a reload) | built | 9a7f4f0 |
 | AC-10 | `ui/e2e/recovery.spec.ts › pixel: a snapshot that cannot be recovered shows its error and keeps the dialog`; `ui/e2e/recovery.spec.ts › image: a snapshot that cannot be recovered shows its error and keeps the dialog` | verified | c43a845 |
 | AC-11 | `ui/e2e/recovery.spec.ts › pixel: a failed snapshot write is reported and editing continues`; `ui/e2e/recovery.spec.ts › image: a failed snapshot write is reported and editing continues` | verified | 5dd2afe |
 | AC-12 | `ui/e2e/recovery.spec.ts › the last Pixel colors start the next session’s new documents` | verified | 22f5a52 |
@@ -105,7 +105,6 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-14 | `ui/e2e/recovery.spec.ts › installed web app › loads offline once cached and opens both editors` | verified | 48b5d53 |
 | AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` | verified | 6aed618 |
 
-Partial coverage: AC-09 is marked `built` on the File ▸ New… path in Pixel mode; the Open… path and Image mode share the mechanism but have no test of their own.
 
 ## Decisions
 
@@ -114,3 +113,4 @@ Partial coverage: AC-09 is marked `built` on the File ▸ New… path in Pixel m
 - 2026-11-04: AC-05 reworded for `document-tabs`: Recover opens a tab instead of replacing the document, and the dialog stays open for the remaining snapshots; back to `open`.
 - 2026-11-04: AC-04 reworded for mixed-mode tabs: the dialog lists the snapshots of both modes at the first editor start; back to `open`.
 - 2026-11-05 (spec-build): AC-05 after the `document-tabs` rewording: two real autosaved documents (two tabs) are recovered one by one into a fresh session. Green at once (the behavior came with `document-tabs`); red against a deliberate break that closed the dialog after the first Recover, then reverted.
+- 2026-11-05 (spec-check rework): AC-09 reworded for `document-tabs` and `unsaved-changes-prompt`: New and Open open tabs without asking, so work is discarded by closing its tab with "Don't Save"; the existing test already covers that path. The edge case on a second editor mount now speaks of tabs.

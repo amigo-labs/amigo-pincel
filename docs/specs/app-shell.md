@@ -24,7 +24,7 @@ Already decided: "Two cores, one shell" (Decision Log 2026-09-06); "Open like th
 - New-document dialog (File ▸ New… in an editor) with mode choice and size
 - Size defaults and limits per mode; "Open like this on startup"
 - File → mode routing by content signature with extension fallback, including files handed over by the Pixel editor
-- One mounted editor per session; editor loading and load-failure states
+- At most one mounted editor per mode behind the tab bar (`document-tabs`); editor loading and load-failure states
 - Unsaved-changes guard on New / Open / Open Recent and on leaving the page
 - Shared editor frame: top bar (mode badge, menus, document name, unsaved marker, panels toggle), tool rail, options bar, panels, status bar; responsive layout (desktop / tablet / phone); persisted panel layout per mode
 - Shared keyboard map: tool-group keys with variant cycling, tooltips with key hints, dialogs holding the keyboard
@@ -85,8 +85,8 @@ Hints, not contracts — paths drift; grep for the names.
 | Size field cleared, then Create or "Open like this on startup" ticked | Mode default size (Pixel 64 × 64, Image 800 × 600) |
 | Image size 16384 × 16384 typed | Scaled down together to fit 8192 × 8192 px area |
 | A file handed over by the OS arrives while the remembered startup document is loading | The file wins; the empty startup document is not created |
-| Second open request while a file is still being read | Ignored until the first finishes |
-| Editor chunk fails to load | Error text "Failed to load the <mode> editor: …" in place of the editor |
+| Second Open… while the picker's file is still being read | Ignored until the first finishes; files the OS hands over meanwhile are queued (`document-tabs` AC-24) |
+| Editor chunk or its wasm fails to load | A notice "<name> could not be opened: …"; no tab opens and the open tabs stay as they were (`document-tabs` AC-23) |
 | Key pressed that the active mode has no tool group for | Nothing happens |
 | Window resized while a menu is open | The menu closes |
 
@@ -96,7 +96,7 @@ Hints, not contracts — paths drift; grep for the names.
 
 - Start screen with the New pixel sprite / New image cards, Open…, About and the language picker; the New dialog in both editors with mode, size defaults and limits (out-of-range sizes are clamped, not blocked)
 - Files are routed to the editor of their format by content signature, extension as fallback, from every entry point including the Pixel editor's own Open… and Open Recent; an unknown file is named in a dismissable notice and nothing changes
-- One mounted editor per session, the unsaved-changes guard on New, Open, Open Recent and leaving the page, and the shared editor frame (top bar, panels, focus rules)
+- At most one mounted editor per mode, the unsaved-changes guard on New, Open, Open Recent and leaving the page, and the shared editor frame (top bar, panels, focus rules)
 
 ## Open questions
 
@@ -141,3 +141,4 @@ Hints, not contracts — paths drift; grep for the names.
 - 2026-11-04: AC-08 and AC-16 reworded for `document-tabs` (Create in the same mode adds a tab; the top bar shows the active tab's name and marker); both back to `open`.
 - 2026-11-04: AC-08 and AC-13 reworded for mixed-mode tabs (`document-tabs` revision): New opens a tab of either mode; at most one editor per mode is mounted, only the active tab's is visible, and a mode's wasm loads with its first document; both back to `open`.
 - 2026-11-05 (spec-build): AC-16 after the `document-tabs` rewording: the single-document test stays, a new test opens a dirty Image tab beside a clean Pixel tab and checks badge, name and marker of each active tab. Green at once (the behavior came with `document-tabs`); red against a deliberate break that kept the Image editor shown on the Pixel tab (the Pixel badge missing), then reverted.
+- 2026-11-05 (spec-check rework): Edge cases and scope brought in line with `document-tabs`: a failed editor load is the open-failure notice of `document-tabs` AC-23 (the old in-place error text `shell.editorFailed` went with 35ab4fd), files the OS hands over during a read are queued (AC-24), and the shell mounts at most one editor per mode. The Technical notes keep their 2026-10-29 paths as history.
