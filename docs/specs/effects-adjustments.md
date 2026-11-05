@@ -117,7 +117,7 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | dropped |        |
-| AC-02 |      | open   |        |
+| AC-02 | `ui/e2e/effects.spec.ts`: "{pixel,image}: every effect panel shows its parameters at their defaults; Reset restores them (AC-02)" (all 20 effects of the Technical notes table, per mode as the catalog lists them, with the defaults of the later effect specs) | built | |
 | AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | verified | 6aed618 |
 | AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | verified | ba53299 |
 | AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 35f631c |
@@ -146,3 +146,4 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 - 2026-11-03: AC-09 in Pixel mode needs a cel smaller than the canvas; New and Paste create canvas-sized cels, so the e2e test opens a hand-built `.aseprite` with a 2 × 2 cel.
 - 2026-11-04: AC-01 dropped (superseded by `effect-catalog-v2`: paint.net submenus, Pixel mode shows only hard-edged effects); AC-02 reworded to cover the new parameter kinds, back to `open`. The Technical notes table keeps the old group column as history; the catalog mapping lives in `effect-catalog-v2`.
 - 2026-11-05: AC-02's defaults follow the later effect specs where they changed a parameter (Box Blur as a linked pair, Motion Blur's Centered, Radial Blur without its kind, Reduce Noise's Radius 6 / Strength 40); the Technical notes table stays as history. Found when PR #123's AC-02 test met the merged catalog.
+- 2026-11-05 (spec-build): AC-02 needed no new test: the test adapted in `d364a53` after the 2026-11-04/05 rewording covers all 20 effects of the table with the amended defaults and the new parameter kinds, and passes in the full gate run of 2026-11-05; its red run against a deliberate break is recorded under 2026-11-03.
