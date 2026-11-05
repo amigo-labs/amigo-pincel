@@ -171,7 +171,13 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("seed", 0.0, 9999.0, 1.0),
         ],
     ),
-    plain("reduce_noise", &[num("radius", 1.0, 10.0, 1.0)]),
+    plain(
+        "reduce_noise",
+        &[
+            num("radius", 1.0, 200.0, 6.0),
+            num("strength", 0.0, 100.0, 40.0),
+        ],
+    ),
     plain(
         "brightness_contrast",
         &[
@@ -398,6 +404,33 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("center_x", 0.0, 1.0, 0.5),
             num("center_y", 0.0, 1.0, 0.5),
             choice("edge", EDGES),
+        ],
+    ),
+    // docs/specs/effects-object-stylize-color-noise.md: Object ▸ Drop
+    // Shadow (Pixel mode's Blur 0), Stylize ▸ Outline, Color ▸ Quantize.
+    plain(
+        "drop_shadow",
+        &[
+            num("offset_x", -100.0, 100.0, 4.0),
+            num("offset_y", -100.0, 100.0, 4.0),
+            num("blur", 0.0, 50.0, 0.0),
+            color("color", 0x0000_00FF),
+            num("opacity", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "stylize_outline",
+        &[
+            num("thickness", 1.0, 200.0, 3.0),
+            num("intensity", 0.0, 100.0, 50.0),
+        ],
+    ),
+    plain(
+        "quantize",
+        &[
+            num("colors", 2.0, 256.0, 16.0),
+            choice("algorithm", &["median_cut", "octree"]),
+            num("dithering", 0.0, 100.0, 0.0),
         ],
     ),
 ];

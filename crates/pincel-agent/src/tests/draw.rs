@@ -411,6 +411,61 @@ fn effect_apply_distortions_match_the_editor() {
     }
 }
 
+/// effects-object-stylize-color-noise: Drop Shadow (colour as hex, Pixel
+/// mode's Blur 0 by default), Stylize Outline, Quantize (algorithm by name)
+/// and Reduce Noise with its Strength give the editor's pixels.
+#[test]
+fn effect_apply_object_stylize_color_noise_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "drop_shadow",
+            json!({}),
+            &[4.0, 4.0, 0.0, f64::from(0x0000_00FF_u32), 50.0],
+        ),
+        (
+            "drop_shadow",
+            json!({ "offset_x": -2, "offset_y": 3, "blur": 2, "color": "#ff801080", "opacity": 90 }),
+            &[-2.0, 3.0, 2.0, f64::from(0xFF80_1080_u32), 90.0],
+        ),
+        (
+            "stylize_outline",
+            json!({ "thickness": 2, "intensity": 80 }),
+            &[2.0, 80.0],
+        ),
+        ("quantize", json!({ "colors": 2 }), &[2.0, 0.0, 0.0]),
+        (
+            "quantize",
+            json!({ "colors": 2, "algorithm": "octree", "dithering": 50 }),
+            &[2.0, 1.0, 50.0],
+        ),
+        ("reduce_noise", json!({}), &[6.0, 40.0]),
+        (
+            "reduce_noise",
+            json!({ "radius": 2, "strength": 100 }),
+            &[2.0, 100.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
 #[test]
 fn effect_apply_matches_the_editor_effect() {
     let mut s = S::new();
