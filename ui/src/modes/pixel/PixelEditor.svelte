@@ -192,6 +192,7 @@
     toolState,
     view,
   } from './stores/editor.svelte';
+  import { dropWandLink, relinkWand } from './wand-link';
 
   // Shell contract (src/App.svelte mounts at most one editor per mode):
   // whether the active tab is this editor's, the shared tab bar, and the
@@ -881,6 +882,13 @@
     };
   });
 
+  // Choosing another tool ends the Magic Wand link (pixel-selection-move
+  // AC-26), even if the wand is chosen again later.
+  $effect(() => {
+    void toolState.tool;
+    dropWandLink();
+  });
+
   // The shell cancels the open effect before its unsaved-changes prompt
   // or a document switch (effect-panel AC-17).
   $effect(() => {
@@ -1249,6 +1257,7 @@
           min="0"
           max="255"
           bind:value={toolState.wandTolerance}
+          onchange={relinkWand}
           class="opt-field w-16 text-right tabular-nums"
           aria-label={t('px.wandTolerance')}
         />
@@ -1257,13 +1266,19 @@
         <input
           type="checkbox"
           bind:checked={toolState.wandContiguous}
+          onchange={relinkWand}
           aria-label={t('opt.contiguous')}
         />
         {t('opt.contiguous')}
       </label>
       <label class="opt">
         {t('opt.sample')}
-        <select bind:value={toolState.wandSample} class="opt-field" aria-label={t('px.wandSample')}>
+        <select
+          bind:value={toolState.wandSample}
+          onchange={relinkWand}
+          class="opt-field"
+          aria-label={t('px.wandSample')}
+        >
           <option value="layer">{t('px.layer')}</option>
           <option value="composite">{t('opt.composite')}</option>
         </select>

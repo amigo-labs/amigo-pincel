@@ -10,6 +10,7 @@ import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 import { armStroke, onTiledArea } from './symmetry';
+import { wandClick } from './wand-link';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -617,14 +618,7 @@ export function commitWand(e: PointerEvent) {
   const point = spriteCoord(e);
   if (!point) return;
   try {
-    ed.doc.selectWand(
-      point.x,
-      point.y,
-      Math.max(0, Math.min(255, Math.round(toolState.wandTolerance))),
-      toolState.wandContiguous,
-      toolState.wandSample,
-      selectionModeFor(e),
-    );
+    wandClick(ed.doc, point.x, point.y, selectionModeFor(e));
   } catch (err) {
     ed.status = t('status.failed', {
       action: t('act.wand'),
