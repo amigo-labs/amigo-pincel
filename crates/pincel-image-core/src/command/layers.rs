@@ -5,6 +5,7 @@
 //! (docs/specs/image-layer-groups.md); removing, moving or duplicating a
 //! group acts on that whole run in one undo step.
 
+use super::snapshot::layers_bytes;
 use super::{Command, Damage};
 use crate::document::tree::SubtreeMove;
 use crate::document::{Document, Layer, LayerPlacement};
@@ -19,7 +20,7 @@ pub struct AddLayer {
     active: usize,
     /// Where the layer went on first apply; redo reuses it.
     index: Option<usize>,
-    /// The inserted layer, captured on first apply so redo restores it exactly.
+    /// The layer revert took out of the document; redo re-inserts it exactly.
     layer: Option<Layer>,
     prev_active: usize,
 }
@@ -53,16 +54,19 @@ impl Command for AddLayer {
             )
             .with_parent(parent),
         };
-        let restored = layer.clone();
-        doc.insert_layer(index, layer)?;
-        self.layer = Some(restored);
-        Ok(())
+        // The layer moves into the document; revert takes it back, so it is
+        // held only while undone (performance-image-undo-memory).
+        doc.insert_layer(index, layer)
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
         let index = self.index.ok_or(DocumentError::RegionOutOfBounds)?;
-        doc.remove_layer(index)?;
+        self.layer = Some(doc.remove_layer(index)?);
         doc.set_active_layer(self.prev_active.min(doc.layers.len() - 1))
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.layer.as_ref().map_or(0, |l| l.pixels.data().len())
     }
 
     fn label(&self) -> &str {
@@ -176,6 +180,10 @@ impl Command for RemoveLayer {
         "Delete Layer"
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.removed.as_deref().map_or(0, layers_bytes)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -278,7 +286,7 @@ impl Command for MoveLayerTo {
 /// lock. Refused as a whole when it would exceed the layer limit.
 pub struct DuplicateLayer {
     index: usize,
-    /// The inserted copy, captured on first apply so redo restores it exactly.
+    /// The copy revert took out of the document; redo re-inserts it exactly.
     copy: Option<Vec<Layer>>,
     inserted_at: usize,
     prev_active: usize,
@@ -330,16 +338,19 @@ impl Command for DuplicateLayer {
                 copy
             }
         };
-        let restored = copy.clone();
+        // The copy moves into the document; revert takes it back, so it is
+        // held only while undone (performance-image-undo-memory).
         self.inserted_at = end;
-        let result = doc.insert_subtree(end, copy);
-        self.copy = Some(restored);
-        result
+        doc.insert_subtree(end, copy)
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        doc.remove_subtree(self.inserted_at)?;
+        self.copy = Some(doc.remove_subtree(self.inserted_at)?);
         doc.set_active_layer(self.prev_active)
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.copy.as_deref().map_or(0, layers_bytes)
     }
 
     fn label(&self) -> &str {

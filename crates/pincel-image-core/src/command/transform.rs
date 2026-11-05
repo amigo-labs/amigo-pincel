@@ -9,7 +9,7 @@
 //! matches); the prior selection is restored on undo.
 
 use super::Command;
-use super::snapshot::{DocSnapshot, restore, snapshot};
+use super::snapshot::{DocSnapshot, mask_bytes, restore, snapshot};
 use crate::document::{CanvasSize, Document, ImageBuffer};
 use crate::error::DocumentError;
 use crate::selection::SelectionMask;
@@ -136,6 +136,12 @@ impl Command for FlipCanvas {
         }
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.prev_selection
+            .as_ref()
+            .map_or(0, |m| mask_bytes(m.as_ref()))
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -222,6 +228,12 @@ impl Command for RotateCanvas {
         }
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.prev_selection
+            .as_ref()
+            .map_or(0, |m| mask_bytes(m.as_ref()))
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -270,6 +282,10 @@ impl Command for ScaleImage {
 
     fn label(&self) -> &str {
         "Scale Image"
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, DocSnapshot::bytes)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -324,6 +340,10 @@ impl Command for CropToSelection {
 
     fn label(&self) -> &str {
         "Crop to Selection"
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, DocSnapshot::bytes)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -398,6 +418,10 @@ impl Command for RotateLayer90 {
         } else {
             "Rotate Layer 90° CW"
         }
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, |b| b.data().len())
     }
 
     fn as_any(&self) -> &dyn Any {

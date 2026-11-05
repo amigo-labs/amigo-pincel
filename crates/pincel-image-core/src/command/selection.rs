@@ -6,6 +6,7 @@
 //! existing selection via [`crate::selection::apply_mode`], or applying a
 //! modifier such as Invert / Expand — and hand the final mask to this command.
 
+use super::snapshot::mask_bytes;
 use super::{Command, Damage, SetPixels};
 use crate::document::Document;
 use crate::error::DocumentError;
@@ -68,6 +69,10 @@ impl Command for SetSelection {
 
     fn label(&self) -> &str {
         self.label
+    }
+
+    fn undo_bytes(&self) -> usize {
+        mask_bytes(self.before.as_ref()) + mask_bytes(self.after.as_ref())
     }
 
     /// The selection is not part of the composite.
@@ -135,6 +140,10 @@ impl Command for MoveSelection {
 
     fn label(&self) -> &str {
         "Move Selection"
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.pixels.undo_bytes() + mask_bytes(self.before.as_ref())
     }
 
     fn damage(&self) -> Damage {

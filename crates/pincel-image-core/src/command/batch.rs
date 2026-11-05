@@ -46,6 +46,10 @@ impl Command for Batch {
         &self.label
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.cmds.iter().map(|c| c.undo_bytes()).sum()
+    }
+
     fn damage(&self) -> Damage {
         let mut damage = Damage::None;
         for cmd in &self.cmds {

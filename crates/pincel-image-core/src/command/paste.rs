@@ -2,7 +2,7 @@
 
 use super::snapshot::{DocSnapshot, restore, snapshot};
 use super::{Command, ResizeCanvas};
-use crate::document::{Document, ImageBuffer, Layer};
+use crate::document::{Document, ImageBuffer, Layer, MAX_LAYERS};
 use crate::error::DocumentError;
 use std::any::Any;
 
@@ -11,19 +11,29 @@ use std::any::Any;
 ///
 /// With `expand`, a canvas that doesn't cover the image there first grows to
 /// (anchored top-left); otherwise the image is cropped to the canvas. Both
-/// steps are one undo step: the prior document is snapshotted on apply.
+/// steps are one undo step: a paste that grows the canvas snapshots the
+/// prior document on apply; one that doesn't only remembers the active
+/// layer, since undo takes the new layer back out
+/// (docs/specs/performance-image-undo-memory.md).
 pub struct PasteLayer {
     /// The pasted image, until the layer is built on first apply.
     pixels: Option<ImageBuffer>,
     x: i32,
     y: i32,
     expand: bool,
-    /// The inserted layer, captured on first apply so redo restores it exactly.
+    /// The layer revert took out of the document; redo re-inserts it exactly.
     layer: Option<Layer>,
     /// Where the layer went on first apply; redo reuses it even if the
     /// active layer changed in between, so later commands' indices hold.
     index: Option<usize>,
-    prev: Option<DocSnapshot>,
+    prev: Option<PasteUndo>,
+}
+
+/// What undoing a paste needs: a whole-document snapshot when the paste
+/// grew the canvas, otherwise just the active index.
+enum PasteUndo {
+    Expanded(DocSnapshot),
+    Inserted { active: usize },
 }
 
 impl PasteLayer {
@@ -49,6 +59,18 @@ impl PasteLayer {
 }
 
 /// Canvas extent along one axis that covers `len` pixels starting at `pos`.
+/// The checks of `insert_layer` that do not depend on the layer.
+fn check_insert(doc: &Document, index: usize) -> Result<(), DocumentError> {
+    let len = doc.layers.len();
+    if len >= MAX_LAYERS {
+        return Err(DocumentError::LayerLimit { max: MAX_LAYERS });
+    }
+    if index > len {
+        return Err(DocumentError::LayerIndexOutOfBounds { index, len });
+    }
+    Ok(())
+}
+
 fn cover(canvas: u32, pos: i32, len: u32) -> Result<u32, DocumentError> {
     let end = i64::from(pos) + i64::from(len);
     u32::try_from(end.max(i64::from(canvas))).map_err(|_| DocumentError::RegionOutOfBounds)
@@ -66,15 +88,20 @@ impl Command for PasteLayer {
             (None, Some(_)) => (cw, ch),
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
-        let snap = snapshot(doc);
-        if (w, h) != (cw, ch) {
+        let prev = if (w, h) != (cw, ch) {
+            let snap = snapshot(doc);
             ResizeCanvas::new(w, h).apply(doc)?;
-        }
+            PasteUndo::Expanded(snap)
+        } else {
+            PasteUndo::Inserted {
+                active: doc.active_layer_index(),
+            }
+        };
         // Directly above the active layer — above a group's whole subtree —
         // sharing its parent (docs/specs/image-layer-groups.md AC-19).
         let active = doc.active_layer_index();
-        let layer = match (&self.layer, self.pixels.take()) {
-            (Some(layer), _) => layer.clone(),
+        let layer = match (self.layer.take(), self.pixels.take()) {
+            (Some(layer), _) => layer,
             (None, Some(px)) => Layer::from_pixels(
                 format!("Layer {}", doc.layers.len() + 1),
                 px.offset_copy(w, h, self.x, self.y),
@@ -83,19 +110,46 @@ impl Command for PasteLayer {
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
         let index = *self.index.get_or_insert(doc.subtree_end(active));
-        if let Err(err) = doc.insert_layer(index, layer.clone()) {
-            restore(doc, snap)?;
+        // The layer moves into the document and revert takes it back out,
+        // so it is held only while undone. Checked first, so a refused
+        // paste keeps its layer for a retry.
+        if let Err(err) = check_insert(doc, index) {
+            if let PasteUndo::Expanded(snap) = prev {
+                restore(doc, snap)?;
+            }
             self.layer = Some(layer);
             return Err(err);
         }
-        self.layer = Some(layer);
-        self.prev = Some(snap);
+        doc.insert_layer(index, layer)?;
+        self.prev = Some(prev);
         Ok(())
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        let snap = self.prev.take().ok_or(DocumentError::RegionOutOfBounds)?;
-        restore(doc, snap)
+        let prev = self.prev.take().ok_or(DocumentError::RegionOutOfBounds)?;
+        let index = self.index.ok_or(DocumentError::RegionOutOfBounds)?;
+        if index >= doc.layers.len() {
+            return Err(DocumentError::LayerIndexOutOfBounds {
+                index,
+                len: doc.layers.len(),
+            });
+        }
+        let layer = doc.layers.remove(index);
+        self.layer = Some(layer);
+        match prev {
+            PasteUndo::Expanded(snap) => restore(doc, snap),
+            PasteUndo::Inserted { active } => doc.set_active_layer(active),
+        }
+    }
+
+    fn undo_bytes(&self) -> usize {
+        let layer = self.layer.as_ref().map_or(0, |l| l.pixels.data().len());
+        let pixels = self.pixels.as_ref().map_or(0, |p| p.data().len());
+        let snap = match &self.prev {
+            Some(PasteUndo::Expanded(snap)) => snap.bytes(),
+            _ => 0,
+        };
+        layer + pixels + snap
     }
 
     fn label(&self) -> &str {
