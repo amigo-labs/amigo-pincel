@@ -41,6 +41,8 @@ pub(crate) static TOOLS: &[Tool] = &[
     draw::ADJUST_APPLY,
     doc::EXPORT_JPEG,
     doc::EXPORT_WEBP,
+    doc::EXPORT_BMP,
+    doc::EXPORT_TIFF,
 ];
 
 /// Refuse sizes above the editor's Image limits (AC-21).
@@ -121,6 +123,8 @@ pub(crate) struct ImageDoc {
     pub path: Option<String>,
     /// The flat image it was opened from and that file's format (AC-20).
     pub source: Option<(String, &'static str)>,
+    /// The quality of the last JPEG `doc.save` (mcp-parity-export AC-18).
+    pub jpeg_quality: Option<u8>,
     /// Changed since it was opened, created or last saved.
     pub dirty: bool,
 }
@@ -150,6 +154,7 @@ impl ImageDoc {
             next_stroke: 0,
             path,
             source,
+            jpeg_quality: None,
             dirty: false,
         };
         doc.sync_ids();

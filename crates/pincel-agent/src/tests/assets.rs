@@ -16,12 +16,18 @@ fn undo_depth(s: &mut S) -> u64 {
 fn tiled(s: &mut S) -> String {
     let id = s.new_doc(20, 12);
     s.ok("frame.add", json!({}));
-    s.ok("tileset.add", json!({ "name": " ground ", "tile_width": 4, "tile_height": 4 }));
+    s.ok(
+        "tileset.add",
+        json!({ "name": " ground ", "tile_width": 4, "tile_height": 4 }),
+    );
     s.ok("tile.add", json!({ "tileset": 0 }));
     let px: Vec<Value> = (0..4)
         .flat_map(|y| (0..4).map(move |x| json!({ "x": x, "y": y, "color": "#ff0000" })))
         .collect();
-    s.ok("tile.set_pixels", json!({ "tileset": 0, "tile": 1, "pixels": px }));
+    s.ok(
+        "tile.set_pixels",
+        json!({ "tileset": 0, "tile": 1, "pixels": px }),
+    );
     s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
     id
 }
@@ -34,15 +40,27 @@ fn asset_tools_on_an_image_document_fail_naming_the_mode() {
         ("slice.list", json!({})),
         ("slice.add", json!({ "name": "a" })),
         ("slice.remove", json!({ "slice": 0 })),
-        ("slice.set_key", json!({ "slice": 0, "pivot": { "x": 0, "y": 0 } })),
+        (
+            "slice.set_key",
+            json!({ "slice": 0, "pivot": { "x": 0, "y": 0 } }),
+        ),
         ("tileset.list", json!({})),
-        ("tileset.add", json!({ "name": "t", "tile_width": 4, "tile_height": 4 })),
+        (
+            "tileset.add",
+            json!({ "name": "t", "tile_width": 4, "tile_height": 4 }),
+        ),
         ("tile.add", json!({ "tileset": 0 })),
         ("tile.read_pixels", json!({ "tileset": 0, "tile": 0 })),
-        ("tile.set_pixels", json!({ "tileset": 0, "tile": 0, "pixels": [] })),
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 0, "pixels": [] }),
+        ),
         ("tilemap.get", json!({ "layer": 0 })),
         ("tilemap.place", json!({ "layer": 0, "cells": [] })),
-        ("grid.set", json!({ "x": 0, "y": 0, "width": 8, "height": 8 })),
+        (
+            "grid.set",
+            json!({ "x": 0, "y": 0, "width": 8, "height": 8 }),
+        ),
         ("layer.add", json!({ "kind": "tilemap", "tileset": 0 })),
     ] {
         let before = s.image(&id).document().clone();
@@ -58,13 +76,33 @@ fn naming_a_missing_asset_fails_with_argument_and_value() {
     let id = tiled(&mut s);
     for (tool, args, arg) in [
         ("slice.remove", json!({ "slice": 9 }), "slice"),
-        ("slice.set_key", json!({ "slice": 9, "pivot": { "x": 0, "y": 0 } }), "slice"),
+        (
+            "slice.set_key",
+            json!({ "slice": 9, "pivot": { "x": 0, "y": 0 } }),
+            "slice",
+        ),
         ("tile.add", json!({ "tileset": 9 }), "tileset"),
-        ("tile.read_pixels", json!({ "tileset": 0, "tile": 9 }), "tile"),
-        ("tile.set_pixels", json!({ "tileset": 9, "tile": 0, "pixels": [] }), "tileset"),
+        (
+            "tile.read_pixels",
+            json!({ "tileset": 0, "tile": 9 }),
+            "tile",
+        ),
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 9, "tile": 0, "pixels": [] }),
+            "tileset",
+        ),
         ("tilemap.get", json!({ "layer": 9 }), "layer"),
-        ("tilemap.place", json!({ "layer": 1, "frame": 9, "cells": [] }), "frame"),
-        ("layer.add", json!({ "kind": "tilemap", "tileset": 9 }), "tileset"),
+        (
+            "tilemap.place",
+            json!({ "layer": 1, "frame": 9, "cells": [] }),
+            "frame",
+        ),
+        (
+            "layer.add",
+            json!({ "kind": "tilemap", "tileset": 9 }),
+            "tileset",
+        ),
     ] {
         let before = s.state(&id);
         let e = s.err(tool, args.clone());
@@ -90,9 +128,18 @@ fn slice_add_list_and_remove_like_the_editor() {
         ])
     );
     s.ok("slice.remove", json!({ "slice": 0 }));
-    assert_eq!(s.ok("slice.list", json!({}))["slices"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        s.ok("slice.list", json!({}))["slices"]
+            .as_array()
+            .map(Vec::len),
+        Some(1)
+    );
     s.ok("doc.undo", json!({}));
-    assert_eq!(s.ok("slice.list", json!({}))["slices"], list, "undo restores the position");
+    assert_eq!(
+        s.ok("slice.list", json!({}))["slices"],
+        list,
+        "undo restores the position"
+    );
 }
 
 #[test]
@@ -101,7 +148,10 @@ fn slice_add_with_bad_arguments_adds_nothing() {
     let id = s.new_doc(8, 8);
     for (args, arg) in [
         (json!({ "name": "  " }), "name"),
-        (json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 0, "height": 2 } }), "width"),
+        (
+            json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 0, "height": 2 } }),
+            "width",
+        ),
         (json!({ "name": "a", "color": "blue" }), "color"),
     ] {
         let before = s.state(&id);
@@ -118,11 +168,20 @@ fn slice_set_key_upserts_by_frame_and_inherits_fields() {
     for _ in 0..3 {
         s.ok("frame.add", json!({}));
     }
-    s.ok("slice.add", json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 8, "height": 8 } }));
+    s.ok(
+        "slice.add",
+        json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 8, "height": 8 } }),
+    );
     s.ok("slice.set_key", json!({ "slice": 0, "center": { "x": 1, "y": 1, "width": 6, "height": 6 }, "pivot": { "x": 4, "y": 8 } }));
     // Frame 2 inherits bounds, center and pivot from frame 0's key.
-    s.ok("slice.set_key", json!({ "slice": 0, "frame": 2, "bounds": { "x": 2, "y": 0, "width": 8, "height": 8 } }));
-    s.ok("slice.set_key", json!({ "slice": 0, "frame": 1, "pivot": null }));
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 2, "bounds": { "x": 2, "y": 0, "width": 8, "height": 8 } }),
+    );
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 1, "pivot": null }),
+    );
     let keys = s.ok("slice.list", json!({}))["slices"][0]["keys"].clone();
     assert_eq!(
         keys,
@@ -140,13 +199,22 @@ fn slice_set_key_with_bad_arguments_leaves_the_slice() {
     let id = s.new_doc(8, 8);
     s.ok("frame.add", json!({}));
     s.ok("slice.add", json!({ "name": "a" }));
-    s.ok("slice.set_key", json!({ "slice": 0, "frame": 1, "pivot": { "x": 1, "y": 1 } }));
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 1, "pivot": { "x": 1, "y": 1 } }),
+    );
     s.ok("slice.remove", json!({ "slice": 0 }));
     s.ok("doc.undo", json!({}));
     for (args, arg) in [
         (json!({ "slice": 0 }), "bounds"),
-        (json!({ "slice": 0, "bounds": { "x": 0, "y": 0, "width": 0, "height": 1 } }), "bounds.width"),
-        (json!({ "slice": 0, "center": { "x": 0, "y": 0, "width": 1, "height": 0 } }), "center"),
+        (
+            json!({ "slice": 0, "bounds": { "x": 0, "y": 0, "width": 0, "height": 1 } }),
+            "bounds.width",
+        ),
+        (
+            json!({ "slice": 0, "center": { "x": 0, "y": 0, "width": 1, "height": 0 } }),
+            "center",
+        ),
         (json!({ "slice": 0, "pivot": { "x": 1 } }), "pivot"),
     ] {
         let before = s.state(&id);
@@ -160,7 +228,10 @@ fn slice_set_key_with_bad_arguments_leaves_the_slice() {
         let d = s.ws.get_mut(&id).expect("doc");
         d.sprite.slices[0].keys.remove(0);
     }
-    let e = s.err("slice.set_key", json!({ "slice": 0, "frame": 0, "pivot": { "x": 0, "y": 0 } }));
+    let e = s.err(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 0, "pivot": { "x": 0, "y": 0 } }),
+    );
     assert!(e.contains("`bounds`"), "{e}");
 }
 
@@ -168,13 +239,25 @@ fn slice_set_key_with_bad_arguments_leaves_the_slice() {
 fn tileset_tools_list_add_and_grow() {
     let mut s = S::new();
     s.new_doc(8, 8);
-    let out = s.ok("tileset.add", json!({ "name": " ground ", "tile_width": 4, "tile_height": 2 }));
+    let out = s.ok(
+        "tileset.add",
+        json!({ "name": " ground ", "tile_width": 4, "tile_height": 2 }),
+    );
     assert_eq!(out["tileset"], 0);
     let list = s.ok("tileset.list", json!({}))["tilesets"].clone();
-    assert_eq!(list, json!([{ "id": 0, "name": "ground", "tile_width": 4, "tile_height": 2, "tile_count": 1 }]));
-    assert_eq!(s.ok("tile.read_pixels", json!({ "tileset": 0, "tile": 0 }))["rows"], json!(vec!["#00000000 #00000000 #00000000 #00000000"; 2]));
+    assert_eq!(
+        list,
+        json!([{ "id": 0, "name": "ground", "tile_width": 4, "tile_height": 2, "tile_count": 1 }])
+    );
+    assert_eq!(
+        s.ok("tile.read_pixels", json!({ "tileset": 0, "tile": 0 }))["rows"],
+        json!(vec!["#00000000 #00000000 #00000000 #00000000"; 2])
+    );
     assert_eq!(s.ok("tile.add", json!({ "tileset": 0 }))["tile"], 1);
-    assert_eq!(s.ok("tileset.list", json!({}))["tilesets"][0]["tile_count"], 2);
+    assert_eq!(
+        s.ok("tileset.list", json!({}))["tilesets"][0]["tile_count"],
+        2
+    );
 }
 
 #[test]
@@ -182,9 +265,18 @@ fn tileset_add_with_bad_arguments_adds_nothing() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
     for (args, arg) in [
-        (json!({ "name": "", "tile_width": 4, "tile_height": 4 }), "name"),
-        (json!({ "name": "t", "tile_width": 0, "tile_height": 4 }), "tile_width"),
-        (json!({ "name": "t", "tile_width": 4, "tile_height": 4097 }), "tile_height"),
+        (
+            json!({ "name": "", "tile_width": 4, "tile_height": 4 }),
+            "name",
+        ),
+        (
+            json!({ "name": "t", "tile_width": 0, "tile_height": 4 }),
+            "tile_width",
+        ),
+        (
+            json!({ "name": "t", "tile_width": 4, "tile_height": 4097 }),
+            "tile_height",
+        ),
     ] {
         let before = s.state(&id);
         let e = s.err("tileset.add", args.clone());
@@ -198,20 +290,37 @@ fn tile_read_and_set_pixels_reach_every_cel_that_shows_the_tile() {
     let mut s = S::new();
     s.new_doc(20, 12);
     s.ok("frame.add", json!({}));
-    s.ok("tileset.add", json!({ "name": "g", "tile_width": 4, "tile_height": 4 }));
+    s.ok(
+        "tileset.add",
+        json!({ "name": "g", "tile_width": 4, "tile_height": 4 }),
+    );
     s.ok("tile.add", json!({ "tileset": 0 }));
     s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
-    s.ok("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 1, "row": 0, "tile": 1 }] }));
-    s.ok("tilemap.place", json!({ "layer": 1, "frame": 0, "cells": [{ "col": 2, "row": 2, "tile": 1 }] }));
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [{ "col": 1, "row": 0, "tile": 1 }] }),
+    );
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "frame": 0, "cells": [{ "col": 2, "row": 2, "tile": 1 }] }),
+    );
     s.ok("tile.set_pixels", json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }, { "x": 3, "y": 1, "color": { "index": 21 } }] }));
-    let rows = s.ok("tile.read_pixels", json!({ "tileset": 0, "tile": 1, "region": { "x": 0, "y": 0, "width": 4, "height": 2 } }))["rows"].clone();
+    let rows = s.ok(
+        "tile.read_pixels",
+        json!({ "tileset": 0, "tile": 1, "region": { "x": 0, "y": 0, "width": 4, "height": 2 } }),
+    )["rows"]
+        .clone();
     assert_eq!(rows[0], "#FF0000FF #00000000 #00000000 #00000000");
     assert_eq!(rows[1], "#00000000 #00000000 #00000000 #FFFFFFFF");
     let idx = s.ok("tile.read_pixels", json!({ "tileset": 0, "tile": 1, "region": { "x": 3, "y": 1, "width": 1, "height": 1 }, "format": "index" }))["rows"].clone();
     assert_eq!(idx, json!(["21"]));
     // Frame 1 shows the tile at cell (1, 0); frame 0 at (2, 2).
     let read = |s: &mut S, frame: u32, x: i32, y: i32| -> Value {
-        s.ok("doc.read_pixels", json!({ "region": { "x": x, "y": y, "width": 1, "height": 1 }, "frame": frame }))["rows"][0].clone()
+        s.ok(
+            "doc.read_pixels",
+            json!({ "region": { "x": x, "y": y, "width": 1, "height": 1 }, "frame": frame }),
+        )["rows"][0]
+            .clone()
     };
     assert_eq!(read(&mut s, 1, 4, 0), "#FF0000FF");
     assert_eq!(read(&mut s, 0, 8, 8), "#FF0000FF");
@@ -222,10 +331,16 @@ fn tile_read_and_set_pixels_reach_every_cel_that_shows_the_tile() {
 fn tile_read_pixels_refuses_outside_or_large_regions() {
     let mut s = S::new();
     s.new_doc(8, 8);
-    s.ok("tileset.add", json!({ "name": "big", "tile_width": 80, "tile_height": 8 }));
+    s.ok(
+        "tileset.add",
+        json!({ "name": "big", "tile_width": 80, "tile_height": 8 }),
+    );
     let e = s.err("tile.read_pixels", json!({ "tileset": 0, "tile": 0 }));
     assert!(e.contains("64×64") && e.contains("region"), "{e}");
-    let e = s.err("tile.read_pixels", json!({ "tileset": 0, "tile": 0, "region": { "x": 78, "y": 0, "width": 4, "height": 1 } }));
+    let e = s.err(
+        "tile.read_pixels",
+        json!({ "tileset": 0, "tile": 0, "region": { "x": 78, "y": 0, "width": 4, "height": 1 } }),
+    );
     assert!(e.contains("80×8"), "{e}");
 }
 
@@ -233,19 +348,37 @@ fn tile_read_pixels_refuses_outside_or_large_regions() {
 fn tile_set_pixels_bad_entries_leave_the_tileset() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
-    s.ok("tileset.add", json!({ "name": "g", "tile_width": 4, "tile_height": 4 }));
+    s.ok(
+        "tileset.add",
+        json!({ "name": "g", "tile_width": 4, "tile_height": 4 }),
+    );
     for (pixels, needle) in [
-        (json!([{ "x": 0, "y": 0, "color": "#ff0000" }, { "x": 4, "y": 0, "color": "#ff0000" }]), "pixels[1]"),
-        (json!([{ "x": 0, "y": 0, "color": "nope" }]), "pixels[0].color"),
+        (
+            json!([{ "x": 0, "y": 0, "color": "#ff0000" }, { "x": 4, "y": 0, "color": "#ff0000" }]),
+            "pixels[1]",
+        ),
+        (
+            json!([{ "x": 0, "y": 0, "color": "nope" }]),
+            "pixels[0].color",
+        ),
         (json!([{ "x": 0, "color": "#ff0000" }]), "pixels[0].y"),
-        (json!([{ "x": -1, "y": 0, "color": "#ff0000" }]), "pixels[0].x"),
+        (
+            json!([{ "x": -1, "y": 0, "color": "#ff0000" }]),
+            "pixels[0].x",
+        ),
     ] {
         let before = s.state(&id);
-        let e = s.err("tile.set_pixels", json!({ "tileset": 0, "tile": 0, "pixels": pixels }));
+        let e = s.err(
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 0, "pixels": pixels }),
+        );
         assert!(e.contains(needle), "{e}");
         assert_eq!(s.state(&id), before);
     }
-    let e = s.err("tile.set_pixels", json!({ "tileset": 0, "tile": 0, "pixels": [{ "x": 9, "y": 0, "color": "#ff0000" }] }));
+    let e = s.err(
+        "tile.set_pixels",
+        json!({ "tileset": 0, "tile": 0, "pixels": [{ "x": 9, "y": 0, "color": "#ff0000" }] }),
+    );
     assert!(e.contains("4×4"), "{e}");
 }
 
@@ -258,18 +391,28 @@ fn layer_add_tilemap_binds_the_tileset_with_an_empty_grid() {
     assert_eq!(list[1]["name"], "ground Layer");
     assert_eq!(list[1]["tileset"], 0);
     assert_eq!(list[0]["tileset"], Value::Null);
-    assert_eq!(s.ok("doc.info", json!({}))["active_layer"], 0, "paint target stays the image layer");
+    assert_eq!(
+        s.ok("doc.info", json!({}))["active_layer"],
+        0,
+        "paint target stays the image layer"
+    );
     let d = s.doc(&id);
     assert_eq!(d.active_layer, Some(LayerId::new(1)));
     for f in 0..2 {
-        let cel = d.cels.get(LayerId::new(1), FrameIndex::new(f)).expect("seeded cel");
+        let cel = d
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(f))
+            .expect("seeded cel");
         let pincel_core::CelData::Tilemap { grid_w, grid_h, .. } = &cel.data else {
             panic!("tilemap cel");
         };
         assert_eq!((*grid_w, *grid_h), (5, 3));
     }
     // Placement and a given name, as other layers.
-    let out = s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0, "name": "Back", "target": 0, "place": "below" }));
+    let out = s.ok(
+        "layer.add",
+        json!({ "kind": "tilemap", "tileset": 0, "name": "Back", "target": 0, "place": "below" }),
+    );
     let list = out["layers"].clone();
     assert_eq!(list[0]["name"], "Back");
     assert_eq!(list[0]["tileset"], 0);
@@ -296,7 +439,10 @@ fn tilemap_get_and_place_read_and_write_cells() {
     let id = tiled(&mut s);
     s.ok("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 4, "row": 2, "tile": 1 }] }));
     let out = s.ok("tilemap.get", json!({ "layer": 1 }));
-    assert_eq!((out["grid_width"].clone(), out["grid_height"].clone()), (json!(5), json!(3)));
+    assert_eq!(
+        (out["grid_width"].clone(), out["grid_height"].clone()),
+        (json!(5), json!(3))
+    );
     assert_eq!(out["rows"], json!(["1 0 0 0 0", "0 0 0 0 0", "0 0 0 0 1"]));
     assert_eq!(out["oriented"], json!([]));
     // Oriented cells are reported.
@@ -309,22 +455,45 @@ fn tilemap_get_and_place_read_and_write_cells() {
         }
     }
     let out = s.ok("tilemap.get", json!({ "layer": 1 }));
-    assert_eq!(out["oriented"], json!([{ "col": 0, "row": 0, "flip_x": true, "flip_y": false, "rotate_90": false }]));
+    assert_eq!(
+        out["oriented"],
+        json!([{ "col": 0, "row": 0, "flip_x": true, "flip_y": false, "rotate_90": false }])
+    );
     // Placing resets the orientation; tile 0 empties.
     s.ok("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 4, "row": 2, "tile": 0 }] }));
     let out = s.ok("tilemap.get", json!({ "layer": 1 }));
     assert_eq!(out["oriented"], json!([]));
     assert_eq!(out["rows"][2], "0 0 0 0 0");
     // A frame without a grid reads as the empty grid; placing creates it.
-    s.ws.get_mut(&id).expect("doc").cels.remove(LayerId::new(1), FrameIndex::new(0));
+    s.ws.get_mut(&id)
+        .expect("doc")
+        .cels
+        .remove(LayerId::new(1), FrameIndex::new(0));
     let out = s.ok("tilemap.get", json!({ "layer": 1, "frame": 0 }));
     assert_eq!(out["rows"], json!(vec!["0 0 0 0 0"; 3]));
     let depth = undo_depth(&mut s);
-    assert_eq!(s.ok("tilemap.place", json!({ "layer": 1, "frame": 0, "cells": [{ "col": 1, "row": 1, "tile": 0 }] }))["changed"], false);
+    assert_eq!(
+        s.ok(
+            "tilemap.place",
+            json!({ "layer": 1, "frame": 0, "cells": [{ "col": 1, "row": 1, "tile": 0 }] })
+        )["changed"],
+        false
+    );
     assert_eq!(undo_depth(&mut s), depth);
-    assert!(s.doc(&id).cels.get(LayerId::new(1), FrameIndex::new(0)).is_none());
-    s.ok("tilemap.place", json!({ "layer": 1, "frame": 0, "cells": [{ "col": 1, "row": 1, "tile": 1 }] }));
-    assert_eq!(s.ok("tilemap.get", json!({ "layer": 1, "frame": 0 }))["rows"][1], "0 1 0 0 0");
+    assert!(
+        s.doc(&id)
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(0))
+            .is_none()
+    );
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "frame": 0, "cells": [{ "col": 1, "row": 1, "tile": 1 }] }),
+    );
+    assert_eq!(
+        s.ok("tilemap.get", json!({ "layer": 1, "frame": 0 }))["rows"][1],
+        "0 1 0 0 0"
+    );
 }
 
 #[test]
@@ -333,11 +502,26 @@ fn tilemap_place_bad_entries_name_position_field_and_limit() {
     let id = tiled(&mut s);
     for (args, needle) in [
         (json!({ "layer": 0, "cells": [] }), "image layer"),
-        (json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 5, "row": 0, "tile": 1 }] }), "cells[1].col 5"),
-        (json!({ "layer": 1, "cells": [{ "col": 0, "row": 3, "tile": 1 }] }), "5×3"),
-        (json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 2 }] }), "2 tiles"),
-        (json!({ "layer": 1, "cells": [{ "col": 0, "tile": 1 }] }), "cells[0].row"),
-        (json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": -1 }] }), "cells[0].tile"),
+        (
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 5, "row": 0, "tile": 1 }] }),
+            "cells[1].col 5",
+        ),
+        (
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 3, "tile": 1 }] }),
+            "5×3",
+        ),
+        (
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 2 }] }),
+            "2 tiles",
+        ),
+        (
+            json!({ "layer": 1, "cells": [{ "col": 0, "tile": 1 }] }),
+            "cells[0].row",
+        ),
+        (
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": -1 }] }),
+            "cells[0].tile",
+        ),
     ] {
         let before = s.state(&id);
         let e = s.err("tilemap.place", args.clone());
@@ -352,10 +536,16 @@ fn tilemap_place_respects_locks_while_tile_edits_do_not() {
     let id = tiled(&mut s);
     s.ok("layer.set", json!({ "layer": 1, "locked": true }));
     let before = s.state(&id);
-    let e = s.err("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }));
+    let e = s.err(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
+    );
     assert!(e.contains("locked"), "{e}");
     assert_eq!(s.state(&id), before);
-    s.ok("tile.set_pixels", json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 0, "color": "#00ff00" }] }));
+    s.ok(
+        "tile.set_pixels",
+        json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 0, "color": "#00ff00" }] }),
+    );
     s.ok("tile.add", json!({ "tileset": 0 }));
 }
 
@@ -364,13 +554,21 @@ fn drawing_on_a_tilemap_layer_points_to_the_tile_tools() {
     let mut s = S::new();
     let id = tiled(&mut s);
     for (tool, args) in [
-        ("draw.pixels", json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }], "layer": 1 })),
+        (
+            "draw.pixels",
+            json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }], "layer": 1 }),
+        ),
         ("draw.stroke", json!({ "points": [[0, 0]], "layer": 1 })),
         ("effect.apply", json!({ "id": "invert", "layer": 1 })),
     ] {
         let before = s.state(&id);
         let e = s.err(tool, args);
-        assert!(e.contains("tilemap layer") && e.contains("tile.set_pixels") && e.contains("tilemap.place"), "{tool}: {e}");
+        assert!(
+            e.contains("tilemap layer")
+                && e.contains("tile.set_pixels")
+                && e.contains("tilemap.place"),
+            "{tool}: {e}"
+        );
         assert_eq!(s.state(&id), before);
     }
 }
@@ -379,9 +577,18 @@ fn drawing_on_a_tilemap_layer_points_to_the_tile_tools() {
 fn read_pixels_of_a_tilemap_layer_shows_its_tiles() {
     let mut s = S::new();
     tiled(&mut s);
-    s.ok("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 1, "row": 0, "tile": 1 }] }));
-    s.ok("layer.set", json!({ "layer": 1, "opacity": 40, "visible": false }));
-    let out = s.ok("doc.read_pixels", json!({ "region": { "x": 3, "y": 0, "width": 3, "height": 1 }, "layer": 1 }));
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [{ "col": 1, "row": 0, "tile": 1 }] }),
+    );
+    s.ok(
+        "layer.set",
+        json!({ "layer": 1, "opacity": 40, "visible": false }),
+    );
+    let out = s.ok(
+        "doc.read_pixels",
+        json!({ "region": { "x": 3, "y": 0, "width": 3, "height": 1 }, "layer": 1 }),
+    );
     assert_eq!(out["rows"], json!(["#00000000 #FF0000FF #FF0000FF"]));
 }
 
@@ -389,13 +596,22 @@ fn read_pixels_of_a_tilemap_layer_shows_its_tiles() {
 fn grid_set_is_reported_and_saved() {
     let mut s = S::new();
     s.new_doc(8, 8);
-    assert_eq!(s.ok("doc.info", json!({}))["grid"], json!({ "x": 0, "y": 0, "width": 16, "height": 16 }));
-    s.ok("grid.set", json!({ "x": -2, "y": 3, "width": 8, "height": 4 }));
+    assert_eq!(
+        s.ok("doc.info", json!({}))["grid"],
+        json!({ "x": 0, "y": 0, "width": 16, "height": 16 })
+    );
+    s.ok(
+        "grid.set",
+        json!({ "x": -2, "y": 3, "width": 8, "height": 4 }),
+    );
     let grid = json!({ "x": -2, "y": 3, "width": 8, "height": 4 });
     assert_eq!(s.ok("doc.info", json!({}))["grid"], grid);
     s.ok("doc.save", json!({ "path": "g.aseprite" }));
     let out = read_aseprite(&s.host.files["g.aseprite"]).expect("read");
-    assert_eq!(out.sprite.metadata.grid_or_default(), pincel_core::Rect::new(-2, 3, 8, 4));
+    assert_eq!(
+        out.sprite.metadata.grid_or_default(),
+        pincel_core::Rect::new(-2, 3, 8, 4)
+    );
     s.ok("doc.open", json!({ "path": "g.aseprite" }));
     assert_eq!(s.ok("doc.info", json!({}))["grid"], grid);
 }
@@ -406,7 +622,10 @@ fn grid_set_out_of_range_leaves_the_grid() {
     let id = s.new_doc(8, 8);
     for (args, arg) in [
         (json!({ "x": 0, "y": 0, "width": 0, "height": 4 }), "width"),
-        (json!({ "x": 0, "y": 0, "width": 4, "height": 65536 }), "height"),
+        (
+            json!({ "x": 0, "y": 0, "width": 4, "height": 65536 }),
+            "height",
+        ),
         (json!({ "x": 40000, "y": 0, "width": 4, "height": 4 }), "x"),
         (json!({ "x": 0, "y": -40000, "width": 4, "height": 4 }), "y"),
         (json!({ "x": 0, "y": 0, "width": 4 }), "height"),
@@ -424,7 +643,10 @@ fn doc_info_reports_slice_and_tileset_counts_and_grid() {
     tiled(&mut s);
     s.ok("slice.add", json!({ "name": "a" }));
     let info = s.ok("doc.info", json!({}));
-    assert_eq!((info["slices"].clone(), info["tilesets"].clone()), (json!(1), json!(1)));
+    assert_eq!(
+        (info["slices"].clone(), info["tilesets"].clone()),
+        (json!(1), json!(1))
+    );
     s.new_image(4, 4);
     let info = s.ok("doc.info", json!({}));
     for key in ["slices", "tilesets", "grid"] {
@@ -440,12 +662,27 @@ fn asset_edits_record_one_undo_step_and_none_without_a_change() {
     tiled(&mut s);
     for (tool, args) in [
         ("slice.add", json!({ "name": "a" })),
-        ("slice.set_key", json!({ "slice": 0, "pivot": { "x": 1, "y": 1 } })),
-        ("tileset.add", json!({ "name": "b", "tile_width": 2, "tile_height": 2 })),
+        (
+            "slice.set_key",
+            json!({ "slice": 0, "pivot": { "x": 1, "y": 1 } }),
+        ),
+        (
+            "tileset.add",
+            json!({ "name": "b", "tile_width": 2, "tile_height": 2 }),
+        ),
         ("tile.add", json!({ "tileset": 0 })),
-        ("tile.set_pixels", json!({ "tileset": 0, "tile": 2, "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }, { "x": 1, "y": 0, "color": "#ff0000" }] })),
-        ("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 1, "row": 0, "tile": 2 }] })),
-        ("grid.set", json!({ "x": 0, "y": 0, "width": 8, "height": 8 })),
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 2, "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }, { "x": 1, "y": 0, "color": "#ff0000" }] }),
+        ),
+        (
+            "tilemap.place",
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 1, "row": 0, "tile": 2 }] }),
+        ),
+        (
+            "grid.set",
+            json!({ "x": 0, "y": 0, "width": 8, "height": 8 }),
+        ),
         ("slice.remove", json!({ "slice": 0 })),
     ] {
         let depth = undo_depth(&mut s);
@@ -453,10 +690,19 @@ fn asset_edits_record_one_undo_step_and_none_without_a_change() {
         assert_eq!(undo_depth(&mut s), depth + 1, "{tool}");
     }
     for (tool, args) in [
-        ("tile.set_pixels", json!({ "tileset": 0, "tile": 1, "pixels": [] })),
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 1, "pixels": [] }),
+        ),
         ("tilemap.place", json!({ "layer": 1, "cells": [] })),
-        ("tilemap.place", json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }] })),
-        ("grid.set", json!({ "x": 0, "y": 0, "width": 8, "height": 8 })),
+        (
+            "tilemap.place",
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
+        ),
+        (
+            "grid.set",
+            json!({ "x": 0, "y": 0, "width": 8, "height": 8 }),
+        ),
     ] {
         let depth = undo_depth(&mut s);
         s.ok(tool, args.clone());
@@ -472,7 +718,10 @@ fn tilemap_get_refuses_other_layers_and_large_grids() {
     assert!(e.contains("image layer"), "{e}");
     let mut s = S::new();
     s.new_doc(300, 8);
-    s.ok("tileset.add", json!({ "name": "t", "tile_width": 2, "tile_height": 2 }));
+    s.ok(
+        "tileset.add",
+        json!({ "name": "t", "tile_width": 2, "tile_height": 2 }),
+    );
     s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
     let e = s.err("tilemap.get", json!({ "layer": 1 }));
     assert!(e.contains("150×4") && e.contains("64×64"), "{e}");
@@ -482,14 +731,23 @@ fn tilemap_get_refuses_other_layers_and_large_grids() {
 fn a_tilemap_active_layer_leaves_drawing_on_the_lowest_image_layer() {
     let mut s = S::new();
     let id = tiled(&mut s);
-    let out = s.ok("draw.pixels", json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }));
+    let out = s.ok(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }),
+    );
     assert_eq!(out["layer"], 0);
     let mut t = S::new();
     t.new_doc(8, 8);
-    t.ok("tileset.add", json!({ "name": "t", "tile_width": 4, "tile_height": 4 }));
+    t.ok(
+        "tileset.add",
+        json!({ "name": "t", "tile_width": 4, "tile_height": 4 }),
+    );
     t.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
     t.ok("layer.remove", json!({ "layer": 0 }));
-    let e = t.err("draw.pixels", json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }));
+    let e = t.err(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }),
+    );
     assert!(e.contains("no image layer"), "{e}");
     let _ = id;
 }

@@ -5,6 +5,7 @@ mod assets;
 mod clipboard;
 mod doc;
 mod draw;
+mod export;
 mod image;
 mod image_brushes;
 mod image_draw;

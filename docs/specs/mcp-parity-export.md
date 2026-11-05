@@ -172,13 +172,13 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-14 | `doc_save_without_path_writes_back_the_opened_format` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-15 | `a_lossy_flatten_needs_flatten_true_and_names_every_cause` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-16 | `a_lossy_flatten_needs_flatten_true_and_names_every_cause` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-17 | `doc_save_with_a_path_picks_the_format_by_extension` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-18 | `jpeg_quality_is_remembered_per_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-19 | `unwritable_formats_are_refused_listing_the_extensions` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-20 | `export_bmp_and_tiff_write_the_composite_and_leave_the_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-21 |      | open   |        |
 | AC-22 |      | open   |        |
 | AC-23 |      | open   |        |
@@ -186,7 +186,7 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-25 |      | open   |        |
 | AC-26 |      | open   |        |
 | AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
+| AC-28 | `bad_save_arguments_name_the_argument` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-29 |      | open   |        |
 
 ## Decisions
@@ -197,3 +197,5 @@ Every capability exists already; grep for the names, line numbers drift.
 - 2026-11-05: `doc.open` takes `mode` (`pixel` | `image`) with the same name and values as `doc.new` — one argument per concept across tools; without it routing is unchanged, so existing clients keep their behavior.
 - 2026-11-05 (clarification pass): PSD is recognized content first, extension only as fallback, as the editor's `sniffFormat ?? formatFromName` does; `.aseprite` / `.ase` stay recognized by extension, as `doc.open` routes today. GIF warnings and PSD notices are English with stable `code`s / one string per notice, because MCP messages are English and a test needs fixed values; the UI's translated wording stays the UI's. `quality` outside 1–100 is refused, not clamped like the editor's input, and Image-only `doc.save` arguments on a Pixel document are refused — the same rule as `export.jpeg`'s schema and as `palette` on an Image `doc.new`: a value the call cannot use is an error. `export.svg` `fill` takes `#RRGGBB` only, because the trace's fill has no alpha and pixel-exact / colors layers take their colors from the image.
 - 2026-11-05: `depends_on` lists `mcp-parity-structure` (PSD groups show in `layer.list` only after its AC-12), `psd-import` and `vectorize-dialog` (both built but not yet accepted; the tools mirror their behavior, so it must be final first). `vectorize-core` comes in through `vectorize-dialog`.
+- 2026-11-05 (spec-build): The test `image_doc_save_without_path_after_flat_open_fails_and_writes_nothing` (mcp-headless-image AC-20, "doc.save writes OpenRaster only") is replaced by `image_doc_save_without_path_after_flat_open_refuses_a_lossy_flatten`, because AC-14 / AC-15 of this spec supersede that behavior.
+- 2026-11-05 (spec-build): A flat `doc.save` makes the written file the document's save target (`source`) and drops a previous `.ora` path, so a later `doc.save` without `path` writes the last saved file in its format, as the editor's Save does.

@@ -2,7 +2,8 @@
 //! pixel readback, undo / redo, `.ora` save and flat exports.
 
 use pincel_image_core::codec::{
-    decode, from_ora_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes, to_webp_bytes,
+    decode, from_ora_bytes, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes, to_tiff_bytes,
+    to_webp_bytes,
 };
 use pincel_image_core::{Document, ImageBuffer, Rect, compose, compose_region};
 use serde_json::{Value, json};
@@ -39,6 +40,8 @@ fn flat_format(bytes: &[u8]) -> &'static str {
         "WebP"
     } else if bytes.starts_with(b"II*\0") || bytes.starts_with(b"MM\0*") {
         "TIFF"
+    } else if bytes.starts_with(b"8BPS") {
+        "PSD"
     } else {
         "image"
     }
@@ -206,37 +209,138 @@ pub(crate) fn undo(ctx: &mut Ctx<'_>, args: &Args, redo: bool) -> Result<ToolOut
     Ok(ToolOutput::json(out))
 }
 
-/// `doc.save`: an OpenRaster project with every layer (AC-16, AC-20).
+/// The extensions `doc.save` writes for Image documents.
+const SAVE_EXTENSIONS: &str = ".ora, .png, .jpg / .jpeg, .webp, .bmp, .tif / .tiff";
+
+/// The format `doc.save` writes for `path`'s extension.
+fn save_format(path: &str) -> Option<&'static str> {
+    let lower = path.to_ascii_lowercase();
+    let ext = lower.rsplit_once('.').map(|(_, e)| e)?;
+    match ext {
+        "ora" => Some("ORA"),
+        "png" => Some("PNG"),
+        "jpg" | "jpeg" => Some("JPEG"),
+        "webp" => Some("WebP"),
+        "bmp" => Some("BMP"),
+        "tif" | "tiff" => Some("TIFF"),
+        _ => None,
+    }
+}
+
+/// What a flat save would lose (the editor's `flatteningLoses`), one entry
+/// per cause (mcp-parity-export AC-15).
+fn flatten_losses(doc: &ImageDoc) -> Vec<String> {
+    let layers = doc.document().layers();
+    let mut out = Vec::new();
+    if layers.len() > 1 {
+        out.push(format!("{} layers", layers.len()));
+    }
+    for l in layers {
+        if !l.visible {
+            out.push(format!("hidden layer {:?}", l.name));
+        }
+        if l.opacity < 1.0 {
+            out.push(format!(
+                "layer {:?} at {} % opacity",
+                l.name,
+                (l.opacity * 100.0).round()
+            ));
+        }
+        if l.blend_mode != pincel_image_core::BlendMode::Normal {
+            out.push(format!(
+                "layer {:?} with blend mode {:?}",
+                l.name, l.blend_mode
+            ));
+        }
+    }
+    out
+}
+
+/// `doc.save`: the document in the format of the path's extension, or
+/// back to the file it came from (mcp-parity-export AC-14 … AC-19).
 pub(crate) fn save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let (id, doc) = ctx.ws.image(args)?;
-    let path = match (args.str("path"), &doc.path, &doc.source) {
-        (Some(p), _, _) => p.to_owned(),
-        (None, Some(p), _) => p.clone(),
-        (None, None, Some((src, format))) => {
-            return Err(AgentError::tool(format!(
-                "document `{id}` was opened from the {format} file `{src}`; doc.save writes OpenRaster projects only, so pass a `.ora` path to doc.save (keeps the layers), or use export.png to write a flat image"
-            )));
+    let layered = doc.document().layer_count() > 1;
+    let (path, format) = match (args.str("path"), &doc.path, &doc.source) {
+        (Some(p), _, _) => {
+            let format = save_format(p).ok_or_else(|| {
+                let hint = if layered { " (a .ora path keeps the layers)" } else { "" };
+                AgentError::tool(format!(
+                    "doc.save cannot write `{p}`: Image documents are saved as {SAVE_EXTENSIONS}{hint}"
+                ))
+            })?;
+            (p.to_owned(), format)
         }
+        (None, Some(p), _) => (p.clone(), "ORA"),
+        (None, None, Some((src, format))) => match *format {
+            "PNG" | "JPEG" | "WebP" | "BMP" | "TIFF" => (src.clone(), *format),
+            other => {
+                let hint = if other == "PSD" || layered {
+                    "pass a `.ora` path (keeps the layers) or "
+                } else {
+                    "pass "
+                };
+                return Err(AgentError::tool(format!(
+                    "document `{id}` was opened from the {other} file `{src}`, which doc.save cannot write; {hint}a path ending in {SAVE_EXTENSIONS}"
+                )));
+            }
+        },
         (None, None, None) => {
             return Err(AgentError::tool(format!(
                 "document `{id}` was never opened from or saved to a file; pass a `path` (e.g. \"image.ora\")"
             )));
         }
     };
-    if !path.to_ascii_lowercase().ends_with(".ora") {
-        return Err(AgentError::tool(format!(
-            "doc.save writes Image documents as OpenRaster (.ora) projects; `{path}` has another extension (use export.png, export.jpeg or export.webp for flat images)"
-        )));
+    let quality = match args.i64("quality") {
+        Some(q) => Some(
+            u8::try_from(q)
+                .ok()
+                .filter(|q| (1..=100).contains(q))
+                .ok_or_else(|| AgentError::tool("argument `quality` must be an integer 1–100"))?,
+        ),
+        None => None,
+    };
+    let bytes = if format == "ORA" {
+        to_ora_bytes(doc.document(), PNG_LEVEL).map_err(|e| e.to_string())
+    } else {
+        let losses = flatten_losses(doc);
+        if !losses.is_empty() && !args.bool("flatten").unwrap_or(false) {
+            return Err(AgentError::tool(format!(
+                "saving to the flat {format} file `{path}` would flatten the document ({}); pass `flatten: true` to write the composite (the document keeps its layers), or save to a `.ora` path",
+                losses.join(", ")
+            )));
+        }
+        let image = flat(doc);
+        match format {
+            "PNG" => to_png_bytes(&image, PNG_LEVEL),
+            "JPEG" => to_jpeg_bytes(
+                &image,
+                quality.or(doc.jpeg_quality).unwrap_or(JPEG_QUALITY as u8),
+            ),
+            "WebP" => to_webp_bytes(&image),
+            "BMP" => to_bmp_bytes(&image),
+            _ => to_tiff_bytes(&image),
+        }
+        .map_err(|e| e.to_string())
     }
-    let bytes = to_ora_bytes(doc.document(), PNG_LEVEL)
-        .map_err(|e| AgentError::tool(format!("cannot encode `{path}`: {e}")))?;
+    .map_err(|e| AgentError::tool(format!("cannot encode `{path}`: {e}")))?;
     ctx.host
         .write(&path, &bytes)
         .map_err(|e| AgentError::tool(format!("cannot save `{path}`: {e}")))?;
     let (_, doc) = ctx.ws.image_mut(args)?;
-    doc.path = Some(path.clone());
+    if format == "ORA" {
+        doc.path = Some(path.clone());
+    } else {
+        doc.path = None;
+        doc.source = Some((path.clone(), format));
+        if format == "JPEG" {
+            doc.jpeg_quality = Some(quality.or(doc.jpeg_quality).unwrap_or(JPEG_QUALITY as u8));
+        }
+    }
     doc.dirty = false;
-    Ok(ToolOutput::json(json!({ "doc": id, "path": path })))
+    Ok(ToolOutput::json(
+        json!({ "doc": id, "path": path, "format": format }),
+    ))
 }
 
 /// Write `bytes` of an export and report it.
@@ -301,6 +405,32 @@ pub(crate) const EXPORT_JPEG: Tool = Tool {
         let size = (doc.width(), doc.height());
         let bytes =
             to_jpeg_bytes(&flat(doc), quality).map_err(|e| AgentError::tool(e.to_string()))?;
+        write_export(ctx, &id, &path, &bytes, size)
+    },
+};
+
+pub(crate) const EXPORT_BMP: Tool = Tool {
+    name: "export.bmp",
+    description: "Image documents: export the composed image as a BMP file (workspace-relative `path`), as the editor's BMP save.",
+    schema: || export_schema(false),
+    run: |ctx, args| {
+        let (id, doc) = ctx.ws.image(args)?;
+        let path = args.req_str("path")?.to_owned();
+        let size = (doc.width(), doc.height());
+        let bytes = to_bmp_bytes(&flat(doc)).map_err(|e| AgentError::tool(e.to_string()))?;
+        write_export(ctx, &id, &path, &bytes, size)
+    },
+};
+
+pub(crate) const EXPORT_TIFF: Tool = Tool {
+    name: "export.tiff",
+    description: "Image documents: export the composed image as a TIFF file (workspace-relative `path`), as the editor's TIFF save.",
+    schema: || export_schema(false),
+    run: |ctx, args| {
+        let (id, doc) = ctx.ws.image(args)?;
+        let path = args.req_str("path")?.to_owned();
+        let size = (doc.width(), doc.height());
+        let bytes = to_tiff_bytes(&flat(doc)).map_err(|e| AgentError::tool(e.to_string()))?;
         write_export(ctx, &id, &path, &bytes, size)
     },
 };

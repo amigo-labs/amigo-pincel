@@ -447,10 +447,14 @@ fn doc_redo(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
 
 pub(super) const SAVE: Tool = Tool {
     name: "doc.save",
-    description: "Save the document to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to: Pixel documents as .aseprite, Image documents as OpenRaster .ora projects (all layers). An Image document opened from a flat image (PNG, JPEG, …) has no .ora file yet: pass a `.ora` path, or use export.png.",
+    description: "Save the document to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to. Pixel documents: .aseprite. Image documents: the format of the path's extension — .ora (all layers), .png, .jpg / .jpeg (`quality` 1–100, default the last JPEG save's or 90), .webp, .bmp, .tif / .tiff; a flat format loses layers, so a layered document there needs `flatten: true` (the document keeps its layers). Without `path` an Image document opened from a flat image is written back in its own format.",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative .aseprite (Pixel) or .ora (Image) path; default: the document's file") }),
+            json!({
+                "path": path_prop("Workspace-relative path; default: the document's file"),
+                "flatten": { "type": "boolean", "description": "Image documents: allow writing a layered document to a flat format (the composite is written)" },
+                "quality": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Image documents, JPEG: quality 1–100" },
+            }),
             &[],
         )
     },
@@ -462,6 +466,13 @@ fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
         return crate::image::doc::save(ctx, args);
     }
     let (id, doc) = ctx.ws.doc(args)?;
+    for key in ["flatten", "quality"] {
+        if args.get(key).is_some() {
+            return Err(AgentError::tool(format!(
+                "argument `{key}` applies to Image documents only; document `{id}` is a Pixel document"
+            )));
+        }
+    }
     let path = match args.str("path") {
         Some(p) => p.to_owned(),
         None => doc.path.clone().ok_or_else(|| {

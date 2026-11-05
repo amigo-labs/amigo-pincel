@@ -97,6 +97,9 @@ const EXPECTED_TOOLS: &[&str] = &[
     // mcp-parity-drawing-image
     "draw.recolor",
     "draw.smudge",
+    // mcp-parity-export
+    "export.bmp",
+    "export.tiff",
     // mcp-parity-pixel-assets
     "slice.list",
     "slice.add",
@@ -120,7 +123,7 @@ fn example(name: &str) -> Value {
         "doc.open" => json!({ "path": "hero.aseprite" }),
         "doc.preview" => json!({ "frame": 0, "scale": 4, "grid": true, "region": region }),
         "doc.read_pixels" => json!({ "region": region, "layer": 0, "frame": 0, "format": "hex" }),
-        "doc.save" => json!({ "path": "hero.aseprite", "doc": "doc-1" }),
+        "doc.save" => json!({ "path": "hero.jpg", "doc": "doc-1", "flatten": true, "quality": 80 }),
         "export.png" => json!({ "path": "hero.png", "frame": 0, "scale": 2 }),
         "export.sheet" => {
             json!({ "columns": 4, "path": "s.png", "tag": "walk", "scale": 2, "json": "s.json" })
@@ -176,7 +179,9 @@ fn example(name: &str) -> Value {
         }
         "tileset.add" => json!({ "name": "ground", "tile_width": 8, "tile_height": 8 }),
         "tile.add" => json!({ "tileset": 0 }),
-        "tile.read_pixels" => json!({ "tileset": 0, "tile": 1, "region": region, "format": "index" }),
+        "tile.read_pixels" => {
+            json!({ "tileset": 0, "tile": 1, "region": region, "format": "index" })
+        }
         "tile.set_pixels" => {
             json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 1, "color": { "index": 2 } }] })
         }
@@ -212,6 +217,8 @@ fn example(name: &str) -> Value {
         "image.rotate" => json!({ "angle": 270 }),
         "export.jpeg" => json!({ "path": "a.jpg", "quality": 80 }),
         "export.webp" => json!({ "path": "a.webp" }),
+        "export.bmp" => json!({ "path": "a.bmp" }),
+        "export.tiff" => json!({ "path": "a.tif" }),
         _ => json!({}),
     }
 }
