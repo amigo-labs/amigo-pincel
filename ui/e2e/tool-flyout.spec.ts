@@ -533,10 +533,15 @@ test.describe('closing from outside', () => {
     await groupButton(page, 'shapes').focus();
     await page.keyboard.press('Shift+F10');
     await expect(flyout(page)).toBeVisible();
-    // A BMP belongs to Image mode: the shell closes the Pixel editor.
+    // A BMP belongs to Image mode: it opens as an Image tab and the Pixel
+    // editor goes into the background (document-tabs AC-21).
     await picker.setFiles({ name: 'dot.bmp', mimeType: 'image/bmp', buffer: tinyBmp() });
     await waitForEditor(page, 'image');
-    await expect(pixelCanvas(page)).toHaveCount(0);
+    await expect(pixelCanvas(page)).toBeHidden();
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    // Back on the Pixel tab the flyout stays closed.
+    await page.getByRole('tab', { name: /pincel\.aseprite/ }).click();
+    await expect(pixelCanvas(page)).toBeVisible();
     await expect(page.getByRole('menu')).toHaveCount(0);
   });
 });

@@ -936,7 +936,7 @@
       active={toolState.tool}
       onSelect={(next) => (toolState.tool = next)}
       {orientation}
-      resetKey={ed.doc}
+      resetKey={active ? ed.doc : null}
     />
   {/snippet}
   {#snippet options()}

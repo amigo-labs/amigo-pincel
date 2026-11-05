@@ -29,7 +29,9 @@
     active: T;
     onSelect: (tool: T) => void;
     orientation?: 'vertical' | 'horizontal';
-    /** Document identity: an open flyout closes when it changes. */
+    /** Document identity: an open flyout closes when it changes. Editors
+     *  pass `null` while another mode's tab is active, so the flyout also
+     *  closes when the editor goes into the background. */
     resetKey?: unknown;
   }
   const { groups, active, onSelect, orientation = 'vertical', resetKey = null }: Props = $props();
