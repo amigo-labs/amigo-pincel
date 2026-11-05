@@ -324,7 +324,7 @@ test('the pencil offers Simple and Shading inks and a fresh session starts Simpl
   await expect(rampHint(page)).toHaveCount(0);
   await inkSelect(page).selectOption('shading');
   await expect(rampHint(page)).toHaveText(
-    '· ramp: the whole palette — Shift+click a palette entry for a range',
+    'ramp: the whole palette — Shift+click a palette entry for a range',
   );
   // The eraser has no ink.
   await eraser(page);
@@ -348,7 +348,7 @@ test('a shading stroke steps ramp colors one entry, once per pixel, as one undo 
   await swatch(page, 3).click({ modifiers: ['Shift'] });
   await pencil(page);
   await inkSelect(page).selectOption('shading');
-  await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+  await expect(rampHint(page)).toHaveText('ramp: palette entries 1–3');
   await expect(page.locator('[data-ramp]')).toHaveCount(3);
   const status = page.locator('footer', { hasText: /\d+×\d+/ });
   await expect(status).toContainText('undo 3 / redo 0');
@@ -386,11 +386,11 @@ test('a plain click or a structural palette edit clears the ramp range; a recolo
   await setup(page);
   await pencil(page);
   await inkSelect(page).selectOption('shading');
-  const whole = '· ramp: the whole palette — Shift+click a palette entry for a range';
+  const whole = 'ramp: the whole palette — Shift+click a palette entry for a range';
 
   await swatch(page, 2).click();
   await swatch(page, 5).click({ modifiers: ['Shift'] });
-  await expect(rampHint(page)).toHaveText('· ramp: palette entries 2–5');
+  await expect(rampHint(page)).toHaveText('ramp: palette entries 2–5');
   // Shift+click does not change the foreground.
   await expect(fg(page)).toHaveValue(E2);
   await swatch(page, 4).click();
@@ -398,15 +398,15 @@ test('a plain click or a structural palette edit clears the ramp range; a recolo
 
   // Recoloring an entry keeps the range.
   await swatch(page, 4).click({ modifiers: ['Shift'] });
-  await expect(rampHint(page)).toHaveText('· ramp: palette entries 4–4');
+  await expect(rampHint(page)).toHaveText('ramp: palette entries 4–4');
   await page.getByLabel('Entry color').fill('#ff8800');
-  await expect(rampHint(page)).toHaveText('· ramp: palette entries 4–4');
+  await expect(rampHint(page)).toHaveText('ramp: palette entries 4–4');
 
   // Adding, moving or removing an entry clears it.
   const reselect = async () => {
     await swatch(page, 1).click();
     await swatch(page, 3).click({ modifiers: ['Shift'] });
-    await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+    await expect(rampHint(page)).toHaveText('ramp: palette entries 1–3');
   };
   await reselect();
   await page.getByRole('button', { name: 'Add current color to palette' }).click();
@@ -444,7 +444,7 @@ test('the ramp range is not written into the saved document', async ({ page }) =
   await swatch(page, 3).click({ modifiers: ['Shift'] });
   await pencil(page);
   await inkSelect(page).selectOption('shading');
-  await expect(rampHint(page)).toHaveText('· ramp: palette entries 1–3');
+  await expect(rampHint(page)).toHaveText('ramp: palette entries 1–3');
   expect((await save()).equals(plain)).toBe(true);
 });
 
