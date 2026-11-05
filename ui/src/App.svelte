@@ -613,10 +613,16 @@
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
     if (tauriHost) {
-      getCurrentWindow()
-        .onFocusChanged(({ payload: focused }) => {
-          if (focused && offerEligible()) void checkClipboard(offerEligible);
-        })
+      // `getCurrentWindow()` throws at once without the window's metadata
+      // (a Tauri 1 or partial bridge); starting it inside a promise turns
+      // that into a logged rejection instead of aborting the shell's start
+      // (desktop-app AC-20).
+      Promise.resolve()
+        .then(() =>
+          getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+            if (focused && offerEligible()) void checkClipboard(offerEligible);
+          }),
+        )
         .then((fn) => {
           if (cancelled) fn();
           else unlistenFocus = fn;
@@ -625,7 +631,8 @@
           console.error('focus listen failed', err);
         });
       void loadUpdaterState();
-      wireCloseGuard()
+      Promise.resolve()
+        .then(wireCloseGuard)
         .then((fn) => {
           if (cancelled) fn();
           else unlistenClose = fn;
