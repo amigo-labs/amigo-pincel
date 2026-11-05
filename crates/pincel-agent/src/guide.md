@@ -14,14 +14,43 @@ Each document has a mode, and the mode follows the file, as in the editor:
 | Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers), `export.png`, `export.jpeg`, `export.webp` |
 
 Shared tools work on both: `doc.*`, `layer.*` (except the two below),
-`select.*` (except `select.feather`), `draw.fill`, `effect.apply`,
+`select.*` (except `select.feather`), `draw.stroke`, `draw.shape`,
+`draw.text`, `draw.gradient`, `draw.fill`, `effect.apply`,
 `adjust.apply`, `canvas.resize`, `image.scale`, `image.crop_to_selection`,
 `image.flip`, `image.rotate` and `export.png`. Pixel-only: `frame.*`,
 `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
 `draw.ellipse`, `draw.clear`, `export.sheet`. Image-only:
 `layer.merge_visible`, `layer.merge_group`, `select.feather`,
-`draw.stroke`, `draw.shape`, `draw.text`, `draw.gradient`, `export.jpeg`,
-`export.webp`. A tool of the other mode fails and says so.
+`export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
+and so does an argument only the other mode's editor offers.
+
+## Drawing in each mode
+
+- `draw.stroke`: Pixel documents (the Pencil) take integer points, `size`
+  1–8 (default 1), `shape` `square` (default) or `round`, `pixel_perfect`,
+  `ink: "shading"` with `ramp_from` / `ramp_to` (default the whole
+  palette) and `step` 1 / -1, `mirror` `x` / `y` / `xy` with `axis_x2` /
+  `axis_y2` in half pixels (default the centre) and `wrap` `x` / `y` /
+  `xy` (tiled mode). Image documents (the Brush) take `size` 1–500
+  (default 8), `hardness`, `opacity` and `shape` `hard_round` (default),
+  `soft_round` or `flat`. Both: `tool: "eraser"`, color default `#000000`.
+- `draw.shape`: Pixel documents draw `rect`, `rounded` (`corner_radius`
+  0–256, default 4), `ellipse` and `polygon` (`sides` 3–64, default 6)
+  over integer corners with `stroke_width` 1–64 (default 1); lines are
+  `draw.line`. Image documents add `line`, polygons by `cx` / `cy` /
+  `radius` / `rotation`, `dash`, `anti_alias` (default true) and
+  `stroke_width` 1–500 (default 3).
+- `draw.text`: Pixel `size` 1–2000 (default 12), `anti_alias` default
+  false; Image `size` 1–999 (default 48), `anti_alias` default true.
+- `draw.gradient`: Pixel documents (RGBA only) take `kind` `linear` /
+  `radial` and `dither` 0, 2, 4 (default) or 8; Image documents take five
+  kinds, `channel` and `opacity`.
+- The selection: in Pixel documents `draw.gradient`, `draw.text` and
+  `draw.fill` stay inside it, while `draw.stroke`, `draw.shape`,
+  `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse` and `draw.clear`
+  ignore it, as in the Pixel editor. Pixel `draw.fill` clips to the
+  selection although the Pixel editor's Bucket does not. In Image
+  documents every drawing tool stays inside the selection.
 
 ## Selections and transforms
 

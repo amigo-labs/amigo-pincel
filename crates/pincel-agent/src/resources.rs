@@ -164,6 +164,7 @@ mod tests {
             "## Document structure",
             "## Selections and transforms",
             "## Moving content and the clipboard",
+            "## Drawing in each mode",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
@@ -246,6 +247,20 @@ mod tests {
             "`export.selection` is the headless Copy",
             "`layer.import` is the headless Paste",
             "`select.move_content` (both modes)",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-drawing AC-22.
+        for fact in [
+            "`size`\n  1–8 (default 1)",
+            "`size` 1–500\n  (default 8)",
+            "`corner_radius`\n  0–256, default 4",
+            "`sides` 3–64, default 6",
+            "Pixel `size` 1–2000 (default 12)",
+            "Image `size` 1–999 (default 48)",
+            "`dither` 0, 2, 4 (default) or 8",
+            "Pixel `draw.fill` clips to the\n  selection although the Pixel editor's Bucket does not",
+            "In Image\n  documents every drawing tool stays inside the selection",
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }

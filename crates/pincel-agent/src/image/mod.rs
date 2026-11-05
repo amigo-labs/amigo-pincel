@@ -73,11 +73,6 @@ pub(crate) fn color_arg(args: &Args, key: &str) -> Result<[u8; 4], AgentError> {
     }
 }
 
-/// Schema of an Image color argument.
-pub(crate) fn color_prop(description: &str) -> Value {
-    json!({ "type": "string", "description": format!("{description}: \"#RRGGBB\" or \"#RRGGBBAA\"") })
-}
-
 /// Several core commands applied and undone as one history entry.
 pub(crate) struct Batch(pub Vec<Box<dyn Command>>);
 

@@ -5,6 +5,7 @@ mod doc;
 mod draw;
 pub(crate) mod effects;
 mod layer_ops;
+pub(crate) mod paint;
 mod palette;
 mod structure;
 

@@ -602,18 +602,19 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
 
     let px = s.new_doc(8, 8);
     for (name, args) in [
+        // Image-only options of the shared drawing tools
+        // (mcp-parity-drawing AC-18).
         (
             "draw.stroke",
-            json!({ "points": [[1, 1]], "color": "#000000" }),
+            json!({ "points": [[1, 1]], "color": "#000000", "opacity": 50 }),
         ),
         (
             "draw.shape",
-            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000" }),
+            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "dash": "dotted" }),
         ),
-        ("draw.text", json!({ "text": "A", "x": 0, "y": 0 })),
         (
             "draw.gradient",
-            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff" }),
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "channel": "transparency" }),
         ),
         (
             "draw.fill",

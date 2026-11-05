@@ -7,6 +7,7 @@ mod draw;
 mod image;
 mod image_draw;
 mod layers;
+mod pixel_paint;
 mod preview;
 mod select;
 mod structure;
