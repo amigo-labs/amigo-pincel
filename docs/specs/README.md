@@ -50,6 +50,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
+| 44 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
 
 ## Done
 
@@ -118,6 +119,10 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
+| MCP parity: selection and transform (`mcp-parity-selection-transform`) | `select.*` for both modes (ellipse, lasso, wand, modes, invert / expand / contract / feather, select all, mask, delete) replacing `selection.*`; canvas and layer transforms in Pixel mode; move content; clipboard as `layer.import` / selection export |
+| MCP parity: drawing (`mcp-parity-drawing`) | Pixel brush stroke (size, shape, pixel-perfect, eraser), shading ink, symmetry and wrap, styled shapes, dithered gradient, text; Image recolor, smudge, eraser to background, bucket sampling all layers; Image-mode effect defaults |
+| MCP parity: Pixel assets (`mcp-parity-pixel-assets`) | Slices, tilesets / tiles / tilemap layers, document grid, their counts in `doc.info` |
+| MCP parity: import / export (`mcp-parity-export`) | Vectorize to SVG, APNG / GIF, BMP / TIFF, PSD open, save in the original format, PNG as a Pixel document |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
