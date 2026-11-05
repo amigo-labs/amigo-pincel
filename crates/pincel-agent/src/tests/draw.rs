@@ -411,6 +411,59 @@ fn effect_apply_distortions_match_the_editor() {
     }
 }
 
+/// effects-render: the render effects take named parameters (colours as
+/// hex, the blend mode by name) and give the editor's pixels; Clouds and
+/// Turbulence default to black / white.
+#[test]
+fn effect_apply_render_effects_match_the_editor() {
+    let cases: &[(&str, Value, &[f64])] = &[
+        (
+            "clouds",
+            json!({ "scale": 4, "seed": 9 }),
+            &[4.0, 50.0, 9.0, 255.0, 4_294_967_295.0, 0.0],
+        ),
+        (
+            "clouds",
+            json!({ "scale": 3, "roughness": 80, "color1": "#ff0000", "color2": "#0000FF80", "blend": "screen" }),
+            &[3.0, 80.0, 1.0, 4_278_190_335.0, 65_408.0, 2.0],
+        ),
+        (
+            "turbulence",
+            json!({ "scale": 5, "octaves": 3, "blend": "overlay" }),
+            &[5.0, 3.0, 1.0, 255.0, 4_294_967_295.0, 3.0],
+        ),
+        (
+            "julia_fractal",
+            json!({ "factor": 6, "zoom": 2, "angle": 30, "quality": 1 }),
+            &[6.0, 2.0, 30.0, 1.0],
+        ),
+        (
+            "mandelbrot_fractal",
+            json!({ "invert": true, "quality": 3 }),
+            &[1.0, 10.0, 0.0, 3.0, 1.0],
+        ),
+    ];
+    for (name, params, wire) in cases {
+        let mut s = S::new();
+        let id = scene(&mut s);
+        let (_, cels) = s.state(&id);
+        let CelData::Image(buf) = &cels.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        let src = EffectImage::from_rgba8(buf.width, buf.height, buf.data.clone()).expect("img");
+        let expected = EffectSpec::from_params(name, wire)
+            .expect("spec")
+            .run(&src)
+            .into_raw();
+        s.ok("effect.apply", json!({ "id": name, "params": params }));
+        let (_, after) = s.state(&id);
+        let CelData::Image(got) = &after.get(L0, F0).expect("cel").data else {
+            panic!("image cel");
+        };
+        assert_eq!(got.data, expected, "{name} {params}");
+    }
+}
+
 #[test]
 fn effect_apply_matches_the_editor_effect() {
     let mut s = S::new();

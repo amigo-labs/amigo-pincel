@@ -400,7 +400,54 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             choice("edge", EDGES),
         ],
     ),
+    // docs/specs/effects-render.md: paint.net's Render menu. The editor's
+    // colours default to its foreground / background; agents get black /
+    // white.
+    plain(
+        "clouds",
+        &[
+            num("scale", 2.0, 1000.0, 250.0),
+            num("roughness", 0.0, 100.0, 50.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            color("color1", 0x0000_00FF),
+            color("color2", 0xFFFF_FFFF),
+            choice("blend", BLENDS),
+        ],
+    ),
+    plain(
+        "turbulence",
+        &[
+            num("scale", 2.0, 1000.0, 200.0),
+            num("octaves", 1.0, 8.0, 5.0),
+            num("seed", 0.0, 9999.0, 1.0),
+            color("color1", 0x0000_00FF),
+            color("color2", 0xFFFF_FFFF),
+            choice("blend", BLENDS),
+        ],
+    ),
+    plain(
+        "julia_fractal",
+        &[
+            num("factor", 1.0, 10.0, 4.0),
+            num("zoom", 1.0, 50.0, 1.0),
+            num("angle", 0.0, 360.0, 0.0),
+            num("quality", 1.0, 5.0, 2.0),
+        ],
+    ),
+    plain(
+        "mandelbrot_fractal",
+        &[
+            num("factor", 1.0, 10.0, 1.0),
+            num("zoom", 1.0, 100.0, 10.0),
+            num("angle", 0.0, 360.0, 0.0),
+            num("quality", 1.0, 5.0, 2.0),
+            flag("invert", false),
+        ],
+    ),
 ];
+
+/// The blend modes of Clouds and Turbulence (effects-render).
+const BLENDS: &[&str] = &["normal", "multiply", "screen", "overlay"];
 
 pub(crate) fn effect_ids() -> Vec<&'static str> {
     EFFECTS.iter().map(|e| e.id).collect()
