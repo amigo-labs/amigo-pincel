@@ -67,20 +67,22 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- Pixel mode: its autosave (`.aseprite`) and exports still encode on the main thread. A Pixel worker needs a second wasm instance (`pincel-wasm`) and a Pixel document snapshot; Pixel sprites are small and their encodes take milliseconds. Move Pixel mode into the worker as well ("both modes" in Scope), or keep it on the main thread until a Pixel budget misses? The Image-mode encode block is built either way (Evidence).
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
+| AC-01 | Image mode: `ui/e2e/background-jobs.spec.ts` › "PNG export from the worker is byte-identical to the main-thread encoding (AC-01, AC-09)", "WebP export …"; `crates/pincel-image-core/src/codec/snapshot.rs` › `snapshot_round_trip_encodes_byte_identical_ora`, `snapshot_round_trip_restores_the_document`. Pixel mode: see Open questions | built |        |
+| AC-02 | Image mode: `ui/e2e/background-jobs.spec.ts` › "a recovered worker autosave is the document as the autosave started (AC-02)" | built |        |
+| AC-03 | Image mode: `ui/e2e/background-jobs.spec.ts` › "a stroke made while an export encodes stays in the document and out of the file (AC-03)" | built |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-09 | Encode jobs: `ui/e2e/background-jobs.spec.ts` › "PNG export …", "WebP export … (AC-01, AC-09)" (worker script blocked: retried, encoded on the main thread, logged, no error shown). Effect jobs: not built yet | open   |        |
+| AC-10 | `ui/e2e/background-jobs.spec.ts` › "an autosave tick due while one is still encoding is skipped (AC-10)" | built |        |
 
 ## Decisions
 
@@ -89,4 +91,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: Heavy one-shot jobs run in one dedicated Web Worker with its own wasm instance, talking through typed `postMessage` requests / responses with job ids and transferable `ArrayBuffer`s; painting, layers and the viewport stay on the main thread; this supersedes the `comlink` / `SharedArrayBuffer` sketch of pincel.md §10.4 (Decision Log 2026-10-29) — no new dependency and no cross-origin isolation, and the protocol is a handful of message types (owner accepted the recommendation).
 - 2026-10-29: A failed worker job is retried once in a restarted worker, then run on the main thread with a console log; the user sees an error only if that fails too — autosave and export must be correct even at the cost of a stutter, and a silent fallback is what the user needs (owner accepted the recommendation).
 - 2026-10-29: At most one autosave is in flight and a tick due meanwhile is skipped; an export captures its bytes at start and finishes even if the document closes; a pending autosave of a closed document is discarded — no queue build-up, and every export is the state at its start (owner accepted the recommendation).
+- 2026-11-05 (spec-build): The page hands the worker a **document snapshot**: new wasm API `snapshot_document(handle)` / `open_snapshot(bytes)` (`pincel_image_core::codec::snapshot`, uncompressed: JSON header plus raw layer and selection bytes). The snapshot is taken synchronously when the job starts, so edits made while the worker encodes are neither lost nor in the file (AC-03), and the worker encodes with the same `encodeHandle` function as the main-thread fallback (`ui/src/modes/image/jobs/encode.ts`), so the bytes are identical (AC-01). The snapshot is posted as a structured clone, not transferred, so a retry or the fallback can still use it.
+- 2026-11-05 (spec-build): The job protocol is `ui/src/lib/jobs/runner.ts` (`jobRunner` on the page, `serveJobs` in the worker): `{ id, req }` requests, `{ id, ok, res | error }` responses, results transferred. A failed job (an error answer, a worker `error` event, an unreadable message) terminates the worker, retries once in a fresh one, then runs the fallback with a `console.error` (AC-09). Save, Save As, Export (PNG / JPEG / WebP) and the Image autosave go through `encodeInBackground`; a save marks the undo depth at the job's start as saved.
+- 2026-11-05 (spec-build): Measured on the reference machine (release wasm, `pnpm perf`, back to back): `image-autosave-export-4k` longest frame 1766.6 / 1766.6 ms → 300.0 / 416.7 ms, frame p95 16.8 ms both. AC-04's 50 ms budget is not met yet: the main thread still copies the 4K, 10-layer document (≈ 330 MB) into the snapshot and the structured clone. Candidates for a follow-up: copy layer buffers straight into transferable `ArrayBuffer`s instead of one snapshot `Vec`, or snapshot per layer across frames.
+- 2026-11-05 (spec-build): Red runs — AC-10's test wrote two snapshots with the skip removed from `AutosaveSession.tick`; AC-01 / AC-09 / AC-02 / AC-03 tests are new with the worker (before it, no worker ran and nothing was logged).
 - 2026-10-29: The instant effect preview is a main-thread proxy at the canvas's on-screen size, capped at 1024 px on the longest side, shown within 100 ms on the reference laptop and replaced by the full-resolution result — anything finer than screen resolution isn't visible, and 100 ms reads as immediate (owner accepted the recommendation).

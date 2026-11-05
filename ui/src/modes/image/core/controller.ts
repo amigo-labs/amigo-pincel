@@ -38,6 +38,7 @@ import {
 import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
 import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
+import { encodeInBackground } from '../jobs';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -921,19 +922,9 @@ export async function exportImage(format: ExportFormat = 'png', quality = 90): P
   if (editor.handle === null) {
     return false;
   }
-  let bytes: Uint8Array;
-  switch (format) {
-    case 'jpeg':
-      bytes = core.exportJpeg(editor.handle, Math.min(100, Math.max(1, Math.round(quality))));
-      break;
-    case 'webp':
-      bytes = core.exportWebp(editor.handle);
-      break;
-    case 'png':
-      bytes = core.exportPng(editor.handle, 6);
-      break;
-  }
-  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
+  // Encoded off the main thread from the document as it is now
+  // (performance-background-jobs).
+  const bytes = await encodeInBackground(editor.handle, format, { level: 6, quality });
   const name = `${fileStem()}.${format === 'jpeg' ? 'jpg' : format}`;
   return saveExport(new Uint8Array(bytes), name, format);
 }

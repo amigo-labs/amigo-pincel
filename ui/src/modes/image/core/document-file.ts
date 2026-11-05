@@ -5,7 +5,7 @@
 // to Save As. Each tab owns its file (docs/specs/document-tabs.md); the
 // functions act on the active tab unless a tab is passed, so a save that
 // outlives a tab switch still writes the tab it started in.
-import { core } from './wasm';
+import { encodeInBackground } from '../jobs';
 import { editor, tabs, type ImageTab } from '../stores/editor.svelte';
 import {
   writeTarget,
@@ -163,25 +163,6 @@ export function markSaved(tab: ImageTab | null = tabs.active): void {
   if (tab) tab.doc.savedUndoDepth = tab.doc.undoDepth;
 }
 
-/** Encodes the document in `format`: the layered OpenRaster project, or
- *  the flattened composite. `quality` (1–100) applies to JPEG only. */
-function encode(handle: number, format: DocSaveFormat, quality: number): Uint8Array {
-  switch (format) {
-    case 'ora':
-      return core.saveProject(handle, 6);
-    case 'png':
-      return core.exportPng(handle, 6);
-    case 'jpeg':
-      return core.exportJpeg(handle, Math.min(100, Math.max(1, Math.round(quality))));
-    case 'webp':
-      return core.exportWebp(handle);
-    case 'bmp':
-      return core.exportBmp(handle);
-    case 'tiff':
-      return core.exportTiff(handle);
-  }
-}
-
 const EXTENSION: Record<DocSaveFormat, string> = {
   ora: 'ora',
   png: 'png',
@@ -210,9 +191,11 @@ export async function writeDocument(
   const target: SaveTarget = same
     ? { name: file.name, handle: file.handle, path: file.path }
     : { name: `${fileStem(tab)}.${EXTENSION[format]}`, handle: null, path: null };
-  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
-  const bytes = new Uint8Array(encode(handle, format, quality));
+  // The file is the document as it is now: edits made while the job
+  // worker encodes it stay unsaved (performance-background-jobs AC-03).
   const depth = tab.doc.undoDepth;
+  // A fresh ArrayBuffer, so the file layer owns standalone memory.
+  const bytes = new Uint8Array(await encodeInBackground(handle, format, { level: 6, quality }));
   const written = await writeTarget(bytes, target, { forceAs, format });
   if (written === null) return null;
   setFile(tab, {

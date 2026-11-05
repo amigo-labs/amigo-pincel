@@ -12,6 +12,8 @@ import initWasm, {
   image_key,
   get_selection_bounds,
   save_project,
+  snapshot_document,
+  open_snapshot,
   close_document,
   document_count,
   composite,
@@ -475,6 +477,11 @@ export const core = {
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
   saveProject: (handle: number, compression: number): Uint8Array =>
     save_project(handle, compression),
+  /** An uncompressed copy of the whole document for the job worker
+   *  (docs/specs/performance-background-jobs.md). */
+  snapshotDocument: (handle: number): Uint8Array => snapshot_document(handle),
+  /** Opens a `snapshotDocument` copy as a new document. */
+  openSnapshot: (data: Uint8Array): number => open_snapshot(data),
   closeDocument: (handle: number): void => close_document(handle),
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
