@@ -22,8 +22,9 @@ pub mod transform;
 
 pub use color::{BlendMode, Color};
 pub use command::{
-    AddGroup, AddLayer, Anchor, CanvasRotation, Command, CommandBus, CropToSelection,
-    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
+    AddGroup, AddLayer, Anchor, BoxShape, CanvasRotation, Command, CommandBus, CropToSelection,
+    DuplicateLayer, FlattenImage, FlipCanvas, LIVE_REACH, LayerTransform, LiveEdit, LiveGradient,
+    LiveObject, LiveParams, LiveShape, LiveShapeKind, MergeDown, MergeGroup, MergeVisible,
     MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
     RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
     SetPixels, SetSelection, TransformLayer, UndoStack,

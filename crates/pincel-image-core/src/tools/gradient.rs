@@ -54,7 +54,7 @@ struct Ramp {
 }
 
 /// The Gradient tool.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Gradient {
     pub kind: GradientKind,
     pub channel: GradientChannel,
