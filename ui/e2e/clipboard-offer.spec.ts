@@ -237,6 +237,34 @@ test.describe('desktop app', () => {
     await expect(tabs(page)).toHaveCount(1);
   });
 
+  test('a paste right after Open, while the image opens, opens nothing more (AC-29)', async ({
+    page,
+  }) => {
+    await launch(page, solidImage(40, 30));
+    await expect(card(page)).toBeVisible();
+    // Open and a Ctrl+V paste in the same task: the paste comes while the
+    // card's image is still being opened.
+    await page.evaluate(async () => {
+      const canvas = new OffscreenCanvas(24, 12);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context');
+      ctx.fillRect(0, 0, 24, 12);
+      const blob = await canvas.convertToBlob({ type: 'image/png' });
+      const data = new DataTransfer();
+      data.items.add(new File([blob], 'image.png', { type: 'image/png' }));
+      const open = Array.from(document.querySelectorAll('button')).find(
+        (b) => b.textContent?.trim() === 'Open',
+      );
+      if (!open) throw new Error('no Open button');
+      open.click();
+      window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data }));
+    });
+    await waitForEditor(page, 'image');
+    await expect(imageSize(page, 40, 30)).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(tabs(page)).toHaveCount(1);
+  });
+
   test('Ignore hides the card (AC-29)', async ({ page }) => {
     await launch(page, solidImage(40, 30));
     await card(page).getByRole('button', { name: 'Ignore', exact: true }).click();
