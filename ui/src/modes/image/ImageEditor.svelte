@@ -107,6 +107,7 @@
     hint,
     isStageTarget,
     isTypingTarget,
+    NEW_DOCUMENT_KEY,
     nativeMenuOwns,
     opacityPercent,
     toolGroupForKey,
@@ -479,6 +480,7 @@
    * serves. No frames in Image mode, so no frame keys and no sheet export.
    */
   const IMAGE_ACTIONS: readonly ShortcutAction[] = [
+    ...(NEW_DOCUMENT_KEY ? (['newDocument'] as const) : []),
     'open',
     'save',
     'saveAs',
@@ -782,6 +784,9 @@
   /** Runs a shared shortcut; false when Image mode has no such action. */
   function runShortcut(action: ReturnType<typeof actionFor>): boolean {
     switch (action) {
+      case 'newDocument':
+        onRequestNew();
+        return true;
       case 'open':
         onRequestOpen();
         return true;
@@ -991,7 +996,7 @@
       id: 'file',
       label: t('menu.file'),
       items: tidy([
-        { label: t('menu.new'), run: onRequestNew },
+        { label: t('menu.new'), shortcut: hint('newDocument'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         droppedImagesMenu(),

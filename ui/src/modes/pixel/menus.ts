@@ -133,7 +133,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
       id: 'file',
       label: t('menu.file'),
       items: tidy([
-        { label: t('menu.new'), disabled: c.busy, run: c.newDoc },
+        { label: t('menu.new'), shortcut: hint('newDocument'), disabled: c.busy, run: c.newDoc },
         { label: t('menu.open'), shortcut: hint('open'), disabled: c.busy, run: c.open },
         ...recentMenuItems(c.recents, c.openRecent, c.busy),
         droppedImagesMenu(),

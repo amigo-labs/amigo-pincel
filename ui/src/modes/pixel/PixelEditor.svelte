@@ -37,6 +37,7 @@
     isSpaceActivated,
     isStageTarget,
     isTypingTarget,
+    NEW_DOCUMENT_KEY,
     nativeMenuOwns,
     toolGroupForKey,
     type ShortcutAction,
@@ -291,6 +292,7 @@
 
   /** Every shared action `runShortcut` (or, for `paste`, the paste event) serves. */
   const PIXEL_ACTIONS: readonly ShortcutAction[] = [
+    ...(NEW_DOCUMENT_KEY ? (['newDocument'] as const) : []),
     'open',
     'save',
     'saveAs',
@@ -531,6 +533,9 @@
   /** Runs a shared shortcut; false when it does not apply right now. */
   function runShortcut(action: ShortcutAction): boolean {
     switch (action) {
+      case 'newDocument':
+        onRequestNew();
+        return true;
       case 'open':
         void openDoc();
         return true;
