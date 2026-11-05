@@ -127,13 +127,17 @@ impl Doc {
         let layer = match args.u32("layer")? {
             Some(id) => {
                 let id = LayerId::new(id);
-                let layer = self
-                    .sprite
-                    .layer(id)
-                    .ok_or_else(|| AgentError::tool(format!("no layer with id {}", id.0)))?;
-                if !matches!(layer.kind, LayerKind::Image) {
+                let layer = self.sprite.layer(id).ok_or_else(|| {
+                    AgentError::tool(format!("argument `layer`: no layer with id {}", id.0))
+                })?;
+                let kind = match layer.kind {
+                    LayerKind::Image => None,
+                    LayerKind::Group => Some("a group"),
+                    LayerKind::Tilemap { .. } => Some("a tilemap layer"),
+                };
+                if let Some(kind) = kind {
                     return Err(AgentError::tool(format!(
-                        "layer {} ({:?}) is not an image layer; pixel tools need an image layer",
+                        "layer {} ({:?}) is {kind}, not an image layer; pixel tools need an image layer",
                         id.0, layer.name
                     )));
                 }

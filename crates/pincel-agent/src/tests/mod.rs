@@ -7,8 +7,10 @@ mod image;
 mod image_draw;
 mod layers;
 mod preview;
+mod select;
 mod structure;
 mod tags_palette;
+mod transform;
 
 use std::collections::HashMap;
 

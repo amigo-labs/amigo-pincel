@@ -10,6 +10,7 @@ mod structure;
 
 pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
 pub(crate) use draw::apply_effect;
+pub(crate) use structure::layer_arg as layer_id_arg;
 
 use serde_json::{Map, Value, json};
 
@@ -63,8 +64,6 @@ pub(crate) static TOOLS: &[Tool] = &[
     draw::ELLIPSE,
     draw::FILL,
     draw::CLEAR,
-    draw::SELECTION_SET_RECT,
-    draw::SELECTION_CLEAR,
     draw::EFFECT_APPLY,
 ];
 

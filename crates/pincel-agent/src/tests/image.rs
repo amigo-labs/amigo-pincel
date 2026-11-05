@@ -305,11 +305,6 @@ fn tools_of_the_other_mode_fail_naming_the_mode_and_change_nothing() {
             json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 3, "color": "#ff0000" }),
         ),
         ("draw.clear", json!({})),
-        (
-            "selection.set_rect",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        ("selection.clear", json!({})),
         ("export.sheet", json!({ "columns": 1, "path": "s.png" })),
         (
             "doc.read_pixels",

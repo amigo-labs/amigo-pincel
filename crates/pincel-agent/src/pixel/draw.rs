@@ -7,7 +7,7 @@
 
 use pincel_core::{
     AddEmptyCel, AnyCommand, Cel, CelData, CelMap, ClearRegion, Command, DrawEllipse, DrawLine,
-    DrawRectangle, FillRegion, PatchCel, Rect, Rgba, SetPixel, Sprite,
+    DrawRectangle, FillRegion, PatchCel, Rgba, SetPixel, Sprite,
 };
 use pincel_effects::{EffectImage, EffectSpec};
 use serde_json::{Map, Value, json};
@@ -382,48 +382,6 @@ pub(super) const CLEAR: Tool = Tool {
                 Ok(())
             }
         })
-    },
-};
-
-pub(super) const SELECTION_SET_RECT: Tool = Tool {
-    name: "selection.set_rect",
-    description: "Select a rectangle. While a selection exists, draw.fill and effect.apply change only pixels inside it. The selection belongs to the document (all layers and frames) and is not an undo step.",
-    schema: || {
-        target_schema(
-            json!({
-                "x": int("Left"),
-                "y": int("Top"),
-                "width": { "type": "integer", "minimum": 1 },
-                "height": { "type": "integer", "minimum": 1 },
-            }),
-            &["x", "y", "width", "height"],
-        )
-    },
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc_mut(args)?;
-        doc.frame_arg(args)?;
-        let r = Rect::new(
-            args.req_i32("x")?,
-            args.req_i32("y")?,
-            args.req_u32("width")?,
-            args.req_u32("height")?,
-        );
-        doc.sprite.set_selection(r);
-        Ok(ToolOutput::json(json!({
-            "doc": id,
-            "selection": { "x": r.x, "y": r.y, "width": r.width, "height": r.height },
-        })))
-    },
-};
-
-pub(super) const SELECTION_CLEAR: Tool = Tool {
-    name: "selection.clear",
-    description: "Drop the selection; draw.fill and effect.apply act on the whole cel again.",
-    schema: || target_schema(json!({}), &[]),
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc_mut(args)?;
-        doc.sprite.clear_selection();
-        Ok(ToolOutput::json(json!({ "doc": id, "selection": null })))
     },
 };
 

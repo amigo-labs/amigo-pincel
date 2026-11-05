@@ -361,7 +361,7 @@ fn doc_info_reports_color_mode_and_selection_bounds() {
     assert_eq!(info["color_mode"], "rgba");
     assert_eq!(info["selection"], Value::Null);
     s.ok(
-        "selection.set_rect",
+        "select.rect",
         json!({ "x": -2, "y": 3, "width": 5, "height": 10 }),
     );
     assert_eq!(

@@ -4,7 +4,6 @@
 //! runs it through [`run_command`], so a tool call leaves exactly the
 //! pixels the editor's tool would. See docs/specs/mcp-headless-image.md.
 
-mod canvas;
 pub(crate) mod doc;
 pub(crate) mod draw;
 pub(crate) mod layer;
@@ -37,16 +36,7 @@ pub(crate) static TOOLS: &[Tool] = &[
     draw::SHAPE,
     draw::TEXT,
     draw::GRADIENT,
-    draw::SELECT_RECT,
-    draw::SELECT_ELLIPSE,
-    draw::SELECT_WAND,
-    draw::SELECT_CLEAR,
     draw::ADJUST_APPLY,
-    canvas::RESIZE,
-    canvas::SCALE,
-    canvas::CROP,
-    canvas::FLIP,
-    canvas::ROTATE,
     doc::EXPORT_JPEG,
     doc::EXPORT_WEBP,
 ];
@@ -276,12 +266,57 @@ impl ImageDoc {
     /// Run one editor command as one undo step. Returns whether a step was
     /// recorded (an edit that misses the canvas records none).
     pub fn run(&mut self, spec: CommandSpec) -> Result<bool, AgentError> {
-        if let Some(index) = spec.edited_layer() {
-            self.check_paintable(index)?;
-        }
+        self.check_spec(&spec)?;
         let before = self.bus.history.undo_depth();
         run_command(&mut self.bus, spec, &mut self.scratch, &[FONT]).map_err(core_err)?;
         Ok(self.recorded(before))
+    }
+
+    /// Refuse a pixel edit the editor refuses: on a locked layer, or on a
+    /// group unless the edit moves or turns the group's content.
+    fn check_spec(&self, spec: &CommandSpec) -> Result<(), AgentError> {
+        if let Some(index) = spec.edited_layer() {
+            let moves_content = matches!(
+                spec,
+                CommandSpec::TranslateLayer { .. }
+                    | CommandSpec::TransformLayer { .. }
+                    | CommandSpec::RotateLayer90 { .. }
+            );
+            let doc = &self.bus.document;
+            if moves_content && doc.layers().get(index).is_some_and(|l| l.is_group()) {
+                // Moving or turning a group turns its subtree, unless a
+                // layer in it is locked (image-layer-groups AC-18).
+                for i in index..doc.subtree_end(index) {
+                    self.check_unlocked(i)?;
+                }
+            } else {
+                self.check_paintable(index)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Run the editor command `build` makes, but only when it changes the
+    /// document: a dry run on a copy decides, so a call that changes
+    /// nothing records no undo step (mcp-parity-selection-transform
+    /// AC-36). Returns whether a step was recorded.
+    pub fn run_if_changed(&mut self, build: impl Fn() -> CommandSpec) -> Result<bool, AgentError> {
+        self.check_spec(&build())?;
+        let mut copy = CommandBus::new(self.bus.document.clone());
+        run_command(&mut copy, build(), &mut StrokeScratch::default(), &[FONT])
+            .map_err(core_err)?;
+        let mut before = self.bus.document.clone();
+        let mut after = copy.document;
+        before
+            .set_active_layer(0)
+            .expect("a document has at least one layer");
+        after
+            .set_active_layer(0)
+            .expect("a document has at least one layer");
+        if before == after {
+            return Ok(false);
+        }
+        self.run(build())
     }
 
     /// Apply core commands as one undo step.

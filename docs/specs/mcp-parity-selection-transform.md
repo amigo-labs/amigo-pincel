@@ -184,48 +184,51 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-06 contradicts the Image editor (found by `/spec-build`, 2026-11-05): `pincel-image-core` `apply_mode` treats "no selection" as "everything selected", so the Image editor's `subtract` without a selection selects the canvas minus the shape and `intersect` selects the shape; only the Pixel editor (`Sprite::combine_selection`) leaves nothing selected. The tools follow each editor, as "the editor" is defined in Context, so AC-06 holds for Pixel documents (`pixel_subtract_or_intersect_without_selection_selects_nothing` in `crates/pincel-agent/src/tests/select.rs`) and not for Image documents. Decide: reword AC-06 per mode, or change the Image core's rule (core behavior beyond parity). AC-06 stays `open` until then.
+- Risk from Assumptions, not measured: `select.expand` / `select.contract` on a large Pixel document at a large radius run the O(w·h·r²) `SelectionMask::{expand, contract}`; a 4096×4096 document at radius 250 was not timed.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-02 | `selection_set_rect_and_selection_clear_are_unknown_tools` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-03 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-04 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-05 | `select_wand_matches_the_editor_with_each_modes_defaults` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
-| AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
-| AC-29 |      | open   |        |
-| AC-30 |      | open   |        |
-| AC-31 |      | open   |        |
-| AC-32 |      | open   |        |
-| AC-33 |      | open   |        |
-| AC-34 |      | open   |        |
-| AC-35 |      | open   |        |
-| AC-36 |      | open   |        |
-| AC-37 |      | open   |        |
-| AC-38 |      | open   |        |
+| AC-07 | `image_feather_matches_the_editors_coverage` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-08 | `select_all_invert_expand_contract_match_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-09 | `select_feather_matches_the_editor_on_image_documents` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-10 | `select_clear_lets_edits_act_on_the_whole_layer` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-11 | `selection_undo_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-12 | `shaped_selections_limit_fill_adjust_and_effect_to_the_shape` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-13 | `feather_on_a_pixel_document_fails_naming_feather_and_the_mode` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-14 | `select_polygon_with_bad_points_fails_naming_the_entry` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-15 | `select_wand_seed_outside_the_canvas_fails_naming_seed_and_canvas` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-16 | `bad_selection_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/select.rs`), `bad_transform_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-17 | `select_get_reports_bounds_count_and_coverage_rows` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-18 | `select_get_without_selection_returns_null_bounds_and_no_rows` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-19 | `select_get_refuses_large_or_off_canvas_regions` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-20 | `select_get_changes_nothing` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-21 | `select_delete_clears_the_selected_pixels_like_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-22 | `select_delete_without_selection_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-23 | `select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-24 | `pixel_flip_and_rotate_equal_the_editors_canvas_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-25 | `pixel_resize_and_scale_equal_the_editors_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-26 | `resize_and_scale_defaults_follow_each_editor` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-27 | `pixel_crop_to_selection_crops_to_the_clipped_bounds` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-28 | `pixel_crop_without_selection_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-29 | `pixel_sizes_outside_1_to_4096_fail` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-30 | `pixel_transforms_refuse_tilemap_documents` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-31 | `layer_flip_and_rotate_equal_the_editors_layer_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-32 | `layer_transforms_follow_each_editors_selection_rule` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-33 | `layer_transforms_refuse_locked_group_and_tilemap_targets` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-34 | `selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value` (`crates/pincel-agent/src/tests/select.rs`), `layer_transforms_naming_a_missing_layer_or_frame_fail` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-35 | `a_refusing_core_command_fails_with_its_reason` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
+| AC-36 | `transforms_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-37 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-38 | `pixel_canvas_transforms_clear_the_selection_and_undo_restores_it` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
 
 ## Decisions
 
@@ -240,3 +243,8 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 - 2026-11-05: `select.get` rejects a region that lies partly outside the canvas instead of clipping it (AC-19), because `doc.read_pixels` does the same (`mcp-headless-pixel` AC-14), so both region reads follow one rule.
 - 2026-11-05: `select.rect` / `select.ellipse` take integer coordinates in both modes, and the wand seed is an integer in Pixel documents (AC-16), because the cores take integers there (`SelectRectangle` `i32`, Pixel `select_wand` `i32`). Only the Image wand seed and Image polygon points are fractional.
 - 2026-11-05: `select.get` returns a hex coverage grid capped at 64×64, like `doc.read_pixels` (AC-17 – AC-19). One limit and one text form for all region reads, and Image coverage needs more than one bit.
+- 2026-11-05 (spec-build): Image selection tools predict the new selection with the core's own builders (`SelectionMask::{rectangle, ellipse, polygon}`, `magic_wand`, `apply_mode`, the modifiers) and run the editor's `CommandSpec` only when the prediction differs from the current selection, because the Image command bus records every selection command and offers no way to drop a recorded step (AC-11).
+- 2026-11-05 (spec-build): Image canvas and layer transforms decide "no change" (AC-36) by a dry run of the same `CommandSpec` on a copy of the document; Pixel tools use the dry run of `mcp-parity-structure` (`Doc::commit_if_changed`).
+- 2026-11-05 (spec-build): A Pixel `layer.flip` / `layer.rotate` on a layer without a cel at the target frame reports `changed: false`, because an empty cel turns into itself; the editor creates an empty cel first (`ensure_paint_cel`), which changes nothing visible.
+- 2026-11-05 (spec-build): Pixel canvas sizes are checked as integers (1–4096) by the tool, not by the schema's `minimum`, so every out-of-range value gets AC-29's message "width must be 1–4096"; Image sizes keep `mcp-headless-image`'s messages.
+- 2026-11-05 (spec-build): New public `pincel-core` API: `Sprite::combine_selection`, `selection::{layer_canvas, composite_canvas}` (Decision Log row 2026-11-05 in `pincel.md` §15).

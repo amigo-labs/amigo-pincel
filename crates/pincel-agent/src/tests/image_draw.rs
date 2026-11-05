@@ -616,21 +616,6 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
             json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff" }),
         ),
         (
-            "select.rect",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        (
-            "select.ellipse",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        ("select.wand", json!({ "x": 0, "y": 0 })),
-        ("select.clear", json!({})),
-        ("canvas.resize", json!({ "width": 4, "height": 4 })),
-        ("image.scale", json!({ "width": 4, "height": 4 })),
-        ("image.crop_to_selection", json!({})),
-        ("image.flip", json!({ "direction": "horizontal" })),
-        ("image.rotate", json!({ "angle": 180 })),
-        (
             "draw.fill",
             json!({ "x": 1, "y": 1, "color": "#000000", "tolerance": 4 }),
         ),

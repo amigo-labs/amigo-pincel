@@ -15,8 +15,10 @@ mod pixel;
 mod preview;
 mod resources;
 mod schema;
+mod select;
 #[cfg(test)]
 mod tests;
+mod transform;
 mod workspace;
 
 use serde_json::Value;
@@ -109,9 +111,14 @@ pub(crate) struct Tool {
     pub run: fn(&mut Ctx<'_>, &args::Args) -> Result<ToolOutput, AgentError>,
 }
 
-/// The shared and Pixel tools, then the Image-only tools.
+/// The shared and Pixel tools, the selection tools, then the Image-only
+/// tools.
 fn all_tools() -> impl Iterator<Item = &'static Tool> {
-    pixel::TOOLS.iter().chain(image::TOOLS)
+    pixel::TOOLS
+        .iter()
+        .chain(select::TOOLS)
+        .chain(transform::TOOLS)
+        .chain(image::TOOLS)
 }
 
 /// Every tool, in a stable order.

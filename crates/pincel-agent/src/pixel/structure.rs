@@ -99,7 +99,7 @@ fn tags_json(sprite: &Sprite) -> Value {
 
 /// The argument `key` as an existing layer id; the error names the
 /// argument and its value (mcp-parity-structure AC-27).
-pub(super) fn layer_arg(doc: &Doc, args: &Args, key: &str) -> Result<LayerId, AgentError> {
+pub(crate) fn layer_arg(doc: &Doc, args: &Args, key: &str) -> Result<LayerId, AgentError> {
     let id = LayerId::new(args.req_u32(key)?);
     doc.sprite.layer(id).map(|_| id).ok_or_else(|| {
         AgentError::tool(format!(

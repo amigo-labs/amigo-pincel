@@ -45,8 +45,6 @@ const EXPECTED_TOOLS: &[&str] = &[
     "draw.ellipse",
     "draw.fill",
     "draw.clear",
-    "selection.set_rect",
-    "selection.clear",
     "effect.apply",
     // Image tools (mcp-headless-image)
     "draw.stroke",
@@ -79,6 +77,17 @@ const EXPECTED_TOOLS: &[&str] = &[
     "palette.move_entry",
     "palette.import",
     "palette.export",
+    // mcp-parity-selection-transform
+    "select.polygon",
+    "select.all",
+    "select.invert",
+    "select.expand",
+    "select.contract",
+    "select.feather",
+    "select.get",
+    "select.delete",
+    "layer.flip",
+    "layer.rotate",
 ];
 
 /// One valid example call per tool.
@@ -125,7 +134,14 @@ fn example(name: &str) -> Value {
         }
         "draw.fill" => json!({ "x": 1, "y": 1, "color": "#0000ff", "contiguous": false }),
         "draw.clear" => json!({ "region": region }),
-        "selection.set_rect" => json!({ "x": 0, "y": 0, "width": 4, "height": 4 }),
+        "select.polygon" => {
+            json!({ "points": [[0, 0], [4, 0], [2.5, 3]], "mode": "add", "feather": 1 })
+        }
+        "select.expand" | "select.contract" | "select.feather" => json!({ "radius": 2 }),
+        "select.get" => json!({ "region": region }),
+        "select.delete" => json!({ "layer": 0, "frame": 0 }),
+        "layer.flip" => json!({ "direction": "horizontal", "layer": 0, "frame": 0 }),
+        "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
         "draw.stroke" => {
             json!({ "points": [[1, 2], [8.5, 3]], "tool": "brush", "color": "#ff000080", "size": 4, "hardness": 50, "opacity": 80, "shape": "soft_round", "layer": 0 })
@@ -181,6 +197,11 @@ fn tool_schemas_are_valid() {
     }
     for name in EXPECTED_TOOLS {
         assert!(names.contains(name), "missing tool {name}");
+    }
+    // Renamed to select.rect / select.clear without aliases
+    // (mcp-parity-selection-transform AC-01).
+    for gone in ["selection.set_rect", "selection.clear"] {
+        assert!(!names.contains(gone), "{gone} is still listed");
     }
 }
 

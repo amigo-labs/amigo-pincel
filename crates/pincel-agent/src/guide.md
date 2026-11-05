@@ -14,13 +14,42 @@ Each document has a mode, and the mode follows the file, as in the editor:
 | Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers), `export.png`, `export.jpeg`, `export.webp` |
 
 Shared tools work on both: `doc.*`, `layer.*` (except the two below),
-`draw.fill`, `effect.apply`, `adjust.apply` and `export.png`. Pixel-only:
-`frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
-`draw.ellipse`, `draw.clear`, `selection.*`, `export.sheet`. Image-only:
-`layer.merge_visible`, `layer.merge_group`, `draw.stroke`, `draw.shape`,
-`draw.text`, `draw.gradient`, `select.*`, `canvas.resize`, `image.scale`,
-`image.crop_to_selection`, `image.flip`, `image.rotate`, `export.jpeg`,
+`select.*` (except `select.feather`), `draw.fill`, `effect.apply`,
+`adjust.apply`, `canvas.resize`, `image.scale`, `image.crop_to_selection`,
+`image.flip`, `image.rotate` and `export.png`. Pixel-only: `frame.*`,
+`tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
+`draw.ellipse`, `draw.clear`, `export.sheet`. Image-only:
+`layer.merge_visible`, `layer.merge_group`, `select.feather`,
+`draw.stroke`, `draw.shape`, `draw.text`, `draw.gradient`, `export.jpeg`,
 `export.webp`. A tool of the other mode fails and says so.
+
+## Selections and transforms
+
+- Selecting, both modes: `select.rect`, `select.ellipse`,
+  `select.polygon`, `select.wand` (each with `mode` `replace`, `add`,
+  `subtract` or `intersect`), `select.all`, `select.clear`,
+  `select.invert`, `select.expand`, `select.contract`. Each returns the
+  selection's bounds `{x, y, w, h}` (or `null`) and the selected-pixel
+  count. `select.get` reads the coverage of up to 64×64 pixels.
+- Image documents only: `feather` on `select.rect`, `select.ellipse` and
+  `select.polygon`, and `select.feather`. Pixel documents refuse them.
+- Undo: in Image documents a selection change is an undo step; in Pixel
+  documents selections are not undo steps, as in each editor.
+- Defaults follow each editor: `select.wand` `tolerance` 0 in Pixel
+  documents and 32 in Image documents; `canvas.resize` `anchor` `center`
+  (Pixel) or `top_left` (Image); `image.scale` `interpolation` `nearest`
+  (Pixel) or `bilinear` (Image). Pixel `select.invert` without a selection
+  selects everything; Image selects nothing.
+- `select.delete` is the editor's Delete: it clears the selected pixels of
+  the target layer. Without a selection, Image documents clear the whole
+  layer and Pixel documents change nothing.
+- Transforms, both modes: `canvas.resize`, `image.scale`,
+  `image.crop_to_selection`, `image.flip`, `image.rotate` (the whole
+  image), `layer.flip` and `layer.rotate` (one layer). With a selection,
+  Pixel `layer.flip` / `layer.rotate` turn only the selection's bounds;
+  Image documents turn the whole layer (a group with its subtree)
+  whatever is selected. Pixel canvas transforms drop the selection; undo
+  brings it back.
 
 ## Document structure
 
@@ -108,8 +137,8 @@ The loop is plan → draw → preview → export, in both modes.
   `layer`.
 - Locked layers refuse edits; unlock with `layer.set` and `locked: false`.
 - A selection limits `draw.fill`, `adjust.apply`, `effect.apply` (and in
-  Image mode `draw.gradient`); clear it with `selection.clear` (Pixel) or
-  `select.clear` (Image) when you are done.
+  Image mode `draw.gradient`); clear it with `select.clear` when you are
+  done.
 - `image.crop_to_selection` needs a selection.
 - An Image document opened from PNG, JPEG or another flat format has no
   `.ora` file: `doc.save` needs a `.ora` path, or use `export.png`.

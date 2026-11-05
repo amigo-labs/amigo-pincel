@@ -162,6 +162,7 @@ mod tests {
             "## Preview",
             "## Common pitfalls",
             "## Document structure",
+            "## Selections and transforms",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
@@ -190,6 +191,45 @@ mod tests {
         assert!(guide.contains("Image documents only: `layer.merge_visible`, `layer.merge_group`"));
         assert!(guide.contains("Palette, Pixel documents only"));
         assert!(guide.contains("store no alpha: `palette.export` drops it"));
+        // mcp-parity-selection-transform AC-37: every tool, its modes and
+        // the per-mode differences.
+        for tool in [
+            "select.rect",
+            "select.ellipse",
+            "select.polygon",
+            "select.wand",
+            "select.all",
+            "select.clear",
+            "select.invert",
+            "select.expand",
+            "select.contract",
+            "select.feather",
+            "select.get",
+            "select.delete",
+            "layer.flip",
+            "layer.rotate",
+            "canvas.resize",
+            "image.scale",
+            "image.crop_to_selection",
+            "image.flip",
+            "image.rotate",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "Image documents only: `feather`",
+            "selections are not undo steps",
+            "`tolerance` 0 in Pixel",
+            "32 in Image",
+            "`anchor` `center`",
+            "`top_left` (Image)",
+            "`nearest`",
+            "`bilinear` (Image)",
+            "Without a selection, Image documents clear the whole",
+            "turn only the selection's bounds",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
         // Every tool the guide names in backticks exists.
         let tools: Vec<&str> = crate::list_tools().iter().map(|t| t.name).collect();
         for part in guide.split('`').skip(1).step_by(2) {
