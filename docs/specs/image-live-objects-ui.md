@@ -118,24 +118,24 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 | `ui/e2e/image-live-objects.spec.ts` `a shape, line or gradient drag leaves the object live with handles` | built |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
+| AC-02 | `ui/e2e/image-live-objects.spec.ts` `handles resize the live box, one undo step per drag` | built |        |
+| AC-03 | `ui/e2e/image-live-objects.spec.ts` `Shift squares a corner drag and snaps a line end to 45 degrees` | built |        |
+| AC-04 | `ui/e2e/image-live-objects.spec.ts` `the body moves a box, the grip moves a line, the stroke does nothing` | built |        |
+| AC-05 | `ui/e2e/image-live-objects.spec.ts` `handles keep their size and reach at every zoom, on the stage too` | built |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 | `ui/e2e/image-live-objects.spec.ts` `another tool, a new drag or a press beside the object commits it` | built |        |
-| AC-11 |      | open   |        |
+| AC-11 | `ui/e2e/image-live-objects.spec.ts` `Escape or Undo during a handle drag drops only that drag`, `Escape cancels the live object and the document is clean again` | built |        |
 | AC-12 | `ui/e2e/image-live-objects.spec.ts` `Undo and Redo walk the live object with its handles` | built |        |
-| AC-13 |      | open   |        |
+| AC-13 | `ui/e2e/image-live-objects.spec.ts` `the cursor shows what a press on the live object grabs` | built |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
 | AC-16 | `ui/e2e/image-live-objects.spec.ts` `a refused or degenerate drag leaves nothing live` | built |        |
 | AC-17 | `ui/e2e/image-live-objects.spec.ts` `Escape cancels the live object and the document is clean again` | built |        |
 | AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-19 | `ui/e2e/image-live-objects.spec.ts` `a drag on an object committed meanwhile is dropped silently` | built |        |
 
 ## Decisions
 
@@ -151,3 +151,5 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 - 2026-11-05 (spec-build) — Enter commits before the shared keymap is consulted, because the keymap maps a plain Enter to Pixel mode's Play (`togglePlay`), which Image mode does not serve.
 - 2026-11-05 (spec-build) — Escape and Undo during a handle drag drop the drag through a new core command `cancel_live_gesture` (`CommandBus::cancel_live_gesture`), because Undo would leave the dropped drag as a redo step, which AC-11 rules out.
 - 2026-11-05 (spec-build) — Progress (paused by the coordinator after the first block): built AC-01, AC-10, AC-12, AC-16, AC-17; the pointer code for handle / body / grip drags, cursors, Escape / Undo during a drag, the box-shape conversion on a tool change and the tool-change commit are in place but not yet covered by tests, so AC-02 – AC-09, AC-11, AC-13 stay `open`. Red run of this block: all five specs of `image-live-objects.spec.ts` failed against the editor before the change (no handles, the drag committed at once).
+- 2026-11-05 (spec-build, block 2) — The drag code of AC-02 – AC-05, AC-11, AC-13 and AC-19 was written in block 1, before its tests; their red run was against deliberate temporary breaks, each reverted: no drag start on a handle or the body and no hover cursor (all seven block-2 specs red), and for AC-19 the refused edit rethrown with the editor's no-live short cut removed (`pageerror` red).
+- 2026-11-05 (spec-build, block 2) — AC-19 is checked with a document shortcut (Shift+N, New Layer) pressed during a handle drag: the core commits the object and the editor syncs before the drag's next move. An edit that reaches the core after an outside commit it has not seen yet (an MCP call) takes the same silent path through the core's `NoLiveObject` refusal.
