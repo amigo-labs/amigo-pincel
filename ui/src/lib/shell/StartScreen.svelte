@@ -93,19 +93,19 @@
   class:bg-pc-panel={dropHover}
 >
   <section
-    class="w-full max-w-xl rounded border border-pc-border bg-pc-panel p-6 shadow-xl"
+    class="w-full max-w-[40rem] rounded-lg border border-pc-border bg-pc-panel p-6 shadow-xl"
     aria-labelledby="start-title"
   >
     <div class="flex items-start justify-between gap-3">
-      <h1 id="start-title" class="text-2xl font-semibold tracking-wide">Pincel</h1>
+      <h1 id="start-title" class="text-[1.75rem] leading-tight font-semibold tracking-tight">Pincel</h1>
       <div class="flex items-center gap-2">
         <!-- No menu bar is mounted here, so About needs its own way in
              wherever the OS draws no native Help menu (spec §11.3). -->
         {#if !hasNativeMenu()}
-          <button class="panel-btn text-xs" onclick={openAbout}>{t('menu.about')}</button>
+          <button class="panel-btn" onclick={openAbout}>{t('menu.about')}</button>
         {/if}
         <select
-          class="opt-field text-xs"
+          class="panel-btn"
           aria-label={t('start.language')}
           value={locale()}
           onchange={(e) => {
@@ -119,7 +119,7 @@
         </select>
       </div>
     </div>
-    <p class="mt-1 text-sm text-pc-muted">{t('start.tagline')}</p>
+    <p class="mt-2 text-sm text-pc-muted">{t('start.tagline')}</p>
 
     <div class="mt-6 flex flex-col gap-3">
       {#each CARDS as card (card.mode)}
@@ -137,7 +137,7 @@
           >
             <span class="flex flex-col gap-1">
               <span class="text-base font-semibold">{t(card.title)}</span>
-              <span class="text-xs text-pc-muted">{t(card.hint)}</span>
+              <span class="text-[13px] text-pc-muted">{t(card.hint)}</span>
             </span>
             <Icon
               name="chevron-down"
@@ -209,9 +209,9 @@
       {/each}
     </div>
 
-    <div class="mt-4 flex items-center gap-2">
-      <button class="toolbar-btn" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
-      <span class="text-xs text-pc-faint">{t('start.openHint')}</span>
+    <div class="mt-5 flex flex-col items-start gap-2">
+      <button class="panel-btn shrink-0" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
+      <span class="text-[13px] leading-relaxed text-pc-muted">{t('start.openHint')}</span>
     </div>
 
     {#if recents.length > 0}
@@ -241,7 +241,7 @@
 
 <style>
   .start-card {
-    border-radius: 0.375rem;
+    border-radius: 0.5rem;
     border: 1px solid var(--color-pc-border);
   }
   .start-card:hover:not(.start-card-open):has(.start-card-head:enabled) {
@@ -262,19 +262,6 @@
     text-align: left;
   }
   .start-card-head:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .toolbar-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-    font-size: 0.75rem;
-  }
-  .toolbar-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .toolbar-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }

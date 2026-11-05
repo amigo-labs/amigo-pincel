@@ -38,7 +38,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/70 p-4"
+  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
   role="dialog"
   aria-modal="true"
   aria-labelledby="about-title"
@@ -53,7 +53,7 @@
       <p class="mb-4 text-sm text-pc-accent" role="status">{status}</p>
     {/if}
     <div class="flex justify-end">
-      <button bind:this={closeButton} class="toolbar-btn" onclick={onClose}>
+      <button bind:this={closeButton} class="panel-btn" onclick={onClose}>
         {t('about.close')}
       </button>
     </div>

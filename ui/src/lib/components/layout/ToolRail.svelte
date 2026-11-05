@@ -325,7 +325,7 @@
   bind:this={railEl}
   class={orientation === 'vertical'
     ? 'rail flex w-12 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-pc-border bg-pc-panel py-1.5 select-none [scrollbar-width:none]'
-    : 'rail flex h-14 shrink-0 items-center gap-1 overflow-x-auto border-t border-pc-border bg-pc-panel px-2 select-none [scrollbar-width:none]'}
+    : 'rail scroll-fade-x flex h-14 shrink-0 items-center gap-1 overflow-x-auto border-t border-pc-border bg-pc-panel px-2 select-none [scrollbar-width:none]'}
   role="toolbar"
   aria-label={t('frame.tools')}
   aria-orientation={orientation}
@@ -349,7 +349,7 @@
       {@const flyout = hasFlyout(g)}
       <button
         type="button"
-        class="relative flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-35 disabled:hover:bg-transparent"
+        class="relative flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
         class:h-9={orientation === 'vertical'}
         class:w-9={orientation === 'vertical'}
         class:h-11={orientation === 'horizontal'}
@@ -403,12 +403,11 @@
   .rail {
     -webkit-touch-callout: none;
   }
-  .tool-on {
-    background-color: var(--color-pc-accent);
-    color: var(--color-pc-accent-fg);
-  }
+  /* Active tool: accent tint and accent glyph, quieter than a solid fill. */
+  .tool-on,
   .tool-on:hover {
-    background-color: var(--color-pc-accent);
-    color: var(--color-pc-accent-fg);
+    background-color: color-mix(in srgb, var(--color-pc-accent) 22%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-pc-accent) 55%, transparent);
+    color: var(--color-pc-accent-text);
   }
 </style>

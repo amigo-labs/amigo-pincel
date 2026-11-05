@@ -211,7 +211,7 @@
       <span class="mr-1 text-sm font-semibold tracking-wide">Pincel</span>
     {/if}
     <span
-      class="mr-1 rounded border border-pc-border px-1.5 text-[11px] leading-5 text-pc-accent capitalize"
+      class="mr-1 rounded bg-pc-accent/15 px-1.5 text-[11px] leading-5 font-semibold text-pc-accent-text capitalize"
     >
       {t(`mode.${mode}`)}
     </span>
@@ -246,7 +246,8 @@
     <div class="flex min-w-0 flex-1 flex-col">
       {#if options && !chrome.hidden}
         <div
-          class="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
+          class:scroll-fade-x={size === 'narrow'}
+          class="flex h-11 shrink-0 items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
           role="toolbar"
           aria-label={t('frame.toolOptions')}
         >
@@ -289,7 +290,7 @@
               {#each panels as p (p.id)}
                 <button
                   type="button"
-                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs disabled:opacity-35"
+                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs disabled:opacity-45"
                   class:bg-pc-active={!effectPanel && p.id === sheetTab}
                   class:text-pc-muted={effectPanel || p.id !== sheetTab}
                   role="tab"

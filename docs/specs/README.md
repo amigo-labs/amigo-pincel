@@ -20,40 +20,120 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 ## Planned features — order
 
-Owner priorities lead: performance and MCP. Both chains are independent of each other and of the UI specs, so they can run in parallel on separate branches.
+Owner priorities lead: performance and MCP. The specs are grouped by area; each group is built top to bottom, and groups that share no files run in parallel on separate branches or worktrees (`D:/worktrees/<repo>.<name>`, AGENTS.md). A spec number is its group letter plus its place in the group.
+
+### A — MCP
+
+Agents reach every document-changing capability; live mode last. Runs in parallel with every other group.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| 1 | [performance-benchmarks](performance-benchmarks.md) | both | L | — | Measure first; budgets every later step proves against |
-| 2 | [performance-image-kernel](performance-image-kernel.md) | Image | M | performance-benchmarks | Biggest single win (LUT ≈ 7×); no open questions |
-| 3 | [performance-image-cache](performance-image-cache.md) | Image | L | performance-image-kernel | Dab and pan budgets |
-| 4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
-| 5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
-| 6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
-| 7 | [performance-image-undo-memory](performance-image-undo-memory.md) | Image | L | performance-benchmarks | Can move earlier if memory hurts |
-| 8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
-| 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
-| 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
-| 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
-| 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
-| 23 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
-| 26 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
-| 29 | [rotsprite](rotsprite.md) | Pixel | L | — | |
-| 30 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
-| 31 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
-| 32 | [color-picker](color-picker.md) | both | L | — | |
-| 34 | [animation-preview](animation-preview.md) | Pixel | M | — | |
-| 35 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
-| 36 | [more-languages](more-languages.md) | both | L | — | |
-| 37 | [first-run-tutorial](first-run-tutorial.md) | both | M | — | Better after more-languages if the tour ships translated |
-| 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
-| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
-| 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
-| 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
-| 45 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
-| 46 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
-| 47 | [pixel-selection-move](pixel-selection-move.md) | Pixel | S | — | Revision 2026-11-05: Magic Wand settings update the last click |
-| 48 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
+| A1 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
+| A2 | [mcp-parity-selection-transform](mcp-parity-selection-transform.md) | both | L | mcp-parity-structure | MCP select.* for both modes, Delete, canvas and layer transforms |
+| A3 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
+| A4 | [mcp-parity-drawing](mcp-parity-drawing.md) | both | L | mcp-parity-structure | MCP Pixel drawing via draw.stroke / shape / text / gradient |
+| A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
+| A6 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
+| A7 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
+| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
+
+### B — Image live objects
+
+Shapes, line, gradient, text and selection transforms stay editable until committed (paint.net parity). `image-live-objects` first; parallel with A, D, E, F.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
+| B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
+| B3 | [image-live-text](image-live-text.md) | Image | L | image-live-objects | Text stays editable until commit; underline / strikethrough |
+| B4 | [image-shapes-curves](image-shapes-curves.md) | Image | L | image-live-objects | Line / Curve with control points, arrow heads, dash-dot |
+| B5 | [image-shapes-curves-shapes](image-shapes-curves-shapes.md) | Image | L | image-live-objects-ui, image-shapes-curves | Six new shapes: triangle, diamond, star, block arrow, heart, callout |
+| B6 | [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md) | Image | M | — | Layer ▸ Rotate / Zoom as an Image-only effect; builds the resampler |
+| B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
+
+### C — Editor feedback
+
+Owner feedback of 2026-11-05 on the running editor. Touches the options bar and the Colors panel, so build before D, not beside it.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| C1 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
+| C2 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
+| C3 | [pixel-selection-move](pixel-selection-move.md) | Pixel | S | — | Revision 2026-11-05: Magic Wand settings update the last click |
+| C4 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
+| C5 | [color-picker](color-picker.md) | both | L | — | |
+| C6 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
+
+### D — Image tools
+
+paint.net tools and tool options. After C (shared options bar and Colors panel).
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| D1 | [clone-stamp](clone-stamp.md) | Image | L | — | Clone Stamp (key C) plus MCP draw.clone |
+| D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
+| D3 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
+| D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
+| D5 | [image-palette-gradient-spiral](image-palette-gradient-spiral.md) | Image | M | — | Spiral gradients, also in MCP draw.gradient |
+
+### E — Text and fonts
+
+Installed fonts in both Text tools; the MCP part after `mcp-parity-drawing`.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| E1 | [system-fonts](system-fonts.md) | both | L | — | Installed fonts in both Text tools (fontdb, Local Font Access, font files) |
+| E2 | [system-fonts-mcp](system-fonts-mcp.md) | both | M | system-fonts, mcp-parity-drawing | MCP draw.text font argument and font.list |
+
+### F — Image size, view and files
+
+Independent of every other group.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| F1 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
+| F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
+| F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
+| F4 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
+| F5 | [image-formats-more-print](image-formats-more-print.md) | Image | L | — | File ▸ Print… |
+
+### G — Performance
+
+Owner priority; measure first, then the budgets of pincel.md §4.5.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| G1 | [performance-benchmarks](performance-benchmarks.md) | both | L | — | Measure first; budgets every later step proves against |
+| G2 | [performance-image-kernel](performance-image-kernel.md) | Image | M | performance-benchmarks | Biggest single win (LUT ≈ 7×); no open questions |
+| G3 | [performance-image-cache](performance-image-cache.md) | Image | L | performance-image-kernel | Dab and pan budgets |
+| G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
+| G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
+| G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
+| G7 | [performance-image-undo-memory](performance-image-undo-memory.md) | Image | L | performance-benchmarks | Can move earlier if memory hurts |
+| G8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
+
+### H — Other planned features
+
+No shared files with the groups above; pick by priority.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| H1 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
+| H2 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
+| H3 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
+| H4 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
+| H5 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
+| H6 | [rotsprite](rotsprite.md) | Pixel | L | — | |
+| H7 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
+| H8 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
+| H9 | [animation-preview](animation-preview.md) | Pixel | M | — | |
+| H10 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
+| H11 | [more-languages](more-languages.md) | both | L | — | |
+| H12 | [first-run-tutorial](first-run-tutorial.md) | both | M | — | Better after more-languages if the tour ships translated |
+| H13 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
+| H14 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
+| H15 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
+| H16 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 
 ## Done
 
@@ -111,13 +191,13 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Layer masks and clipping masks | Probably Image mode first |
 | Non-destructive layer effects and adjustment layers | Large; touches compose in both cores |
 | Reference layers | Small: a non-exported, non-editable layer kind |
-| Clone stamp, Bézier curves, custom brushes | Spec §5.4 / §13.3 |
-| History panel (list of undo steps) | Undo exists; only the panel is missing |
+| Custom brushes | Spec §13.3 |
 | CLI batch export (`pincel-cli`) | Design in `cli.md`; PNG / atlas export already exists in `pincel-core` |
 | Isometric and hexagonal tilemaps; Godot / Tiled export | Extends tilemaps |
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
 | PSD export | After psd-import |
 | Native iPad app | PWA on iPad today; Tauri mobile has no iOS path (§14 question 5) |
+| Pixel tools clip to the selection | Bucket, strokes and shapes ignore the selection in the Pixel editor; MCP `draw.fill` already clips (mcp-parity-drawing) |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
