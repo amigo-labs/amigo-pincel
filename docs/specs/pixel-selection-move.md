@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -64,6 +64,8 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 - [x] AC-22 (event): When a Rectangle or Ellipse marquee, Lasso or Polygonal Lasso gesture, or a Magic Wand click, whose shape's bounding box lies entirely off the canvas (for example a click on the stage), then in replace mode the selection is cleared and in add, subtract or intersect mode nothing changes.
 - [x] AC-23 (event): When Escape is pressed while a Rectangle or Ellipse marquee or a Lasso drag is in progress, then the gesture ends without changing the selection and its outline disappears; moving and releasing the pointer afterwards changes nothing.
 - [x] AC-24 (event): When a press with the Pencil, Eraser, Bucket, Line, a shape tool, Text, Eyedropper, Slice, Tilemap stamp, or the Move tool while a selection exists starts on the stage, then no pixel changes, no undo entry is added and the selection stays; the Move tool with nothing selected and Space-drag pan the view from the stage as they do from the canvas.
+- [ ] AC-25 (event): When the user commits a new value of the Magic Wand's tolerance (Enter, leaving the field, an arrow key or the field's spin buttons; values clamp to 0–255 as for a click, an empty or non-numeric entry is ignored), or changes Contiguous or the sample source (layer / composite), while a wand link exists (AC-26), then the selection becomes what the linked click would have made with the new settings: same point, same combine mode, combined with the selection as it was before the click. As for every selection change (AC-13), no undo entry is added.
+- [ ] AC-26 (state): A wand link starts with a Magic Wand click that changed the selection (in any combine mode) and exists until another tool is chosen (even if the Magic Wand is chosen again later); the active layer or frame changes; another selection change is made (a selection tool gesture, a Select menu command, Deselect, Escape); Undo or Redo; any change to pixels, layers or the canvas; or the document or tab is switched. A Magic Wand click that leaves the selection unchanged starts no link. Without a wand link, changing the Magic Wand's settings leaves the selection unchanged; the settings apply to the next click.
 
 ## Technical notes
 
@@ -92,6 +94,9 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 
 | Scenario | Expected behavior |
 | -------- | ----------------- |
+| Magic Wand click off the canvas (AC-22), then the tolerance changes | In replace mode with a selection present, the click cleared the selection and started a link, so the recomputation from that point keeps it empty; otherwise no link started and nothing changes |
+| Typing `120` into the tolerance field | Nothing happens until the value is committed; then the selection is recomputed once with 120 |
+| Tolerance changed after the frame or the active layer changed | The selection does not change (AC-26: the link ended, because the wand would now sample something else) |
 | Marquee dragged partly off the canvas | The selection covers only on-canvas pixels (`selectRect` clips to the canvas mask) |
 | Expand / Contract with nothing selected | No-op, no event |
 | Contract by more than half the selection's size | The selection becomes empty |
@@ -148,9 +153,12 @@ Pixel mode has a selection that is either a plain rectangle or a canvas-sized co
 | AC-22 | `ui/e2e/selection-stage.spec.ts` › pixel: a marquee click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: a Magic Wand click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › pixel: lasso, polygon and ellipse entirely on the stage deselect, Shift keeps | verified | |
 | AC-23 | `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a marquee drag keeps the selection; Escape after it deselects; `ui/e2e/selection-stage.spec.ts` › pixel: Escape during a lasso or ellipse drag drops it; moving and releasing then changes nothing | verified | |
 | AC-24 | `ui/e2e/selection-stage.spec.ts` › pixel: a paint press on the stage changes nothing; `ui/e2e/selection-stage.spec.ts` › pixel: the Move tool with nothing selected pans from the stage; `ui/e2e/selection-stage.spec.ts` › pixel: a paint or Move press on the stage keeps the selection; `ui/e2e/selection-stage.spec.ts` › pixel: Space-drag pans from the stage | verified | |
+| AC-25 |  | open |  |
+| AC-26 |  | open |  |
 
 ## Decisions
 
+- 2026-11-05: Revision. After a Magic Wand click, changing tolerance, Contiguous or sample source recomputes that selection from the same point (AC-25, AC-26), as in Image mode (`image-editing` AC-33). Requested by the owner for both modes; selections stay outside the undo stack (AC-13), so there is no undo step to merge. Status back to `todo` for the new ACs; AC-01 – AC-24 stay verified.
 - 2026-11-03 — AC-11's open question was a bug: the radius dialog's Apply cleared `dialogs.selectionRadius` before calling `selectAction(op, …)`, and `op` is a `{@const}` that follows that state, so the call got `null` and changed nothing. Apply now reads the operation first, as the Rename dialog already did. The new e2e test was red before the fix (copied box stayed 4 × 4).
 
 - 2026-10-29: Extracted from the code as it stands; differences to `pincel.md` §5.2 / §13.1 are not ACs — see the extraction report.

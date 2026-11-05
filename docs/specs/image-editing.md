@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: S
 mode: Image
@@ -82,6 +82,9 @@ Already decided: the tool set and keys (§5.4, Decision Log 2026-10-27), the lay
 - [x] AC-30 (event): When Rectangle Select or Ellipse Select is released with a box of zero width or height after snapping (a click), when a Rectangle Select, Ellipse Select, Lasso or Polygonal Lasso gesture or a Magic Wand click whose shape's bounding box lies entirely off the canvas (for example a click on the stage), or when a freehand Lasso drag ends with fewer than three points, then in replace mode a present selection is cleared as one undo step, as Select ▸ Deselect does; with no selection present (Select ▸ Deselect disabled), or in add, subtract or intersect mode, nothing changes and no undo step is added.
 - [x] AC-31 (event): When Escape is pressed (no dialog open, focus not in a text field), then a Rectangle Select, Ellipse Select or Lasso drag or an open Polygonal Lasso is discarded without a selection change or undo step, and moving and releasing the pointer afterwards changes nothing; any other drag in progress is cancelled as before and the selection stays; with no gesture in progress, a present selection is cleared as one undo step.
 - [x] AC-32 (event): When a press with the Brush, Eraser, Recolor, Smudge, Paint Bucket, Gradient, Eyedropper, Line, Shapes, Text or a Move variant starts on the stage, then no pixel changes and no undo step is added; the Pan and Zoom tools, Space-drag and middle-button panning work from the stage as they do from the canvas.
+- [ ] AC-33 (event): When the user changes the Magic Wand's Tolerance, Contiguous or Sample setting while a wand link exists (AC-34), then the selection becomes what the linked click would have made with the new settings: same point, same combine mode, combined with the selection as it was before the click. Each value the Tolerance slider takes during a drag is applied, so the selection always matches the slider. The click and every such update together are one undo step: one Undo restores the selection from before the click, and one Redo restores the selection of the last settings.
+- [ ] AC-34 (state): A wand link starts with a Magic Wand click that changed the selection (in any combine mode) and exists until another tool is chosen (even if the Magic Wand is chosen again later); the active layer or frame changes; another selection change is made (a selection tool gesture, a Select menu command, Deselect, Escape); Undo or Redo; any change to pixels, layers or the canvas; or the document or tab is switched. A Magic Wand click that leaves the selection unchanged starts no link. Without a wand link, changing the Magic Wand's settings leaves the selection unchanged; the settings apply to the next click.
+- [ ] AC-35 (event): When the user clicks the canvas or the stage with the right mouse button while the Zoom tool is active, with or without Alt, then the view steps out one notch around the clicked point, exactly as Alt+click does, and no context menu opens; a right-button drag also steps out one notch around its start point instead of zooming into the dragged box.
 
 ## Technical notes
 
@@ -119,7 +122,10 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | Crop to Selection without a selection | Nothing changes; the menu item is disabled |
 | Invert Selection with no selection | Results in an empty selection (no selection means everything is selected) |
 | Expand / Contract / Feather with no selection | Nothing changes |
-| Magic Wand click off the canvas | See AC-30: replace mode clears a present selection, other modes change nothing |
+| Magic Wand click off the canvas | See AC-30: replace mode clears a present selection, other modes change nothing; in replace mode with a selection present it clears the selection and starts a wand link (AC-34: it changed the selection), so a later settings change recomputes from that off-canvas point and keeps the selection empty; in the other modes nothing changes and no link starts |
+| Tolerance changed after a Magic Wand click while the Paint Bucket is active | The selection does not change; the bucket uses the new tolerance (AC-34: another tool was chosen) |
+| Tolerance changed back to the clicked value | The selection equals the one the click made; still one undo step |
+| Zoom tool right-click at the minimum zoom | The view stays at the minimum, as Alt+click does |
 | Selection gesture entirely on the stage, never touching the canvas | As AC-30: replace mode clears a present selection (one undo step), other modes change nothing |
 | Canvas zoomed so far that it covers the whole viewport | There is no stage; gestures start on the canvas as before |
 | Stage gesture released outside the window | The release still ends it (pointer capture) |
@@ -172,11 +178,15 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC-30 | `ui/e2e/selection-stage.spec.ts` › image: a marquee click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › image: a marquee click on the canvas deselects; `ui/e2e/selection-stage.spec.ts` › image: a lasso click without a drag deselects; `ui/e2e/selection-stage.spec.ts` › image: a Magic Wand click on the stage deselects in replace mode only; `ui/e2e/selection-stage.spec.ts` › image: deselecting by a stage click or Escape is one undo step; `ui/e2e/selection-stage.spec.ts` › image: a stage click with nothing selected adds no undo step; `ui/e2e/selection-stage.spec.ts` › image: an ellipse click on the canvas deselects; `ui/e2e/selection-stage.spec.ts` › image: lasso, polygon and ellipse entirely on the stage deselect, Shift keeps | verified | |
 | AC-31 | `ui/e2e/selection-stage.spec.ts` › image: Escape during a marquee drag keeps the selection; Escape after it deselects; `ui/e2e/selection-stage.spec.ts` › image: deselecting by a stage click or Escape is one undo step; `ui/e2e/selection-stage.spec.ts` › image: a stage click with nothing selected adds no undo step; `ui/e2e/selection-stage.spec.ts` › image: Escape during a lasso or ellipse drag drops it; moving and releasing then changes nothing; `ui/e2e/selection-stage.spec.ts` › image: a cancelled pointer drops a marquee drag; `ui/e2e/selection-stage.spec.ts` › image: Escape discards an open polygonal lasso and keeps the selection | verified | |
 | AC-32 | `ui/e2e/selection-stage.spec.ts` › image: a paint press on the stage changes nothing; `ui/e2e/selection-stage.spec.ts` › image: the Pan tool pans from the stage; `ui/e2e/selection-stage.spec.ts` › image: a paint or Move press on the stage keeps the selection; `ui/e2e/selection-stage.spec.ts` › image: Space-drag pans from the stage | verified | |
+| AC-33 |  | open |  |
+| AC-34 |  | open |  |
+| AC-35 |  | open |  |
 
 Not separately evidenced inside built ACs: the Gradient's Conical and Diamond kinds (AC-14 lists only the tested kinds), selection clipping of Eraser, Recolor and Smudge (AC-11 lists only the tested tools), the default undo capacity of 100 (AC-26 says "fixed capacity").
 
 ## Decisions
 
+- 2026-11-05: Revision. After a Magic Wand click, changing Tolerance, Contiguous or Sample recomputes that selection from the same point (AC-33, AC-34), as paint.net does; the click and its updates are one undo step. A right-click with the Zoom tool zooms out (AC-35). Requested by the owner ("the tolerance slider should apply to the clicked point so I don't have to click again"; "a right-click with the magnifier should zoom out again"). The owner chose all three settings, one undo step, and ending the link at any other change. Status back to `todo` for the new ACs; AC-01 – AC-32 stay verified, because their behavior is unchanged.
 - AC-10, AC-18 and AC-28 were green on their first run: the behavior already existed, the spec records it. To show the new AC-10 and AC-18 tests are not vacuous they were run red against a temporarily mutated `ui/src/modes/image/tools/pointer.ts` (right button forced to the foreground color; Shift constraint, then only the 45° line snap, disabled; Eyedropper right click sampling into the foreground) and failed on the expected assertions; the mutation was reverted.
 - The new e2e tests read the document through the Eyedropper (a 1 px composite sample lands in the foreground swatch), because tests stay on the DOM and app code never reads canvas pixels (AGENTS.md §7.4, §9).
 - AC-28's G is asserted against the rail label "Fill", the Paint Bucket's name in the Image-mode tool rail.

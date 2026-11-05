@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-28
 size: M
 mode: both
@@ -51,12 +51,14 @@ This spec gives every frequent action a default shortcut, following Aseprite, Ph
 - [x] AC-11 (event): When the user presses Alt+] or Alt+[ in Pixel mode, then the next or previous palette entry becomes the foreground color; `[` / `]` without Alt still resize the brush.
 - [x] AC-12 (always): Each menu item that has one of the new shortcuts shows it as its shortcut hint.
 - [x] AC-13 (always): Within each mode, no two actions or tool-group keys share a chord (checked by an automated test over the whole keymap).
-- [x] AC-14 (always): No default chord is one a browser tab cannot capture (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab and the others listed in Technical notes); keys that only work in the desktop app are bound only there.
+- [ ] AC-14 (always): No default chord is one a browser tab cannot capture (Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab and the others listed in Technical notes) unless it is bound only where it can be captured: keys that only work in the desktop app are bound only there, and Ctrl+N (AC-20) only in the desktop app and in an installed app window.
 - [x] AC-15 (state): While a text field has focus, none of the new shortcuts fires; the key reaches the field.
 - [x] AC-16 (error): If the action a new shortcut triggers is unavailable (e.g. merge down on the bottom layer, delete on the only layer, no document), then nothing happens and no error is raised — the same as the disabled menu item.
 - [x] AC-17 (event): When the user chooses View ▸ Toggle UI, then the UI toggles exactly as Tab on the canvas stage does (AC-09).
 - [x] AC-18 (state): While the UI is hidden, a reload shows the full UI — the hidden state is not persisted.
 - [x] AC-19 (event): When the user presses Ctrl+Alt+E (⌥⌘E on macOS) in Pixel mode, then the sprite sheet export dialog opens, as File ▸ Export ▸ Sprite Sheet does; the menu item, the native macOS menu item and the shortcut overview show Ctrl+Alt+E, and Ctrl+Shift+E no longer opens it.
+- [ ] AC-20 (option): Where Pincel runs as the desktop app on Windows or Linux, or as an installed app in its own window rather than a browser tab, Ctrl+N (⌘N on macOS) opens the New dialog, as File ▸ New does, also on the start screen, and the File ▸ New menu item and the shortcut overview show it; in a browser tab Ctrl+N has no binding and no hint is shown. On macOS the desktop app keeps ⌘N through the native menu.
+- [ ] AC-21 (event, manual: Playwright's synthetic keys reach the page even for chords the browser keeps, so only a real installed window shows whether Chromium delivers Ctrl+N): When the user presses Ctrl+N in an installed PWA window in Chromium, then the New dialog opens and no new browser window appears.
 
 ## Technical notes
 
@@ -91,6 +93,10 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | Scenario | Expected behavior |
 | -------- | ----------------- |
+| Ctrl+N on the start screen (no document) | The New dialog opens (AC-20); unlike the other shortcuts it does not need a document |
+| Ctrl+N while a text field has focus | Nothing (AC-15); the key reaches the field |
+| Ctrl+N while an effect or another modal dialog is open | Nothing, as for the other shortcuts while a modal is open |
+| Ctrl+N with unsaved changes | The New dialog opens; a new document opens in a new tab and nothing is lost (`document-tabs`) |
 | Merge down on the bottom layer | Nothing happens (AC-16) |
 | Delete layer on the only layer | Nothing happens, as the disabled menu item |
 | Alt+↑ on the top layer | Active layer unchanged |
@@ -134,12 +140,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-11 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+] / Alt+[ step through the palette, [ / ] still size the brush" | verified | 85f381e |
 | AC-12 | `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not" (Export ▸ Sprite Sheet…) | verified | 85f381e |
 | AC-13 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) | verified | 85f381e |
-| AC-14 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image); `ui/e2e/desktop.spec.ts` "Ctrl+R and Ctrl+Shift+R rotate the image 90°" | verified | 85f381e |
+| AC-14 |  | open |  |
 | AC-15 | `ui/e2e/shortcuts-coverage.spec.ts` "a focused text field gets the keys" (pixel, image) | verified | 85f381e |
 | AC-16 | `ui/e2e/shortcuts-coverage.spec.ts` "a layer key whose menu item is disabled does nothing" (pixel, image) | verified | 85f381e |
 | AC-17 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | verified | 85f381e |
 | AC-18 | `ui/e2e/shortcuts-coverage.spec.ts` "a reload shows the full UI again" | verified | 85f381e |
 | AC-19 | `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E does nothing" (image); native macOS accelerator in `src-tauri/src/main.rs` (CI only) | verified | 85c6702 |
+| AC-20 |  | open |  |
+| AC-21 |  | open |  |
 
 ## Summary
 
@@ -152,6 +160,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 ## Decisions
 
+- 2026-11-05: Revision. Ctrl+N opens the New dialog in the Windows / Linux desktop app and in an installed PWA window (AC-20, AC-21); AC-14 allows that exception. Requested by the owner ("Ctrl+N for a new image is still missing"), who chose desktop + installed PWA over a different browser chord. Risk: Chromium may keep Ctrl+N for itself in an installed window too; AC-21 is checked by hand, and if Chromium keeps the key, the binding stays desktop-only: AC-20 and AC-14 lose the installed-window case and AC-21 is dropped, each with that reason. Status back to `todo` for the new ACs; AC-01 – AC-13 and AC-15 – AC-19 stay verified.
 - 2026-10-29 (migration): The legacy plan "Power-user keyboard" (L, three M parts) is split into `power-user-shortcuts-coverage`, `power-user-shortcuts-palette` and `power-user-shortcuts-keymap` — each part stands alone and is testable on its own.
 - 2026-10-28 (legacy plan): Ctrl+E stays Export; merge down takes Ctrl+Shift+E — Export is an established binding.
 - 2026-10-28 (legacy plan): Rotate 90° gets Ctrl+R / Ctrl+Shift+R only in the desktop app — Ctrl+R reloads a browser tab.
