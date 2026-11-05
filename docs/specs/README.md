@@ -53,6 +53,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 45 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
 | 46 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
 | 47 | [pixel-selection-move](pixel-selection-move.md) | Pixel | S | — | Revision 2026-11-05: Magic Wand settings update the last click |
+| 48 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
 
 ## Done
 
@@ -84,7 +85,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-pressure](pixel-pressure.md)
 - [pixel-undo-history](pixel-undo-history.md)
-- [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md)
 - [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
 - [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
