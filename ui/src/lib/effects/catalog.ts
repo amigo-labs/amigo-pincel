@@ -617,6 +617,86 @@ export const EFFECTS: EffectDef[] = [
       num('dithering', 'Dithering', 0, 100, 0),
     ],
   },
+  // docs/specs/effects-artistic-photo.md: paint.net's Artistic and Photo
+  // menus; all eight create in-between colours, so Image mode only.
+  {
+    id: 'ink_sketch',
+    label: 'Ink Sketch',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [num('ink_outline', 'Ink outline', 0, 99, 50), num('coloring', 'Coloring', 0, 100, 50)],
+  },
+  {
+    id: 'oil_painting',
+    label: 'Oil Painting',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [num('brush_size', 'Brush size', 1, 8, 3), num('coarseness', 'Coarseness', 3, 255, 50)],
+  },
+  {
+    id: 'pencil_sketch',
+    label: 'Pencil Sketch',
+    group: 'artistic',
+    modes: IMAGE,
+    params: [
+      num('tip_size', 'Pencil tip size', 1, 20, 2),
+      num('color_range', 'Color range', -20, 20, 0),
+    ],
+  },
+  {
+    id: 'glow',
+    label: 'Glow',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('radius', 'Radius', 1, 20, 6),
+      num('brightness', 'Brightness', -100, 100, 10),
+      num('contrast', 'Contrast', -100, 100, 10),
+    ],
+  },
+  {
+    id: 'red_eye_removal',
+    label: 'Red Eye Removal',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('tolerance', 'Tolerance', 0, 100, 70),
+      num('saturation', 'Saturation', 0, 100, 90),
+    ],
+  },
+  {
+    id: 'soften_portrait',
+    label: 'Soften Portrait',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('softness', 'Softness', 0, 10, 5),
+      num('lighting', 'Lighting', -20, 20, 0),
+      num('warmth', 'Warmth', 0, 20, 10),
+    ],
+  },
+  {
+    id: 'straighten',
+    label: 'Straighten',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      num('angle', 'Angle', -45, 45, 0, 0.1),
+      choice('fill', 'Fill', ['Zoom to fill', 'Transparent corners']),
+    ],
+  },
+  {
+    id: 'vignette',
+    label: 'Vignette',
+    group: 'photo',
+    modes: IMAGE,
+    params: [
+      center(),
+      num('radius', 'Radius %', 10, 400, 100),
+      num('density', 'Density', 0, 100, 100),
+      choice('color', 'Color', ['Black', 'White']),
+    ],
+  },
 ];
 
 /** English fallback names of the Effects submenus (`effect.group.<id>`). */

@@ -18,7 +18,7 @@
 
 mod crystalize;
 mod dents;
-mod edge;
+pub(crate) mod edge;
 mod edge_detect;
 mod emboss;
 mod frosted_glass;

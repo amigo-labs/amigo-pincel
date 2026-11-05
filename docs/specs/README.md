@@ -64,7 +64,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [tool-variant-flyout](tool-variant-flyout.md) | both | S | — | Right-click / hold on a tool-rail group opens its variants; no browser context menu on the rail |
 | 47 | [document-tabs](document-tabs.md) | both | L | unsaved-changes-prompt | Several documents in tabs within one mode; other mode replaces the session. Revises app-shell AC-08 / AC-16, autosave-recovery AC-05 |
-| 52 | [effects-artistic-photo](effects-artistic-photo.md) | Image | L | effect-catalog-v2 | Ink / Pencil Sketch, Oil Painting, Glow, Red Eye, Soften Portrait, Straighten, Vignette |
 | 53 | [effects-render](effects-render.md) | both | M | effect-catalog-v2, outline-effect | Clouds, Turbulence (both modes), Julia and Mandelbrot (Image) |
 
 ## Done
@@ -73,6 +72,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [animated-export](animated-export.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
 - [effect-panel](effect-panel.md)
+- [effects-artistic-photo](effects-artistic-photo.md)
 - [effects-blurs](effects-blurs.md)
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
