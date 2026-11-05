@@ -14,7 +14,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
-| Both modes | [i18n](i18n.md), [effects-adjustments](effects-adjustments.md) |
+| Both modes | [i18n](i18n.md) |
 | Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md), [app-shell](app-shell.md), [autosave-recovery](autosave-recovery.md) |
 | Website | [website](website.md) |
 
@@ -142,6 +142,7 @@ No shared files with the groups above; pick by priority.
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
+- [effects-adjustments](effects-adjustments.md)
 - [effects-artistic-photo](effects-artistic-photo.md)
 - [effects-blurs](effects-blurs.md)
 - [effects-distort](effects-distort.md)
