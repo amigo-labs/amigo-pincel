@@ -246,7 +246,11 @@ test('AC-22: pixel: a drop with a non-PNG file cannot be added as layers', async
   await expect(button(dialog, 'Add as layer')).toBeDisabled();
   await expect(dialog.getByText('Pixel mode adds PNG files only')).toBeVisible();
   await expect(button(dialog, 'Open as document')).toBeEnabled();
-  await button(dialog, 'Cancel').click();
+  // Without Add as layer the dialog still holds the focus, so Escape and
+  // the editor's keys stay with it.
+  await expect(button(dialog, 'Open as document')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
 
   // Image mode adds every raster format.
   await createDocument(page, 'image', { width: 16, height: 16 });
