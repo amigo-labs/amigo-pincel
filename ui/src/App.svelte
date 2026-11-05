@@ -428,8 +428,10 @@
   // Whether a file drop would be taken now: on the start screen and while
   // the first editor loads (the files queue up, document-tabs AC-24); on
   // an editor only while its document is loaded and no dialog is open
-  // (file-access AC-27).
+  // (file-access AC-27). Under the unsaved-changes prompt a drop is taken
+  // only to be refused with a notice (unsaved-changes-prompt AC-08).
   function dropTaken(): boolean {
+    if (promptBusy()) return true;
     if (picking || modalOpen) return false;
     if (activeMode === null) return true;
     return !addingLayers && (dropTargets[activeMode]?.accepts() ?? false);
@@ -437,7 +439,7 @@
 
   function onDropHover(active: boolean): boolean {
     const taken = dropTaken();
-    dropHover = active && taken;
+    dropHover = active && taken && !promptBusy();
     return taken;
   }
 
@@ -447,7 +449,8 @@
   // Raster images dropped on an editor ask first (file-access AC-20).
   function onDropFiles(files: DroppedFile[]): void {
     const target = activeMode === null ? null : dropTargets[activeMode];
-    if (target === null) {
+    // `routeFile` names each file the open prompt keeps from opening.
+    if (target === null || promptBusy()) {
       openDropped(files);
       return;
     }
