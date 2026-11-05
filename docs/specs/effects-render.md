@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-04
 size: M
 mode: both
@@ -43,18 +43,18 @@ The fractals are opaque everywhere they render. Clouds and Turbulence take the c
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): The Render submenu lists Clouds… and Turbulence… in both modes, and Julia Fractal… and Mandelbrot Fractal… in Image mode only, sorted as `effect-catalog-v2` AC-04 specifies.
-- [ ] AC-02 (event): When the user opens one of the four, then the effect dialog shows exactly its parameters from the table with their ranges and defaults; Colour 1 and Colour 2 start at the current foreground and background colours.
-- [ ] AC-03 (always): Each render effect gives the same pixels on every run for the same parameters and target size; Clouds and Turbulence give different pixels for a different seed.
-- [ ] AC-04 (option): Where Blend mode is Normal, every Clouds / Turbulence output pixel lies between Colour 1 and Colour 2 on each channel (inclusive), independent of the previous content; where Colour 1 equals Colour 2, the target is filled with that colour.
-- [ ] AC-05 (option): Where Blend mode is Multiply, no output channel is brighter than the existing pixel's; where Screen, none is darker.
-- [ ] AC-06 (always): Clouds with Roughness 0 has only one octave: it is smoother (a lower sum of absolute differences between neighbouring pixels) than Roughness 100 for the same seed.
-- [ ] AC-07 (always): The fractals fill every target pixel opaquely; Mandelbrot with Invert colours on gives each pixel the inverted colour of the result with it off.
-- [ ] AC-08 (always): Increasing Quality never changes the image size, and a pixel whose whole area lies inside the set (the Mandelbrot pixel at the view centre −0.5 + 0i at Zoom 10) stays black at every Quality.
-- [ ] AC-09 (always): Each render effect changes only the target: pixels outside the selection, other layers and cels stay unchanged; one undo step restores the target.
-- [ ] AC-10 (error): If a wire call names one of the four with the wrong number of parameters or an invalid colour slot, then it is rejected and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
-- [ ] AC-11 (error): If the Pixel-mode document is not RGBA, or the current frame has no cel on the active layer, then Clouds and Turbulence are refused with the same message as every other effect and the document is unchanged.
-- [ ] AC-12 (option): Where the UI language is German, the names, parameter labels and blend-mode options are German.
+- [x] AC-01 (always): The Render submenu lists Clouds… and Turbulence… in both modes, and Julia Fractal… and Mandelbrot Fractal… in Image mode only, sorted as `effect-catalog-v2` AC-04 specifies.
+- [x] AC-02 (event): When the user opens one of the four, then the effect dialog shows exactly its parameters from the table with their ranges and defaults; Colour 1 and Colour 2 start at the current foreground and background colours.
+- [x] AC-03 (always): Each render effect gives the same pixels on every run for the same parameters and target size; Clouds and Turbulence give different pixels for a different seed.
+- [x] AC-04 (option): Where Blend mode is Normal, every Clouds / Turbulence output pixel lies between Colour 1 and Colour 2 on each channel (inclusive), independent of the previous content; where Colour 1 equals Colour 2, the target is filled with that colour.
+- [x] AC-05 (option): Where Blend mode is Multiply, no output channel is brighter than the existing pixel's; where Screen, none is darker.
+- [x] AC-06 (always): Clouds with Roughness 0 has only one octave: it is smoother (a lower sum of absolute differences between neighbouring pixels) than Roughness 100 for the same seed.
+- [x] AC-07 (always): The fractals fill every target pixel opaquely; Mandelbrot with Invert colours on gives each pixel the inverted colour of the result with it off.
+- [x] AC-08 (always): Increasing Quality never changes the image size, and a pixel whose whole area lies inside the set (the Mandelbrot pixel at the view centre −0.5 + 0i at Zoom 10) stays black at every Quality.
+- [x] AC-09 (always): Each render effect changes only the target: pixels outside the selection, other layers and cels stay unchanged; one undo step restores the target.
+- [x] AC-10 (error): If a wire call names one of the four with the wrong number of parameters or an invalid colour slot, then it is rejected and changes nothing; non-finite numbers read as 0 and every number is then clamped to its range, as for every effect (`effects-adjustments`).
+- [x] AC-11 (error): If the Pixel-mode document is not RGBA, or the current frame has no cel on the active layer, then Clouds and Turbulence are refused with the same message as every other effect and the document is unchanged.
+- [x] AC-12 (option): Where the UI language is German, the names, parameter labels and blend-mode options are German.
 
 ## Technical notes
 
@@ -88,18 +88,27 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `image mode lists the four render effects, sorted; pixel mode Clouds and Turbulence (AC-01)` (ui/e2e/effects-render.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
-| AC-02 | `the render dialogs show exactly the parameters of the table (AC-02)`, `pixel mode: Clouds previews and applies as one undo step`, `image mode: …` (ui/e2e/effects-render.spec.ts); pinned wire vectors `clouds` / `turbulence` / `julia_fractal` / `mandelbrot_fractal` (ui/e2e/effect-catalog.spec.ts) | built |        |
-| AC-03 | `render_effects_are_reproducible_and_clouds_and_turbulence_follow_the_seed`, `noise_follows_the_canvas_position_of_the_buffer` (crates/pincel-effects/tests/effects_render.rs) | built |        |
-| AC-04 | `normal_blend_stays_between_the_two_colours_whatever_the_content`, `normal_blend_takes_the_colours_alpha` (crates/pincel-effects/tests/effects_render.rs) | built |        |
-| AC-05 | `multiply_never_brightens_and_screen_never_darkens`, `multiply_over_transparency_stays_transparent` (crates/pincel-effects/tests/effects_render.rs); `combine_multiply_and_screen_with_black_and_white` (crates/pincel-effects/src/render/mod.rs) | built |        |
-| AC-06 | `clouds_roughness_zero_is_smoother_than_roughness_hundred` (crates/pincel-effects/tests/effects_render.rs); `clouds_roughness_zero_uses_one_octave` (crates/pincel-effects/src/render/noise.rs) | built |        |
-| AC-07 | `fractals_fill_every_pixel_opaquely_and_invert_inverts`, `fractals_paint_hues_outside_the_set_and_black_inside` (crates/pincel-effects/tests/effects_render.rs) | built |        |
-| AC-08 | `quality_keeps_the_size_and_the_set_interior_stays_black`, `quality_supersamples_the_edge_of_the_set` (crates/pincel-effects/tests/effects_render.rs); `main_bulbs_shortcut_agrees_with_iterating` (crates/pincel-effects/src/render/fractal.rs) | built |        |
-| AC-09 | `apply_effect_render_changes_only_the_target_in_one_undo_step`, `apply_effect_clouds_on_a_trimmed_cel_matches_the_canvas_texture` (crates/pincel-wasm/src/effects.rs); `apply_effect_render_changes_only_the_selection_in_one_undo_step` (crates/pincel-image-wasm/src/lib.rs) | built |        |
-| AC-10 | `wrong_parameter_count_is_rejected`, `an_invalid_colour_slot_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_render.rs); `apply_effect_render_wrong_parameters_change_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-11 | `apply_effect_render_on_an_indexed_document_or_without_a_cel_is_refused` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-12 | `German names, parameter labels and blend-mode options (AC-12)` (ui/e2e/effects-render.spec.ts) | built |        |
+| AC-01 | `image mode lists the four render effects, sorted; pixel mode Clouds and Turbulence (AC-01)` (ui/e2e/effects-render.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | verified | def5de7 |
+| AC-02 | `the render dialogs show exactly the parameters of the table (AC-02)`, `pixel mode: Clouds previews and applies as one undo step`, `image mode: …` (ui/e2e/effects-render.spec.ts); pinned wire vectors `clouds` / `turbulence` / `julia_fractal` / `mandelbrot_fractal` (ui/e2e/effect-catalog.spec.ts) | verified | def5de7 |
+| AC-03 | `render_effects_are_reproducible_and_clouds_and_turbulence_follow_the_seed`, `noise_follows_the_canvas_position_of_the_buffer` (crates/pincel-effects/tests/effects_render.rs) | verified | 1122d87 |
+| AC-04 | `normal_blend_stays_between_the_two_colours_whatever_the_content`, `normal_blend_takes_the_colours_alpha` (crates/pincel-effects/tests/effects_render.rs) | verified | 1122d87 |
+| AC-05 | `multiply_never_brightens_and_screen_never_darkens`, `multiply_over_transparency_stays_transparent` (crates/pincel-effects/tests/effects_render.rs); `combine_multiply_and_screen_with_black_and_white` (crates/pincel-effects/src/render/mod.rs) | verified | 1122d87 |
+| AC-06 | `clouds_roughness_zero_is_smoother_than_roughness_hundred` (crates/pincel-effects/tests/effects_render.rs); `clouds_roughness_zero_uses_one_octave` (crates/pincel-effects/src/render/noise.rs) | verified | 1122d87 |
+| AC-07 | `fractals_fill_every_pixel_opaquely_and_invert_inverts`, `fractals_paint_hues_outside_the_set_and_black_inside` (crates/pincel-effects/tests/effects_render.rs) | verified | 1122d87 |
+| AC-08 | `quality_keeps_the_size_and_the_set_interior_stays_black`, `quality_supersamples_the_edge_of_the_set` (crates/pincel-effects/tests/effects_render.rs); `main_bulbs_shortcut_agrees_with_iterating` (crates/pincel-effects/src/render/fractal.rs) | verified | 1122d87 |
+| AC-09 | `apply_effect_render_changes_only_the_target_in_one_undo_step`, `apply_effect_clouds_on_a_trimmed_cel_matches_the_canvas_texture` (crates/pincel-wasm/src/effects.rs); `apply_effect_render_changes_only_the_selection_in_one_undo_step` (crates/pincel-image-wasm/src/lib.rs) | verified | 31c1020 |
+| AC-10 | `wrong_parameter_count_is_rejected`, `an_invalid_colour_slot_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_render.rs); `apply_effect_render_wrong_parameters_change_nothing` (crates/pincel-wasm/src/effects.rs) | verified | 31c1020 |
+| AC-11 | `apply_effect_render_on_an_indexed_document_or_without_a_cel_is_refused` (crates/pincel-wasm/src/effects.rs) | verified | 31c1020 |
+| AC-12 | `German names, parameter labels and blend-mode options (AC-12)` (ui/e2e/effects-render.spec.ts) | verified | def5de7 |
+
+## Summary
+
+> Completed: 2026-11-05
+
+- `pincel_effects::render`: Clouds (seeded fractal value noise) and Turbulence (gradient-noise ridges) between two colours with Normal / Multiply / Screen / Overlay blending, positioned in canvas coordinates (`EffectSpec::run_at` for trimmed cels)
+- Julia Fractal and Mandelbrot Fractal: escape-time rainbow over 256 iterations, opaque, with Quality supersampling, Angle rotation and Mandelbrot's Invert colours
+- Four new wire names (`clouds`, `turbulence`, `julia_fractal`, `mandelbrot_fractal`) in both cores and the agent catalog, rejected on a wrong parameter count or colour slot
+- UI: Effects > Render lists Clouds and Turbulence in both modes and the fractals in Image mode only; colours default to the editor's foreground / background; en + de strings
 
 ## Decisions
 
