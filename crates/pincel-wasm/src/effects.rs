@@ -799,6 +799,145 @@ mod tests {
         assert_eq!(cel_pixels(&doc, 0, 0), before);
     }
 
+    /// effects-object-stylize-color-noise: the four effects with their
+    /// table defaults (Pixel mode's Drop Shadow Blur 0).
+    const OBJECT_STYLIZE_COLOR_NOISE: [(&str, &[f64]); 4] = [
+        ("drop_shadow", &[4.0, 4.0, 0.0, 255.0, 50.0]),
+        ("stylize_outline", &[3.0, 50.0]),
+        ("quantize", &[16.0, 0.0, 0.0]),
+        ("reduce_noise", &[6.0, 40.0]),
+    ];
+
+    /// effects-object-stylize-color-noise AC-04: a Pixel cel's pixel casts
+    /// its shadow at the offset, in one undo step.
+    #[test]
+    fn apply_effect_drop_shadow_casts_at_the_offset_in_one_undo_step() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        doc.apply_tool("pencil", 2, 1, 0x102030FF).expect("paint");
+        doc.end_stroke();
+        let before = cel_pixels(&doc, 0, 0);
+        let depth = doc.undo_depth();
+        let shadow = [4.0, 4.0, 0.0, f64::from(0x3366_99FF_u32), 100.0];
+        assert!(doc.apply_effect("drop_shadow", &shadow).expect("apply"));
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert_eq!(pixel(&doc, 6, 5), 0x3366_99FF);
+        assert_eq!(pixel(&doc, 2, 1), 0x1020_30FF);
+        assert!(doc.undo());
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
+    /// effects-object-stylize-color-noise edge case: the shadow is clipped
+    /// at a trimmed cel's edge and never grows the cel.
+    #[test]
+    fn apply_effect_drop_shadow_clips_at_a_trimmed_cel() {
+        let mut doc = Document::new(8, 8).expect("dims");
+        let mut buf = pincel_core::PixelBuffer::empty(2, 2, ColorMode::Rgba);
+        buf.data = [[9, 9, 9, 255], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]].concat();
+        let mut cel = pincel_core::Cel::image(crate::DEFAULT_LAYER_ID, FrameIndex::new(0), buf);
+        cel.position = (3, 3);
+        doc.cels.insert(cel);
+        let before = cel_pixels(&doc, 0, 0);
+        // Past the cel's edge: nothing changes.
+        doc.apply_effect("drop_shadow", &[4.0, 4.0, 0.0, 255.0, 100.0])
+            .expect("far");
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+        doc.apply_effect("drop_shadow", &[1.0, 1.0, 0.0, 255.0, 100.0])
+            .expect("near");
+        let cel = doc
+            .cels
+            .get(crate::DEFAULT_LAYER_ID, FrameIndex::new(0))
+            .expect("cel");
+        let CelData::Image(buf) = &cel.data else {
+            panic!("image cel");
+        };
+        assert_eq!((cel.position, buf.width, buf.height), ((3, 3), 2, 2));
+        assert_eq!(pixel(&doc, 4, 4), 0x0000_00FF);
+        assert_eq!(pixel(&doc, 5, 5) & 0xFF, 0, "beyond the cel");
+    }
+
+    /// effects-object-stylize-color-noise AC-06: Quantize's target is the
+    /// selection — its two colours stay, whatever the rest of the cel holds.
+    #[test]
+    fn apply_effect_quantize_takes_its_palette_from_the_selection() {
+        let mut doc = Document::new(6, 6).expect("dims");
+        for y in 0..6u32 {
+            for x in 0..6u32 {
+                let c = if x < 2 && y < 2 {
+                    [0x2040_60FF, 0xC0A0_80FF][((x + y) % 2) as usize]
+                } else {
+                    (x * 40) << 24 | (y * 40) << 16 | (x * y * 7) << 8 | 0xFF
+                };
+                doc.apply_tool("pencil", x as i32, y as i32, c)
+                    .expect("paint");
+                doc.end_stroke();
+            }
+        }
+        doc.set_selection(0, 0, 2, 2);
+        let inside =
+            |doc: &Document| [(0, 0), (1, 0), (0, 1), (1, 1)].map(|(x, y)| pixel(doc, x, y));
+        let before = inside(&doc);
+        for algorithm in [0.0, 1.0] {
+            doc.apply_effect("quantize", &[2.0, algorithm, 0.0])
+                .expect("quantize");
+            assert_eq!(inside(&doc), before, "algorithm {algorithm}");
+        }
+    }
+
+    /// effects-object-stylize-color-noise AC-10: a wrong parameter count or
+    /// a bad colour slot is refused and changes nothing.
+    #[test]
+    fn apply_effect_object_stylize_color_noise_errors_change_nothing() {
+        let (mut doc, _) = layered();
+        let before = cel_pixels(&doc, 0, 0);
+        let depth = doc.undo_depth();
+        for (name, params) in OBJECT_STYLIZE_COLOR_NOISE {
+            let short = params.len() - if name == "reduce_noise" { 2 } else { 1 };
+            for wrong in [vec![1.0; params.len() + 1], vec![1.0; short]] {
+                let err = doc.apply_effect(name, &wrong).expect_err(name);
+                assert!(err.contains("expects"), "{name}: {err}");
+                assert!(doc.preview_effect(name, &wrong, 1).is_err(), "{name}");
+            }
+        }
+        for bad in [0.5, -1.0, 4_294_967_296.0, f64::NAN, f64::INFINITY] {
+            let p = [4.0, 4.0, 0.0, bad, 50.0];
+            assert!(doc.apply_effect("drop_shadow", &p).is_err(), "{bad}");
+            assert!(doc.preview_effect("drop_shadow", &p, 1).is_err(), "{bad}");
+        }
+        assert_eq!(doc.undo_depth(), depth);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
+    /// effects-object-stylize-color-noise AC-11: an indexed document refuses
+    /// Drop Shadow and Quantize (and the other two) with the message every
+    /// other effect gives.
+    #[test]
+    fn apply_effect_object_stylize_color_noise_on_an_indexed_document_are_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in OBJECT_STYLIZE_COLOR_NOISE {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(doc.preview_effect(name, params, 1).is_err(), "{name}");
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+    }
+
     #[test]
     fn preview_effect_honours_zoom() {
         let doc = Document::new(2, 3).expect("dims");
