@@ -84,21 +84,22 @@ test('the alpha slider sets the foreground alpha and shows it', async ({ page })
   await expect(c.alpha).toHaveValue('0');
 });
 
-test('foreground and background colors survive a reload, alphas reset', async ({ page }) => {
+test('foreground and background colors survive a reload, with their alpha', async ({ page }) => {
+  // pixel-palette AC-23 restored RGB only; color-picker AC-15 keeps alpha.
   await createDocument(page, 'pixel', { width: 8, height: 8 });
   const c = colorPair(page);
   await c.hex.fill('#123456');
   await c.hex.blur();
-  await setColor(page, 'bg', '#abcdef');
+  await setColor(page, 'bg', '#abcdef80');
   await c.alpha.fill('100');
-  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456');
-  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdef');
+  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#12345664');
+  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdef80');
 
   await page.reload();
   await createDocument(page, 'pixel', { width: 8, height: 8 });
   await expect.poll(() => colorOf(page, 'fg')).toBe('#123456');
   await expect.poll(() => colorOf(page, 'bg')).toBe('#abcdef');
-  await expect(c.alpha).toHaveValue('255');
+  await expect(c.alpha).toHaveValue('100');
   await page.keyboard.press('x');
-  await expect(c.alpha).toHaveValue('255');
+  await expect(c.alpha).toHaveValue('128');
 });
