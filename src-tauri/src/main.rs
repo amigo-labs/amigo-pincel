@@ -444,6 +444,7 @@ fn main() {
         // After single-instance, so a second launch exits before it runs.
         .plugin(webview_data::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::UpdaterState::default())
         .invoke_handler(tauri::generate_handler![

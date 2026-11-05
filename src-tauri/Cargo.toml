@@ -23,6 +23,10 @@ tauri-build = { version = "2", features = [] }
 pincel-core = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
+# Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –
+# AC-33, Decision Log 2026-11-05). Kept on the 2.3 line: 2.4 and later
+# need tauri 2.12 and @tauri-apps/api 2.12, newer than the workspace's.
+tauri-plugin-clipboard-manager = "~2.3.3"
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
