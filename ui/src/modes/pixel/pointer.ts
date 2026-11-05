@@ -10,6 +10,7 @@ import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 import { armStroke, onTiledArea } from './symmetry';
+import { discardStrokePoints, flushStrokePoints, queueStrokePoint } from './stroke-batch';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -65,6 +66,7 @@ export function shapeFillColor(): number {
 }
 
 export function cancelGesture() {
+  discardStrokePoints();
   if (live.painting) {
     live.painting = false;
     ed.doc?.endStroke();
@@ -277,7 +279,9 @@ export function paintAt(e: PointerEvent) {
       // Symmetry and tiled mode mirror / wrap the stroke in the core.
       armStroke(ed.doc);
     }
-    ed.doc.strokeTo(target.x, target.y, strokePressure(e));
+    // The render tick hands every point queued in one animation frame to
+    // the core at once (performance-input-path).
+    queueStrokePoint(target.x, target.y, strokePressure(e));
     live.lastPaint = target;
   } catch (err) {
     // Missing layer, unknown tool, …: a real failure. Stop the gesture so
@@ -689,7 +693,7 @@ export function onPointerMove(e: PointerEvent) {
     return;
   }
   if (!live.painting) return;
-  // Pens and fast mice report several samples per frame; paint each one
+  // Pens and fast mice report several samples per frame; queue each one
   // so the stroke keeps its shape and its per-sample pressure.
   const samples = e.getCoalescedEvents?.() ?? [];
   for (const sample of samples.length > 0 ? samples : [e]) {
@@ -816,6 +820,8 @@ export function onPointerUp(e: PointerEvent) {
     return;
   }
   if (live.painting) {
+    // Samples queued since the last frame belong to the stroke.
+    flushStrokePoints();
     live.painting = false;
     // Close the gesture on the undo bus so this drag stays one undo
     // entry and the next stroke starts a fresh one.
