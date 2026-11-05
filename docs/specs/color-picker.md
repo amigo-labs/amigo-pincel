@@ -162,11 +162,11 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-22 | `pixel: the Eyedropper reads back a translucent foreground (AC-16, AC-22)`, `image: painted alpha is color alpha × opacity, and the Eyedropper keeps it (AC-17, AC-22)` — `ui/e2e/color-picker.spec.ts` | built |  |
 | AC-23 | `hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)` — `ui/e2e/color-picker.spec.ts`; `the hex field accepts RRGGBB, #RRGGBB, #RRGGBBAA and #RGB (AC-05, AC-23)` — `ui/e2e/color-math.spec.ts` | built |  |
 | AC-24 | `pixel: …` / `image: painting adds its color, most recent first, once (AC-12, AC-24)`, `pixel: …` / `image: a filled and outlined shape adds the foreground, then the background (AC-24)` — `ui/e2e/color-recent.spec.ts`; `a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)` — `ui/e2e/color-picker.spec.ts` | built |  |
-| AC-25 |  | open |  |
-| AC-26 |  | open |  |
-| AC-27 |  | open |  |
-| AC-28 |  | open |  |
-| AC-29 |  | open |  |
+| AC-25 | `the panel shows the recent colors and the default palette, also with the picker open (AC-25, AC-27, AC-29)` — `ui/e2e/color-panel.spec.ts` | built |  |
+| AC-26 | `a left click sets the foreground, a right click the background, without a context menu (AC-26)`, `touch › a long press sets the background color (AC-26)` — `ui/e2e/color-panel.spec.ts` | built |  |
+| AC-27 | `the panel shows the recent colors and the default palette, also with the picker open (AC-25, AC-27, AC-29)` — `ui/e2e/color-panel.spec.ts`; `the default palette is 12 greys and 12 hues at 100, 70 and 40 % value (AC-27)` — `ui/e2e/color-math.spec.ts` | built |  |
+| AC-28 | `the panel rows are German in the German UI (AC-28)` — `ui/e2e/color-panel.spec.ts` | built |  |
+| AC-29 | `the panel shows the recent colors and the default palette, also with the picker open (AC-25, AC-27, AC-29)` — `ui/e2e/color-panel.spec.ts` | built |  |
 | AC-30 | `unreadable stored colors fall back silently (AC-30)` — `ui/e2e/color-recent.spec.ts`; `stored colors that cannot be read fall back, keeping readable entries (AC-30)` — `ui/e2e/color-math.spec.ts` | built |  |
 
 ## Decisions
@@ -178,6 +178,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-05 (spec-build): Pixel mode's Eyedropper already kept alpha; AC-16's test was green at once and was red against a temporary break (the sampled alpha forced to 255), reverted afterwards.
 - 2026-11-05 (spec-build): A paint change counts when the document's undo depth grew during it (AC-24): a stroke, fill, shape, line, gradient or text that alters no pixel adds no undo step in either core, and a merged stroke adds its step once. At the 100-step cap the depth no longer grows, so a change there adds no recent color — the same limit the dirty marker already has. Pixel mode's shading ink paints ramp colors, not a chosen one, and adds nothing; Image mode's Recolor, Smudge and Clone Stamp add nothing either, since AC-24 does not list them.
 - 2026-11-05 (spec-build): The recent lists live in `ui/src/lib/colors/recent.svelte.ts` (`recentColors:<mode>` prefs, `#rrggbbaa` strings). The last colors are stored as `#rrggbbaa`: Pixel mode keeps its `lastColor` / `lastBgColor` keys (old `#rrggbb` values load opaque), Image mode uses `lastColor:image` / `lastBgColor:image`. `recovery.spec.ts` now expects the 8-digit form.
+- 2026-11-05 (spec-build): Image mode's Colors panel renders both rows with one `SwatchGrid` component (`ui/src/lib/components/color/SwatchGrid.svelte`): a label, then a `group` named like it ("Recent colors" / "Color palette"), swatches at least 18 px in an auto-filling grid that wraps on a narrow sidebar; the empty recent row keeps a 20 px row height (AC-29). A touch or pen hold uses the tool rail's 500 ms / 10 px rule; the keyboard's context-menu key also picks the background.
 - 2026-11-05 (spec-build): The existing e2e specs that typed into the native swatch inputs now go through `setColor` / `colorOf` in `ui/e2e/helpers.ts`, which drive the picker's hex field.
 
 - 2026-11-05: AC-25 shows "the Image-mode palette", which is the default palette until the user replaces it; loading, saving and editing it moved to `image-palette-gradient` (owner chose that spec on 2026-11-05).
