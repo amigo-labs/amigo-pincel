@@ -72,6 +72,13 @@ const EXPECTED_TOOLS: &[&str] = &[
     "layer.merge_visible",
     "layer.merge_group",
     "layer.flatten",
+    "tag.set",
+    "palette.set_entry",
+    "palette.add_entry",
+    "palette.remove_entry",
+    "palette.move_entry",
+    "palette.import",
+    "palette.export",
 ];
 
 /// One valid example call per tool.
@@ -100,6 +107,13 @@ fn example(name: &str) -> Value {
         "frame.set_duration" => json!({ "frame": 0, "duration_ms": 120 }),
         "tag.add" => json!({ "name": "walk", "from": 0, "to": 1, "direction": "pingpong" }),
         "tag.remove" => json!({ "tag": 0 }),
+        "tag.set" => json!({ "tag": 0, "name": "run", "from": 0, "to": 1, "direction": "reverse" }),
+        "palette.set_entry" => json!({ "index": 1, "color": "#ff0000" }),
+        "palette.add_entry" => json!({ "color": { "index": 0 } }),
+        "palette.remove_entry" => json!({ "index": 1 }),
+        "palette.move_entry" => json!({ "from": 0, "to": 3 }),
+        "palette.import" => json!({ "path": "p.gpl" }),
+        "palette.export" => json!({ "path": "p.png", "format": "png", "cell": 4, "name": "x" }),
         "palette.set" => json!({ "entries": ["#000000", "#ffffff80"] }),
         "palette.load_preset" => json!({ "preset": "nes" }),
         "draw.pixels" => {

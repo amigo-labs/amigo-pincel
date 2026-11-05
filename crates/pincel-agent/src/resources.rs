@@ -161,12 +161,35 @@ mod tests {
             "## Undo",
             "## Preview",
             "## Common pitfalls",
+            "## Document structure",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
         for word in ["plan", "draw", "doc.preview", "export", "Pixel", "Image"] {
             assert!(guide.contains(word), "missing {word}");
         }
+        // mcp-parity-structure AC-26: every tool of that spec, its modes,
+        // and the alpha that palette.export drops.
+        for tool in [
+            "layer.duplicate",
+            "layer.move",
+            "layer.merge_down",
+            "layer.merge_visible",
+            "layer.merge_group",
+            "layer.flatten",
+            "tag.set",
+            "palette.set_entry",
+            "palette.add_entry",
+            "palette.remove_entry",
+            "palette.move_entry",
+            "palette.import",
+            "palette.export",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        assert!(guide.contains("Image documents only: `layer.merge_visible`, `layer.merge_group`"));
+        assert!(guide.contains("Palette, Pixel documents only"));
+        assert!(guide.contains("store no alpha: `palette.export` drops it"));
         // Every tool the guide names in backticks exists.
         let tools: Vec<&str> = crate::list_tools().iter().map(|t| t.name).collect();
         for part in guide.split('`').skip(1).step_by(2) {

@@ -1,16 +1,16 @@
-//! `layer.*`, `frame.*`, `tag.*` and `palette.*`: the document structure.
+//! `layer.*`, `frame.*` and `tag.*`: the document structure.
 
 use pincel_core::{
     AddFrame, AddLayer, AddTag, AnyCommand, BlendMode, Cel, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, LayerPlacement, MoveLayerTo, Palette, PaletteEntry, PalettePreset, PutCel,
-    RemoveFrame, RemoveLayer, RemoveTag, ReplacePalette, SetFrameDuration, SetLayerBlendMode,
-    SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible, Sprite, Tag, TagDirection,
+    LayerKind, LayerPlacement, MoveLayerTo, PutCel, RemoveFrame, RemoveLayer, RemoveTag, Rgba,
+    SetFrameDuration, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity,
+    SetLayerVisible, SetTagDirection, SetTagName, SetTagRange, Sprite, Tag, TagDirection,
 };
 use serde_json::{Value, json};
 
 use super::layer_ops::{check_placement, place_core};
 use super::{int, tool_schema};
-use crate::args::{Args, hex, parse_hex, placement, placement_props};
+use crate::args::{Args, parse_hex, placement, placement_props};
 use crate::workspace::Doc;
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
@@ -65,6 +65,15 @@ fn frames_json(sprite: &Sprite) -> Value {
     json!(frames)
 }
 
+/// The timeline's colors for new tags, in order (TimelinePanel.svelte
+/// `TAG_COLORS`); tag n gets entry n mod 6.
+const TAG_COLORS: [u32; 6] = [0x5b8def, 0xe0a83c, 0x58b368, 0xd0607a, 0x9a6ad8, 0x3cb7c4];
+
+/// A tag color as `#RRGGBB` (tag colors carry no alpha in the editor).
+fn tag_hex(c: Rgba) -> String {
+    format!("#{:02X}{:02X}{:02X}", c.r, c.g, c.b)
+}
+
 fn tags_json(sprite: &Sprite) -> Value {
     let tags: Vec<Value> = sprite
         .tags
@@ -75,15 +84,17 @@ fn tags_json(sprite: &Sprite) -> Value {
                 .iter()
                 .find(|(_, d)| *d == t.direction)
                 .map_or("forward", |(n, _)| *n);
-            json!({ "index": i, "name": t.name, "from": t.from.0, "to": t.to.0, "direction": dir })
+            json!({
+                "index": i,
+                "name": t.name,
+                "from": t.from.0,
+                "to": t.to.0,
+                "direction": dir,
+                "color": tag_hex(t.color),
+            })
         })
         .collect();
     json!(tags)
-}
-
-fn palette_json(palette: &Palette) -> Value {
-    let entries: Vec<String> = palette.colors.iter().map(|e| hex(e.rgba)).collect();
-    json!({ "size": entries.len(), "entries": entries })
 }
 
 /// The argument `key` as an existing layer id; the error names the
@@ -414,6 +425,7 @@ pub(super) const TAG_ADD: Tool = Tool {
                 "from": { "type": "integer", "minimum": 0, "description": "First frame index" },
                 "to": { "type": "integer", "minimum": 0, "description": "Last frame index (inclusive)" },
                 "direction": { "type": "string", "enum": dirs, "description": "Playback direction; default forward" },
+                "color": { "type": "string", "description": "Timeline color \"#RRGGBB\"; default: the timeline's next tag color" },
             }),
             &["name", "from", "to"],
         )
@@ -427,16 +439,122 @@ fn tag_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let to = doc.check_frame(args.req_u32("to")?)?;
     let mut tag = Tag::new(args.req_str("name")?, from, to);
     if let Some(d) = args.str("direction") {
-        tag.direction = DIRECTIONS
-            .iter()
-            .find(|(n, _)| *n == d)
-            .map(|(_, dir)| *dir)
-            .ok_or_else(|| AgentError::tool(format!("unknown direction `{d}`")))?;
+        tag.direction = direction_arg(d)?;
     }
+    tag.color = match args.str("color") {
+        Some(c) => parse_hex(c).filter(|_| c.len() == 7).ok_or_else(|| {
+            AgentError::tool(format!(
+                "argument `color`: malformed tag color {c:?}; tags take \"#RRGGBB\""
+            ))
+        })?,
+        None => Rgba::from_u32(TAG_COLORS[doc.sprite.tags.len() % TAG_COLORS.len()] << 8 | 0xff),
+    };
     doc.commit(vec![AddTag::new(tag).into()])?;
     Ok(ToolOutput::json(json!({
         "doc": id,
         "tag": doc.sprite.tags.len() - 1,
+        "tags": tags_json(&doc.sprite),
+    })))
+}
+
+fn direction_arg(d: &str) -> Result<TagDirection, AgentError> {
+    DIRECTIONS
+        .iter()
+        .find(|(n, _)| *n == d)
+        .map(|(_, dir)| *dir)
+        .ok_or_else(|| AgentError::tool(format!("argument `direction`: unknown direction `{d}`")))
+}
+
+/// The `tag` argument as an existing tag index (AC-27).
+fn tag_arg(doc: &Doc, args: &Args) -> Result<usize, AgentError> {
+    let index = args.req_u32("tag")? as usize;
+    let count = doc.sprite.tags.len();
+    if index < count {
+        Ok(index)
+    } else {
+        Err(AgentError::tool(format!(
+            "argument `tag`: no tag with index {index} (document has {count} tags); tag.list shows them"
+        )))
+    }
+}
+
+pub(super) const TAG_SET: Tool = Tool {
+    name: "tag.set",
+    description: "Change an animation tag's name, frame range (`from` and `to` together) or playback direction. Fields not given stay; one undo step.",
+    schema: || {
+        let dirs: Vec<&str> = DIRECTIONS.iter().map(|(n, _)| *n).collect();
+        tool_schema(
+            json!({
+                "tag": { "type": "integer", "minimum": 0, "description": "Tag index from tag.list" },
+                "name": { "type": "string", "description": "New tag name" },
+                "from": { "type": "integer", "minimum": 0, "description": "New first frame index (with `to`)" },
+                "to": { "type": "integer", "minimum": 0, "description": "New last frame index, inclusive (with `from`)" },
+                "direction": { "type": "string", "enum": dirs, "description": "New playback direction" },
+            }),
+            &["tag"],
+        )
+    },
+    run: tag_set,
+};
+
+fn tag_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let (id, doc) = ctx.ws.doc_mut(args)?;
+    let index = tag_arg(doc, args)?;
+    let name = args.str("name");
+    let direction = args.str("direction").map(direction_arg).transpose()?;
+    let range = match (args.u32("from")?, args.u32("to")?) {
+        (None, None) => None,
+        (Some(_), None) => {
+            return Err(AgentError::tool(
+                "argument `from` needs `to` (the last frame of the range)",
+            ));
+        }
+        (None, Some(_)) => {
+            return Err(AgentError::tool(
+                "argument `to` needs `from` (the first frame of the range)",
+            ));
+        }
+        (Some(f), Some(t)) => {
+            let from = doc
+                .check_frame(f)
+                .map_err(|e| AgentError::tool(format!("argument `from`: {e}")))?;
+            let to = doc
+                .check_frame(t)
+                .map_err(|e| AgentError::tool(format!("argument `to`: {e}")))?;
+            if f > t {
+                return Err(AgentError::tool(format!(
+                    "argument `from` ({f}) is greater than `to` ({t})"
+                )));
+            }
+            Some((from, to))
+        }
+    };
+    if name.is_none() && range.is_none() && direction.is_none() {
+        return Err(AgentError::tool(
+            "tag.set needs at least one of `name`, `from` + `to` or `direction`",
+        ));
+    }
+    if name.is_some_and(str::is_empty) {
+        return Err(AgentError::tool(
+            "argument `name`: a tag name cannot be empty",
+        ));
+    }
+    let changed = doc.commit_if_changed(|| {
+        let mut cmds: Vec<AnyCommand> = Vec::new();
+        if let Some(n) = name {
+            cmds.push(SetTagName::new(index, n).into());
+        }
+        if let Some((from, to)) = range {
+            cmds.push(SetTagRange::new(index, from, to).into());
+        }
+        if let Some(d) = direction {
+            cmds.push(SetTagDirection::new(index, d).into());
+        }
+        cmds
+    })?;
+    Ok(ToolOutput::json(json!({
+        "doc": id,
+        "changed": changed,
         "tags": tags_json(&doc.sprite),
     })))
 }
@@ -452,92 +570,10 @@ pub(super) const TAG_REMOVE: Tool = Tool {
     },
     run: |ctx, args| {
         let (id, doc) = ctx.ws.doc_mut(args)?;
-        let index = args.req_u32("tag")? as usize;
-        if index >= doc.sprite.tags.len() {
-            return Err(AgentError::tool(format!(
-                "no tag with index {index} (document has {} tags)",
-                doc.sprite.tags.len()
-            )));
-        }
+        let index = tag_arg(doc, args)?;
         doc.commit(vec![RemoveTag::new(index).into()])?;
         Ok(ToolOutput::json(
             json!({ "doc": id, "tags": tags_json(&doc.sprite) }),
         ))
-    },
-};
-
-pub(super) const PALETTE_GET: Tool = Tool {
-    name: "palette.get",
-    description: "Return the palette as #RRGGBBAA entries; `{\"index\": n}` colors refer to these indices.",
-    schema: || tool_schema(json!({}), &[]),
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc(args)?;
-        let mut out = palette_json(&doc.sprite.palette);
-        out["doc"] = json!(id);
-        Ok(ToolOutput::json(out))
-    },
-};
-
-pub(super) const PALETTE_SET: Tool = Tool {
-    name: "palette.set",
-    description: "Replace the whole palette with `entries` (1–256 colors as \"#RRGGBB\" or \"#RRGGBBAA\"). Pixels keep their colors.",
-    schema: || {
-        tool_schema(
-            json!({
-                "entries": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 256,
-                    "items": { "type": "string", "description": "\"#RRGGBB\" or \"#RRGGBBAA\"" },
-                },
-            }),
-            &["entries"],
-        )
-    },
-    run: palette_set,
-};
-
-fn palette_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
-    let (id, doc) = ctx.ws.doc_mut(args)?;
-    let entries = args
-        .get("entries")
-        .and_then(Value::as_array)
-        .ok_or_else(|| AgentError::tool("missing required argument `entries`"))?;
-    let mut colors = Vec::with_capacity(entries.len());
-    for (i, e) in entries.iter().enumerate() {
-        let c = e.as_str().and_then(parse_hex).ok_or_else(|| {
-            AgentError::tool(format!(
-                "argument `entries[{i}]`: malformed color {e}; accepted forms: \"#RRGGBB\", \"#RRGGBBAA\""
-            ))
-        })?;
-        colors.push(PaletteEntry::new(c));
-    }
-    doc.commit(vec![
-        ReplacePalette::new(Palette::from_entries(colors)).into(),
-    ])?;
-    let mut out = palette_json(&doc.sprite.palette);
-    out["doc"] = json!(id);
-    Ok(ToolOutput::json(out))
-}
-
-pub(super) const PALETTE_LOAD_PRESET: Tool = Tool {
-    name: "palette.load_preset",
-    description: "Replace the palette with a built-in preset: db32 (DawnBringer 32), db16, pico8, gameboy or nes. The presets are also readable as pincel://palettes/{id} resources.",
-    schema: || {
-        let ids: Vec<&str> = PalettePreset::ALL.iter().map(|p| p.name()).collect();
-        tool_schema(
-            json!({ "preset": { "type": "string", "enum": ids, "description": "Preset id" } }),
-            &["preset"],
-        )
-    },
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc_mut(args)?;
-        let name = args.req_str("preset")?;
-        let preset = PalettePreset::from_name(name)
-            .ok_or_else(|| AgentError::tool(format!("unknown palette preset `{name}`")))?;
-        doc.commit(vec![ReplacePalette::new(Palette::preset(preset)).into()])?;
-        let mut out = palette_json(&doc.sprite.palette);
-        out["doc"] = json!(id);
-        Ok(ToolOutput::json(out))
     },
 };

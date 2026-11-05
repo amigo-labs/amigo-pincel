@@ -13,13 +13,37 @@ Each document has a mode, and the mode follows the file, as in the editor:
 | Pixel | Sprites, tiles, animation with frames, tags and a palette (up to 4096 px per side) | `doc.new` with `mode: "pixel"`, `doc.open` of `.aseprite` | `.aseprite` (`doc.save`), PNG (`export.png`), sprite sheets (`export.sheet`) |
 | Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers), `export.png`, `export.jpeg`, `export.webp` |
 
-Shared tools work on both: `doc.*`, `layer.*`, `draw.fill`, `effect.apply`,
-`adjust.apply` and `export.png`. Pixel-only: `frame.*`, `tag.*`,
-`palette.*`, `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse`,
-`draw.clear`, `selection.*`, `export.sheet`. Image-only: `draw.stroke`,
-`draw.shape`, `draw.text`, `draw.gradient`, `select.*`, `canvas.resize`,
-`image.scale`, `image.crop_to_selection`, `image.flip`, `image.rotate`,
-`export.jpeg`, `export.webp`. A tool of the other mode fails and says so.
+Shared tools work on both: `doc.*`, `layer.*` (except the two below),
+`draw.fill`, `effect.apply`, `adjust.apply` and `export.png`. Pixel-only:
+`frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
+`draw.ellipse`, `draw.clear`, `selection.*`, `export.sheet`. Image-only:
+`layer.merge_visible`, `layer.merge_group`, `draw.stroke`, `draw.shape`,
+`draw.text`, `draw.gradient`, `select.*`, `canvas.resize`, `image.scale`,
+`image.crop_to_selection`, `image.flip`, `image.rotate`, `export.jpeg`,
+`export.webp`. A tool of the other mode fails and says so.
+
+## Document structure
+
+- Layers, both modes: `layer.add` (`kind: "group"` for a group;
+  `target` + `place` `above` / `below` / `into` for an exact spot),
+  `layer.duplicate`, `layer.move`, `layer.merge_down`, `layer.flatten`,
+  `layer.set`, `layer.remove`, `layer.list`. Without `target`, `layer.add`
+  puts the layer where the editor would: on top in Pixel documents, directly
+  above the active layer in Image documents. Pixel groups cannot be
+  duplicated.
+- Layers, Image documents only: `layer.merge_visible`, `layer.merge_group`.
+  Groups have no pixels: drawing tools need an image layer inside them.
+- Tags, Pixel documents only: `tag.add` (optional `color`), `tag.set`
+  (name, `from` + `to`, direction), `tag.remove`, `tag.list`.
+- Palette, Pixel documents only: `palette.get` (colors and names),
+  `palette.set`, `palette.load_preset`, `palette.set_entry`,
+  `palette.add_entry`, `palette.remove_entry`, `palette.move_entry`,
+  `palette.import` (`.gpl`, `.hex`, `.pal` or a PNG palette image) and
+  `palette.export` (`format` `gpl`, `hex`, `pal` or `png`). The `gpl`,
+  `hex` and `pal` formats store no alpha: `palette.export` drops it.
+  Removing, moving and importing entries works in `rgba` documents only
+  (`doc.info` reports `color_mode`).
+- `doc.info` also reports the `selection` bounds `{x, y, w, h}` or `null`.
 
 ## Workflow
 

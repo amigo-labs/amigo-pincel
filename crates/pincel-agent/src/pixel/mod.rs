@@ -5,6 +5,7 @@ mod doc;
 mod draw;
 pub(crate) mod effects;
 mod layer_ops;
+mod palette;
 mod structure;
 
 pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
@@ -46,9 +47,16 @@ pub(crate) static TOOLS: &[Tool] = &[
     structure::TAG_ADD,
     structure::TAG_REMOVE,
     structure::TAG_LIST,
-    structure::PALETTE_GET,
-    structure::PALETTE_SET,
-    structure::PALETTE_LOAD_PRESET,
+    structure::TAG_SET,
+    palette::PALETTE_GET,
+    palette::PALETTE_SET,
+    palette::PALETTE_LOAD_PRESET,
+    palette::PALETTE_SET_ENTRY,
+    palette::PALETTE_ADD_ENTRY,
+    palette::PALETTE_REMOVE_ENTRY,
+    palette::PALETTE_MOVE_ENTRY,
+    palette::PALETTE_IMPORT,
+    palette::PALETTE_EXPORT,
     draw::PIXELS,
     draw::LINE,
     draw::RECT,
