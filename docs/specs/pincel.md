@@ -653,6 +653,7 @@ doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gest
 doc.setStrokeMirror(axisX2, axisY2);      // optional symmetry axes (half pixels), before the first strokeTo
 doc.setStrokeWrap(wrapX, wrapY);           // optional tiled-mode wrapping, before the first strokeTo
 doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
+doc.strokeToBatch(xy, pressure);          // all samples of one animation frame (Int32Array x0,y0,…; Float32Array, empty = full)
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
 //  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
