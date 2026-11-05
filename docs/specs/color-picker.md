@@ -14,12 +14,15 @@ Clicking the foreground or background swatch today opens the browser's or OS's n
 
 Pincel gets its own picker, the same in both modes and on every OS, opened in a popover from each swatch: a saturation/value area, a hue slider, an alpha slider, a hex field that also takes `#RRGGBBAA`, R / G / B / A number fields and a row of recent colors. It replaces the native color input.
 
+**Revision 2026-11-05.** The owner wants to see a palette in Image mode without opening the picker, with the recently used colors in it (owner: "I also want to see a color palette in Image mode, the recently used colors"). Image mode's Colors panel shows a row of recent colors and a fixed default palette below it, as paint.net's Colors window does. A color counts as used when a tool paints with it, not when it is picked; this rule holds for the picker's recent row in both modes too, so both rows show the same list.
+
 ## Scope
 
 ### In scope
 
 - A popover color picker opened from the foreground and from the background swatch, in both modes
 - Saturation/value area, hue slider, alpha slider, hex field, R / G / B / A fields, recent colors row
+- In Image mode's Colors panel, always visible: the recent colors row and a default palette of 48 colors; a left click sets the foreground color, a right click the background color
 - Mouse, touch, pen and keyboard input; live preview while dragging, one commit per interaction
 - Foreground and background alpha in both modes (Image mode gains color alpha)
 - Recent colors (12, per mode) and the last foreground / background color with alpha persisted per mode
@@ -31,6 +34,8 @@ Pincel gets its own picker, the same in both modes and on every OS, opened in a 
 - Color harmonies, a color wheel and named swatches — because the goal is parity with the baseline pickers (HSV + alpha + hex + recent); these are extras beyond it.
 - Wide-gamut or HDR colors — because they are a Phase-1 non-goal (§1.3).
 - Changes to the Pixel palette panel — because the palette stays as it is; recent colors don't replace it.
+- An always-visible recent colors row in Pixel mode — because the owner wants it in Image mode only; Pixel mode has its palette panel, and its recent colors stay in the picker
+- Editing, saving or loading the Image-mode default palette — because the owner asked for a palette to pick from; a user palette needs its own storage and UI
 - Sampling with the picker open — because the popover stays modal; a non-modal popover over the canvas needs pointer routing and focus rules for little gain, and the picker shows the sampled color the next time it opens (AC-22).
 
 ## Acceptance criteria
@@ -42,14 +47,14 @@ Pincel gets its own picker, the same in both modes and on every OS, opened in a 
 - [ ] AC-05 (always): The hex field accepts `RRGGBB`, `#RRGGBB`, `#RRGGBBAA` and `#RGB` (case-insensitive); `#abc` sets the same RGB as `#aabbcc`.
 - [ ] AC-06 (error): If the user commits hex text that is none of the accepted forms (e.g. `#12345`, `zzz`, empty), then the edited color stays unchanged.
 - [ ] AC-07 (error): If the user enters a value below 0 or above 255 in an R / G / B / A field, then the value is clamped to 0–255 before it is applied.
-- [ ] AC-08 (event): When the user drags in the saturation/value area or on the hue or alpha slider, then the swatch and the color the tools paint with update during the drag, and on release the color is committed once: the recent-colors row gains exactly one entry for the whole drag.
+- [ ] AC-08 (event): When the user drags in the saturation/value area or on the hue or alpha slider, then the swatch and the color the tools paint with update during the drag; picking a color does not change the recent-colors row (AC-24).
 - [ ] AC-09 (always): The saturation/value area and the sliders can be dragged with mouse, touch and pen.
 - [ ] AC-10 (event): When the saturation/value area or a slider has keyboard focus and the user presses an arrow key, then the value moves by one step in that direction; with Shift held, by a larger step.
 - [ ] AC-11 (always): Moving the color through black (value 0) or grey (saturation 0) and back does not reset the hue: the hue slider keeps its position.
-- [ ] AC-12 (always): The recent-colors row holds at most the last 12 committed colors, most recent first, without duplicates; committing a color already in the row moves it to the front.
+- [ ] AC-12 (always): The recent-colors row holds at most the last 12 colors painted with (AC-24), most recent first, without duplicates; painting with a color already in the row moves it to the front. Two colors are duplicates when their R, G, B and A are equal.
 - [ ] AC-13 (event): When the user clicks a color in the recent-colors row, then the edited color (foreground or background) becomes that color, including its alpha.
-- [ ] AC-14 (state): While in one mode, the recent-colors row shows only colors committed in that mode: a color committed in Pixel mode does not appear in Image mode's row.
-- [ ] AC-15 (event): When the app is reloaded, then each mode's recent colors and its last foreground and background color, including alpha, are restored.
+- [ ] AC-14 (state): While in one mode, the recent-colors row shows only colors painted with in that mode: a color painted with in Pixel mode does not appear in Image mode's row.
+- [ ] AC-15 (event): When the app is reloaded, or the desktop app is quit and started again, then each mode's recent colors (in order) and its last foreground and background color, including alpha, are restored, in the picker and in Image mode's Colors panel.
 - [ ] AC-16 (event): When the user paints in Pixel mode with foreground `#11223380` on a transparent layer and samples that pixel with the Eyedropper, then the foreground becomes `#11223380` (A field shows 128).
 - [ ] AC-17 (event): When the user paints in Image mode on a transparent layer with foreground alpha 128 and tool opacity 100 %, then the Eyedropper sampling that layer yields alpha 128; with tool opacity 50 % it yields alpha 64 (±1).
 - [ ] AC-18 (event): When the user presses Escape, the popover closes and uncommitted field text is discarded; when the user clicks outside, valid uncommitted field text is committed first, then the popover closes.
@@ -58,6 +63,13 @@ Pincel gets its own picker, the same in both modes and on every OS, opened in a 
 - [ ] AC-21 (option): Where the UI language is German, the picker's labels (hue, saturation, value, alpha, recent colors, hex) are German.
 - [ ] AC-22 (event): When the Eyedropper changes the color while the picker is closed, then the next time the picker opens it shows the sampled color and alpha.
 - [ ] AC-23 (event): When the user commits a hex with 3 or 6 digits, then the alpha stays unchanged; when it has 8 digits, the alpha is set from the last pair.
+- [ ] AC-24 (event): When a tool commits a change that alters at least one pixel, then every color the change painted with is added to the mode's recent colors (AC-12), the foreground color first when both were used: the color a Brush, Pencil, Line, shape, Paint Bucket, Text or Gradient stroke actually applied, which is the foreground or, for a right-button gesture or a shape's fill, the background color as the tool uses it today. In an indexed Pixel document the entry's RGBA color is recorded. Erasers (to transparency or to the background), the selection tools, the Eyedropper, effects and adjustments add nothing, because they do not paint with a chosen color; a change that alters no pixel (locked or hidden layer, stroke outside the canvas or selection, refused tool) adds nothing.
+- [ ] AC-25 (always): In Image mode the Colors panel always shows, below the foreground and background swatches, the recent-colors row of AC-12 and the default palette of 48 colors; both are visible without opening the picker, also while the picker is open.
+- [ ] AC-26 (event): When the user left-clicks a color in Image mode's recent-colors row or default palette, then the foreground color becomes that color, including its alpha; when the user right-clicks it, or long-presses it with touch or pen (the platform's context-menu gesture, as the tool rail uses it; touch and pen have no right button), then the background color does, and no context menu opens.
+- [ ] AC-27 (always): The default palette holds, in this order, 12 greys with each channel equal to round(i × 255 / 11) for i = 0 … 11, then for each hue 0°, 30°, …, 330° the fully saturated color at value 100 %, then the same 12 hues at value 70 %, then at value 40 % (HSV); every channel is rounded to the nearest integer with halves rounded up (178.5 → 179), and every color is opaque.
+- [ ] AC-28 (option): Where the UI language is German, the recent-colors row and the default palette have German accessible names, and each color's accessible name gives its hex value.
+- [ ] AC-29 (state): While the recent-colors row is empty (no color painted with yet in that mode), Image mode's Colors panel shows the row's label and an empty area as high as one row of swatches, so the default palette does not jump when the first color arrives.
+- [ ] AC-30 (error): If a stored recent-colors list or a stored foreground / background color cannot be read (missing, not a list of colors, malformed entries), then the mode starts with an empty recent-colors row, or with opaque black foreground and opaque white background, keeping every entry that is readable; no error is shown.
 
 ## Technical notes
 
@@ -86,7 +98,7 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 **Picker body.** Plan design: `ui/src/lib/components/color/ColorPicker.svelte`, mode-agnostic, props `value: { hex; alpha }`, `recent`, `onChange`, `onCommit`. CSS-only: the SV area is a div with the hue as background plus two linear gradients; hue and alpha tracks are gradients, alpha over a checkerboard. No `<canvas>`, so nothing can ever be read back (AGENTS.md §9). Pointer capture for drags.
 
-**Recent colors.** IndexedDB prefs `recentColors:pixel` / `recentColors:image` (`ui/src/lib/idb/prefs.ts` `getPref` / `setPref`), never localStorage. Recent colors and prefs update on commit only. Colors are not document state — no undo entries.
+**Recent colors.** IndexedDB prefs `recentColors:pixel` / `recentColors:image` (`ui/src/lib/idb/prefs.ts` `getPref` / `setPref`), never localStorage. Recent colors update when a paint change is committed (AC-24); the foreground / background prefs update when the picker commits. Colors are not document state — no undo entries.
 
 **i18n.** `color.*` keys in `ui/src/lib/i18n/en.ts`; plan names `color.picker`, `color.recent`, `color.hue`, `color.saturation`, `color.value`.
 
@@ -96,9 +108,13 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | Scenario | Expected behavior |
 | -------- | ----------------- |
+| A stroke undone after it added a color to the recent row | The color stays in the row; the row records use, not document state |
+| A brush stroke with tool opacity 50 % | The foreground color (with its own alpha) is added, not the blended result |
+| Several strokes in a row with the same color | The row does not change after the first |
+| Narrow sidebar (240 px) | The default palette and the recent row wrap into more rows; every swatch stays at least 16 px, because smaller targets are hard to hit and their colors hard to tell apart |
 | Stored pref from before this feature (`#RRGGBB`, no alpha) | Loads as that color with alpha 255 |
-| Same color committed twice in a row | Recent row still holds it once, at the front |
-| 13th distinct color committed | The oldest drops out; the row holds 12 |
+| Same color painted with twice in a row | Recent row still holds it once, at the front |
+| 13th distinct color painted with | The oldest drops out; the row holds 12 |
 | Drag ends outside the popover or the window | Counts as release: one commit, popover stays open |
 | Picker opened for the background color | Changes affect only the background; foreground unchanged |
 | Alpha 0 committed | Valid color; swatch shows the checkerboard |
@@ -129,14 +145,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-08 |  | open |  |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-12 |  | open |  |
 | AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-14 |  | open |  |
+| AC-15 |  | open |  |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
@@ -145,11 +161,20 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-21 |      | open   |        |
 | AC-22 |      | open   |        |
 | AC-23 |      | open   |        |
+| AC-24 |  | open |  |
+| AC-25 |  | open |  |
+| AC-26 |  | open |  |
+| AC-27 |  | open |  |
+| AC-28 |  | open |  |
+| AC-29 |  | open |  |
+| AC-30 |  | open |  |
 
 ## Decisions
 
+- 2026-11-05: AC-15 names the desktop app's quit and restart explicitly and covers Image mode's Colors panel — the owner asked for the last colors to survive program starts.
+- 2026-11-05: Revision. Image mode's Colors panel shows the recent colors and a 48-color default palette without opening the picker; left click sets the foreground, right click (or long press) the background. Recent colors are now the colors painted with, not the colors committed in the picker, in both modes, so the picker row and the panel row show one list. Changed: AC-08, AC-12, AC-14; new: AC-24 – AC-29. Requested by the owner, who chose "recent + default palette", "when painting" (as paint.net), "left = foreground, right = background" and "Image mode only" for the always-visible row. The default palette's composition (AC-27) is our own, generated from HSV, so it is reproducible and copies no other product's palette.
 - 2026-10-28 (legacy plan): The picker is CSS-only (gradients, no `<canvas>`) — nothing can be read back from it, and no new dependency is needed.
-- 2026-10-28 (legacy plan): Live preview while dragging, one commit at the end — recent colors and prefs would otherwise fill up with intermediate colors.
+- 2026-10-28 (legacy plan): Live preview while dragging, one commit at the end — recent colors and prefs would otherwise fill up with intermediate colors. (Since the 2026-11-05 revision, picking no longer adds to the recent colors; the single commit still keeps the prefs from churning.)
 - 2026-10-28 (legacy plan): Recent colors: last 12, most recent first, de-duplicated, per mode in IndexedDB — localStorage is forbidden (AGENTS.md §9) and the two modes use colors differently.
 - 2026-10-28 (legacy plan): Pixel mode keeps its palette panel — recent colors complement it, they don't replace it.
 - 2026-10-29: A Decision Log entry records the own CSS-only picker (HSV area, hue / alpha sliders, `#RRGGBB[AA]` hex, RGBA fields, 12 recent colors per mode in IndexedDB) replacing `<input type="color">` in both modes, with fg / bg alpha persisted per mode, and `pincel.md` §9.2 Colors gains one sentence — AGENTS.md §2.1 requires the entry before code, and one entry also covers the Image-mode alpha rule (owner accepted the recommendation).
