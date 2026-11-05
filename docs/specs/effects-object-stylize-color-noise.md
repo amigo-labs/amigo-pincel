@@ -93,14 +93,14 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
 | AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-03 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_never_changes_an_opaque_pixel, drop_shadow_opacity_zero_or_clear_colour_changes_nothing | built |  |
+| AC-04 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` drop_shadow_blur_zero_single_pixel_lands_at_the_offset, drop_shadow_blur_zero_on_hard_alpha_adds_at_most_one_colour, drop_shadow_offset_outside_the_layer_changes_nothing | built |  |
+| AC-05 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` stylize_outline_solid_layer_is_unchanged, stylize_outline_intensity_zero_changes_nothing, stylize_outline_darkens_white_within_thickness_only, stylize_outline_thickness_beyond_the_layer_works | built |  |
+| AC-06 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_leaves_at_most_colours_and_keeps_alpha, quantize_few_colours_stay_unchanged, quantize_reads_its_colours_from_the_target | built |  |
+| AC-07 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` quantize_is_a_colour_map_without_dither_and_deterministic_with | built |  |
+| AC-08 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` reduce_noise_strength_zero_changes_nothing, reduce_noise_strength_100_and_the_old_form_are_the_median | built |  |
+| AC-09 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` neighbourhood_effects_ignore_transparent_colour | built |  |
+| AC-10 | `crates/pincel-effects/tests/effects_object_stylize_color_noise.rs` from_params_wrong_parameter_count_is_rejected, drop_shadow_bad_colour_slot_is_rejected, from_params_non_finite_reads_as_zero_and_numbers_clamp | built |  |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 
@@ -108,3 +108,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 - 2026-11-04: Written without a dialogue while the owner's goal "all planned specs implemented" was active, following the approved plan (#6). Depends on `outline-effect` for the colour parameter kind.
 - 2026-11-04: Clarification pass settled without a dialogue: distinct colours count RGB; shadow alpha = colour alpha × opacity; Outline's neighbourhood is a square; Reduce Noise's median ignores transparent colour; per-mode defaults are dialog starting values only; non-finite numbers read as 0, a non-finite colour slot is rejected.
+- 2026-11-05 (spec-build): Red run before the wire existed: every test in `effects_object_stylize_color_noise.rs` failed with "unknown effect" for the three new ids, and the Reduce Noise tests with "effect `reduce_noise` expects 1 parameter(s), got 2".
+- 2026-11-05 (spec-build): Drop Shadow's blur is a Gaussian (σ = radius / 3, as Gaussian Blur) of the shifted alpha, reading pixels beyond the layer as transparent; its alpha is rounded to a byte before compositing, so a shadow too faint for one alpha step leaves a pixel untouched — the reason AC-03 holds exactly for Opacity 0.
+- 2026-11-05 (spec-build): Stylize ▸ Outline uses BT.709 luma (the Terms' definition, via `adjustments-paintnet`); Outline's square is `(2·Thickness + 1)²`, cut at the layer's edge, and fully transparent pixels take no part in it (neither colour nor luma) and stay as they are; alpha is kept. This is how it satisfies AC-09 — ignoring transparent pixels as Blurs ▸ Median does, rather than mixing premultiplied values, which would darken every shape boundary.
+- 2026-11-05 (spec-build): Quantize reads its palette from the target (`EffectSpec::run_in`), because AC-06 requires a target with few colours to stay unchanged even when the rest of the layer has many. Pixels map to the nearest palette colour (RGB distance, earlier entry on a tie) for both algorithms; dithering diffuses only among the target's opaque pixels, left to right, top to bottom. Octree merges the deepest internal nodes with the fewest pixels first and may end below Colours (a merge removes up to seven leaves).
+- 2026-11-05 (spec-build): Reduce Noise is Blurs ▸ Median at percentile 50 blended premultiplied by Strength; Strength 0 and 100 return the layer and the median exactly. New code lives in the submenu's module where one exists: `object::DropShadow`, `distort::StylizeOutline` (beside Emboss, Edge Detect and Relief, the other Stylize effects), a new `color` module for `Quantize`, `noise::ReduceNoise`.

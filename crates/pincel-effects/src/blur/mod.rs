@@ -22,6 +22,7 @@ pub use bokeh::Bokeh;
 pub use box_blur::BoxBlur;
 pub use fragment::Fragment;
 pub use gaussian::GaussianBlur;
+pub(crate) use gaussian::gaussian_kernel;
 pub use median::Median;
 pub use motion::MotionBlur;
 pub use radial::{RadialBlur, RadialKind};

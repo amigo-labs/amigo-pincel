@@ -41,6 +41,7 @@ mod spec;
 
 pub mod adjust;
 pub mod blur;
+pub mod color;
 pub mod distort;
 pub mod noise;
 pub mod object;

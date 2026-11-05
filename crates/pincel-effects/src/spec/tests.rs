@@ -57,6 +57,10 @@ fn from_params_every_name_parses_with_its_documented_arity() {
         ("polar_inversion", &[1.0, 0.5, 0.5, 1.0]),
         ("tile_reflection", &[40.0, 30.0, 8.0, 0.0]),
         ("twist", &[30.0, 100.0, 0.5, 0.5, 0.0]),
+        ("reduce_noise", &[6.0, 40.0]),
+        ("drop_shadow", &[4.0, 4.0, 4.0, 255.0, 50.0]),
+        ("stylize_outline", &[3.0, 50.0]),
+        ("quantize", &[16.0, 0.0, 0.0]),
     ];
     for (name, params) in cases {
         let spec = EffectSpec::from_params(name, params).unwrap_or_else(|e| panic!("{name}: {e}"));

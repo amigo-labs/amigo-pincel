@@ -20,16 +20,17 @@ use crate::blur::{
     Bokeh, BoxBlur, Fragment, GaussianBlur, Median, MotionBlur, RadialBlur, RadialKind, SketchBlur,
     SurfaceBlur,
 };
+use crate::color::{Quantize, QuantizeAlgorithm};
 use crate::distort::{
     Bulge, Crystalize, Dents, EdgeAlgorithm, EdgeDetect, Emboss, FrostedGlass, Morphology,
-    MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, Relief, TileReflection,
-    Twist,
+    MorphologyOp, MorphologyShape, Pixelate, PixelateColor, PolarInversion, Relief, StylizeOutline,
+    TileReflection, Twist,
 };
 use crate::effect::Effect;
 use crate::error::EffectError;
 use crate::image::EffectImage;
 use crate::noise::{AddNoise, NoiseChannels, NoiseType, ReduceNoise};
-use crate::object::{Outline, OutlinePlace, OutlineShape};
+use crate::object::{DropShadow, Outline, OutlinePlace, OutlineShape};
 use crate::sharpen::{Sharpen, UnsharpMask};
 use wire::{b, clamped, color, edge, expect_len, f, option, u};
 
@@ -92,8 +93,9 @@ pub enum EffectSpec {
         channels: NoiseChannels,
         seed: u64,
     },
-    /// `reduce_noise`: `[radius]`.
-    ReduceNoise { radius: u32 },
+    /// `reduce_noise`: `[radius, strength]` (`1..=200`, `0..=100`) or the
+    /// older `[radius]`, which is Strength 100.
+    ReduceNoise(ReduceNoise),
     /// `brightness_contrast`: `[brightness, contrast, enhanced]`.
     BrightnessContrast {
         brightness: f32,
@@ -215,6 +217,16 @@ pub enum EffectSpec {
     /// (`-100..=100`, `1..=200`, the centre as fractions, edge as for
     /// `bulge`).
     Twist(Twist),
+    /// `drop_shadow`: `[offset_x, offset_y, blur_radius, color, opacity]`
+    /// (`-100..=100`, `-100..=100`, `0..=50`, one `0xRRGGBBAA` slot,
+    /// `0..=100`).
+    DropShadow(DropShadow),
+    /// `stylize_outline`: `[thickness, intensity]` (`1..=200`, `0..=100`).
+    StylizeOutline(StylizeOutline),
+    /// `quantize`: `[colors, algorithm, dithering]` (`2..=256`, `0` =
+    /// Median Cut, `1` = Octree, `0..=100`). Reads its palette from its
+    /// target, so a host limits it with [`EffectSpec::run_in`].
+    Quantize(Quantize),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -261,6 +273,9 @@ pub const EFFECT_NAMES: &[&str] = &[
     "polar_inversion",
     "tile_reflection",
     "twist",
+    "drop_shadow",
+    "stylize_outline",
+    "quantize",
 ];
 
 impl EffectSpec {
@@ -364,8 +379,16 @@ impl EffectSpec {
                 }
             }
             "reduce_noise" => {
-                expect_len(name, p, 1)?;
-                Self::ReduceNoise { radius: u(p[0]) }
+                if p.len() != 1 && p.len() != 2 {
+                    return Err(EffectError::ParamCount {
+                        effect: name.to_owned(),
+                        expected: 2,
+                        got: p.len(),
+                    });
+                }
+                // The older one-slot form is Strength 100: the plain median.
+                let strength = p.get(1).map_or(100.0, |&v| f(v));
+                Self::ReduceNoise(ReduceNoise::new(f(p[0]), strength))
             }
             "brightness_contrast" => {
                 expect_len(name, p, 3)?;
@@ -583,6 +606,23 @@ impl EffectSpec {
                 expect_len(name, p, 5)?;
                 Self::Twist(Twist::new(f(p[0]), f(p[1]), f(p[2]), f(p[3]), edge(p[4])))
             }
+            "drop_shadow" => {
+                expect_len(name, p, 5)?;
+                let color = color(name, p, 3)?;
+                Self::DropShadow(DropShadow::new(f(p[0]), f(p[1]), f(p[2]), color, f(p[4])))
+            }
+            "stylize_outline" => {
+                expect_len(name, p, 2)?;
+                Self::StylizeOutline(StylizeOutline::new(f(p[0]), f(p[1])))
+            }
+            "quantize" => {
+                expect_len(name, p, 3)?;
+                let algorithm = match option(p[1], 1) {
+                    1 => QuantizeAlgorithm::Octree,
+                    _ => QuantizeAlgorithm::MedianCut,
+                };
+                Self::Quantize(Quantize::new(f(p[0]), algorithm, f(p[2])))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -653,7 +693,7 @@ impl EffectSpec {
                 channels,
                 seed,
             } => AddNoise::new(*amount, *noise_type, *channels, *seed).apply(src),
-            Self::ReduceNoise { radius } => ReduceNoise::new(*radius).apply(src),
+            Self::ReduceNoise(e) => e.apply(src),
             Self::BrightnessContrast {
                 brightness,
                 contrast,
@@ -732,6 +772,9 @@ impl EffectSpec {
             Self::PolarInversion(e) => e.apply(src),
             Self::TileReflection(e) => e.apply(src),
             Self::Twist(e) => e.apply(src),
+            Self::DropShadow(e) => e.apply(src),
+            Self::StylizeOutline(e) => e.apply(src),
+            Self::Quantize(e) => e.apply_in(src, in_target),
         }
     }
 
@@ -748,7 +791,7 @@ impl EffectSpec {
             Self::EdgeDetect { .. } => "Edge Detect",
             Self::Relief { .. } => "Relief",
             Self::AddNoise { .. } => "Add Noise",
-            Self::ReduceNoise { .. } => "Reduce Noise",
+            Self::ReduceNoise(_) => "Reduce Noise",
             Self::BrightnessContrast { .. } => "Brightness / Contrast",
             Self::HueSaturation { .. } => "Hue / Saturation",
             Self::Curves { .. } => "Curves",
@@ -780,6 +823,9 @@ impl EffectSpec {
             Self::PolarInversion(_) => "Polar Inversion",
             Self::TileReflection(_) => "Tile Reflection",
             Self::Twist(_) => "Twist",
+            Self::DropShadow(_) => "Drop Shadow",
+            Self::StylizeOutline(_) => "Outline",
+            Self::Quantize(_) => "Quantize",
         }
     }
 }

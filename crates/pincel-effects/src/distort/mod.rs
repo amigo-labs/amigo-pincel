@@ -2,6 +2,9 @@
 //! the Stylize submenu since `effect-catalog-v2`) and paint.net's Distort
 //! menu (docs/specs/effects-distort.md).
 //!
+//! [`StylizeOutline`] (Stylize ▸ Outline, docs/specs/
+//! effects-object-stylize-color-noise.md) darkens pixels near colour edges.
+//!
 //! Emboss, Edge Detect and Relief read a luminance height field and its
 //! gradient. They operate on straight RGB (alpha is preserved from the
 //! source) rather than premultiplied space: the output is a lit/edge
@@ -22,6 +25,7 @@ mod frosted_glass;
 mod morphology;
 mod pixelate;
 mod relief;
+mod stylize_outline;
 mod warp;
 
 pub use crystalize::Crystalize;
@@ -33,6 +37,7 @@ pub use frosted_glass::FrostedGlass;
 pub use morphology::{Morphology, MorphologyOp, MorphologyShape};
 pub use pixelate::{Pixelate, PixelateColor};
 pub use relief::Relief;
+pub use stylize_outline::StylizeOutline;
 pub use warp::{Bulge, PolarInversion, TileReflection, Twist};
 
 /// Rec.601 luma of pixel `(x, y)` in `[0.0, 1.0]`, clamping at the edges.
