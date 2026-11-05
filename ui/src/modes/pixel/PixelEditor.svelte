@@ -931,7 +931,13 @@
     <IconButton icon="redo" label={t('menu.redo')} hint={hint('redo')} disabled={ed.redoDepth === 0} onclick={redo} />
   {/snippet}
   {#snippet tools(orientation)}
-    <ToolRail groups={railGroups} active={toolState.tool} onSelect={(next) => (toolState.tool = next)} {orientation} />
+    <ToolRail
+      groups={railGroups}
+      active={toolState.tool}
+      onSelect={(next) => (toolState.tool = next)}
+      {orientation}
+      resetKey={ed.doc}
+    />
   {/snippet}
   {#snippet options()}
     <ToolVariants groups={railGroups} active={toolState.tool} onSelect={(next) => (toolState.tool = next)} />
