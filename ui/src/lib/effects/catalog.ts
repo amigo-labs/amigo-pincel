@@ -168,6 +168,14 @@ const center = (): ParamDef => ({
 const edge = (def = 0): ParamDef =>
   choice('edge', 'Edge behavior', ['Clamp', 'Wrap', 'Reflect', 'Transparent'], def);
 
+/** Clouds' and Turbulence's colours and blend mode (three wire slots;
+ *  docs/specs/effects-render.md). */
+const renderColors = (): ParamDef[] => [
+  color('color1', 'Color 1', 'foreground'),
+  color('color2', 'Color 2', 'background'),
+  choice('blend', 'Blend mode', ['Normal', 'Multiply', 'Screen', 'Overlay']),
+];
+
 /** Radial Blur's amount and centre as wire slots: the amount, then the
  *  centre as two fractions (the point kind's encoding in `toParams`). */
 function pointParams(v: Record<string, number>): number[] {
@@ -579,6 +587,58 @@ export const EFFECTS: EffectDef[] = [
       num('size', 'Size %', 1, 200, 100),
       center(),
       edge(),
+    ],
+  },
+  // docs/specs/effects-render.md: paint.net's Render menu. Clouds and
+  // Turbulence are texture generators, so Pixel mode shows them too; the
+  // fractals' fixed rainbow palette keeps them in Image mode.
+  {
+    id: 'clouds',
+    label: 'Clouds',
+    group: 'render',
+    modes: BOTH,
+    params: [
+      num('scale', 'Scale', 2, 1000, 250),
+      num('roughness', 'Roughness', 0, 100, 50),
+      seed('seed', 'Seed', 0, 9999, 1),
+      ...renderColors(),
+    ],
+  },
+  {
+    id: 'turbulence',
+    label: 'Turbulence',
+    group: 'render',
+    modes: BOTH,
+    params: [
+      num('scale', 'Scale', 2, 1000, 200),
+      num('octaves', 'Octaves', 1, 8, 5),
+      seed('seed', 'Seed', 0, 9999, 1),
+      ...renderColors(),
+    ],
+  },
+  {
+    id: 'julia_fractal',
+    label: 'Julia Fractal',
+    group: 'render',
+    modes: IMAGE,
+    params: [
+      num('factor', 'Factor', 1, 10, 4),
+      num('zoom', 'Zoom', 1, 50, 1),
+      angle('angle', 'Angle', 0),
+      num('quality', 'Quality', 1, 5, 2),
+    ],
+  },
+  {
+    id: 'mandelbrot_fractal',
+    label: 'Mandelbrot Fractal',
+    group: 'render',
+    modes: IMAGE,
+    params: [
+      num('factor', 'Factor', 1, 10, 1),
+      num('zoom', 'Zoom', 1, 100, 10),
+      angle('angle', 'Angle', 0),
+      num('quality', 'Quality', 1, 5, 2),
+      bool('invert', 'Invert colors'),
     ],
   },
 ];

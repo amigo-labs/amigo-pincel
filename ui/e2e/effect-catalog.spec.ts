@@ -306,6 +306,47 @@ const PINS: Record<string, Pin> = {
       ['edge', 3, [30, 100, 0.5, 0.5, 3]],
     ],
   },
+  // Added by effects-render (no previous catalog): the table's order; the
+  // colours as 0xRRGGBBAA slots (black / white without an editor's
+  // foreground / background), the blend mode as option index
+  // (0 = Normal, 1 = Multiply, 2 = Screen, 3 = Overlay).
+  clouds: {
+    defaults: [250, 50, 1, 0x000000ff, 0xffffffff, 0],
+    changes: [
+      ['scale', 1000, [1000, 50, 1, 0x000000ff, 0xffffffff, 0]],
+      ['roughness', 0, [250, 0, 1, 0x000000ff, 0xffffffff, 0]],
+      ['seed', 9999, [250, 50, 9999, 0x000000ff, 0xffffffff, 0]],
+      ['color1', 0xff8010c0, [250, 50, 1, 0xff8010c0, 0xffffffff, 0]],
+      ['color2', 0x00000000, [250, 50, 1, 0x000000ff, 0x00000000, 0]],
+      ['blend', 3, [250, 50, 1, 0x000000ff, 0xffffffff, 3]],
+    ],
+  },
+  turbulence: {
+    defaults: [200, 5, 1, 0x000000ff, 0xffffffff, 0],
+    changes: [
+      ['scale', 2, [2, 5, 1, 0x000000ff, 0xffffffff, 0]],
+      ['octaves', 8, [200, 8, 1, 0x000000ff, 0xffffffff, 0]],
+      ['blend', 1, [200, 5, 1, 0x000000ff, 0xffffffff, 1]],
+    ],
+  },
+  julia_fractal: {
+    defaults: [4, 1, 0, 2],
+    changes: [
+      ['factor', 10, [10, 1, 0, 2]],
+      ['zoom', 50, [4, 50, 0, 2]],
+      ['angle', 370, [4, 1, 10, 2]],
+      ['quality', 5, [4, 1, 0, 5]],
+    ],
+  },
+  mandelbrot_fractal: {
+    defaults: [1, 10, 0, 2, 0],
+    changes: [
+      ['zoom', 100, [1, 100, 0, 2, 0]],
+      ['angle', 90, [1, 10, 90, 2, 0]],
+      ['quality', 1, [1, 10, 0, 1, 0]],
+      ['invert', 1, [1, 10, 0, 2, 1]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {

@@ -88,8 +88,8 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `image mode lists the four render effects, sorted; pixel mode Clouds and Turbulence (AC-01)` (ui/e2e/effects-render.spec.ts); `effect-menus.spec.ts` (Pixel mode exactly the catalog's Pixel entries) | built |        |
+| AC-02 | `the render dialogs show exactly the parameters of the table (AC-02)`, `pixel mode: Clouds previews and applies as one undo step`, `image mode: …` (ui/e2e/effects-render.spec.ts); pinned wire vectors `clouds` / `turbulence` / `julia_fractal` / `mandelbrot_fractal` (ui/e2e/effect-catalog.spec.ts) | built |        |
 | AC-03 | `render_effects_are_reproducible_and_clouds_and_turbulence_follow_the_seed`, `noise_follows_the_canvas_position_of_the_buffer` (crates/pincel-effects/tests/effects_render.rs) | built |        |
 | AC-04 | `normal_blend_stays_between_the_two_colours_whatever_the_content`, `normal_blend_takes_the_colours_alpha` (crates/pincel-effects/tests/effects_render.rs) | built |        |
 | AC-05 | `multiply_never_brightens_and_screen_never_darkens`, `multiply_over_transparency_stays_transparent` (crates/pincel-effects/tests/effects_render.rs); `combine_multiply_and_screen_with_black_and_white` (crates/pincel-effects/src/render/mod.rs) | built |        |
@@ -99,7 +99,7 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 | AC-09 | `apply_effect_render_changes_only_the_target_in_one_undo_step`, `apply_effect_clouds_on_a_trimmed_cel_matches_the_canvas_texture` (crates/pincel-wasm/src/effects.rs); `apply_effect_render_changes_only_the_selection_in_one_undo_step` (crates/pincel-image-wasm/src/lib.rs) | built |        |
 | AC-10 | `wrong_parameter_count_is_rejected`, `an_invalid_colour_slot_is_rejected`, `non_finite_numbers_read_as_zero_then_clamp_to_the_range` (crates/pincel-effects/tests/effects_render.rs); `apply_effect_render_wrong_parameters_change_nothing` (crates/pincel-wasm/src/effects.rs) | built |        |
 | AC-11 | `apply_effect_render_on_an_indexed_document_or_without_a_cel_is_refused` (crates/pincel-wasm/src/effects.rs) | built |        |
-| AC-12 |      | open   |        |
+| AC-12 | `German names, parameter labels and blend-mode options (AC-12)` (ui/e2e/effects-render.spec.ts) | built |        |
 
 ## Decisions
 
@@ -112,4 +112,5 @@ Hints, not contracts — paths drift (verified 2026-11-04).
 - 2026-11-05 (spec-build): Fractal view: the view's half-height maps to half the image height (square pixels), its centre to the image centre, the imaginary axis pointing up; Angle rotates the sampled point about the view centre. Escape means |z| > 2 within 256 iterations; Quality q averages q × q evenly spaced sub-samples in straight RGB. Mandelbrot skips iterating inside the main cardioid and the period-2 bulb (same result, faster). The Julia constant −0.4 + 0.6i lies just outside the Mandelbrot set, so the Julia rendering has no black interior at any zoom the table allows — AC-07 / AC-08's black interior is proven on Mandelbrot, as AC-08 names it.
 - 2026-11-05 (spec-build): AC-09 – AC-11 needed no host code: the cores already keep effects to the selection (blending a soft selection by coverage), commit one undo step and refuse indexed documents and a missing cel ("no cel on layer … at frame …", the message of every effect) before running any effect. Their host tests were green at once; the red run came from the wire tests in `pincel-effects` (unknown effect) and, for the trimmed-cel texture, from `run_at` without the Clouds / Turbulence origin. The fractals run in the Pixel core too (the wire accepts every effect in both cores, `effect-catalog-v2` AC-08).
 - 2026-11-05 (spec-build): The agent catalog names the colours `color1` / `color2` (`#RRGGBB[AA]`, defaults black / white — an agent has no foreground / background colour) and the blend mode by lower-case name (`normal` / `multiply` / `screen` / `overlay`); Invert colours is the boolean `invert`.
+- 2026-11-05 (spec-build): Labels the table leaves open: Color 1 / Farbe 1, Color 2 / Farbe 2, Blend mode / Mischmodus with Normal / Normal, Multiply / Multiplizieren, Screen / Negativ multiplizieren, Overlay / Ineinanderkopieren (the layer blend modes' German names), Octaves / Oktaven, Factor / Faktor, Zoom / Zoom, Quality / Qualität, Invert colors / Farben umkehren; Scale, Roughness, Seed and Angle reuse the existing strings. Every number steps by 1; Angle uses the angle dial, Seed the random-seed control with Reseed.
 - 2026-11-05 (spec-build): New public API: `pincel_effects::render::{Clouds, Turbulence, JuliaFractal, MandelbrotFractal, RenderBlend}` and `EffectSpec::{Clouds, Turbulence, JuliaFractal, MandelbrotFractal}`; `Clouds::with_origin` / `Turbulence::with_origin` as `Pixelate::with_origin`.
