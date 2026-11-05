@@ -2,7 +2,7 @@
   // Floating zoom control in the canvas corner (spec §9.2), same in both
   // modes: out · current zoom (click fits) · in · 1:1.
   import IconButton from './IconButton.svelte';
-  import { hint } from '../../shell/shortcuts';
+  import { hint, withHint } from '../../shell/shortcuts';
   import { t } from '../../i18n/index.svelte';
 
   interface Props {
@@ -35,7 +35,7 @@
   <button
     type="button"
     class="h-6 min-w-12 rounded px-1 text-center tabular-nums hover:bg-pc-hover"
-    title={`${t('zoom.fit')} (${hint('zoomFit')})`}
+    title={withHint(t('zoom.fit'), 'zoomFit')}
     aria-label={t('zoom.fit')}
     onclick={onFit}
   >
@@ -45,7 +45,7 @@
   <button
     type="button"
     class="h-6 rounded px-1.5 hover:bg-pc-hover"
-    title={`${t('zoom.actual')} (${hint('zoomActual')})`}
+    title={withHint(t('zoom.actual'), 'zoomActual')}
     aria-label={t('zoom.actual')}
     onclick={onActual}
   >

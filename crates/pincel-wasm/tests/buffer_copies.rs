@@ -47,18 +47,18 @@ fn save_aseprite_mutating_the_bytes_leaves_the_document_unchanged() {
 #[test]
 fn export_png_mutating_the_bytes_leaves_the_document_unchanged() {
     let doc = painted_doc();
-    let original = doc.export_png(0).expect("png");
+    let original = doc.export_png(0, None).expect("png");
 
-    let mut first = doc.export_png(0).expect("png");
+    let mut first = doc.export_png(0, None).expect("png");
     scribble(&mut first);
 
-    assert_eq!(doc.export_png(0).expect("png"), original);
+    assert_eq!(doc.export_png(0, None).expect("png"), original);
 }
 
 #[test]
 fn atlas_export_png_mutating_a_read_leaves_later_reads_unchanged() {
     let doc = painted_doc();
-    let atlas = doc.export_atlas(1, None, None).expect("atlas");
+    let atlas = doc.export_atlas(1, None, None, None).expect("atlas");
     let original = atlas.png();
 
     let mut first = atlas.png();
@@ -66,7 +66,7 @@ fn atlas_export_png_mutating_a_read_leaves_later_reads_unchanged() {
 
     assert_eq!(atlas.png(), original);
     assert_eq!(
-        doc.export_atlas(1, None, None).expect("atlas").png(),
+        doc.export_atlas(1, None, None, None).expect("atlas").png(),
         original
     );
 }

@@ -39,6 +39,7 @@
   !insertmacro ${OP} "gif" "GIF Image"
   !insertmacro ${OP} "tif" "TIFF Image"
   !insertmacro ${OP} "tiff" "TIFF Image"
+  !insertmacro ${OP} "psd" "Photoshop Image"
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL

@@ -3,7 +3,7 @@
   // overlapping swatches with swap (X) and reset (D), a hex field for the
   // foreground and, where the mode paints with alpha, an alpha slider.
   import Icon from './icons/Icon.svelte';
-  import { hint } from '../shell/shortcuts';
+  import { withHint } from '../shell/shortcuts';
   import { t } from '../i18n/index.svelte';
 
   interface Props {
@@ -54,7 +54,7 @@
     <button
       type="button"
       class="absolute -top-0.5 -right-0.5 rounded p-0.5 text-pc-muted hover:text-pc-text"
-      title={`${t('color.swap')} (${hint('swapColors')})`}
+      title={withHint(t('color.swap'), 'swapColors')}
       aria-label={t('color.swapLabel')}
       onclick={onSwap}
     >
@@ -63,7 +63,7 @@
     <button
       type="button"
       class="absolute -bottom-0.5 -left-0.5 flex h-4 w-4 items-end"
-      title={`${t('color.reset')} (${hint('resetColors')})`}
+      title={withHint(t('color.reset'), 'resetColors')}
       aria-label={t('color.resetLabel')}
       onclick={onReset}
     >

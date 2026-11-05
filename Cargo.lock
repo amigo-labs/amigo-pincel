@@ -3162,6 +3162,7 @@ dependencies = [
  "criterion",
  "flate2",
  "gif",
+ "pincel-effects",
  "png 0.18.1",
  "thiserror 2.0.21",
 ]

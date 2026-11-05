@@ -397,7 +397,7 @@ test('pixel mode: single keys select the drawing tools and cycle the shapes', as
   for (const [key, label] of [
     ['b', 'Pencil'],
     ['e', 'Eraser'],
-    ['g', 'Fill'],
+    ['g', 'Fill: Bucket'],
     ['i', 'Eyedropper'],
     ['l', 'Line'],
     ['t', 'Text'],
@@ -428,4 +428,77 @@ test('pixel mode: single keys select the drawing tools and cycle the shapes', as
   await page.keyboard.press('b');
   await page.keyboard.press('e');
   await expect(tool).toHaveAttribute('aria-label', 'Shapes: Rectangle');
+});
+
+// docs/specs/dithered-gradient.md
+
+test('pixel mode: G cycles Bucket and Gradient, and the Gradient shows Kind and Dither', async ({
+  page,
+}) => {
+  await open(page);
+  const tool = activeTool(page);
+  const kind = page.getByLabel('Gradient kind');
+  const dither = page.getByLabel('Dither matrix');
+  await page.keyboard.press('g');
+  await expect(tool).toHaveAttribute('aria-label', 'Fill: Bucket');
+  await expect(kind).toHaveCount(0);
+  await page.keyboard.press('g');
+  await expect(tool).toHaveAttribute('aria-label', 'Fill: Gradient');
+  await expect(kind).toBeVisible();
+  await expect(kind).toHaveValue('linear');
+  await expect(kind.locator('option')).toHaveText(['Linear', 'Radial']);
+  await expect(dither).toBeVisible();
+  await expect(dither.locator('option')).toHaveText([
+    'None (hard split)',
+    'Bayer 2×2',
+    'Bayer 4×4',
+    'Bayer 8×8',
+  ]);
+  await expect(dither.locator('option:checked')).toHaveText('Bayer 4×4');
+  await page.keyboard.press('g');
+  await expect(tool).toHaveAttribute('aria-label', 'Fill: Bucket');
+});
+
+test('pixel mode: a gradient drag previews a line, then fills foreground to background as one undo step', async ({
+  page,
+}) => {
+  const ed = await open(page);
+  const status = statusBar(page);
+  await colors(page, '#ff0000', '#0000ff');
+  await pick(page, 'g');
+  await pick(page, 'g');
+
+  // While dragging only the preview line shows; the document is unchanged.
+  await page.mouse.move(...ed.at(15, 5));
+  const idle = await ed.canvas.screenshot();
+  await page.mouse.move(...ed.at(0, 5));
+  await page.mouse.down();
+  await page.mouse.move(...ed.at(15, 5), { steps: 4 });
+  await expect.poll(async () => (await ed.canvas.screenshot()).equals(idle)).toBe(false);
+  await expect(status).toContainText('undo 0 / redo 0');
+  await page.mouse.up();
+  await expect(status).toContainText('undo 1 / redo 0');
+
+  // Column 0 is foreground and column 15 background in every row.
+  for (const y of [0, 5, 15]) {
+    expect(await sample(ed, 0, y)).toBe(RED);
+    expect(await sample(ed, 15, y)).toBe(BLUE);
+  }
+  // Only the two colors are written.
+  for (const x of [3, 6, 8, 11]) expect([RED, BLUE]).toContain(await sample(ed, x, 7));
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(status).toContainText('undo 0 / redo 1');
+  for (const x of [0, 8, 15]) expect(await sample(ed, x, 5)).toBe(CLEAR);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  expect(await sample(ed, 0, 5)).toBe(RED);
+  expect(await sample(ed, 15, 5)).toBe(BLUE);
+
+  // A click without a drag changes nothing and adds no undo step.
+  await colors(page, '#00ff00', '#ffffff');
+  await pick(page, 'g');
+  await pick(page, 'g');
+  await stroke(ed, ed.at(8, 8), []);
+  await expect(status).toContainText('undo 1 / redo 0');
+  expect(await sample(ed, 0, 8)).toBe(RED);
 });

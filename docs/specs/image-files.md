@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Image
@@ -33,22 +33,22 @@ Image mode opens ordinary raster files — PNG, JPEG, WebP, BMP, GIF, TIFF — a
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user opens a PNG, JPEG, WebP, BMP, GIF or TIFF file in Image mode, then a document opens with one layer named "Background" holding the image's pixels, at the image's width and height.
-- [ ] AC-02 (always): Opening a raster file keeps its first frame only (an animated GIF opens as its first frame), converts higher bit depths to 8 bits per channel, and drops embedded metadata such as EXIF.
-- [ ] AC-03 (always): PNG, BMP and WebP files written by Image mode decode back to exactly the pixels that were written, for any pixel content including fully transparent pixels and a 1 × 1 image.
-- [ ] AC-04 (event): When the user exports PNG, then the file holds the composite of the visible layers: after opening a PNG, painting and exporting, the painted pixels are in the file and the untouched ones are unchanged; after undoing the paint, the export equals the original.
-- [ ] AC-05 (event): When the user chooses File ▸ Export ▸ JPEG, then a dialog asks for the quality (1–100, default 90) before the file is written; PNG and WebP export without a dialog.
-- [ ] AC-06 (always): A JPEG export flattens transparent areas onto white, and at quality 90 stays perceptually close to the source (mean absolute error per channel below 8 of 255).
-- [ ] AC-07 (event): When the user exports, then the file is named after the opened file's name without its extension plus `.png`, `.jpg` or `.webp` (`image.*` for a new document), and the document's unsaved state does not change.
-- [ ] AC-08 (always): A saved `.ora` file is a ZIP whose first entry is the uncompressed `mimetype` with the content `image/openraster`, and it contains `stack.xml`, `mergedimage.png`, `Thumbnails/thumbnail.png` and one PNG per layer.
-- [ ] AC-09 (event): When the user saves an Image document and opens the `.ora` again, then the canvas size, the number and order of layers and every layer's name, pixels, opacity (within 0.001), blend mode, visibility and lock are the same, and the same layer is active.
-- [ ] AC-10 (always): A saved `.ora`'s `mergedimage.png` is the composite of the visible layers, and its thumbnail is at most 256 px on its longer side with the canvas's aspect ratio.
-- [ ] AC-11 (event): When the user opens an `.ora` written by another application, then nested layer stacks are flattened into one list in document order, a layer image stored at an `x` / `y` offset or at a different size lands at that offset on a canvas-sized layer, an unknown `composite-op` reads as Normal, and a layer without a name is called "Layer <n>" by its position in the file.
-- [ ] AC-12 (error): If a `.ora` file's `mimetype` entry is not `image/openraster`, then opening fails with "not an OpenRaster file" and no document is created from it.
-- [ ] AC-13 (error): If the bytes of an opened file are not a decodable image, then opening fails and no document is created from it.
-- [ ] AC-14 (error): If a document would be 0 px or more than 32767 px wide or tall, then it is refused.
-- [ ] AC-15 (state): While the canvas is wider than 8192 px, the image opens, renders through a render target no wider than the viewport, accepts paint, and re-renders at 1:1 zoom.
-- [ ] AC-16 (event): When the user asks Resize Canvas or Scale Image for a size beyond 16384 px on an edge or 8192 × 8192 px in area, then the size is reduced to fit — each edge to at most 16384 px, both edges scaled down together when the area is too large.
+- [x] AC-01 (event): When the user opens a PNG, JPEG, WebP, BMP, GIF or TIFF file in Image mode, then a document opens with one layer named "Background" holding the image's pixels, at the image's width and height.
+- [x] AC-02 (always): Opening a raster file keeps its first frame only (an animated GIF opens as its first frame), converts higher bit depths to 8 bits per channel, and drops embedded metadata such as EXIF.
+- [x] AC-03 (always): PNG, BMP and WebP files written by Image mode decode back to exactly the pixels that were written, for any pixel content including fully transparent pixels and a 1 × 1 image.
+- [x] AC-04 (event): When the user exports PNG, then the file holds the composite of the visible layers: after opening a PNG, painting and exporting, the painted pixels are in the file and the untouched ones are unchanged; after undoing the paint, the export equals the original.
+- [x] AC-05 (event): When the user chooses File ▸ Export ▸ JPEG, then a dialog asks for the quality (1–100, default 90) before the file is written; PNG and WebP export without a dialog.
+- [x] AC-06 (always): A JPEG export flattens transparent areas onto white, and at quality 90 stays perceptually close to the source (mean absolute error per channel below 8 of 255).
+- [x] AC-07 (event): When the user exports, then the file is named after the opened file's name without its extension plus `.png`, `.jpg` or `.webp` (`image.*` for a new document), and the document's unsaved state does not change.
+- [x] AC-08 (always): A saved `.ora` file is a ZIP whose first entry is the uncompressed `mimetype` with the content `image/openraster`, and it contains `stack.xml`, `mergedimage.png`, `Thumbnails/thumbnail.png` and one PNG per layer.
+- [x] AC-09 (event): When the user saves an Image document and opens the `.ora` again, then the canvas size, the number and order of layers and every layer's name, pixels, opacity (within 0.001), blend mode, visibility and lock are the same, and the same layer is active.
+- [x] AC-10 (always): A saved `.ora`'s `mergedimage.png` is the composite of the visible layers, and its thumbnail is at most 256 px on its longer side with the canvas's aspect ratio.
+- [x] AC-11 (event): When the user opens an `.ora` written by another application, then nested layer stacks are flattened into one list in document order, a layer image stored at an `x` / `y` offset or at a different size lands at that offset on a canvas-sized layer, an unknown `composite-op` reads as Normal, and a layer without a name is called "Layer <n>" by its position in the file.
+- [x] AC-12 (error): If a `.ora` file's `mimetype` entry is not `image/openraster`, then opening fails with "not an OpenRaster file" and no document is created from it.
+- [x] AC-13 (error): If the bytes of an opened file are not a decodable image, then opening fails and no document is created from it.
+- [x] AC-14 (error): If a document would be 0 px or more than 32767 px wide or tall, then it is refused.
+- [x] AC-15 (state): While the canvas is wider than 8192 px, the image opens, renders through a render target no wider than the viewport, accepts paint, and re-renders at 1:1 zoom.
+- [x] AC-16 (event): When the user asks Resize Canvas or Scale Image for a size beyond 16384 px on an edge or 8192 × 8192 px in area, then the size is reduced to fit — each edge to at most 16384 px, both edges scaled down together when the area is too large.
 
 ## Technical notes
 
@@ -84,6 +84,15 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | Opened raster image larger than 8192 × 8192 px in area but within 32767 px per edge | Opens at full size; the 8192 × 8192 px area limit is not applied on open |
 | Corrupt file while another document is open | Opening fails, the open document stays |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- PNG, JPEG, WebP, BMP, GIF and TIFF open as a one-layer Image document (first frame only, 8 bits per channel, metadata dropped); undecodable files and sizes beyond the limits are refused
+- OpenRaster is the project format: Save writes `stack.xml`, the merged image, a thumbnail and one PNG per layer; Open reads Pincel's and other applications' files (nested stacks flattened, offsets placed)
+- Export ▸ PNG / JPEG / WebP writes the flattened composite under the document's name; JPEG asks for the quality first and flattens onto white
+- Large canvases render through a viewport-sized target; Resize Canvas and Scale Image reduce oversized requests to the limits
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -92,25 +101,24 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 | `pincel-image-core (tests/codec_proptest.rs): png_round_trip_is_lossless`, `bmp_round_trip_is_lossless`; `pincel-image-core: codec::tests::webp_lossless_round_trip_is_pixel_exact`, `codec::tests::png_preserves_full_transparency`, `codec::tests::png_one_by_one_round_trips` | built | |
-| AC-04 | `pincel-image-core (tests/pencil_round_trip.rs): open_png_paint_pencil_export_png_is_pixel_correct`, `paint_then_undo_then_export_matches_original` | built | |
-| AC-05 |      | open   |        |
-| AC-06 | `pincel-image-core: codec::tests::jpeg_flattens_transparency_over_white`, `codec::tests::jpeg_round_trip_is_perceptually_close` | built | |
-| AC-07 |      | open   |        |
-| AC-08 | `pincel-image-core: codec::ora::tests::to_ora_bytes_stores_the_mimetype_first_and_uncompressed`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
-| AC-09 | `pincel-image-core: codec::ora::tests::to_ora_bytes_then_from_ora_bytes_round_trips_layers`; `pincel-image-wasm: project_tests::save_project_then_open_project_keeps_the_layers`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
-| AC-10 |      | open   |        |
-| AC-11 | `pincel-image-core: codec::ora::tests::from_ora_bytes_places_offset_layers_and_flattens_nested_stacks` | built | |
-| AC-12 | `pincel-image-core: codec::ora::tests::from_ora_bytes_rejects_other_mimetypes` | built | |
-| AC-13 | `pincel-image-core: codec::tests::decode_garbage_errors` | built | |
-| AC-14 | `pincel-image-core: document::canvas::tests::new_rejects_zero_dimension`, `document::canvas::tests::new_rejects_oversized_dimension`, `document::canvas::tests::new_accepts_boundary_values` | built | |
-| AC-15 | `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | built | |
-| AC-16 |      | open   |        |
-
-Partial coverage (status stays `open`): AC-01 — `pencil_round_trip.rs › open_png_paint_pencil_export_png_is_pixel_correct` opens a PNG and checks its size after export; JPEG / WebP / BMP / GIF / TIFF opens and the "Background" name are untested. AC-05 — no e2e drives Export ▸ JPEG. AC-10 — `to_ora_bytes_stores_the_mimetype_first_and_uncompressed` checks the entries exist, not their content or the thumbnail size. AC-16 — `large-image.spec.ts › image mode: the New dialog clamps an oversized canvas to the area limit` covers the same clamp through the New dialog (owned by `app-shell`), not Resize Canvas / Scale Image.
+| AC-01 | `pincel-image-core (tests/open_formats.rs): open_lossless_formats_yield_one_background_layer_with_the_pixels`, `open_jpeg_yields_one_background_layer_close_to_the_source` | verified | ba53299 |
+| AC-02 | `pincel-image-core (tests/open_formats.rs): open_animated_gif_keeps_the_first_frame_only`, `open_sixteen_bit_png_converts_to_eight_bits_per_channel`, `open_jpeg_with_exif_drops_the_metadata` | verified | ba53299 |
+| AC-03 | `pincel-image-core (tests/codec_proptest.rs): png_round_trip_is_lossless`, `bmp_round_trip_is_lossless`; `pincel-image-core: codec::tests::webp_lossless_round_trip_is_pixel_exact`, `codec::tests::png_preserves_full_transparency`, `codec::tests::png_one_by_one_round_trips` | verified | 6aed618 |
+| AC-04 | `pincel-image-core (tests/pencil_round_trip.rs): open_png_paint_pencil_export_png_is_pixel_correct`, `paint_then_undo_then_export_matches_original` | verified | ba53299 |
+| AC-05 | `ui/e2e/image-export.spec.ts › JPEG export asks for the quality first and is named after the opened file`, `› PNG and WebP export without a dialog as image.* and keep the unsaved state` | verified | 35f631c |
+| AC-06 | `pincel-image-core: codec::tests::jpeg_flattens_transparency_over_white`, `codec::tests::jpeg_round_trip_is_perceptually_close` | verified | 6aed618 |
+| AC-07 | `ui/e2e/image-export.spec.ts › PNG and WebP export without a dialog as image.* and keep the unsaved state`, `› JPEG export asks for the quality first and is named after the opened file` | verified | 35f631c |
+| AC-08 | `pincel-image-core: codec::ora::tests::to_ora_bytes_stores_the_mimetype_first_and_uncompressed`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | verified | 9af6b69 |
+| AC-09 | `pincel-image-core: codec::ora::tests::to_ora_bytes_then_from_ora_bytes_round_trips_layers`; `pincel-image-wasm: project_tests::save_project_then_open_project_keeps_the_layers`; `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | verified | 9a7f4f0 |
+| AC-10 | `pincel-image-core: codec::ora::tests::to_ora_bytes_merged_image_is_the_visible_composite`, `codec::ora::tests::to_ora_bytes_thumbnail_fits_256_px_with_the_canvas_aspect` | verified | c43a845 |
+| AC-11 | `pincel-image-core: codec::ora::tests::from_ora_bytes_places_offset_layers_and_flattens_nested_stacks` | verified | 5dd2afe |
+| AC-12 | `pincel-image-core: codec::ora::tests::from_ora_bytes_rejects_other_mimetypes` | verified | 22f5a52 |
+| AC-13 | `pincel-image-core: codec::tests::decode_garbage_errors` | verified | 3678aba |
+| AC-14 | `pincel-image-core: document::canvas::tests::new_rejects_zero_dimension`, `document::canvas::tests::new_rejects_oversized_dimension`, `document::canvas::tests::new_accepts_boundary_values` | verified | 48b5d53 |
+| AC-15 | `ui/e2e/large-image.spec.ts › image mode: a canvas wider than 8192 px opens, renders and paints` | verified | 6aed618 |
+| AC-16 | `ui/e2e/image-export.spec.ts › Resize Canvas and Scale Image reduce an oversized request to the limits` | verified | 35f631c |
 
 ## Decisions
 
-{Filled during revision and implementation — decision plus reason.}
+- 2026-11-03: AC-01, AC-02 and AC-10 described existing behavior, so their new tests passed at once. Each was run red against a temporary, reverted break: the `from_pixels` layer named "Layer 1" (all of `open_formats.rs` failed on the name); `decode` taking a GIF's last frame, applying the EXIF orientation and keeping the low byte of 16-bit channels (the three AC-02 tests failed: wrong frame color, 2 × 4 instead of 4 × 2, `[255, 0, 0, 255, 52, …]`); `to_ora_bytes` storing the bottom layer as `mergedimage.png` and sizing the thumbnail by the shorter edge (both AC-10 tests failed). Opening is tested at the core level (`decode` + `Document::from_pixels`, exactly what `pincel-image-wasm::open_image` runs), with fixtures from the `image` crate's own encoders.
+- 2026-11-03: AC-05, AC-07 and AC-16 (`ui/e2e/image-export.spec.ts`) were also green at once; each test was run red against a temporary, reverted break: `runExport` skipping the JPEG dialog, `exportImage` marking the document saved and `clampCanvasSize` returning the request unchanged (all three tests failed: no dialog, no "unsaved changes" title, "16384 × 50" not shown); then the dialog defaulting to quality 80 and the export name keeping the extension (`image.ora.png`), which failed the first two again. The JPEG test also exports at quality 1 and checks the file is smaller than at 90, so the dialog's value reaches the encoder. AC-16 checks the edge rule through Resize Canvas (20000 × 50 → 16384 × 50) and the area rule through Scale Image (16384 × 8192 → 11585 × 5792, Nearest to keep the 64 M px scale fast).

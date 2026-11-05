@@ -30,7 +30,13 @@ export interface PasteDialogState {
   height: number;
   /** The canvas can grow to cover the image (Pixel sprites cap at 4096). */
   canExpand: boolean;
+  /** Set when the caller places the layer itself (a dropped file): gets
+   *  the answer instead of `runPaste`. */
+  resolve?: (answer: PasteAnswer) => void;
 }
+
+/** The larger-image dialog's answer; `null` is Cancel. */
+export type PasteAnswer = 'expand' | 'keep' | null;
 
 const source = (doc: Document): string => docTag(doc, 'pixel');
 
@@ -119,6 +125,53 @@ export async function beginPaste(system: Blob | null): Promise<void> {
     height: size.height,
     canExpand: at.x + size.width <= MAX_DOC_SIZE && at.y + size.height <= MAX_DOC_SIZE,
   };
+}
+
+/** Closes the larger-image dialog with the user's answer. */
+export function answerPaste(answer: PasteAnswer): void {
+  const p = dialogs.paste;
+  if (!p) return;
+  dialogs.paste = null;
+  if (p.resolve) p.resolve(answer);
+  else if (answer !== null) runPaste(p.doc, p.bytes, p.x, p.y, answer === 'expand');
+}
+
+/**
+ * A PNG dropped onto the editor (docs/specs/file-access.md AC-21): a new
+ * layer above the active one, placed like a paste of another image, one
+ * undo step. Resolves once added or skipped (the larger-image dialog's
+ * Cancel); throws when the core cannot decode it.
+ */
+export async function pasteFile(bytes: Uint8Array): Promise<void> {
+  const doc = ed.doc;
+  if (!doc) return;
+  const size = await imageSize(new Blob([bytes.slice()], { type: 'image/png' }));
+  if (ed.doc !== doc) return;
+  const canvas = { width: ed.canvasW, height: ed.canvasH };
+  const at = size ? pastePosition(viewportOrigin(), size, canvas) : { x: 0, y: 0 };
+  let expand = false;
+  if (size && (size.width > canvas.width || size.height > canvas.height)) {
+    const answer = await new Promise<PasteAnswer>((resolve) => {
+      dialogs.paste = {
+        doc,
+        bytes,
+        x: at.x,
+        y: at.y,
+        width: size.width,
+        height: size.height,
+        canExpand: at.x + size.width <= MAX_DOC_SIZE && at.y + size.height <= MAX_DOC_SIZE,
+        resolve,
+      };
+    });
+    if (answer === null || ed.doc !== doc) return;
+    expand = answer === 'expand';
+  }
+  ed.activeLayerId = doc.pasteLayer(bytes, at.x, at.y, expand);
+  live.needsRecompose = true;
+  syncMeta();
+  syncSelection();
+  ed.docRev += 1;
+  ed.status = t('px.pasted');
 }
 
 /** Runs the paste as one undo step; `expand` grows the canvas to cover it. */

@@ -12,6 +12,7 @@ export type Tool =
   | 'eraser'
   | 'eyedropper'
   | 'bucket'
+  | 'gradient'
   | 'line'
   | 'rectangle'
   | 'rectangle-fill'
@@ -39,6 +40,7 @@ export type Tool =
 export function isDragShapeTool(t: Tool): boolean {
   return (
     t === 'line' ||
+    t === 'gradient' ||
     t === 'rectangle' ||
     t === 'rectangle-fill' ||
     t === 'ellipse' ||
@@ -72,7 +74,7 @@ export function isSquareConstrainable(t: Tool): boolean {
  * The tool rail (spec §9.2): same group ids, order and keys as Image mode
  * (lib/shell/shortcuts.ts `TOOL_GROUP_KEYS`). Repeated key presses cycle a
  * group's variants — `U` walks the shapes, `M` the marquee shapes, `Q`
- * the lasso kinds. The Stamp needs a tile picked in the Tilesets panel.
+ * the lasso kinds, `G` Fill and Gradient. The Stamp needs a tile picked in the Tilesets panel.
  */
 export function toolGroups(stampTile: { tilesetId: number; tileId: number } | null): ToolGroup<Tool>[] {
   const groups: ToolGroup<Tool>[] = [
@@ -105,7 +107,14 @@ export function toolGroups(stampTile: { tilesetId: number; tileId: number } | nu
     },
     { id: 'pencil', label: t('tool.pencil'), tools: [{ id: 'pencil', label: t('tool.pencil'), icon: 'pencil' }] },
     { id: 'eraser', label: t('tool.eraser'), tools: [{ id: 'eraser', label: t('tool.eraser'), icon: 'eraser' }] },
-    { id: 'fill', label: t('tool.fill'), tools: [{ id: 'bucket', label: t('tool.fill'), icon: 'bucket' }] },
+    {
+      id: 'fill',
+      label: t('tool.fill'),
+      tools: [
+        { id: 'bucket', label: t('tool.bucket'), icon: 'bucket' },
+        { id: 'gradient', label: t('tool.gradient'), icon: 'gradient' },
+      ],
+    },
     {
       id: 'eyedropper',
       label: t('tool.eyedropper'),

@@ -104,24 +104,24 @@ Rows list only what the mode binds. Each editor's `runShortcut` switch (`PixelEd
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-01 | `ui/e2e/shortcuts-overview.spec.ts` "Help ▸ Keyboard Shortcuts opens the overview" (pixel, image) | built |        |
+| AC-02 | `ui/e2e/shortcuts-overview.spec.ts` "Ctrl+/ opens the overview, focused on the filter" (pixel, image); "Ctrl+/ in a text field does not open the overview" | built |        |
+| AC-03 | manual sign-off open: Help ▸ Keyboard Shortcuts and ⌘/ in the macOS desktop app (`menu:shortcuts` in `src-tauri/src/main.rs`) | built |        |
+| AC-04 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
+| AC-05 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
+| AC-06 | `ui/e2e/shortcuts-overview.spec.ts` "rows carry labels and the menu's chords" (pixel, image) | built |        |
+| AC-07 | `ui/e2e/shortcuts-overview.spec.ts` "sections, tool notes and gestures" (pixel, image) | built |        |
+| AC-08 | `ui/e2e/shortcuts-overview.spec.ts` "sections, tool notes and gestures" (pixel, image) | built |        |
+| AC-09 | `ui/e2e/shortcuts-overview.spec.ts` "sections, tool notes and gestures" (pixel, image) | built |        |
+| AC-10 | `ui/e2e/shortcuts-overview.spec.ts` "sections, tool notes and gestures" (pixel, image) | built |        |
+| AC-11 | `ui/e2e/shortcuts-overview.spec.ts` "macOS › chords use macOS notation" | built |        |
+| AC-12 | `ui/e2e/shortcuts-overview.spec.ts` "Ctrl+/ opens the overview, focused on the filter" (pixel, image) | built |        |
+| AC-13 | `ui/e2e/shortcuts-overview.spec.ts` "the filter narrows rows and holds the keyboard" (pixel, image) | built |        |
+| AC-14 | `ui/e2e/shortcuts-overview.spec.ts` "the filter narrows rows and holds the keyboard" (pixel, image) | built |        |
+| AC-15 | `ui/e2e/shortcuts-overview.spec.ts` "Ctrl+/ opens the overview, focused on the filter" (pixel, image) | built |        |
+| AC-16 | `ui/e2e/shortcuts-overview.spec.ts` "Help ▸ Keyboard Shortcuts opens the overview" (pixel, image) | built |        |
+| AC-17 | `ui/e2e/shortcuts-overview.spec.ts` "printing shows the full list without the editor" | built |        |
+| AC-18 | `ui/e2e/shortcuts-overview.spec.ts` "German › the overview speaks German" | built |        |
 
 ## Decisions
 
@@ -130,3 +130,8 @@ Rows list only what the mode binds. Each editor's `runShortcut` switch (`PixelEd
 - 2026-10-28 (legacy plan): The overview lists only the actions the current mode binds — same key, same meaning (§9.4), and a mode without an action shouldn't advertise it.
 - 2026-10-29 (migration): The gesture rows list only gestures that exist. The plan's "Alt + tool for a temporary eyedropper (Pixel)" is not implemented (Alt only modifies selections in `ui/src/modes/pixel/pointer.ts`), so it is not listed.
 - 2026-10-29 (migration): Size raised from the plan's S to M — the change spans the keymap, a new dialog, the Help menu, the native macOS menu, both editors, i18n and e2e.
+- 2026-11-03 (build): The mounted editor hands its supported actions and tool groups to `openShortcuts()` (`ui/src/lib/help/state.svelte.ts`) and `App.svelte` renders the dialog, like About — the editor knows what it binds, the shell owns the shell dialogs.
+- 2026-11-03 (build): The overview's own action (Ctrl+/) is listed under View — the spec's sections have no Help, and View is where the other window-level actions sit.
+- 2026-11-03 (build): Export and Export Sprite Sheet rows get their own labels ("Export as PNG", "Export Sprite Sheet"); Play / Pause and the brush-size keys too — the menu labels are submenu fragments ("PNG") or state-dependent ("Play" / "Pause").
+- 2026-11-03 (build): Rows are table rows (one table per section, the section name as caption, the label as row header) — a label / keys / note grid is tabular data, and the structure prints without extra styling.
+- 2026-11-03 (build): The selection-modifier gesture is three rows (Shift adds, Alt subtracts, both intersect), and the cycle note names the group's variants — that is what §9.4 says the modifiers and repeated keys do.

@@ -65,9 +65,12 @@ impl Command for TransformCanvas {
             .map(|s| {
                 let mut s = s.clone();
                 for k in &mut s.keys {
+                    // Center and pivot are relative to the bounds: orient
+                    // them inside the slice, not the canvas.
+                    let (bw, bh) = (k.bounds.width, k.bounds.height);
                     k.bounds = orient_rect(k.bounds, self.op, w, h);
-                    k.center = k.center.map(|c| orient_rect(c, self.op, w, h));
-                    k.pivot = k.pivot.map(|p| orient_point(p, self.op, w, h));
+                    k.center = k.center.map(|c| orient_rect(c, self.op, bw, bh));
+                    k.pivot = k.pivot.map(|p| orient_point(p, self.op, bw, bh));
                 }
                 s
             })
@@ -148,6 +151,33 @@ mod tests {
     }
 
     #[test]
+    fn flip_and_rotate_orient_center_and_pivot_within_the_slice_bounds() {
+        // A 2×2 slice at (1, 0) on the 3×2 canvas, with a center and pivot
+        // relative to its bounds (docs/specs/slices.md, Decisions 2026-10-29).
+        let keyed = |op| {
+            let (mut s, mut c) = doc();
+            s.slices[0].keys[0] = SliceKey {
+                frame: F,
+                bounds: Rect::new(1, 0, 2, 2),
+                center: Some(Rect::new(0, 0, 1, 2)),
+                pivot: Some((0, 1)),
+            };
+            let mut bus = Bus::new();
+            bus.execute(TransformCanvas::new(op).into(), &mut s, &mut c)
+                .unwrap();
+            s.slices[0].keys[0]
+        };
+        let k = keyed(Orientation::FlipHorizontal);
+        assert_eq!(k.bounds, Rect::new(0, 0, 2, 2));
+        assert_eq!(k.center, Some(Rect::new(1, 0, 1, 2)));
+        assert_eq!(k.pivot, Some((1, 1)));
+        let k = keyed(Orientation::Rotate90Cw);
+        assert_eq!(k.bounds, Rect::new(0, 1, 2, 2));
+        assert_eq!(k.center, Some(Rect::new(0, 0, 2, 1)));
+        assert_eq!(k.pivot, Some((0, 0)));
+    }
+
+    #[test]
     fn rotate_cw_swaps_canvas_dims_and_maps_pixels_and_slices() {
         let (mut s, mut c) = doc();
         s.set_selection(Rect::new(0, 0, 1, 1));
@@ -162,7 +192,8 @@ mod tests {
         // CW: new row 0 = old column 0 bottom-up → 4 1; row 1 → 5 2; row 2 → 6 3.
         assert_eq!(greys(&c), vec![4, 1, 5, 2, 6, 3]);
         assert_eq!(s.slices[0].keys[0].bounds, Rect::new(1, 0, 1, 1));
-        assert_eq!(s.slices[0].keys[0].pivot, Some((1, 0)));
+        // The pivot is relative to the slice bounds: a 1×1 slice keeps (0, 0).
+        assert_eq!(s.slices[0].keys[0].pivot, Some((0, 0)));
         assert!(!s.has_selection());
         let buf = c.get(L, F).unwrap();
         assert_eq!(buf.position, (0, 0));

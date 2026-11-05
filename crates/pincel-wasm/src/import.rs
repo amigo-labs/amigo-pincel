@@ -44,7 +44,7 @@ mod tests {
         let mut doc = Document::new(2, 1).expect("dims");
         doc.apply_tool("pencil", 0, 0, left).expect("paint");
         doc.apply_tool("pencil", 1, 0, right).expect("paint");
-        doc.export_png(0).expect("export").into_vec()
+        doc.export_png(0, None).expect("export").into_vec()
     }
 
     #[test]

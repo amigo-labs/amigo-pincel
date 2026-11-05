@@ -1,10 +1,10 @@
 // The file an Image-mode document belongs to, and how Save writes it
 // (docs/specs/save-original-format.md, spec §15 2026-10-29): an opened
 // PNG / JPEG / WebP / BMP / TIFF is written back in its own format, an
-// `.ora` or a new document as OpenRaster. Each tab owns its file
-// (docs/specs/document-tabs.md); the functions act on the active tab
-// unless a tab is passed, so a save that outlives a tab switch still
-// writes the tab it started in.
+// `.ora` or a new document as OpenRaster; GIF and PSD (never written) go
+// to Save As. Each tab owns its file (docs/specs/document-tabs.md); the
+// functions act on the active tab unless a tab is passed, so a save that
+// outlives a tab switch still writes the tab it started in.
 import { core } from './wasm';
 import { editor, tabs, type ImageTab } from '../stores/editor.svelte';
 import {
@@ -18,7 +18,7 @@ import {
 export type DocSaveFormat = 'ora' | ImageSaveFormat;
 
 /** Formats an Image-mode document can come from; `null` when unknown. */
-export type DocFormat = DocSaveFormat | 'gif';
+export type DocFormat = DocSaveFormat | 'gif' | 'psd';
 
 /** The document's file: where Save writes, in which format, and the
  *  per-document answers that later Saves reuse. */
@@ -66,7 +66,7 @@ export function docFormat(format: FileFormat | null): DocFormat | null {
 
 /** `true` for the formats Save can write. */
 export function isWritable(format: DocFormat | null): format is DocSaveFormat {
-  return format !== null && format !== 'gif';
+  return format !== null && format !== 'gif' && format !== 'psd';
 }
 
 /** The file of a document that came from `name` in `format`; `target`
@@ -109,7 +109,7 @@ export function fileFormat(tab: ImageTab | null = tabs.active): DocFormat | null
   return fileOf(tab).format;
 }
 
-const DOC_FORMATS: readonly DocFormat[] = ['ora', 'png', 'jpeg', 'webp', 'bmp', 'tiff', 'gif'];
+const DOC_FORMATS: readonly DocFormat[] = ['ora', 'png', 'jpeg', 'webp', 'bmp', 'tiff', 'gif', 'psd'];
 
 /** Narrows a stored format string back to a `DocFormat`; `null` when it
  *  is missing or unknown. */

@@ -70,15 +70,19 @@ impl Command for PasteLayer {
         if (w, h) != (cw, ch) {
             ResizeCanvas::new(w, h).apply(doc)?;
         }
+        // Directly above the active layer — above a group's whole subtree —
+        // sharing its parent (docs/specs/image-layer-groups.md AC-19).
+        let active = doc.active_layer_index();
         let layer = match (&self.layer, self.pixels.take()) {
             (Some(layer), _) => layer.clone(),
             (None, Some(px)) => Layer::from_pixels(
                 format!("Layer {}", doc.layers.len() + 1),
                 px.offset_copy(w, h, self.x, self.y),
-            ),
+            )
+            .with_parent(doc.active_layer().parent),
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
-        let index = *self.index.get_or_insert(doc.active_layer_index() + 1);
+        let index = *self.index.get_or_insert(doc.subtree_end(active));
         if let Err(err) = doc.insert_layer(index, layer.clone()) {
             restore(doc, snap)?;
             self.layer = Some(layer);
@@ -114,6 +118,31 @@ mod tests {
         buf.set_pixel(0, 0, Color::WHITE);
         buf.set_pixel(w - 1, h - 1, Color::WHITE);
         buf
+    }
+
+    #[test]
+    fn paste_with_a_group_active_inserts_above_the_group_at_its_level() {
+        use crate::document::tree::tests::tree_doc;
+        let mut doc = tree_doc(&[
+            ("bg", None, false),
+            ("G", None, true),
+            ("a", Some("G"), false),
+            ("top", None, false),
+        ]);
+        doc.set_active_layer(1).unwrap();
+        let mut cmd = PasteLayer::new(image(6, 6), true);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.active_layer_index(), 3);
+        assert_eq!(doc.parent_index(3), None);
+        assert_eq!(doc.layers[4].name, "top");
+        assert!(doc.is_well_formed());
+        assert_eq!(doc.layers[1].pixels.width(), 0, "the group stays empty");
+        assert_eq!(doc.layers[2].pixels.width(), 6, "the canvas grew");
+        // With a child active the paste stays in the child's group.
+        doc.set_active_layer(2).unwrap();
+        PasteLayer::new(image(2, 2), false).apply(&mut doc).unwrap();
+        assert_eq!(doc.parent_index(3), Some(1));
+        assert!(doc.is_well_formed());
     }
 
     #[test]

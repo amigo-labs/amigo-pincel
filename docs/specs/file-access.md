@@ -63,8 +63,8 @@ Each mode saves its own project format — `.aseprite` in Pixel mode, OpenRaster
 - [ ] AC-20 (event): When the user drops only raster image files (PNG, JPEG, WebP, BMP, GIF, TIFF; the format told by content, else by extension, as for Open…) anywhere on an open editor whose document is loaded, then a dialog asks "Add as layer", "Open as document" or "Cancel" and offers a checkbox "Don't ask again"; Cancel changes nothing and remembers nothing.
 - [ ] AC-21 (event): When the user chooses "Add as layer", then each dropped file becomes a new layer above the active layer, the first dropped file lowest and the last on top, placed and sized as a paste of another image (`copy-cut-paste` AC-09, AC-10: for each file larger than the canvas the larger-image dialog asks, and its Cancel skips only that file), one undo step per file.
 - [ ] AC-22 (state): While the open editor is in Pixel mode and any dropped raster file is not a PNG, "Add as layer" is disabled for the whole drop and the dialog shows "Pixel mode adds PNG files only".
-- [ ] AC-23 (event): When the user chooses "Open as document", then the first dropped file opens as a dropped file opens on the start screen (AC-15), after the unsaved-changes guard of File ▸ Open…; cancelling the guard changes nothing; when more than one file was dropped, a notice says that only the first was opened.
-- [ ] AC-24 (event): When a drop onto an open editor contains an `.aseprite`, `.ase` or `.ora` file, then the first of them opens as a document as in AC-23, without the dialog; the other files of that drop are not added, and a notice says that only that file was opened.
+- [ ] AC-23 (event): When the user chooses "Open as document", then every dropped file opens as a tab of its own mode, in drop order (`document-tabs` AC-19); no unsaved-changes prompt appears, because no open tab is replaced.
+- [ ] AC-24 (event): When a drop onto an open editor contains an `.aseprite`, `.ase`, `.ora` or `.psd` file, then no dialog appears and every file of the drop opens as a tab of its own mode, as in AC-23; no layer is added.
 - [ ] AC-25 (event): When the user confirms the dialog with "Add as layer" or "Open as document" while "Don't ask again" is ticked, then later raster drops run that action without the dialog, also after a restart; File ▸ Dropped Images in both modes offers "Ask", "Add as Layer" and "Open as Document", marks the current choice and changes it.
 - [ ] AC-26 (error): If a dropped file is in no supported format, or reading or decoding it fails, then a notice names it and nothing is done with it; the other supported files of the same drop proceed, and layers already added stay.
 - [ ] AC-27 (state): While files are dragged over an open editor whose document is loaded and no modal dialog is open, the editor shows an overlay reading "Drop to add or open"; it disappears when the drag leaves the window or ends.
@@ -75,8 +75,8 @@ Each mode saves its own project format — `.aseprite` in Pixel mode, OpenRaster
 
 Hints, not contracts — paths drift; grep for the names.
 
-- File layer `ui/src/lib/fs/index.ts`: `pickAndOpen(kind: PickKind = 'document')`, `saveBytes(bytes, target, { forceAs, format: 'aseprite' | 'ora' })`, `saveExport(...)`, `hasFsAccess()`, `ensureReadPermission()`, `ensureReadWritePermission()`, `sniffFormat()`, `formatFromName()`, `mimeFromName()`.
-- `OpenedFile { name, bytes, mime, handle: FileSystemFileHandle | null, path: string | null }`; `SaveTarget { name, handle, path }`. `saveBytes` order: in-place via `handle.createWritable` (after `ensureReadWritePermission`) → `showSaveFilePicker` → Blob + anchor download. A cancelled picker (`AbortError`) returns the old target.
+- File layer `ui/src/lib/fs/index.ts`: `pickAndOpen(kind: PickKind = 'document')`, `writeTarget(bytes, target, { forceAs, format })`, `saveExport(...)`, `hasFsAccess()`, `ensureReadPermission()`, `ensureReadWritePermission()`, `sniffFormat()`, `formatFromName()`, `mimeFromName()`.
+- `OpenedFile { name, bytes, mime, handle: FileSystemFileHandle | null, path: string | null }`; `SaveTarget { name, handle, path }`. `writeTarget` order: in-place via `handle.createWritable` (after `ensureReadWritePermission`) → `showSaveFilePicker` → Blob + anchor download. A cancelled picker (`AbortError`) or Tauri dialog resolves `null`; both editors then leave the document unsaved.
 - Input fallback (`openViaInput`): settles `null` on the `cancel` event, or 300 ms after window focus returns without a `change`.
 - Tauri: `@tauri-apps/plugin-dialog` `open` / `save` + Rust commands `read_file_bytes(path)` / `write_file_bytes(path, bytes)` (`src-tauri/src/main.rs`).
 - Recents `ui/src/lib/idb/recent-files.ts`: object store `recent_files` (keyPath `id`, index `by_openedAt`), `MAX_RECENTS = 8`, `RecentFile { id, name, handle, path, addedAt, openedAt, mode }`; `id` is the editor's autosave `docId`. Rows without `mode` read back as `'pixel'`, without `path` as `null`. Availability gate: `(hasFsAccess() || isTauri()) && isIdbAvailable()`. Menu entry: `recentMenuItems()` in `ui/src/lib/components/layout/recent-menu.ts`.
@@ -96,7 +96,7 @@ Hints, not contracts — paths drift; grep for the names.
 | Several files dropped at once on the start screen | Only the first opens |
 | A drop onto an open editor while a modal dialog is open, or before its document is loaded | Ignored, no drop overlay — because the dialog owns the input and an unloaded editor has no layer to add to |
 | A drag of text or a link (no files) over an open editor | No drop state, nothing happens |
-| Raster and project files dropped together onto an open editor | The first project file opens (AC-24) — because a project replaces the document, so adding layers to the old one first would be thrown away |
+| Raster and project files dropped together onto an open editor | Every file opens as a tab of its own mode (AC-24); no layer is added — because the drop is about documents once it carries a project |
 | A folder, or a zero-byte file, dropped | AC-26: a notice names it |
 | The remembered choice cannot be stored (IndexedDB unavailable) | It holds for the session only |
 | A dropped file that is larger than the mode's limits as a layer | The paste's larger-image handling (`copy-cut-paste` AC-10 and its `paste.tooLarge` edge case) |
@@ -112,37 +112,37 @@ Hints, not contracts — paths drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | | open | |
+| AC-01 | `ui/e2e/file-access.spec.ts › File System Access › AC-01: Open… shows the picker restricted to the document types` | built | |
 | AC-02 | `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` | built | |
-| AC-03 | | open | |
-| AC-04 | | open | |
-| AC-05 | | open | |
-| AC-06 | | open | |
-| AC-07 | | open | |
-| AC-08 | | open | |
+| AC-03 | `ui/e2e/file-access.spec.ts › File System Access › AC-03: a cancelled open picker changes nothing and shows no error`; `ui/e2e/file-access.spec.ts › without File System Access › AC-03: a cancelled file chooser changes nothing and shows no error` | built | |
+| AC-04 | `ui/e2e/ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers`; `ui/e2e/file-access.spec.ts › without File System Access › AC-04: pixel: Save downloads the sprite under its name and it reads as saved` | built | |
+| AC-05 | `ui/e2e/file-access.spec.ts › File System Access › AC-05: pixel: Save writes back to the opened file, Save As asks for a location`; `ui/e2e/file-access.spec.ts › File System Access › AC-05: image: Save writes back to the opened file, Save As asks for a location`; `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-05: pixel: Save writes back to the opened path, Save As asks for a location`; `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-05: image: Save writes back to the opened path, Save As asks for a location` | built | |
+| AC-06 | `ui/e2e/file-access.spec.ts › File System Access › AC-06: pixel: the first Save offers the picker, later Saves write to the chosen file`; `ui/e2e/file-access.spec.ts › File System Access › AC-06: image: the first Save offers the picker, later Saves write to the chosen file` | built | |
+| AC-07 | `ui/e2e/file-access.spec.ts › File System Access › AC-07: pixel: a denied write permission falls back to the save picker`; `ui/e2e/file-access.spec.ts › File System Access › AC-07: image: a denied write permission falls back to the save picker` | built | |
+| AC-08 | `ui/e2e/file-access.spec.ts › without File System Access › AC-08: pixel: Save reads "Save (download)" and there is no Save As…`; `ui/e2e/file-access.spec.ts › AC-08: pixel: with File System Access, Save and Save As… are listed` | built | |
 | AC-09 | | open | |
-| AC-10 | | open | |
-| AC-11 | | open | |
-| AC-12 | | open | |
-| AC-13 | | open | |
-| AC-14 | | open | |
-| AC-15 | | open | |
-| AC-16 | | open | |
+| AC-10 | `ui/e2e/file-access.spec.ts › recent files › AC-10: opens and saves through a handle are recorded once per document`; `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-10: files opened and saved by path are recorded with path and mode` | built | |
+| AC-11 | `ui/e2e/file-access.spec.ts › recent files › AC-11: the registry keeps the 8 newest entries, newest first` | built | |
+| AC-12 | `ui/e2e/recents.spec.ts › pixel mode: File lists Open Recent, disabled while empty`; `ui/e2e/recents.spec.ts › image mode: File lists Open Recent, disabled while empty`; `ui/e2e/file-access.spec.ts › without File System Access › AC-12: Open Recent is absent in both modes`; `ui/e2e/file-access.spec.ts › recent files › AC-12: no IndexedDB: Open Recent is absent in both modes` | built | |
+| AC-13 | `ui/e2e/file-access.spec.ts › recent files › AC-13: the start screen lists recents with their mode and re-opens them` | built | |
+| AC-14 | `ui/e2e/file-access.spec.ts › recent files › AC-14: a denied read permission names the file and opens nothing` | built | |
+| AC-15 | `ui/e2e/file-access.spec.ts › start screen › AC-15: a dragged file highlights the start screen and opens when dropped` | built | |
+| AC-16 | `ui/e2e/file-access.spec.ts › start screen › AC-16: a failed read names the failure in a dismissable notice, nothing changes` | built | |
 | AC-17 | `ui/e2e/clipboard-new.spec.ts › the New image card takes the clipboard image size`; `ui/e2e/clipboard-new.spec.ts › File ▸ New… takes the clipboard image size` | built | |
 | AC-18 | `ui/e2e/smoke.spec.ts › start screen: the New cards open in place, one at a time` | built | |
-| AC-19 | | open | |
-| AC-20 | | open | |
-| AC-21 | | open | |
-| AC-22 | | open | |
+| AC-19 | `ui/e2e/file-access.spec.ts › clipboard sizing › AC-19: a size typed before the clipboard read finishes is kept` | built | |
+| AC-20 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
+| AC-21 | `ui/e2e/editor-drop.spec.ts › AC-21: pixel: Add as layer stacks the files above the active layer, one undo step each`; `ui/e2e/editor-drop.spec.ts › AC-21: image: Add as layer stacks the files above the active layer, one undo step each` | built | |
+| AC-22 | `ui/e2e/editor-drop.spec.ts › AC-22: pixel: a drop with a non-PNG file cannot be added as layers` | built | |
 | AC-23 | | open | |
 | AC-24 | | open | |
-| AC-25 | | open | |
-| AC-26 | | open | |
-| AC-27 | | open | |
-| AC-28 | | open | |
+| AC-25 | `ui/e2e/editor-drop.spec.ts › AC-25: Don't ask again remembers the choice; File ▸ Dropped Images changes it` | built | |
+| AC-26 | `ui/e2e/editor-drop.spec.ts › AC-26: pixel: unsupported and broken files get a notice, the others proceed`; `ui/e2e/editor-drop.spec.ts › AC-26: image: unsupported and broken files get a notice, the others proceed` | built | |
+| AC-27 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
+| AC-28 | `ui/e2e/editor-drop.spec.ts › AC-28: a remembered Add as Layer asks when the drop cannot be added` | built | |
 | AC-29 | | open | |
 
-Partial coverage (status stays `open`): AC-04 — `ora.spec.ts › image mode: Save writes an OpenRaster file that reopens with its layers` covers Image mode (`image.ora`, unsaved marker cleared); the Pixel `.aseprite` download is untested. AC-12 — the empty / disabled half is covered by `recents.spec.ts › pixel mode: File lists Open Recent, disabled while empty` and `› image mode: …`; the absent-when-unavailable half is not.
+Still `open`: AC-09 and AC-29 are manual checks on the desktop app. AC-29's code path is built — `watchFileDrops` in `ui/src/lib/fs/drop.ts` listens to Tauri's `onDragDropEvent` and reads the dropped paths with `read_file_bytes`, feeding the same shell flow as a browser drop — and waits for a sign-off on the desktop app (`manual: {who} checked {what}, {date}`).
 
 ## Decisions
 
@@ -154,3 +154,14 @@ Partial coverage (status stays `open`): AC-04 — `ora.spec.ts › image mode: S
 - 2026-10-30: The desktop app takes drops through Tauri's native drag-drop event with file paths (Decision Log 2026-10-30) — because a path lets Save write back to the dropped file and Open Recent find it again.
 - 2026-10-30: Clarification — the dialog with "Don't ask again" is the owner's choice because they want to decide per drop until a habit settles; dialog buttons are written in sentence case, the File ▸ Dropped Images menu items in title case like every menu item.
 - 2026-10-30: Browser drops open without a file handle, as on the start screen today, so they save through the picker or a download and are not recorded in the recent files — because the drop path reads `File` objects; `DataTransferItem.getAsFileSystemHandle()` could add a handle later.
+- 2026-11-04: Test gaps closed in `ui/e2e/file-access.spec.ts`. The File System Access pickers are faked (`fakeFileHandles` in `ui/e2e/helpers.ts`, now with a fake save picker, an in-page disk and per-file permission denial and read failures); the desktop host is a stubbed Tauri bridge (`invoke` answering `plugin:dialog|open` / `|save`, `read_file_bytes`, `write_file_bytes`). Each test that was green at once was run red against a deliberate break, then reverted: `.ora` dropped from the open types (AC-01), a cancelled FSA picker or `<input>` treated as an error (AC-03), the download named `x<name>` (AC-04), the in-place write skipped for a handle and for a Tauri path (AC-05, AC-06), a denied write permission ignored (AC-07), Pixel's Save always labelled "Save" (AC-08). AC-01 reads "restricted" as the picker's types: the browser's own "All files" choice is not excluded, as with `<input accept>`. Further breaks: a re-opened recent given a new id (AC-10), a path-only target not recorded (AC-10 desktop), `MAX_RECENTS` 9 (AC-11), Open Recent listed while the registry is unavailable (AC-12), every recent badged Pixel (AC-13), the shell notice for a denied permission and a failed pick dropped (AC-14, AC-16), the drop highlight never set (AC-15), the clipboard prefill ignoring typed values in the New card and the New dialog (AC-19).
+- 2026-11-04: Bug (AC-14, AC-16): the Pixel editor's own File ▸ Open… and File ▸ Open Recent reported a failed read or a denied read permission only in the status bar ("recent <name>: permission denied"), not as an error notice. They now raise the shell's dismissable notice through a new `EditorProps.onNotice` (`fix(ui): show the shell notice when the Pixel editor cannot read a file`); the Pixel parts of the AC-14 and AC-16 tests were red before.
+- 2026-11-04: Bug (settles the open question on a cancelled save): a cancelled Save / Save As picker or dialog leaves the document unsaved in both modes. Pixel mode marked it saved because `saveBytes` handed back the old target; Pixel's `save()` now calls `writeTarget` and stops on `null`, and `saveBytes` is gone. Test: `ui/e2e/file-access.spec.ts › File System Access › pixel: a cancelled Save or Save As leaves the document unsaved` (red before the fix); its Image-mode twin was green already (`writeTarget` resolved `null` there).
+- 2026-11-04: The shell owns drops onto an open editor (AC-20 – AC-28): `App.svelte` sorts the drop (`planDrop`, `ui/src/lib/shell/editor-drop.ts`), shows the dialog (`DropDialog.svelte`), runs the unsaved-changes guard and opens documents, and keeps the remembered choice (`drop-choice.svelte.ts`, IndexedDB pref `droppedImages`); the editor only adds layers through a new `EditorProps.registerDropTarget(DropTarget | null)` (`accepts()`, `layerFormats`, `addLayer(file)`) — because file → mode routing, the guard and the notice already live in the shell, and AGENTS.md §5.4 keeps editors talking to it through `EditorProps` only.
+- 2026-11-04: One window-level watcher, `watchFileDrops` in `ui/src/lib/fs/drop.ts`, serves the start screen and the editors in both hosts (Decision Log 2026-10-30); the start screen lost its own drag handlers and takes a `dropHover` prop — because two listeners on one drop would both act on it. A file drag is always kept from the browser's default, also when the drop is ignored, because the default navigates away to the file.
+- 2026-11-04: A dropped layer is placed and named like a pasted image (the core's next "Layer n"), not after its file — because AC-21 makes the drop a paste.
+- 2026-11-04: Every notice of one drop (unsupported or unreadable files, failed layers, "Only <name> was opened") shows in the one shell notice, a line each — because the shell has a single dismissable notice.
+- 2026-11-04: File ▸ Dropped Images sits right after Open… / Open Recent in both modes — because it is about how files come in.
+- 2026-11-04: A drop that arrives while the layers of an earlier drop are still being added (a larger-image dialog is open) is ignored like any drop under a modal dialog — because the dialog owns the input.
+- 2026-11-04: "Don't ask again" ticked with Cancel stores nothing (AC-20), and Escape in the drop dialog is Cancel — because only a confirmed action can be remembered.
+- 2026-11-05: AC-23 and AC-24 reworded for `document-tabs` AC-19, when the drop-onto-editor work met the tabs: "Open as document" and a dropped project file open every dropped file as a tab instead of replacing the document with the first one, so neither the unsaved-changes guard nor the "only the first was opened" notice applies; both back to `open` — because a new tab replaces nothing.

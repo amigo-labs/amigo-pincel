@@ -22,6 +22,7 @@
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import { activeEffect } from '../../lib/effects/session.svelte';
+  import PreviewPanel from './components/PreviewPanel.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
@@ -31,18 +32,43 @@
   import ZoomControl from '../../lib/components/layout/ZoomControl.svelte';
   import { cycleGroup, groupOf } from '../../lib/components/layout/tools';
   import {
-    NATIVE_MENU_ACTIONS,
     actionFor,
     hint,
     isSpaceActivated,
+    isStageTarget,
     isTypingTarget,
+    nativeMenuOwns,
     toolGroupForKey,
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
+  import { toggleUi } from '../../lib/components/layout/chrome.svelte';
   import { pixelMenus } from './menus';
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
+  import {
+    axisX2,
+    axisY2,
+    coversX,
+    coversY,
+    endAxisDrag,
+    moveAxisDrag,
+    resetAxis,
+    startAxisDrag,
+    tileOffsets,
+  } from './symmetry';
   import { isBrushTool, loadBrushPref, saveBrushPref, stepBrushSize } from './brush';
+  import {
+    activeTileSize,
+    applyGridSettings,
+    gridSettingsInitial,
+    loadGridPref,
+    openGridSettings,
+    toggleGrid,
+    togglePixelGrid,
+  } from './grid';
+  import GridSettingsDialog from './components/GridSettingsDialog.svelte';
+  import PngExportDialog from './components/PngExportDialog.svelte';
+  import { loadExportScale } from './export-scale';
   import ResizeDialog from './components/ResizeDialog.svelte';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
@@ -50,11 +76,23 @@
   import { listRecents } from '../../lib/idb/recent-files';
   import { packColor, unpackColor } from '../../lib/color';
   import { t } from '../../lib/i18n/index.svelte';
-  import { help } from '../../lib/help/state.svelte';
+  import {
+    closeShortcuts,
+    helpDialogOpen,
+    openPalette,
+    openShortcuts,
+  } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
   import PasteLargerDialog from '../../lib/components/PasteLargerDialog.svelte';
-  import { onPaste, pasteAsNewImage, pasteFromClipboard, runCopy, runPaste } from './clipboard-ops';
+  import {
+    answerPaste,
+    onPaste,
+    pasteAsNewImage,
+    pasteFile,
+    pasteFromClipboard,
+    runCopy,
+  } from './clipboard-ops';
   import {
     addFrame,
     addGroup,
@@ -73,6 +111,8 @@
     selectAction,
     selectAll,
     setFrame,
+    stepActiveLayer,
+    stepPaletteColor,
     stopPlayback,
     swapColors,
     targetLayer,
@@ -101,6 +141,7 @@
     nativeMenuHost,
     openAnimationDialog,
     openSheetDialog,
+    openPngDialog,
     recentsAvailable,
     tauriHost,
   } from './file-ops';
@@ -169,6 +210,8 @@
     reportError,
     registerSession,
     onEmpty,
+    onNotice,
+    registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
 
@@ -178,6 +221,7 @@
     requestNew: () => onRequestNew(),
     openForeign: (opened) => onOpenForeign(opened),
     openFile: (opened, mode) => onOpenFile(opened, mode),
+    notice: (message) => onNotice(message),
   });
   bindTabHooks({
     registerDocument: (doc) => registerDocument(doc),
@@ -230,7 +274,9 @@
     if (!ed.doc || id === null) return false;
     for (let i = 1; i < ed.doc.layerCount; i += 1) {
       if (ed.doc.layerIdAt(i) !== id) continue;
-      return ed.doc.layerKind(id) === 'image' && ed.doc.layerKind(ed.doc.layerIdAt(i - 1)) === 'image';
+      return (
+        ed.doc.layerKind(id) === 'image' && ed.doc.layerKind(ed.doc.layerIdAt(i - 1)) === 'image'
+      );
     }
     return false;
   });
@@ -241,6 +287,76 @@
   });
 
   const railGroups = $derived(toolGroups(toolState.stampTile));
+
+  /** Every shared action `runShortcut` (or, for `paste`, the paste event) serves. */
+  const PIXEL_ACTIONS: readonly ShortcutAction[] = [
+    'open',
+    'save',
+    'saveAs',
+    'export',
+    'exportSheet',
+    'undo',
+    'redo',
+    'cut',
+    'copy',
+    'paste',
+    'pasteNewImage',
+    'deleteSelection',
+    'selectAll',
+    'deselect',
+    'invertSelection',
+    'zoomIn',
+    'zoomOut',
+    'zoomFit',
+    'zoomActual',
+    'toggleGrid',
+    'togglePixelGrid',
+    'shortcuts',
+    'swapColors',
+    'resetColors',
+    'brushSmaller',
+    'brushLarger',
+    'prevFrame',
+    'nextFrame',
+    'togglePlay',
+    'newLayer',
+    'duplicateLayer',
+    'deleteLayer',
+    'mergeDown',
+    'layerAbove',
+    'layerBelow',
+    'newFrame',
+    'flipLayerH',
+    'flipLayerV',
+    'rotateCw',
+    'rotateCcw',
+    'toggleUi',
+    'paletteNext',
+    'palettePrev',
+    'commandPalette',
+  ];
+
+  /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
+  function openOverview(): void {
+    openShortcuts({ actions: PIXEL_ACTIONS, groups: railGroups });
+  }
+  /** Ctrl+K: the command palette over these menus and tools (power-user-shortcuts-palette). */
+  function openCommandPalette(): void {
+    openPalette({
+      menus: () => menus,
+      groups: () => railGroups,
+      selectTool: (id) => {
+        if (groupOf(railGroups, id as typeof toolState.tool)) toolState.tool = id as typeof toolState.tool;
+      },
+      frames: {
+        count: () => ed.frameCount,
+        goto: (frame) => {
+          stopPlayback();
+          setFrame(frame - 1);
+        },
+      },
+    });
+  }
   const toolLabel = $derived(
     groupOf(railGroups, toolState.tool)?.tools.find((x) => x.id === toolState.tool)?.label ?? '',
   );
@@ -260,6 +376,13 @@
       currentFrame: ed.currentFrame,
       playing: play.playing,
       probeOn: probe.on,
+      showPixelGrid: view.showPixelGrid,
+      showGrid: view.showGrid,
+      tiled: view.tiled,
+      setTiled: (mode) => {
+        view.tiled = mode;
+        live.needsRecompose = true;
+      },
       newDoc: openNewDialog,
       open: () => void openDoc(),
       openRecent: (r) => void openRecent(r),
@@ -267,7 +390,7 @@
       close: () => requestCloseTab(),
       saving: runningSave() !== null,
       importPng: () => void importPngLayer(),
-      exportPng: () => void exportPng(),
+      exportPng: openPngDialog,
       exportSheet: openSheetDialog,
       exportAnimation: openAnimationDialog,
       exportSvg: openSvgDialog,
@@ -320,6 +443,11 @@
       zoomFit: resetView,
       zoomActual,
       toggleProbe,
+      togglePixelGrid,
+      toggleGrid,
+      openGridSettings,
+      openShortcuts: openOverview,
+      toggleUi,
     }),
   );
 
@@ -338,8 +466,18 @@
     }
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
-    if (dialogs.effect || toolState.textAnchor || dialogs.resize || dialogs.sheet || dialogs.animation || dialogs.svg) return;
-    if (dialogs.selectionRadius || dialogs.paste || help.about) return;
+    if (
+      dialogs.effect ||
+      toolState.textAnchor ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.animation ||
+      dialogs.svg
+    )
+      return;
+    if (dialogs.selectionRadius || dialogs.paste || helpDialogOpen()) return;
     // `ed.selection` otherwise catches up on the next frame; a key pressed
     // right after a marquee release must already see that selection.
     syncSelection();
@@ -374,7 +512,9 @@
     // them here too would double-fire. Everywhere else they are ours.
     const action = actionFor(e);
     if (action !== null) {
-      if (nativeMenuHost && NATIVE_MENU_ACTIONS.has(action)) return;
+      if (nativeMenuHost && nativeMenuOwns(action)) return;
+      // Tab toggles the UI only on the canvas stage; elsewhere it moves focus.
+      if (action === 'toggleUi' && !isStageTarget(e.target)) return;
       if (runShortcut(action)) e.preventDefault();
       return;
     }
@@ -405,7 +545,7 @@
         requestCloseTab();
         return true;
       case 'export':
-        void exportPng();
+        openPngDialog();
         return true;
       case 'exportSheet':
         openSheetDialog();
@@ -424,6 +564,15 @@
         return true;
       case 'pasteNewImage':
         void pasteAsNewImage();
+        return true;
+      case 'shortcuts':
+        openOverview();
+        return true;
+      case 'toggleUi':
+        toggleUi();
+        return true;
+      case 'commandPalette':
+        openCommandPalette();
         return true;
     }
     if (!ed.doc) return false;
@@ -457,6 +606,12 @@
       case 'zoomActual':
         zoomActual();
         return true;
+      case 'toggleGrid':
+        toggleGrid();
+        return true;
+      case 'togglePixelGrid':
+        togglePixelGrid();
+        return true;
       case 'prevFrame':
       case 'nextFrame':
         stopPlayback();
@@ -470,9 +625,66 @@
         if (!isBrushTool(toolState.tool)) return false;
         stepBrushSize(action === 'brushLarger' ? 1 : -1);
         return true;
+      // Layer, frame and transform keys run what their menu items run;
+      // where the item is disabled the key does nothing (AC-16).
+      case 'newLayer':
+        addLayer();
+        return true;
+      case 'duplicateLayer': {
+        const id = targetLayer();
+        if (id !== null) duplicateLayer(id);
+        return true;
+      }
+      case 'deleteLayer': {
+        const id = targetLayer();
+        if (id !== null && layerCountNow > 1) removeLayerById(id);
+        return true;
+      }
+      case 'mergeDown': {
+        const id = targetLayer();
+        if (id !== null && canMergeDown) mergeDownLayer(id);
+        return true;
+      }
+      case 'layerAbove':
+      case 'layerBelow':
+        stepActiveLayer(action === 'layerAbove' ? -1 : 1);
+        return true;
+      case 'newFrame':
+        addFrame();
+        return true;
+      case 'flipLayerH':
+      case 'flipLayerV':
+        imageAction(action === 'flipLayerH' ? 'layer:flip_horizontal' : 'layer:flip_vertical');
+        return true;
+      case 'rotateCw':
+      case 'rotateCcw':
+        imageAction(action === 'rotateCw' ? 'canvas:rotate_90_cw' : 'canvas:rotate_90_ccw');
+        return true;
+      case 'paletteNext':
+      case 'palettePrev':
+        stepPaletteColor(action === 'paletteNext' ? 1 : -1);
+        return true;
       default:
         return false;
     }
+  }
+
+  // True while any editor dialog (or the tile editor) owns the input.
+  function dialogOpen(): boolean {
+    return Boolean(
+      dialogs.effect ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.animation ||
+      dialogs.svg ||
+      dialogs.renaming ||
+      dialogs.selectionRadius ||
+      dialogs.editingTile ||
+      dialogs.paste ||
+      toolState.textAnchor,
+    );
   }
 
   // Ctrl+V / ⌘V arrives as the browser's `paste` event (spec §5.4); not
@@ -480,9 +692,16 @@
   function onWindowPaste(e: ClipboardEvent) {
     if (!active || e.defaultPrevented) return;
     const blocked = Boolean(
-      dialogs.effect || dialogs.resize || dialogs.sheet || dialogs.svg || dialogs.selectionRadius || dialogs.paste,
+      dialogs.effect ||
+      dialogs.resize ||
+      dialogs.sheet ||
+      dialogs.png ||
+      dialogs.grid ||
+      dialogs.svg ||
+      dialogs.selectionRadius ||
+      dialogs.paste,
     );
-    onPaste(e, blocked || help.about || toolState.textAnchor !== null);
+    onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
 
   // The view offset when Space went down: a hold that panned must not
@@ -601,6 +820,10 @@
     // Restore the shared Pencil / Eraser brush (defaults stand when the
     // pref is missing or IDB is unavailable).
     if (idbAvailable) void loadBrushPref().catch(() => undefined);
+    // Restore the grid view settings (pixel-grid AC-11, AC-15).
+    void loadGridPref();
+    // The last used export scale (scaled-export AC-10).
+    void loadExportScale();
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
     if (recentsAvailable) {
@@ -612,13 +835,20 @@
           console.error('listRecents failed', err);
         });
     }
+    // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
+    // AC-28): the shell asks and opens documents; Pixel mode adds PNGs.
+    registerDropTarget({
+      accepts: () => ed.ready && ed.doc !== null && !file.busy && !dialogOpen(),
+      layerFormats: ['png'],
+      addLayer: (opened) => pasteFile(opened.bytes),
+    });
     // Native-menu items this editor serves (Tauri only; the shell owns
     // New / Open / Open Recent and the open-file events).
     registerMenuHandlers({
       'menu:close': () => requestCloseTab(),
       'menu:save': () => void save(),
       'menu:saveAs': () => void save(true),
-      'menu:exportPng': () => void exportPng(),
+      'menu:exportPng': openPngDialog,
       'menu:exportSheet': openSheetDialog,
       'menu:exportAnimation': openAnimationDialog,
       'menu:exportSvg': openSvgDialog,
@@ -627,13 +857,18 @@
       'menu:zoomIn': zoomIn,
       'menu:zoomOut': zoomOut,
       'menu:resetZoom': resetView,
+      'menu:shortcuts': openOverview,
     });
     return () => {
       cancelled = true;
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
       unregisterSession();
+      // A drop waiting on the larger-image dialog ends with the editor.
+      answerPaste(null);
+      registerDropTarget(null);
       registerMenuHandlers(null);
+      closeShortcuts();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('paste', onWindowPaste);
       window.removeEventListener('keyup', onKeyUp);
@@ -751,6 +986,10 @@
     }}
   />
 {/snippet}
+{#snippet previewBody()}
+  <PreviewPanel />
+{/snippet}
+
 {#snippet layersBody()}
   <LayersPanel
     doc={ed.doc}
@@ -770,7 +1009,10 @@
         ed.doc.setLayerVisible(layerId, visible);
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerVisibility'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerVisibility'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onToggleLocked={(layerId, editable) => {
@@ -781,7 +1023,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerLock'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerLock'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onReorder={(layerId, targetId) => {
@@ -792,16 +1037,25 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerReorder'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerReorder'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onRename={(layerId, name) => {
       if (!ed.doc) return;
       try {
         ed.doc.renameLayer(layerId, name);
+        // The rename is an undo step: the Undo button and the unsaved
+        // marker read the mirrored depths.
+        syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerRename'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onAddLayer={addLayer}
@@ -816,7 +1070,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerOpacity'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerOpacity'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onSetBlendMode={(layerId, mode) => {
@@ -827,7 +1084,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerBlendMode'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerBlendMode'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
     onDuplicate={duplicateLayer}
@@ -841,7 +1101,12 @@
     doc={ed.doc}
     rev={ed.docRev}
     selectedTile={toolState.stampTile}
-    onChange={() => (ed.docRev += 1)}
+    onChange={() => {
+      // Tileset edits join the undo bus: refresh its depth so Undo / Redo
+      // and the status bar follow.
+      syncMeta();
+      ed.docRev += 1;
+    }}
     onSelectStampTile={(tilesetId, tileId) => {
       toolState.stampTile = { tilesetId, tileId };
       // Auto-switch to the Stamp tool so a single click on a tile
@@ -914,6 +1179,13 @@
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
+    {
+      id: 'preview',
+      title: t('panel.preview'),
+      icon: 'play',
+      body: previewBody,
+      defaultCollapsed: true,
+    },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
     {
       id: 'tilesets',
@@ -922,13 +1194,37 @@
       body: tilesetsBody,
       defaultCollapsed: true,
     },
-    { id: 'slices', title: t('panel.slices'), icon: 'slice', body: slicesBody, defaultCollapsed: true },
-    { id: 'timeline', title: t('panel.timeline'), icon: 'film', body: timelineBody, placement: 'bottom' },
+    {
+      id: 'slices',
+      title: t('panel.slices'),
+      icon: 'slice',
+      body: slicesBody,
+      defaultCollapsed: true,
+    },
+    {
+      id: 'timeline',
+      title: t('panel.timeline'),
+      icon: 'film',
+      body: timelineBody,
+      placement: 'bottom',
+    },
   ]}
 >
   {#snippet quick()}
-    <IconButton icon="undo" label={t('menu.undo')} hint={hint('undo')} disabled={ed.undoDepth === 0} onclick={undo} />
-    <IconButton icon="redo" label={t('menu.redo')} hint={hint('redo')} disabled={ed.redoDepth === 0} onclick={redo} />
+    <IconButton
+      icon="undo"
+      label={t('menu.undo')}
+      hint={hint('undo')}
+      disabled={ed.undoDepth === 0}
+      onclick={undo}
+    />
+    <IconButton
+      icon="redo"
+      label={t('menu.redo')}
+      hint={hint('redo')}
+      disabled={ed.redoDepth === 0}
+      onclick={redo}
+    />
   {/snippet}
   {#snippet tools(orientation)}
     <ToolRail
@@ -940,7 +1236,11 @@
     />
   {/snippet}
   {#snippet options()}
-    <ToolVariants groups={railGroups} active={toolState.tool} onSelect={(next) => (toolState.tool = next)} />
+    <ToolVariants
+      groups={railGroups}
+      active={toolState.tool}
+      onSelect={(next) => (toolState.tool = next)}
+    />
     {#if toolState.tool === 'selection-wand'}
       <label class="opt">
         {t('opt.tolerance')}
@@ -954,7 +1254,11 @@
         />
       </label>
       <label class="opt">
-        <input type="checkbox" bind:checked={toolState.wandContiguous} aria-label={t('opt.contiguous')} />
+        <input
+          type="checkbox"
+          bind:checked={toolState.wandContiguous}
+          aria-label={t('opt.contiguous')}
+        />
         {t('opt.contiguous')}
       </label>
       <label class="opt">
@@ -964,6 +1268,24 @@
           <option value="composite">{t('opt.composite')}</option>
         </select>
       </label>
+    {:else if toolState.tool === 'gradient'}
+      <label class="opt">
+        {t('opt.kind')}
+        <select bind:value={toolState.gradientKind} class="opt-field" aria-label={t('px.gradientKind')}>
+          <option value="linear">{t('opt.gradientLinear')}</option>
+          <option value="radial">{t('opt.gradientRadial')}</option>
+        </select>
+      </label>
+      <label class="opt">
+        {t('opt.dither')}
+        <select bind:value={toolState.gradientDither} class="opt-field" aria-label={t('px.dither')}>
+          <option value={0}>{t('opt.ditherNone')}</option>
+          <option value={2}>{t('opt.bayer2')}</option>
+          <option value={4}>{t('opt.bayer4')}</option>
+          <option value={8}>{t('opt.bayer8')}</option>
+        </select>
+      </label>
+      <span class="opt text-pc-faint">{t('px.gradientHint')}</span>
     {:else if isShapeTool(toolState.tool)}
       <label class="opt">
         {t('opt.stroke')}
@@ -1015,6 +1337,31 @@
       {/if}
     {:else if isBrushTool(toolState.tool)}
       <BrushOptions />
+      <label class="opt">
+        {t('opt.symmetry')}
+        <select bind:value={toolState.symmetry} class="opt-field" aria-label={t('opt.symmetry')}>
+          <option value="none">{t('opt.symmetryNone')}</option>
+          <option value="x">{t('opt.symmetryX')}</option>
+          <option value="y">{t('opt.symmetryY')}</option>
+          <option value="xy">{t('opt.symmetryXY')}</option>
+        </select>
+      </label>
+      {#if toolState.tool === 'pencil'}
+        <label class="opt">
+          {t('opt.ink')}
+          <select bind:value={toolState.pencilInk} class="opt-field" aria-label={t('px.pencilInk')}>
+            <option value="simple">{t('opt.inkSimple')}</option>
+            <option value="shading">{t('opt.inkShading')}</option>
+          </select>
+        </label>
+        {#if toolState.pencilInk === 'shading'}
+          <span class="opt text-pc-faint" data-testid="shading-ramp">
+            {colors.rampRange
+              ? t('px.shadingRange', { from: colors.rampRange.from, to: colors.rampRange.to })
+              : t('px.shadingWholePalette')}
+          </span>
+        {/if}
+      {/if}
       {#if BG_TOOLS.has(toolState.tool)}
         <span class="opt text-pc-faint">{t('px.rightBg')}</span>
       {/if}
@@ -1026,23 +1373,24 @@
     {/if}
   {/snippet}
   {#snippet viewport()}
-        <!-- The stage takes the pointer, not just the canvas, so a selection
+    <!-- The stage takes the pointer, not just the canvas, so a selection
              gesture can start beside the canvas (spec §9.4); `onPointerDown`
              lets only selection and view gestures start there. -->
-        <div
-          class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
-          bind:clientWidth={view.stageW}
-          bind:clientHeight={view.stageH}
-          role="presentation"
-          oncontextmenu={(e) => e.preventDefault()}
-          onpointerdown={onPointerDown}
-          onpointermove={onPointerMove}
-          onpointerup={onPointerUp}
-          onpointercancel={onPointerCancel}
-          onpointerleave={onPointerLeave}
-          ondblclick={onDoubleClick}
-        >
-    <!--
+    <div
+      class="absolute inset-0 flex items-center justify-center overflow-hidden select-none"
+      bind:this={view.stage}
+      bind:clientWidth={view.stageW}
+      bind:clientHeight={view.stageH}
+      role="presentation"
+      oncontextmenu={(e) => e.preventDefault()}
+      onpointerdown={onPointerDown}
+      onpointermove={onPointerMove}
+      onpointerup={onPointerUp}
+      onpointercancel={onPointerCancel}
+      onpointerleave={onPointerLeave}
+      ondblclick={onDoubleClick}
+    >
+      <!--
             Stacked render surfaces (spec §4.4, M12.5): the base canvas
             shows the composed sprite (driven by a `CanvasRenderer` — WebGPU
             or Canvas2D) and the overlay canvas, sitting exactly on top with
@@ -1053,62 +1401,141 @@
             via `h-full w-full` and CSS upscales their sprite-sized backing
             stores (`image-rendering: pixelated`).
           -->
-          <div
-            class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
-            style:width="{ed.canvasW * view.zoom}px"
-            style:height="{ed.canvasH * view.zoom}px"
-            style:transform="translate({view.panX}px, {view.panY}px)"
+      <div
+        class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
+        style:width="{ed.canvasW * view.zoom}px"
+        style:height="{ed.canvasH * view.zoom}px"
+        style:transform="translate({view.panX}px, {view.panY}px)"
+      >
+        <canvas
+          bind:this={view.canvas}
+          class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
+          style:cursor={view.panning
+            ? 'grabbing'
+            : toolState.moveSelStart
+              ? 'move'
+              : toolState.tool === 'move' && ed.selection && !view.spaceDown
+                ? 'move'
+                : toolState.tool === 'move' || view.spaceDown
+                  ? 'grab'
+                  : 'crosshair'}
+          aria-label="Pincel canvas"
+          data-ready={ed.ready}
+        ></canvas>
+        <canvas
+          bind:this={view.overlay}
+          class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
+          width={ed.canvasW}
+          height={ed.canvasH}
+          aria-hidden="true"
+        ></canvas>
+        <!-- Tiled mode (symmetry-tiled-mode AC-13, AC-14): the composed
+             frame repeated around the canvas, dimmed so the editable
+             canvas stands out. Presses fall through to the stage. -->
+        {#each tileOffsets(view.tiled) as o (`${o.dx},${o.dy}`)}
+          <canvas
+            class="canvas-pixelated pointer-events-none absolute h-full w-full opacity-50"
+            style:left="{o.dx * 100}%"
+            style:top="{o.dy * 100}%"
+            width={ed.canvasW}
+            height={ed.canvasH}
+            data-tile-copy
+            data-testid="tile-copy"
+            data-offset="{o.dx},{o.dy}"
+            aria-hidden="true"
+          ></canvas>
+        {/each}
+        <!-- Symmetry (AC-08, AC-09): axis lines while the Pencil or
+             Eraser is active, handles in the margin with any tool. -->
+        {#if coversX(toolState.symmetry)}
+          {#if isBrushTool(toolState.tool)}
+            <div
+              class="symmetry-axis pointer-events-none absolute inset-y-0 w-px"
+              style:left="{(axisX2() / 2 / ed.canvasW) * 100}%"
+              data-testid="symmetry-axis-x"
+            ></div>
+          {/if}
+          <button
+            type="button"
+            class="symmetry-handle absolute -top-3.5 h-3 w-3 -translate-x-1/2 touch-none"
+            style:left="{(axisX2() / 2 / ed.canvasW) * 100}%"
+            aria-label={t('px.symmetryAxisX')}
+            title={t('px.symmetryHandleHint')}
+            data-axis={axisX2()}
+            onpointerdown={(e) => startAxisDrag('x', e)}
+            onpointermove={(e) => moveAxisDrag('x', e)}
+            onpointerup={endAxisDrag}
+            onpointercancel={endAxisDrag}
+            ondblclick={() => resetAxis('x')}
           >
-            <canvas
-              bind:this={view.canvas}
-              class="canvas-pixelated absolute inset-0 h-full w-full touch-none"
-              style:cursor={view.panning
-                ? 'grabbing'
-                : toolState.moveSelStart
-                  ? 'move'
-                  : toolState.tool === 'move' && ed.selection && !view.spaceDown
-                    ? 'move'
-                    : toolState.tool === 'move' || view.spaceDown
-                      ? 'grab'
-                      : 'crosshair'}
-              aria-label="Pincel canvas"
-              data-ready={ed.ready}
-            ></canvas>
-            <canvas
-              bind:this={view.overlay}
-              class="canvas-pixelated pointer-events-none absolute inset-0 h-full w-full"
-              width={ed.canvasW}
-              height={ed.canvasH}
-              aria-hidden="true"
-            ></canvas>
-          </div>
-          {#if ed.doc && dialogs.editingTile}
-            <TileEditor
-              doc={ed.doc}
-              tilesetId={dialogs.editingTile.tilesetId}
-              tileId={dialogs.editingTile.tileId}
-              color={colors.color}
-              rev={ed.docRev}
-              onClose={() => (dialogs.editingTile = null)}
-              onChange={() => {
-                ed.docRev += 1;
-                live.needsRecompose = true;
-                syncMeta();
-              }}
-            />
+            <svg viewBox="0 0 12 12" class="h-full w-full" aria-hidden="true">
+              <polygon points="0,0 12,0 6,11" />
+            </svg>
+          </button>
+        {/if}
+        {#if coversY(toolState.symmetry)}
+          {#if isBrushTool(toolState.tool)}
+            <div
+              class="symmetry-axis pointer-events-none absolute inset-x-0 h-px"
+              style:top="{(axisY2() / 2 / ed.canvasH) * 100}%"
+              data-testid="symmetry-axis-y"
+            ></div>
           {/if}
-          {#if ed.doc}
-            <ZoomControl
-              label={`${view.zoom}×`}
-              onZoomIn={zoomIn}
-              onZoomOut={zoomOut}
-              onFit={resetView}
-              onActual={zoomActual}
-              canZoomIn={view.zoom < MAX_ZOOM}
-              canZoomOut={view.zoom > MIN_ZOOM}
-            />
-          {/if}
-        </div>
+          <button
+            type="button"
+            class="symmetry-handle absolute -left-3.5 h-3 w-3 -translate-y-1/2 touch-none"
+            style:top="{(axisY2() / 2 / ed.canvasH) * 100}%"
+            aria-label={t('px.symmetryAxisY')}
+            title={t('px.symmetryHandleHint')}
+            data-axis={axisY2()}
+            onpointerdown={(e) => startAxisDrag('y', e)}
+            onpointermove={(e) => moveAxisDrag('y', e)}
+            onpointerup={endAxisDrag}
+            onpointercancel={endAxisDrag}
+            ondblclick={() => resetAxis('y')}
+          >
+            <svg viewBox="0 0 12 12" class="h-full w-full" aria-hidden="true">
+              <polygon points="0,0 0,12 11,6" />
+            </svg>
+          </button>
+        {/if}
+      </div>
+      <!-- Pixel grid and custom grid (docs/specs/pixel-grid.md): a
+               stage-sized canvas over the sprite, so lines stay one device
+               pixel at every zoom (grid.ts). -->
+      <canvas
+        bind:this={view.gridCanvas}
+        class="pointer-events-none absolute inset-0 h-full w-full"
+        data-testid="pixel-grid"
+        aria-hidden="true"
+      ></canvas>
+      {#if ed.doc && dialogs.editingTile}
+        <TileEditor
+          doc={ed.doc}
+          tilesetId={dialogs.editingTile.tilesetId}
+          tileId={dialogs.editingTile.tileId}
+          color={colors.color}
+          rev={ed.docRev}
+          onClose={() => (dialogs.editingTile = null)}
+          onChange={() => {
+            ed.docRev += 1;
+            live.needsRecompose = true;
+            syncMeta();
+          }}
+        />
+      {/if}
+      {#if ed.doc}
+        <ZoomControl
+          label={`${view.zoom}×`}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onFit={resetView}
+          onActual={zoomActual}
+          canZoomIn={view.zoom < MAX_ZOOM}
+          canZoomOut={view.zoom > MIN_ZOOM}
+        />
+      {/if}
+    </div>
   {/snippet}
   {#snippet statusbar()}
     {#if ed.doc}
@@ -1140,8 +1567,10 @@
     value={1}
     onCancel={() => (dialogs.selectionRadius = null)}
     onApply={(radius) => {
+      // Read the operation before closing: `op` follows `selectionRadius`.
+      const action = op;
       dialogs.selectionRadius = null;
-      selectAction(op, radius);
+      selectAction(action, radius);
     }}
   />
 {/if}
@@ -1161,7 +1590,10 @@
         syncMeta();
         ed.docRev += 1;
       } catch (err) {
-        ed.status = t('status.failed', { action: t('act.layerRename'), error: err instanceof Error ? err.message : String(err) });
+        ed.status = t('status.failed', {
+          action: t('act.layerRename'),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }}
   />
@@ -1173,9 +1605,9 @@
     width={paste.width}
     height={paste.height}
     canExpand={paste.canExpand}
-    onExpand={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, true)}
-    onKeep={() => runPaste(paste.doc, paste.bytes, paste.x, paste.y, false)}
-    onCancel={() => (dialogs.paste = null)}
+    onExpand={() => answerPaste('expand')}
+    onKeep={() => answerPaste('keep')}
+    onCancel={() => answerPaste(null)}
   />
 {/if}
 
@@ -1185,8 +1617,28 @@
     tags={sheetTags}
     frameWidth={ed.canvasW}
     frameHeight={ed.canvasH}
+    scale={file.exportScale}
     onSubmit={(o) => void exportSheet(o)}
     onCancel={() => (dialogs.sheet = false)}
+  />
+{/if}
+
+{#if dialogs.png && ed.doc}
+  <PngExportDialog
+    frameWidth={ed.canvasW}
+    frameHeight={ed.canvasH}
+    scale={file.exportScale}
+    onSubmit={(scale) => void exportPng(scale)}
+    onCancel={() => (dialogs.png = false)}
+  />
+{/if}
+
+{#if dialogs.grid && ed.doc}
+  <GridSettingsDialog
+    initial={gridSettingsInitial()}
+    tileSize={activeTileSize()}
+    onSubmit={applyGridSettings}
+    onCancel={() => (dialogs.grid = false)}
   />
 {/if}
 
@@ -1239,5 +1691,12 @@
 <style>
   .canvas-pixelated {
     image-rendering: pixelated;
+  }
+  .symmetry-axis {
+    background: var(--color-pc-accent);
+  }
+  .symmetry-handle {
+    color: var(--color-pc-accent);
+    fill: currentColor;
   }
 </style>

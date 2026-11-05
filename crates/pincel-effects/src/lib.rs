@@ -44,6 +44,7 @@ pub mod artistic;
 pub mod blur;
 pub mod color;
 pub mod distort;
+pub mod gradient;
 pub mod noise;
 pub mod object;
 pub mod photo;

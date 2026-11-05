@@ -16,7 +16,7 @@ use crate::document::{
     Cel, CelData, CelMap, ColorMode, FrameIndex, Layer, LayerId, LayerKind, PixelBuffer, Sprite,
 };
 use crate::geometry::Rect;
-use crate::render::{composite_image_cel, mul_u8};
+use crate::render::{Paint, composite_image_cel, mul_u8};
 
 use super::Command;
 use super::error::CommandError;
@@ -123,8 +123,7 @@ impl Command for MergeDown {
                 canvas,
                 upper_cel.position,
                 upper_buf,
-                combined,
-                upper_layer.blend_mode,
+                Paint::rgba(combined, upper_layer.blend_mode),
             );
             let mut buf = PixelBuffer::empty(doc.width, doc.height, ColorMode::Rgba);
             buf.data = out;

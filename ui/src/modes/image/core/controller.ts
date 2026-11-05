@@ -19,6 +19,7 @@ import {
   type Interpolation,
   type ResizeAnchor,
   type BlendMode,
+  type DropPlace,
   type Rgba,
   type DrawShapeCommand,
   type ShapeKind,
@@ -35,6 +36,7 @@ import {
   type SaveTarget,
 } from '../../../lib/fs';
 import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
+import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
@@ -138,6 +140,31 @@ export function reorderLayer(from: number, to: number): void {
   if (from !== to) {
     applyLayer({ type: 'move_layer', from, to });
   }
+}
+
+/** Adds an empty group named `Group N` on top of the stack and makes it active. */
+export function addGroup(): void {
+  applyLayer({ type: 'add_group' });
+}
+
+/** Moves the layer at `index` — a group with its subtree — above, below or
+ *  into the layer at `target`, as one undo step. A move the core refuses
+ *  (a group into itself) leaves the document as it was. */
+export function moveLayerTo(index: number, target: number, place: DropPlace): void {
+  if (editor.handle === null || index === target) {
+    return;
+  }
+  try {
+    core.applyCommand(editor.handle, { type: 'move_layer_to', index, target, place });
+  } catch {
+    // Refused: nothing changed.
+  }
+  syncInfo();
+}
+
+/** Replaces the group at `index` and its subtree with one raster layer. */
+export function mergeGroup(index: number): void {
+  applyLayer({ type: 'merge_group', index });
 }
 
 /** Renames the layer at `index`. */
@@ -527,8 +554,9 @@ export async function newDocument(width: number, height: number): Promise<ImageT
   return tab;
 }
 
-/** Opens already-read bytes: an OpenRaster project with all its layers, or
- * a flat image as a single-layer document. `name` is the file name Save
+/** Opens already-read bytes: an OpenRaster project with all its layers, a
+ * PSD with its layers and groups (its import notice goes to the status
+ * bar), or a flat image as a single-layer document. `name` is the file name Save
  * writes back to; `mime` is a decoder hint. `target` carries the file's FSA
  * handle / Tauri path so Save writes it in place, and optionally the format
  * Save writes (a recovered snapshot is OpenRaster bytes of, say, a PNG);
@@ -544,15 +572,25 @@ export async function openBytes(
 ): Promise<ImageTab> {
   await initCore();
   const sniffed = sniffFormat(bytes);
-  const ora = sniffed === 'ora';
   // A corrupt file throws here, before a tab exists: no tab opens and the
   // active tab stays (document-tabs edge cases).
-  const handle = ora ? core.openProject(bytes) : core.openImage(bytes, mime || 'image/png');
+  let handle: number;
+  let notice: string | null = null;
+  if (sniffed === 'ora') {
+    handle = core.openProject(bytes);
+  } else if (sniffed === 'psd') {
+    const opened = takePsd(bytes);
+    handle = opened.handle;
+    notice = psdNotice(opened.notices);
+  } else {
+    handle = core.openImage(bytes, mime || 'image/png');
+  }
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
   const tab = openTab(handle, openedFile(name, format, target));
   syncInfo();
   markSaved();
+  editor.notice = notice;
   return tab;
 }
 

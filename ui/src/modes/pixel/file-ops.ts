@@ -29,6 +29,7 @@ import type {
   AnimationSummary,
 } from './components/AnimationExportDialog.svelte';
 import type { SpriteSheetOptions } from './components/SpriteSheetDialog.svelte';
+import { rememberExportScale } from './export-scale';
 import { afterImageCommand } from './image-ops';
 import { DEFAULT_FILE_NAME, MAX_DOC_SIZE, dialogs, ed, file, tabs } from './stores/editor.svelte';
 import { attachTab, focusTab, recentsAvailable, recordRecent } from './tab-session';
@@ -41,10 +42,12 @@ const shell: {
   requestNew: () => void;
   openForeign: (opened: OpenedFile) => void;
   openFile: (opened: OpenedFile, mode?: EditorMode) => void;
+  notice: (message: string) => void;
 } = {
   requestNew: () => {},
   openForeign: () => {},
   openFile: () => {},
+  notice: () => {},
 };
 
 /** Hand a document to the shell, which activates the tab holding the
@@ -102,16 +105,17 @@ export async function openDocInner() {
   try {
     opened = await pickAndOpen();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('status.failed', { action: t('act.open'), error: msg });
+    // A file that cannot be read gets the shell's notice (file-access AC-16).
+    shell.notice(t('shell.openFailed', { error: err instanceof Error ? err.message : String(err) }));
     return;
   }
   if (!opened) return;
   // Anything that is neither a sprite nor a PNG belongs to the Image
-  // mode; the shell re-routes it (unknown bytes fall through so the
-  // codec error below names the problem).
+  // mode, and an unknown file gets the shell's notice naming it
+  // (app-shell AC-11, AC-12): the shell routes both and leaves the open
+  // document alone when nothing can open the file.
   const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
-  if (format !== null && format !== 'aseprite' && format !== 'png') {
+  if (format !== 'aseprite' && format !== 'png') {
     shell.openForeign(opened);
     return;
   }
@@ -203,9 +207,9 @@ async function readRecent(r: RecentFile): Promise<ReadRecent | null> {
       nextTarget = { name: r.name, handle: null, path: r.path };
     } else if (r.handle) {
       // Read access is enough to open. The next save will prompt
-      // for write via `saveBytes` → `ensureReadWritePermission`.
+      // for write via `writeTarget` → `ensureReadWritePermission`.
       if (!(await ensureReadPermission(r.handle))) {
-        ed.status = t('px.recentDenied', { name: r.name });
+        shell.notice(t('shell.permissionDenied', { name: r.name }));
         return null;
       }
       const file = await r.handle.getFile();
@@ -213,13 +217,13 @@ async function readRecent(r: RecentFile): Promise<ReadRecent | null> {
       name = file.name;
       nextTarget = { name: file.name, handle: r.handle, path: null };
     } else {
-      ed.status = t('px.recentNoHandle', { name: r.name });
+      shell.notice(t('shell.noHandle', { name: r.name }));
       return null;
     }
     return { name, bytes, target: nextTarget };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    shell.notice(t('shell.recentFailed', { name: r.name, error: msg }));
     return null;
   } finally {
     file.busy = false;
@@ -232,7 +236,7 @@ async function applyRecent(r: RecentFile, read: ReadRecent): Promise<void> {
     next = Document.openAseprite(read.bytes);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ed.status = t('px.recentFailed', { name: r.name, error: msg });
+    shell.notice(t('shell.recentFailed', { name: r.name, error: msg }));
     return;
   }
   const tab = openTab(next, read.target);
@@ -279,12 +283,21 @@ export async function importPngLayer() {
   }
 }
 
-// Export the current frame's visible composite as a PNG (spec §7.3).
-export async function exportPng() {
+// File ▸ Export ▸ PNG (current frame) asks for the scale first
+// (docs/specs/scaled-export.md).
+export function openPngDialog() {
+  if (ed.doc && !file.busy) dialogs.png = true;
+}
+
+// Export the current frame's visible composite as a PNG (spec §7.3),
+// upscaled by `scale` (1–10).
+export async function exportPng(scale: number) {
+  dialogs.png = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(scale);
   file.busy = true;
   try {
-    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame));
+    const bytes = new Uint8Array(ed.doc.exportPng(ed.currentFrame, scale));
     const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
     const suffix = ed.frameCount > 1 ? `-${ed.currentFrame + 1}` : '';
     if (await saveExport(bytes, `${base}${suffix}.png`)) {
@@ -416,12 +429,18 @@ export function openSheetDialog() {
 export async function exportSheet(options: SpriteSheetOptions) {
   dialogs.sheet = false;
   if (!ed.doc || file.busy) return;
+  rememberExportScale(options.scale);
   file.busy = true;
   try {
     const base =
       file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '') +
       (options.tag ? `-${options.tag}` : '');
-    const atlas = ed.doc.exportAtlas(options.columns, options.tag ?? undefined, `${base}.png`);
+    const atlas = ed.doc.exportAtlas(
+      options.columns,
+      options.tag ?? undefined,
+      `${base}.png`,
+      options.scale,
+    );
     let png: Uint8Array<ArrayBuffer>;
     let data: string;
     try {

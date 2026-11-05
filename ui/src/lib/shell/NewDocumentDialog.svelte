@@ -4,7 +4,12 @@
   // inline (StartScreen.svelte); limits and defaults are in `new-doc.ts`.
   import type { EditorMode, NewDocParams } from './types';
   import { t } from '../i18n/index.svelte';
-  import { NEW_DOC_LIMITS as LIMITS, clipboardDocSize, newDocParams } from './new-doc';
+  import {
+    NEW_DOC_LIMITS as LIMITS,
+    clipboardDocSize,
+    newDocParams,
+    prefillKeepingSelection,
+  } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
@@ -39,8 +44,10 @@
     const [m, w, h] = [mode, width, height];
     void clipboardDocSize(m).then((p) => {
       if (p && mode === m && width === w && height === h) {
-        width = p.width;
-        height = p.height;
+        prefillKeepingSelection(() => {
+          width = p.width;
+          height = p.height;
+        });
       }
     });
   }
@@ -71,8 +78,11 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
+  <!-- novalidate: an out-of-range size is clamped by `newDocParams`, not
+       refused by the browser's min / max check (app-shell AC-06). -->
   <form
     class="w-80 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    novalidate
     onsubmit={(e) => {
       e.preventDefault();
       submit();

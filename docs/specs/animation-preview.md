@@ -100,22 +100,22 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-01 | e2e `the Preview panel sits above Layers, collapsed, in Pixel mode only (AC-01)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-02 | e2e `paused, the preview follows the current frame (AC-02, AC-12)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-03 | e2e `playing, the preview advances while the timeline stays (AC-03, AC-04)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-04 | e2e `playing, the preview advances while the timeline stays (AC-03, AC-04)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-05 | e2e `the paused preview shows document changes at once (AC-05)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-06 | e2e `preview playback follows the loop tag and its direction (AC-06)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-07 | e2e `each frame stays shown for its duration (AC-07)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-08 | e2e `the preview never shows onion-skin ghosts (AC-08)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-09 | `compose_frame_without_onion_ignores_onion_settings` (`crates/pincel-wasm/src/lib.rs`); existing `compose_*` tests there | built |        |
+| AC-10 | e2e `preview zoom: 1×, 2×, 4× and Fit (AC-10)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-11 | needs `manual:` sign-off; built: `image-rendering: pixelated` on the preview canvas (`ui/src/modes/pixel/components/PreviewPanel.svelte`) | open |        |
+| AC-12 | e2e `paused, the preview follows the current frame (AC-02, AC-12)` (`ui/e2e/preview.spec.ts`); existing `ui/e2e/timeline.spec.ts` | built |        |
+| AC-13 | e2e `collapsing the panel stops preview playback (AC-13)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-14 | e2e `phone` › `the Preview panel is a sheet tab (AC-14)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-15 | e2e `deleting the shown frame or the loop tag keeps the preview going (AC-15)` (`ui/e2e/preview.spec.ts`) | built |        |
+| AC-16 | e2e `German labels (AC-16)` (`ui/e2e/preview.spec.ts`) | built |        |
 
 ## Decisions
 
@@ -124,3 +124,9 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-28 (legacy plan): The shown frame index is exposed as a `data-frame` attribute for tests — tests must not read canvas pixels.
 - 2026-10-29: The preview composites through a new public wasm `composeFrame(frame, zoom, onion)`; `compose(frame, zoom)` keeps its signature and delegates with `onion = true`, and a Decision Log entry records the docked panel and the API addition — adding a parameter to `compose` would change a published signature, a new method keeps the §17.5 npm surface backward compatible (owner accepted the recommendation).
 - 2026-10-29: The Preview panel has no default shortcut; it opens through its panel header / sheet tab (and the View menu if one lists panels) — browsers use F7 for caret browsing and would prompt or steal the key in the web build, and `shortcuts.ts` should not ship a desktop-only key (owner accepted the recommendation).
+- 2026-11-04: The preview recomposes whenever the main canvas does: the render loop bumps `preview.contentRev` on every recompose, and the preview's per-frame composite cache is dropped on each bump — one signal covers strokes, undo / redo, frame and tag edits without a second dirty-tracking path.
+- 2026-11-04: Fit scales to the largest size that fits a stage the panel's full width and 12rem high, non-integer scales allowed (as the spec's assumption says) — the side panel has no height of its own to fit into, so the stage gets a fixed one; 1×, 2× and 4× scroll inside the same stage.
+- 2026-11-04: A hidden tab composes nothing because the preview loop runs on `requestAnimationFrame`, which browsers pause in hidden tabs; on return the loop resyncs its clock like the timeline's playback — no separate `visibilitychange` handling needed.
+- 2026-11-04: Preview playback starts from the timeline's current frame (`startCursor`, as main playback does), and each tick clamps the cursor into the loop range and the frames that still exist (AC-15).
+- 2026-11-04: The preview zoom is not persisted — the spec does not ask for it, and the panel's collapse state already persists through the layout pref.
+- 2026-11-04: The Play preview button stays enabled on a single-frame sprite — the edge-case table expects frame 1 shown continuously rather than a disabled control.

@@ -23,6 +23,8 @@ mod animation;
 mod clipboard;
 mod effects;
 mod events;
+mod gradient;
+mod grid;
 mod import;
 mod layer_ops;
 mod selection_ops;
@@ -50,8 +52,9 @@ use pincel_core::{
     OnionSkin, Palette, PaletteEntry, PalettePreset, PixelBuffer, PlaceTile, Rect, RemoveLayer,
     RemovePaletteEntry, RemoveSlice, ReplacePalette, Rgba, SetLayerName, SetLayerVisible,
     SetPaletteColor, SetPixel, SetSliceKey, SetTilePixel, Slice, SliceId, SliceKey, Sprite,
-    TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png, export_frame_png,
-    read_aseprite, read_gpl, write_aseprite, write_gpl,
+    TileImage, TileRef, Tileset, TilesetId, aseprite_sheet_json, compose, export_atlas_png,
+    export_frame_png_scaled, palette_to_png, read_aseprite, read_gpl, read_palette, write_aseprite,
+    write_gpl, write_hex, write_jasc_pal,
 };
 use wasm_bindgen::prelude::*;
 
@@ -207,10 +210,20 @@ impl Document {
     /// `pincel-core` message: an out-of-range frame, or a sprite the
     /// renderer refuses (non-RGBA color mode, non-`Normal` blend mode,
     /// group layer, linked cel).
+    ///
+    /// `scale` (optional, default 1) upscales the PNG by an integer factor
+    /// 1–10 with nearest-neighbour (docs/specs/scaled-export.md); scale 1
+    /// and no scale give the same bytes. A scale outside 1–10 or an output
+    /// edge above 16384 px is an error naming the limit.
     #[wasm_bindgen(js_name = exportPng)]
-    pub fn export_png(&self, frame: u32) -> Result<Box<[u8]>, String> {
-        let bytes = export_frame_png(&self.sprite, &self.cels, FrameIndex::new(frame))
-            .map_err(|e| format!("failed to export PNG: {e}"))?;
+    pub fn export_png(&self, frame: u32, scale: Option<u32>) -> Result<Box<[u8]>, String> {
+        let bytes = export_frame_png_scaled(
+            &self.sprite,
+            &self.cels,
+            FrameIndex::new(frame),
+            scale.unwrap_or(1),
+        )
+        .map_err(|e| format!("failed to export PNG: {e}"))?;
         Ok(bytes.into_boxed_slice())
     }
 
@@ -230,14 +243,21 @@ impl Document {
     /// `meta.image` names `image_name` (default `"sheet.png"`). Errors
     /// surface the underlying `pincel-core` message: zero columns, an
     /// unknown tag, a frameless sprite, or anything the renderer refuses.
+    ///
+    /// `scale` (optional, default 1) upscales the sheet by an integer
+    /// factor 1–10 with nearest-neighbour; the manifest and the `--data`
+    /// JSON describe the scaled sheet (`meta.scale` stays `"1"`, as
+    /// Aseprite's `--scale`). A scale outside 1–10 or a sheet edge above
+    /// 16384 px is an error naming the limit (docs/specs/scaled-export.md).
     #[wasm_bindgen(js_name = exportAtlas)]
     pub fn export_atlas(
         &self,
         columns: u32,
         tag: Option<String>,
         image_name: Option<String>,
+        scale: Option<u32>,
     ) -> Result<AtlasExport, String> {
-        let mut opts = AtlasOptions::new(columns);
+        let mut opts = AtlasOptions::new(columns).with_scale(scale.unwrap_or(1));
         opts.tag = tag;
         let output = export_atlas_png(&self.sprite, &self.cels, &opts)
             .map_err(|e| format!("failed to export atlas: {e}"))?;
@@ -512,7 +532,22 @@ impl Document {
     /// Output dimensions are `width * zoom` × `height * zoom` and the
     /// pixel buffer is row-major non-premultiplied RGBA8.
     pub fn compose(&self, frame: u32, zoom: u32) -> Result<ComposeFrame, String> {
-        self.compose_impl(frame, zoom, None)
+        self.compose_frame(frame, zoom, true)
+    }
+
+    /// [`Document::compose`] with the onion skin chosen per call: `onion =
+    /// true` applies the configured onion skin (the same bytes as
+    /// `compose`), `onion = false` leaves it out whatever
+    /// [`Document::set_onion_skin`] says — for an animation preview that
+    /// must never show ghosts (docs/specs/animation-preview.md).
+    #[wasm_bindgen(js_name = composeFrame)]
+    pub fn compose_frame(
+        &self,
+        frame: u32,
+        zoom: u32,
+        onion: bool,
+    ) -> Result<ComposeFrame, String> {
+        self.compose_impl(frame, zoom, None, onion)
     }
 
     /// Composite a sub-rect of the sprite at the given integer zoom.
@@ -537,17 +572,18 @@ impl Document {
         dw: u32,
         dh: u32,
     ) -> Result<ComposeFrame, String> {
-        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)))
+        self.compose_impl(frame, zoom, Some(Rect::new(dx, dy, dw, dh)), true)
     }
 
-    /// Shared body of [`Document::compose`] / [`Document::compose_dirty`]:
+    /// Shared body of [`Document::compose_frame`] / [`Document::compose_dirty`]:
     /// a full-canvas request at `zoom`, optionally narrowed by a
-    /// `dirty_hint` rect.
+    /// `dirty_hint` rect, with or without the configured onion skin.
     fn compose_impl(
         &self,
         frame: u32,
         zoom: u32,
         dirty_hint: Option<Rect>,
+        onion: bool,
     ) -> Result<ComposeFrame, String> {
         let mut request = ComposeRequest::full(
             FrameIndex::new(frame),
@@ -556,7 +592,7 @@ impl Document {
         );
         request.zoom = zoom;
         request.dirty_hint = dirty_hint;
-        request.onion_skin = self.onion_skin;
+        request.onion_skin = if onion { self.onion_skin } else { None };
         let mut pixels = Vec::new();
         let result = compose(&self.sprite, &self.cels, &request, &mut pixels)
             .map_err(|e| format!("failed to compose: {e}"))?;
@@ -1110,9 +1146,10 @@ impl Document {
     /// stable across runs and monotonic. Returns the assigned id.
     ///
     /// Routes through the [`AddTileset`] command so the operation joins
-    /// the undo / redo bus. Tile-image content starts empty (Aseprite
-    /// convention: tile id `0` is the implicit empty tile); per-tile
-    /// edits land alongside the Tileset Editor in M8.7.
+    /// the undo / redo bus. The tileset starts with one stored, fully
+    /// transparent tile `0` (Aseprite's empty tile), so the first
+    /// [`Document::add_tile`] returns id `1` and no user tile is written
+    /// as the empty tile (docs/specs/tilemaps.md, Decisions 2026-10-29).
     ///
     /// Errors when `tile_w` or `tile_h` is zero, when the existing id
     /// space is exhausted (an existing tileset already uses `u32::MAX`),
@@ -1133,7 +1170,10 @@ impl Document {
             Some(u32::MAX) => return Err("tileset id space exhausted".to_string()),
             Some(m) => m + 1,
         };
-        let tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
+        let mut tileset = Tileset::new(TilesetId::new(new_id), name, (tile_w, tile_h));
+        tileset.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(tile_w, tile_h, ColorMode::Rgba),
+        });
         let cmd = AddTileset::new(tileset);
         self.bus
             .execute(cmd.into(), &mut self.sprite, &mut self.cels)
@@ -1496,6 +1536,10 @@ impl Document {
 
     /// Replace the palette with a GIMP `.gpl` file's colours and return
     /// how many it holds. One undo entry. Refused for indexed documents.
+    ///
+    /// Deprecated: use [`Document::import_palette`] (`importPalette`),
+    /// which reads `.gpl` and the other palette formats. Kept for the
+    /// public npm API (spec §17.5).
     #[wasm_bindgen(js_name = importGpl)]
     pub fn import_gpl(&mut self, text: &str) -> Result<u32, String> {
         let palette = read_gpl(text).map_err(|e| e.to_string())?;
@@ -1505,9 +1549,43 @@ impl Document {
     }
 
     /// The palette as a GIMP `.gpl` file called `name` (alpha dropped).
+    ///
+    /// Deprecated: use [`Document::export_palette`] (`exportPalette`) with
+    /// format `gpl`. Kept for the public npm API (spec §17.5).
     #[wasm_bindgen(js_name = exportGpl)]
     pub fn export_gpl(&self, name: &str) -> String {
         write_gpl(&self.sprite.palette, name)
+    }
+
+    /// Replace the palette with a palette file's colours and return how
+    /// many it holds. The format — GIMP `.gpl`, Lospec `.hex`, JASC `.pal`
+    /// or a PNG palette image — is detected from the content, not the file
+    /// name (spec §3.7). One undo entry. Refused for indexed documents, for
+    /// files without colours and above 256 colours; the palette is then
+    /// unchanged.
+    #[wasm_bindgen(js_name = importPalette)]
+    pub fn import_palette(&mut self, bytes: &[u8]) -> Result<u32, String> {
+        let palette = read_palette(bytes).map_err(|e| e.to_string())?;
+        let count = palette.len() as u32;
+        self.replace_palette(palette)?;
+        Ok(count)
+    }
+
+    /// The palette as a file: `format` is `gpl` (a GIMP palette called
+    /// `name`), `hex` (Lospec), `pal` (JASC) or `png` (a one-row strip of
+    /// `cell` × `cell` px swatches). `name` is used only by `gpl`, `cell`
+    /// only by `png`. Errors for an unknown format, or a PNG strip of an
+    /// empty palette or with `cell` 0.
+    #[wasm_bindgen(js_name = exportPalette)]
+    pub fn export_palette(&self, format: &str, name: &str, cell: u32) -> Result<Vec<u8>, String> {
+        let palette = &self.sprite.palette;
+        match format {
+            "gpl" => Ok(write_gpl(palette, name).into_bytes()),
+            "hex" => Ok(write_hex(palette).into_bytes()),
+            "pal" => Ok(write_jasc_pal(palette).into_bytes()),
+            "png" => palette_to_png(palette, cell).map_err(|e| e.to_string()),
+            other => Err(format!("unknown palette format `{other}`")),
+        }
     }
 
     fn replace_palette(&mut self, palette: Palette) -> Result<(), String> {
@@ -1626,17 +1704,17 @@ impl Document {
             .map(|k| k.center.is_some())
     }
 
-    /// Sprite-space `x` of the key's 9-patch center, or `0` when the
-    /// key has no center. Errors when `slice_id` or `key_index` is
-    /// out of range.
+    /// `x` of the key's 9-patch center, relative to the key's bounds
+    /// origin, or `0` when the key has no center. Errors when
+    /// `slice_id` or `key_index` is out of range.
     #[wasm_bindgen(js_name = sliceKeyCenterX)]
     pub fn slice_key_center_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
             .map(|k| k.center.map_or(0, |c| c.x))
     }
 
-    /// Sprite-space `y` of the key's 9-patch center, or `0` when the
-    /// key has no center.
+    /// `y` of the key's 9-patch center, relative to the key's bounds
+    /// origin, or `0` when the key has no center.
     #[wasm_bindgen(js_name = sliceKeyCenterY)]
     pub fn slice_key_center_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
@@ -1667,16 +1745,16 @@ impl Document {
             .map(|k| k.pivot.is_some())
     }
 
-    /// Sprite-space `x` of the key's pivot, or `0` when the key has
-    /// no pivot.
+    /// `x` of the key's pivot, relative to the key's bounds origin
+    /// (may be negative), or `0` when the key has no pivot.
     #[wasm_bindgen(js_name = sliceKeyPivotX)]
     pub fn slice_key_pivot_x(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
             .map(|k| k.pivot.map_or(0, |p| p.0))
     }
 
-    /// Sprite-space `y` of the key's pivot, or `0` when the key has
-    /// no pivot.
+    /// `y` of the key's pivot, relative to the key's bounds origin
+    /// (may be negative), or `0` when the key has no pivot.
     #[wasm_bindgen(js_name = sliceKeyPivotY)]
     pub fn slice_key_pivot_y(&self, slice_id: u32, key_index: u32) -> Result<i32, String> {
         self.slice_key(slice_id, key_index)
@@ -3225,6 +3303,18 @@ mod tests {
     }
 
     #[test]
+    fn add_tileset_stores_transparent_tile_zero() {
+        // tilemaps.md AC-01: a tileset created in the UI holds one empty
+        // tile, id 0, fully transparent and of the tileset's tile size.
+        let mut doc = Document::new(4, 4).expect("dims");
+        let id = doc.add_tileset("ground", 3, 2).expect("addTileset");
+        assert_eq!(doc.tileset_tile_count(id), 1);
+        let bytes = doc.tile_pixels(id, 0).expect("tile 0 is stored");
+        assert_eq!(bytes.len(), 3 * 2 * 4);
+        assert!(bytes.iter().all(|b| *b == 0), "tile 0 is transparent");
+    }
+
+    #[test]
     fn add_tileset_rejects_zero_tile_size() {
         let mut doc = Document::new(4, 4).expect("dims");
         let err = doc.add_tileset("zero", 0, 8).unwrap_err();
@@ -3266,7 +3356,8 @@ mod tests {
         assert_eq!(doc.tileset_name(id), "ground");
         assert_eq!(doc.tileset_tile_width(id), 16);
         assert_eq!(doc.tileset_tile_height(id), 16);
-        assert_eq!(doc.tileset_tile_count(id), 0);
+        // The stored empty tile 0.
+        assert_eq!(doc.tileset_tile_count(id), 1);
     }
 
     #[test]
@@ -3346,27 +3437,23 @@ mod tests {
 
     #[test]
     fn tile_pixels_returns_rgba_buffer_for_stored_tile() {
-        use pincel_core::TileImage;
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        // Seed two distinct tiles directly on the underlying tileset.
-        // We use the raw `sprite.tilesets` field rather than `addTile`
-        // + `setTilePixel` so the assertions exercise the read path in
-        // isolation from those write methods.
+        // Tile 0 is the stored empty tile; seed tile 1 directly on the
+        // underlying tileset. We use the raw `sprite.tilesets` field
+        // rather than `addTile` + `setTilePixel` so the assertions
+        // exercise the read path in isolation from those write methods.
         let tileset = doc
             .sprite
             .tilesets
             .iter_mut()
             .find(|t| t.id.0 == ts_id)
             .expect("freshly added tileset is reachable");
-        let mut tile0 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
-        tile0.data.copy_from_slice(&[0u8; 16]);
         let mut tile1 = PixelBuffer::empty(2, 2, ColorMode::Rgba);
         tile1.data.copy_from_slice(&[
             0xFF, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
             0xFF, 0xFF,
         ]);
-        tileset.tiles.push(TileImage { pixels: tile0 });
         tileset.tiles.push(TileImage { pixels: tile1 });
 
         let bytes0 = doc.tile_pixels(ts_id, 0).expect("tile 0 pixels");
@@ -3389,10 +3476,9 @@ mod tests {
     fn tile_pixels_rejects_tile_id_past_end() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("empty", 8, 8).expect("addTileset");
-        // Freshly added tileset stores zero tiles (Aseprite convention:
-        // tile 0 is implicit empty and not stored), so any tile_id is
+        // A fresh tileset stores only the empty tile 0, so tile 1 is
         // past the end.
-        let err = doc.tile_pixels(ts_id, 0).unwrap_err();
+        let err = doc.tile_pixels(ts_id, 1).unwrap_err();
         assert!(err.contains("out of range"), "got: {err}");
     }
 
@@ -3503,10 +3589,12 @@ mod tests {
     fn add_tile_appends_transparent_tile() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
-        let tile_id = doc.add_tile(ts_id).expect("addTile");
-        assert_eq!(tile_id, 0);
         assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        // Ids count up from 1; tile 0 is the stored empty tile.
+        let tile_id = doc.add_tile(ts_id).expect("addTile");
+        assert_eq!(tile_id, 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
+        assert_eq!(doc.add_tile(ts_id).expect("addTile"), 2);
         let bytes = doc.tile_pixels(ts_id, tile_id).expect("tilePixels");
         assert_eq!(bytes.len(), 2 * 2 * 4);
         assert!(bytes.iter().all(|b| *b == 0));
@@ -3519,27 +3607,110 @@ mod tests {
         let depth = doc.undo_depth();
         doc.add_tile(ts_id).expect("addTile");
         assert_eq!(doc.undo_depth(), depth + 1);
-        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
         assert!(doc.undo());
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
-        assert!(doc.redo().expect("redo"));
         assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
     }
 
     #[test]
     fn add_tile_clears_redo_stack() {
         let mut doc = Document::new(4, 4).expect("dims");
         let ts_id = doc.add_tileset("t", 2, 2).expect("addTileset");
-        doc.add_tile(ts_id).expect("addTile 0");
+        doc.add_tile(ts_id).expect("addTile 1");
         assert!(doc.undo(), "undo the first tile");
-        assert_eq!(doc.tileset_tile_count(ts_id), 0);
+        assert_eq!(doc.tileset_tile_count(ts_id), 1);
         // A fresh execute must drop the pending redo entry.
         doc.add_tile(ts_id).expect("addTile again");
         assert!(
             !doc.redo().expect("redo"),
             "redo stack cleared by the new command"
         );
-        assert_eq!(doc.tileset_tile_count(ts_id), 1);
+        assert_eq!(doc.tileset_tile_count(ts_id), 2);
+    }
+
+    /// The tile id at grid cell `(x, y)` of a tilemap cel.
+    fn grid_tile(doc: &Document, layer: u32, frame: u32, x: u32, y: u32) -> u32 {
+        let cel = doc
+            .cels
+            .get(LayerId::new(layer), FrameIndex::new(frame))
+            .expect("tilemap cel");
+        let CelData::Tilemap { grid_w, tiles, .. } = &cel.data else {
+            panic!("expected tilemap cel");
+        };
+        tiles[(y * grid_w + x) as usize].tile_id
+    }
+
+    #[test]
+    fn place_tile_refuses_a_locked_layer_or_one_in_a_locked_group() {
+        // tilemaps.md AC-15.
+        let mut doc = Document::new(8, 8).expect("dims");
+        let ts = doc.add_tileset("t", 4, 4).expect("addTileset");
+        let tile = doc.add_tile(ts).expect("addTile");
+        let layer = doc.add_tilemap_layer("tm", ts).expect("addTilemapLayer");
+        let group = doc.add_group("g").expect("addGroup");
+        doc.move_layer_to(layer, group, "into").expect("into group");
+        let _ = doc.drain_events();
+
+        let refused = |doc: &mut Document| {
+            let depth = doc.undo_depth();
+            let err = doc.place_tile(layer, 0, 1, 1, tile).unwrap_err();
+            assert!(err.contains("locked"), "got: {err}");
+            assert_eq!(grid_tile(doc, layer, 0, 1, 1), 0, "cell unchanged");
+            assert_eq!(doc.undo_depth(), depth, "no undo entry");
+            assert!(doc.drain_events().is_empty(), "nothing repaints");
+        };
+
+        doc.set_layer_editable(layer, false).expect("lock layer");
+        refused(&mut doc);
+        doc.set_layer_editable(layer, true).expect("unlock layer");
+        doc.set_layer_editable(group, false).expect("lock group");
+        refused(&mut doc);
+        doc.set_layer_editable(group, true).expect("unlock group");
+        doc.place_tile(layer, 0, 1, 1, tile)
+            .expect("unlocked: placed");
+        assert_eq!(grid_tile(&doc, layer, 0, 1, 1), tile);
+    }
+
+    #[test]
+    fn an_edited_tile_shows_in_every_cell_that_references_it() {
+        // tilemaps.md AC-18: two tilemap layers on one tileset, two
+        // frames, the tile placed in a different cell of each layer and
+        // frame; one pixel edit of the tile reaches all four places.
+        let mut doc = Document::new(8, 8).expect("dims");
+        let ts = doc.add_tileset("t", 4, 4).expect("addTileset");
+        let tile = doc.add_tile(ts).expect("addTile");
+        doc.add_frame(100).expect("addFrame");
+        let lower = doc.add_tilemap_layer("lower", ts).expect("lower");
+        let upper = doc.add_tilemap_layer("upper", ts).expect("upper");
+        let places = [
+            (lower, 0, 0, 0),
+            (upper, 0, 1, 1),
+            (lower, 1, 1, 0),
+            (upper, 1, 0, 1),
+        ];
+        for (layer, frame, gx, gy) in places {
+            doc.place_tile(layer, frame, gx, gy, tile)
+                .expect("placeTile");
+        }
+        for (_, frame, gx, gy) in places {
+            let (x, y) = (gx as i32 * 4 + 2, gy as i32 * 4 + 3);
+            assert_eq!(doc.pick_color(frame, x, y).expect("pick"), 0);
+        }
+
+        doc.set_tile_pixel(ts, tile, 2, 3, 0xFF00_00FF)
+            .expect("setTilePixel");
+        for (_, frame, gx, gy) in places {
+            let (x, y) = (gx as i32 * 4 + 2, gy as i32 * 4 + 3);
+            assert_eq!(
+                doc.pick_color(frame, x, y).expect("pick"),
+                0xFF00_00FF,
+                "frame {frame} cell ({gx}, {gy})"
+            );
+        }
+        // A cell without the tile stays empty.
+        assert_eq!(doc.pick_color(0, 4 + 2, 3).expect("pick"), 0);
     }
 
     // ---- M9.4 slice surface ------------------------------------------
@@ -3761,7 +3932,7 @@ mod tests {
 
     // ---- PNG export surface tests --------------------------------------
 
-    use pincel_core::Tag;
+    use pincel_core::{Tag, export_frame_png};
 
     /// The eight-byte PNG file signature.
     const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
@@ -3785,7 +3956,7 @@ mod tests {
     #[test]
     fn export_png_returns_bytes_with_png_signature() {
         let doc = Document::new(4, 3).expect("dims");
-        let bytes = doc.export_png(0).expect("export ok");
+        let bytes = doc.export_png(0, None).expect("export ok");
         assert_eq!(&bytes[..8], &PNG_SIGNATURE);
     }
 
@@ -3795,29 +3966,29 @@ mod tests {
         let expected = export_frame_png(&doc.sprite, &doc.cels, FrameIndex::new(0))
             .expect("core export ok")
             .into_boxed_slice();
-        assert_eq!(doc.export_png(0).expect("export ok"), expected);
+        assert_eq!(doc.export_png(0, None).expect("export ok"), expected);
     }
 
     #[test]
     fn export_png_reflects_painted_pixels() {
         let mut doc = Document::new(4, 4).expect("dims");
-        let blank = doc.export_png(0).expect("export ok");
+        let blank = doc.export_png(0, None).expect("export ok");
         doc.apply_tool("pencil", 1, 1, 0xff00_00ff).expect("paint");
-        let painted = doc.export_png(0).expect("export ok");
+        let painted = doc.export_png(0, None).expect("export ok");
         assert_ne!(blank, painted);
     }
 
     #[test]
     fn export_png_rejects_unknown_frame() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = doc.export_png(9).expect_err("frame 9 does not exist");
+        let err = doc.export_png(9, None).expect_err("frame 9 does not exist");
         assert!(err.starts_with("failed to export PNG"), "message: {err}");
     }
 
     #[test]
     fn export_atlas_packs_every_frame_into_the_requested_grid() {
         let doc = doc_with_frames(4, 2, 3);
-        let atlas = doc.export_atlas(2, None, None).expect("export ok");
+        let atlas = doc.export_atlas(2, None, None, None).expect("export ok");
         assert_eq!(&atlas.png()[..8], &PNG_SIGNATURE);
         // 3 frames over 2 columns → 2 rows, so 8x4 pixels.
         let manifest = atlas.manifest();
@@ -3838,7 +4009,7 @@ mod tests {
     fn export_atlas_data_is_aseprite_sheet_json() {
         let doc = doc_with_frames(4, 2, 3);
         let atlas = doc
-            .export_atlas(3, None, Some("hero.png".into()))
+            .export_atlas(3, None, Some("hero.png".into()), None)
             .expect("export ok");
         let data = atlas.data();
         assert!(data.contains("\"filename\":\"hero 2\""), "data: {data}");
@@ -3846,11 +4017,80 @@ mod tests {
         assert!(data.contains("\"duration\":"), "data: {data}");
     }
 
+    // Scaled export (docs/specs/scaled-export.md).
+
+    #[test]
+    fn export_png_without_scale_matches_scale_one_and_core() {
+        let mut doc = Document::new(5, 3).expect("dims");
+        doc.apply_tool("pencil", 1, 1, 0xff00_00ff).expect("paint");
+        let plain = doc.export_png(0, None).expect("export ok");
+        assert_eq!(doc.export_png(0, Some(1)).expect("export ok"), plain);
+        let core = export_frame_png(&doc.sprite, &doc.cels, FrameIndex::new(0)).expect("core");
+        assert_eq!(plain, core.into_boxed_slice());
+    }
+
+    #[test]
+    fn export_png_scale_4_of_4x4_is_16x16() {
+        let doc = Document::new(4, 4).expect("dims");
+        let bytes = doc.export_png(0, Some(4)).expect("export ok");
+        assert_eq!(&bytes[16..24], &[0, 0, 0, 16, 0, 0, 0, 16]);
+    }
+
+    #[test]
+    fn export_png_scale_out_of_range_returns_err_naming_range() {
+        let doc = Document::new(4, 4).expect("dims");
+        for scale in [0, 11] {
+            let err = doc.export_png(0, Some(scale)).expect_err("refused");
+            assert!(err.contains("1–10"), "message: {err}");
+        }
+    }
+
+    #[test]
+    fn export_png_scaled_past_16384_returns_err_naming_limit() {
+        let doc = Document::new(1639, 1).expect("dims");
+        let err = doc.export_png(0, Some(10)).expect_err("refused");
+        assert!(err.contains("16384"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_scale_scales_png_manifest_and_data() {
+        let doc = doc_with_frames(4, 2, 3);
+        let atlas = doc
+            .export_atlas(2, None, Some("hero.png".into()), Some(2))
+            .expect("export ok");
+        let png = atlas.png();
+        assert_eq!(&png[16..24], &[0, 0, 0, 16, 0, 0, 0, 8]);
+        let data = atlas.data();
+        assert!(
+            data.contains("\"size\":{\"w\":16,\"h\":8},\"scale\":\"1\""),
+            "data: {data}"
+        );
+        assert!(
+            data.contains("\"frame\":{\"x\":8,\"y\":0,\"w\":8,\"h\":4}"),
+            "data: {data}"
+        );
+        let err = doc
+            .export_atlas(2, None, None, Some(11))
+            .err()
+            .expect("refused");
+        assert!(err.contains("1–10"), "message: {err}");
+    }
+
+    #[test]
+    fn export_atlas_without_scale_matches_scale_one() {
+        let doc = doc_with_frames(4, 2, 3);
+        let plain = doc.export_atlas(2, None, None, None).expect("export ok");
+        let one = doc.export_atlas(2, None, None, Some(1)).expect("export ok");
+        assert_eq!(plain.png(), one.png());
+        assert_eq!(plain.manifest(), one.manifest());
+        assert_eq!(plain.data(), one.data());
+    }
+
     #[test]
     fn export_atlas_clamps_columns_to_frame_count() {
         let doc = Document::new(3, 3).expect("dims");
         let manifest = doc
-            .export_atlas(8, None, None)
+            .export_atlas(8, None, None, None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3866,7 +4106,7 @@ mod tests {
             .tags
             .push(Tag::new("walk", FrameIndex::new(1), FrameIndex::new(2)));
         let manifest = doc
-            .export_atlas(4, Some("walk".to_string()), None)
+            .export_atlas(4, Some("walk".to_string()), None, None)
             .expect("export ok")
             .manifest();
         assert!(
@@ -3886,7 +4126,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_zero_columns() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(0, None, None) {
+        let err = match doc.export_atlas(0, None, None, None) {
             Err(e) => e,
             Ok(_) => panic!("a zero column count should be rejected"),
         };
@@ -3896,7 +4136,7 @@ mod tests {
     #[test]
     fn export_atlas_rejects_unknown_tag() {
         let doc = Document::new(4, 4).expect("dims");
-        let err = match doc.export_atlas(1, Some("nope".to_string()), None) {
+        let err = match doc.export_atlas(1, Some("nope".to_string()), None, None) {
             Err(e) => e,
             Ok(_) => panic!("an unknown tag name should be rejected"),
         };
@@ -3904,11 +4144,81 @@ mod tests {
     }
 
     #[test]
+    fn exports_leave_out_onion_skin_and_hidden_layers() {
+        const RED: [u8; 4] = [255, 0, 0, 255];
+        const BLUE: [u8; 4] = [0, 0, 255, 255];
+        const CLEAR: [u8; 4] = [0; 4];
+        let buffer = |pixels: [[u8; 4]; 2]| {
+            let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
+            buf.data = pixels.concat();
+            buf
+        };
+        // Frame 0: red at (0, 0); frame 1: empty; frame 2: blue at (1, 0).
+        let mut doc = doc_with_frames(2, 1, 3);
+        for (frame, pixels) in [(0, [RED, CLEAR]), (2, [CLEAR, BLUE])] {
+            doc.cels.insert(Cel::image(
+                DEFAULT_LAYER_ID,
+                FrameIndex::new(frame),
+                buffer(pixels),
+            ));
+        }
+        // A hidden green layer over every frame.
+        let mut hidden = Layer::image(LayerId::new(1), "hidden");
+        hidden.visible = false;
+        doc.sprite.layers.push(hidden);
+        for frame in 0..3 {
+            doc.cels.insert(Cel::image(
+                LayerId::new(1),
+                FrameIndex::new(frame),
+                buffer([[0, 255, 0, 255]; 2]),
+            ));
+        }
+        doc.set_onion_skin(true, 1, 1, 255, 255);
+        // The editor view of frame 1 does show both neighbours.
+        let view = doc.compose(1, 1).expect("compose");
+        assert!(view.pixels.iter().any(|&b| b != 0), "onion skin is on");
+
+        let png =
+            pincel_core::import_png(&doc.export_png(1, None).expect("export ok")).expect("png");
+        assert_eq!((png.width, png.height), (2, 1));
+        assert_eq!(png.rgba, [CLEAR, CLEAR].concat());
+
+        let atlas = doc.export_atlas(3, None, None, None).expect("export ok");
+        let sheet = pincel_core::import_png(&atlas.png()).expect("png");
+        assert_eq!((sheet.width, sheet.height), (6, 1));
+        assert_eq!(sheet.rgba, [RED, CLEAR, CLEAR, CLEAR, CLEAR, BLUE].concat());
+    }
+
+    #[test]
+    fn compose_frame_without_onion_ignores_onion_settings() {
+        const RED: [u8; 4] = [255, 0, 0, 255];
+        const BLUE: [u8; 4] = [0, 0, 255, 255];
+        const CLEAR: [u8; 4] = [0; 4];
+        // Frame 0: red at (0, 0); frame 1: blue at (1, 0).
+        let mut doc = doc_with_frames(2, 1, 2);
+        for (frame, pixels) in [(0, [RED, CLEAR]), (1, [CLEAR, BLUE])] {
+            let mut buf = PixelBuffer::empty(2, 1, ColorMode::Rgba);
+            buf.data = pixels.concat();
+            doc.cels
+                .insert(Cel::image(DEFAULT_LAYER_ID, FrameIndex::new(frame), buf));
+        }
+        let plain = doc.compose(1, 2).expect("compose").pixels;
+        doc.set_onion_skin(true, 1, 1, 255, 255);
+        let onion = doc.compose(1, 2).expect("compose").pixels;
+        assert_ne!(onion, plain, "compose applies the onion skin");
+        let with = doc.compose_frame(1, 2, true).expect("compose").pixels;
+        assert_eq!(with, onion, "composeFrame(onion = true) equals compose");
+        let without = doc.compose_frame(1, 2, false).expect("compose");
+        assert_eq!((without.width, without.height), (4, 2));
+        assert_eq!(without.pixels, plain, "no ghosts without onion");
+    }
+
+    #[test]
     fn export_atlas_of_a_single_frame_document_matches_frame_export() {
         // A 1x1 grid atlas is the same image as the single-frame export.
         let doc = Document::new(6, 4).expect("dims");
-        let atlas = doc.export_atlas(1, None, None).expect("export ok");
-        assert_eq!(atlas.png(), doc.export_png(0).expect("export ok"));
+        let atlas = doc.export_atlas(1, None, None, None).expect("export ok");
+        assert_eq!(atlas.png(), doc.export_png(0, None).expect("export ok"));
     }
 
     // ---- M13.2: layer reorder surface ---------------------------------
@@ -4111,6 +4421,148 @@ mod tests {
         assert_eq!(doc.palette_color(0).expect("entry"), 0x0f380fff);
         assert!(doc.set_palette_preset("vga").is_err());
         assert!(doc.import_gpl("nope").is_err());
+    }
+
+    #[test]
+    fn import_gpl_invalid_file_returns_err_and_keeps_palette() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.add_palette_entry(0x1234_5680).expect("add");
+        let colors = |d: &Document| -> Vec<(u32, String)> {
+            (0..d.palette_count())
+                .map(|i| (d.palette_color(i).unwrap(), d.palette_name(i).unwrap()))
+                .collect()
+        };
+        let before = colors(&doc);
+        let too_many = format!("GIMP Palette\n{}", "1 2 3\n".repeat(257));
+        for text in [
+            "JASC-PAL\n0100\n1\n0 0 0\n",
+            "0 0 0 Black\n",
+            "GIMP Palette\n0 0 0 Black\n1 2\n",
+            "GIMP Palette\n0 0 300\n",
+            "GIMP Palette\nred green blue\n",
+            too_many.as_str(),
+        ] {
+            assert!(doc.import_gpl(text).is_err(), "accepted {text:?}");
+            assert_eq!(colors(&doc), before, "palette changed by {text:?}");
+        }
+        // Nothing reached the undo stack: undo takes back the add.
+        assert!(doc.undo());
+        assert_eq!(doc.palette_count(), 32);
+    }
+
+    // ---- Palette formats (docs/specs/palette-formats.md) ----
+
+    fn palette_rgba(doc: &Document) -> Vec<u32> {
+        (0..doc.palette_count())
+            .map(|i| doc.palette_color(i).expect("entry"))
+            .collect()
+    }
+
+    #[test]
+    fn import_palette_detects_every_format_by_content() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let strip = pincel_core::encode_png(&[1, 2, 3, 255, 4, 5, 6, 255], 2, 1).expect("png");
+        let cases: [(&[u8], &[u32]); 4] = [
+            (
+                b"#FF0000\r\n; c\r\n00ff00\r\n0000ff\r\n123456\r\n",
+                &[0xff0000ff, 0x00ff00ff, 0x0000ffff, 0x123456ff],
+            ),
+            (
+                b"JASC-PAL\n0100\n2\n1 2 3\n4 5 6 128\n",
+                &[0x010203ff, 0x04050680],
+            ),
+            (b"GIMP Palette\n9 8 7 x\n", &[0x090807ff]),
+            (&strip, &[0x010203ff, 0x040506ff]),
+        ];
+        for (bytes, want) in cases {
+            assert_eq!(
+                doc.import_palette(bytes).expect("import"),
+                want.len() as u32
+            );
+            assert_eq!(palette_rgba(&doc), want);
+        }
+    }
+
+    #[test]
+    fn import_palette_is_one_undo_step() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let before = palette_rgba(&doc);
+        assert_eq!(doc.import_palette(b"ff0000\n00ff00\n").expect("import"), 2);
+        assert!(doc.undo());
+        assert_eq!(palette_rgba(&doc), before);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(palette_rgba(&doc), [0xff0000ff, 0x00ff00ff]);
+    }
+
+    #[test]
+    fn import_palette_invalid_file_returns_err_and_keeps_palette() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        let before = palette_rgba(&doc);
+        let too_many_hex = "000000\n".repeat(257);
+        let pixels: Vec<u8> = (0..257u32)
+            .flat_map(|i| [i as u8, (i >> 8) as u8, 0, 255])
+            .collect();
+        let too_many_png = pincel_core::encode_png(&pixels, 257, 1).expect("png");
+        let clear_png = pincel_core::encode_png(&[0, 0, 0, 0], 1, 1).expect("png");
+        let cases: [(&[u8], &str); 7] = [
+            (b"ff0000\nnope\n", "line 2"),
+            (b"JASC-PAL\n0100\n1\n1 2 300\n", "line 4"),
+            (too_many_hex.as_bytes(), "more than 256"),
+            (&too_many_png, "not a palette image"),
+            (b"", "no colours found"),
+            (b"JASC-PAL\n0100\n0\n", "no colours found"),
+            (&clear_png, "no colours found"),
+        ];
+        for (bytes, msg) in cases {
+            let err = doc.import_palette(bytes).expect_err("refused");
+            assert!(err.contains(msg), "{err:?} lacks {msg:?}");
+            assert_eq!(palette_rgba(&doc), before);
+        }
+        assert!(!doc.undo(), "nothing reached the undo stack");
+    }
+
+    #[test]
+    fn import_palette_on_indexed_sprite_is_refused_for_every_format() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.sprite.color_mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        let before = palette_rgba(&doc);
+        let strip = pincel_core::encode_png(&[1, 2, 3, 255], 1, 1).expect("png");
+        let files: [&[u8]; 4] = [
+            b"ff0000\n",
+            b"JASC-PAL\n0100\n1\n1 2 3\n",
+            b"GIMP Palette\n1 2 3\n",
+            &strip,
+        ];
+        for bytes in files {
+            assert!(doc.import_palette(bytes).is_err());
+            assert_eq!(palette_rgba(&doc), before);
+        }
+        assert!(doc.import_gpl("GIMP Palette\n1 2 3\n").is_err());
+    }
+
+    #[test]
+    fn export_palette_writes_each_format() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.import_palette(b"ff0044\n00ff00\n").expect("import");
+        let text = |format: &str| {
+            String::from_utf8(doc.export_palette(format, "Mine", 1).expect("export")).expect("utf8")
+        };
+        assert_eq!(text("hex"), "ff0044\n00ff00\n");
+        let pal = text("pal");
+        assert_eq!(
+            pal.lines().collect::<Vec<_>>(),
+            ["JASC-PAL", "0100", "2", "255 0 68", "0 255 0"]
+        );
+        assert_eq!(text("gpl"), doc.export_gpl("Mine"));
+        for cell in [1u32, 8] {
+            let png = doc.export_palette("png", "", cell).expect("png");
+            let img = pincel_core::import_png(&png).expect("decodes");
+            assert_eq!((img.width, img.height), (2 * cell, cell));
+        }
+        assert!(doc.export_palette("aco", "", 1).is_err());
+        assert!(doc.export_palette("png", "", 0).is_err());
     }
 
     // ---- Drawing tools (docs/specs/pixel-drawing-tools.md) ----

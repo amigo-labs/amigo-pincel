@@ -29,10 +29,11 @@ export function openEffect(def: EffectDef) {
   });
 }
 
-export function previewEffectParams(params: number[]) {
+/** Live preview of the open effect; `null` (Preview off) shows the document. */
+export function previewEffectParams(params: number[] | null) {
   if (!ed.doc || !live.renderer || !dialogs.effect) return;
   const def = dialogs.effect.def;
-  if (params.length === 0 && def.params.length > 0) {
+  if (params === null) {
     recompose();
     return;
   }

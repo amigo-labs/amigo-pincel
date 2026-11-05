@@ -12,8 +12,9 @@
   // Docked panel for one open effect / adjustment (effect-panel spec); the
   // editor frame shows it on top of the sidebar, drawer or bottom sheet.
   // Purely presentational: the parent owns the wasm `Document`, runs
-  // `previewEffect` on every `onPreview(params)` and commits via
-  // `onApply(params)`. `onCancel` restores the un-previewed composite.
+  // `previewEffect` on every `onPreview(params)`, restores the
+  // un-previewed composite on `onPreview(null)` (Preview off) and commits
+  // via `onApply(params)`. `onCancel` restores the un-previewed composite too.
   // The values live in the editor's `EffectSession`, so they survive the
   // frame re-mounting this panel in another layout (AC-14); `toParams`
   // orders them for the wire.
@@ -26,7 +27,8 @@
   }: {
     session: EffectSession;
     hasSelection?: boolean;
-    onPreview: (params: number[]) => void;
+    /** `null` turns the preview off: show the image without the effect. */
+    onPreview: (params: number[] | null) => void;
     onApply: (params: number[]) => void;
     onCancel: () => void;
   } = $props();
@@ -59,16 +61,13 @@
     if (rafId) cancelAnimationFrame(rafId);
     rafId = requestAnimationFrame(() => {
       rafId = 0;
-      if (on) onPreview(p);
-      else onCancel_previewOnly();
+      // `null`, not `[]`: a parameterless effect previews with `[]`.
+      onPreview(on ? p : null);
     });
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
     };
   });
-
-  // Turning preview off restores the composite without closing.
-  let onCancel_previewOnly = () => onPreview([]);
 
   type PointDef = Extract<ParamDef, { kind: 'point' }>;
   type PairDef = Extract<ParamDef, { kind: 'pair' }>;

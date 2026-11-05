@@ -1,7 +1,9 @@
 <script lang="ts">
   // Landing view of the two-mode shell: pick an editor (new pixel sprite /
   // new image), open a file, or re-open a recent one. Dropping a file
-  // anywhere on the screen opens it. See docs/specs/pincel.md §9.2.
+  // anywhere on the screen opens it; the shell watches the drop
+  // (`lib/fs/drop`) and says when to show the drop state. See
+  // docs/specs/pincel.md §9.2.
   //
   // The two New cards are an accordion: a card opens in place with the
   // canvas size and Create, the other one closes. No dialog on top.
@@ -13,7 +15,12 @@
   import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
   import { setLocale } from '../i18n/locale';
   import { hasNativeMenu } from '../platform';
-  import { NEW_DOC_LIMITS, clipboardDocSize, newDocParams } from './new-doc';
+  import {
+    NEW_DOC_LIMITS,
+    clipboardDocSize,
+    newDocParams,
+    prefillKeepingSelection,
+  } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
 
   let {
@@ -22,17 +29,16 @@
     onCreate,
     onOpen,
     onOpenRecent,
-    onDropFile,
+    dropHover = false,
   }: {
     recents: RecentFile[];
     busy?: boolean;
     onCreate: (params: NewDocParams) => void;
     onOpen: () => void;
     onOpenRecent: (recent: RecentFile) => void;
-    onDropFile: (file: File) => void;
+    /** A file drag is over the screen: show the drop state. */
+    dropHover?: boolean;
   } = $props();
-
-  let dragOver = $state(false);
 
   const CARDS = [
     { mode: 'pixel', title: 'start.newPixel', hint: 'start.newPixelHint' },
@@ -56,8 +62,10 @@
     // A clipboard image sets the size, unless the user typed one meanwhile.
     void clipboardDocSize(mode).then((p) => {
       if (p && expanded === mode && width === w && height === h) {
-        width = p.width;
-        height = p.height;
+        prefillKeepingSelection(() => {
+          width = p.width;
+          height = p.height;
+        });
       }
     });
   }
@@ -76,30 +84,13 @@
   const focusOnFinePointer: Attachment<HTMLInputElement> = (input) => {
     if (window.matchMedia('(pointer: fine)').matches) input.select();
   };
-
-  function onDragOver(e: DragEvent) {
-    if (!e.dataTransfer?.types.includes('Files')) return;
-    e.preventDefault();
-    dragOver = true;
-  }
-
-  function onDrop(e: DragEvent) {
-    e.preventDefault();
-    dragOver = false;
-    const file = e.dataTransfer?.files[0];
-    if (file) onDropFile(file);
-  }
-
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
 
 <main
   class="flex h-full flex-col items-center justify-center bg-pc-bg p-6 text-pc-text"
-  class:bg-pc-panel={dragOver}
-  ondragover={onDragOver}
-  ondragleave={() => (dragOver = false)}
-  ondrop={onDrop}
+  class:bg-pc-panel={dropHover}
 >
   <section
     class="w-full max-w-xl rounded border border-pc-border bg-pc-panel p-6 shadow-xl"
@@ -155,10 +146,13 @@
             />
           </button>
           {#if open}
+            <!-- novalidate: an out-of-range size is clamped by `newDocParams`,
+                 not refused by the browser's min / max check (app-shell AC-06). -->
             <form
               id={`new-${card.mode}-form`}
               class="flex flex-wrap items-center gap-2 px-4 pb-4"
               aria-label={t(card.title)}
+              novalidate
               onsubmit={(e) => {
                 e.preventDefault();
                 const params = newDocParams(card.mode, width, height);

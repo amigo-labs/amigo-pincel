@@ -2,7 +2,7 @@
 // (src/modes/pixel/PixelEditor.svelte, src/modes/image/ImageEditor.svelte).
 // See docs/specs/pincel.md §1.1 "Two modes" and §9.2.
 import type { TabBarProps } from '../components/layout/TabBar.svelte';
-import type { FileLocation, OpenedFile } from '../fs';
+import type { FileFormat, FileLocation, OpenedFile } from '../fs';
 import type { AutosaveSnapshotMeta } from '../idb/autosave';
 import type { RecentFile } from '../idb/recent-files';
 import type { EditorMenuHandlers } from '../menu';
@@ -62,6 +62,21 @@ export interface EditorSession {
   recover(bytes: Uint8Array, meta: AutosaveSnapshotMeta): Promise<void>;
 }
 
+/** How an open editor takes files dropped onto it (docs/specs/file-access.md
+ *  AC-20 – AC-28). The shell sorts the drop, asks, and opens documents; the
+ *  editor only adds layers. */
+export interface DropTarget {
+  /** True while the document is loaded and no editor dialog is open. */
+  accepts: () => boolean;
+  /** Raster formats "Add as layer" takes (Pixel mode: PNG only). */
+  layerFormats: readonly FileFormat[];
+  /** Adds `file` as a new layer above the active one, placed and sized as
+   *  a paste of another image. Resolves once the layer is added, or
+   *  skipped by the larger-image dialog's Cancel; rejects when the image
+   *  cannot be decoded. */
+  addLayer: (file: OpenedFile) => Promise<void>;
+}
+
 /** Props every editor component accepts. The shell mounts at most one
  *  editor per mode, when the first document of that mode opens, and
  *  releases it with its last tab (document-tabs AC-16, AC-22). Documents
@@ -113,6 +128,11 @@ export interface EditorProps {
   /** Re-open a recent through the shell, which reads the file (FSA handle
    *  or Tauri path) and routes it to the mode the format belongs to. */
   onOpenRecent: (recent: RecentFile) => void;
+  /** Show the shell's dismissable error notice, e.g. when reading a file
+   *  the editor opens itself fails (docs/specs/file-access.md AC-14, AC-16). */
+  onNotice: (message: string) => void;
+  /** How the editor takes dropped files; `null` on unmount. */
+  registerDropTarget: (target: DropTarget | null) => void;
   /** Native-menu (Tauri) items the editor serves; `null` on unmount. The
    *  shell forwards the menu only to the active tab's editor. */
   registerMenuHandlers: (handlers: EditorMenuHandlers | null) => void;

@@ -13,6 +13,7 @@
   } from '../../../lib/components/layers/layers';
   import { blendModeNames, type Document } from '../../../lib/core';
   import { t } from '../../../lib/i18n/index.svelte';
+  import { layerTreeOrder } from '../layer-order';
 
   interface Props {
     doc: Document | null;
@@ -43,29 +44,8 @@
     void p.rev;
     const doc = p.doc;
     if (!doc) return [];
-    // Children of each parent (`-1` = the root), bottom first.
-    const children: Record<number, number[]> = {};
-    for (let i = 0; i < doc.layerCount; i += 1) {
-      let id: number;
-      try {
-        id = doc.layerIdAt(i);
-      } catch {
-        continue;
-      }
-      const parent = doc.layerParent(id) ?? -1;
-      (children[parent] ??= []).push(id);
-    }
-    const order: number[] = [];
-    const walk = (parent: number, guard: number) => {
-      if (guard > doc.layerCount) return;
-      for (const id of [...(children[parent] ?? [])].reverse()) {
-        order.push(id);
-        walk(id, guard + 1);
-      }
-    };
-    walk(-1, 0);
     const list: Row[] = [];
-    for (const id of order) {
+    for (const id of layerTreeOrder(doc)) {
       const kind = doc.layerKind(id);
       const editable = doc.layerEditable(id);
       list.push({

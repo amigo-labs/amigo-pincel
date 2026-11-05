@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: L
 mode: Pixel
@@ -41,29 +41,29 @@ Already decided: blend modes are computed in u8 sRGB, and Aseprite pixel-exact p
 
 ### Linked cels
 
-- [ ] AC-01 (event): When a frame contains a cel linked to another frame's image or tilemap cel on the same layer, then `compose()` renders that frame exactly as if the link were replaced by a copy of the target cel — the target's pixel or tile data, at the target's position, with the target's cel opacity — under the linking layer's opacity and blend mode.
-- [ ] AC-02 (event): When onion skin includes a neighbour frame that contains linked cels, then the neighbour renders through the link like any other cel.
-- [ ] AC-03 (event): When a frame containing linked cels is exported as PNG or as part of an atlas, then the export succeeds and its pixels equal `compose()`'s output for that frame.
-- [ ] AC-04 (event): When a sprite with linked cels is written to `.aseprite` and read back, then every frame composes to the same pixels as before writing.
-- [ ] AC-05 (error): If a linked cel's target frame does not exist in the sprite, or the target frame has no cel on that layer, then `compose()` fails with a structured `RenderError` naming the layer, the linking frame and the target frame.
-- [ ] AC-06 (error): If a linked cel's target is itself a linked cel (including a cel linked to its own frame), then `compose()` fails with a structured `RenderError` naming the layer, the linking frame and the target frame, and does not loop.
-- [ ] AC-07 (error): If the link target's data kind doesn't match the layer kind (tile data on an image layer or image data on a tilemap layer), then `compose()` fails with `RenderError::CelTypeMismatch`, as for an unlinked cel.
+- [x] AC-01 (event): When a frame contains a cel linked to another frame's image or tilemap cel on the same layer, then `compose()` renders that frame exactly as if the link were replaced by a copy of the target cel — the target's pixel or tile data, at the target's position, with the target's cel opacity — under the linking layer's opacity and blend mode.
+- [x] AC-02 (event): When onion skin includes a neighbour frame that contains linked cels, then the neighbour renders through the link like any other cel.
+- [x] AC-03 (event): When a frame containing linked cels is exported as PNG or as part of an atlas, then the export succeeds and its pixels equal `compose()`'s output for that frame.
+- [x] AC-04 (event): When a sprite with linked cels is written to `.aseprite` and read back, then every frame composes to the same pixels as before writing.
+- [x] AC-05 (error): If a linked cel's target frame does not exist in the sprite, or the target frame has no cel on that layer, then `compose()` fails with a structured `RenderError` naming the layer, the linking frame and the target frame.
+- [x] AC-06 (error): If a linked cel's target is itself a linked cel (including a cel linked to its own frame), then `compose()` fails with a structured `RenderError` naming the layer, the linking frame and the target frame, and does not loop.
+- [x] AC-07 (error): If the link target's data kind doesn't match the layer kind (tile data on an image layer or image data on a tilemap layer), then `compose()` fails with `RenderError::CelTypeMismatch`, as for an unlinked cel.
 
 ### Group layers
 
-- [ ] AC-08 (always): A layer inside a hidden group, at any depth, does not render under the visible-layers filter.
-- [ ] AC-09 (event): When a group's opacity is below 255, then its children are first composited together and the result is blended onto the layers below the group at the group's opacity — e.g. an opaque red child over an opaque blue child in a group at opacity 128, over an opaque white background, gives a pink overlap pixel with no blue showing through.
-- [ ] AC-10 (event): When a group's blend mode is not Normal, then the composite of its children is blended onto the layers below the group with the group's blend mode.
-- [ ] AC-11 (event): When a group has opacity below 255 or a blend mode other than Normal, then each child blends with its blend mode against the group's own content below it (its lower siblings), not against the layers below the group — e.g. a Multiply red child as the only child of a group at opacity 254 over a mid-grey background renders the red at the group's opacity, not the multiplied dark red.
-- [ ] AC-12 (always): A group at opacity 255 with blend mode Normal whose descendants all use blend mode Normal renders, per channel within 1, the same pixels as the same layers without the group.
-- [ ] AC-13 (event): When groups are nested, then each level applies its own opacity and blend mode to the composite of its subtree — e.g. an opaque child inside three nested groups at opacity 128 each renders with alpha 32 ± 2, and nesting at least eight levels deep renders without error.
-- [ ] AC-14 (event): When a group's opacity is 0, then its subtree contributes nothing to the output.
-- [ ] AC-15 (option): Where the layer filter is "all layers", groups apply their opacity and blend mode while visibility is ignored.
-- [ ] AC-16 (option): Where the layer filter selects explicit layers, a group's opacity and blend mode apply only if that group is itself selected; a selected child whose group is not selected renders as if it had no parent group.
-- [ ] AC-17 (always): Composing a sub-viewport or a dirty hint returns the same pixels as the matching region of a full-frame compose, for documents with groups and linked cels.
-- [ ] AC-18 (event): When a sprite with nested groups that use non-default opacity and blend modes is written to `.aseprite` and read back, then every frame composes to the same pixels as before writing.
-- [ ] AC-19 (error): If the layer hierarchy is inconsistent — a parent cycle, or a layer whose parent id names no layer — then `compose()` returns without panicking or hanging; a layer with a parent id that names no layer renders as a top-level layer.
-- [ ] AC-20 (always): A group at opacity 255 with blend mode Normal passes its children through: a Multiply child multiplies with the layers below the group.
+- [x] AC-08 (always): A layer inside a hidden group, at any depth, does not render under the visible-layers filter.
+- [x] AC-09 (event): When a group's opacity is below 255, then its children are first composited together and the result is blended onto the layers below the group at the group's opacity — e.g. an opaque red child over an opaque blue child in a group at opacity 128, over an opaque white background, gives a pink overlap pixel with no blue showing through.
+- [x] AC-10 (event): When a group's blend mode is not Normal, then the composite of its children is blended onto the layers below the group with the group's blend mode.
+- [x] AC-11 (event): When a group has opacity below 255 or a blend mode other than Normal, then each child blends with its blend mode against the group's own content below it (its lower siblings), not against the layers below the group — e.g. a Multiply red child as the only child of a group at opacity 254 over a mid-grey background renders the red at the group's opacity, not the multiplied dark red.
+- [x] AC-12 (always): A group at opacity 255 with blend mode Normal whose descendants all use blend mode Normal renders, per channel within 1, the same pixels as the same layers without the group.
+- [x] AC-13 (event): When groups are nested, then each level applies its own opacity and blend mode to the composite of its subtree — e.g. an opaque child inside three nested groups at opacity 128 each renders with alpha 32 ± 2, and nesting at least eight levels deep renders without error.
+- [x] AC-14 (event): When a group's opacity is 0, then its subtree contributes nothing to the output.
+- [x] AC-15 (option): Where the layer filter is "all layers", groups apply their opacity and blend mode while visibility is ignored.
+- [x] AC-16 (option): Where the layer filter selects explicit layers, a group's opacity and blend mode apply only if that group is itself selected; a selected child whose group is not selected renders as if it had no parent group.
+- [x] AC-17 (always): Composing a sub-viewport or a dirty hint returns the same pixels as the matching region of a full-frame compose, for documents with groups and linked cels.
+- [x] AC-18 (event): When a sprite with nested groups that use non-default opacity and blend modes is written to `.aseprite` and read back, then every frame composes to the same pixels as before writing.
+- [x] AC-19 (error): If the layer hierarchy is inconsistent — a parent cycle, or a layer whose parent id names no layer — then `compose()` returns without panicking or hanging; a layer with a parent id that names no layer renders as a top-level layer.
+- [x] AC-20 (always): A group at opacity 255 with blend mode Normal passes its children through: a Multiply child multiplies with the layers below the group.
 
 ## Technical notes
 
@@ -97,6 +97,13 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 | A linked cel shares its target's position and cel opacity, not only its pixels | In Aseprite's document model links share one cel-data object (image, bounds, opacity); `RemoveFrame` already follows that rule | Low: Aseprite writes identical header values for both cels anyway |
 | A group composites its children in isolation (children blend against the group's content, not the backdrop) whenever the group is not 100 % Normal | §4.2 prescribes a temporary buffer per group | Medium: Aseprite's own group rendering is not cross-validated; a reference fixture would settle it |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- Linked cels compose like a copy of their target, including onion skin, export and the Aseprite round trip; missing, chained or wrong-kind targets fail with an error naming the frames
+- Groups fold their children: hidden groups hide their subtree, group opacity and blend mode apply to the children's composite, isolated groups blend their children against the group's own content, pass-through groups stay as before, at any nesting depth and for every layer filter, viewport and dirty hint
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -105,26 +112,26 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `compose_linked_cel_renders_like_a_copy_of_its_target` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | ba53299 |
+| AC-02 | `compose_onion_skin_renders_linked_neighbours` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | ba53299 |
+| AC-03 | `export_frames_with_linked_cels_equal_compose` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | 6aed618 |
+| AC-04 | `linked_cels_compose_the_same_after_aseprite_round_trip` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | ba53299 |
+| AC-05 | `compose_linked_cel_with_missing_target_fails_naming_frames` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | 35f631c |
+| AC-06 | `compose_chained_or_self_linked_cel_fails_without_looping` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | 6aed618 |
+| AC-07 | `compose_linked_target_of_wrong_kind_fails_with_type_mismatch` in `crates/pincel-core/tests/render_linked_cels.rs` | verified | 35f631c |
+| AC-08 | `compose_hides_layers_inside_hidden_group_at_any_depth` in `crates/pincel-core/tests/render_groups.rs` | verified | 9af6b69 |
+| AC-09 | `compose_group_opacity_composites_children_first` in `crates/pincel-core/tests/render_groups.rs` | verified | 9a7f4f0 |
+| AC-10 | `compose_group_blend_mode_applies_to_children_composite` in `crates/pincel-core/tests/render_groups.rs` | verified | c43a845 |
+| AC-11 | `compose_isolated_group_child_blends_against_group_content` in `crates/pincel-core/tests/render_groups.rs` | verified | 5dd2afe |
+| AC-12 | `compose_pass_through_groups_with_normal_children_match_ungrouped_layers` in `crates/pincel-core/tests/render_groups.rs` | verified | 22f5a52 |
+| AC-13 | `compose_nested_groups_apply_each_level` in `crates/pincel-core/tests/render_groups.rs` | verified | 3678aba |
+| AC-14 | `compose_group_at_zero_opacity_contributes_nothing` in `crates/pincel-core/tests/render_groups.rs` | verified | 48b5d53 |
+| AC-15 | `compose_all_layers_filter_folds_hidden_groups` in `crates/pincel-core/tests/render_groups.rs` | verified | 6aed618 |
+| AC-16 | `compose_only_filter_folds_selected_groups_only` in `crates/pincel-core/tests/render_groups.rs` | verified | 35f631c |
+| AC-17 | `compose_subviewport_and_dirty_hint_match_full_frame_with_groups_and_links` in `crates/pincel-core/tests/render_groups.rs` | verified | b5e6482 |
+| AC-18 | `nested_groups_compose_the_same_after_aseprite_round_trip` in `crates/pincel-core/tests/render_groups.rs` | verified | 6aed618 |
+| AC-19 | `compose_inconsistent_hierarchy_returns_without_panicking` in `crates/pincel-core/tests/render_groups.rs` | verified | 6aed618 |
+| AC-20 | `compose_pass_through_group_lets_multiply_child_reach_backdrop` in `crates/pincel-core/tests/render_groups.rs` | verified | 6aed618 |
 
 ## Decisions
 
@@ -135,3 +142,10 @@ Hints from a 2026-10-29 code check; line numbers drift — grep for the names.
 - AC-12 allows a difference of 1 per channel because isolated u8 compositing may round differently from compositing straight onto the backdrop.
 - 2026-10-29: A Decision Log entry supersedes the folding part of 2026-07-09: `compose()` follows linked cels (target's data, position and cel opacity) and folds a group's opacity / blend mode through a temporary buffer when the group is not 255 / Normal, and the 2026-07-09 row is marked "folding superseded 2026-10-29" — real `.aseprite` files use both, §4.2 already describes the fold, and the entry avoids an AGENTS.md §9 phase violation, as 2026-10-27 superseded the HSL fallback (owner accepted the recommendation).
 - 2026-10-29: A group at 255 / Normal passes its children through to the backdrop; only opacity < 255 or a non-Normal blend mode isolates (AC-20) — existing files keep their look, AC-12 already assumes it, and it matches Aseprite's renderer as far as known (a reference fixture should confirm); Image mode stays always-isolated by design (owner accepted the recommendation).
+- 2026-11-04: AC-05 / AC-06 raise two new `RenderError` variants, `LinkedCelTargetMissing { layer, frame, target }` and `LinkedCelChained { layer, frame, target }`, and `LinkedCelUnsupported` is removed — the ACs ask for structured errors naming all three, and no link is refused any more.
+- 2026-11-04: A link whose target holds the wrong data kind (AC-07), or a buffer in the wrong color mode, reports the *linking* frame in its error — that is the frame being composed, as for an unlinked cel.
+- 2026-11-04: Under an explicit layer selection a drawn layer hangs under its nearest *selected* ancestor group, not only its direct parent — AC-16 settles the direct case ("as if it had no parent group"), and skipping an unselected middle group the same way keeps a selected grandparent's fold.
+- 2026-11-04: Groups that parent each other (a cycle) are never reached from the top level, so they and their children render nothing; a parent id naming no layer makes the layer top-level (AC-19) — the walk is capped at the layer count either way, and the writer refuses both documents.
+- 2026-11-04: Isolating groups reuse one viewport-sized scratch buffer per nesting level for the whole compose call; a sprite without group layers allocates nothing extra, so the `zoom == 1` path stays allocation-free for it (§4.1).
+- 2026-11-04: AC-12 / AC-17 / AC-18 use deterministic xorshift-driven tests instead of `proptest`, which `pincel-core` does not depend on (adding it is a dependency change).
+- 2026-11-04: AC-12, AC-19 and AC-20 were green before the fold was built — the old code rendered every group as pass-through and already survived a cycle. A temporary break that isolated every group (no pass-through) turned AC-20 red (`[255, 0, 0, 255]` vs `[128, 0, 0, 255]`) and was restored; AC-12 stays green under that break by design (isolation of Normal layers differs by at most 1).

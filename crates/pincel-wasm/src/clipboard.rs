@@ -458,7 +458,7 @@ mod tests {
         let mut doc = Document::new(4, 4).expect("doc");
         let big = Document::new(6, 5)
             .expect("doc")
-            .export_png(0)
+            .export_png(0, None)
             .expect("png");
         doc.paste_layer(&big, 1, 2, true).expect("paste");
         assert_eq!((doc.width(), doc.height()), (7, 7));
@@ -477,7 +477,7 @@ mod tests {
         };
         let png = Document::new(1, 1)
             .expect("doc")
-            .export_png(0)
+            .export_png(0, None)
             .expect("png");
         assert!(doc.paste_layer(&png, 0, 0, false).is_err());
         assert_eq!(doc.layer_count(), 1);
@@ -488,11 +488,11 @@ mod tests {
     fn image_key_matches_for_the_same_pixels_and_differs_otherwise() {
         let doc = painted();
         let a = doc.copy_selection(false).expect("copy").png();
-        let b = doc.export_png(0).expect("png");
+        let b = doc.export_png(0, None).expect("png");
         assert_eq!(Document::image_key(&a), Document::image_key(&b));
         let other = Document::new(4, 4)
             .expect("doc")
-            .export_png(0)
+            .export_png(0, None)
             .expect("png");
         assert_ne!(Document::image_key(&a), Document::image_key(&other));
         assert!(Document::image_key(&[1, 2, 3]).is_err());

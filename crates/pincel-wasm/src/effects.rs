@@ -285,6 +285,69 @@ mod tests {
         assert_eq!(doc.undo_depth(), 0);
     }
 
+    /// The active cel's raw bytes at the current frame.
+    fn cel_bytes(doc: &Document) -> Vec<u8> {
+        match &doc.cels.get(crate::DEFAULT_LAYER_ID, doc.current_frame) {
+            Some(cel) => match &cel.data {
+                CelData::Image(buffer) => buffer.data.clone(),
+                _ => panic!("not an image cel"),
+            },
+            None => panic!("no cel"),
+        }
+    }
+
+    #[test]
+    fn apply_effect_on_an_indexed_sprite_errors_and_changes_nothing() {
+        let mut doc = Document::new(2, 1).expect("dims");
+        let indexed = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = indexed;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, indexed);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let depth = doc.undo_depth();
+        assert!(doc.apply_effect("invert", &[]).is_err());
+        assert_eq!(cel_bytes(&doc), vec![1, 0]);
+        assert_eq!(doc.undo_depth(), depth);
+    }
+
+    #[test]
+    fn apply_effect_without_a_cel_on_the_current_frame_errors_and_changes_nothing() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        let frame = doc.add_frame(100).expect("frame");
+        doc.set_current_frame(frame).expect("step");
+        let depth = doc.undo_depth();
+        assert!(doc.apply_effect("invert", &[]).is_err());
+        assert!(
+            doc.cels
+                .get(crate::DEFAULT_LAYER_ID, doc.current_frame)
+                .is_none()
+        );
+        assert_eq!(doc.undo_depth(), depth);
+        assert_eq!(pixel(&doc, 0, 0), 0xFF0000FF, "frame 0 untouched");
+    }
+
+    #[test]
+    fn apply_effect_on_a_locked_layer_errors_and_changes_nothing() {
+        let mut doc = Document::new(2, 2).expect("dims");
+        doc.apply_tool("pencil", 0, 0, 0xFF0000FF).expect("paint");
+        doc.end_stroke();
+        doc.set_layer_editable(crate::DEFAULT_LAYER_ID.0, false)
+            .expect("lock");
+        let before = cel_bytes(&doc);
+        let depth = doc.undo_depth();
+        assert!(doc.apply_effect("invert", &[]).is_err());
+        assert_eq!(cel_bytes(&doc), before);
+        assert_eq!(doc.undo_depth(), depth);
+    }
+
     #[test]
     fn preview_effect_leaves_document_and_history_untouched() {
         let mut doc = Document::new(2, 2).expect("dims");

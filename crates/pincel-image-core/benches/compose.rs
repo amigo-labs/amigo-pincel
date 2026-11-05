@@ -16,6 +16,13 @@
 //!   layer of a 3840×2160, 10-layer document.
 //! * `image_effect/gaussian_r10_4k` — a radius-10 Gaussian blur of one
 //!   3840×2160 layer, including the RGBA8 hand-off to `pincel-effects`.
+//! * `image_cache/brush_100_dabs_fit_4k_10layers` — the same 100 dabs through
+//!   a `CommandBus`, each followed by updating the document's [`RenderCache`]
+//!   and presenting the dab's changed region at fit zoom (½), as the editor
+//!   does (docs/specs/performance-image-cache.md, AC-02).
+//! * `image_cache/fit_viewport_4k_10layers` — presenting the whole 3840×2160
+//!   canvas into the 1920×1080 viewport from a current cache (pan / zoom
+//!   without edits).
 //!
 //! The 4K scenarios take hundreds of milliseconds to seconds per
 //! iteration natively, so their groups run the minimum 10 samples.
@@ -27,9 +34,10 @@ use criterion::{
     BenchmarkGroup, Criterion, criterion_group, criterion_main, measurement::WallTime,
 };
 use pincel_effects::{Effect, EffectImage, blur::GaussianBlur};
+use pincel_image_core::command::Damage;
 use pincel_image_core::{
-    Brush, Color, Command, Document, ImageBuffer, Interpolation, Layer, Pencil, Point, Rect,
-    compose, compose_region, scale,
+    Brush, Color, Command, CommandBus, Document, ImageBuffer, Interpolation, Layer, Pencil, Point,
+    Rect, RenderCache, compose, compose_region, scale,
 };
 
 /// 4K as the budget table defines it (docs/specs/pincel.md §4.5).
@@ -138,6 +146,57 @@ fn bench_brush_stroke(c: &mut Criterion) {
     group.finish();
 }
 
+/// The bounding rect of `damage`, or the whole `doc` canvas.
+fn damaged_rect(damage: &Damage, doc: &Document) -> Rect {
+    let whole = Rect::new(0, 0, doc.canvas.width(), doc.canvas.height());
+    match damage {
+        Damage::Rects(rects) => rects.iter().copied().reduce(|a, b| {
+            let (x0, y0) = (a.x.min(b.x), a.y.min(b.y));
+            let (x1, y1) = (a.right().max(b.right()), a.bottom().max(b.bottom()));
+            Rect::new(x0, y0, (x1 - x0) as u32, (y1 - y0) as u32)
+        }),
+        _ => None,
+    }
+    .unwrap_or(whole)
+}
+
+fn bench_cache(c: &mut Criterion) {
+    let mut group = c.benchmark_group("image_cache");
+    heavy(&mut group);
+    let mut bus = CommandBus::new(document(UHD.0, UHD.1, 10));
+    let top = bus.document.layer_count() - 1;
+    let pencil = Pencil::new(Brush::new(20, Color::rgba(20, 40, 200, 255), 1.0));
+    let dabs: Vec<Point> = (0..100)
+        .map(|i| Point::new(200.0 + i as f32 * 30.0, 200.0 + i as f32 * 15.0))
+        .collect();
+    // The document is open and shown at fit zoom before the stroke starts.
+    let mut cache = RenderCache::new(&bus.document);
+    let whole = Rect::new(0, 0, UHD.0, UHD.1);
+    let opened = bus.take_damage();
+    cache.update(&bus.document, opened);
+    black_box(cache.region(&bus.document, whole, VIEWPORT.0, VIEWPORT.1));
+
+    group.bench_function("brush_100_dabs_fit_4k_10layers", |b| {
+        b.iter(|| {
+            for p in &dabs {
+                let cmd = pencil
+                    .stroke(top, std::slice::from_ref(p), &bus.document)
+                    .expect("the dab lies on the canvas");
+                bus.apply(Box::new(cmd)).expect("stroke applies");
+                let damage = bus.take_damage();
+                let rect = damaged_rect(&damage, &bus.document);
+                cache.update(&bus.document, damage);
+                let (ow, oh) = (rect.w.div_ceil(2), rect.h.div_ceil(2));
+                black_box(cache.region(&bus.document, rect, ow, oh));
+            }
+        });
+    });
+    group.bench_function("fit_viewport_4k_10layers", |b| {
+        b.iter(|| black_box(cache.region(&bus.document, whole, VIEWPORT.0, VIEWPORT.1)));
+    });
+    group.finish();
+}
+
 fn bench_gaussian_blur(c: &mut Criterion) {
     let mut group = c.benchmark_group("image_effect");
     heavy(&mut group);
@@ -158,6 +217,7 @@ criterion_group!(
     bench_full_compose,
     bench_region_compose,
     bench_brush_stroke,
+    bench_cache,
     bench_gaussian_blur
 );
 criterion_main!(benches);

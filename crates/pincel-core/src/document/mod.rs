@@ -49,6 +49,18 @@ pub struct Metadata {
     pub external_files: Vec<ExternalFile>,
 }
 
+impl Metadata {
+    /// The grid a sprite without a stored one uses, and what the
+    /// `.aseprite` writer stores for `grid: None`: 16×16 cells at the
+    /// origin (Aseprite's default).
+    pub const DEFAULT_GRID: Rect = Rect::new(0, 0, 16, 16);
+
+    /// The stored grid, or [`Metadata::DEFAULT_GRID`] when there is none.
+    pub fn grid_or_default(&self) -> Rect {
+        self.grid.unwrap_or(Self::DEFAULT_GRID)
+    }
+}
+
 /// One External Files entry (spec §7.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExternalFile {

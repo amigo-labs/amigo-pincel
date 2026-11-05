@@ -1,15 +1,17 @@
 // Prevents an additional console window on Windows in release.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
 use tauri::menu::{
-    AboutMetadata, CheckMenuItemBuilder, Menu, MenuItemBuilder, PredefinedMenuItem, Submenu,
-    SubmenuBuilder,
+    AboutMetadata, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
+    Submenu, SubmenuBuilder,
 };
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Wry};
@@ -102,6 +104,7 @@ struct Labels {
     zoom_out: &'static str,
     reset_zoom: &'static str,
     help: &'static str,
+    shortcuts: &'static str,
     about: &'static str,
     check_updates: &'static str,
     auto_update: &'static str,
@@ -138,6 +141,7 @@ const LABELS_EN: Labels = Labels {
     zoom_out: "Zoom Out",
     reset_zoom: "Reset Zoom",
     help: "Help",
+    shortcuts: "Keyboard Shortcuts",
     about: "About Pincel",
     check_updates: "Check for Updates\u{2026}",
     auto_update: "Install Updates Automatically",
@@ -171,6 +175,7 @@ const LABELS_DE: Labels = Labels {
     zoom_out: "Verkleinern",
     reset_zoom: "Zoom zur\u{fc}cksetzen",
     help: "Hilfe",
+    shortcuts: "Tastenk\u{fc}rzel",
     about: "\u{dc}ber Pincel",
     check_updates: "Nach Updates suchen\u{2026}",
     auto_update: "Updates automatisch installieren",
@@ -196,8 +201,7 @@ fn current_labels() -> &'static Labels {
     }
 }
 
-// Rebuild the whole native menu in `lang`, keeping the Open Recent
-// entries the renderer pushed earlier.
+// Rebuild the whole native menu in `lang`.
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
     GERMAN.store(is_german(&lang), Ordering::Relaxed);
@@ -205,6 +209,59 @@ async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
         // Nothing to relabel: the in-app menu bar follows the locale itself.
         return Ok(());
     }
+    rebuild_menu(&app)
+}
+
+/// Accelerators the renderer rebound (docs/specs/power-user-shortcuts-keymap.md):
+/// menu item id → accelerator, an empty string for none. Items not listed
+/// keep their default.
+static ACCELERATORS: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+
+/// The accelerator of menu item `id`: the rebound one, else `default`.
+fn accelerator(id: &str, default: &str) -> Option<String> {
+    let rebound = ACCELERATORS
+        .lock()
+        .ok()
+        .and_then(|map| map.iter().find(|(k, _)| k == id).map(|(_, v)| v.clone()));
+    match rebound {
+        Some(a) if a.is_empty() => None,
+        Some(a) => Some(a),
+        None => Some(default.to_string()),
+    }
+}
+
+/// A menu item whose accelerator the renderer may rebind.
+fn bound_item(
+    app: &AppHandle,
+    id: &str,
+    label: &str,
+    default: &str,
+) -> tauri::Result<MenuItem<Wry>> {
+    let builder = MenuItemBuilder::with_id(id, label);
+    match accelerator(id, default) {
+        Some(a) => builder.accelerator(a),
+        None => builder,
+    }
+    .build(app)
+}
+
+// Push the keymap's rebound native-menu chords (`menu:undo` →
+// `CmdOrCtrl+U`) and rebuild the menu, so its accelerators and the hints
+// it draws follow the user's keymap. A no-op where there is no native menu.
+#[tauri::command]
+async fn set_menu_accelerators(app: AppHandle, map: HashMap<String, String>) -> Result<(), String> {
+    if let Ok(mut current) = ACCELERATORS.lock() {
+        *current = map.into_iter().collect();
+    }
+    if !NATIVE_MENU {
+        return Ok(());
+    }
+    rebuild_menu(&app)
+}
+
+// Rebuild the whole native menu (labels and accelerators), keeping the
+// Open Recent entries the renderer pushed earlier.
+fn rebuild_menu(app: &AppHandle) -> Result<(), String> {
     let recents: Vec<RecentMenuItem> = app
         .menu()
         .and_then(|menu| find_submenu(&menu, RECENT_MENU_ID))
@@ -223,12 +280,12 @@ async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
             })
         })
         .collect();
-    let menu = build_menu(&app).map_err(|e| e.to_string())?;
+    let menu = build_menu(app).map_err(|e| e.to_string())?;
     app.set_menu(menu.clone()).map_err(|e| e.to_string())?;
     if !recents.is_empty() {
         let submenu = find_submenu(&menu, RECENT_MENU_ID)
             .ok_or_else(|| "open-recent submenu not found".to_string())?;
-        rebuild_recent_submenu(&app, &submenu, &recents).map_err(|e| e.to_string())?;
+        rebuild_recent_submenu(app, &submenu, &recents).map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -288,35 +345,23 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let new_item = MenuItemBuilder::with_id("menu:new", l.new)
         .accelerator("CmdOrCtrl+N")
         .build(app)?;
-    let open_item = MenuItemBuilder::with_id("menu:open", l.open)
-        .accelerator("CmdOrCtrl+O")
-        .build(app)?;
+    let open_item = bound_item(app, "menu:open", l.open, "CmdOrCtrl+O")?;
     let recent_placeholder = MenuItemBuilder::with_id("recent:_empty", l.no_recent)
         .enabled(false)
         .build(app)?;
     let recent_submenu = SubmenuBuilder::with_id(app, RECENT_MENU_ID, l.open_recent)
         .item(&recent_placeholder)
         .build()?;
-    let save_item = MenuItemBuilder::with_id("menu:save", l.save)
-        .accelerator("CmdOrCtrl+S")
-        .build(app)?;
-    let save_as_item = MenuItemBuilder::with_id("menu:saveAs", l.save_as)
-        .accelerator("CmdOrCtrl+Shift+S")
-        .build(app)?;
+    let save_item = bound_item(app, "menu:save", l.save, "CmdOrCtrl+S")?;
+    let save_as_item = bound_item(app, "menu:saveAs", l.save_as, "CmdOrCtrl+Shift+S")?;
     // File ▸ Close closes the active tab; the menu owns Cmd+W on macOS
     // (docs/specs/document-tabs.md "Tab keys").
-    let close_item = MenuItemBuilder::with_id("menu:close", l.close)
-        .accelerator("CmdOrCtrl+W")
-        .build(app)?;
+    let close_item = bound_item(app, "menu:close", l.close, "CmdOrCtrl+W")?;
 
     // Export items: the mounted editor serves them (Pixel mode both,
     // Image mode the PNG export); unserved ids are ignored by the shell.
-    let export_png_item = MenuItemBuilder::with_id("menu:exportPng", l.export_png)
-        .accelerator("CmdOrCtrl+E")
-        .build(app)?;
-    let export_sheet_item = MenuItemBuilder::with_id("menu:exportSheet", l.export_sheet)
-        .accelerator("CmdOrCtrl+Shift+E")
-        .build(app)?;
+    let export_png_item = bound_item(app, "menu:exportPng", l.export_png, "CmdOrCtrl+E")?;
+    let export_sheet_item = bound_item(app, "menu:exportSheet", l.export_sheet, "CmdOrCtrl+Alt+E")?;
     let export_animation_item =
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
     let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
@@ -348,12 +393,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .build()?;
 
     // Edit items
-    let undo_item = MenuItemBuilder::with_id("menu:undo", l.undo)
-        .accelerator("CmdOrCtrl+Z")
-        .build(app)?;
-    let redo_item = MenuItemBuilder::with_id("menu:redo", l.redo)
-        .accelerator("CmdOrCtrl+Shift+Z")
-        .build(app)?;
+    let undo_item = bound_item(app, "menu:undo", l.undo, "CmdOrCtrl+Z")?;
+    let redo_item = bound_item(app, "menu:redo", l.redo, "CmdOrCtrl+Shift+Z")?;
     let edit = SubmenuBuilder::new(app, l.edit)
         .item(&undo_item)
         .item(&redo_item)
@@ -379,7 +420,12 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&reset_zoom)
         .build()?;
 
+    // Help ▸ Keyboard Shortcuts: the mounted editor opens its overview
+    // (docs/specs/shortcut-overview.md); the start screen ignores it.
+    let shortcuts = bound_item(app, "menu:shortcuts", l.shortcuts, "CmdOrCtrl+/")?;
     let help = SubmenuBuilder::new(app, l.help)
+        .item(&shortcuts)
+        .separator()
         .item(&PredefinedMenuItem::about(
             app,
             Some(l.about),
@@ -452,6 +498,7 @@ fn main() {
             write_file_bytes,
             set_recent_menu,
             set_menu_language,
+            set_menu_accelerators,
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_auto

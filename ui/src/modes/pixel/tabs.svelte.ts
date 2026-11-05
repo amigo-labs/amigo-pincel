@@ -8,9 +8,11 @@ import type { Document } from '../../lib/core';
 import type { SaveTarget } from '../../lib/fs';
 import { applyOnion, stopPlayback } from './doc-ops';
 import { cancelPolygon, onWindowBlur } from './pointer';
+import { stopPreview } from './preview';
 import { syncMeta, syncSelection } from './render';
 import { dialogs, ed, live, play, tabInit, tabs, toolState, type PixelTab } from './stores/editor.svelte';
-import { fitView } from './view-ops';
+import { resetAxes } from './symmetry';
+import { fitNewDocument } from './view-ops';
 
 let nextId = 1;
 
@@ -27,9 +29,10 @@ export function openTab(doc: Document, saveTarget: SaveTarget): PixelTab {
   tabs.list.push(tab);
   allocated.push(tab);
   show(tab);
-  // A fresh document starts with the default onion skin and a fitted view.
+  // A fresh document starts with the default onion skin and a fitted view,
+  // fitted again once the panels that fill in with it shrank the stage.
   applyOnion(play.onion);
-  fitView();
+  fitNewDocument();
   return tab;
 }
 
@@ -40,8 +43,11 @@ export function activateTab(tab: PixelTab): void {
 }
 
 function show(tab: PixelTab): void {
-  // Gestures and sub-modes in flight belong to the tab being left.
+  // Gestures and sub-modes in flight belong to the tab being left; the
+  // symmetry axes are in its coordinates (symmetry AC-20).
   stopPlayback();
+  stopPreview();
+  resetAxes();
   onWindowBlur();
   cancelPolygon();
   toolState.stampTile = null;

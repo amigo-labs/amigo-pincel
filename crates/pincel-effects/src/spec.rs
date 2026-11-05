@@ -10,6 +10,9 @@
 //! Choice-style parameters (a blur kind, an algorithm) travel as small
 //! integer indices; booleans as `0` / `1`. Every constructor clamps or
 //! defaults out-of-range values the same way the underlying effect does.
+//! A colour travels as one slot holding `0xRRGGBBAA` as an integer (exact
+//! in an `f64`); a colour slot that is not an integer in `0..=u32::MAX` is
+//! an error, not clamped (`docs/specs/pincel.md` §15, 2026-10-29).
 
 use crate::adjust::{
     AutoLevel, BrightnessContrast, ColorBalance, CurveChannel, Curves, Exposure, Grayscale,
@@ -286,6 +289,7 @@ pub const EFFECT_NAMES: &[&str] = &[
     "relief",
     "add_noise",
     "reduce_noise",
+    "outline",
     "brightness_contrast",
     "hue_saturation",
     "curves",

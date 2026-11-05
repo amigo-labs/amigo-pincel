@@ -293,6 +293,30 @@ mod tests {
     }
 
     #[test]
+    fn palette_edits_past_last_entry_return_err_and_keep_palette() {
+        let (mut s, mut c) = doc();
+        let before = s.palette.clone();
+        // `doc()` holds three entries: index 3 is one past the last.
+        assert_eq!(
+            SetPaletteColor::new(3, Rgba::WHITE).apply(&mut s, &mut c),
+            Err(CommandError::UnknownPaletteEntry(3))
+        );
+        assert_eq!(
+            RemovePaletteEntry::new(3).apply(&mut s, &mut c),
+            Err(CommandError::UnknownPaletteEntry(3))
+        );
+        assert_eq!(
+            MovePaletteEntry::new(3, 0).apply(&mut s, &mut c),
+            Err(CommandError::UnknownPaletteEntry(3))
+        );
+        assert_eq!(
+            MovePaletteEntry::new(0, 3).apply(&mut s, &mut c),
+            Err(CommandError::UnknownPaletteEntry(3))
+        );
+        assert_eq!(s.palette, before);
+    }
+
+    #[test]
     fn add_palette_entry_appends_and_reverts() {
         let (mut s, mut c) = doc();
         let mut cmd = AddPaletteEntry::new(PaletteEntry::new(Rgba::TRANSPARENT));

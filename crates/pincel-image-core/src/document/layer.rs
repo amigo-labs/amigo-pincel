@@ -5,17 +5,20 @@ use crate::document::buffer::ImageBuffer;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// The kind of content a layer holds. Phase 1 supports raster only (spec §5.1).
+/// The kind of content a layer holds (spec §5.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum LayerKind {
     /// A standard pixel (raster) layer.
     #[default]
     Raster,
+    /// A group: no pixels of its own; its subtree follows it in the layer
+    /// list and composites in isolation (docs/specs/image-layer-groups.md).
+    Group,
 }
 
 /// A single image layer (spec §5.1).
 ///
-/// `pixels` always matches the document's canvas dimensions.
+/// `pixels` is canvas-sized for raster layers and 0×0 for groups.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Layer {
     /// Stable unique identifier.
@@ -24,7 +27,11 @@ pub struct Layer {
     pub name: String,
     /// Layer content kind.
     pub kind: LayerKind,
-    /// Straight-alpha RGBA8 pixels, canvas-sized.
+    /// The group this layer sits in; `None` at the root of the stack.
+    #[serde(default)]
+    pub parent: Option<Uuid>,
+    /// Straight-alpha RGBA8 pixels: canvas-sized for raster layers, 0×0 for
+    /// groups.
     pub pixels: ImageBuffer,
     /// Opacity in `[0.0, 1.0]`, applied before the blend mode.
     pub opacity: f32,
@@ -39,16 +46,7 @@ pub struct Layer {
 impl Layer {
     /// Creates a fully transparent raster layer of the given size.
     pub fn new_transparent(name: impl Into<String>, width: u32, height: u32) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            name: name.into(),
-            kind: LayerKind::Raster,
-            pixels: ImageBuffer::new_transparent(width, height),
-            opacity: 1.0,
-            blend_mode: BlendMode::Normal,
-            visible: true,
-            locked: false,
-        }
+        Self::from_pixels(name, ImageBuffer::new_transparent(width, height))
     }
 
     /// Creates a raster layer backed by an existing pixel buffer.
@@ -57,12 +55,27 @@ impl Layer {
             id: Uuid::new_v4(),
             name: name.into(),
             kind: LayerKind::Raster,
+            parent: None,
             pixels,
             opacity: 1.0,
             blend_mode: BlendMode::Normal,
             visible: true,
             locked: false,
         }
+    }
+
+    /// Creates an empty group at the root of the stack: visible, unlocked,
+    /// Normal at full opacity, with a 0×0 pixel buffer.
+    pub fn new_group(name: impl Into<String>) -> Self {
+        Self {
+            kind: LayerKind::Group,
+            ..Self::from_pixels(name, ImageBuffer::new_transparent(0, 0))
+        }
+    }
+
+    /// Whether this layer is a group.
+    pub fn is_group(&self) -> bool {
+        self.kind == LayerKind::Group
     }
 
     /// Builder: sets opacity, clamped to `[0.0, 1.0]`.
@@ -82,6 +95,12 @@ impl Layer {
         self.visible = visible;
         self
     }
+
+    /// Builder: sets the parent group.
+    pub fn with_parent(mut self, parent: Option<Uuid>) -> Self {
+        self.parent = parent;
+        self
+    }
 }
 
 #[cfg(test)]
@@ -96,7 +115,17 @@ mod tests {
         assert!(l.visible);
         assert!(!l.locked);
         assert_eq!(l.kind, LayerKind::Raster);
+        assert_eq!(l.parent, None);
         assert_eq!(l.pixels.width(), 8);
+    }
+
+    #[test]
+    fn new_group_has_no_pixels_and_no_parent() {
+        let g = Layer::new_group("Group 1");
+        assert!(g.is_group());
+        assert_eq!((g.pixels.width(), g.pixels.height()), (0, 0));
+        assert_eq!(g.parent, None);
+        assert!(g.visible && !g.locked);
     }
 
     #[test]

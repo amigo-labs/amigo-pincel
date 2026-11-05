@@ -9,6 +9,7 @@ import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
+import { armStroke, onTiledArea } from './symmetry';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -32,6 +33,22 @@ export const BG_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'rounded-rect',
   'polygon-shape',
 ]);
+
+/**
+ * The shading-ink ramp: the palette entries of the Shift+click range, or
+ * the whole palette without one, in palette order (packed RGBA).
+ */
+export function shadingRamp(): Uint32Array {
+  const doc = ed.doc;
+  if (!doc) return new Uint32Array();
+  const count = doc.paletteCount;
+  const range = colors.rampRange;
+  const from = range ? Math.min(range.from, count) : 0;
+  const to = range ? Math.min(range.to + 1, count) : count;
+  const out = new Uint32Array(Math.max(0, to - from));
+  for (let i = from; i < to; i += 1) out[i - from] = doc.paletteColor(i);
+  return out;
+}
 
 /** Packed RGBA of the color the current gesture paints with. */
 export function strokeColor(): number {
@@ -239,13 +256,26 @@ export function paintAt(e: PointerEvent) {
       // The core stamps the brush along the line between consecutive
       // points and skips off-canvas pixels; the whole drag is one undo
       // entry, closed by `endStroke` on pointerup.
-      ed.doc.beginStroke(
-        toolState.tool,
-        strokeColor(),
-        clampBrushSize(toolState.brushSize),
-        toolState.brushShape,
-        toolState.pixelPerfect,
-      );
+      if (toolState.tool === 'pencil' && toolState.pencilInk === 'shading') {
+        // Left button steps toward the ramp's end, right toward its start.
+        ed.doc.beginShadingStroke(
+          shadingRamp(),
+          live.useBg ? -1 : 1,
+          clampBrushSize(toolState.brushSize),
+          toolState.brushShape,
+          toolState.pixelPerfect,
+        );
+      } else {
+        ed.doc.beginStroke(
+          toolState.tool,
+          strokeColor(),
+          clampBrushSize(toolState.brushSize),
+          toolState.brushShape,
+          toolState.pixelPerfect,
+        );
+      }
+      // Symmetry and tiled mode mirror / wrap the stroke in the core.
+      armStroke(ed.doc);
     }
     ed.doc.strokeTo(target.x, target.y, strokePressure(e));
     live.lastPaint = target;
@@ -305,7 +335,10 @@ export function onPointerDown(e: PointerEvent) {
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(toolState.tool)) return;
   if (e.button !== 0 && e.button !== 2) return;
-  const inside = onCanvas(spriteCoord(e));
+  // In tiled mode a Pencil / Eraser press on a repeated copy paints the
+  // canvas pixel it shows (symmetry-tiled-mode AC-16); other tools clip.
+  const press = spriteCoord(e);
+  const inside = onCanvas(press) || (isBrushTool(toolState.tool) && onTiledArea(press));
   if (!inside && !view.spaceDown && !startsOffCanvas()) return;
   live.useBg = e.button === 2;
   stage.setPointerCapture(e.pointerId);
@@ -725,6 +758,16 @@ export function onPointerUp(e: PointerEvent) {
     try {
       if (live.dragTool === 'line') {
         ed.doc.applyLine(live.dragStart.x, live.dragStart.y, end.x, end.y, packed);
+      } else if (live.dragTool === 'gradient') {
+        // Foreground at the press, background at the release; a click
+        // (zero-length drag) changes nothing.
+        ed.doc.applyGradient(
+          Int32Array.of(live.dragStart.x, live.dragStart.y, end.x, end.y),
+          toolState.gradientKind,
+          toolState.gradientDither,
+          packColor(colors.color, colors.alpha),
+          packColor(colors.bgColor, colors.bgAlpha),
+        );
       } else if (isShapeTool(live.dragTool)) {
         const kind =
           live.dragTool === 'rectangle'

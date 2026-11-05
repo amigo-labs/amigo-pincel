@@ -118,7 +118,7 @@ impl Command for ResizeCanvas {
         let (hpos, vpos) = self.anchor.axes();
         let dx = axis_offset(self.new_width, doc.canvas.width(), hpos);
         let dy = axis_offset(self.new_height, doc.canvas.height(), vpos);
-        for layer in &mut doc.layers {
+        for layer in doc.layers.iter_mut().filter(|l| !l.is_group()) {
             layer.pixels = layer
                 .pixels
                 .offset_copy(self.new_width, self.new_height, dx, dy);

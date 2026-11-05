@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: Pixel
@@ -35,17 +35,17 @@ PNG frame export and sprite-sheet export get an **integer scale (×1–×10)**, 
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses File ▸ Export ▸ PNG (current frame) or presses its shortcut, then a dialog opens with a Scale choice of ×1, ×2, ×3, ×4, ×5, ×6, ×8 and ×10, and nothing is exported until the user confirms.
-- [ ] AC-02 (state): While the sprite sheet dialog is open, it offers the same Scale choice.
-- [ ] AC-03 (option): Where the scale is N, the exported PNG frame is `N × width` by `N × height` pixels (a 4×4 sprite at ×4 gives a PNG whose IHDR says 16×16).
-- [ ] AC-04 (option): Where the scale is N, the exported sprite-sheet PNG is N times as wide and N times as high as the same sheet at ×1.
-- [ ] AC-05 (always): In a scaled export every source pixel becomes an N×N block of exactly its RGBA value; the image contains no colour that is not in the unscaled export.
-- [ ] AC-06 (option): Where the scale is N and the sheet's JSON data is exported, every frame rect (`frame`), every `spriteSourceSize` and `sourceSize`, every slice key's `bounds` and `center` and every `pivot` is multiplied by N, `meta.size` equals the scaled sheet PNG's size, and `meta.scale` stays `"1"` — as in Aseprite's CLI `--scale` output.
-- [ ] AC-07 (always): The wasm exports called without a scale argument produce exactly the same bytes as before this feature, and the same bytes as with scale 1.
-- [ ] AC-08 (error): If a scale outside 1–10 is requested through the wasm API, then the export returns an error naming the valid range and no bytes.
-- [ ] AC-09 (error): If the scaled output would be wider or higher than 16384 px, then the export returns an error naming the limit, no file is written, and in the editor the status bar shows the error.
-- [ ] AC-10 (event): When the user exports with a scale and later opens either export dialog again, also after reloading the app, then that scale is preselected.
-- [ ] AC-11 (always): On a profile with no stored scale, both dialogs preselect ×1.
+- [x] AC-01 (event): When the user chooses File ▸ Export ▸ PNG (current frame) or presses its shortcut, then a dialog opens with a Scale choice of ×1, ×2, ×3, ×4, ×5, ×6, ×8 and ×10, and nothing is exported until the user confirms.
+- [x] AC-02 (state): While the sprite sheet dialog is open, it offers the same Scale choice.
+- [x] AC-03 (option): Where the scale is N, the exported PNG frame is `N × width` by `N × height` pixels (a 4×4 sprite at ×4 gives a PNG whose IHDR says 16×16).
+- [x] AC-04 (option): Where the scale is N, the exported sprite-sheet PNG is N times as wide and N times as high as the same sheet at ×1.
+- [x] AC-05 (always): In a scaled export every source pixel becomes an N×N block of exactly its RGBA value; the image contains no colour that is not in the unscaled export.
+- [x] AC-06 (option): Where the scale is N and the sheet's JSON data is exported, every frame rect (`frame`), every `spriteSourceSize` and `sourceSize`, every slice key's `bounds` and `center` and every `pivot` is multiplied by N, `meta.size` equals the scaled sheet PNG's size, and `meta.scale` stays `"1"` — as in Aseprite's CLI `--scale` output.
+- [x] AC-07 (always): The wasm exports called without a scale argument produce exactly the same bytes as before this feature, and the same bytes as with scale 1.
+- [x] AC-08 (error): If a scale outside 1–10 is requested through the wasm API, then the export returns an error naming the valid range and no bytes.
+- [x] AC-09 (error): If the scaled output would be wider or higher than 16384 px, then the export returns an error naming the limit, no file is written, and in the editor the status bar shows the error.
+- [x] AC-10 (event): When the user exports with a scale and later opens either export dialog again, also after reloading the app, then that scale is preselected.
+- [x] AC-11 (always): On a profile with no stored scale, both dialogs preselect ×1.
 
 ## Technical notes
 
@@ -81,6 +81,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | One remembered scale shared by the PNG frame and sprite-sheet dialogs (AC-10) | The legacy plan says "remember the last scale", singular | Low — a second pref is a small change |
 | ×1 is preselected when no scale is stored (AC-11) | Keeps today's export output as the default | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- PNG frame export and the sprite-sheet dialog offer an integer Scale (×1 on a fresh profile, the last used scale preselected after that, also across reloads)
+- A scaled export turns each pixel into an exact block; a scaled sheet multiplies frame geometry in the PNG and its JSON while `meta.scale` stays 1, and ×1 or no scale gives the old bytes
+- Scales out of range or outputs over 16384 px fail in the status bar and write no file
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -89,17 +97,17 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-01 | `PNG (current frame) opens a Scale dialog and exports only on confirm` (ui/e2e/export-scale.spec.ts) | verified | ba53299 |
+| AC-02 | `the sprite sheet dialog offers the same Scale choice, ×1 on a fresh profile` (ui/e2e/export-scale.spec.ts) | verified | ba53299 |
+| AC-03 | `a 4×4 frame exported at ×4 is a 16×16 PNG` (ui/e2e/export-scale.spec.ts); `codec::png::tests::export_frame_png_scaled_4x4_at_4_is_16x16` (crates/pincel-core/src/codec/png.rs); `tests::export_png_scale_4_of_4x4_is_16x16` (crates/pincel-wasm/src/lib.rs) | verified | 6aed618 |
+| AC-04 | `a ×2 sheet is twice the ×1 sheet and its JSON describes the scaled sheet` (ui/e2e/export-scale.spec.ts); `codec::png::tests::export_atlas_png_scaled_is_n_times_the_unscaled_sheet` (crates/pincel-core/src/codec/png.rs); `tests::export_atlas_scale_scales_png_manifest_and_data` (crates/pincel-wasm/src/lib.rs) | verified | ba53299 |
+| AC-05 | `codec::png::tests::export_frame_png_scaled_turns_each_pixel_into_an_exact_block`, `export_atlas_png_scaled_is_n_times_the_unscaled_sheet` (crates/pincel-core/src/codec/png.rs) | verified | 35f631c |
+| AC-06 | `codec::sheet_data::tests::scaled_sheet_multiplies_geometry_and_keeps_meta_scale_one` (crates/pincel-core/src/codec/sheet_data.rs); `tests::export_atlas_scale_scales_png_manifest_and_data` (crates/pincel-wasm/src/lib.rs); `a ×2 sheet is twice the ×1 sheet and its JSON describes the scaled sheet` (ui/e2e/export-scale.spec.ts) | verified | 6aed618 |
+| AC-07 | `tests::export_png_without_scale_matches_scale_one_and_core`, `export_atlas_without_scale_matches_scale_one` (crates/pincel-wasm/src/lib.rs); `codec::png::tests::export_frame_png_scale_one_matches_the_unscaled_export`, `export_atlas_png_scale_one_matches_the_unscaled_sheet` (crates/pincel-core/src/codec/png.rs) | verified | 35f631c |
+| AC-08 | `tests::export_png_scale_out_of_range_returns_err_naming_range`, `export_atlas_scale_scales_png_manifest_and_data` (crates/pincel-wasm/src/lib.rs); `codec::png::tests::export_frame_png_scaled_out_of_range_scale_returns_err_naming_range`, `export_atlas_png_scaled_past_the_limit_returns_err` (crates/pincel-core/src/codec/png.rs) | verified | 9af6b69 |
+| AC-09 | `an output over 16384 px fails in the status bar without a file` (ui/e2e/export-scale.spec.ts); `tests::export_png_scaled_past_16384_returns_err_naming_limit` (crates/pincel-wasm/src/lib.rs); `codec::png::tests::export_frame_png_scaled_above_16384_returns_err_naming_limit`, `export_atlas_png_scaled_past_the_limit_returns_err` (crates/pincel-core/src/codec/png.rs) | verified | 9a7f4f0 |
+| AC-10 | `the last used scale is preselected in both dialogs, also after a reload` (ui/e2e/export-scale.spec.ts) | verified | c43a845 |
+| AC-11 | `PNG (current frame) opens a Scale dialog and exports only on confirm`, `the sprite sheet dialog offers the same Scale choice, ×1 on a fresh profile` (ui/e2e/export-scale.spec.ts) | verified | 5dd2afe |
 
 ## Decisions
 
@@ -110,3 +118,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-10-29: The Decision Log records that Pixel PNG / sheet export takes an integer nearest-neighbour scale 1–10 (optional trailing wasm argument), that sheet JSON geometry is scaled with the image, and that output is capped at 16384 px per edge — the decisions were already made here, and a §17.5 public API change needs a record (owner accepted the recommendation).
 - 2026-10-29: The PNG export dialog offers no "all frames as separate files" option; it is out of scope — the sprite sheet and `animated-export` cover multi-frame output, and it would add file naming and multi-download handling to a small dialog (owner accepted the recommendation).
 - 2026-10-29: `frame`, `spriteSourceSize`, `sourceSize`, `meta.size` and slice / pivot geometry are scaled by N while `meta.scale` stays `"1"` (AC-06) — this matches Aseprite's CLI `--scale`, so the JSON describes the PNG exactly as if the sprite had been made at that size (owner accepted the recommendation).
+- 2026-11-04 (spec-build): AC-06 is checked against hand-derived expectations of Aseprite's `--scale` output (`scaled_sheet_multiplies_geometry_and_keeps_meta_scale_one`), not a sheet written by Aseprite — no Aseprite binary is available to make the fixture.
+- 2026-11-04 (spec-build): The core API is `export_frame_png_scaled(sprite, cels, frame, scale)` beside the unchanged `export_frame_png`, plus `AtlasOptions::with_scale` / `AtlasOptions::scale` and `AtlasManifest::scale`; the manifest's own `to_json` stays unchanged so unscaled output keeps its bytes (AC-07).
+- 2026-11-04 (spec-build): The scale is remembered when an export is confirmed, whether or not the export then succeeds, in the IndexedDB pref `exportScale`; the animation dialog keeps its own default — it belongs to `animated-export`.
+- 2026-11-04 (spec-build): Both dialogs show the scaled output size (the PNG dialog's size line, the sheet dialog's grid line), so the 16384 px limit is visible before exporting.
+- 2026-11-04 (spec-build): `pixel-export` AC-03 (the menu entry and Ctrl+E save the frame) now saves after this dialog's Export, with the same file name and status line; its e2e test confirms through the dialog. Scaled-export AC-01 asks for this change.

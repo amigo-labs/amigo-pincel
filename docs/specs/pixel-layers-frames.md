@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: Pixel
@@ -37,47 +37,47 @@ The wasm `Document` is the source of truth; every structural edit is an undoable
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user adds a layer (Layers panel "Add layer" or Layer ▸ New Layer), then an empty image layer appears at the top of the stack, and one undo removes it again (redo restores it).
-- [ ] AC-02 (event): When the user adds a layer, then it is named `Layer {n}` (n = number of layers after adding), becomes the active row, and the next stroke paints into it.
-- [ ] AC-03 (state): While an image layer is the active row, the pixel tools paint into that layer; while a group or tilemap row is active, or no row is, they paint into the lowest image layer of the stack.
-- [ ] AC-04 (event): When the user adds a group (Layers panel "Add group" or Layer ▸ New Group), then an empty group named `Group {n}` (n = number of groups after adding) appears at the top of the list.
-- [ ] AC-05 (event): When the user deletes the active layer (Layers panel "Delete" or Layer ▸ Delete Layer), then it is removed together with its cels in every frame — for a group, its whole subtree — and one undo restores everything at its original position.
-- [ ] AC-06 (state): While the stack holds a single layer, deleting a layer is unavailable in the panel and the Layer menu.
-- [ ] AC-07 (event): When the user chooses Layer ▸ Rename…, enters a name and confirms, then the active layer carries that name, and one undo restores the previous name.
-- [ ] AC-08 (event): When the user renames a layer inline from its row's rename button, then Enter commits the trimmed name as one undo step, Escape cancels, and an empty or unchanged name changes nothing.
-- [ ] AC-09 (always): The layers panel lists layers top-most first as a tree: a group's row sits directly above its children, children are indented one level per enclosing group, and group and tilemap rows carry a kind badge.
-- [ ] AC-10 (event): When the user drags a layer's grip onto another row and releases, then the layer (with its subtree) moves to that row's slot, and the whole drag is one undo step.
-- [ ] AC-11 (event): When the user drops a layer on the middle of a group's row, then it becomes that group's top child (indented one level deeper); when dropped on the top quarter of a row, it lands above that row, sharing its parent; each drop is one undo step.
-- [ ] AC-12 (event): When a layer's grip has focus, then ↑ / ↓ move the layer one row up / down, Alt+→ moves it into the nearest group above at the same depth, and Alt+← moves it out of its group to just above that group.
-- [ ] AC-13 (always): A group always moves together with its whole subtree, and a moved subtree stays contiguous in the stack.
-- [ ] AC-14 (error): If a move would put a group into itself or its own subtree, or "into" a layer that is not a group, then the move is refused and the document is unchanged.
-- [ ] AC-15 (event): When the user toggles a layer's visibility, then the layer disappears from or reappears on the canvas as one undo step; hiding a group hides every layer nested in it, at any depth.
-- [ ] AC-16 (event): When the user locks a layer and tries to paint on it, then nothing is painted and the status bar shows `Layer “{name}” is locked`; after unlocking, painting works again.
-- [ ] AC-17 (state): While a group is locked, every layer nested in it refuses pixel edits like a locked layer, and its lock icon shows locked with the hint "Locked by its group" while its own lock flag stays off.
-- [ ] AC-18 (event): When the user drags the active layer's opacity slider, then the layer's opacity follows the slider and the whole drag is one undo step.
-- [ ] AC-19 (event): When the user picks a blend mode for the active layer from the panel's list (every blend mode the core supports, labelled in the UI language), then the layer uses it, as one undo step.
-- [ ] AC-20 (event): When the user duplicates an image or tilemap layer, then a copy named `{source} copy`, with the source's cels in every frame, is inserted directly above the source, as one undo step.
-- [ ] AC-21 (error): If the layer to duplicate is a group, then duplicating is refused and the document is unchanged.
-- [ ] AC-22 (event): When the user merges the active image layer down, then its pixels are composited onto the image layer directly below it in the same group with the upper layer's opacity and blend mode, the upper layer is removed, the lower one becomes the paint target, and one undo restores both layers.
-- [ ] AC-23 (error): If the active layer is the bottom layer, a group, or has no image layer directly below it in the same group, then merge down is refused and the document is unchanged.
-- [ ] AC-24 (event): When the user flattens the image, then the stack is replaced by one image layer holding the visible composite of every frame (hidden layers are dropped), it becomes the paint target, and one undo restores the previous stack and cels exactly.
-- [ ] AC-25 (always): Each layer row shows a thumbnail of that layer at the current frame, also while the layer is hidden, scaled down to fit and never scaled up.
-- [ ] AC-26 (event): When the user adds a frame (timeline "Add frame" or Frame ▸ New Frame), then an empty frame of 100 ms is appended after the last frame and becomes the current frame, and one undo removes it.
-- [ ] AC-27 (event): When the user selects a frame (its cell in the timeline, Previous / Next frame, the `,` / `.` keys or the Frame menu), then the canvas shows that frame, the timeline reads `frame {n}/{total}`, and the next stroke paints into that frame.
-- [ ] AC-28 (event): When the user removes the current frame, then later frames shift down by one, tags shrink or shift with them (a tag covering only that frame is dropped), slice keys shift with them, the current frame stays within range, and one undo restores the exact prior state.
-- [ ] AC-29 (error): If the user tries to remove the only frame, then the removal is refused and the document is unchanged.
-- [ ] AC-30 (event): When the user enters a frame duration between 1 and 65535 ms and commits it, then the frame's duration becomes that value, and one undo restores the previous duration.
-- [ ] AC-31 (error): If the user enters a duration of 0, above 65535 or not a number, then the frame keeps its previous duration.
-- [ ] AC-32 (event): When the user adds a tag, then a forward-playing tag covering only the current frame, with the next colour from a fixed six-colour cycle, appears as a bar in the timeline and its tag editor opens; one undo removes it.
-- [ ] AC-33 (event): When the user edits a tag's name, first frame, last frame or direction (forward, reverse, ping-pong, ping-pong reverse) in the tag editor, or deletes it there, then the tag bar updates and each edit is one undo step.
-- [ ] AC-34 (state): While a tag's name is not identifier-like (letters, digits and `_`, not starting with a digit), the tag editor shows "Use letters, digits and _ only" and the tag bar shows a warning mark; the name is kept.
-- [ ] AC-35 (error): If a tag would get an empty name, a first frame after its last frame, or a range past the last frame, then the edit is refused and the tag is unchanged.
-- [ ] AC-36 (event): When the user presses Play (timeline button, Enter or Frame ▸ Play), then the frames of the chosen loop range — all frames, or the frames of the tag picked under "Loop range" — play repeatedly until Pause.
-- [ ] AC-37 (option): Where the loop range is a tag, playback follows its direction: forward wraps from last to first, reverse runs from last to first and wraps, ping-pong and ping-pong reverse bounce at both ends without showing an end frame twice.
-- [ ] AC-38 (state): While the document has fewer than two frames, Play is unavailable.
-- [ ] AC-39 (event): When the user ticks Onion skin, then the frames-back and frames-forward counts (0–8) and the onion opacity become editable and the canvas shows the neighbouring frames under the current one; unticking removes them from the canvas.
-- [ ] AC-40 (always): Onion-skin settings are view state: changing them adds no undo step and does not mark the document as changed.
-- [ ] AC-41 (state): While playback runs, each frame stays on screen for its own duration; when a frame takes longer to show, later frames are skipped to keep wall-clock time rather than slowing the animation down.
+- [x] AC-01 (event): When the user adds a layer (Layers panel "Add layer" or Layer ▸ New Layer), then an empty image layer appears at the top of the stack, and one undo removes it again (redo restores it).
+- [x] AC-02 (event): When the user adds a layer, then it is named `Layer {n}` (n = number of layers after adding), becomes the active row, and the next stroke paints into it.
+- [x] AC-03 (state): While an image layer is the active row, the pixel tools paint into that layer; while a group or tilemap row is active, or no row is, they paint into the lowest image layer of the stack.
+- [x] AC-04 (event): When the user adds a group (Layers panel "Add group" or Layer ▸ New Group), then an empty group named `Group {n}` (n = number of groups after adding) appears at the top of the list.
+- [x] AC-05 (event): When the user deletes the active layer (Layers panel "Delete" or Layer ▸ Delete Layer), then it is removed together with its cels in every frame — for a group, its whole subtree — and one undo restores everything at its original position.
+- [x] AC-06 (state): While the stack holds a single layer, deleting a layer is unavailable in the panel and the Layer menu.
+- [x] AC-07 (event): When the user chooses Layer ▸ Rename…, enters a name and confirms, then the active layer carries that name, and one undo restores the previous name.
+- [x] AC-08 (event): When the user renames a layer inline from its row's rename button, then Enter commits the trimmed name as one undo step, Escape cancels, and an empty or unchanged name changes nothing.
+- [x] AC-09 (always): The layers panel lists layers top-most first as a tree: a group's row sits directly above its children, children are indented one level per enclosing group, and group and tilemap rows carry a kind badge.
+- [x] AC-10 (event): When the user drags a layer's grip onto another row and releases, then the layer (with its subtree) moves to that row's slot, and the whole drag is one undo step.
+- [x] AC-11 (event): When the user drops a layer on the middle of a group's row, then it becomes that group's top child (indented one level deeper); when dropped on the top quarter of a row, it lands above that row, sharing its parent; each drop is one undo step.
+- [x] AC-12 (event): When a layer's grip has focus, then ↑ / ↓ move the layer one row up / down, Alt+→ moves it into the nearest group above at the same depth, and Alt+← moves it out of its group to just above that group.
+- [x] AC-13 (always): A group always moves together with its whole subtree, and a moved subtree stays contiguous in the stack.
+- [x] AC-14 (error): If a move would put a group into itself or its own subtree, or "into" a layer that is not a group, then the move is refused and the document is unchanged.
+- [x] AC-15 (event): When the user toggles a layer's visibility, then the layer disappears from or reappears on the canvas as one undo step; hiding a group hides every layer nested in it, at any depth.
+- [x] AC-16 (event): When the user locks a layer and tries to paint on it, then nothing is painted and the status bar shows `Layer “{name}” is locked`; after unlocking, painting works again.
+- [x] AC-17 (state): While a group is locked, every layer nested in it refuses pixel edits like a locked layer, and its lock icon shows locked with the hint "Locked by its group" while its own lock flag stays off.
+- [x] AC-18 (event): When the user drags the active layer's opacity slider, then the layer's opacity follows the slider and the whole drag is one undo step.
+- [x] AC-19 (event): When the user picks a blend mode for the active layer from the panel's list (every blend mode the core supports, labelled in the UI language), then the layer uses it, as one undo step.
+- [x] AC-20 (event): When the user duplicates an image or tilemap layer, then a copy named `{source} copy`, with the source's cels in every frame, is inserted directly above the source, as one undo step.
+- [x] AC-21 (error): If the layer to duplicate is a group, then duplicating is refused and the document is unchanged.
+- [x] AC-22 (event): When the user merges the active image layer down, then its pixels are composited onto the image layer directly below it in the same group with the upper layer's opacity and blend mode, the upper layer is removed, the lower one becomes the paint target, and one undo restores both layers.
+- [x] AC-23 (error): If the active layer is the bottom layer, a group, or has no image layer directly below it in the same group, then merge down is refused and the document is unchanged.
+- [x] AC-24 (event): When the user flattens the image, then the stack is replaced by one image layer holding the visible composite of every frame (hidden layers are dropped), it becomes the paint target, and one undo restores the previous stack and cels exactly.
+- [x] AC-25 (always): Each layer row shows a thumbnail of that layer at the current frame, also while the layer is hidden, scaled down to fit and never scaled up.
+- [x] AC-26 (event): When the user adds a frame (timeline "Add frame" or Frame ▸ New Frame), then an empty frame of 100 ms is appended after the last frame and becomes the current frame, and one undo removes it.
+- [x] AC-27 (event): When the user selects a frame (its cell in the timeline, Previous / Next frame, the `,` / `.` keys or the Frame menu), then the canvas shows that frame, the timeline reads `frame {n}/{total}`, and the next stroke paints into that frame.
+- [x] AC-28 (event): When the user removes the current frame, then later frames shift down by one, tags shrink or shift with them (a tag covering only that frame is dropped), slice keys shift with them, the current frame stays within range, and one undo restores the exact prior state.
+- [x] AC-29 (error): If the user tries to remove the only frame, then the removal is refused and the document is unchanged.
+- [x] AC-30 (event): When the user enters a frame duration between 1 and 65535 ms and commits it, then the frame's duration becomes that value, and one undo restores the previous duration.
+- [x] AC-31 (error): If the user enters a duration of 0, above 65535 or not a number, then the frame keeps its previous duration.
+- [x] AC-32 (event): When the user adds a tag, then a forward-playing tag covering only the current frame, with the next colour from a fixed six-colour cycle, appears as a bar in the timeline and its tag editor opens; one undo removes it.
+- [x] AC-33 (event): When the user edits a tag's name, first frame, last frame or direction (forward, reverse, ping-pong, ping-pong reverse) in the tag editor, or deletes it there, then the tag bar updates and each edit is one undo step.
+- [x] AC-34 (state): While a tag's name is not identifier-like (letters, digits and `_`, not starting with a digit), the tag editor shows "Use letters, digits and _ only" and the tag bar shows a warning mark; the name is kept.
+- [x] AC-35 (error): If a tag would get an empty name, a first frame after its last frame, or a range past the last frame, then the edit is refused and the tag is unchanged.
+- [x] AC-36 (event): When the user presses Play (timeline button, Enter or Frame ▸ Play), then the frames of the chosen loop range — all frames, or the frames of the tag picked under "Loop range" — play repeatedly until Pause.
+- [x] AC-37 (option): Where the loop range is a tag, playback follows its direction: forward wraps from last to first, reverse runs from last to first and wraps, ping-pong and ping-pong reverse bounce at both ends without showing an end frame twice.
+- [x] AC-38 (state): While the document has fewer than two frames, Play is unavailable.
+- [x] AC-39 (event): When the user ticks Onion skin, then the frames-back and frames-forward counts (0–8) and the onion opacity become editable and the canvas shows the neighbouring frames under the current one; unticking removes them from the canvas.
+- [x] AC-40 (always): Onion-skin settings are view state: changing them adds no undo step and does not mark the document as changed.
+- [x] AC-41 (state): While playback runs, each frame stays on screen for its own duration; when a frame takes longer to show, later frames are skipped to keep wall-clock time rather than slowing the animation down.
 
 ## Technical notes
 
@@ -106,6 +106,14 @@ Hints, not contracts — paths drift; grep for the names.
 | Thumbnail of a 64×32 layer at 16 px | 16×8, nearest-neighbour; at 128 px it stays 64×32 |
 | Deleting the tag that playback loops over | Loop range falls back to all frames |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- The Pixel layers panel: add, group, delete, duplicate, merge, rename inline (focused on open) or from the menu, visibility, lock (inherited by a group's layers), opacity, keyboard reordering in and out of groups
+- Frames with per-frame durations (a refused entry shows the kept value), tags with direction and the identifier-name warning
+- Playback over all frames or a tag in each direction, each frame shown for its own duration, and onion-skin settings that never touch the document
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -114,47 +122,52 @@ Hints, not contracts — paths drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pincel-wasm: tests::add_layer_appends_and_returns_monotonic_id`, `tests::add_layer_is_undoable`; `pincel-core: command::add_layer::tests::apply_appends_layer_when_no_index_given`, `command::add_layer::tests::revert_removes_inserted_layer` | built | |
-| AC-02 |      | open   |        |
-| AC-03 | `pincel-wasm: tests::pencil_paints_into_active_layer_cel`, `tests::paint_target_resolves_active_image_layer`, `tests::paint_target_falls_back_for_non_image_or_unknown_active` | built | |
-| AC-04 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out` | built | |
-| AC-05 | `pincel-core: command::remove_layer::tests::remove_leaf_layer_and_restore_it`, `command::remove_layer::tests::remove_layer_drops_its_cels_across_frames_and_revert_restores`, `command::remove_layer::tests::removing_a_group_takes_its_whole_subtree`; `pincel-wasm: tests::remove_layer_drops_it_clears_active_and_undoes` | built | |
-| AC-06 |      | open   |        |
-| AC-07 | `ui/e2e/layers.spec.ts › pixel: Layer ▸ Rename… renames the active layer` | built | |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 | `ui/e2e/layers.spec.ts › pixel: drag the grip to reorder layers`; `pincel-wasm: layer_ops::tests::reorder_layer_is_one_undo_step` | built | |
-| AC-11 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out`; `pincel-core: command::move_layer_to::tests::move_into_group_makes_it_the_top_child_and_undo_restores`, `command::move_layer_to::tests::move_out_of_group_above_a_root_layer` | built | |
-| AC-12 |      | open   |        |
-| AC-13 | `pincel-core: command::move_layer::tests::moving_a_group_carries_its_children`, `command::move_layer_to::tests::a_group_moves_with_its_children_into_another_group`, `command::reorder_layer::tests::apply_moves_down_past_a_group_as_a_block` | built | |
-| AC-14 | `pincel-core: command::move_layer_to::tests::moving_into_own_subtree_or_a_non_group_errs_without_change`; `pincel-wasm: layer_ops::tests::move_layer_into_a_new_group_and_back_out_undoes_in_one_step_each` | built | |
-| AC-15 | `pincel-wasm: tests::set_layer_visible_toggles_and_undoes`; `pincel-core: render::compose::tests::invisible_layer_is_skipped`, `render::compose::tests::hidden_group_hides_child_layers`, `render::compose::tests::hidden_grandparent_hides_nested_child` | built | |
-| AC-16 | `ui/e2e/layers.spec.ts › pixel: a locked layer refuses paint`; `pincel-wasm: layer_ops::tests::locked_layer_refuses_paint_until_unlocked` | built | |
-| AC-17 |      | open   |        |
-| AC-18 | `pincel-wasm: layer_ops::tests::set_layer_opacity_round_trips_and_merges_slider_ticks`; `pincel-core: command::set_layer_opacity::tests::consecutive_edits_merge_into_one_undo_entry_restoring_the_first_prior` | built | |
-| AC-19 | `pincel-wasm: layer_ops::tests::set_layer_blend_mode_by_name_and_reject_unknown`, `layer_ops::tests::blend_mode_names_lists_all_modes` | built | |
-| AC-20 | `pincel-core: command::duplicate_layer::tests::apply_inserts_copy_above_source_with_cels_and_revert_removes_it`; `pincel-wasm: layer_ops::tests::duplicate_layer_returns_new_id_and_copies_pixels` | built | |
-| AC-21 | `pincel-core: command::duplicate_layer::tests::group_layer_is_rejected` | built | |
-| AC-22 | `pincel-wasm: layer_ops::tests::merge_down_combines_layers_and_moves_active_target`; `pincel-core: command::merge_down::tests::apply_uses_upper_layer_opacity`, `command::merge_down::tests::apply_uses_upper_blend_mode`, `command::merge_down::tests::revert_restores_both_layers_and_cels_exactly` | built | |
-| AC-23 | `pincel-core: command::merge_down::tests::bottom_layer_group_and_cross_parent_are_rejected` | built | |
-| AC-24 | `pincel-core: command::flatten_image::tests::apply_leaves_one_layer_with_the_visible_composite_per_frame`, `command::flatten_image::tests::undo_restores_layers_and_cels_exactly_and_redo_reflattens`; `pincel-wasm: layer_ops::tests::flatten_image_leaves_one_layer_with_the_composite` | built | |
-| AC-25 | `pincel-wasm: layer_ops::tests::layer_thumbnail_fits_and_shows_hidden_layers` | built | |
-| AC-26 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: tests::add_frame_appends_and_is_undoable`, `tests::paint_auto_creates_cel_on_a_fresh_frame` | built | |
-| AC-27 |      | open   |        |
-| AC-28 | `pincel-core: command::remove_frame::tests::apply_middle_frame_shifts_later_cels_down`, `command::remove_frame::tests::apply_adjusts_tags_and_drops_single_frame_tag`, `command::remove_frame::tests::apply_shifts_slice_keys_and_keeps_the_removed_frames_key`, `command::remove_frame::tests::revert_restores_frames_and_cels_exactly`; `pincel-wasm: timeline::tests::remove_frame_clamps_the_current_frame`; `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | built | |
-| AC-29 | `pincel-core: command::remove_frame::tests::apply_last_remaining_frame_returns_err`; `pincel-wasm: timeline::tests::remove_last_remaining_frame_errors` | built | |
-| AC-30 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::set_frame_duration_round_trips_through_undo` | built | |
-| AC-31 |      | open   |        |
-| AC-32 |      | open   |        |
-| AC-33 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::tag_lifecycle_through_the_surface`; `pincel-core: command::tag_ops::tests::set_tag_range_applies_and_reverts`, `command::tag_ops::tests::set_tag_name_applies_and_reverts`, `command::tag_ops::tests::set_tag_direction_applies_and_reverts`, `command::tag_ops::tests::remove_tag_round_trips` | built | |
-| AC-34 |      | open   |        |
-| AC-35 | `pincel-core: command::tag_ops::tests::set_tag_name_empty_returns_err`, `command::tag_ops::tests::set_tag_range_inverted_returns_err`, `command::tag_ops::tests::add_tag_with_range_past_last_frame_returns_err`, `command::tag_ops::tests::add_tag_with_empty_name_returns_err` | built | |
-| AC-36 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | built | |
-| AC-37 |      | open   |        |
-| AC-38 |      | open   |        |
-| AC-39 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::onion_skin_toggles_and_composes`; `pincel-core: render::onion::tests::previous_frame_shows_red_tinted_under_a_hole`, `render::onion::tests::next_frame_is_blue_tinted_at_next_alpha` | built | |
-| AC-40 |      | open   |        |
-| AC-41 |      | open   |        |
+| AC-01 | `pincel-wasm: tests::add_layer_appends_and_returns_monotonic_id`, `tests::add_layer_is_undoable`; `pincel-core: command::add_layer::tests::apply_appends_layer_when_no_index_given`, `command::add_layer::tests::revert_removes_inserted_layer` | verified | ba53299 |
+| AC-02 | `ui/e2e/layers.spec.ts › pixel: a new layer is named by the stack size, becomes active and takes the next stroke (AC-02)` | verified | ba53299 |
+| AC-03 | `pincel-wasm: tests::pencil_paints_into_active_layer_cel`, `tests::paint_target_resolves_active_image_layer`, `tests::paint_target_falls_back_for_non_image_or_unknown_active` | verified | 6aed618 |
+| AC-04 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out` | verified | ba53299 |
+| AC-05 | `pincel-core: command::remove_layer::tests::remove_leaf_layer_and_restore_it`, `command::remove_layer::tests::remove_layer_drops_its_cels_across_frames_and_revert_restores`, `command::remove_layer::tests::removing_a_group_takes_its_whole_subtree`; `pincel-wasm: tests::remove_layer_drops_it_clears_active_and_undoes` | verified | 35f631c |
+| AC-06 | `ui/e2e/layers.spec.ts › pixel: Delete is unavailable while the stack holds one layer (AC-06)` | verified | 6aed618 |
+| AC-07 | `ui/e2e/layers.spec.ts › pixel: Layer ▸ Rename… renames the active layer` | verified | 35f631c |
+| AC-08 | `ui/e2e/layers.spec.ts › pixel: inline rename commits the trimmed name on Enter; Escape, blank and unchanged do nothing (AC-08)` | verified | 9af6b69 |
+| AC-09 | `ui/e2e/layers.spec.ts › pixel: the panel lists the layer tree top-most first, indented, with kind badges (AC-09)` | verified | 9a7f4f0 |
+| AC-10 | `ui/e2e/layers.spec.ts › pixel: drag the grip to reorder layers`; `pincel-wasm: layer_ops::tests::reorder_layer_is_one_undo_step` | verified | c43a845 |
+| AC-11 | `ui/e2e/layers.spec.ts › pixel: drag a layer into a group and back out`; `pincel-core: command::move_layer_to::tests::move_into_group_makes_it_the_top_child_and_undo_restores`, `command::move_layer_to::tests::move_out_of_group_above_a_root_layer` | verified | 5dd2afe |
+| AC-12 | `ui/e2e/layers.spec.ts › pixel: arrow keys on a grip move the layer, Alt+→ / Alt+← in and out of a group (AC-12)` | verified | 22f5a52 |
+| AC-13 | `pincel-core: command::move_layer::tests::moving_a_group_carries_its_children`, `command::move_layer_to::tests::a_group_moves_with_its_children_into_another_group`, `command::reorder_layer::tests::apply_moves_down_past_a_group_as_a_block` | verified | 3678aba |
+| AC-14 | `pincel-core: command::move_layer_to::tests::moving_into_own_subtree_or_a_non_group_errs_without_change`; `pincel-wasm: layer_ops::tests::move_layer_into_a_new_group_and_back_out_undoes_in_one_step_each` | verified | 48b5d53 |
+| AC-15 | `pincel-wasm: tests::set_layer_visible_toggles_and_undoes`; `pincel-core: render::compose::tests::invisible_layer_is_skipped`, `render::compose::tests::hidden_group_hides_child_layers`, `render::compose::tests::hidden_grandparent_hides_nested_child` | verified | 6aed618 |
+| AC-16 | `ui/e2e/layers.spec.ts › pixel: a locked layer refuses paint`; `pincel-wasm: layer_ops::tests::locked_layer_refuses_paint_until_unlocked` | verified | 35f631c |
+| AC-17 | `ui/e2e/layers.spec.ts › pixel: a locked group locks its layers without setting their own flag (AC-17)` | verified | b5e6482 |
+| AC-18 | `pincel-wasm: layer_ops::tests::set_layer_opacity_round_trips_and_merges_slider_ticks`; `pincel-core: command::set_layer_opacity::tests::consecutive_edits_merge_into_one_undo_entry_restoring_the_first_prior` | verified | 6aed618 |
+| AC-19 | `pincel-wasm: layer_ops::tests::set_layer_blend_mode_by_name_and_reject_unknown`, `layer_ops::tests::blend_mode_names_lists_all_modes` | verified | 6aed618 |
+| AC-20 | `pincel-core: command::duplicate_layer::tests::apply_inserts_copy_above_source_with_cels_and_revert_removes_it`; `pincel-wasm: layer_ops::tests::duplicate_layer_returns_new_id_and_copies_pixels` | verified | 6aed618 |
+| AC-21 | `pincel-core: command::duplicate_layer::tests::group_layer_is_rejected` | verified | dff3361 |
+| AC-22 | `pincel-wasm: layer_ops::tests::merge_down_combines_layers_and_moves_active_target`; `pincel-core: command::merge_down::tests::apply_uses_upper_layer_opacity`, `command::merge_down::tests::apply_uses_upper_blend_mode`, `command::merge_down::tests::revert_restores_both_layers_and_cels_exactly` | verified | 57c79e2 |
+| AC-23 | `pincel-core: command::merge_down::tests::bottom_layer_group_and_cross_parent_are_rejected` | verified | 57c79e2 |
+| AC-24 | `pincel-core: command::flatten_image::tests::apply_leaves_one_layer_with_the_visible_composite_per_frame`, `command::flatten_image::tests::undo_restores_layers_and_cels_exactly_and_redo_reflattens`; `pincel-wasm: layer_ops::tests::flatten_image_leaves_one_layer_with_the_composite` | verified | |
+| AC-25 | `pincel-wasm: layer_ops::tests::layer_thumbnail_fits_and_shows_hidden_layers` | verified | |
+| AC-26 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: tests::add_frame_appends_and_is_undoable`, `tests::paint_auto_creates_cel_on_a_fresh_frame` | verified | |
+| AC-27 | `ui/e2e/timeline.spec.ts › selecting a frame shows it, reads frame n/total and takes the next stroke (AC-27)` | verified | ea84194 |
+| AC-28 | `pincel-core: command::remove_frame::tests::apply_middle_frame_shifts_later_cels_down`, `command::remove_frame::tests::apply_adjusts_tags_and_drops_single_frame_tag`, `command::remove_frame::tests::apply_shifts_slice_keys_and_keeps_the_removed_frames_key`, `command::remove_frame::tests::revert_restores_frames_and_cels_exactly`; `pincel-wasm: timeline::tests::remove_frame_clamps_the_current_frame`; `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | verified | |
+| AC-29 | `pincel-core: command::remove_frame::tests::apply_last_remaining_frame_returns_err`; `pincel-wasm: timeline::tests::remove_last_remaining_frame_errors` | verified | |
+| AC-30 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::set_frame_duration_round_trips_through_undo` | verified | |
+| AC-31 | `ui/e2e/timeline.spec.ts › a duration of 0, above 65535 or not a number keeps the previous one (AC-31)` | verified | 387fadd |
+| AC-32 | `ui/e2e/timeline.spec.ts › a new tag covers the current frame, plays forward, takes the next colour and opens its editor (AC-32)` | verified | ea84194 |
+| AC-33 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::tag_lifecycle_through_the_surface`; `pincel-core: command::tag_ops::tests::set_tag_range_applies_and_reverts`, `command::tag_ops::tests::set_tag_name_applies_and_reverts`, `command::tag_ops::tests::set_tag_direction_applies_and_reverts`, `command::tag_ops::tests::remove_tag_round_trips` | verified | |
+| AC-34 | `ui/e2e/timeline.spec.ts › a tag name that is not identifier-like warns but is kept (AC-34)` | verified | ea84194 |
+| AC-35 | `pincel-core: command::tag_ops::tests::set_tag_name_empty_returns_err`, `command::tag_ops::tests::set_tag_range_inverted_returns_err`, `command::tag_ops::tests::add_tag_with_range_past_last_frame_returns_err`, `command::tag_ops::tests::add_tag_with_empty_name_returns_err` | verified | |
+| AC-36 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin` | verified | |
+| AC-37 | `ui/e2e/playback.spec.ts › a forward tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a reverse tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a pingpong tag plays its frames in that order (AC-37)`; `ui/e2e/playback.spec.ts › a pingpong_reverse tag plays its frames in that order (AC-37)` | verified | ea84194 |
+| AC-38 | `ui/e2e/timeline.spec.ts › Play is unavailable while the document has fewer than two frames (AC-38)` | verified | ea84194 |
+| AC-39 | `ui/e2e/timeline.spec.ts › timeline: frames, durations, tags, playback and onion skin`; `pincel-wasm: timeline::tests::onion_skin_toggles_and_composes`; `pincel-core: render::onion::tests::previous_frame_shows_red_tinted_under_a_hole`, `render::onion::tests::next_frame_is_blue_tinted_at_next_alpha` | verified | |
+| AC-40 | `ui/e2e/timeline.spec.ts › onion-skin settings add no undo step and leave the document unchanged (AC-40)` | verified | ea84194 |
+| AC-41 | `ui/e2e/playback.spec.ts › each frame stays on screen for its own duration (AC-41)`; `ui/e2e/playback.spec.ts › a late frame skips ahead to keep wall-clock time (AC-41)` | verified | ea84194 |
 
 ## Decisions
 
+- 2026-11-03 — The inline rename field now takes focus with the old name selected when it opens (a `use:` action; `autofocus` has no effect on a field mounted after page load). The AC-08 e2e test checks the focus and was red before; the panel is shared, so Image mode gains it too.
+
+- 2026-11-03: Test gaps closed for AC-02, AC-06, AC-08, AC-09, AC-12, AC-17, AC-27, AC-31, AC-32, AC-34, AC-37, AC-38, AC-40 and AC-41 (`ui/e2e/layers.spec.ts`, `ui/e2e/timeline.spec.ts`, `ui/e2e/playback.spec.ts`; the playback tests drive a paused page clock). Each test that was green at once was run red against a deliberate break, then reverted: new layers named `Layer {count}` (AC-02), Delete enabled with one layer (AC-06), no group badge (AC-09), Alt+→ dropping above the group (AC-12), no "Locked by its group" hint (AC-17), `.` unbound (AC-27), a five-colour tag cycle (AC-32), spaces and `-` taken as identifier-like (AC-34), wrong wrap and bounce frames in `advance` (AC-37), Play enabled with one frame (AC-38), onion changes marking the document unsaved (AC-40), every frame timed by the first one and the clock restarting at each change (AC-41).
+- 2026-11-03: Bug (AC-08): the inline rename was an undo step in the document, but the editor did not mirror the undo depth, so the Undo button, the status bar and the unsaved marker missed it (`fix(ui): count a Pixel inline layer rename as an undo step in the UI`); the AC-08 test was red before.
+- 2026-11-03: Bug (AC-31): a rejected duration left the typed value in the field, so the timeline showed a duration the frame did not have; the field now shows the kept duration (`fix(ui): show the kept duration after a rejected frame duration entry`); the AC-31 test was red before.

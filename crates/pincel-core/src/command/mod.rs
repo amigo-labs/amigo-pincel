@@ -10,6 +10,7 @@ mod batch;
 mod bus;
 mod clear_region;
 mod dirty;
+mod draw_dither_gradient;
 mod draw_ellipse;
 mod draw_line;
 mod draw_rectangle;
@@ -37,6 +38,7 @@ mod reorder_layer;
 mod replace_cel_pixels;
 mod scale_image;
 mod set_frame_duration;
+mod set_grid;
 mod set_layer_blend_mode;
 mod set_layer_editable;
 mod set_layer_name;
@@ -60,6 +62,7 @@ pub use batch::CommandBatch;
 pub use bus::{Bus, DEFAULT_HISTORY_CAP};
 pub use clear_region::ClearRegion;
 pub use dirty::DirtyRegion;
+pub use draw_dither_gradient::{DitherMatrix, DrawDitherGradient, GradientKind};
 pub use draw_ellipse::DrawEllipse;
 pub use draw_line::DrawLine;
 pub use draw_rectangle::DrawRectangle;
@@ -78,7 +81,9 @@ pub use palette_ops::{
 };
 pub use paste_layer::{PasteLayer, PastedImage};
 pub use patch_cel::{AddEmptyCel, PatchCel};
-pub use pencil_stroke::{BrushShape, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, PencilStroke, PixelBrush};
+pub use pencil_stroke::{
+    BrushShape, Ink, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, Mirror, PencilStroke, PixelBrush, Wrap,
+};
 pub use place_tile::PlaceTile;
 pub use put_cel::PutCel;
 pub use reframe_canvas::{Anchor, ReframeCanvas};
@@ -89,6 +94,7 @@ pub use reorder_layer::ReorderLayer;
 pub use replace_cel_pixels::ReplaceCelPixels;
 pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
+pub use set_grid::SetGrid;
 pub use set_layer_blend_mode::SetLayerBlendMode;
 pub use set_layer_editable::SetLayerEditable;
 pub use set_layer_name::SetLayerName;
@@ -152,6 +158,7 @@ pub enum AnyCommand {
     DrawRectangle(DrawRectangle),
     DrawEllipse(DrawEllipse),
     FillRegion(FillRegion),
+    DrawDitherGradient(DrawDitherGradient),
     ClearRegion(ClearRegion),
     MoveSelectionContent(MoveSelectionContent),
     MoveLayer(MoveLayer),
@@ -164,6 +171,7 @@ pub enum AnyCommand {
     RemoveLayer(RemoveLayer),
     AddFrame(AddFrame),
     SetFrameDuration(SetFrameDuration),
+    SetGrid(SetGrid),
     RemoveFrame(RemoveFrame),
     AddTag(AddTag),
     RemoveTag(RemoveTag),
@@ -215,6 +223,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.apply(doc, cels),
             Self::DrawEllipse(c) => c.apply(doc, cels),
             Self::FillRegion(c) => c.apply(doc, cels),
+            Self::DrawDitherGradient(c) => c.apply(doc, cels),
             Self::ClearRegion(c) => c.apply(doc, cels),
             Self::MoveSelectionContent(c) => c.apply(doc, cels),
             Self::MoveLayer(c) => c.apply(doc, cels),
@@ -227,6 +236,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.apply(doc, cels),
             Self::AddFrame(c) => c.apply(doc, cels),
             Self::SetFrameDuration(c) => c.apply(doc, cels),
+            Self::SetGrid(c) => c.apply(doc, cels),
             Self::RemoveFrame(c) => c.apply(doc, cels),
             Self::AddTag(c) => c.apply(doc, cels),
             Self::RemoveTag(c) => c.apply(doc, cels),
@@ -274,6 +284,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.revert(doc, cels),
             Self::DrawEllipse(c) => c.revert(doc, cels),
             Self::FillRegion(c) => c.revert(doc, cels),
+            Self::DrawDitherGradient(c) => c.revert(doc, cels),
             Self::ClearRegion(c) => c.revert(doc, cels),
             Self::MoveSelectionContent(c) => c.revert(doc, cels),
             Self::MoveLayer(c) => c.revert(doc, cels),
@@ -286,6 +297,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.revert(doc, cels),
             Self::AddFrame(c) => c.revert(doc, cels),
             Self::SetFrameDuration(c) => c.revert(doc, cels),
+            Self::SetGrid(c) => c.revert(doc, cels),
             Self::RemoveFrame(c) => c.revert(doc, cels),
             Self::AddTag(c) => c.revert(doc, cels),
             Self::RemoveTag(c) => c.revert(doc, cels),
@@ -332,6 +344,7 @@ impl AnyCommand {
             (Self::DrawRectangle(a), Self::DrawRectangle(b)) => a.merge(b),
             (Self::DrawEllipse(a), Self::DrawEllipse(b)) => a.merge(b),
             (Self::FillRegion(a), Self::FillRegion(b)) => a.merge(b),
+            (Self::DrawDitherGradient(a), Self::DrawDitherGradient(b)) => a.merge(b),
             (Self::MoveSelectionContent(a), Self::MoveSelectionContent(b)) => a.merge(b),
             (Self::AddLayer(a), Self::AddLayer(b)) => a.merge(b),
             (Self::AddFrame(a), Self::AddFrame(b)) => a.merge(b),
@@ -362,6 +375,7 @@ impl AnyCommand {
             Self::DrawRectangle(c) => c.dirty_region(),
             Self::DrawEllipse(c) => c.dirty_region(),
             Self::FillRegion(c) => c.dirty_region(),
+            Self::DrawDitherGradient(c) => c.dirty_region(),
             Self::ClearRegion(c) => c.dirty_region(),
             Self::MoveSelectionContent(c) => c.dirty_region(),
             Self::MoveLayer(c) => c.dirty_region(),
@@ -374,6 +388,7 @@ impl AnyCommand {
             Self::RemoveLayer(c) => c.dirty_region(),
             Self::AddFrame(c) => c.dirty_region(),
             Self::SetFrameDuration(c) => c.dirty_region(),
+            Self::SetGrid(c) => c.dirty_region(),
             Self::RemoveFrame(c) => c.dirty_region(),
             Self::AddTag(c) => c.dirty_region(),
             Self::RemoveTag(c) => c.dirty_region(),
@@ -411,6 +426,12 @@ impl AnyCommand {
             Self::Batch(c) => c.dirty_region(),
             Self::PasteLayer(c) => c.dirty_region(),
         }
+    }
+}
+
+impl From<SetGrid> for AnyCommand {
+    fn from(c: SetGrid) -> Self {
+        Self::SetGrid(c)
     }
 }
 
@@ -537,6 +558,12 @@ impl From<DrawRectangle> for AnyCommand {
 impl From<DrawEllipse> for AnyCommand {
     fn from(c: DrawEllipse) -> Self {
         Self::DrawEllipse(c)
+    }
+}
+
+impl From<DrawDitherGradient> for AnyCommand {
+    fn from(c: DrawDitherGradient) -> Self {
+        Self::DrawDitherGradient(c)
     }
 }
 

@@ -10,12 +10,25 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import AboutDialog from './lib/components/AboutDialog.svelte';
-  import { closeAbout, help, loadUpdaterState } from './lib/help/state.svelte';
+  import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
+  import CommandPalette from './lib/components/CommandPalette.svelte';
+  import {
+    closeAbout,
+    closePalette,
+    closeShortcuts,
+    help,
+    helpDialogOpen,
+    loadUpdaterState,
+  } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
   import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
+  import DropDialog from './lib/shell/DropDialog.svelte';
+  import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
+  import { planDrop, type DroppedImage } from './lib/shell/editor-drop';
+  import { watchFileDrops, type DroppedFile } from './lib/fs/drop';
   import {
     checkClipboard,
     dismissOffer,
@@ -56,9 +69,8 @@
     setEditorLoaders,
     setMenuHandlers,
   } from './lib/shell/editors.svelte';
-  import type { EditorDocument, EditorMode, NewDocParams } from './lib/shell/types';
+  import type { DropTarget, EditorDocument, EditorMode, NewDocParams } from './lib/shell/types';
   import {
-    droppedHandles,
     ensureReadPermission,
     formatFromName,
     hasFsAccess,
@@ -73,12 +85,14 @@
   import { RecoveryOffer } from './lib/idb/autosave-session.svelte';
   import { getPref, setPref } from './lib/idb/prefs';
   import { listRecents, type RecentFile } from './lib/idb/recent-files';
-  import { syncRecentMenu, wireNativeMenu } from './lib/menu';
+  import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { t } from './lib/i18n/index.svelte';
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
-  import { actionFor, hint, isTypingTarget } from './lib/shell/shortcuts';
+  import { actionFor, hint, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
+  import { initMotion } from './lib/motion.svelte';
+  import { loadKeymap } from './lib/shell/keymap';
 
   // Dynamic imports keep each editor (and its wasm package) in its own
   // chunk; Vite only fetches the ones that get mounted (AC-22).
@@ -110,6 +124,19 @@
   // True until the "open like this on startup" pref is read, so the start
   // screen doesn't flash before an autostarted document replaces it.
   let booting = $state(true);
+  // How each mounted editor takes dropped files (file-access AC-20 -
+  // AC-28); a drop goes to the shown one.
+  const dropTargets: Record<EditorMode, DropTarget | null> = { pixel: null, image: null };
+  // A file drag is over the window and a drop would be taken now.
+  let dropHover = $state(false);
+  // Dropped images awaiting "Add as layer" / "Open as document".
+  let dropDialog = $state<{
+    images: DroppedImage[];
+    notices: string[];
+    canAddLayers: boolean;
+  } | null>(null);
+  // Dropped images are being added as layers, one after another.
+  let addingLayers = false;
 
   // Autosave recovery (document-tabs AC-15, autosave-recovery AC-04): the
   // snapshots of both modes, offered when the first editor starts; Recover
@@ -130,7 +157,12 @@
   const showStart = $derived(session.tabs.length === 0 && editors.loading === null);
   // A modal dialog over the start screen hides the clipboard card (AC-32).
   const modalOpen = $derived(
-    newDialog !== null || recoveryOpen || unsaved.prompt !== null || fileAssocOpen || help.about,
+    newDialog !== null ||
+      recoveryOpen ||
+      unsaved.prompt !== null ||
+      fileAssocOpen ||
+      dropDialog !== null ||
+      helpDialogOpen(),
   );
 
   /** The tab bar both editors draw (document-tabs AC-01). */
@@ -225,10 +257,26 @@
       if (!opts.quiet) shellError = mode.error;
       return false;
     }
+    if (!(await psdReadable(opened, opts.quiet === true))) return false;
     const failed = await openIn(mode, (s) => s.open(opened));
     if (failed === null) return true;
     if (!opts.quiet) reportOpenFailure(mode, opened.name, failed);
     return false;
+  }
+
+  // A PSD is checked before its tab opens, so a file the Image editor
+  // cannot open (PSB, 16-bit, CMYK, too large, broken) leaves the tabs as
+  // they were (docs/specs/psd-import.md AC-08 – AC-10). Other formats pass.
+  async function psdReadable(opened: OpenedFile, quiet: boolean): Promise<boolean> {
+    if (sniffFormat(opened.bytes) !== 'psd') return true;
+    try {
+      const { preparePsd } = await import('./modes/image/core/psd-open');
+      await preparePsd(opened.bytes);
+      return true;
+    } catch (err) {
+      if (!quiet) shellError = t('shell.openFailed', { error: errText(err) });
+      return false;
+    }
   }
 
   function openFile(opened: OpenedFile, mode?: EditorMode): void {
@@ -318,7 +366,7 @@
   // image as a new document (copy-cut-paste AC-22, AC-26). An empty paste
   // stays silent: it is often a stray key with text on the clipboard.
   function startScreenIdle(target: EventTarget | null): boolean {
-    if (!showStart || editors.pending > 0 || offer.opening || newDialog !== null || help.about) {
+    if (!showStart || editors.pending > 0 || offer.opening || newDialog !== null || helpDialogOpen()) {
       return false;
     }
     if (isTypingTarget(target)) return false;
@@ -372,56 +420,111 @@
     }
   }
 
-  // A file dropped onto an open editor (the start screen takes its own).
-  function onWindowDragOver(e: DragEvent) {
-    if (showStart || !e.dataTransfer?.types.includes('Files')) return;
-    e.preventDefault();
+  // Shows `lines` (one per file or event) in the shell's notice.
+  function notify(lines: readonly string[]): void {
+    if (lines.length > 0) shellError = lines.join('\n');
   }
 
-  function onWindowDrop(e: DragEvent) {
-    if (showStart || e.defaultPrevented) return;
-    const files = Array.from(e.dataTransfer?.files ?? []);
-    if (files.length === 0) return;
-    e.preventDefault();
-    // Read the handles now: the drop's items are gone after this event.
-    onDropFiles(files, droppedHandles(e.dataTransfer));
+  // Whether a file drop would be taken now: on the start screen and while
+  // the first editor loads (the files queue up, document-tabs AC-24); on
+  // an editor only while its document is loaded and no dialog is open
+  // (file-access AC-27).
+  function dropTaken(): boolean {
+    if (picking || modalOpen) return false;
+    if (activeMode === null) return true;
+    return !addingLayers && (dropTargets[activeMode]?.accepts() ?? false);
   }
 
-  // A dropped file with its File System Access handle, if the browser
-  // gave one: that handle makes it the same file as an open tab's
-  // (document-tabs AC-03).
-  async function readDropped(
-    file: File,
-    handle: FileSystemFileHandle | null = null,
-  ): Promise<OpenedFile> {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    return { name: file.name, bytes, mime: file.type, handle, path: null };
+  function onDropHover(active: boolean): boolean {
+    const taken = dropTaken();
+    dropHover = active && taken;
+    return taken;
   }
 
-  // Dropped files (start screen or an open editor, document-tabs AC-19):
-  // each opens as a tab of its own mode, in drop order; of several files,
-  // the unreadable or unsupported ones are skipped with one notice.
-  function onDropFiles(
-    files: File[],
-    handles: Promise<(FileSystemFileHandle | null)[]> = Promise.resolve([]),
-  ) {
+  // Dropped files on the start screen, or a layered file (Aseprite,
+  // OpenRaster, PSD) among them on an editor: each opens as a tab of its
+  // own mode, in drop order (document-tabs AC-19, file-access AC-24).
+  // Raster images dropped on an editor ask first (file-access AC-20).
+  function onDropFiles(files: DroppedFile[]): void {
+    const target = activeMode === null ? null : dropTargets[activeMode];
+    if (target === null) {
+      openDropped(files);
+      return;
+    }
+    const { plan, notices } = planDrop(files);
+    if (plan.kind === 'project') {
+      openDropped(files);
+      return;
+    }
+    notify(notices);
+    if (plan.kind !== 'images') return;
+    const canAddLayers = plan.images.every((i) => target.layerFormats.includes(i.format));
+    if (dropChoice.value === 'layer' && canAddLayers) {
+      void addLayers(target, plan.images, notices);
+    } else if (dropChoice.value === 'document') {
+      openDropped(files);
+    } else {
+      dropDialog = { images: plan.images, notices, canAddLayers };
+    }
+  }
+
+  // Every dropped file opens as a tab, in drop order (document-tabs AC-19,
+  // file-access AC-23); no unsaved-changes prompt, since no tab is
+  // replaced. Of several files, the unreadable or unsupported ones are
+  // skipped with one notice.
+  function openDropped(files: readonly DroppedFile[]): void {
     void serial(async () => {
-      const found = await handles.catch((): (FileSystemFileHandle | null)[] => []);
       const several = files.length > 1;
       let skipped = 0;
-      for (const [i, file] of files.entries()) {
-        let opened: OpenedFile;
-        try {
-          opened = await readDropped(file, found[i] ?? null);
-        } catch (err) {
+      for (const d of files) {
+        if (!d.file) {
           skipped += 1;
-          if (!several) shellError = t('shell.dropFailed', { error: errText(err) });
+          if (!several) shellError = t('shell.dropFailed', { error: d.error ?? '' });
           continue;
         }
-        if (!(await routeFile(opened, { quiet: several }))) skipped += 1;
+        if (!(await routeFile(d.file, { quiet: several }))) skipped += 1;
       }
       if (several && skipped > 0) shellError = t('shell.dropSkipped', { n: skipped });
     });
+  }
+
+  // "Add as layer" (file-access AC-21, AC-26): one file after another into
+  // the editor the drop landed on, each asking like a paste when larger
+  // than the canvas; a failure names the file and the rest go on.
+  async function addLayers(
+    target: DropTarget,
+    images: readonly DroppedImage[],
+    notices: readonly string[],
+  ): Promise<void> {
+    const mode = activeMode;
+    const lines = [...notices];
+    addingLayers = true;
+    try {
+      for (const { file } of images) {
+        if (mode === null || dropTargets[mode] !== target) break;
+        try {
+          await target.addLayer(file);
+        } catch (err) {
+          lines.push(t('drop.layerFailed', { name: file.name, error: errText(err) }));
+          notify(lines);
+        }
+      }
+    } finally {
+      addingLayers = false;
+    }
+  }
+
+  function chooseDrop(action: 'layer' | 'document', dontAsk: boolean): void {
+    const pending = dropDialog;
+    dropDialog = null;
+    if (!pending) return;
+    if (dontAsk) setDropChoice(action);
+    const target = activeMode === null ? null : dropTargets[activeMode];
+    if (action === 'layer' && target) {
+      void addLayers(target, pending.images, pending.notices);
+    } else {
+      openDropped(pending.images.map(({ file }) => ({ name: file.name, file, error: null })));
+    }
   }
 
   // Warn before the page closes or reloads while any tab has unsaved
@@ -467,6 +570,16 @@
     if (showStart) document.title = 'Pincel';
   });
 
+  // The native macOS menu draws and fires its own accelerators: give it
+  // the user's rebound chords (power-user-shortcuts-keymap AC-14).
+  $effect(() => {
+    if (!tauriHost) return;
+    const map = nativeAccelerators();
+    syncMenuAccelerators(map).catch((err: unknown) => {
+      console.error('syncMenuAccelerators failed', err);
+    });
+  });
+
   // While the start screen shows, the shell keeps the native Open Recent
   // submenu in sync; a shown Pixel editor does the same from its list.
   $effect(() => {
@@ -479,6 +592,10 @@
 
   onMount(() => {
     void initLocale();
+    void initMotion();
+    void loadKeymap();
+    void loadDropChoice();
+    const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
     void loadAutoNew()
       .then((params) => {
@@ -563,6 +680,7 @@
     return () => {
       cancelled = true;
       recovery.stop();
+      stopDrops();
       if (unlistenMenu) unlistenMenu();
       if (unlistenOpenFile) unlistenOpenFile();
       if (unlistenClose) unlistenClose();
@@ -574,8 +692,6 @@
 <svelte:window
   onpaste={onShellPaste}
   onkeydown={onShellKeydown}
-  ondragover={onWindowDragOver}
-  ondrop={onWindowDrop}
   onbeforeunload={onBeforeUnload}
 />
 
@@ -588,7 +704,7 @@
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
-    onDropFile={(f) => onDropFiles([f])}
+    {dropHover}
   />
   {#if offer.image && !modalOpen}
     <ClipboardOffer
@@ -630,6 +746,8 @@
           {reportError}
           registerSession={(s) => registerSession(mode, s)}
           onEmpty={() => releaseIfEmpty(mode)}
+          onNotice={(message) => (shellError = message)}
+          registerDropTarget={(d) => (dropTargets[mode] = d)}
           registerMenuHandlers={(h) => setMenuHandlers(mode, h)}
         />
       </div>
@@ -643,6 +761,23 @@
     </div>
   {/if}
 </div>
+
+{#if dropHover && !showStart}
+  <div
+    class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center border-4 border-dashed border-pc-accent bg-black/40"
+  >
+    <p class="rounded bg-pc-panel px-4 py-2 text-sm text-pc-text shadow-xl">{t('drop.overlay')}</p>
+  </div>
+{/if}
+
+{#if dropDialog}
+  <DropDialog
+    names={dropDialog.images.map((i) => i.file.name)}
+    canAddLayers={dropDialog.canAddLayers}
+    onChoose={chooseDrop}
+    onCancel={() => (dropDialog = null)}
+  />
+{/if}
 
 {#if newDialog}
   {#key newDialog}
@@ -676,12 +811,20 @@
   <AboutDialog onClose={closeAbout} />
 {/if}
 
+{#if help.shortcuts}
+  <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
+{/if}
+
+{#if help.palette}
+  <CommandPalette source={help.palette} onClose={closePalette} />
+{/if}
+
 {#if shellError}
   <div
     class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-pc-panel px-3 py-2 text-xs text-red-200 shadow-xl"
     role="alert"
   >
-    <span>{shellError}</span>
+    <span class="whitespace-pre-line">{shellError}</span>
     <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}

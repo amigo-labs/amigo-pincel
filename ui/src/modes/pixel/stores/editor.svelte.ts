@@ -32,6 +32,8 @@ export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';
 export type Pt = { x: number; y: number };
 /** Sprite-space rectangle. */
 export type Box = { x: number; y: number; w: number; h: number };
+/** Symmetry / tiled-mode axes: off, x (left–right), y (top–bottom) or both. */
+export type AxisMode = 'none' | 'x' | 'y' | 'xy';
 /** A (tileset, tile) pair. */
 export type TileRef = { tilesetId: number; tileId: number };
 
@@ -94,6 +96,9 @@ function viewInit() {
     /** Live size of the canvas stage, for `fitView`. */
     stageW: 0,
     stageH: 0,
+    /** The canvas stage itself: `fitView` measures it when the bound size
+     *  has not caught up with a layout change yet. */
+    stage: null as HTMLElement | null,
     panning: false,
     /** Space held: temporary pan-on-drag. */
     spaceDown: false,
@@ -102,6 +107,18 @@ function viewInit() {
     canvas: null as HTMLCanvasElement | null,
     /** Canvas2D overlay stacked over the base canvas. */
     overlay: null as HTMLCanvasElement | null,
+    /** Stage-sized canvas the pixel grid and custom grid draw on. */
+    gridCanvas: null as HTMLCanvasElement | null,
+    /** View ▸ Show Pixel Grid: on by default (pixel-grid AC-04). */
+    showPixelGrid: true,
+    /** View ▸ Show Grid: off by default (pixel-grid AC-16). */
+    showGrid: false,
+    /** Custom-grid line colour `#rrggbb` and opacity (%). */
+    gridColor: '#0000ff',
+    gridOpacity: 60,
+    /** View ▸ Tiled Mode: session-only, never stored in the document
+     *  (symmetry-tiled-mode AC-12, AC-18). */
+    tiled: 'none' as AxisMode,
   };
 }
 
@@ -116,6 +133,15 @@ function toolInit() {
     /** Pen pressure scales the brush size; on by default like Image mode
      *  (pixel-pressure AC-08). Shared by Pencil and Eraser, not persisted. */
     pressureSize: true,
+    /** Pencil ink: Simple paints, Shading steps along the palette ramp
+     *  (shading-ink AC-09: a fresh session starts Simple, not persisted). */
+    pencilInk: 'simple' as 'simple' | 'shading',
+    /** Pencil / Eraser symmetry, session-only (symmetry-tiled-mode). */
+    symmetry: 'none' as AxisMode,
+    /** Moved axis positions in half pixels from the left / top canvas
+     *  edge; `null` = unmoved, at the canvas centre (AC-04, AC-20). */
+    symmetryX: null as number | null,
+    symmetryY: null as number | null,
     strokeWidth: 1,
     shapeMode: 'outline' as ShapeMode,
     cornerRadius: 4,
@@ -123,6 +149,10 @@ function toolInit() {
     wandTolerance: 0,
     wandContiguous: true,
     wandSample: 'layer' as 'layer' | 'composite',
+    /** Gradient ramp and dither matrix size (0 = hard split); linear and
+     *  Bayer 4×4 by default (dithered-gradient, Assumptions). */
+    gradientKind: 'linear' as 'linear' | 'radial',
+    gradientDither: 4 as 0 | 2 | 4 | 8,
     /** Tile the Tilemap Stamp tool places. */
     stampTile: null as TileRef | null,
     /** Hover cell under the cursor while stamping. */
@@ -138,7 +168,16 @@ function toolInit() {
 }
 
 function colorsInit() {
-  return { color: '#f87171', alpha: 255, bgColor: '#ffffff', bgAlpha: 255 };
+  return {
+    color: '#f87171',
+    alpha: 255,
+    bgColor: '#ffffff',
+    bgAlpha: 255,
+    /** Shading-ink ramp: the inclusive palette index range picked with
+     *  Shift+click, `null` for the whole palette. Transient UI state, never
+     *  written to the document (shading-ink AC-07, AC-12). */
+    rampRange: null as { from: number; to: number } | null,
+  };
 }
 
 /** A tab's playback range and onion skin. */
@@ -154,6 +193,21 @@ function playInit() {
   return { playing: false };
 }
 
+/** Preview panel zoom: an integer factor or the largest fit. */
+export type PreviewZoom = 1 | 2 | 4 | 'fit';
+
+function previewInit() {
+  return {
+    /** The preview's own playback (docs/specs/animation-preview.md). */
+    playing: false,
+    /** Frame the preview shows while it plays. */
+    frame: 0,
+    zoom: 1 as PreviewZoom,
+    /** Bumped whenever the main canvas recomposes, so the preview does too. */
+    contentRev: 0,
+  };
+}
+
 /** A tab's on-disk identity. */
 function tabFileInit() {
   return {
@@ -166,6 +220,8 @@ function fileInit() {
     /** An async open / recover / export is in flight. */
     busy: false,
     recents: [] as RecentFile[],
+    /** Scale both export dialogs preselect: the last one used (scaled-export). */
+    exportScale: 1,
   };
 }
 
@@ -174,6 +230,10 @@ function dialogsInit() {
     effect: null as EffectSession | null,
     resize: null as ResizeMode | null,
     sheet: false,
+    /** File ▸ Export ▸ PNG (current frame) is open (scaled-export). */
+    png: false,
+    /** View ▸ Grid Settings… is open (pixel-grid). */
+    grid: false,
     /** File ▸ Export ▸ Animation… is open. */
     animation: false,
     /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
@@ -200,11 +260,16 @@ function liveInit() {
     needsRecompose: false,
     rafHandle: null as number | null,
     playHandle: null as number | null,
+    previewHandle: null as number | null,
     composeSamples: [] as number[],
     lastTickTs: 0,
     marchTicks: 0,
     colorPrefLoaded: false,
     brushPrefLoaded: false,
+    gridPrefLoaded: false,
+    exportScalePrefLoaded: false,
+    /** What the grid canvas was last painted from (`grid.ts`). */
+    gridKey: '',
     /** The gesture in flight started on the right button. */
     useBg: false,
     painting: false,
@@ -228,6 +293,8 @@ function liveInit() {
     pinch: new PinchTracker(),
     pinchZoom0: 1,
     gestureUndoDepth: 0,
+    /** Symmetry axis handle being dragged (symmetry-tiled-mode AC-09). */
+    axisDrag: null as 'x' | 'y' | null,
     /** Last locked-layer status line. */
     lockNotice: null as string | null,
     textFontId: null as number | null,
@@ -294,6 +361,8 @@ export const toolState = $state(toolInit());
 export const colors = $state(colorsInit());
 /** Timeline playback, and the active tab's loop tag and onion skin. */
 export const play = tabStore(sharedPlay, keysOf(tabPlayInit), () => tabs.active?.play ?? idle.play);
+/** Preview panel playback and zoom, editor-wide; it follows the active tab. */
+export const preview = $state(previewInit());
 /** The active tab's on-disk identity, plus recents. */
 export const file = tabStore(sharedFile, keysOf(tabFileInit), () => tabs.active?.file ?? idle.file);
 /** Which dialog is open. */
@@ -313,6 +382,7 @@ export function resetPixelStore(): void {
   Object.assign(toolState, toolInit());
   Object.assign(colors, colorsInit());
   Object.assign(play, playInit());
+  Object.assign(preview, previewInit());
   Object.assign(file, fileInit());
   Object.assign(dialogs, dialogsInit());
   Object.assign(probe, probeInit());

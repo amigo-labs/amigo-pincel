@@ -91,19 +91,46 @@ const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...TIFF_TYPES,
 ];
 
+// Photoshop files, opened (never written) in Image mode
+// (docs/specs/psd-import.md).
+const PSD_MIME = 'image/vnd.adobe.photoshop';
+const PSD_TYPES: FilePickerAcceptType[] = [
+  { description: 'Photoshop image', accept: { [PSD_MIME]: ['.psd'] } },
+];
+
 // Open accepts sprites (Pixel mode) and raster images (Image mode; a
 // PNG opened from inside Pixel mode still becomes a sprite / layer).
 // The caller sniffs the bytes to route — see `sniffFormat`.
-const OPEN_TYPES: FilePickerAcceptType[] = [...ASEPRITE_TYPES, ...ORA_TYPES, ...IMAGE_TYPES];
+const OPEN_TYPES: FilePickerAcceptType[] = [
+  ...ASEPRITE_TYPES,
+  ...ORA_TYPES,
+  ...IMAGE_TYPES,
+  ...PSD_TYPES,
+];
 
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
-const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS];
+const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS, 'psd'];
 
-/** What a picker asks for: a document to edit, or a palette file. */
-export type PickKind = 'document' | 'gpl';
+/** What a picker asks for: a document to edit, a palette or a keymap file. */
+export type PickKind = 'document' | 'palette' | 'keymap';
 
 const GPL_TYPES: FilePickerAcceptType[] = [
   { description: 'GIMP palette', accept: { 'text/plain': ['.gpl'] } },
+];
+const HEX_TYPES: FilePickerAcceptType[] = [
+  { description: 'Lospec palette', accept: { 'text/plain': ['.hex'] } },
+];
+const PAL_TYPES: FilePickerAcceptType[] = [
+  { description: 'JASC palette', accept: { 'text/plain': ['.pal'] } },
+];
+// Palette import detects the format by content (spec §3.7), so one picker
+// takes every palette file and plain `.txt` lists.
+const PALETTE_EXTENSIONS = ['gpl', 'hex', 'pal', 'png', 'txt'];
+const PALETTE_TYPES: FilePickerAcceptType[] = [
+  {
+    description: 'Palette',
+    accept: { 'text/plain': ['.gpl', '.hex', '.pal', '.txt'], 'image/png': ['.png'] },
+  },
 ];
 
 const PICK: Record<
@@ -122,18 +149,34 @@ const PICK: Record<
       { name: 'Aseprite sprite', extensions: ['aseprite', 'ase'] },
       { name: 'OpenRaster image', extensions: ['ora'] },
       { name: 'Images', extensions: IMAGE_EXTENSIONS },
+      { name: 'Photoshop image', extensions: ['psd'] },
     ],
   },
-  gpl: {
-    types: GPL_TYPES,
-    extensions: ['gpl'],
-    filters: [{ name: 'GIMP palette', extensions: ['gpl'] }],
+  palette: {
+    types: PALETTE_TYPES,
+    extensions: PALETTE_EXTENSIONS,
+    filters: [{ name: 'Palette', extensions: PALETTE_EXTENSIONS }],
+  },
+  keymap: {
+    types: [{ description: 'Pincel keymap', accept: { 'application/json': ['.json'] } }],
+    extensions: ['json'],
+    filters: [{ name: 'Pincel keymap', extensions: ['json'] }],
   },
 };
 
 /** File formats the app opens; decides which editor mode a file lands in.
- *  `ora` is OpenRaster, the Image mode's layered project format. */
-export type FileFormat = 'aseprite' | 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'gif' | 'tiff';
+ *  `ora` is OpenRaster, the Image mode's layered project format; `psd`
+ *  (Photoshop) opens in Image mode and is never written. */
+export type FileFormat =
+  | 'aseprite'
+  | 'ora'
+  | 'png'
+  | 'jpeg'
+  | 'webp'
+  | 'bmp'
+  | 'gif'
+  | 'tiff'
+  | 'psd';
 
 /** Project formats: one per editor mode. */
 export type ProjectFormat = 'aseprite' | 'ora';
@@ -141,7 +184,7 @@ export type ProjectFormat = 'aseprite' | 'ora';
 /** Raster formats an Image-mode document is saved back to (no GIF encoder). */
 export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff';
 
-/** Everything `saveBytes` writes: the project formats and, for Image-mode
+/** Everything `writeTarget` writes: the project formats and, for Image-mode
  *  Save back to the opened file, its raster formats. */
 export type SaveFormat = ProjectFormat | ImageSaveFormat;
 
@@ -169,8 +212,10 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
 /** Raster formats the Image mode exports. */
 export type ImageExportFormat = 'png' | 'jpeg' | 'webp';
 /** Everything `saveExport` can write: images, animated GIFs, JSON
- *  sidecars, palettes, SVG (vectorize-dialog). */
-export type ExportFormat = ImageExportFormat | 'gif' | 'json' | 'gpl' | 'svg';
+ *  sidecars, palettes (`gpl`, `hex`, `pal`, `palette-png` strips), SVG
+ *  (vectorize-dialog). */
+export type ExportFormat =
+  ImageExportFormat | 'gif' | 'json' | 'gpl' | 'hex' | 'pal' | 'palette-png' | 'svg';
 
 const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   png: PNG_TYPES,
@@ -179,6 +224,9 @@ const EXPORT_TYPES: Record<ExportFormat, FilePickerAcceptType[]> = {
   gif: GIF_TYPES,
   json: [{ description: 'JSON data', accept: { 'application/json': ['.json'] } }],
   gpl: GPL_TYPES,
+  hex: HEX_TYPES,
+  pal: PAL_TYPES,
+  'palette-png': PNG_TYPES,
   svg: [{ description: 'SVG image', accept: { 'image/svg+xml': ['.svg'] } }],
 };
 
@@ -189,6 +237,9 @@ const EXPORT_FILTERS: Record<ExportFormat, { name: string; extensions: string[] 
   gif: { name: 'GIF image', extensions: ['gif'] },
   json: { name: 'JSON data', extensions: ['json'] },
   gpl: { name: 'GIMP palette', extensions: ['gpl'] },
+  hex: { name: 'Lospec palette', extensions: ['hex'] },
+  pal: { name: 'JASC palette', extensions: ['pal'] },
+  'palette-png': { name: 'PNG palette strip', extensions: ['png'] },
   svg: { name: 'SVG image', extensions: ['svg'] },
 };
 
@@ -221,6 +272,7 @@ export function sniffFormat(bytes: Uint8Array): FileFormat | null {
   if (startsWith(bytes, [0x49, 0x49, 0x2a, 0x00]) || startsWith(bytes, [0x4d, 0x4d, 0x00, 0x2a])) {
     return 'tiff';
   }
+  if (startsWith(bytes, [0x38, 0x42, 0x50, 0x53])) return 'psd'; // `8BPS`
   return null;
 }
 
@@ -247,6 +299,8 @@ export function formatFromName(name: string): FileFormat | null {
     case 'tif':
     case 'tiff':
       return 'tiff';
+    case 'psd':
+      return 'psd';
     default:
       return null;
   }
@@ -269,6 +323,8 @@ export function mimeFor(format: FileFormat): string {
       return 'image/jpeg';
     case 'tiff':
       return 'image/tiff';
+    case 'psd':
+      return PSD_MIME;
     default:
       return `image/${format}`;
   }
@@ -556,22 +612,11 @@ function openViaInput(kind: PickKind): Promise<OpenedFile | null> {
  *  3. Fallback: trigger a Blob + anchor download named `target.name`.
  *
  * Returns the (possibly updated) target so the caller can persist the
- * fresh handle for subsequent in-place saves. On user cancel of the
- * save-as picker, returns the original target unchanged. */
-export async function saveBytes(
-  // ArrayBuffer-backed (not ArrayBufferLike): the FSA `write()` and
-  // `Blob` ctors reject SharedArrayBuffer-compatible views under
-  // current lib.dom typings. Callers copy through `new Uint8Array(…)`
-  // before invoking, which narrows the buffer type.
-  bytes: Uint8Array<ArrayBuffer>,
-  target: SaveTarget,
-  opts: { forceAs?: boolean; format?: SaveFormat } = {},
-): Promise<SaveTarget> {
-  return (await writeTarget(bytes, target, opts)) ?? target;
-}
-
-/** `saveBytes`, but resolves `null` when the user cancelled the save
- *  picker / dialog, so the caller can keep the document unsaved. */
+ * fresh handle for subsequent in-place saves, or `null` when the user
+ * cancelled the save picker / dialog: nothing was written and the
+ * document stays unsaved (docs/specs/file-access.md, Decisions
+ * 2026-11-04). `bytes` is ArrayBuffer-backed: the FSA `write()` and
+ * `Blob` ctors reject SharedArrayBuffer-compatible views. */
 export async function writeTarget(
   bytes: Uint8Array<ArrayBuffer>,
   target: SaveTarget,

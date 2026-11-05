@@ -9,10 +9,6 @@ use super::compose::MAX_ZOOM;
 /// Errors raised by [`compose`](fn@super::compose).
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RenderError {
-    /// The sprite uses a color mode the renderer cannot yet handle.
-    #[error("unsupported color mode: {mode:?}")]
-    UnsupportedColorMode { mode: ColorMode },
-
     /// `zoom` was outside the supported range `1..=64`.
     #[error("invalid zoom: {zoom} (expected 1..={MAX_ZOOM})")]
     InvalidZoom { zoom: u32 },
@@ -25,11 +21,23 @@ pub enum RenderError {
     #[error("unknown frame index: {frame:?}")]
     UnknownFrame { frame: FrameIndex },
 
-    /// A linked cel was encountered. Linked cels share data with another
-    /// frame's cel; M3 does not follow links — the loader (M4) is the layer
-    /// that resolves linkage.
-    #[error("linked cel on layer {layer:?} frame {frame:?} is not yet supported")]
-    LinkedCelUnsupported { layer: LayerId, frame: FrameIndex },
+    /// A linked cel at `frame` points at `target`, which is not a frame of
+    /// the sprite or has no cel on `layer`. Indicates a corrupt document.
+    #[error("linked cel on layer {layer:?} frame {frame:?}: target frame {target:?} has no cel")]
+    LinkedCelTargetMissing {
+        layer: LayerId,
+        frame: FrameIndex,
+        target: FrameIndex,
+    },
+
+    /// A linked cel at `frame` points at `target`, which is itself a linked
+    /// cel (a chain, or a cel linked to its own frame). Links are one hop.
+    #[error("linked cel on layer {layer:?} frame {frame:?}: target frame {target:?} is a link")]
+    LinkedCelChained {
+        layer: LayerId,
+        frame: FrameIndex,
+        target: FrameIndex,
+    },
 
     /// A cel's pixel buffer uses a color mode that doesn't match the
     /// sprite's color mode.

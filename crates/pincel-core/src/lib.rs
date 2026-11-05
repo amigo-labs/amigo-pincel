@@ -17,22 +17,25 @@ pub use clipboard::{CopiedPixels, CopyError, CopySource, copy_pixels};
 pub use codec::{
     AnimationFormat, AnimationInfo, AnimationOptions, AsepriteReadOutput, AtlasFrame,
     AtlasManifest, AtlasOptions, AtlasOutput, CodecError, ExportError, GplError, ImportError,
-    ImportedImage, animation_frames, animation_info, aseprite_sheet_json, encode_png,
-    export_animation, export_atlas_png, export_frame_png, import_png, read_aseprite, read_gpl,
-    write_aseprite, write_gpl,
+    ImportedImage, PaletteFormat, PaletteFormatError, animation_frames, animation_info,
+    aseprite_sheet_json, detect_palette_format, encode_png, export_animation, export_atlas_png,
+    export_frame_png, export_frame_png_scaled, import_png, palette_from_png, palette_to_png,
+    read_aseprite, read_gpl, read_hex, read_jasc_pal, read_palette, write_aseprite, write_gpl,
+    write_hex, write_jasc_pal,
 };
 pub use command::{
     AddEmptyCel, AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer,
     AddTileset, Anchor, AnyCommand, BrushShape, Bus, ClearRegion, Command, CommandBatch,
-    CommandError, DirtyRegion, DrawEllipse, DrawLine, DrawRectangle, DrawShape, DrawText,
-    DuplicateLayer, FillRegion, FlattenImage, Interpolation, LayerPlacement, MAX_BRUSH_SIZE,
-    MIN_BRUSH_SIZE, MergeDown, MoveDirection, MoveLayer, MoveLayerTo, MovePaletteEntry,
-    MoveSelectionContent, Orientation, PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush,
-    PlaceTile, PutCel, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice,
-    RemoveTag, ReorderLayer, ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration,
-    SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible,
-    SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel,
-    ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel,
+    CommandError, DirtyRegion, DitherMatrix, DrawDitherGradient, DrawEllipse, DrawLine,
+    DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, GradientKind,
+    Ink, Interpolation, LayerPlacement, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, MergeDown, Mirror,
+    MoveDirection, MoveLayer, MoveLayerTo, MovePaletteEntry, MoveSelectionContent, Orientation,
+    PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel, ReframeCanvas,
+    RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer,
+    ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration, SetGrid, SetLayerBlendMode,
+    SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel,
+    SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode,
+    ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel, Wrap,
 };
 
 pub use document::{

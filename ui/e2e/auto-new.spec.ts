@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { gotoStart, menu, waitForEditor } from './helpers';
+import { gotoStart, menu, storedPref, waitForEditor } from './helpers';
 
 // "Open like this on startup" (spec §9.2, Decision Log 2026-10-28): a New
 // card remembers its mode and size, the next launch skips the start
@@ -27,6 +27,7 @@ test('a ticked New card opens its document on the next launch', async ({ page })
   await expect(box).toBeChecked();
   await box.uncheck();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect.poll(() => storedPref(page, 'autoNew')).toBeUndefined();
 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
@@ -59,6 +60,9 @@ test('a cleared size field stores the default size, never an invalid one', async
   const card = page.getByRole('form', { name: 'New image' });
   await card.getByLabel('Width').fill('');
   await card.getByLabel('Open like this on startup').check();
+  await expect
+    .poll(() => storedPref(page, 'autoNew'))
+    .toEqual({ mode: 'image', width: 800, height: 600 });
   await page.reload();
   await waitForEditor(page, 'image');
   await expect(page.getByText('800 × 600 · sRGB')).toBeVisible();

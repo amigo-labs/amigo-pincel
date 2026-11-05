@@ -32,6 +32,7 @@
   import { modifiers, notePointer } from '../../shell/modifiers.svelte';
   import ModifierBar from './ModifierBar.svelte';
   import TabBar, { type TabBarProps } from './TabBar.svelte';
+  import { chrome } from './chrome.svelte';
 
   interface Props {
     /** Mode badge and the key layout prefs are stored under. */
@@ -152,6 +153,18 @@
     },
   };
 
+  // The canvas stage takes focus on a press, so Tab there toggles the UI
+  // (power-user-shortcuts-coverage AC-09) while Tab anywhere else keeps
+  // moving focus. A press on a control inside the stage leaves it alone.
+  function onStagePointerDown(e: PointerEvent): void {
+    notePointer(e);
+    const target = e.target instanceof Element ? e.target : null;
+    const control = target?.closest(
+      'input, textarea, select, button, a, [contenteditable], [tabindex]:not([data-stage])',
+    );
+    if (!control) stageEl?.focus({ preventScroll: true });
+  }
+
   const panelsShown = $derived(
     size === 'wide' ? layout.sidebar : size === 'medium' ? drawerOpen : sheetTab !== null,
   );
@@ -226,12 +239,12 @@
   </header>
 
   <div class="relative flex min-h-0 flex-1">
-    {#if size !== 'narrow'}
+    {#if size !== 'narrow' && !chrome.hidden}
       {@render tools('vertical')}
     {/if}
 
     <div class="flex min-w-0 flex-1 flex-col">
-      {#if options}
+      {#if options && !chrome.hidden}
         <div
           class="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
           role="toolbar"
@@ -244,16 +257,17 @@
         <TabBar {...tabs} />
       {/if}
       <main
+        bind:this={stageEl}
         class="relative min-h-0 flex-1 overflow-hidden outline-none"
         tabindex="-1"
-        bind:this={stageEl}
-        onpointerdowncapture={notePointer}
+        data-stage=""
+        onpointerdowncapture={onStagePointerDown}
       >
         {@render stage()}
         {#if modifiers.shown}
           <ModifierBar />
         {/if}
-        {#if size === 'narrow' && sheetShown}
+        {#if size === 'narrow' && sheetShown && (!chrome.hidden || effectOpen)}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
@@ -304,7 +318,7 @@
           </div>
         {/if}
       </main>
-      {#if size !== 'narrow'}
+      {#if size !== 'narrow' && !chrome.hidden}
         {#each bottomPanels as p (p.id)}
           <div class="shrink-0 border-t border-pc-border bg-pc-panel" inert={effectOpen}>
             {@render hosted(p, 'bottom')}
@@ -320,7 +334,9 @@
       {/if}
     </div>
 
-    {#if size === 'wide' && sidebarShown}
+    {#if chrome.hidden && !effectOpen}
+      <!-- Toggle UI: no panels; an open effect keeps its panel (effect-panel AC-01). -->
+    {:else if size === 'wide' && sidebarShown}
       <!-- Splitter: the sidebar's draggable left edge (effect-panel AC-07). -->
       <div
         class="w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:bg-pc-accent focus-visible:outline-none"
@@ -349,7 +365,7 @@
     {/if}
   </div>
 
-  {#if size === 'narrow'}
+  {#if size === 'narrow' && !chrome.hidden}
     {@render tools('horizontal')}
   {/if}
 </div>

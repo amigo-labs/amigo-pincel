@@ -8,6 +8,7 @@
 use crate::color::BlendMode;
 
 /// Applies a blend mode to a single linear channel pair.
+#[inline]
 pub fn blend_channel(mode: BlendMode, cb: f32, cs: f32) -> f32 {
     match mode {
         BlendMode::Normal => cs,
@@ -42,6 +43,7 @@ pub fn blend_channel(mode: BlendMode, cb: f32, cs: f32) -> f32 {
 }
 
 /// Hard Light with backdrop `cb` and source `cs` (also reused for Overlay).
+#[inline]
 fn hard_light(cb: f32, cs: f32) -> f32 {
     if cs <= 0.5 {
         2.0 * cs * cb
@@ -51,6 +53,7 @@ fn hard_light(cb: f32, cs: f32) -> f32 {
 }
 
 /// W3C Compositing-1 Soft Light with backdrop `cb` and source `cs`.
+#[inline]
 fn soft_light(cb: f32, cs: f32) -> f32 {
     if cs <= 0.5 {
         cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb)

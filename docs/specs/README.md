@@ -13,10 +13,9 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 
 | Area | Specs |
 | ---- | ----- |
-| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md), [pixel-selection-move](pixel-selection-move.md), [pixel-layers-frames](pixel-layers-frames.md), [pixel-palette](pixel-palette.md), [pixel-export](pixel-export.md), [tilemaps](tilemaps.md), [slices](slices.md) |
-| Image mode | [image-files](image-files.md), [image-editing](image-editing.md) (revised 2026-10-30: selections from the stage, AC-29 – AC-32) |
-| Both modes | [effects-adjustments](effects-adjustments.md), [pen-input](pen-input.md), [i18n](i18n.md) |
-| Shell and platform | [app-shell](app-shell.md), [file-access](file-access.md), [autosave-recovery](autosave-recovery.md), [desktop-app](desktop-app.md) |
+| Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
+| Both modes | [i18n](i18n.md), [effects-adjustments](effects-adjustments.md) |
+| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md), [app-shell](app-shell.md), [autosave-recovery](autosave-recovery.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -36,30 +35,19 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 11 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
 | 13 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
 | 16 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
-| 17 | [scaled-export](scaled-export.md) | Pixel | M | — | Shares the upscale with animated-export |
 | 19 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
-| 20 | [indexed-grayscale-compose](indexed-grayscale-compose.md) | Pixel | M | — | Renderer only; the codec rejects indexed files too |
-| 21 | [linked-cels-group-compose](linked-cels-group-compose.md) | Pixel | L | — | Linked-cel ACs have no open questions; group folding needs a Decision Log entry |
-| 22 | [pixel-pressure](pixel-pressure.md) | Pixel | M | pixel-pencil | |
 | 23 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
-| 24 | [image-layer-groups](image-layer-groups.md) | Image | L | — | |
-| 25 | [image-layer-groups-ora](image-layer-groups-ora.md) | Image | M | image-layer-groups | Fixes ORA group opacity / visibility lost on open |
 | 26 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
-| 27 | [dithered-gradient](dithered-gradient.md) | Pixel | M | — | |
-| 28 | [shading-ink](shading-ink.md) | Pixel | M | pixel-pencil | |
 | 29 | [rotsprite](rotsprite.md) | Pixel | L | — | |
 | 30 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
 | 31 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
 | 32 | [color-picker](color-picker.md) | both | L | — | |
-| 33 | [palette-formats](palette-formats.md) | Pixel | M | — | Lospec palettes |
 | 34 | [animation-preview](animation-preview.md) | Pixel | M | — | |
 | 35 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
 | 36 | [more-languages](more-languages.md) | both | L | — | |
 | 37 | [first-run-tutorial](first-run-tutorial.md) | both | M | — | Better after more-languages if the tour ships translated |
-| 38 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | both | M | — | |
-| 39 | [power-user-shortcuts-palette](power-user-shortcuts-palette.md) | both | M | — | Command palette; no open questions |
 | 40 | [power-user-shortcuts-keymap](power-user-shortcuts-keymap.md) | both | M | shortcut-overview | |
-| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; the golden corpus must be generated before the Vectorizer repository is deleted |
+| 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 
@@ -67,6 +55,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 
 - [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
+- [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
 - [effect-panel](effect-panel.md)
@@ -75,14 +64,33 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
+- [image-editing](image-editing.md)
+- [image-files](image-files.md)
+- [image-layer-groups-ora](image-layer-groups-ora.md)
+- [image-layer-groups](image-layer-groups.md)
+- [indexed-grayscale-compose](indexed-grayscale-compose.md)
+- [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [outline-effect](outline-effect.md)
+- [palette-formats](palette-formats.md)
+- [pen-input](pen-input.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
+- [pixel-export](pixel-export.md)
+- [pixel-layers-frames](pixel-layers-frames.md)
+- [pixel-palette](pixel-palette.md)
 - [pixel-pencil](pixel-pencil.md)
+- [pixel-pressure](pixel-pressure.md)
+- [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
+- [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md)
+- [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
 - [save-original-format](save-original-format.md)
+- [scaled-export](scaled-export.md)
+- [shading-ink](shading-ink.md)
+- [slices](slices.md)
+- [tilemaps](tilemaps.md)
 - [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
@@ -91,7 +99,6 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 Not code; they need a person, hardware or an account.
 
 - **Release prerequisites** (`docs/RELEASING.md`): updater signing key as organization secrets, access to the `MACOS_SIGNING_CERT` organization secrets (`create-signing-cert.sh --repos amigo-blinzel,amigo-pincel`, optional), `RELEASE_PLEASE_TOKEN`, npm trusted publisher for `@amigo-labs/pincel-wasm` then `PUBLISH_NPM=true`, `pincel.amigo-labs.dev` as the Worker's custom domain.
-- **Delete `daniel-rck/Vectorizer`** once vectorize-core (its golden corpus committed) and vectorize-dialog are done (Decision Log 2026-11-01).
 - **Native-speaker review** of the German copy: `website/src/lib/i18n/de.ts` and `ui/src/lib/i18n/de.ts` are machine-written.
 - **Checks on real hardware** (spec §16 exit criteria): 60 fps at 256×256 / zoom 32 on M1 and mid-tier Windows (F2 probe); Lighthouse PWA ≥ 90; a Pincel-saved file opened in upstream Aseprite and a Pincel tilemap loaded by `amigo_assets` (former M6.7); real Tauri installs and the self-update on Windows, macOS and Linux.
 

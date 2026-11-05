@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../../lib/i18n/index.svelte';
+  import { t, type MessageKey } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import { packColor, unpackColor } from '../../../lib/color';
@@ -205,11 +205,33 @@
   // error rather than calling wasm with a wrapped value.
   const UNSIGNED_FIELDS = new Set<keyof SliceRow>(['w', 'h', 'cw', 'ch']);
 
-  function onNumberCommit(row: SliceRow, field: keyof SliceRow, value: number) {
-    if (!Number.isFinite(value)) return;
+  // The label of each numeric field, also used to name it in errors.
+  const FIELD_LABELS = {
+    x: 'slices.x',
+    y: 'slices.y',
+    w: 'slices.w',
+    h: 'slices.h',
+    cx: 'slices.cx',
+    cy: 'slices.cy',
+    cw: 'slices.cw',
+    ch: 'slices.ch',
+    px: 'slices.px',
+    py: 'slices.py',
+  } as const satisfies Partial<Record<keyof SliceRow, MessageKey>>;
+  type NumberField = keyof typeof FIELD_LABELS;
+
+  function onNumberCommit(row: SliceRow, field: NumberField, input: HTMLInputElement) {
+    const value = Number(input.value);
+    const stored = String((row as Record<string, unknown>)[field as string]);
+    if (!Number.isFinite(value)) {
+      input.value = stored;
+      return;
+    }
     const truncated = Math.trunc(value);
     if (UNSIGNED_FIELDS.has(field) && truncated < 1) {
-      rowError[row.id] = t('slices.mustBePositive', { field: String(field) });
+      rowError[row.id] = t('slices.mustBePositive', { field: t(FIELD_LABELS[field]) });
+      // A refused entry snaps back, so the row reads like the slice.
+      input.value = stored;
       return;
     }
     rowError[row.id] = null;
@@ -224,10 +246,11 @@
       // to a 1x1 minimum) so the user has a starting 9-patch they can
       // refine — typing into an empty quartet otherwise rejects from
       // the wasm "partial center" guard and the row sits in an error
-      // state until all four fields are filled.
+      // state until all four fields are filled. The center is relative
+      // to the bounds origin, as Aseprite stores it.
       if (row.cw === 0 || row.ch === 0) {
-        row.cx = row.x + 1;
-        row.cy = row.y + 1;
+        row.cx = 1;
+        row.cy = 1;
         row.cw = Math.max(1, row.w - 2);
         row.ch = Math.max(1, row.h - 2);
       }
@@ -240,9 +263,10 @@
     if (on) {
       // Default the pivot to the slice's top-left corner; users
       // recentering to the bbox center is the common follow-up edit.
-      // Aseprite signs the pivot, so negatives are valid.
-      row.px = row.x;
-      row.py = row.y;
+      // Like the center, the pivot is relative to the bounds origin;
+      // Aseprite signs it, so negatives are valid.
+      row.px = 0;
+      row.py = 0;
     }
     commit(row);
   }
@@ -324,41 +348,42 @@
             </button>
           </div>
           <span class="text-xs text-pc-faint">
-            id {s.id} · {s.keyCount} key{s.keyCount === 1 ? '' : 's'} ·
-            frame 0
+            {s.keyCount === 1
+              ? t('slices.keyInfoOne', { id: s.id })
+              : t('slices.keyInfo', { id: s.id, count: s.keyCount })}
           </span>
 
           <fieldset class="flex flex-col gap-1">
-            <legend class="sr-only">Bounds for slice {s.name}</legend>
+            <legend class="sr-only">{t('slices.bounds', { name: s.name })}</legend>
             <div class="flex gap-1">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>X</span>
+                <span>{t(FIELD_LABELS.x)}</span>
                 <input
                   type="number"
                   step="1"
                   inputmode="numeric"
                   value={s.x}
                   onchange={(e) =>
-                    onNumberCommit(s, 'x', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'x', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>Y</span>
+                <span>{t(FIELD_LABELS.y)}</span>
                 <input
                   type="number"
                   step="1"
                   inputmode="numeric"
                   value={s.y}
                   onchange={(e) =>
-                    onNumberCommit(s, 'y', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'y', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
             </div>
             <div class="flex gap-1">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>W</span>
+                <span>{t(FIELD_LABELS.w)}</span>
                 <input
                   type="number"
                   min="1"
@@ -366,12 +391,12 @@
                   inputmode="numeric"
                   value={s.w}
                   onchange={(e) =>
-                    onNumberCommit(s, 'w', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'w', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>H</span>
+                <span>{t(FIELD_LABELS.h)}</span>
                 <input
                   type="number"
                   min="1"
@@ -379,7 +404,7 @@
                   inputmode="numeric"
                   value={s.h}
                   onchange={(e) =>
-                    onNumberCommit(s, 'h', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'h', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -400,33 +425,33 @@
               <legend class="sr-only">{t('slices.ninePatchCenter')}</legend>
               <div class="flex gap-1">
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cX</span>
+                  <span>{t(FIELD_LABELS.cx)}</span>
                   <input
                     type="number"
                     step="1"
                     inputmode="numeric"
                     value={s.cx}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cx', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cx', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cY</span>
+                  <span>{t(FIELD_LABELS.cy)}</span>
                   <input
                     type="number"
                     step="1"
                     inputmode="numeric"
                     value={s.cy}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cy', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cy', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
               </div>
               <div class="flex gap-1">
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cW</span>
+                  <span>{t(FIELD_LABELS.cw)}</span>
                   <input
                     type="number"
                     min="1"
@@ -434,12 +459,12 @@
                     inputmode="numeric"
                     value={s.cw}
                     onchange={(e) =>
-                      onNumberCommit(s, 'cw', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'cw', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                  <span>cH</span>
+                  <span>{t(FIELD_LABELS.ch)}</span>
                   <input
                     type="number"
                     min="1"
@@ -447,7 +472,7 @@
                     inputmode="numeric"
                     value={s.ch}
                     onchange={(e) =>
-                      onNumberCommit(s, 'ch', Number((e.target as HTMLInputElement).value))}
+                      onNumberCommit(s, 'ch', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -467,26 +492,26 @@
           {#if s.hasPivot}
             <div class="flex gap-1 pl-4">
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>pX</span>
+                <span>{t(FIELD_LABELS.px)}</span>
                 <input
                   type="number"
                   step="1"
                   inputmode="numeric"
                   value={s.px}
                   onchange={(e) =>
-                    onNumberCommit(s, 'px', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'px', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
-                <span>pY</span>
+                <span>{t(FIELD_LABELS.py)}</span>
                 <input
                   type="number"
                   step="1"
                   inputmode="numeric"
                   value={s.py}
                   onchange={(e) =>
-                    onNumberCommit(s, 'py', Number((e.target as HTMLInputElement).value))}
+                    onNumberCommit(s, 'py', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>

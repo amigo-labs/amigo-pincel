@@ -2,7 +2,7 @@
 //! (spec §5.2 / §7.3). Each remembers the prior value on first apply so revert
 //! and redo restore it exactly.
 
-use super::Command;
+use super::{Command, Damage};
 use crate::color::BlendMode;
 use crate::document::{Document, Layer};
 use crate::error::DocumentError;
@@ -49,6 +49,11 @@ impl Command for RenameLayer {
 
     fn label(&self) -> &str {
         "Rename Layer"
+    }
+
+    /// Layer names are not part of the composite.
+    fn damage(&self) -> Damage {
+        Damage::None
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -227,6 +232,11 @@ impl Command for SetLayerLocked {
 
     fn label(&self) -> &str {
         "Layer Lock"
+    }
+
+    /// The lock flag is not part of the composite.
+    fn damage(&self) -> Damage {
+        Damage::None
     }
 
     fn as_any(&self) -> &dyn Any {

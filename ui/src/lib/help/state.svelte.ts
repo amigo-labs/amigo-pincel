@@ -10,6 +10,8 @@
 // no menu bar is mounted at all.
 
 import { isTauri } from '../platform';
+import type { PaletteSource } from '../shell/command-palette';
+import type { ShortcutSource } from '../shell/shortcut-list';
 import { updaterCheck, updaterSetAuto, updaterState, type UpdaterInfo } from './updater';
 
 /** Outcome of a manual update check, shown in the About dialog. */
@@ -20,11 +22,22 @@ export type UpdateResult =
 
 export const help = $state<{
   about: boolean;
+  /** What Help ▸ Keyboard Shortcuts lists; `null` while it is closed. */
+  shortcuts: ShortcutSource | null;
+  /** What the command palette (Ctrl+K) searches; `null` while it is closed. */
+  palette: PaletteSource | null;
   /** `null` until loaded, and forever outside the desktop app. */
   updater: UpdaterInfo | null;
   checking: boolean;
   result: UpdateResult | null;
-}>({ about: false, updater: null, checking: false, result: null });
+}>({
+  about: false,
+  shortcuts: null,
+  palette: null,
+  updater: null,
+  checking: false,
+  result: null,
+});
 
 /** Open the About dialog (Help ▸ About Pincel, or the start screen's button). */
 export function openAbout(): void {
@@ -33,6 +46,37 @@ export function openAbout(): void {
 
 export function closeAbout(): void {
   help.about = false;
+}
+
+/**
+ * Open Help ▸ Keyboard Shortcuts with the mounted editor's actions and tool
+ * groups (docs/specs/shortcut-overview.md). Only editors call this: the
+ * start screen has no mode and so no keymap to list.
+ */
+export function openShortcuts(source: ShortcutSource): void {
+  help.shortcuts = source;
+}
+
+export function closeShortcuts(): void {
+  help.shortcuts = null;
+}
+
+/**
+ * Open the command palette over the mounted editor's menus and tools
+ * (docs/specs/power-user-shortcuts-palette.md). Only editors call this:
+ * the start screen has no menu bar to search.
+ */
+export function openPalette(source: PaletteSource): void {
+  help.palette = source;
+}
+
+export function closePalette(): void {
+  help.palette = null;
+}
+
+/** True while a shell dialog (About, Keyboard Shortcuts, command palette) owns the keyboard. */
+export function helpDialogOpen(): boolean {
+  return help.about || help.shortcuts !== null || help.palette !== null;
 }
 
 /** Load what the Help menu draws its update entries from. No-op in a browser. */

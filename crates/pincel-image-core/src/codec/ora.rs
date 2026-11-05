@@ -10,10 +10,11 @@
 //!
 //! Mapping: opacity ↔ `opacity` (0–1), visible ↔ `visibility`, locked ↔
 //! Krita's `edit-locked`, the active layer ↔ `selected`, blend modes ↔
-//! the `svg:*` `composite-op` names. On read, nested `<stack>`s are
-//! flattened in document order, layer PNGs are placed at their `x` / `y`
-//! offset on a canvas-sized buffer, and unknown composite ops fall back
-//! to Normal.
+//! the `svg:*` `composite-op` names. Groups are nested `<stack>`s with the
+//! same attributes plus `isolation="isolate"`; on read every nested stack
+//! becomes a group (docs/specs/image-layer-groups-ora.md). Layer PNGs are
+//! placed at their `x` / `y` offset on a canvas-sized buffer, and unknown
+//! composite ops fall back to Normal.
 
 use std::io::{Cursor, Read, Write};
 
@@ -23,7 +24,8 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use super::{CodecError, decode, to_png_bytes};
 use crate::color::BlendMode;
-use crate::document::{Document, ImageBuffer, Layer};
+use crate::document::tree::subtree_end;
+use crate::document::{Document, ImageBuffer, Layer, MAX_LAYERS};
 use crate::error::DocumentError;
 use crate::render::compose;
 use crate::transform::{Interpolation, scale};
@@ -115,31 +117,15 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
          <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\">\n<stack>\n"
     );
     let layers = doc.layers();
-    let active = doc.active_layer_index();
-    // stack.xml lists layers top-most first; storage is bottom-up.
-    for (index, layer) in layers.iter().enumerate().rev() {
-        let src = format!("data/layer{index}.png");
-        zip.start_file(&src, stored)?;
-        zip.write_all(&to_png_bytes(&layer.pixels, compression)?)?;
-        xml.push_str(&format!(
-            "  <layer name=\"{}\" src=\"{src}\" x=\"0\" y=\"0\" opacity=\"{:.3}\" \
-             visibility=\"{}\" composite-op=\"{}\"{}{} />\n",
-            escape(&layer.name),
-            layer.opacity.clamp(0.0, 1.0),
-            if layer.visible { "visible" } else { "hidden" },
-            composite_op(layer.blend_mode),
-            if layer.locked {
-                " edit-locked=\"true\""
-            } else {
-                ""
-            },
-            if index == active {
-                " selected=\"true\""
-            } else {
-                ""
-            },
-        ));
-    }
+    write_run(
+        &mut zip,
+        &mut xml,
+        layers,
+        0..layers.len(),
+        doc.active_layer_index(),
+        compression,
+        1,
+    )?;
     xml.push_str("</stack>\n</image>\n");
     zip.start_file("stack.xml", stored)?;
     zip.write_all(xml.as_bytes())?;
@@ -162,7 +148,128 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
     Ok(zip.finish()?.into_inner())
 }
 
+/// Writes the whole subtrees in `run` of `layers` top-most first: a raster
+/// layer as `<layer>` with its PNG, a group as a nested, isolated `<stack>`
+/// around its children (docs/specs/image-layer-groups-ora.md AC-03).
+fn write_run<W: Write + std::io::Seek>(
+    zip: &mut ZipWriter<W>,
+    xml: &mut String,
+    layers: &[Layer],
+    run: std::ops::Range<usize>,
+    active: usize,
+    compression: u8,
+    depth: usize,
+) -> Result<(), OraError> {
+    let mut roots = Vec::new();
+    let mut i = run.start;
+    while i < run.end {
+        let end = subtree_end(layers, i);
+        roots.push((i, end));
+        i = end;
+    }
+    let indent = "  ".repeat(depth);
+    let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+    // stack.xml lists layers top-most first; storage is bottom-up.
+    for (index, end) in roots.into_iter().rev() {
+        let layer = &layers[index];
+        let attrs = format!(
+            "name=\"{}\"{} opacity=\"{:.3}\" visibility=\"{}\" composite-op=\"{}\"{}{}",
+            escape(&layer.name),
+            if layer.is_group() {
+                String::new()
+            } else {
+                format!(" src=\"data/layer{index}.png\" x=\"0\" y=\"0\"")
+            },
+            layer.opacity.clamp(0.0, 1.0),
+            if layer.visible { "visible" } else { "hidden" },
+            composite_op(layer.blend_mode),
+            if layer.locked {
+                " edit-locked=\"true\""
+            } else {
+                ""
+            },
+            if index == active {
+                " selected=\"true\""
+            } else {
+                ""
+            },
+        );
+        if layer.is_group() {
+            xml.push_str(&format!("{indent}<stack {attrs} isolation=\"isolate\">\n"));
+            write_run(
+                zip,
+                xml,
+                layers,
+                index + 1..end,
+                active,
+                compression,
+                depth + 1,
+            )?;
+            xml.push_str(&format!("{indent}</stack>\n"));
+        } else {
+            zip.start_file(format!("data/layer{index}.png"), stored)?;
+            zip.write_all(&to_png_bytes(&layer.pixels, compression)?)?;
+            xml.push_str(&format!("{indent}<layer {attrs} />\n"));
+        }
+    }
+    Ok(())
+}
+
+/// One element of `stack.xml` that the reader cares about, in document order.
+enum StackEvent {
+    /// A `<stack …>` start tag (`true` when self-closing) with its attributes.
+    Open(String, bool),
+    /// A `</stack>` end tag.
+    Close,
+    /// A `<layer …>` tag with its attributes.
+    Layer(String),
+}
+
+/// The `<stack>`, `</stack>` and `<layer>` tags of `xml` in document order.
+fn stack_events(xml: &str) -> Vec<StackEvent> {
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find('<') {
+        let after = &rest[start + 1..];
+        let delimited = |name: &str| {
+            after.strip_prefix(name).is_some_and(|tail| {
+                tail.starts_with(|c: char| c.is_whitespace() || c == '>' || c == '/')
+            })
+        };
+        let end = find_tag_end(after);
+        let tag = &after[..end];
+        if delimited("/stack") {
+            out.push(StackEvent::Close);
+        } else if delimited("stack") {
+            let attrs = &tag["stack".len()..];
+            let closed = attrs.trim_end().ends_with('/');
+            out.push(StackEvent::Open(attrs.to_string(), closed));
+        } else if delimited("layer") {
+            out.push(StackEvent::Layer(tag["layer".len()..].to_string()));
+        }
+        rest = &after[end.min(after.len())..];
+    }
+    out
+}
+
+/// Opacity, visibility, blend mode and lock of a `<layer>` or `<stack>` tag.
+fn read_properties(layer: &mut Layer, tag: &str) {
+    layer.opacity = attr(tag, "opacity")
+        .and_then(|v| v.parse::<f32>().ok())
+        .unwrap_or(1.0)
+        .clamp(0.0, 1.0);
+    layer.visible = attr(tag, "visibility").as_deref() != Some("hidden");
+    layer.blend_mode = blend_from_op(attr(tag, "composite-op").as_deref().unwrap_or(""));
+    layer.locked = attr(tag, "edit-locked").as_deref() == Some("true");
+}
+
 /// Parse an OpenRaster archive into a document.
+///
+/// Nested `<stack>`s become groups with their name, opacity, visibility,
+/// blend mode and lock; every group composites isolated, whatever its
+/// `isolation` (docs/specs/image-layer-groups-ora.md). Unbalanced stacks
+/// are recovered: a stray `</stack>` is ignored and open stacks close at
+/// the end of `stack.xml`.
 pub fn from_ora_bytes(bytes: &[u8]) -> Result<Document, OraError> {
     let mut zip = ZipArchive::new(Cursor::new(bytes))?;
     let mimetype = read_entry(&mut zip, "mimetype")?;
@@ -184,49 +291,96 @@ pub fn from_ora_bytes(bytes: &[u8]) -> Result<Document, OraError> {
     };
     let (w, h) = (dim("w")?, dim("h")?);
 
-    // `tags` returns document order, i.e. top-most layer first.
-    let mut stack = Vec::new();
+    // Document order is top-most first, each group before its children.
+    // `items[i].1` is the item index of the group holding item `i`.
+    let mut items: Vec<(Layer, Option<usize>)> = Vec::new();
+    // The open `<stack>`s: `None` for the root stack, else its group item.
+    let mut open: Vec<Option<usize>> = Vec::new();
     let mut selected = None;
-    for (i, tag) in tags(&xml, "layer").iter().enumerate() {
-        let src =
-            attr(tag, "src").ok_or_else(|| OraError::Stack("<layer> without `src`".into()))?;
-        let png = decode(&read_entry(&mut zip, &src)?)?;
-        let x = attr(tag, "x").and_then(|v| v.parse().ok()).unwrap_or(0);
-        let y = attr(tag, "y").and_then(|v| v.parse().ok()).unwrap_or(0);
-        let pixels: ImageBuffer = if (x, y, png.width(), png.height()) == (0, 0, w, h) {
-            png
-        } else {
-            png.offset_copy(w, h, x, y)
-        };
-        let mut layer = Layer::from_pixels(
-            attr(tag, "name").unwrap_or_else(|| format!("Layer {}", i + 1)),
-            pixels,
-        );
-        layer.opacity = attr(tag, "opacity")
-            .and_then(|v| v.parse::<f32>().ok())
-            .unwrap_or(1.0)
-            .clamp(0.0, 1.0);
-        layer.visible = attr(tag, "visibility").as_deref() != Some("hidden");
-        layer.blend_mode = blend_from_op(attr(tag, "composite-op").as_deref().unwrap_or(""));
-        layer.locked = attr(tag, "edit-locked").as_deref() == Some("true");
-        if attr(tag, "selected").as_deref() == Some("true") {
-            selected = Some(i);
+    let mut layers_read = 0;
+    for event in stack_events(&xml) {
+        let parent = open.last().copied().flatten();
+        match event {
+            StackEvent::Close => {
+                open.pop();
+            }
+            StackEvent::Open(_, closed) if open.is_empty() => {
+                if !closed {
+                    open.push(None);
+                }
+            }
+            StackEvent::Open(tag, closed) => {
+                let n = items.iter().filter(|(l, _)| l.is_group()).count() + 1;
+                let mut group =
+                    Layer::new_group(attr(&tag, "name").unwrap_or_else(|| format!("Group {n}")));
+                read_properties(&mut group, &tag);
+                if attr(&tag, "selected").as_deref() == Some("true") {
+                    selected = Some(items.len());
+                }
+                items.push((group, parent));
+                if !closed {
+                    open.push(Some(items.len() - 1));
+                }
+            }
+            StackEvent::Layer(tag) => {
+                layers_read += 1;
+                let src = attr(&tag, "src")
+                    .ok_or_else(|| OraError::Stack("<layer> without `src`".into()))?;
+                let png = decode(&read_entry(&mut zip, &src)?)?;
+                let x = attr(&tag, "x").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let y = attr(&tag, "y").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let pixels: ImageBuffer = if (x, y, png.width(), png.height()) == (0, 0, w, h) {
+                    png
+                } else {
+                    png.offset_copy(w, h, x, y)
+                };
+                let mut layer = Layer::from_pixels(
+                    attr(&tag, "name").unwrap_or_else(|| format!("Layer {layers_read}")),
+                    pixels,
+                );
+                read_properties(&mut layer, &tag);
+                if attr(&tag, "selected").as_deref() == Some("true") {
+                    selected = Some(items.len());
+                }
+                items.push((layer, parent));
+            }
         }
-        stack.push(layer);
+        if items.len() > MAX_LAYERS {
+            return Err(DocumentError::LayerLimit { max: MAX_LAYERS }.into());
+        }
     }
 
     let mut doc = Document::new(w, h)?;
-    if stack.is_empty() {
-        return Ok(doc);
+    if items.iter().all(|(l, _)| l.is_group()) {
+        return Ok(doc); // nothing to paint on: a blank document
     }
-    let count = stack.len();
-    // Insert bottom-up above the placeholder layer, then drop it.
-    for (n, layer) in stack.into_iter().rev().enumerate() {
-        doc.insert_layer(n + 1, layer)?;
+    // Storage is bottom-first with each group before its children: walk the
+    // tree, listing every level's children in reverse document order.
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); items.len() + 1];
+    for (i, (_, parent)) in items.iter().enumerate() {
+        children[parent.map_or(0, |p| p + 1)].push(i);
     }
-    doc.remove_layer(0)?;
-    // `selected` indexes the top-first list; storage is bottom-up.
-    doc.set_active_layer(selected.map_or(count - 1, |i| count - 1 - i))?;
+    let mut order = Vec::with_capacity(items.len());
+    let mut todo: Vec<usize> = children[0].clone();
+    while let Some(i) = todo.pop() {
+        order.push(i);
+        todo.extend(children[i + 1].iter().copied());
+    }
+    let ids: Vec<_> = items.iter().map(|(l, _)| l.id).collect();
+    let mut slots: Vec<Option<(Layer, Option<usize>)>> = items.into_iter().map(Some).collect();
+    let mut layers = Vec::with_capacity(order.len());
+    let mut active = None;
+    for i in order {
+        let (mut layer, parent) = slots[i].take().expect("each item is listed once");
+        layer.parent = parent.map(|p| ids[p]);
+        if Some(i) == selected {
+            active = Some(layers.len());
+        }
+        layers.push(layer);
+    }
+    let top = layers.len() - 1;
+    doc.layers = layers;
+    doc.set_active_layer(active.unwrap_or(top))?;
     Ok(doc)
 }
 
@@ -380,36 +534,272 @@ mod tests {
         }
     }
 
+    /// Decodes the archive entry `name` of an `.ora`.
+    fn entry_image(bytes: &[u8], name: &str) -> ImageBuffer {
+        let mut zip = ZipArchive::new(Cursor::new(bytes)).expect("zip");
+        decode(&read_entry(&mut zip, name).expect("entry")).expect("png")
+    }
+
     #[test]
-    fn from_ora_bytes_places_offset_layers_and_flattens_nested_stacks() {
+    fn to_ora_bytes_merged_image_is_the_visible_composite() {
+        let doc = sample_doc();
+        let bytes = to_ora_bytes(&doc, 6).expect("write");
+        let merged = entry_image(&bytes, "mergedimage.png");
+        assert_eq!(merged, compose(doc.layers()));
+        // The hidden top layer is left out, the multiplied one blends in.
+        let mut shown = sample_doc();
+        shown.set_active_layer(2).expect("active");
+        shown.active_layer_mut().visible = true;
+        shown
+            .active_layer_mut()
+            .pixels
+            .set_pixel(0, 0, Color::rgba(0, 255, 0, 255));
+        assert_ne!(merged, compose(shown.layers()));
+        assert_ne!(merged, doc.layers()[0].pixels);
+    }
+
+    #[test]
+    fn to_ora_bytes_thumbnail_fits_256_px_with_the_canvas_aspect() {
+        for ((w, h), thumb) in [
+            ((600, 300), (256, 128)),
+            ((100, 1000), (25, 256)),
+            ((40, 30), (40, 30)),
+        ] {
+            let doc = Document::new(w, h).expect("doc");
+            let bytes = to_ora_bytes(&doc, 1).expect("write");
+            let t = entry_image(&bytes, "Thumbnails/thumbnail.png");
+            assert_eq!((t.width(), t.height()), thumb, "{w}×{h}");
+        }
+    }
+
+    /// An `.ora` with `xml` as its `stack.xml` and a 1×1 grey `a.png`.
+    fn ora_with_stack(xml: &str) -> Vec<u8> {
         let layer = ImageBuffer::from_raw(1, 1, vec![9, 9, 9, 255]).expect("buf");
         let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
         let o = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
         zip.start_file("mimetype", o).expect("start");
         zip.write_all(ORA_MIMETYPE.as_bytes()).expect("write");
         zip.start_file("stack.xml", o).expect("start");
-        zip.write_all(
-            b"<?xml version='1.0'?><image w='3' h='2'><stack>\
-              <stack name='group'><layer name='dot' src='a.png' x='2' y='1' \
-              composite-op='krita:unknown'/></stack>\
-              <layer src='a.png'/></stack></image>",
-        )
-        .expect("write");
+        zip.write_all(xml.as_bytes()).expect("write");
         zip.start_file("a.png", o).expect("start");
         zip.write_all(&to_png_bytes(&layer, 6).expect("png"))
             .expect("write");
-        let bytes = zip.finish().expect("finish").into_inner();
+        zip.finish().expect("finish").into_inner()
+    }
 
+    /// `(name, parent name, is_group)` bottom-first.
+    fn tree(doc: &Document) -> Vec<(String, Option<String>, bool)> {
+        (0..doc.layer_count())
+            .map(|i| {
+                let l = &doc.layers()[i];
+                let parent = doc.parent_index(i).map(|p| doc.layers()[p].name.clone());
+                (l.name.clone(), parent, l.is_group())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn from_ora_bytes_keeps_nested_stack_attributes() {
+        let bytes = ora_with_stack(
+            "<?xml version='1.0'?><image w='3' h='2'><stack>\
+             <stack name='group' opacity='0.5' visibility='hidden' \
+             composite-op='svg:multiply' edit-locked='true'>\
+             <layer name='dot' src='a.png' x='2' y='1' composite-op='krita:unknown'/>\
+             <stack name='empty'/></stack>\
+             <layer src='a.png'/></stack></image>",
+        );
         let doc = from_ora_bytes(&bytes).expect("read");
         assert_eq!((doc.canvas.width(), doc.canvas.height()), (3, 2));
-        assert_eq!(doc.layer_count(), 2);
-        // Top-first in the XML → `dot` is the top (last) layer.
-        let dot = &doc.layers()[1];
-        assert_eq!(dot.name, "dot");
+        assert!(doc.is_well_formed());
+        let s = |v: &str| v.to_string();
+        assert_eq!(
+            tree(&doc),
+            [
+                (s("Layer 2"), None, false),
+                (s("group"), None, true),
+                (s("empty"), Some(s("group")), true),
+                (s("dot"), Some(s("group")), false),
+            ]
+        );
+        let group = &doc.layers()[1];
+        assert!((group.opacity - 0.5).abs() < 0.001);
+        assert!(!group.visible && group.locked);
+        assert_eq!(group.blend_mode, BlendMode::Multiply);
+        let dot = &doc.layers()[3];
         assert_eq!(dot.blend_mode, BlendMode::Normal);
         assert_eq!(dot.pixels.get_pixel(2, 1), Some(Color::rgba(9, 9, 9, 255)));
         assert_eq!(dot.pixels.get_pixel(0, 0), Some(Color::rgba(0, 0, 0, 0)));
-        assert_eq!(doc.layers()[0].name, "Layer 2");
+        // AC-02: the hidden group hides `dot`, which is visible itself.
+        assert!(dot.visible);
+        assert_eq!(
+            compose(doc.layers()).get_pixel(2, 1),
+            Some(Color::TRANSPARENT)
+        );
+    }
+
+    #[test]
+    fn from_ora_bytes_composites_a_half_opaque_stack_as_a_whole() {
+        let bytes = ora_with_stack(
+            "<image w='1' h='1'><stack><stack opacity='0.5'>\
+             <layer src='a.png'/><layer src='a.png'/></stack></stack></image>",
+        );
+        let doc = from_ora_bytes(&bytes).expect("read");
+        assert_eq!(
+            compose(doc.layers()).get_pixel(0, 0).map(|c| c.a),
+            Some(128)
+        );
+    }
+
+    #[test]
+    fn from_ora_bytes_recovers_unbalanced_stacks() {
+        // A stray close tag is ignored; the open `<stack>`s close at the end.
+        let bytes = ora_with_stack(
+            "<image w='1' h='1'><stack><layer name='a' src='a.png'/></stack></stack>\
+             <stack><stack name='g'><stack name='h'><layer name='b' src='a.png'/>",
+        );
+        let doc = from_ora_bytes(&bytes).expect("read");
+        let s = |v: &str| v.to_string();
+        assert_eq!(
+            tree(&doc),
+            [
+                (s("g"), None, true),
+                (s("h"), Some(s("g")), true),
+                (s("b"), Some(s("h")), false),
+                (s("a"), None, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn from_ora_bytes_over_the_layer_limit_fails() {
+        let mut xml = String::from("<image w='1' h='1'><stack>");
+        for _ in 0..500 {
+            xml.push_str("<stack><layer src='a.png'/></stack>");
+        }
+        xml.push_str("</stack></image>");
+        let err = from_ora_bytes(&ora_with_stack(&xml)).unwrap_err();
+        assert!(matches!(
+            err,
+            OraError::Document(DocumentError::LayerLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn from_ora_bytes_reads_a_flat_stack_at_the_root() {
+        let doc = from_ora_bytes(&to_ora_bytes(&sample_doc(), 1).expect("write")).expect("read");
+        assert!(
+            doc.layers()
+                .iter()
+                .all(|l| l.parent.is_none() && !l.is_group())
+        );
+    }
+
+    /// bg, G (60 %, Screen, locked) { a, H (hidden) { b } }, top.
+    fn grouped_doc() -> Document {
+        let mut doc = Document::new(3, 2).expect("doc");
+        let g = Layer::new_group("G")
+            .with_opacity(0.6)
+            .with_blend_mode(BlendMode::Screen);
+        let gid = g.id;
+        let mut h = Layer::new_group("H").with_parent(Some(gid));
+        h.visible = false;
+        let hid = h.id;
+        let mut a = Layer::new_transparent("a", 3, 2).with_parent(Some(gid));
+        a.pixels.set_pixel(1, 0, Color::rgba(200, 10, 10, 255));
+        let mut b = Layer::new_transparent("b", 3, 2).with_parent(Some(hid));
+        b.pixels.set_pixel(2, 1, Color::rgba(10, 200, 10, 200));
+        b.blend_mode = BlendMode::Difference;
+        let mut top = Layer::new_transparent("top", 3, 2);
+        top.pixels.set_pixel(0, 1, Color::rgba(10, 10, 200, 100));
+        for (i, l) in [g, a, h, b, top].into_iter().enumerate() {
+            doc.insert_layer(i + 1, l).expect("insert");
+        }
+        doc.layers[1].locked = true;
+        doc.active_layer_mut().pixels.set_pixel(0, 0, Color::WHITE);
+        doc.set_active_layer(3).expect("active");
+        doc
+    }
+
+    #[test]
+    fn to_ora_bytes_writes_groups_as_nested_isolated_stacks() {
+        let bytes = to_ora_bytes(&grouped_doc(), 1).expect("write");
+        let mut zip = ZipArchive::new(Cursor::new(bytes.as_slice())).expect("zip");
+        let xml = String::from_utf8(read_entry(&mut zip, "stack.xml").expect("xml")).expect("utf8");
+        let at = |needle: &str| {
+            xml.find(needle)
+                .unwrap_or_else(|| panic!("{needle} in {xml}"))
+        };
+        let g = at("<stack name=\"G\"");
+        let g_tag = &xml[g..g + xml[g..].find('>').expect("tag end")];
+        for attr in [
+            "opacity=\"0.600\"",
+            "visibility=\"visible\"",
+            "composite-op=\"svg:screen\"",
+            "edit-locked=\"true\"",
+            "isolation=\"isolate\"",
+        ] {
+            assert!(g_tag.contains(attr), "{attr} in {g_tag}");
+        }
+        assert!(
+            xml[at("<stack name=\"H\"")..]
+                .starts_with("<stack name=\"H\" opacity=\"1.000\" visibility=\"hidden\"")
+        );
+        // Top-most first, each child inside its group's element.
+        let order = [
+            "name=\"top\"",
+            "name=\"G\"",
+            "name=\"H\"",
+            "name=\"b\"",
+            "</stack>",
+            "name=\"a\"",
+            "</stack>",
+            "name=\"bg\"",
+        ];
+        let mut from = 0;
+        for needle in order {
+            let needle = if needle == "name=\"bg\"" {
+                "name=\"Layer 1\""
+            } else {
+                needle
+            };
+            let pos = xml[from..]
+                .find(needle)
+                .unwrap_or_else(|| panic!("{needle} after {from} in {xml}"));
+            from += pos + needle.len();
+        }
+    }
+
+    #[test]
+    fn to_ora_bytes_then_from_ora_bytes_keeps_the_layer_tree() {
+        let doc = grouped_doc();
+        let back = from_ora_bytes(&to_ora_bytes(&doc, 1).expect("write")).expect("read");
+        assert_eq!(tree(&back), tree(&doc));
+        assert_eq!(back.active_layer_index(), doc.active_layer_index());
+        for (a, b) in doc.layers().iter().zip(back.layers()) {
+            assert_eq!(a.kind, b.kind, "{}", a.name);
+            assert_eq!(a.pixels, b.pixels, "{}", a.name);
+            assert_eq!(a.blend_mode, b.blend_mode, "{}", a.name);
+            assert_eq!((a.visible, a.locked), (b.visible, b.locked), "{}", a.name);
+            assert!((a.opacity - b.opacity).abs() < 0.001, "{}", a.name);
+        }
+    }
+
+    #[test]
+    fn to_ora_bytes_merged_image_applies_groups_in_isolation() {
+        let doc = grouped_doc();
+        let merged = entry_image(&to_ora_bytes(&doc, 1).expect("write"), "mergedimage.png");
+        assert_eq!(merged, compose(doc.layers()));
+        // Not the flat fold that ignores the group's opacity and blend mode.
+        let flat: Vec<Layer> = doc
+            .layers()
+            .iter()
+            .filter(|l| !l.is_group())
+            .map(|l| Layer {
+                parent: None,
+                ..l.clone()
+            })
+            .collect();
+        assert_ne!(merged, compose(&flat));
     }
 
     #[test]

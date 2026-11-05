@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../../../lib/i18n/index.svelte';
   import type { Document } from '../../../lib/core';
 
   // Paints a single tile from a tileset onto a small Canvas2D element.
@@ -64,8 +65,8 @@
   width={tileW}
   height={tileH}
   class="tile-thumb"
-  aria-label={`tile ${tileId}`}
-  title={`tile ${tileId}`}
+  aria-label={t('tiles.thumb', { tile: tileId })}
+  title={t('tiles.thumb', { tile: tileId })}
 ></canvas>
 
 <style>

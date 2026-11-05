@@ -84,6 +84,14 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 | Defaults Shape = Square and Thickness = 1 (AC-01) | The legacy plan's e2e test says Outline "with defaults colors the 8 neighbours" of a single pixel | Low |
 | Invalid hex text is rejected in the dialog (AC-11) | The colour param accepts `#RRGGBB[AA]` only; any other value has no colour to apply | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- `pincel-effects` gains Outline: outside, inside or both, square or circle, thickness 1 – 8 by a two-pass distance transform, any colour; out-of-range parameters are errors
+- The effect catalog and dialog gain a colour parameter (native colour input plus `#RRGGBB` / `#RRGGBBAA` text); Effects ▸ Outline… previews live and applies as one undo step in both modes
+- The agent tools list the outline effect with a hex colour parameter
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->

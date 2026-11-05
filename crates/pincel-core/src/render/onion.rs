@@ -16,11 +16,11 @@
 //!
 //! Frames outside the sprite are skipped; there is no wrap-around.
 
-use crate::document::{BlendMode, CelMap, FrameIndex, Sprite};
+use crate::document::{BlendMode, FrameIndex};
 use crate::geometry::Rect;
 
 use super::blend::{blend_pixel_into, mul_u8};
-use super::compose::composite_visible_layers;
+use super::compose::{Scene, composite_visible_layers};
 use super::error::RenderError;
 use super::request::{ComposeRequest, OnionSkin};
 
@@ -29,14 +29,13 @@ const NEXT_TINT: [u8; 3] = [0, 0, 255];
 
 pub(super) fn composite_onion_skin(
     dst: &mut [u8],
-    sprite: &Sprite,
-    cels: &CelMap,
+    scene: &Scene<'_>,
     request: &ComposeRequest,
     onion: OnionSkin,
     viewport: Rect,
 ) -> Result<(), RenderError> {
     let current = request.frame.0;
-    let frame_count = sprite.frames.len() as u32;
+    let frame_count = scene.sprite.frames.len() as u32;
     let back = onion.frames_back.min(current);
     let forward = onion
         .frames_forward
@@ -61,8 +60,7 @@ pub(super) fn composite_onion_skin(
         scratch.fill(0);
         composite_visible_layers(
             &mut scratch,
-            sprite,
-            cels,
+            scene,
             &request.include_layers,
             FrameIndex::new(frame),
             viewport,

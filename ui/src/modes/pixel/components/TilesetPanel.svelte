@@ -76,7 +76,12 @@
   // on the next mutation that targets the same tileset.
   let rowError = $state<Record<number, string | null>>({});
 
+  // The form always opens with the defaults (tilemaps.md AC-02), whatever
+  // an earlier, cancelled or submitted form held.
   function openForm() {
+    formName = 'Tileset';
+    formTileW = 16;
+    formTileH = 16;
     formOpen = true;
     formError = null;
   }
@@ -110,7 +115,6 @@
     }
     formOpen = false;
     formError = null;
-    formName = 'Tileset';
     onChange?.();
   }
 
@@ -159,7 +163,10 @@
   {/snippet}
 
   {#if formOpen}
-    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" onsubmit={submitForm}>
+    <!-- novalidate: the form's own checks report every bad size in the UI
+         language; the browser's bubble would block the submit and leave
+         an earlier, stale message standing. -->
+    <form class="flex flex-col gap-2 rounded border border-pc-border p-2" novalidate onsubmit={submitForm}>
       <label class="flex flex-col gap-1 text-xs text-pc-muted">
         <span>{t('layers.name')}</span>
         <input
@@ -214,7 +221,9 @@
         >
           <span class="truncate text-sm text-pc-text" title={ts.name}>{ts.name}</span>
           <span class="text-xs text-pc-faint">
-            id {ts.id} · {ts.tileW}×{ts.tileH} · {ts.tileCount} tile{ts.tileCount === 1 ? '' : 's'}
+            {ts.tileCount === 1
+              ? t('tiles.summaryOne', { id: ts.id, w: ts.tileW, h: ts.tileH })
+              : t('tiles.summary', { id: ts.id, w: ts.tileW, h: ts.tileH, count: ts.tileCount })}
           </span>
           <div class="flex gap-1">
             <button
@@ -223,7 +232,7 @@
               onclick={() => addTile(ts.id)}
               aria-label={t('tiles.addTile', { name: ts.name })}
             >
-              + Tile
+              {t('tiles.plusTile')}
             </button>
             <button
               type="button"
@@ -231,15 +240,17 @@
               onclick={() => addTilemapLayer(ts.id, ts.name)}
               aria-label={t('tiles.addLayer', { name: ts.name })}
             >
-              + Layer
+              {t('tiles.plusLayer')}
             </button>
           </div>
           {#if rowError[ts.id]}
             <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
           {/if}
-          {#if doc && ts.tileCount > 0}
+          {#if doc && ts.tileCount > 1}
+            <!-- Tile 0 is the empty tile: never shown, never picked
+                 (tilemaps.md AC-07). -->
             <div class="flex flex-wrap gap-1" aria-label={t('tiles.tiles', { name: ts.name })}>
-              {#each Array.from({ length: ts.tileCount }, (_, i) => i) as tileId (tileId)}
+              {#each Array.from({ length: ts.tileCount - 1 }, (_, i) => i + 1) as tileId (tileId)}
                 {@const isSelected =
                   selectedTile?.tilesetId === ts.id && selectedTile?.tileId === tileId}
                 <button

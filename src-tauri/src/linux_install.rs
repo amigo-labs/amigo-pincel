@@ -5,8 +5,9 @@
 //! Only that installed copy updates itself (`updater::supported`).
 //! See docs/RELEASING.md and docs/specs/pincel.md §15, 2026-10-26.
 
+use std::ffi::OsString;
 use std::fs;
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -20,6 +21,7 @@ const MIME_TYPES: &[&str] = &[
     "image/bmp",
     "image/gif",
     "image/tiff",
+    "image/vnd.adobe.photoshop",
 ];
 
 /// shared-mime-info knows every type above except Aseprite's.
@@ -205,19 +207,37 @@ fn refresh_caches(layout: &Layout) {
 /// Handle `--install` / `--uninstall` before Tauri starts. Returns the
 /// process exit code when one of them was given (0 done, 1 failed).
 pub fn run_cli(args: &[String]) -> Option<i32> {
-    let installing = args.iter().any(|a| a == "--install");
-    let uninstalling = args.iter().any(|a| a == "--uninstall");
-    if !installing && !uninstalling {
+    if !args.iter().any(|a| a == "--install" || a == "--uninstall") {
         return None;
     }
-    let Some(layout) = Layout::from_env() else {
-        eprintln!("pincel: $HOME is not set");
-        return Some(1);
+    Some(run_cli_with(
+        args,
+        Layout::from_env(),
+        std::env::var_os("APPIMAGE"),
+        &mut io::stdout(),
+        &mut io::stderr(),
+    ))
+}
+
+/// [`run_cli`] once `--install` or `--uninstall` was given, with the
+/// environment passed in: the layout (`None` without `$HOME`), the
+/// running AppImage (`$APPIMAGE`) and where the messages go.
+fn run_cli_with(
+    args: &[String],
+    layout: Option<Layout>,
+    appimage: Option<OsString>,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> i32 {
+    let uninstalling = args.iter().any(|a| a == "--uninstall");
+    let Some(layout) = layout else {
+        let _ = writeln!(err, "pincel: $HOME is not set");
+        return 1;
     };
     let result = if uninstalling {
         uninstall(&layout).map(|()| "Pincel is uninstalled.".to_string())
     } else {
-        match std::env::var_os("APPIMAGE") {
+        match appimage {
             Some(source) => install(&layout, Path::new(&source)).map(|()| {
                 format!(
                     "Pincel is installed: {} (command: {}).",
@@ -232,12 +252,12 @@ pub fn run_cli(args: &[String]) -> Option<i32> {
     };
     match result {
         Ok(message) => {
-            println!("{message}");
-            Some(0)
+            let _ = writeln!(out, "{message}");
+            0
         }
         Err(e) => {
-            eprintln!("pincel: {e}");
-            Some(1)
+            let _ = writeln!(err, "pincel: {e}");
+            1
         }
     }
 }
@@ -322,6 +342,60 @@ mod tests {
     fn run_cli_ignores_other_args() {
         let args = vec!["pincel".to_string(), "/tmp/a.png".to_string()];
         assert_eq!(run_cli(&args), None);
+    }
+
+    /// Runs `pincel <flag>` against `layout` and `$APPIMAGE`; returns the
+    /// exit code, stdout and stderr.
+    fn cli(flag: &str, layout: Option<Layout>, appimage: Option<&Path>) -> (i32, String, String) {
+        let args = vec!["pincel".to_string(), flag.to_string()];
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let code = run_cli_with(
+            &args,
+            layout,
+            appimage.map(|p| p.as_os_str().to_owned()),
+            &mut out,
+            &mut err,
+        );
+        (
+            code,
+            String::from_utf8(out).unwrap(),
+            String::from_utf8(err).unwrap(),
+        )
+    }
+
+    #[test]
+    fn install_outside_an_appimage_fails_with_an_error() {
+        // desktop-app.md AC-10: no `$APPIMAGE` (a .deb / .rpm install or a
+        // plain binary).
+        let (_dir, layout, _source) = sandbox();
+        let (code, out, err) = cli("--install", Some(layout.clone()), None);
+        assert_eq!(code, 1);
+        assert!(err.starts_with("pincel: "), "stderr: {err}");
+        assert!(out.is_empty(), "stdout: {out}");
+        assert!(!layout.appimage().exists());
+        assert!(layout.bin_link().symlink_metadata().is_err());
+        assert!(!layout.desktop_file().exists());
+    }
+
+    #[test]
+    fn install_without_home_fails_with_an_error() {
+        // desktop-app.md AC-10: `Layout::from_env` is `None` without `$HOME`.
+        let (_dir, _layout, source) = sandbox();
+        let (code, out, err) = cli("--install", None, Some(&source));
+        assert_eq!(code, 1);
+        assert_eq!(err, "pincel: $HOME is not set\n");
+        assert!(out.is_empty(), "stdout: {out}");
+    }
+
+    #[test]
+    fn install_from_an_appimage_reports_on_stdout() {
+        // The success path of the same entry point, for contrast.
+        let (_dir, layout, source) = sandbox();
+        let (code, out, err) = cli("--install", Some(layout.clone()), Some(&source));
+        assert_eq!(code, 0);
+        assert!(out.starts_with("Pincel is installed: "), "stdout: {out}");
+        assert!(err.is_empty(), "stderr: {err}");
+        assert!(layout.appimage().exists());
     }
 
     #[test]

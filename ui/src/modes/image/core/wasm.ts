@@ -5,6 +5,7 @@ import initWasm, {
   create_document,
   open_image,
   open_project,
+  open_psd,
   paste_layer,
   copy_selection,
   cut_selection,
@@ -39,6 +40,26 @@ import { publishDocumentCount } from '../../../lib/diagnostics';
 
 export type { Vectorizer };
 
+/** Why a PSD opened as its flattened composite (`PsdFallback` in Rust). */
+export type PsdFallback = 'no_layers' | 'compressed' | 'unreadable' | 'unrepresentable';
+
+/** One thing a PSD import left out or changed (`PsdNotice` in
+ *  pincel-image-core, docs/specs/psd-import.md). */
+export type PsdNotice =
+  | { kind: 'fallback'; reason: PsdFallback }
+  | {
+      kind: 'adjustment' | 'text' | 'smart_object' | 'effects' | 'mask' | 'clipping';
+      layer: string;
+    }
+  | { kind: 'blend'; layer: string; key: string }
+  | { kind: 'pass_through'; group: string };
+
+/** What `openPsd` returns: the document handle and the import's notices. */
+export interface PsdOpened {
+  handle: number;
+  notices: PsdNotice[];
+}
+
 /** Per-layer state for the layers panel (spec §16.5). */
 export interface LayerInfo {
   id: string;
@@ -47,6 +68,15 @@ export interface LayerInfo {
   blend_mode: BlendMode;
   visible: boolean;
   locked: boolean;
+  /** A group has no pixels; its children follow it in `layers`. */
+  kind: 'raster' | 'group';
+  /** Index of the group the layer sits in; absent at the root (serde-wasm-bindgen
+   *  turns `None` into `undefined`). */
+  parent?: number;
+  /** Number of groups the layer is nested in. */
+  depth: number;
+  /** Whether a group the layer sits in is locked. */
+  locked_by_parent: boolean;
 }
 
 export interface DocumentInfo {
@@ -244,7 +274,13 @@ export type LayerCommand =
   | { type: 'move_layer'; from: number; to: number }
   | { type: 'merge_down'; index: number }
   | { type: 'merge_visible' }
-  | { type: 'flatten_image' };
+  | { type: 'flatten_image' }
+  | { type: 'add_group' }
+  | { type: 'move_layer_to'; index: number; target: number; place: DropPlace }
+  | { type: 'merge_group'; index: number };
+
+/** Where a moved layer lands relative to its target (docs/specs/image-layer-groups.md). */
+export type DropPlace = 'above' | 'below' | 'into';
 
 /** How a drawn selection combines with the existing one (spec §8.2). */
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect';
@@ -431,6 +467,11 @@ export const core = {
   },
   /** Opens an OpenRaster (`.ora`) project with all its layers. */
   openProject: (data: Uint8Array): number => open_project(data),
+  /** Opens a PSD (8-bit RGB) with its layers and groups, or its flattened
+   *  composite; throws for an unsupported or unreadable file and for a
+   *  canvas over `maxDim` per edge or `maxArea` pixels. */
+  openPsd: (data: Uint8Array, maxDim: number, maxArea: number): PsdOpened =>
+    open_psd(data, maxDim, maxArea) as PsdOpened,
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
   saveProject: (handle: number, compression: number): Uint8Array =>
     save_project(handle, compression),

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: Pixel
@@ -35,16 +35,16 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 
 ## Acceptance criteria
 
-- [ ] AC-01 (option): Where the pressure "Size" option is on, each stamp of a pen stroke at pressure p (0–1) with chosen size N has the size max(1, round(N × p)).
-- [ ] AC-02 (event): When a stroke segment runs between two samples with different pressures, the stamp size along the segment follows the pressure interpolated linearly between the two samples.
-- [ ] AC-03 (always): A mouse or touch stroke, and a pen stroke while the pressure "Size" option is off, paint exactly what the same stroke at full pressure paints.
-- [ ] AC-04 (always): Pressure never changes a painted pixel's color or alpha: every pixel a Pencil stroke paints has exactly the foreground color, every pixel an Eraser stroke touches becomes fully transparent.
-- [ ] AC-05 (event): When the same pen stroke is drawn once at light pressure and once at firm pressure with size 8, the light stroke covers fewer pixels than the firm one.
-- [ ] AC-06 (state): While pixel-perfect is on and the effective size varies along a stroke, L-corner removal applies only within runs of consecutive path points whose effective size is 1.
-- [ ] AC-07 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a "Pen pressure" group with a "Size" checkbox (the same labels and hint as Image mode) and no opacity checkbox.
-- [ ] AC-08 (always): The pressure "Size" checkbox starts checked in a fresh editor session, as in Image mode.
-- [ ] AC-09 (always): A pressure stroke is one undo entry; undo restores every touched pixel to its value from before the stroke and redo reproduces the identical result.
-- [ ] AC-10 (error): If a pen reports a pressure outside 0–1, then it is clamped to 0–1, and a pressure of 0 still paints a size-1 stamp.
+- [x] AC-01 (option): Where the pressure "Size" option is on, each stamp of a pen stroke at pressure p (0–1) with chosen size N has the size max(1, round(N × p)).
+- [x] AC-02 (event): When a stroke segment runs between two samples with different pressures, the stamp size along the segment follows the pressure interpolated linearly between the two samples.
+- [x] AC-03 (always): A mouse or touch stroke, and a pen stroke while the pressure "Size" option is off, paint exactly what the same stroke at full pressure paints.
+- [x] AC-04 (always): Pressure never changes a painted pixel's color or alpha: every pixel a Pencil stroke paints has exactly the foreground color, every pixel an Eraser stroke touches becomes fully transparent.
+- [x] AC-05 (event): When the same pen stroke is drawn once at light pressure and once at firm pressure with size 8, the light stroke covers fewer pixels than the firm one.
+- [x] AC-06 (state): While pixel-perfect is on and the effective size varies along a stroke, L-corner removal applies only within runs of consecutive path points whose effective size is 1.
+- [x] AC-07 (event): When the Pencil or the Eraser becomes the active tool, the options bar shows a "Pen pressure" group with a "Size" checkbox (the same labels and hint as Image mode) and no opacity checkbox.
+- [x] AC-08 (always): The pressure "Size" checkbox starts checked in a fresh editor session, as in Image mode.
+- [x] AC-09 (always): A pressure stroke is one undo entry; undo restores every touched pixel to its value from before the stroke and redo reproduces the identical result.
+- [x] AC-10 (error): If a pen reports a pressure outside 0–1, then it is clamped to 0–1, and a pressure of 0 still paints a size-1 stamp.
 
 ## Technical notes
 
@@ -85,6 +85,14 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 | The pressure "Size" setting is shared or per tool exactly as `pixel-pencil` settles for size and shape | The plan adds it next to the size control and doesn't say | Low |
 | `round` rounds halves up (2.5 → 3) | The plan writes `round(size × p)` without a tie rule | Low |
 
+## Summary
+
+> Completed: 2026-11-03
+
+- Pen pressure scales the Pixel-mode Pencil and Eraser stamp from size 1 up to the chosen size, interpolated along each segment and clamped to 0 – 1; full pressure, the mouse and touch paint at full size
+- Pixel-perfect pruning applies only to runs stamped at size 1, so a larger stamp never loses a covered corner
+- The options bar shows a "Pen pressure" group with a "Size" checkbox for Pencil and Eraser, checked in a fresh session; a pressure stroke stays one undo step
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -93,16 +101,16 @@ With a pen, pressure scales the Pixel-mode Pencil and Eraser size between 1 and 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `pencil_stroke_pressure_scales_stamp_size` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
-| AC-02 | `pencil_stroke_pressure_interpolates_along_segment` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |        |
-| AC-03 | `pencil_stroke_full_pressure_matches_size_n_stamps` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_without_pressure_paints_full_size` (`crates/pincel-wasm/src/stroke.rs`); "mouse strokes and pen strokes with Size off paint at full size", "touch device › a light touch stroke paints at full size" (`ui/e2e/pixel-pressure.spec.ts`) | built |        |
-| AC-04 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
-| AC-05 | `pencil_stroke_light_pressure_paints_fewer_pixels` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_light_pressure_covers_fewer_pixels` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a light pen stroke is thinner than a firm one" (`ui/e2e/pixel-pressure.spec.ts`) | built |        |
-| AC-06 | `pixel_perfect_applies_only_to_size_1_runs`, `pixel_perfect_keeps_corner_covered_by_a_larger_stamp`, `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`) | built |        |
-| AC-07 | "pencil and eraser show a pen pressure Size option, checked by default" (`ui/e2e/pixel-pressure.spec.ts`) | built |        |
-| AC-08 | "pencil and eraser show a pen pressure Size option, checked by default" (`ui/e2e/pixel-pressure.spec.ts`) | built |        |
-| AC-09 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `pressure_stroke_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a light pen stroke is thinner than a firm one" (one undo clears a pen stroke, `ui/e2e/pixel-pressure.spec.ts`) | built |        |
-| AC-10 | `pencil_stroke_pressure_is_clamped_to_unit_range` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_clamps_pressure_outside_unit_range` (`crates/pincel-wasm/src/stroke.rs`) | built |        |
+| AC-01 | `pencil_stroke_pressure_scales_stamp_size` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | verified |        |
+| AC-02 | `pencil_stroke_pressure_interpolates_along_segment` (`crates/pincel-core/src/command/pencil_stroke.rs`) | verified |        |
+| AC-03 | `pencil_stroke_full_pressure_matches_size_n_stamps` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_without_pressure_paints_full_size` (`crates/pincel-wasm/src/stroke.rs`); "mouse strokes and pen strokes with Size off paint at full size", "touch device › a light touch stroke paints at full size" (`ui/e2e/pixel-pressure.spec.ts`) | verified |        |
+| AC-04 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_pressure_scales_the_stamp` (`crates/pincel-wasm/src/stroke.rs`) | verified |        |
+| AC-05 | `pencil_stroke_light_pressure_paints_fewer_pixels` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_light_pressure_covers_fewer_pixels` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a light pen stroke is thinner than a firm one" (`ui/e2e/pixel-pressure.spec.ts`) | verified |        |
+| AC-06 | `pixel_perfect_applies_only_to_size_1_runs`, `pixel_perfect_keeps_corner_covered_by_a_larger_stamp`, `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`) | verified |        |
+| AC-07 | "pencil and eraser show a pen pressure Size option, checked by default" (`ui/e2e/pixel-pressure.spec.ts`) | verified |        |
+| AC-08 | "pencil and eraser show a pen pressure Size option, checked by default" (`ui/e2e/pixel-pressure.spec.ts`) | verified | 9af6b69 |
+| AC-09 | `pencil_stroke_random_pressure_strokes_hold_invariants` (`crates/pincel-core/src/command/pencil_stroke.rs`); `pressure_stroke_is_one_undo_entry_and_redo_reproduces_it` (`crates/pincel-wasm/src/stroke.rs`); "pixel mode: a light pen stroke is thinner than a firm one" (one undo clears a pen stroke, `ui/e2e/pixel-pressure.spec.ts`) | verified |        |
+| AC-10 | `pencil_stroke_pressure_is_clamped_to_unit_range` (`crates/pincel-core/src/command/pencil_stroke.rs`); `stroke_to_clamps_pressure_outside_unit_range` (`crates/pincel-wasm/src/stroke.rs`) | verified |        |
 
 ## Decisions
 
