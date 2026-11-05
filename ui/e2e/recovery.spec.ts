@@ -9,6 +9,7 @@ import {
   storedPref,
   waitForEditor,
 } from './helpers';
+import { tabs } from './tab-helpers';
 
 // Autosave and recovery (spec §10, M10.3; docs/specs/autosave-recovery.md),
 // the same in both modes: an edit is snapshotted after 30 s, a reload
@@ -234,6 +235,49 @@ for (const mode of ['pixel', 'image'] as const) {
       await expect(dialog).toBeVisible();
     }
     await expect(dialog.getByRole('listitem')).toHaveCount(2);
+  });
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: each Recover opens its document as a new active, unsaved tab; the dialog stays for the rest (AC-05)`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    // Two documents with autosaved edits: the first, then a second tab.
+    await createDocument(page, mode, { width: 32, height: 32 });
+    await autosavedEdit(page, mode);
+    await menu(page, 'File', 'New…');
+    await page
+      .getByRole('dialog', { name: 'New document' })
+      .getByRole('button', { name: 'Create' })
+      .click();
+    await expect(tabs(page)).toHaveCount(2);
+    await autosavedEdit(page, mode);
+    await expect.poll(async () => (await metaRows(page)).length).toBe(2);
+    await settle(page);
+
+    await page.reload();
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await expect(tabs(page)).toHaveCount(1);
+    const dialog = recoveryDialog(page);
+    const rows = dialog.getByRole('listitem');
+    await expect(rows).toHaveCount(2);
+
+    // The first Recover: a second tab, active and unsaved; one row left.
+    await rows.first().getByRole('button', { name: 'Recover' }).click();
+    await expect(tabs(page)).toHaveCount(2);
+    await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs(page).nth(1).getByText('unsaved changes')).toHaveCount(1);
+    await expect(tabs(page).nth(0).getByText('unsaved changes')).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(rows).toHaveCount(1);
+
+    // The last Recover: a third tab, and the dialog closes.
+    await rows.first().getByRole('button', { name: 'Recover' }).click();
+    await expect(tabs(page)).toHaveCount(3);
+    await expect(tabs(page).nth(2)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs(page).nth(2).getByText('unsaved changes')).toHaveCount(1);
+    await expect(dialog).toHaveCount(0);
   });
 }
 
