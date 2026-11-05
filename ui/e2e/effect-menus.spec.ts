@@ -156,8 +156,8 @@ test('switching the UI language re-sorts and renames the entries', async ({ page
 
 test('every effect entry is disabled until the document is loaded', async ({ page }) => {
   for (const mode of ['pixel', 'image'] as const) {
-    // Hold the core's wasm: the editor mounts its menus, but no document
-    // arrives until the request is released.
+    // Hold the core's wasm: no document arrives until the request is
+    // released.
     let release = () => {};
     const held = new Promise<void>((resolve) => (release = resolve));
     await page.route('**/*.wasm', async (route) => {
@@ -168,15 +168,20 @@ test('every effect entry is disabled until the document is loaded', async ({ pag
     const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
     await page.getByRole('button', { name }).click();
     await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
+    // Since document-tabs the editor stays hidden and inert behind the
+    // loading screen until its document is open: no menu, so no effect
+    // entry, can be reached before.
+    const label = mode === 'pixel' ? 'Pixel' : 'Image';
+    await expect(page.getByText(`Loading the ${label} editor…`)).toBeVisible();
+    await expect(page.getByRole('menubar')).toHaveCount(0);
+    release();
+    await waitForEditor(page, mode);
     for (const top of ['Effects', 'Adjustments']) {
       await openTop(page, top);
       const rows = page.getByRole('menu', { name: top, exact: true }).getByRole('menuitem');
-      await expect(rows.first()).toBeVisible();
-      for (const row of await rows.all()) await expect(row).toBeDisabled();
+      await expect(rows.first()).toBeEnabled();
       await page.keyboard.press('Escape');
     }
-    release();
-    await waitForEditor(page, mode);
     await page.unroute('**/*.wasm');
   }
 });
