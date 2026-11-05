@@ -161,10 +161,14 @@ impl Document {
         self.insert_subtree(index, vec![layer])
     }
 
-    /// Adds a new transparent layer directly above the active layer.
+    /// Adds a new transparent layer directly above the active layer: above
+    /// its whole subtree for a group, inside the active layer's group, as
+    /// the `AddLayer` command does.
     pub fn add_layer(&mut self, name: impl Into<String>) -> Result<(), DocumentError> {
-        let layer = Layer::new_transparent(name, self.canvas.width(), self.canvas.height());
-        self.insert_layer(self.active_layer + 1, layer)
+        let parent = self.layers[self.active_layer].parent;
+        let layer = Layer::new_transparent(name, self.canvas.width(), self.canvas.height())
+            .with_parent(parent);
+        self.insert_layer(self.subtree_end(self.active_layer), layer)
     }
 
     /// Removes the layer at `index`.
@@ -222,6 +226,40 @@ mod tests {
     #[test]
     fn new_document_rejects_invalid_canvas() {
         assert!(Document::new(0, 100).is_err());
+    }
+
+    /// A document of `[Layer 1, G, c0, c1]`, `c0` / `c1` inside group `G`.
+    fn with_group() -> (Document, Uuid) {
+        let mut doc = Document::new(1, 1).unwrap();
+        let g = Layer::new_group("G");
+        let gid = g.id;
+        doc.insert_layer(1, g).unwrap();
+        for n in 0..2 {
+            let c = Layer::new_transparent(format!("c{n}"), 1, 1).with_parent(Some(gid));
+            doc.insert_layer(doc.layer_count(), c).unwrap();
+        }
+        (doc, gid)
+    }
+
+    #[test]
+    fn add_layer_with_a_group_active_goes_above_its_subtree() {
+        let (mut doc, _) = with_group();
+        doc.set_active_layer(1).unwrap();
+        doc.add_layer("New").unwrap();
+        assert_eq!(doc.active_layer_index(), 4);
+        assert_eq!(doc.layers[4].name, "New");
+        assert_eq!(doc.layers[4].parent, None);
+    }
+
+    #[test]
+    fn add_layer_with_a_child_active_stays_in_its_group() {
+        let (mut doc, gid) = with_group();
+        doc.set_active_layer(2).unwrap();
+        doc.add_layer("New").unwrap();
+        assert_eq!(doc.active_layer_index(), 3);
+        assert_eq!(doc.layers[3].name, "New");
+        assert_eq!(doc.layers[3].parent, Some(gid));
+        assert_eq!(doc.layers[4].name, "c1");
     }
 
     #[test]
