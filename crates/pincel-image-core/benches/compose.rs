@@ -24,6 +24,14 @@
 //!   canvas into the 1920×1080 viewport from a current cache (pan / zoom
 //!   without edits).
 //!
+//! * `image_live/ellipse_move_1024_4k_5layers` — one edit that moves a live
+//!   1024 × 1024 filled, anti-aliased ellipse with a 4 px outline by 1 px on
+//!   a 4096 × 4096, 5-layer document, plus the region compose of what
+//!   changed (docs/specs/image-live-objects.md AC-17).
+//! * `image_live/gradient_end_move_2k_5layers` — one edit that moves the end
+//!   point of a live linear gradient by 1 px on a 2048 × 2048, 5-layer
+//!   document, plus the region compose of what changed.
+//!
 //! The 4K scenarios take hundreds of milliseconds to seconds per
 //! iteration natively, so their groups run the minimum 10 samples.
 
@@ -36,8 +44,9 @@ use criterion::{
 use pincel_effects::{Effect, EffectImage, blur::GaussianBlur};
 use pincel_image_core::command::Damage;
 use pincel_image_core::{
-    Brush, Color, Command, CommandBus, Document, ImageBuffer, Interpolation, Layer, Pencil, Point,
-    Rect, RenderCache, compose, compose_region, scale,
+    BoxShape, Brush, Color, Command, CommandBus, Document, Gradient, ImageBuffer, Interpolation,
+    Layer, LiveEdit, LiveGradient, LiveParams, LiveShape, LiveShapeKind, Pencil, Point, Rect,
+    RenderCache, ShapeMode, ShapeStyle, compose, compose_region, scale,
 };
 
 /// 4K as the budget table defines it (docs/specs/pincel.md §4.5).
@@ -212,12 +221,86 @@ fn bench_gaussian_blur(c: &mut Criterion) {
     group.finish();
 }
 
+/// Moves the live object's points by `dx` (to `point` 0, 1 or both) as one
+/// gesture edit, then composes the damaged region.
+fn live_edit(bus: &mut CommandBus, points: [Point; 2], dx: f32, which: Option<usize>) {
+    let mut moved = points;
+    for (i, p) in moved.iter_mut().enumerate() {
+        if which.is_none_or(|w| w == i) {
+            p.x += dx;
+        }
+    }
+    let edit = LiveEdit {
+        points: Some(moved),
+        ..LiveEdit::default()
+    };
+    bus.edit_live(&edit, Some(1)).expect("the edit applies");
+    let damage = bus.take_damage();
+    let rect = damaged_rect(&damage, &bus.document);
+    black_box(compose_region(bus.document.layers(), rect));
+}
+
+fn bench_live(c: &mut Criterion) {
+    let mut group = c.benchmark_group("image_live");
+    heavy(&mut group);
+
+    let mut bus = CommandBus::new(document(4096, 4096, 5));
+    let top = bus.document.layer_count() - 1;
+    let ellipse = [Point::new(1000.0, 1000.0), Point::new(2024.0, 2024.0)];
+    let shape = LiveParams::Shape(LiveShape {
+        kind: LiveShapeKind::Box(BoxShape::Ellipse),
+        a: ellipse[0],
+        b: ellipse[1],
+        style: ShapeStyle {
+            mode: ShapeMode::FillAndOutline,
+            stroke_width: 4.0,
+            anti_alias: true,
+            ..ShapeStyle::default()
+        },
+        corner_radius: 0.0,
+        sides: 5,
+    });
+    bus.begin_live(top, shape).expect("the ellipse begins");
+    bus.take_damage();
+    let mut step = 1.0;
+    group.bench_function("ellipse_move_1024_4k_5layers", |b| {
+        b.iter(|| {
+            live_edit(&mut bus, ellipse, step, None);
+            step = 1.0 - step;
+        });
+    });
+
+    let mut bus = CommandBus::new(document(2048, 2048, 5));
+    let top = bus.document.layer_count() - 1;
+    let drag = [Point::new(100.0, 300.0), Point::new(1900.0, 1700.0)];
+    let gradient = LiveParams::Gradient(LiveGradient {
+        gradient: Gradient {
+            from: Color::rgba(200, 30, 30, 255),
+            to: Color::rgba(30, 30, 200, 255),
+            ..Gradient::default()
+        },
+        a: drag[0],
+        b: drag[1],
+    });
+    bus.begin_live(top, gradient).expect("the gradient begins");
+    bus.take_damage();
+    let mut step = 1.0;
+    group.bench_function("gradient_end_move_2k_5layers", |b| {
+        b.iter(|| {
+            live_edit(&mut bus, drag, step, Some(1));
+            step = 1.0 - step;
+        });
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_full_compose,
     bench_region_compose,
     bench_brush_stroke,
     bench_cache,
-    bench_gaussian_blur
+    bench_gaussian_blur,
+    bench_live
 );
 criterion_main!(benches);
