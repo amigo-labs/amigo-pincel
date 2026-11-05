@@ -805,4 +805,39 @@ mod tests {
         let frame = doc.preview_effect("sharpen", &[], 4).expect("preview");
         assert_eq!((frame.width(), frame.height()), (8, 12));
     }
+
+    /// docs/specs/effects-artistic-photo.md: the Artistic and Photo
+    /// effects with the table's defaults, in wire order.
+    const ARTISTIC_PHOTO: [(&str, &[f64]); 8] = [
+        ("ink_sketch", &[50.0, 50.0]),
+        ("oil_painting", &[3.0, 50.0]),
+        ("pencil_sketch", &[2.0, 0.0]),
+        ("glow", &[6.0, 10.0, 10.0]),
+        ("red_eye_removal", &[70.0, 90.0]),
+        ("soften_portrait", &[5.0, 0.0, 10.0]),
+        ("straighten", &[0.0, 0.0]),
+        ("vignette", &[0.5, 0.5, 100.0, 100.0, 0.0]),
+    ];
+
+    /// effects-artistic-photo AC-12: a wrong parameter count is refused and
+    /// changes nothing; the right count is accepted.
+    #[test]
+    fn apply_effect_artistic_photo_wrong_parameter_count_changes_nothing() {
+        for (name, params) in ARTISTIC_PHOTO {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            for wrong in [vec![1.0; params.len() + 1], vec![1.0; params.len() - 1]] {
+                let err = doc.apply_effect(name, &wrong).expect_err(name);
+                assert!(err.contains("expects"), "{name}: {err}");
+                assert!(
+                    doc.preview_effect(name, &wrong, 1).is_err(),
+                    "{name} preview"
+                );
+            }
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+            assert!(doc.preview_effect(name, params, 1).is_ok(), "{name}");
+        }
+    }
 }
