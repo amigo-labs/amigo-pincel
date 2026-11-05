@@ -75,8 +75,8 @@
   import { getPref, setPref } from '../../lib/idb/prefs';
   import { syncRecentMenu } from '../../lib/menu';
   import { listRecents } from '../../lib/idb/recent-files';
-  import { hexToRgb, packColor, toHex, unpackColor } from '../../lib/color';
-  import { recentColors } from '../../lib/colors/recent.svelte';
+  import { hexToRgb, packColor, readColor, toHex, unpackColor } from '../../lib/color';
+  import { loadRecent, recentColors } from '../../lib/colors/recent.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import {
     closeShortcuts,
@@ -801,16 +801,20 @@
     // stands when the pref is missing or IDB is unavailable). The
     // persist effect below only starts writing once this load settled,
     // so a slow IDB can't overwrite the stored value with the default.
+    void loadRecent('pixel');
     if (idbAvailable) {
       getPref(COLOR_PREF)
         .then((v) => {
           if (cancelled) return;
-          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) colors.color = v;
+          // `#rrggbb[aa]`; a value from before alpha loads opaque (AC-15).
+          const c = readColor(v);
+          if (c) [colors.color, colors.alpha] = [toHex(c), c.a];
           return getPref(BG_COLOR_PREF);
         })
         .then((v) => {
           if (cancelled) return;
-          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) colors.bgColor = v;
+          const c = readColor(v);
+          if (c) [colors.bgColor, colors.bgAlpha] = [toHex(c), c.a];
           live.colorPrefLoaded = true;
         })
         .catch(() => {
@@ -901,8 +905,8 @@
   // Persist the foreground / background colors once the initial load
   // settled.
   $effect(() => {
-    const fg = colors.color;
-    const bg = colors.bgColor;
+    const fg = toHex({ ...hexToRgb(colors.color), a: colors.alpha }, true);
+    const bg = toHex({ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }, true);
     if (!live.colorPrefLoaded || !idbAvailable) return;
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
