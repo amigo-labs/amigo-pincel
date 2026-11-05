@@ -134,8 +134,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-20 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
 | AC-21 | `ui/e2e/editor-drop.spec.ts › AC-21: pixel: Add as layer stacks the files above the active layer, one undo step each`; `ui/e2e/editor-drop.spec.ts › AC-21: image: Add as layer stacks the files above the active layer, one undo step each` | built | |
 | AC-22 | `ui/e2e/editor-drop.spec.ts › AC-22: pixel: a drop with a non-PNG file cannot be added as layers` | built | |
-| AC-23 | | open | |
-| AC-24 | | open | |
+| AC-23 | `ui/e2e/editor-drop.spec.ts › AC-23: pixel: Open as document opens every file as a tab, without a prompt`; `… › AC-23: image: …` (same title) | built | |
+| AC-24 | `ui/e2e/editor-drop.spec.ts › AC-24: pixel: a project file in a drop opens every file as a tab, without the dialog`; `… › AC-24: image: …` (same title) | built | |
 | AC-25 | `ui/e2e/editor-drop.spec.ts › AC-25: Don't ask again remembers the choice; File ▸ Dropped Images changes it` | built | |
 | AC-26 | `ui/e2e/editor-drop.spec.ts › AC-26: pixel: unsupported and broken files get a notice, the others proceed`; `ui/e2e/editor-drop.spec.ts › AC-26: image: unsupported and broken files get a notice, the others proceed` | built | |
 | AC-27 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |

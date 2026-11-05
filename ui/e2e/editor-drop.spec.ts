@@ -17,10 +17,11 @@ import {
   waitForEditor,
   type DraggedFile,
 } from './helpers';
+import { expectActive, expectDirty, prompt, tab, tabNames } from './tab-helpers';
 
 // Dropping files onto an open editor (docs/specs/file-access.md AC-20 –
-// AC-28): add them as layers or open the first as a document, with a
-// remembered choice. Drags are dispatched as DOM events carrying `File`s.
+// AC-28): add them as layers or open each as a tab, with a remembered
+// choice. Drags are dispatched as DOM events carrying `File`s.
 
 type Mode = 'pixel' | 'image';
 const MODES = ['pixel', 'image'] as const;
@@ -170,47 +171,50 @@ for (const mode of MODES) {
     await expect(layerRows(page, mode)).toHaveCount(1);
   });
 
-  test(`AC-23: ${mode}: Open as document opens the first file after the unsaved-changes guard`, async ({
+  test(`AC-23: ${mode}: Open as document opens every file as a tab, without a prompt`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
-    const files: DraggedFile[] = [
+    await edit(page, mode);
+    const first = (await tabNames(page))[0] ?? '';
+
+    await dropOn(page, mode, [
       { name: 'photo.png', bytes: await rasterFile(page, 'png') },
       { name: 'blue.png', bytes: await solidPng(page, 4, 4, '#0000ff') },
-    ];
-    await edit(page, mode);
-
-    await dropOn(page, mode, files);
+    ]);
     await button(dropDialog(page), 'Open as document').click();
-    const guard = page.getByRole('alertdialog', { name: 'Unsaved changes' });
-    await expect(guard).toBeVisible();
-    await button(guard, 'Cancel').click();
-    await expect(guard).toHaveCount(0);
+    await expect(dropDialog(page)).toHaveCount(0);
+    await expect(prompt(page)).toHaveCount(0);
+    // Each file is a tab of its own, in drop order; the last one is active.
+    await expectActive(page, 'blue.png');
+    expect(await tabNames(page)).toEqual([first, 'photo.png', 'blue.png']);
+    await expect(sizeShown(page, 'image', [4, 4])).toBeVisible();
+    // The edited document is untouched in its tab and still unsaved.
+    await expectDirty(page, first, true);
+    await tab(page, first).click();
     await expect(sizeShown(page, mode, [16, 16])).toBeVisible();
     await expect(layerRows(page, mode)).toHaveCount(1);
-    await expect(page.getByRole('alert')).toHaveCount(0);
-
-    await dropOn(page, mode, files);
-    await button(dropDialog(page), 'Open as document').click();
-    await button(guard, 'Discard changes').click();
-    await waitForEditor(page, 'image');
-    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
-    await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
-    await expect(notice(page, 'Only photo.png was opened')).toBeVisible();
   });
 
-  test(`AC-24: ${mode}: a project file in a drop opens without the dialog`, async ({ page }) => {
+  test(`AC-24: ${mode}: a project file in a drop opens every file as a tab, without the dialog`, async ({
+    page,
+  }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
+    const first = (await tabNames(page))[0] ?? '';
     await dropOn(page, mode, [
       { name: 'red.png', bytes: await solidPng(page, 4, 4, '#ff0000') },
       { name: 'hero.aseprite', bytes: await sprite() },
       { name: 'blue.png', bytes: await solidPng(page, 4, 4, '#0000ff') },
     ]);
-    await waitForEditor(page, 'pixel');
-    await expect(page.getByTitle('hero.aseprite', { exact: true })).toBeVisible();
-    await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
+    await expectActive(page, 'blue.png');
     await expect(dropDialog(page)).toHaveCount(0);
-    await expect(notice(page, 'Only hero.aseprite was opened')).toBeVisible();
+    expect(await tabNames(page)).toEqual([first, 'red.png', 'hero.aseprite', 'blue.png']);
+    await tab(page, 'hero.aseprite').click();
+    await waitForEditor(page, 'pixel');
+    await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
+    // No layer went into the document the drop landed on.
+    await tab(page, first).click();
+    await expect(layerRows(page, mode)).toHaveCount(1);
   });
 
   test(`AC-26: ${mode}: unsupported and broken files get a notice, the others proceed`, async ({
