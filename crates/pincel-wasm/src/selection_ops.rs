@@ -155,6 +155,26 @@ impl Document {
             .map(|m| m.data().to_vec())
             .unwrap_or_default()
     }
+
+    /// Replace the selection with canvas-sized coverage bytes, as
+    /// `selectionMask` returns them (non-zero = selected). An empty array or
+    /// an all-zero mask clears the selection. Restores a selection the UI
+    /// saved earlier, e.g. for the Magic Wand link (pixel-selection-move
+    /// AC-25). Errors when the length isn't `width × height`.
+    #[wasm_bindgen(js_name = setSelectionMask)]
+    pub fn set_selection_mask(&mut self, mask: &[u8]) -> Result<(), String> {
+        let (w, h) = (self.sprite.width, self.sprite.height);
+        if mask.is_empty() {
+            self.sprite.clear_selection();
+        } else {
+            let data = mask.iter().map(|&v| if v == 0 { 0 } else { 255 }).collect();
+            let mask = SelectionMask::from_raw(w, h, data)
+                .ok_or_else(|| format!("selection mask must be {w}×{h} bytes"))?;
+            self.sprite.set_selection_mask(mask);
+        }
+        self.push_selection_event();
+        Ok(())
+    }
 }
 
 impl Document {
@@ -239,6 +259,44 @@ mod tests {
 
     fn count(doc: &Document) -> usize {
         doc.selection_mask().iter().filter(|&&v| v != 0).count()
+    }
+
+    #[test]
+    fn set_selection_mask_restores_a_shaped_selection() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.select_ellipse(0, 0, 4, 4, "replace").expect("select");
+        let saved = doc.selection_mask();
+        doc.select_rect(0, 0, 1, 1, "replace").expect("select");
+        doc.drain_events();
+
+        doc.set_selection_mask(&saved).expect("restore");
+        assert_eq!(doc.selection_mask(), saved);
+        assert!(!doc.selection_is_rect());
+        assert_eq!((doc.selection_width(), doc.selection_height()), (4, 4));
+        assert!(
+            doc.drain_events()
+                .iter()
+                .any(|e| e.kind() == "selection-changed" && e.width() == 4)
+        );
+    }
+
+    #[test]
+    fn set_selection_mask_with_an_empty_mask_clears_the_selection() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.select_rect(0, 0, 2, 2, "replace").expect("select");
+        doc.set_selection_mask(&[]).expect("clear");
+        assert!(!doc.has_selection());
+        doc.select_rect(0, 0, 2, 2, "replace").expect("select");
+        doc.set_selection_mask(&[0; 16]).expect("clear");
+        assert!(!doc.has_selection());
+    }
+
+    #[test]
+    fn set_selection_mask_of_the_wrong_size_returns_err() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        doc.select_rect(0, 0, 2, 2, "replace").expect("select");
+        assert!(doc.set_selection_mask(&[255; 15]).is_err());
+        assert_eq!((doc.selection_width(), doc.selection_height()), (2, 2));
     }
 
     #[test]
