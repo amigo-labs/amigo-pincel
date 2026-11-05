@@ -51,6 +51,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | 44 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
+| 49 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
 
 ## Done
 
@@ -112,8 +113,7 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Layer masks and clipping masks | Probably Image mode first |
 | Non-destructive layer effects and adjustment layers | Large; touches compose in both cores |
 | Reference layers | Small: a non-exported, non-editable layer kind |
-| Clone stamp, Bézier curves, custom brushes | Spec §5.4 / §13.3 |
-| History panel (list of undo steps) | Undo exists; only the panel is missing |
+| Custom brushes | Spec §13.3 |
 | CLI batch export (`pincel-cli`) | Design in `cli.md`; PNG / atlas export already exists in `pincel-core` |
 | Isometric and hexagonal tilemaps; Godot / Tiled export | Extends tilemaps |
 | Indexed-mode painting, auto-tilemap, tile-editor routing for Line / Rect / Bucket, scripting | Phase 2 (§13); indexed painting needs a SetPixel payload decision |
@@ -123,6 +123,17 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | MCP parity: drawing (`mcp-parity-drawing`) | Pixel brush stroke (size, shape, pixel-perfect, eraser), shading ink, symmetry and wrap, styled shapes, dithered gradient, text; Image recolor, smudge, eraser to background, bucket sampling all layers; Image-mode effect defaults |
 | MCP parity: Pixel assets (`mcp-parity-pixel-assets`) | Slices, tilesets / tiles / tilemap layers, document grid, their counts in `doc.info` |
 | MCP parity: import / export (`mcp-parity-export`) | Vectorize to SVG, APNG / GIF, BMP / TIFF, PSD open, save in the original format, PNG as a Pixel document |
+| paint.net parity: `image-transform-handles` | Image: scale and rotate selected pixels with handles; Layer ▸ Rotate / Zoom at any angle (the core already resamples arbitrary angles) |
+| paint.net parity: `image-resize-autocrop` | Image: resize by percent and physical units with a supersampling filter; Image ▸ Auto Crop |
+| paint.net parity: `image-live-objects` | Image: shapes, line and gradient keep their handles until committed; needs a Decision Log entry (uncommitted layer above the document) |
+| paint.net parity: `image-live-text` | Image: text stays editable until committed; underline and strikethrough. After image-live-objects |
+| paint.net parity: `image-shapes-curves` | Image: Bézier curves and more shapes (arrows, stars, callouts). After image-live-objects |
+| paint.net parity: `system-fonts` | Text with the system fonts; needs a dependency or browser-API decision (Local Font Access, desktop font enumeration) |
+| paint.net parity: `image-view-aids` | Image: rulers, pixel grid at high zoom, units |
+| paint.net parity: `image-edit-extras` | Image: Edit ▸ Fill Selection (Backspace); tool switches for antialiasing and overwrite blending |
+| paint.net parity: `clone-stamp` | Image: clone stamp tool (spec §5.4) |
+| paint.net parity: `image-palette-gradient` | Image: save and load palettes; spiral gradient |
+| paint.net parity: `image-formats-more` | Image: TGA, DDS, AVIF, JPEG XL, printing; needs dependency decisions |
 | Brush stabilizer / stroke smoothing | Image brush first |
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
