@@ -35,7 +35,14 @@ import {
   type ImageExportFormat as ExportFormat,
   type SaveTarget,
 } from '../../../lib/fs';
-import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
+import {
+  blankFile,
+  docFormat,
+  fileStem,
+  markSaved,
+  openedFile,
+  type DocFormat,
+} from './document-file';
 import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
 
@@ -59,16 +66,18 @@ function opacity01(): number {
   return Math.min(1, Math.max(0, tool.opacity / 100));
 }
 
-/** The active foreground (or background) color as opaque RGBA. */
+/** The active foreground (or background) color with its own alpha; the
+ *  core combines it with the tool opacity it gets separately. */
 function activeColor(useBackground: boolean): Rgba {
   const [r, g, b] = hexToRgb(useBackground ? tool.background : tool.foreground);
-  return [r, g, b, 255];
+  return [r, g, b, useBackground ? tool.backgroundAlpha : tool.foregroundAlpha];
 }
 
-/** A #RRGGBB color with the current tool opacity baked into its alpha. */
-function colorWithOpacity(hex: string): Rgba {
+/** A color with the tool opacity baked into its alpha: round(alpha ×
+ *  opacity / 100) (color-picker Decisions 2026-10-29). */
+function colorWithOpacity(hex: string, alpha: number): Rgba {
   const [r, g, b] = hexToRgb(hex);
-  return [r, g, b, Math.round(opacity01() * 255)];
+  return [r, g, b, Math.round((alpha * Math.min(100, Math.max(0, tool.opacity))) / 100)];
 }
 
 /** Pen input and the brush dynamics it drives (spec §17.4). */
@@ -387,7 +396,8 @@ export function copyImage(
     return null;
   }
   const [x, y] = core.selectionBounds(handle) ?? [0, 0];
-  const png = kind === 'cut' ? core.cutSelection(handle) : core.copySelection(handle, kind === 'merged');
+  const png =
+    kind === 'cut' ? core.cutSelection(handle) : core.copySelection(handle, kind === 'merged');
   if (kind === 'cut') syncInfo();
   return { png, x, y };
 }
@@ -433,11 +443,7 @@ export function clearEffectPreview(): void {
  * `a`/`b` are the drag endpoints (line) or opposite corners of the drag box
  * (rectangle/rounded/ellipse); a polygon is inscribed in that box. Stroke uses
  * the foreground color, fill the background color, both at the tool opacity. */
-export function drawShape(
-  a: [number, number],
-  b: [number, number],
-  shape: ShapeKind,
-): void {
+export function drawShape(a: [number, number], b: [number, number], shape: ShapeKind): void {
   if (editor.handle === null) {
     return;
   }
@@ -447,8 +453,8 @@ export function drawShape(
     shape: shape,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
-    stroke_color: colorWithOpacity(tool.foreground),
-    fill_color: colorWithOpacity(tool.background),
+    stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
+    fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   };
@@ -521,7 +527,7 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
     x,
     y,
     size: tool.fontSize,
-    color: colorWithOpacity(tool.foreground),
+    color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     bold: tool.textBold,
     italic: tool.textItalic,
     anti_alias: tool.textAntiAlias,
@@ -823,15 +829,19 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
     return;
   }
   const rgba = core.pickColor(editor.handle, x, y, tool.eyedropperSample, tool.sampleSize);
-  const [r, g, b] = rgba;
+  const [r, g, b, a] = rgba;
   if (r === undefined || g === undefined || b === undefined) {
     return; // off-canvas
   }
+  // Hex and alpha both (color-picker AC-17, AC-22).
   const hex = rgbToHex(r, g, b);
+  const alpha = a ?? 255;
   if (toBackground) {
     tool.background = hex;
+    tool.backgroundAlpha = alpha;
   } else {
     tool.foreground = hex;
+    tool.foregroundAlpha = alpha;
   }
 }
 
