@@ -270,6 +270,51 @@ fn read_only_mode_refuses_palette_export_and_allows_palette_import() {
 }
 
 #[test]
+fn export_selection_that_cannot_write_leaves_the_document_unchanged() {
+    let root = temp_workspace("cut");
+    let mut c = Client::spawn(&[], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "pixel", "width": 2, "height": 2 }),
+    );
+    c.tool(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ffffff" }] }),
+    );
+    let depth = c.tool("doc.info", json!({}))["structuredContent"]["undo_depth"].clone();
+    let r = c.tool(
+        "export.selection",
+        json!({ "path": "../out.png", "cut": true }),
+    );
+    assert_eq!(r["isError"], true, "{r}");
+    let text = r["content"][0]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("E007"), "{text}");
+    let info = c.tool("doc.info", json!({}));
+    assert_eq!(info["structuredContent"]["undo_depth"], depth);
+    drop(c);
+
+    let mut c = Client::spawn(&["--read-only"], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 2, "height": 2 }),
+    );
+    let r = c.tool(
+        "export.selection",
+        json!({ "path": "out.png", "cut": true }),
+    );
+    assert_eq!(r["isError"], true, "{r}");
+    let text = r["content"][0]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("read-only"), "{text}");
+    assert_eq!(
+        c.tool("doc.info", json!({}))["structuredContent"]["undo_depth"],
+        0
+    );
+    assert!(!root.join("out.png").exists());
+}
+
+#[test]
 fn workspace_option_and_read_only_mode() {
     let root = temp_workspace("ro");
     let ws = root.join("ws");
