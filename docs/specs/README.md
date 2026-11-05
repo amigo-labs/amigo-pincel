@@ -50,6 +50,7 @@ Owner priorities lead: performance and MCP. Both chains are independent of each 
 | 41 | [vectorize-core](vectorize-core.md) | both | L | — | Rust port of the owner's Vectorizer (Potrace → SVG) plus a pixel-exact mode; built, awaits `/spec-check`. The Vectorizer repository is deleted; the golden corpus from it is committed (`crates/pincel-trace/tests/golden/`) |
 | 42 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | 43 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
+| 49 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
 
 ## Done
 
@@ -123,7 +124,6 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | paint.net parity: `image-live-text` | Image: text stays editable until committed; underline and strikethrough. After image-live-objects |
 | paint.net parity: `image-shapes-curves` | Image: Bézier curves and more shapes (arrows, stars, callouts). After image-live-objects |
 | paint.net parity: `system-fonts` | Text with the system fonts; needs a dependency or browser-API decision (Local Font Access, desktop font enumeration) |
-| paint.net parity: `history-panel` | Both modes: a panel listing the undo steps, a click jumps to a step |
 | paint.net parity: `image-view-aids` | Image: rulers, pixel grid at high zoom, units |
 | paint.net parity: `image-edit-extras` | Image: Edit ▸ Fill Selection (Backspace); tool switches for antialiasing and overwrite blending |
 | paint.net parity: `clone-stamp` | Image: clone stamp tool (spec §5.4) |
