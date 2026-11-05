@@ -46,7 +46,7 @@
         <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
         <span class="truncate">{name}</span>
         {#if count !== undefined}
-          <span class="ml-1 font-normal text-pc-faint">{count}</span>
+          <span class="ml-1 font-normal tabular-nums text-pc-muted/80">{count}</span>
         {/if}
       </button>
     {:else if count !== undefined}

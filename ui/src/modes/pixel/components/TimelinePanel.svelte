@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from '../../../lib/components/icons/Icon.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import { hint } from '../../../lib/shell/shortcuts';
@@ -202,7 +203,7 @@
     <label class="flex items-center gap-1" title={t('tl.loopHint')}>
       {t('tl.loop')}
       <select
-        class="rounded border border-pc-border bg-pc-panel px-1"
+        class="opt-field"
         value={loopTag === null ? '' : String(loopTag)}
         onchange={(e) => {
           const v = e.currentTarget.value;
@@ -233,13 +234,13 @@
       />
       {t('tl.onion')}
     </label>
-    <label class="flex items-center gap-1" title={t('tl.onionBackHint')}>
-      ◀
+    <label class="flex items-center gap-1 text-pc-muted" title={t('tl.onionBackHint')}>
+      <Icon name="chevron-left" size={14} />
       <input
         type="number"
         min="0"
         max="8"
-        class="w-10 rounded border border-pc-border bg-pc-panel px-1"
+        class="opt-field w-10"
         value={onion.back}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -255,7 +256,7 @@
         type="number"
         min="0"
         max="8"
-        class="w-10 rounded border border-pc-border bg-pc-panel px-1"
+        class="opt-field w-10"
         value={onion.forward}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -265,7 +266,7 @@
           })}
         aria-label={t('tl.onionFwd')}
       />
-      ▶
+      <Icon name="chevron-right" size={14} class="text-pc-muted" />
     </label>
     <label class="flex items-center gap-1" title={t('tl.onionOpacityHint')}>
       <input
@@ -301,7 +302,7 @@
             type="number"
             min="1"
             max="65535"
-            class="w-full rounded border border-pc-border bg-pc-panel px-0.5 text-center tabular-nums"
+            class="w-full rounded border border-transparent bg-pc-bg/60 px-0.5 text-center tabular-nums hover:border-pc-border"
             value={ms}
             onchange={(e) => setDuration(e.currentTarget, i, ms)}
             aria-label={t('tl.frameDuration', { n: i + 1 })}
@@ -389,7 +390,7 @@
       <label class="flex items-center gap-1">
         {t('tl.direction')}
         <select
-          class="rounded border border-pc-border bg-pc-panel px-1"
+          class="opt-field"
           value={editing.direction}
           onchange={(e) => {
             const dir = e.currentTarget.value;
@@ -420,8 +421,8 @@
     padding: 0.125rem;
   }
   .frame-current {
-    border-color: var(--color-pc-accent);
-    background-color: var(--color-pc-active);
+    border-color: color-mix(in srgb, var(--color-pc-accent) 60%, transparent);
+    background-color: var(--color-pc-selected);
   }
   .tag-bar {
     margin-right: 0.25rem;

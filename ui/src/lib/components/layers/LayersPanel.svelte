@@ -234,15 +234,14 @@
   {#if rows.length === 0}
     <p class="px-1 text-xs text-pc-faint">{t('layers.none')}</p>
   {:else}
-    <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto" aria-label={t('layers.list')}>
+    <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded bg-pc-bg/50 p-1" aria-label={t('layers.list')}>
       {#each shown as row, i (row.key)}
         {@const isActive = row.key === activeKey}
         {@const isOver = drag !== null && drag.over === row.key && drag.key !== row.key}
         <li
           data-layer-key={row.key}
-          class="layer-row flex items-center gap-1 rounded border py-0.5 pr-1"
+          class="layer-row flex items-center gap-1 rounded border border-transparent py-0.5 pr-1"
           class:layer-active={isActive}
-          class:border-transparent={!isActive}
           class:drop-above={isOver && (onMove ? drag?.place === 'above' : i < dragIndex)}
           class:drop-below={isOver && (onMove ? drag?.place === 'below' : i > dragIndex)}
           class:drop-into={isOver && onMove !== undefined && drag?.place === 'into'}
@@ -376,7 +375,7 @@
     </div>
   {/if}
 
-  <div class="flex shrink-0 gap-1 text-xs">
+  <div class="flex shrink-0 gap-1 border-t border-pc-border pt-3 text-xs">
     {#if onMergeVisible}
       <button
         type="button"
@@ -393,8 +392,8 @@
 
 <style>
   .layer-active {
-    border-color: var(--color-pc-accent);
-    background-color: var(--color-pc-active);
+    background-color: var(--color-pc-selected);
+    box-shadow: inset 2px 0 0 var(--color-pc-accent);
   }
   .drop-above {
     box-shadow: inset 0 2px 0 var(--color-pc-accent);
