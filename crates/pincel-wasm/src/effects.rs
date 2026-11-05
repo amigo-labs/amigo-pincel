@@ -799,6 +799,147 @@ mod tests {
         assert_eq!(cel_pixels(&doc, 0, 0), before);
     }
 
+    /// effects-render: the render effects with their table defaults, black
+    /// and white as Colour 1 / 2, at a scale that shows on a small sprite.
+    const RENDERS: [(&str, &[f64]); 4] = [
+        ("clouds", &[4.0, 50.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("turbulence", &[4.0, 5.0, 1.0, 255.0, 4_294_967_295.0, 0.0]),
+        ("julia_fractal", &[4.0, 1.0, 0.0, 2.0]),
+        ("mandelbrot_fractal", &[1.0, 10.0, 0.0, 2.0, 0.0]),
+    ];
+
+    /// effects-render AC-09: only the selection changes, other layers and
+    /// cels stay, and one undo step restores the target.
+    #[test]
+    fn apply_effect_render_changes_only_the_target_in_one_undo_step() {
+        for (name, params) in RENDERS {
+            let (mut doc, top) = layered();
+            let target = cel_pixels(&doc, 0, 0);
+            let other_frame = cel_pixels(&doc, 0, 1);
+            let other_layer = cel_pixels(&doc, top, 0);
+            let depth = doc.undo_depth();
+            assert!(doc.apply_effect(name, params).expect(name), "{name}");
+            assert_eq!(doc.undo_depth(), depth + 1, "{name}: one undo step");
+            let after = cel_pixels(&doc, 0, 0);
+            for y in 0..4 {
+                for x in 0..4 {
+                    let i = (y * 4 + x) * 4;
+                    if x < 2 || y < 2 {
+                        assert_eq!(after[i..i + 4], target[i..i + 4], "{name}: ({x}, {y})");
+                    }
+                }
+            }
+            assert_ne!(after, target, "{name} changed nothing in the selection");
+            assert_eq!(cel_pixels(&doc, 0, 1), other_frame, "{name}: other cel");
+            assert_eq!(cel_pixels(&doc, top, 0), other_layer, "{name}: other layer");
+            assert!(doc.undo());
+            assert_eq!(cel_pixels(&doc, 0, 0), target, "{name}: undo restores");
+        }
+    }
+
+    /// effects-render (Technical notes, edge case "Render with a
+    /// selection"): the noise sits in canvas coordinates, so a trimmed cel
+    /// shows the same texture as a full-canvas cel at those pixels.
+    #[test]
+    fn apply_effect_clouds_on_a_trimmed_cel_matches_the_canvas_texture() {
+        for (name, params) in &RENDERS[..2] {
+            let mut full = Document::new(8, 8).expect("doc");
+            assert!(full.apply_effect(name, params).expect(name));
+            let mut doc = Document::new(8, 8).expect("doc");
+            let buf = pincel_core::PixelBuffer::empty(3, 2, ColorMode::Rgba);
+            let mut cel = pincel_core::Cel::image(crate::DEFAULT_LAYER_ID, FrameIndex::new(0), buf);
+            cel.position = (4, 5);
+            doc.cels.insert(cel);
+            assert!(doc.apply_effect(name, params).expect(name));
+            for y in 5..7 {
+                for x in 4..7 {
+                    assert_eq!(pixel(&doc, x, y), pixel(&full, x, y), "{name} ({x}, {y})");
+                }
+            }
+        }
+    }
+
+    /// effects-render AC-10: a wrong parameter count or an invalid colour
+    /// slot is refused and changes nothing.
+    #[test]
+    fn apply_effect_render_wrong_parameters_change_nothing() {
+        for (name, params) in RENDERS {
+            let (mut doc, _) = layered();
+            let before = cel_pixels(&doc, 0, 0);
+            let depth = doc.undo_depth();
+            let mut wrong = vec![params.to_vec(), params[..params.len() - 1].to_vec()];
+            wrong[0].push(1.0);
+            if params.len() == 6 {
+                for (slot, bad) in [(3, 0.5), (4, -1.0), (3, f64::NAN)] {
+                    let mut p = params.to_vec();
+                    p[slot] = bad;
+                    wrong.push(p);
+                }
+            }
+            for p in &wrong {
+                assert!(doc.apply_effect(name, p).is_err(), "{name} {p:?}");
+                assert!(doc.preview_effect(name, p, 1).is_err(), "{name} preview");
+            }
+            assert_eq!(doc.undo_depth(), depth);
+            assert_eq!(cel_pixels(&doc, 0, 0), before);
+        }
+    }
+
+    /// effects-render AC-11: an indexed document, or a frame without a cel
+    /// on the active layer, refuses Clouds and Turbulence with the message
+    /// every other effect gives.
+    #[test]
+    fn apply_effect_render_on_an_indexed_document_or_without_a_cel_is_refused() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        doc.sprite.color_mode = mode;
+        let mut buf = pincel_core::PixelBuffer::empty(2, 1, mode);
+        buf.data = vec![1, 0];
+        doc.cels.insert(pincel_core::Cel::image(
+            crate::DEFAULT_LAYER_ID,
+            FrameIndex::new(0),
+            buf,
+        ));
+        let before = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in RENDERS {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), 0);
+        assert_eq!(cel_pixels(&doc, 0, 0), before);
+
+        let mut doc = Document::new(4, 4).expect("doc");
+        let layer = doc.add_layer("empty").expect("layer");
+        doc.set_active_layer(layer);
+        let depth = doc.undo_depth();
+        let base = cel_pixels(&doc, 0, 0);
+        let expected = doc.apply_effect("invert", &[]).expect_err("invert");
+        for (name, params) in &RENDERS[..2] {
+            assert_eq!(
+                doc.apply_effect(name, params),
+                Err(expected.clone()),
+                "{name}"
+            );
+            assert!(
+                doc.preview_effect(name, params, 1).is_err(),
+                "{name} preview"
+            );
+        }
+        assert_eq!(doc.undo_depth(), depth);
+        assert_eq!(cel_pixels(&doc, 0, 0), base);
+        assert!(doc.cels.get(LayerId(layer), FrameIndex::new(0)).is_none());
+    }
+
     #[test]
     fn preview_effect_honours_zoom() {
         let doc = Document::new(2, 3).expect("dims");
