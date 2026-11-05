@@ -54,7 +54,7 @@
       {t('fileAssoc.dontShow')}
     </label>
     <div class="flex justify-end">
-      <button class="toolbar-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
+      <button class="panel-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
     </div>
   </div>
 </div>

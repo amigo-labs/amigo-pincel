@@ -53,7 +53,7 @@
       <p class="mb-4 text-sm text-pc-accent" role="status">{status}</p>
     {/if}
     <div class="flex justify-end">
-      <button bind:this={closeButton} class="toolbar-btn" onclick={onClose}>
+      <button bind:this={closeButton} class="panel-btn" onclick={onClose}>
         {t('about.close')}
       </button>
     </div>

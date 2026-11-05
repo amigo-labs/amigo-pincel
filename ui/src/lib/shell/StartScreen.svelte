@@ -210,7 +210,7 @@
     </div>
 
     <div class="mt-4 flex items-center gap-2">
-      <button class="toolbar-btn" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
+      <button class="panel-btn" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
       <span class="text-xs text-pc-faint">{t('start.openHint')}</span>
     </div>
 
@@ -262,19 +262,6 @@
     text-align: left;
   }
   .start-card-head:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-  .toolbar-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.125rem 0.5rem;
-    font-size: 0.75rem;
-  }
-  .toolbar-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
-  }
-  .toolbar-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
