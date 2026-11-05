@@ -93,19 +93,34 @@ fn effects_json() -> Value {
             let params: Vec<Value> = e
                 .params
                 .iter()
-                .map(|p| match p.kind {
-                    Kind::Number { min, max, default } => json!({
-                        "name": p.key, "type": "number", "min": min, "max": max, "default": default,
-                    }),
-                    Kind::Bool { default } => {
-                        json!({ "name": p.key, "type": "boolean", "default": default })
+                .map(|p| {
+                    let mut v = match p.kind {
+                        Kind::Number { min, max, .. } => {
+                            json!({ "name": p.key, "type": "number", "min": min, "max": max })
+                        }
+                        Kind::Bool { .. } => json!({ "name": p.key, "type": "boolean" }),
+                        Kind::Choice { options, .. } => {
+                            json!({ "name": p.key, "type": "choice", "options": options })
+                        }
+                        Kind::Color { .. } => json!({ "name": p.key, "type": "color" }),
+                    };
+                    let shown = |image: bool| -> Value {
+                        let d = e.default_of(p, image);
+                        match p.kind {
+                            Kind::Number { .. } => json!(d),
+                            Kind::Bool { .. } => json!(d != 0.0),
+                            Kind::Choice { options, .. } => json!(options[d as usize]),
+                            Kind::Color { .. } => json!(format!("#{:08X}", d as u32)),
+                        }
+                    };
+                    let (pixel, image) = (shown(false), shown(true));
+                    // mcp-parity-drawing-image AC-12: per-mode defaults.
+                    if pixel == image {
+                        v["default"] = image;
+                    } else {
+                        v["defaults"] = json!({ "pixel": pixel, "image": image });
                     }
-                    Kind::Choice { options, default } => json!({
-                        "name": p.key, "type": "choice", "options": options, "default": options[default],
-                    }),
-                    Kind::Color { default } => json!({
-                        "name": p.key, "type": "color", "default": format!("#{default:08X}"),
-                    }),
+                    v
                 })
                 .collect();
             json!({
@@ -161,11 +176,169 @@ mod tests {
             "## Undo",
             "## Preview",
             "## Common pitfalls",
+            "## Document structure",
+            "## Selections and transforms",
+            "## Moving content and the clipboard",
+            "## Drawing in each mode",
+            "## Slices, tilesets and the grid",
+            "## Files: open, save and export",
         ] {
             assert!(guide.contains(heading), "missing {heading}");
         }
         for word in ["plan", "draw", "doc.preview", "export", "Pixel", "Image"] {
             assert!(guide.contains(word), "missing {word}");
+        }
+        // mcp-parity-structure AC-26: every tool of that spec, its modes,
+        // and the alpha that palette.export drops.
+        for tool in [
+            "layer.duplicate",
+            "layer.move",
+            "layer.merge_down",
+            "layer.merge_visible",
+            "layer.merge_group",
+            "layer.flatten",
+            "tag.set",
+            "palette.set_entry",
+            "palette.add_entry",
+            "palette.remove_entry",
+            "palette.move_entry",
+            "palette.import",
+            "palette.export",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        assert!(guide.contains("Image documents only: `layer.merge_visible`, `layer.merge_group`"));
+        assert!(guide.contains("Palette, Pixel documents only"));
+        assert!(guide.contains("store no alpha: `palette.export` drops it"));
+        // mcp-parity-selection-transform AC-37: every tool, its modes and
+        // the per-mode differences.
+        for tool in [
+            "select.rect",
+            "select.ellipse",
+            "select.polygon",
+            "select.wand",
+            "select.all",
+            "select.clear",
+            "select.invert",
+            "select.expand",
+            "select.contract",
+            "select.feather",
+            "select.get",
+            "select.delete",
+            "layer.flip",
+            "layer.rotate",
+            "canvas.resize",
+            "image.scale",
+            "image.crop_to_selection",
+            "image.flip",
+            "image.rotate",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "Image documents only: `feather`",
+            "selections are not undo steps",
+            "`tolerance` 0 in Pixel",
+            "32 in Image",
+            "`anchor` `center`",
+            "`top_left` (Image)",
+            "`nearest`",
+            "`bilinear` (Image)",
+            "Without a selection, Image documents clear the whole",
+            "turn only the selection's bounds",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-selection-transform-content AC-22.
+        for tool in [
+            "layer.translate",
+            "select.move_content",
+            "select.move",
+            "layer.import",
+            "export.selection",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "Image documents only: `layer.translate`",
+            "`export.selection` is the headless Copy",
+            "`layer.import` is the headless Paste",
+            "`select.move_content` (both modes)",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-export AC-26.
+        for word in [
+            "`export.svg`",
+            "`export.apng`",
+            "`export.gif`",
+            "`export.bmp`",
+            "`export.tiff`",
+            "`flatten: true`",
+            "`quality`",
+            "`mode: \"pixel\"`",
+            "`notices`",
+            "`tag`, `scale`, `loops`",
+            "`opt_tolerance`",
+            "A PNG opens as a\n  Pixel document only with `mode: \"pixel\"`",
+            "A layered Image document needs `flatten: true`",
+            "Pixel documents only: `export.apng`",
+            "Image documents only:\n  `export.bmp`",
+        ] {
+            assert!(guide.contains(word), "missing {word}");
+        }
+        // mcp-parity-pixel-assets AC-32.
+        for tool in [
+            "slice.list",
+            "slice.add",
+            "slice.remove",
+            "slice.set_key",
+            "tileset.list",
+            "tileset.add",
+            "tile.add",
+            "tile.read_pixels",
+            "tile.set_pixels",
+            "tilemap.get",
+            "tilemap.place",
+            "grid.set",
+        ] {
+            assert!(guide.contains(&format!("`{tool}`")), "missing {tool}");
+        }
+        for fact in [
+            "work on Pixel documents only",
+            "tile 0, the empty tile",
+            "`tile: 0` clears a cell",
+            "painting tile 0 with `tile.set_pixels` shows in\n  every empty cell",
+            "relative to the\n  key's bounds",
+            "cannot paint on tilemap layers",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-drawing-image AC-14.
+        for fact in [
+            "`draw.recolor` (the Recolor tool: `from`",
+            "`draw.smudge`\n  (`strength`",
+            "`eraser_mode`",
+            "`background` (default `#FFFFFF`)",
+            "flat-nib `angle`",
+            "`draw.fill` takes `sample`",
+            "Effect defaults follow the document's mode",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-drawing AC-22.
+        for fact in [
+            "`size`\n  1–8 (default 1)",
+            "`size` 1–500\n  (default 8)",
+            "`corner_radius`\n  0–256, default 4",
+            "`sides` 3–64, default 6",
+            "Pixel `size` 1–2000 (default 12)",
+            "Image `size` 1–999 (default 48)",
+            "`dither` 0, 2, 4 (default) or 8",
+            "Pixel `draw.fill` clips to the\n  selection although the Pixel editor's Bucket does not",
+            "In Image\n  documents every drawing tool stays inside the selection",
+        ] {
+            assert!(guide.contains(fact), "missing {fact}");
         }
         // Every tool the guide names in backticks exists.
         let tools: Vec<&str> = crate::list_tools().iter().map(|t| t.name).collect();

@@ -49,4 +49,4 @@ pub use geometry::{Point, Rect};
 pub use render::{
     ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays, RenderError, compose,
 };
-pub use selection::{SelectionMask, SelectionMode};
+pub use selection::{SelectionMask, SelectionMode, composite_canvas, layer_canvas};

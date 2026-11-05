@@ -109,23 +109,23 @@ The effect parameter table is `EFFECTS` in `crates/pincel-agent/src/pixel/effect
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `draw_recolor_equals_the_editors_recolor_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-02 | `draw_recolor_with_a_bad_color_fails_naming_it` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-03 | `draw_smudge_equals_the_editors_smudge_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-04 | `eraser_to_background_equals_the_editors_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-05 | `the_nib_angle_reaches_every_image_stroke` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-06 | `draw_fill_sample_all_layers_equals_the_editors_bucket` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-07 | `out_of_range_or_unknown_brush_values_fail_naming_the_argument` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-08 | `image_only_brushes_and_options_fail_on_pixel_documents` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-09 | `image_effect_defaults_follow_the_image_editor` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-10 | `pixel_effect_defaults_stay_the_pixel_editors` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-11 | `effect_defaults_file_is_current` (`crates/pincel-agent/src/pixel/effects.rs`) + `agent effect defaults equal the editor catalog in each mode` (`ui/e2e/effect-defaults.spec.ts`) | built  |        |
+| AC-12 | `effects_resource_lists_per_mode_defaults` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-13 | `image_brush_calls_are_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-14 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-15 | `recolor_and_smudge_are_listed_and_stroke_takes_brush_or_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-16 | `recolor_and_smudge_refuse_empty_points_locked_and_group_targets` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-17 | `recolor_and_smudge_stay_inside_the_selection` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
 
 ## Decisions
 
@@ -136,3 +136,5 @@ The effect parameter table is `EFFECTS` in `crates/pincel-agent/src/pixel/effect
 - 2026-11-05 (clarification): `strength` and `angle` accept fractional values within their ranges — the core takes them as floating-point numbers, and the editor's integer slider values are a subset, so tests compare against integer values.
 - 2026-11-05 (clarification): Per-mode defaults appear in `pincel://effects` as a `defaults` object instead of `default` (AC-12) — a client then cannot read one mode's default as the other's, and parameters without a difference keep today's shape.
 - 2026-11-05 (clarification): The effect dialog always opens at the catalog defaults (`EffectSession` calls `defaultValues`; it remembers no earlier values), so "the editor's default" in AC-11 is the catalog default for that mode.
+- 2026-11-05 (spec-build): The agent's effect table carries the catalog's base defaults (the Image editor's) plus `modeDefaults.pixel` overrides, like `catalog.ts`. AC-11 is pinned through a committed file: the Rust test `effect_defaults_file_is_current` writes every effect's default wire vector per mode to `crates/pincel-agent/src/effect-defaults.json` (and fails while it is stale), and the Node-side Playwright spec `ui/e2e/effect-defaults.spec.ts` compares the catalog's `forMode` defaults with that file; colour slots are `null` because colour defaults follow the editor's swatches. The full gate runs `cargo test` before e2e, so both sides meet on the current table.
+- 2026-11-05 (spec-build): `draw.recolor` and `draw.smudge` decide "no change" (AC-13) by a dry run on a copy of the document, because the core records a Recolor / Smudge step even where no pixel matched.

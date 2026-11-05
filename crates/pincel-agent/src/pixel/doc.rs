@@ -89,10 +89,13 @@ pub(crate) fn with_id(mut info: Value, id: &str) -> Value {
 
 pub(super) const OPEN: Tool = Tool {
     name: "doc.open",
-    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer).",
+    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects, Photoshop .psd files and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer; a PSD result lists `notices` of what was left out). `mode: \"pixel\"` opens a PNG as a Pixel document instead (one layer, no file of its own).",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative path of an .aseprite, .ora, PNG, JPEG, WebP, BMP, GIF or TIFF file") }),
+            json!({
+                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF or TIFF file"),
+                "mode": { "type": "string", "description": "pixel (a PNG opens as a Pixel document) or image; default: the file decides" },
+            }),
             &["path"],
         )
     },
@@ -101,8 +104,27 @@ pub(super) const OPEN: Tool = Tool {
 
 fn doc_open(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let path = args.req_str("path")?;
-    if !is_aseprite(path) {
-        return crate::image::doc::open(ctx, path);
+    match (args.str("mode"), is_aseprite(path)) {
+        (None, false) | (Some("image"), false) => return crate::image::doc::open(ctx, path),
+        (Some("image"), true) => {
+            return Err(AgentError::tool(format!(
+                "cannot open `{path}` with mode \"image\": it is an Aseprite file (detected format: Aseprite), which opens as a Pixel document"
+            )));
+        }
+        (Some("pixel"), false) => return open_png_as_pixel(ctx, path),
+        (Some(other), aseprite) if other != "pixel" && other != "image" => {
+            let detected = if aseprite {
+                "Aseprite"
+            } else {
+                ctx.host
+                    .read(path)
+                    .map_or("unknown", |b| crate::image::doc::detected_format(&b))
+            };
+            return Err(AgentError::tool(format!(
+                "argument `mode`: unknown mode {other:?} (pixel, image); `{path}` is {detected}"
+            )));
+        }
+        _ => {}
     }
     let bytes = ctx
         .host
@@ -111,6 +133,34 @@ fn doc_open(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let out = read_aseprite(&bytes)
         .map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
     let doc = Doc::from_parts(out.sprite, out.cels, Some(path.to_owned()));
+    let info = doc.info("");
+    let id = ctx.ws.insert(doc);
+    Ok(ToolOutput::json(with_id(info, &id)))
+}
+
+/// `doc.open` with `mode: "pixel"` of a PNG: the Pixel editor's File ▸
+/// Open of a PNG — one layer holding the pixels, one 100 ms frame, the New
+/// document's palette, no file of its own (mcp-parity-export AC-23).
+fn open_png_as_pixel(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentError> {
+    let bytes = ctx
+        .host
+        .read(path)
+        .map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        let detected = crate::image::doc::detected_format(&bytes);
+        return Err(AgentError::tool(format!(
+            "cannot open `{path}` with mode \"pixel\": Pixel documents open PNG files and .aseprite files, and this file is {detected}"
+        )));
+    }
+    let img =
+        import_png(&bytes).map_err(|e| AgentError::tool(format!("cannot open `{path}`: {e}")))?;
+    let mut doc = Doc::new_pixel(img.width, img.height, Palette::db32())?;
+    let mut buf =
+        pincel_core::PixelBuffer::empty(img.width, img.height, pincel_core::ColorMode::Rgba);
+    buf.data = img.rgba;
+    let layer = pincel_core::LayerId::new(0);
+    doc.cels
+        .insert(pincel_core::Cel::image(layer, FrameIndex::new(0), buf));
     let info = doc.info("");
     let id = ctx.ws.insert(doc);
     Ok(ToolOutput::json(with_id(info, &id)))
@@ -277,24 +327,7 @@ fn doc_read_pixels(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
         Some(layer) => layer_pixels(doc, layer, frame, r)?,
     };
     let index = args.str("format") == Some("index");
-    let rows: Vec<String> = pixels
-        .chunks_exact(r.width as usize * 4)
-        .map(|row| {
-            row.as_chunks::<4>()
-                .0
-                .iter()
-                .map(|p| {
-                    let c = Rgba::new(p[0], p[1], p[2], p[3]);
-                    if index {
-                        palette_index(&doc.sprite.palette, c)
-                    } else {
-                        hex(c)
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join(" ")
-        })
-        .collect();
+    let rows = format_rows(&pixels, r.width, index, &doc.sprite.palette);
     Ok(ToolOutput::json(json!({
         "doc": id,
         "frame": frame.0,
@@ -302,6 +335,35 @@ fn doc_read_pixels(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
         "format": if index { "index" } else { "hex" },
         "rows": rows,
     })))
+}
+
+/// RGBA8 `pixels` of a `width`-wide area as text rows: `#RRGGBBAA` per
+/// pixel, or with `index` the first palette index with that color (or
+/// `-`).
+pub(super) fn format_rows(
+    pixels: &[u8],
+    width: u32,
+    index: bool,
+    palette: &Palette,
+) -> Vec<String> {
+    pixels
+        .chunks_exact(width.max(1) as usize * 4)
+        .map(|row| {
+            row.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|p| {
+                    let c = Rgba::new(p[0], p[1], p[2], p[3]);
+                    if index {
+                        palette_index(palette, c)
+                    } else {
+                        hex(c)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect()
 }
 
 fn palette_index(palette: &Palette, c: Rgba) -> String {
@@ -319,7 +381,10 @@ fn layer_pixels(doc: &Doc, layer: u32, frame: FrameIndex, r: Rect) -> Result<Vec
     let l = doc
         .sprite
         .layer(id)
-        .ok_or_else(|| AgentError::tool(format!("no layer with id {layer}")))?;
+        .ok_or_else(|| AgentError::tool(format!("argument `layer`: no layer with id {layer}")))?;
+    if matches!(l.kind, LayerKind::Tilemap { .. }) {
+        return tilemap_pixels(doc, id, frame, r);
+    }
     if !matches!(l.kind, LayerKind::Image) {
         return Err(AgentError::tool(format!(
             "layer {layer} ({:?}) is not an image layer",
@@ -346,6 +411,35 @@ fn layer_pixels(doc: &Doc, layer: u32, frame: FrameIndex, r: Rect) -> Result<Vec
         }
     }
     Ok(out)
+}
+
+/// A tilemap layer alone at `frame`, as the editor composes it at full
+/// opacity with normal blending, inside `r` (mcp-parity-pixel-assets
+/// AC-27).
+fn tilemap_pixels(
+    doc: &Doc,
+    id: pincel_core::LayerId,
+    frame: FrameIndex,
+    r: Rect,
+) -> Result<Vec<u8>, AgentError> {
+    let mut sprite = doc.sprite.clone();
+    let mut layer = doc
+        .sprite
+        .layer(id)
+        .cloned()
+        .ok_or_else(|| AgentError::tool("the layer vanished"))?;
+    layer.parent = None;
+    layer.visible = true;
+    layer.opacity = 255;
+    layer.blend_mode = pincel_core::BlendMode::Normal;
+    sprite.layers = vec![layer];
+    let mut cels = pincel_core::CelMap::new();
+    if let Some(cel) = doc.cels.get(id, frame) {
+        let mut cel = cel.clone();
+        cel.opacity = 255;
+        cels.insert(cel);
+    }
+    compose_region(&sprite, &cels, frame, r)
 }
 
 pub(super) const UNDO: Tool = Tool {
@@ -403,10 +497,14 @@ fn doc_redo(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
 
 pub(super) const SAVE: Tool = Tool {
     name: "doc.save",
-    description: "Save the document to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to: Pixel documents as .aseprite, Image documents as OpenRaster .ora projects (all layers). An Image document opened from a flat image (PNG, JPEG, …) has no .ora file yet: pass a `.ora` path, or use export.png.",
+    description: "Save the document to `path` (workspace-relative), or without `path` to the file it was opened from or last saved to. Pixel documents: .aseprite. Image documents: the format of the path's extension — .ora (all layers), .png, .jpg / .jpeg (`quality` 1–100, default the last JPEG save's or 90), .webp, .bmp, .tif / .tiff; a flat format loses layers, so a layered document there needs `flatten: true` (the document keeps its layers). Without `path` an Image document opened from a flat image is written back in its own format.",
     schema: || {
         tool_schema(
-            json!({ "path": path_prop("Workspace-relative .aseprite (Pixel) or .ora (Image) path; default: the document's file") }),
+            json!({
+                "path": path_prop("Workspace-relative path; default: the document's file"),
+                "flatten": { "type": "boolean", "description": "Image documents: allow writing a layered document to a flat format (the composite is written)" },
+                "quality": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Image documents, JPEG: quality 1–100" },
+            }),
             &[],
         )
     },
@@ -418,6 +516,13 @@ fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
         return crate::image::doc::save(ctx, args);
     }
     let (id, doc) = ctx.ws.doc(args)?;
+    for key in ["flatten", "quality"] {
+        if args.get(key).is_some() {
+            return Err(AgentError::tool(format!(
+                "argument `{key}` applies to Image documents only; document `{id}` is a Pixel document"
+            )));
+        }
+    }
     let path = match args.str("path") {
         Some(p) => p.to_owned(),
         None => doc.path.clone().ok_or_else(|| {

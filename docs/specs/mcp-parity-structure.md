@@ -134,36 +134,36 @@ Today `layer.list` reports every layer of an Image document as `kind: "image", p
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
-| AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
-| AC-29 |      | open   |        |
-| AC-30 |      | open   |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-02 | `image_only_merges_on_a_pixel_document_fail_naming_the_mode` (`crates/pincel-agent/src/tests/layers.rs`), `tag_and_palette_tools_on_an_image_document_fail_naming_the_mode` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-03 | `layer_add_without_target_places_the_layer_like_the_editor` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-04 | `layer_add_with_target_and_place_puts_the_layer_there` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-05 | `layer_duplicate_copies_the_layer_directly_above_its_source` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-06 | `layer_move_equals_the_editors_move` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-07 | `layer_move_and_add_with_bad_placement_fail_naming_the_argument` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-08 | `layer_merge_down_equals_the_editors_merge_down` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-09 | `layer_merge_down_the_editor_refuses_fails_with_the_reason` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-10 | `layer_merge_visible_and_merge_group_equal_the_editors` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-11 | `layer_flatten_equals_the_editors_flatten` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-12 | `image_groups_are_listed_with_kind_and_parent` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-13 | `image_pixel_tools_on_a_group_fail_saying_it_is_a_group` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-14 | `tag_add_reports_the_given_color_or_the_timelines_next_color` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-15 | `tag_set_changes_exactly_the_given_fields` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-16 | `tag_set_with_bad_arguments_fails_naming_the_argument` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-17 | `palette_get_reports_entry_names` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-18 | `palette_entry_tools_change_exactly_that_entry` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-19 | `palette_tools_refuse_a_full_palette_and_non_rgba_documents` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-20 | `palette_import_reads_all_four_formats_whatever_the_extension` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-21 | `palette_import_of_a_bad_file_fails_with_the_reason`, `palette_tools_refuse_a_full_palette_and_non_rgba_documents` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-22 | `palette_export_writes_each_format_and_imports_back` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-23 | `read_only_mode_refuses_palette_export_and_allows_palette_import` (`crates/pincel-mcp/tests/stdio.rs`) | built  |        |
+| AC-24 | `doc_info_reports_color_mode_and_selection_bounds` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-25 | `layer_tools_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/layers.rs`), `tag_and_palette_edits_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-26 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-27 | `layer_tools_naming_a_missing_layer_fail_with_argument_and_value` (`crates/pincel-agent/src/tests/layers.rs`), `tag_and_palette_tools_naming_a_missing_index_fail_with_argument_and_value` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
+| AC-28 | `layer_duplicate_of_a_pixel_group_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-29 | `merge_and_flatten_refuse_locked_layers_while_duplicate_and_move_work` (`crates/pincel-agent/src/tests/layers.rs`) | built  |        |
+| AC-30 | `palette_export_with_bad_arguments_writes_nothing` (`crates/pincel-agent/src/tests/tags_palette.rs`) | built  |        |
 
 ## Decisions
 
@@ -171,3 +171,9 @@ Today `layer.list` reports every layer of an Image document as `kind: "image", p
 - 2026-11-05: `layer.add` without `target` follows the editor of the document's mode: Pixel on top, Image above the active layer. `target` + `place` give exact placement — owner's choice, because an agent should get the same result as a user doing the same thing. Only Image documents change behavior; before this spec they put the new layer on top.
 - 2026-11-05: One tool per verb (`layer.merge_down`, `layer.merge_visible`, `layer.merge_group`, `layer.flatten`) rather than one `layer.merge { mode }` tool — owner's choice, because small schemas are unambiguous for models.
 - 2026-11-05: The parity specs are built in parallel with `mcp-live-desktop` — owner's choice. Live mode runs the same `pincel-agent` code, so every new tool reaches it.
+- 2026-11-05 (spec-build): `layer.add` with `kind: "group"` and no `target` / `parent` on an Image document puts the group on top of the root stack, because that is where the editor's Add Group puts it (`AddGroup::on_top`); AC-03's "above the active layer" is the editor's rule for a new image layer.
+- 2026-11-05 (spec-build): `layer.move`, `layer.merge_visible` and `layer.flatten` report `changed` (whether an undo step was recorded), because AC-25 lets these calls succeed without changing the document and an agent should not have to diff `layer.list` to find out.
+- 2026-11-05 (spec-build): "No change" (AC-25) is decided by a dry run of the same commands on a copy of the document; for Image documents a change of the active layer alone does not count, because the active layer is selection state, not document content.
+- 2026-11-05 (spec-build): `palette.get` entries are objects `{color, name}` (color `#RRGGBBAA`), because AC-17 has each entry carry its name; `palette.set`, `palette.load_preset` and the entry tools return the same shape.
+- 2026-11-05 (spec-build): Tag colors are reported as `#RRGGBB`, the form `tag.add` takes and AC-14 lists, because tag colors carry no alpha in the timeline or the Aseprite format.
+- 2026-11-05 (spec-build): `palette.export` takes `format` as a required argument and ignores the path's extension; `name` applies only to `gpl` and `cell` only to `png`, as in the editor's export.

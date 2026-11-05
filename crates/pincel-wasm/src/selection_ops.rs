@@ -9,9 +9,7 @@
 //! remains transient state outside the undo stack, like the rect
 //! selection it extends.
 
-use pincel_core::{
-    CelData, ColorMode, ComposeRequest, PixelBuffer, Rect, SelectionMask, SelectionMode, compose,
-};
+use pincel_core::{Rect, SelectionMask, SelectionMode, composite_canvas, layer_canvas};
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
@@ -89,8 +87,14 @@ impl Document {
     ) -> Result<(), String> {
         let mode = parse_mode(mode)?;
         let buffer = match sample {
-            "composite" => self.composite_buffer()?,
-            "layer" => self.active_layer_canvas()?,
+            "composite" => composite_canvas(&self.sprite, &self.cels, self.current_frame)
+                .map_err(|e| format!("failed to compose: {e}"))?,
+            "layer" => layer_canvas(
+                &self.sprite,
+                &self.cels,
+                self.paint_target_layer()?,
+                self.current_frame,
+            ),
             other => return Err(format!("unknown wand sample source `{other}`")),
         };
         let shape = SelectionMask::wand(&buffer, (x, y), tolerance, contiguous);
@@ -180,22 +184,7 @@ impl Document {
 impl Document {
     /// Merge `shape` into the current selection per `mode` and announce it.
     fn combine_selection(&mut self, shape: SelectionMask, mode: SelectionMode) {
-        let mask = match (mode, self.sprite.selection_as_mask()) {
-            (SelectionMode::Replace, _) | (_, None) => {
-                // With no prior selection, subtract / intersect have nothing
-                // to operate on: subtract keeps "nothing", intersect too.
-                if matches!(mode, SelectionMode::Subtract | SelectionMode::Intersect) {
-                    SelectionMask::empty(self.sprite.width, self.sprite.height)
-                } else {
-                    shape
-                }
-            }
-            (mode, Some(mut base)) => {
-                base.combine(&shape, mode);
-                base
-            }
-        };
-        self.sprite.set_selection_mask(mask);
+        self.sprite.combine_selection(shape, mode);
         self.push_selection_event();
     }
 
@@ -206,46 +195,6 @@ impl Document {
             None => Event::selection_changed(0, 0, 0, 0),
         };
         self.events.push(ev);
-    }
-
-    /// The active layer's cel at the current frame rendered raw into a
-    /// canvas-sized RGBA buffer (transparent where there is no cel).
-    fn active_layer_canvas(&self) -> Result<PixelBuffer, String> {
-        let layer = self.paint_target_layer()?;
-        let (w, h) = (self.sprite.width, self.sprite.height);
-        let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
-        if let Some(cel) = self.cels.get(layer, self.current_frame)
-            && let CelData::Image(buf) = &cel.data
-        {
-            for ly in 0..buf.height {
-                let y = i64::from(cel.position.1) + i64::from(ly);
-                if y < 0 || y >= i64::from(h) {
-                    continue;
-                }
-                for lx in 0..buf.width {
-                    let x = i64::from(cel.position.0) + i64::from(lx);
-                    if x < 0 || x >= i64::from(w) {
-                        continue;
-                    }
-                    let s = ((ly * buf.width + lx) * 4) as usize;
-                    let d = ((y as u32 * w + x as u32) * 4) as usize;
-                    out.data[d..d + 4].copy_from_slice(&buf.data[s..s + 4]);
-                }
-            }
-        }
-        Ok(out)
-    }
-
-    /// The current frame's visible composite as a canvas-sized buffer.
-    fn composite_buffer(&self) -> Result<PixelBuffer, String> {
-        let (w, h) = (self.sprite.width, self.sprite.height);
-        let request = ComposeRequest::full(self.current_frame, w, h);
-        let mut pixels = Vec::new();
-        compose(&self.sprite, &self.cels, &request, &mut pixels)
-            .map_err(|e| format!("failed to compose: {e}"))?;
-        let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
-        out.data = pixels;
-        Ok(out)
     }
 }
 

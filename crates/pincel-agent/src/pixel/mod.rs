@@ -1,13 +1,20 @@
 //! The shared document tools and the Pixel-mode tools over `pincel-core`.
 //! See docs/specs/mcp-headless-pixel.md (Technical notes, "Tools").
 
+mod animation;
+mod assets;
 mod doc;
 mod draw;
 pub(crate) mod effects;
+mod layer_ops;
+pub(crate) mod paint;
+mod palette;
 mod structure;
 
+pub(crate) use assets::TOOLS as ASSET_TOOLS;
 pub(crate) use doc::{EXPORT_MAX_EDGE, READ_MAX, path_prop, rect_json, region_arg, with_id};
 pub(crate) use draw::apply_effect;
+pub(crate) use structure::layer_arg as layer_id_arg;
 
 use serde_json::{Map, Value, json};
 
@@ -28,10 +35,18 @@ pub(crate) static TOOLS: &[Tool] = &[
     doc::SAVE,
     doc::EXPORT_PNG,
     doc::EXPORT_SHEET,
+    animation::EXPORT_APNG,
+    animation::EXPORT_GIF,
     structure::LAYER_ADD,
     structure::LAYER_REMOVE,
     structure::LAYER_LIST,
     structure::LAYER_SET,
+    layer_ops::LAYER_DUPLICATE,
+    layer_ops::LAYER_MOVE,
+    layer_ops::LAYER_MERGE_DOWN,
+    layer_ops::LAYER_MERGE_VISIBLE,
+    layer_ops::LAYER_MERGE_GROUP,
+    layer_ops::LAYER_FLATTEN,
     structure::FRAME_ADD,
     structure::FRAME_REMOVE,
     structure::FRAME_SET_DURATION,
@@ -39,17 +54,22 @@ pub(crate) static TOOLS: &[Tool] = &[
     structure::TAG_ADD,
     structure::TAG_REMOVE,
     structure::TAG_LIST,
-    structure::PALETTE_GET,
-    structure::PALETTE_SET,
-    structure::PALETTE_LOAD_PRESET,
+    structure::TAG_SET,
+    palette::PALETTE_GET,
+    palette::PALETTE_SET,
+    palette::PALETTE_LOAD_PRESET,
+    palette::PALETTE_SET_ENTRY,
+    palette::PALETTE_ADD_ENTRY,
+    palette::PALETTE_REMOVE_ENTRY,
+    palette::PALETTE_MOVE_ENTRY,
+    palette::PALETTE_IMPORT,
+    palette::PALETTE_EXPORT,
     draw::PIXELS,
     draw::LINE,
     draw::RECT,
     draw::ELLIPSE,
     draw::FILL,
     draw::CLEAR,
-    draw::SELECTION_SET_RECT,
-    draw::SELECTION_CLEAR,
     draw::EFFECT_APPLY,
 ];
 

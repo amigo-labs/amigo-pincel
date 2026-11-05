@@ -134,30 +134,30 @@ Per-mode bounds: the input schema allows the union of both modes' ranges (text `
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`), `drawing_tools_describe_both_modes` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-02 | `pixel_stroke_equals_the_editors_pencil` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-03 | `pixel_perfect_strokes_equal_the_editors` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-04 | `pixel_eraser_stroke_equals_the_editors_eraser` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-05 | `pixel_shading_stroke_equals_the_editors_shading_ink` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-06 | `bad_shading_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-07 | `pixel_mirror_and_wrap_equal_the_editors_symmetry_and_tiled_mode` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-08 | `pixel_mirror_and_wrap_equal_the_editors_symmetry_and_tiled_mode` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-09 | `bad_axes_and_fractional_pixel_coordinates_fail_naming_the_argument` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-10 | `pixel_shapes_equal_the_editors_shape_tools` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-11 | `pixel_shape_line_and_polygon_center_point_elsewhere` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-12 | `pixel_gradient_equals_the_editors_dithered_gradient` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-13 | `pixel_gradient_refuses_indexed_and_grayscale_documents` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-14 | `pixel_text_equals_the_editors_text_tool` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-15 | `text_that_lands_nowhere_and_zero_length_gradients_change_nothing` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-16 | `pixel_selection_clips_gradient_text_and_fill_only` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-17 | `image_selection_clips_every_drawing_tool` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-18 | `arguments_of_the_other_modes_editor_fail_naming_argument_and_mode` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-19 | `draw_stroke_matches_brush_and_eraser`, `draw_shape_matches_the_shape_tools`, `draw_text_matches_the_text_tool`, `draw_fill_and_gradient_match_bucket_and_gradient_tools` (`crates/pincel-agent/src/tests/image_draw.rs`) | built  |        |
+| AC-20 | `drawing_on_locked_group_or_tilemap_layers_fails_with_the_reason` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-21 | `every_pixel_drawing_call_is_one_undo_step` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-22 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-23 | `line_rect_and_ellipse_on_an_image_document_point_to_draw_shape` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
+| AC-24 | `values_outside_the_modes_range_fail_with_the_range` (`crates/pincel-agent/src/tests/pixel_paint.rs`) | built  |        |
 
 ## Decisions
 
@@ -175,3 +175,5 @@ Per-mode bounds: the input schema allows the union of both modes' ranges (text `
 - 2026-11-05 (clarification): Schemas allow the union of both modes' ranges and the tool enforces the range of the document's mode with a message naming the mode (AC-24) — one schema per tool cannot express per-mode bounds, and the message tells the model which limit applies.
 - 2026-11-05 (clarification): Pixel coordinates of `draw.shape`, `draw.gradient` and `draw.text` must be integers like `draw.stroke`'s (AC-09), while Image keeps fractional values — same argument names with a per-mode type, because each editor addresses its canvas that way.
 - 2026-11-05 (clarification): AC-18 owns the complete list of other-mode arguments of `draw.stroke`, `draw.shape`, `draw.text` and `draw.gradient`; `mcp-parity-drawing-image` AC-08 owns only the arguments it adds — one owner per list, so neither spec drifts from the other.
+- 2026-11-05 (spec-build): A Pixel stroke that reaches beyond a cel smaller than the canvas grows the cel, as the editor's `PencilStroke` does; the tool then commits the whole new cel (`PutCel`) instead of a `PatchCel` diff, still one undo step.
+- 2026-11-05 (spec-build): `frame` joined the schemas of `draw.stroke`, `draw.shape`, `draw.text` and `draw.gradient` for Pixel documents (`mcp-headless-pixel` AC-43); Image documents ignore it, as their other tools do.

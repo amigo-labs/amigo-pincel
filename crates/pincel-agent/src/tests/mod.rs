@@ -1,12 +1,21 @@
 //! Tool-level tests over the public `call` entry point, with access to the
 //! session internals for exact-state assertions.
 
+mod assets;
+mod clipboard;
 mod doc;
 mod draw;
+mod export;
 mod image;
+mod image_brushes;
 mod image_draw;
+mod layers;
+mod pixel_paint;
 mod preview;
+mod select;
 mod structure;
+mod tags_palette;
+mod transform;
 
 use std::collections::HashMap;
 
