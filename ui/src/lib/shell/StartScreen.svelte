@@ -26,6 +26,7 @@
   let {
     recents,
     busy = false,
+    unsupported = false,
     onCreate,
     onOpen,
     onOpenRecent,
@@ -33,6 +34,9 @@
   }: {
     recents: RecentFile[];
     busy?: boolean;
+    /** The browser lacks wasm SIMD: a notice, and New / Open stay off
+     *  (performance-build-simd AC-07). */
+    unsupported?: boolean;
     onCreate: (params: NewDocParams) => void;
     onOpen: () => void;
     onOpenRecent: (recent: RecentFile) => void;
@@ -44,6 +48,8 @@
     { mode: 'pixel', title: 'start.newPixel', hint: 'start.newPixelHint' },
     { mode: 'image', title: 'start.newImage', hint: 'start.newImageHint' },
   ] as const;
+
+  const blocked = $derived(busy || unsupported);
 
   // The open New card and its size fields; `null` while both are closed.
   let expanded = $state<EditorMode | null>(null);
@@ -120,6 +126,11 @@
       </div>
     </div>
     <p class="mt-2 text-sm text-pc-muted">{t('start.tagline')}</p>
+    {#if unsupported}
+      <p role="alert" class="mt-4 rounded border border-pc-border px-3 py-2 text-sm">
+        {t('start.unsupportedBrowser')}
+      </p>
+    {/if}
 
     <div class="mt-6 flex flex-col gap-3">
       {#each CARDS as card (card.mode)}
@@ -130,7 +141,7 @@
             type="button"
             class="start-card-head"
             onclick={() => toggle(card.mode)}
-            disabled={busy}
+            disabled={blocked}
             aria-label={t(card.title)}
             aria-expanded={open}
             aria-controls={`new-${card.mode}-form`}
@@ -189,7 +200,7 @@
                 />
               </label>
               <span class="text-xs text-pc-faint">px</span>
-              <button type="submit" class="panel-btn panel-btn-primary ml-auto" disabled={busy}>
+              <button type="submit" class="panel-btn panel-btn-primary ml-auto" disabled={blocked}>
                 {t('common.create')}
               </button>
               <label class="flex basis-full items-center gap-2 text-xs text-pc-muted">
@@ -210,7 +221,7 @@
     </div>
 
     <div class="mt-5 flex flex-col items-start gap-2">
-      <button class="panel-btn shrink-0" onclick={onOpen} disabled={busy}>{t('start.open')}</button>
+      <button class="panel-btn shrink-0" onclick={onOpen} disabled={blocked}>{t('start.open')}</button>
       <span class="text-[13px] leading-relaxed text-pc-muted">{t('start.openHint')}</span>
     </div>
 
@@ -222,7 +233,7 @@
             <button
               class="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-sm hover:bg-pc-hover disabled:opacity-50"
               onclick={() => onOpenRecent(r)}
-              disabled={busy}
+              disabled={blocked}
               title={r.path ?? r.name}
             >
               <span class="truncate">{r.name}</span>

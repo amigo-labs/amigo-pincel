@@ -93,12 +93,18 @@
   import { initLocale } from './lib/i18n/locale';
   import { initMotion } from './lib/motion.svelte';
   import { loadKeymap } from './lib/shell/keymap';
+  import { supportsWasmSimd } from './lib/platform/wasm-simd';
 
   // Dynamic imports keep each editor (and its wasm package) in its own
-  // chunk; Vite only fetches the ones that get mounted (AC-22).
+  // chunk; Vite only fetches the ones that get mounted (AC-22). Both cores
+  // need wasm SIMD: without it no editor loads, whichever way a document
+  // arrives (performance-build-simd AC-07).
+  const wasmSimd = supportsWasmSimd();
+  const unsupported = (): Promise<never> =>
+    Promise.reject(new Error(t('start.unsupportedBrowser')));
   setEditorLoaders({
-    pixel: () => import('./modes/pixel/PixelEditor.svelte'),
-    image: () => import('./modes/image/ImageEditor.svelte'),
+    pixel: () => (wasmSimd ? import('./modes/pixel/PixelEditor.svelte') : unsupported()),
+    image: () => (wasmSimd ? import('./modes/image/ImageEditor.svelte') : unsupported()),
   });
 
   const MODES: readonly EditorMode[] = ['pixel', 'image'];
@@ -719,12 +725,13 @@
   <StartScreen
     {recents}
     busy={picking || editors.pending > 0}
+    unsupported={!wasmSimd}
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
     {dropHover}
   />
-  {#if offer.image && !modalOpen}
+  {#if offer.image && !modalOpen && wasmSimd}
     <ClipboardOffer
       image={offer.image}
       busy={picking || editors.pending > 0}

@@ -64,6 +64,8 @@ export const de: Record<MessageKey, string> = {
   'start.newImageHint':
     'Ebenen, weiche Pinsel, Auswahlen, Effekte. Speichert als .ora; exportiert PNG / JPEG / WebP.',
   'start.open': 'Öffnen…',
+  'start.unsupportedBrowser':
+    'Dieser Browser ist zu alt für Pincel (benötigt Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',
   'start.openHint':
     '.aseprite öffnet im Pixel-Modus; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF und PSD öffnen im Bild-Modus.',
   'start.recent': 'Zuletzt geöffnet',

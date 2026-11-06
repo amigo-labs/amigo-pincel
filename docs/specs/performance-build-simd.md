@@ -73,7 +73,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-07 | `ui/e2e/browser-support.spec.ts` › "without wasm SIMD the start screen explains why and loads no editor (AC-07)", "with wasm SIMD the start screen shows no notice (AC-07)" | built |        |
 
 ## Decisions
 
@@ -82,3 +82,4 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: Runtime budgets take precedence over load time; the hot crates (`pincel-core`, `pincel-image-core`, `pincel-effects`) keep `opt-level = 3` through per-package release overrides, other crates may use `"s"` — compose speed is felt on every interaction, while load time is paid once and then served from the service-worker cache (owner accepted the recommendation).
 - 2026-10-29: No scalar fallback build; a browser without wasm SIMD gets a translated "browser too old" notice on the start screen with New / Open disabled — a second build doubles CI and bundle work for a share of browsers well under 1 % (owner accepted the recommendation).
 - 2026-10-29: Both wasm modules are built with `+simd128`; minimum browsers are Chrome / Edge 91, Firefox 89 and Safari 16.4 (Decision Log 2026-10-29) — these are the first releases with fixed-width wasm SIMD enabled by default (owner accepted the recommendation).
+- 2026-11-06 (spec-build): SIMD detection is `supportsWasmSimd()` (`ui/src/lib/platform/wasm-simd.ts`): `WebAssembly.validate` on a 31-byte module whose one function runs `i8x16.splat` and `i8x16.popcnt`. Without SIMD the start screen shows `start.unsupportedBrowser` and disables both New cards, Open and the recent files, and the shell's editor loaders refuse to load, so no other way in (drop, clipboard offer, startup document) mounts an editor either. Red run: the AC-07 e2e test failed (no notice) before the check existed.
