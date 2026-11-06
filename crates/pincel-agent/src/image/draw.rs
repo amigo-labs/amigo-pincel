@@ -180,7 +180,7 @@ pub(crate) const STROKE: Tool = Tool {
                     "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
                     "description": "Stroke path as [x, y] pairs",
                 },
-                "tool": choice(&["brush", "eraser"], "brush (default) or eraser"),
+                "tool": choice(&["brush", "eraser"], "brush (default) or eraser; recoloring and smudging are the tools draw.recolor and draw.smudge"),
                 "color": shared_color("Brush color; default #000000"),
                 "size": { "type": "integer", "description": "Brush size in px: Image 1–500 (default 8), Pixel 1–8 (default 1)" },
                 "hardness": percent_prop("Image: edge hardness"),
@@ -394,9 +394,12 @@ pub(crate) const SMUDGE: Tool = Tool {
 };
 
 /// An Image-only color argument: `#RRGGBB` or `#RRGGBBAA` (the schema
-/// also admits the Pixel `{index}` form, so its use gets a named error).
+/// also admits the Pixel `{index}` form, so its use gets a named error;
+/// the description names only the forms Image documents take).
 fn color_prop_image(description: &str) -> Value {
-    crate::args::color_schema(description)
+    let mut schema = crate::args::color_schema(description);
+    schema["description"] = json!(format!("{description}: \"#RRGGBB\" or \"#RRGGBBAA\""));
+    schema
 }
 
 pub(crate) const SHAPE: Tool = Tool {
