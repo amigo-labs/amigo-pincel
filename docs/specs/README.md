@@ -28,8 +28,6 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| A1 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
-| A2 | [mcp-parity-selection-transform](mcp-parity-selection-transform.md) | both | L | mcp-parity-structure | MCP select.* for both modes, Delete, canvas and layer transforms |
 | A3 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
 | A4 | [mcp-parity-drawing](mcp-parity-drawing.md) | both | L | mcp-parity-structure | MCP Pixel drawing via draw.stroke / shape / text / gradient |
 | A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
@@ -106,7 +104,6 @@ Owner priority; measure first, then the budgets of pincel.md §4.5.
 | G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
 | G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
 | G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
-| G7 | [performance-image-undo-memory](performance-image-undo-memory.md) | Image | L | performance-benchmarks | Can move earlier if memory hurts |
 | G8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 
 ### H — Other planned features
@@ -169,10 +166,13 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
+- [mcp-parity-structure](mcp-parity-structure.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
 - [performance-image-kernel](performance-image-kernel.md)
+- [performance-image-undo-memory](performance-image-undo-memory.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)

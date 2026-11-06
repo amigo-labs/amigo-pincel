@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Image
@@ -29,11 +29,11 @@ Image-mode undo for structural commands — paste, merge, flatten, scale, crop �
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): After any random sequence of Image commands (strokes, fills, effects, paste, merge, flatten, layer operations, scale, crop, resize), undoing every step restores the original document byte-identically, and redoing every step restores the final document byte-identically.
-- [ ] AC-02 (always): The undo memory added by a command that changes pixels only inside a rect of one layer is at most the RGBA size of that rect rounded up to the tile grid recorded under `## Decisions`.
-- [ ] AC-03 (state): While a 3840×2160, 10-layer document holds 50 undo steps — 40 brush strokes (each within 512 px), 5 whole-layer adjustments or effects, 3 merge-downs and 2 pastes of 1024×1024 without canvas expansion — the browser's wasm memory (`WebAssembly.Memory` `buffer.byteLength`) is at most 1 GB, and a native test runs the same sequence and asserts that the undo stack's reported byte count equals the bytes it actually stores.
-- [ ] AC-04 (event): When a command that changes the canvas size is undone, then size, layers and pixels equal the state before it, as today.
-- [ ] AC-05 (event): When a new command pushes the stored undo data of a document above 512 MB, then the oldest undo steps are dropped (and, if that is not enough, redo steps) until it is at most 512 MB; the step just performed is never dropped, and undo of every remaining step still restores its state byte-identically.
+- [x] AC-01 (always): After any random sequence of Image commands (strokes, fills, effects, paste, merge, flatten, layer operations, scale, crop, resize), undoing every step restores the original document byte-identically, and redoing every step restores the final document byte-identically.
+- [x] AC-02 (always): The undo memory added by a command that changes pixels only inside a rect of one layer is at most the RGBA size of that rect rounded up to the tile grid recorded under `## Decisions`.
+- [x] AC-03 (state): While a 3840×2160, 10-layer document holds 50 undo steps — 40 brush strokes (each within 512 px), 5 whole-layer adjustments or effects, 3 merge-downs and 2 pastes of 1024×1024 without canvas expansion — the browser's wasm memory (`WebAssembly.Memory` `buffer.byteLength`) is at most 1 GB, and a native test runs the same sequence and asserts that the undo stack's reported byte count equals the bytes it actually stores.
+- [x] AC-04 (event): When a command that changes the canvas size is undone, then size, layers and pixels equal the state before it, as today.
+- [x] AC-05 (event): When a new command pushes the stored undo data of a document above 512 MB, then the oldest undo steps are dropped (and, if that is not enough, redo steps) until it is at most 512 MB; the step just performed is never dropped, and undo of every remaining step still restores its state byte-identically.
 
 ## Technical notes
 
@@ -64,11 +64,20 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `crates/pincel-image-core/tests/undo_round_trip_proptest.rs` › `undo_all_then_redo_all_is_byte_identical` (proptest: strokes, fills, whole-layer adjustments, paste with and without expand, merge down, flatten, add / remove / duplicate / move layer, opacity, selection, crop, scale, resize; undo all equals the original `Document`, redo all the final one) | built |        |
-| AC-02 | `crates/pincel-image-core/src/command/pixels.rs` › `undo_bytes_stay_within_the_tile_rounded_rect`, `merged_stroke_stores_each_tile_once`, `edit_that_changes_nothing_stores_no_tiles`; `crates/pincel-image-core/src/command/tiles.rs` › `write_at_tile_corner_saves_four_tiles`, `write_clips_edge_tiles_to_the_layer`, `write_without_change_saves_nothing` | built |        |
-| AC-03 | Native: `crates/pincel-image-core/tests/undo_memory_budget.rs` › `budget_session_reports_its_undo_bytes_and_fits_the_budget` (50 steps; `stored_bytes() == recount_bytes()`; document 284 MiB + undo 273 MiB). Browser: `pnpm perf -g image-memory-4k` `wasm-memory-mb` 1000.56 MiB (2026-11-06, reference machine, release wasm; budget 1024 MB met, recorded in `ui/e2e-perf/budgets-met.json` and in `performance-benchmarks.md` § Measurements; 874.69 MiB on 2026-11-05, 2362.19 MiB before the change) | built |        |
-| AC-04 | `crates/pincel-image-core/tests/undo_round_trip_proptest.rs` › `undo_of_expanding_paste_restores_size_and_pixels`, `undo_of_canvas_size_changes_restores_the_document` | built |        |
-| AC-05 | `crates/pincel-image-core/src/command/mod.rs` › `byte_cap_drops_oldest_steps_and_keeps_the_rest_exact`, `byte_cap_keeps_a_step_larger_than_the_cap_alone`, `stored_bytes_follow_undo_redo_and_new_pushes`, `crates/pincel-image-core/tests/live_objects.rs` › `live_object_steps_keep_the_undo_byte_count_exact` | built |        |
+| AC-01 | `crates/pincel-image-core/tests/undo_round_trip_proptest.rs` › `undo_all_then_redo_all_is_byte_identical` (proptest: strokes, fills, whole-layer adjustments, paste with and without expand, merge down, flatten, add / remove / duplicate / move layer, opacity, selection, crop, scale, resize; undo all equals the original `Document`, redo all the final one) | verified |  |
+| AC-02 | `crates/pincel-image-core/src/command/pixels.rs` › `undo_bytes_stay_within_the_tile_rounded_rect`, `merged_stroke_stores_each_tile_once`, `edit_that_changes_nothing_stores_no_tiles`; `crates/pincel-image-core/src/command/tiles.rs` › `write_at_tile_corner_saves_four_tiles`, `write_clips_edge_tiles_to_the_layer`, `write_without_change_saves_nothing` | verified |  |
+| AC-03 | Native: `crates/pincel-image-core/tests/undo_memory_budget.rs` › `budget_session_reports_its_undo_bytes_and_fits_the_budget` (50 steps; `stored_bytes() == recount_bytes()`; document 284 MiB + undo 273 MiB). Browser: `pnpm perf -g image-memory-4k` `wasm-memory-mb` 1000.56 MiB (2026-11-06, reference machine, release wasm; budget 1024 MB met, recorded in `ui/e2e-perf/budgets-met.json` and in `performance-benchmarks.md` § Measurements; 874.69 MiB on 2026-11-05, 2362.19 MiB before the change) | verified |  |
+| AC-04 | `crates/pincel-image-core/tests/undo_round_trip_proptest.rs` › `undo_of_expanding_paste_restores_size_and_pixels`, `undo_of_canvas_size_changes_restores_the_document` | verified |  |
+| AC-05 | `crates/pincel-image-core/src/command/mod.rs` › `byte_cap_drops_oldest_steps_and_keeps_the_rest_exact`, `byte_cap_keeps_a_step_larger_than_the_cap_alone`, `stored_bytes_follow_undo_redo_and_new_pushes`, `crates/pincel-image-core/tests/live_objects.rs` › `live_object_steps_keep_the_undo_byte_count_exact` | verified |  |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- Image-mode pixel commands store only the changed 64×64 tiles (`UNDO_TILE`), swapping old and new tiles on undo / redo; merge, paste, add and duplicate keep only what they need, while canvas-size changes keep the whole-document snapshot
+- The undo history tracks its stored bytes (`stored_bytes`, `recount_bytes`) and drops the oldest steps above a 512 MiB cap, never the step just performed
+- The 4K, 10-layer, 50-step session fits the 1 GB budget: 1000.56 MiB of wasm memory in the browser (was 2362.19 MiB), recorded in `performance-benchmarks.md` and `budgets-met.json`
+- A proptest pins byte-identical undo-all / redo-all over random Image command sequences; it found and fixed fresh layer ids on redo of Flatten and Merge Visible
 
 ## Decisions
 
