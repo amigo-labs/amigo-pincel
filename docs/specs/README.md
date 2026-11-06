@@ -81,7 +81,6 @@ Independent of every other group.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| F1 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
 | F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
 | F4 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
@@ -157,6 +156,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
+- [image-resize-autocrop](image-resize-autocrop.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
