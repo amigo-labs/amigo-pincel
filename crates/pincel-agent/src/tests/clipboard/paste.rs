@@ -109,7 +109,7 @@ fn layer_import_expands_or_crops_like_the_editors_paste() {
     // (x, y, expand, canvas after, the image pixels that land on the canvas
     // as (canvas x, canvas y, image i, image j))
     type Case = (i32, i32, bool, (u32, u32), &'static [(u32, u32, u8, u8)]);
-    let cases: [Case; 4] = [
+    let cases: [Case; 5] = [
         // Grows right and down to cover the image.
         (
             2,
@@ -122,6 +122,9 @@ fn layer_import_expands_or_crops_like_the_editors_paste() {
         (-2, -1, true, (5, 6), &[(0, 0, 2, 1), (0, 1, 2, 2)]),
         // Without expand: cropped at the right and bottom edges.
         (4, 4, false, (5, 6), &[(4, 4, 0, 0), (4, 5, 0, 1)]),
+        // Negative offsets without expand: cut off at the left and top
+        // edges, the canvas stays.
+        (-1, -2, false, (5, 6), &[(0, 0, 1, 2), (1, 0, 2, 2)]),
         // Wholly outside: an empty layer.
         (50, 50, false, (5, 6), &[]),
     ];
@@ -427,4 +430,54 @@ fn layer_import_of_an_image_doc_open_refuses_fails_like_doc_open() {
         "{e}"
     );
     assert_eq!(s.image(&id).document(), &before);
+}
+
+#[test]
+fn layer_import_in_an_image_document_lands_above_a_middle_active_layer() {
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    s.ok("layer.add", json!({ "name": "Top" }));
+    // The copy of layer 0 sits between layer 0 and Top and becomes active.
+    let middle = s.ok("layer.duplicate", json!({ "layer": 0 }))["layer"].clone();
+    assert_eq!(s.ok("doc.info", json!({}))["active_layer"], middle);
+    s.host
+        .files
+        .insert("a.png".into(), png(1, 1, &[255, 0, 0, 255]));
+    let want = {
+        let mut bus = CommandBus::new(s.image(&id).document().clone());
+        let buf = decode(&s.host.files["a.png"]).expect("decode");
+        bus.apply(Box::new(pincel_image_core::command::PasteLayer::at(
+            buf, 1, 1, false,
+        )))
+        .expect("paste");
+        bus.document
+    };
+    let depth = undo_depth(&mut s);
+    let out = s.ok("layer.import", json!({ "path": "a.png", "x": 1, "y": 1 }));
+    assert_eq!(undo_depth(&mut s), depth + 1, "one undo step");
+    let list = s.ok("layer.list", json!({}))["layers"].clone();
+    let ids: Vec<Value> = list
+        .as_array()
+        .expect("layers")
+        .iter()
+        .map(|l| l["id"].clone())
+        .collect();
+    assert_eq!(
+        ids,
+        [json!(0), middle.clone(), out["layer"].clone(), json!(1)],
+        "directly above the active layer, below Top"
+    );
+    assert_eq!(list[2]["name"], "Layer 4", "named after the layer count");
+    assert_eq!(s.ok("doc.info", json!({}))["active_layer"], out["layer"]);
+    let view = |d: &Document| -> Vec<(String, Vec<u8>)> {
+        d.layers()
+            .iter()
+            .map(|l| (l.name.clone(), l.pixels.data().to_vec()))
+            .collect()
+    };
+    assert_eq!(
+        view(s.image(&id).document()),
+        view(&want),
+        "the editor's Paste"
+    );
 }
