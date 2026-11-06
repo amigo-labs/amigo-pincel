@@ -86,8 +86,10 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
-      - name: gate — rust core tests
-        run: cargo test -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
+      # performance-build-simd AC-04: the tests pass under the release
+      # profile that ships (fat LTO, one codegen unit).
+      - name: gate — rust core tests (release profile)
+        run: cargo test --release -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
       - name: build wasm packages (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
