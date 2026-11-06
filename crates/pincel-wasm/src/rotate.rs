@@ -189,6 +189,70 @@ mod tests {
     }
 
     #[test]
+    fn rotate_layer_turns_the_active_layer_at_the_current_frame() {
+        let mut doc = bar_doc();
+        let other = doc.add_layer("other").expect("layer");
+        doc.set_active_layer(other);
+        paint(&mut doc, 0, 0, BLUE);
+        paint(&mut doc, 1, 0, BLUE);
+        let frame = doc.add_frame(100).expect("frame");
+        doc.set_current_frame(frame).expect("go");
+        // The target: a red 3×1 bar on `other` in frame `frame`.
+        for x in 1..4 {
+            paint(&mut doc, x, 4, RED);
+        }
+        doc.set_active_layer(0);
+        paint(&mut doc, 4, 0, GREEN);
+        paint(&mut doc, 5, 0, GREEN);
+        doc.set_active_layer(other);
+        assert!(
+            other != 0 && frame != 0,
+            "neither the first layer nor frame"
+        );
+        let cel = |doc: &Document, l: u32, f: u32| {
+            doc.cels.get(LayerId::new(l), FrameIndex::new(f)).cloned()
+        };
+        let untouched = [(0, 0), (0, frame), (other, 0)];
+        let before: Vec<_> = untouched.iter().map(|&(l, f)| cel(&doc, l, f)).collect();
+        let target_before = cel(&doc, other, frame);
+        let depth = doc.undo_depth();
+        assert_eq!(doc.rotate_input_size(), vec![3, 1]);
+        assert_eq!(doc.rotate_layer(90, "nearest"), Ok(true));
+        assert_eq!(doc.undo_depth(), depth + 1, "one undo entry");
+        for (i, &(l, f)) in untouched.iter().enumerate() {
+            assert_eq!(cel(&doc, l, f), before[i], "layer {l} frame {f} untouched");
+        }
+        assert_ne!(cel(&doc, other, frame), target_before, "target rotated");
+        // The bar turned upright about its centre (2.5, 4.5).
+        for y in 3..6 {
+            assert_eq!(px(&doc, 2, y), RED, "(2,{y})");
+        }
+        assert_eq!(px(&doc, 1, 4) & 0xFF, 0);
+        assert!(doc.undo());
+        assert_eq!(cel(&doc, other, frame), target_before);
+    }
+
+    #[test]
+    fn rotate_layer_with_an_ellipse_selection_keeps_pixels_outside_the_shape() {
+        let mut doc = Document::new(6, 6).expect("dims");
+        // (1, 1) is a corner of the ellipse's box, outside the ellipse.
+        paint(&mut doc, 1, 1, BLUE);
+        paint(&mut doc, 2, 2, RED);
+        paint(&mut doc, 3, 2, RED);
+        paint(&mut doc, 5, 5, GREEN);
+        doc.select_ellipse(1, 1, 4, 4, "replace").expect("select");
+        assert!(!doc.selection_is_rect());
+        assert_eq!(doc.rotate_input_size(), vec![4, 4], "the ellipse's box");
+        assert_eq!(doc.rotate_layer(90, "nearest"), Ok(true));
+        assert_eq!(px(&doc, 1, 1), BLUE, "box corner outside the ellipse");
+        // The red pair turned about the box centre (3, 3).
+        assert_eq!(px(&doc, 3, 2), RED);
+        assert_eq!(px(&doc, 3, 3), RED);
+        assert_eq!(px(&doc, 2, 2) & 0xFF, 0);
+        assert_eq!(px(&doc, 5, 5), GREEN, "outside the box");
+    }
+
+    #[test]
     fn rotate_layer_with_a_selection_turns_only_its_content() {
         let mut doc = bar_doc();
         paint(&mut doc, 5, 5, BLUE);
