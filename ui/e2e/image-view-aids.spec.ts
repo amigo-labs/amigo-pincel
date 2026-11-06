@@ -294,6 +294,40 @@ test("Ctrl+Shift+' in a live text toggles the pixel grid and leaves the text alo
   expect(await checked(page, 'Pixel Grid')).toBe(true);
 });
 
+test('View ▸ Toggle UI keeps the rulers and the pixel grid (edge case)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 20, height: 10 });
+  await check(page, 'View', 'Rulers');
+  await page.keyboard.press('ControlOrMeta+Shift+Quote');
+  expect(await zoomPercent(page)).toBeGreaterThanOrEqual(400);
+  const layers = page.getByRole('region', { name: 'Layers' });
+  await expect(layers).toBeVisible();
+  await menu(page, 'View', 'Toggle UI');
+  await expect(layers).toBeHidden();
+  // They belong to the canvas view: still shown, the grid still drawn.
+  await expect(page.getByTestId('ruler-h')).toBeVisible();
+  await expect(page.getByTestId('ruler-v')).toBeVisible();
+  await expect.poll(() => fitsBesideRulers(page, 20, 10)).toBe(true);
+  expect(await checked(page, 'Pixel Grid')).toBe(true);
+  await page.mouse.move(0, 0);
+  const on = await area(page).screenshot();
+  await page.keyboard.press('ControlOrMeta+Shift+Quote');
+  await page.mouse.move(0, 0);
+  expect((await area(page).screenshot()).equals(on)).toBe(false);
+});
+
+test('the rulers stay at phone width and the image fits beside them (edge case)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 200, height: 100 });
+  await check(page, 'View', 'Rulers');
+  // Phone width: the menu bar folds into a Menu button, the rulers stay.
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect(page.getByRole('button', { name: 'Menu' })).toBeVisible();
+  await expect(page.getByTestId('ruler-h')).toBeVisible();
+  await expect(page.getByTestId('ruler-v')).toBeVisible();
+  await expect.poll(() => fitsBesideRulers(page, 200, 100)).toBe(true);
+});
+
 test('pixel grid: its backing store follows a device-pixel-ratio change without a resize (AC-09)', async ({
   page,
 }) => {
