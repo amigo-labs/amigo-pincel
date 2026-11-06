@@ -172,7 +172,7 @@ fn bad_svg_arguments_write_nothing() {
     let mut p = S::new();
     p.new_doc(4, 4);
     let e = p.err("export.svg", json!({ "path": "x.svg", "frame": 9 }));
-    assert!(e.contains("frame 9"), "{e}");
+    assert!(e.contains("frame 9") && e.contains("0–0"), "{e}");
     assert!(s.host.files.is_empty() && p.host.files.is_empty());
 }
 
@@ -186,5 +186,48 @@ fn pixel_exact_svg_refuses_more_than_256_colors() {
     s.ok("draw.pixels", json!({ "pixels": pixels }));
     let e = s.err("export.svg", json!({ "path": "x.svg" }));
     assert!(e.contains("300") && e.contains("mode: \"colors\""), "{e}");
+    assert!(s.host.files.is_empty());
+}
+
+#[test]
+fn bad_svg_argument_forms_name_the_argument_and_its_range() {
+    // AC-09: wrong forms name the argument and what it accepts; with
+    // several invalid arguments the message names one of them.
+    let mut s = S::new();
+    s.new_image(4, 4);
+    for (args, name, range) in [
+        (json!({ "colors": 3.5 }), "colors", "2–16"),
+        (json!({ "min_area": 2.5 }), "min_area", "0–100000"),
+        (json!({ "alpha_max": "x" }), "alpha_max", "0–1.34"),
+        (
+            json!({ "opt_tolerance": "x" }),
+            "opt_tolerance",
+            "at least 0",
+        ),
+        (json!({ "mode": 5 }), "mode", "pixel_exact, colors, mono"),
+        (json!({ "threshold": 12.5 }), "threshold", "0–255"),
+        (json!({ "threshold": "low" }), "threshold", "\"auto\""),
+        (json!({ "fill": 3 }), "fill", "#RRGGBB"),
+        (json!({ "fill": "red" }), "fill", "#RRGGBB"),
+        (json!({ "fill": "#f00" }), "fill", "#RRGGBB"),
+        (json!({ "invert": "yes" }), "invert", "boolean"),
+        (json!({ "despeckle": 1 }), "despeckle", "boolean"),
+        (json!({ "opt_curve": "no" }), "opt_curve", "boolean"),
+        (json!({ "frame": -1 }), "frame", "at least 0"),
+        (json!({ "frame": 2 }), "frame", "single frame (0)"),
+    ] {
+        let mut call = args.clone();
+        call["path"] = json!("x.svg");
+        let e = s.err("export.svg", call);
+        assert!(e.contains(name) && e.contains(range), "{args}: {e}");
+    }
+    let e = s.err(
+        "export.svg",
+        json!({ "path": "x.svg", "colors": 1, "alpha_max": 2 }),
+    );
+    assert!(
+        e.contains("colors") != e.contains("alpha_max"),
+        "one argument: {e}"
+    );
     assert!(s.host.files.is_empty());
 }

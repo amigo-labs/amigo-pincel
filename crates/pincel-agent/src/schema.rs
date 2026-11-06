@@ -52,6 +52,26 @@ fn describe(schema: Option<&Map<String, Value>>) -> String {
         .map_or_else(String::new, |d| format!(" — {d}"))
 }
 
+/// The values or range a schema accepts, as a suffix for a type error
+/// (e.g. ` (2–16)`, ` (one of: a, b)`); empty without `enum` or bounds.
+fn accepted(schema: &Map<String, Value>) -> String {
+    if let Some(options) = schema.get("enum").and_then(Value::as_array) {
+        let names: Vec<String> = options
+            .iter()
+            .map(|o| o.as_str().map_or_else(|| o.to_string(), str::to_owned))
+            .collect();
+        return format!(" (one of: {})", names.join(", "));
+    }
+    let min = schema.get("minimum").and_then(Value::as_f64);
+    let max = schema.get("maximum").and_then(Value::as_f64);
+    match (min, max) {
+        (Some(lo), Some(hi)) => format!(" ({}–{})", fmt_num(lo), fmt_num(hi)),
+        (Some(lo), None) => format!(" (at least {})", fmt_num(lo)),
+        (None, Some(hi)) => format!(" (at most {})", fmt_num(hi)),
+        (None, None) => String::new(),
+    }
+}
+
 fn type_matches(ty: &str, value: &Value) -> bool {
     match ty {
         "object" => value.is_object(),
@@ -100,7 +120,12 @@ fn check(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
     if let Some(ty) = schema.get("type").and_then(Value::as_str)
         && !type_matches(ty, value)
     {
-        return Err(format!("{} must be of type {ty}", label(path)));
+        return Err(format!(
+            "{} must be of type {ty}{}{}",
+            label(path),
+            accepted(schema),
+            describe(Some(schema))
+        ));
     }
     if let Some(options) = schema.get("enum").and_then(Value::as_array)
         && !options.contains(value)
@@ -233,6 +258,14 @@ mod tests {
         let err =
             validate(&schema(), &json!({ "width": 1, "pixels": [{ "x": "a" }] })).unwrap_err();
         assert_eq!(err, "pixels[0].x must be of type integer");
+    }
+
+    #[test]
+    fn validate_type_error_names_the_accepted_range_or_values() {
+        let err = validate(&schema(), &json!({ "width": 2.5 })).unwrap_err();
+        assert_eq!(err, "width must be of type integer (1–4096)");
+        let err = validate(&schema(), &json!({ "width": 1, "mode": 3 })).unwrap_err();
+        assert_eq!(err, "mode must be of type string (one of: pixel)");
     }
 
     #[test]
