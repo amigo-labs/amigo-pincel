@@ -28,7 +28,10 @@ export async function storedPref(page: Page, key: string): Promise<unknown> {
   );
 }
 
-/** Creates a new document of `mode` through the start screen's New card. */
+/** Creates a new document of `mode` through the start screen's New card,
+ *  after loading the start screen afresh: a page load, so state the
+ *  previous page held (the Recovery probe, IndexedDB writes still in
+ *  flight) does not carry over. `newDocument` stays in the page. */
 export async function createDocument(
   page: Page,
   mode: 'pixel' | 'image',
@@ -36,6 +39,16 @@ export async function createDocument(
   url = './',
 ): Promise<void> {
   await gotoStart(page, url);
+  await newDocument(page, mode, size);
+}
+
+/** Creates a new document of `mode` through the New card of the start
+ *  screen already shown, without loading the page. */
+export async function newDocument(
+  page: Page,
+  mode: 'pixel' | 'image',
+  size?: { width: number; height: number },
+): Promise<void> {
   const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
   await page.getByRole('button', { name }).click();
   const card = page.getByRole('form', { name });
@@ -308,7 +321,8 @@ export async function dragFiles(
   type: 'dragover' | 'dragleave' | 'drop',
   files: DraggedFile[] | 'text',
 ): Promise<void> {
-  const list = files === 'text' ? 'text' : files.map((f) => ({ name: f.name, bytes: Array.from(f.bytes) }));
+  const list =
+    files === 'text' ? 'text' : files.map((f) => ({ name: f.name, bytes: Array.from(f.bytes) }));
   await target.evaluate(
     (el, [t, f]) => {
       const data = new DataTransfer();
@@ -555,4 +569,43 @@ export async function fakeFsFile(page: Page, name: string): Promise<Buffer> {
     name,
   );
   return Buffer.from(bytes ?? []);
+}
+
+/** The swatch button of the foreground or background color. */
+export function swatch(page: Page, which: 'fg' | 'bg'): Locator {
+  return page.getByRole('button', {
+    name: which === 'fg' ? 'Foreground color' : 'Background color',
+    exact: true,
+  });
+}
+
+/** Opens the color picker of the visible editor's `which` swatch. */
+async function withPicker<T>(
+  page: Page,
+  which: 'fg' | 'bg',
+  run: (hex: Locator) => Promise<T>,
+): Promise<T> {
+  await swatch(page, which).filter({ visible: true }).first().click();
+  const picker = page.getByRole('dialog', {
+    name: which === 'fg' ? 'Foreground color picker' : 'Background color picker',
+  });
+  await expect(picker).toBeVisible();
+  const result = await run(picker.getByRole('textbox', { name: 'Hex color' }));
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
+  return result;
+}
+
+/** Sets the foreground or background color through the color picker's
+ *  hex field (`#RRGGBB`, `#RRGGBBAA`, …). */
+export async function setColor(page: Page, which: 'fg' | 'bg', hex: string): Promise<void> {
+  await withPicker(page, which, async (field) => {
+    await field.fill(hex);
+    await field.press('Enter');
+  });
+}
+
+/** The foreground or background color as `#rrggbb`, read from the picker. */
+export async function colorOf(page: Page, which: 'fg' | 'bg'): Promise<string> {
+  return withPicker(page, which, async (field) => (await field.inputValue()).slice(0, 7));
 }

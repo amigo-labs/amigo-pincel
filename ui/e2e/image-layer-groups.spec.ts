@@ -7,6 +7,7 @@ import {
   imageCanvas,
   menu,
   pixelOf,
+  setColor,
   type ClipImage,
 } from './helpers';
 
@@ -72,7 +73,7 @@ async function redDocument(page: Page): Promise<string> {
   await createDocument(page, 'image', { width: 16, height: 16 });
   await expect.poll(() => layerNames(page)).toHaveLength(1);
   const [name] = (await layerNames(page)) as [string];
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press('g');
   await imageCanvas(page).click({ position: { x: 4, y: 4 } });
   return name;
@@ -207,7 +208,7 @@ test('image: a locked group refuses paint on its children and a group refuses pa
 
   // Painting with the group itself active is refused.
   await selectRow(page, 'Group 1');
-  await page.getByLabel('Foreground color', { exact: true }).fill('#0000ff');
+  await setColor(page, 'fg', '#0000ff');
   await page.keyboard.press('g');
   await imageCanvas(page).click({ position: { x: 4, y: 4 } });
   await expect(page.getByText('“Group 1” is locked')).toBeVisible();

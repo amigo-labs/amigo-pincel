@@ -51,7 +51,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | Scenario | Budget | Today | Owning spec |
 | -------- | ------ | ----- | ----------- |
-| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom | ≤ 16 ms (60 fps) | far over | `performance-image-cache` |
+| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom (since 2026-11-06: pointer event received → draw call, pincel.md §4.5) | ≤ 16 ms (60 fps) | far over | `performance-image-cache` |
 | Pan / zoom, Image 4K 10 layers | 60 fps, no recompose while panning | to measure | `performance-image-cache` |
 | Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | ≈ 4 s native, extrapolated | `performance-image-kernel` (≥ 10×), `performance-build-simd` |
 | Pixel: pencil drag on 256×256 at zoom 32 | 60 fps (M12 target), dab latency ≤ 8 ms | per-pixel wasm calls | `performance-input-path` |
@@ -152,7 +152,7 @@ Measured 2026-10-29 on the reference machine (the owner accepted this developer 
 | ----- | ---- | ------ | ------ |
 | AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `image_compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `image_region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `image_stroke/brush_100_dabs_4k_10layers`, `image_effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
 | AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
-| AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`): 5 tests covering the 9 budget scenarios — every scenario records `frame-p50` / `frame-p95` / `frame-max`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95`; output `ui/e2e-perf/results/browser.json` | built |        |
+| AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`): 5 tests covering the 9 budget scenarios — every scenario records `frame-p50` / `frame-p95` / `frame-max`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95` and (since 2026-11-05, for `performance-input-path` AC-04) `dab-draw-latency-p50` / `-p95`, pointer event received by the page → draw call; output `ui/e2e-perf/results/browser.json` | built |        |
 | AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
 | AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
 | AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); a dispatched run on 2026-11-03 (run 41724796417, branch `ccr-5238e405-2i7du2`) ran the benches, the browser script and the budget check and passed — the manual sign-off is still to be entered | built |        |

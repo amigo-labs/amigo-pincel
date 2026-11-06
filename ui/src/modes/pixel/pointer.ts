@@ -4,12 +4,23 @@ import { packColor, unpackColor } from '../../lib/color';
 import { t } from '../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
 import { constrainedEndpoint, syncMeta, syncSelection } from './render';
-import { type SelectionMode, colors, dialogs, ed, live, toolState, view } from './stores/editor.svelte';
+import {
+  type SelectionMode,
+  colors,
+  dialogs,
+  ed,
+  live,
+  toolState,
+  view,
+} from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 import { armStroke, onTiledArea } from './symmetry';
+import { discardStrokePoints, flushStrokePoints, queueStrokePoint } from './stroke-batch';
+import { wandClick } from './wand-link';
+import { notePainted } from './recent-colors';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -65,6 +76,7 @@ export function shapeFillColor(): number {
 }
 
 export function cancelGesture() {
+  discardStrokePoints();
   if (live.painting) {
     live.painting = false;
     ed.doc?.endStroke();
@@ -84,6 +96,25 @@ export function cancelGesture() {
   live.dragPreview = null;
   live.dragTool = null;
   live.needsRecompose = true;
+}
+
+/** The colors a committed drag gesture of `dragTool` painted with,
+ *  foreground first (color-picker AC-24); `[]` for non-painting drags. */
+function dragColors(dragTool: Tool, packed: number): number[] {
+  if (dragTool === 'line' || dragTool === 'rectangle-fill' || dragTool === 'ellipse-fill') {
+    return [packed];
+  }
+  if (dragTool === 'gradient') {
+    return [packColor(colors.color, colors.alpha), packColor(colors.bgColor, colors.bgAlpha)];
+  }
+  if (isShapeTool(dragTool)) {
+    const mode = toolState.shapeMode;
+    if (mode === 'outline') return [packed];
+    if (mode === 'fill') return [shapeFillColor()];
+    // The stroke color and the fill color; the foreground first.
+    return live.useBg ? [shapeFillColor(), packed] : [packed, shapeFillColor()];
+  }
+  return [];
 }
 
 export function spriteCoord(e: PointerEvent): { x: number; y: number } | null {
@@ -107,7 +138,9 @@ function fromStage(e: Event): boolean {
 }
 
 function onCanvas(point: { x: number; y: number } | null): boolean {
-  return point !== null && point.x >= 0 && point.y >= 0 && point.x < ed.canvasW && point.y < ed.canvasH;
+  return (
+    point !== null && point.x >= 0 && point.y >= 0 && point.x < ed.canvasW && point.y < ed.canvasH
+  );
 }
 
 // The rect `x, y, w, h` misses the canvas entirely.
@@ -277,7 +310,9 @@ export function paintAt(e: PointerEvent) {
       // Symmetry and tiled mode mirror / wrap the stroke in the core.
       armStroke(ed.doc);
     }
-    ed.doc.strokeTo(target.x, target.y, strokePressure(e));
+    // The render tick hands every point queued in one animation frame to
+    // the core at once (performance-input-path).
+    queueStrokePoint(target.x, target.y, strokePressure(e));
     live.lastPaint = target;
   } catch (err) {
     // Missing layer, unknown tool, …: a real failure. Stop the gesture so
@@ -448,8 +483,10 @@ export function commitBucket(e: PointerEvent) {
   if (!ed.doc) return;
   const point = spriteCoord(e);
   if (!point) return;
+  const before = ed.doc.undoDepth;
   try {
     ed.doc.applyBucket(point.x, point.y, strokeColor());
+    notePainted(before, [strokeColor()]);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('applyBucket failed', err);
@@ -617,14 +654,7 @@ export function commitWand(e: PointerEvent) {
   const point = spriteCoord(e);
   if (!point) return;
   try {
-    ed.doc.selectWand(
-      point.x,
-      point.y,
-      Math.max(0, Math.min(255, Math.round(toolState.wandTolerance))),
-      toolState.wandContiguous,
-      toolState.wandSample,
-      selectionModeFor(e),
-    );
+    wandClick(ed.doc, point.x, point.y, selectionModeFor(e));
   } catch (err) {
     ed.status = t('status.failed', {
       action: t('act.wand'),
@@ -689,7 +719,7 @@ export function onPointerMove(e: PointerEvent) {
     return;
   }
   if (!live.painting) return;
-  // Pens and fast mice report several samples per frame; paint each one
+  // Pens and fast mice report several samples per frame; queue each one
   // so the stroke keeps its shape and its per-sample pressure.
   const samples = e.getCoalescedEvents?.() ?? [];
   for (const sample of samples.length > 0 ? samples : [e]) {
@@ -807,6 +837,7 @@ export function onPointerUp(e: PointerEvent) {
       console.error(`${live.dragTool} failed`, err);
       ed.status = t('px.toolFailed', { tool: live.dragTool, error: msg });
     }
+    notePainted(live.gestureUndoDepth, dragColors(live.dragTool, packed));
     live.dragStart = null;
     live.dragPreview = null;
     live.dragTool = null;
@@ -816,10 +847,16 @@ export function onPointerUp(e: PointerEvent) {
     return;
   }
   if (live.painting) {
+    // Samples queued since the last frame belong to the stroke.
+    flushStrokePoints();
     live.painting = false;
     // Close the gesture on the undo bus so this drag stays one undo
     // entry and the next stroke starts a fresh one.
     ed.doc?.endStroke();
+    // The Eraser and the shading ink paint no chosen color.
+    if (toolState.tool === 'pencil' && toolState.pencilInk !== 'shading') {
+      notePainted(live.gestureUndoDepth, [strokeColor()]);
+    }
   }
 }
 

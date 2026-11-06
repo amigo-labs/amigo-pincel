@@ -14,9 +14,12 @@
     onClose: () => void;
     /** An extra choice between Cancel and Apply. */
     secondary?: { label: string; onClick: () => void } | undefined;
+    /** Disables Apply, and Enter then applies nothing. */
+    applyDisabled?: boolean;
     children: Snippet;
   }
-  const { title, applyLabel, onApply, onClose, secondary, children }: Props = $props();
+  const { title, applyLabel, onApply, onClose, secondary, applyDisabled = false, children }: Props =
+    $props();
 
   let panel: HTMLDivElement;
 
@@ -36,7 +39,7 @@
       // Buttons keep their native Enter=click; everywhere else Enter applies.
       e.stopPropagation();
       e.preventDefault();
-      onApply();
+      if (!applyDisabled) onApply();
     }
   }
 </script>
@@ -69,7 +72,11 @@
           {secondary.label}
         </button>
       {/if}
-      <button class="rounded bg-pc-accent px-3 py-1 text-white" onclick={onApply}>
+      <button
+        class="rounded bg-pc-accent px-3 py-1 text-white disabled:opacity-50"
+        disabled={applyDisabled}
+        onclick={onApply}
+      >
         {applyLabel}
       </button>
     </div>

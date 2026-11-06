@@ -12,8 +12,62 @@
 
 use std::collections::VecDeque;
 
-use crate::document::{PixelBuffer, Rgba};
+use crate::document::{CelData, CelMap, ColorMode, FrameIndex, LayerId, PixelBuffer, Rgba, Sprite};
 use crate::geometry::Rect;
+use crate::render::{ComposeRequest, RenderError, compose};
+
+/// The cel of `layer` at `frame` copied raw into a canvas-sized RGBA
+/// buffer (transparent where the layer has no image cel): what the Magic
+/// Wand samples with `sample: layer`.
+pub fn layer_canvas(
+    sprite: &Sprite,
+    cels: &CelMap,
+    layer: LayerId,
+    frame: FrameIndex,
+) -> PixelBuffer {
+    let (w, h) = (sprite.width, sprite.height);
+    let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
+    if let Some(cel) = cels.get(layer, frame)
+        && let CelData::Image(buf) = &cel.data
+    {
+        for ly in 0..buf.height {
+            let y = i64::from(cel.position.1) + i64::from(ly);
+            if y < 0 || y >= i64::from(h) {
+                continue;
+            }
+            for lx in 0..buf.width {
+                let x = i64::from(cel.position.0) + i64::from(lx);
+                if x < 0 || x >= i64::from(w) {
+                    continue;
+                }
+                let s = ((ly * buf.width + lx) * 4) as usize;
+                let d = ((y as u32 * w + x as u32) * 4) as usize;
+                out.data[d..d + 4].copy_from_slice(&buf.data[s..s + 4]);
+            }
+        }
+    }
+    out
+}
+
+/// The visible composite of `frame` as a canvas-sized RGBA buffer: what
+/// the Magic Wand samples with `sample: composite`.
+///
+/// # Errors
+///
+/// The [`RenderError`] of [`compose`].
+pub fn composite_canvas(
+    sprite: &Sprite,
+    cels: &CelMap,
+    frame: FrameIndex,
+) -> Result<PixelBuffer, RenderError> {
+    let (w, h) = (sprite.width, sprite.height);
+    let request = ComposeRequest::full(frame, w, h);
+    let mut pixels = Vec::new();
+    compose(sprite, cels, &request, &mut pixels)?;
+    let mut out = PixelBuffer::empty(w, h, ColorMode::Rgba);
+    out.data = pixels;
+    Ok(out)
+}
 
 /// How a new shape combines with the existing selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -405,29 +459,61 @@ impl SelectionMask {
         self.morph(radius, false)
     }
 
+    /// Dilation (`grow`) or erosion by a (2r+1)² square, off-canvas counting
+    /// as unselected. The square is separable: a row pass over prefix
+    /// counts, then a column pass that slides running column sums down the
+    /// rows' result, so the cost is O(w·h) whatever the radius.
     fn morph(&self, radius: u32, grow: bool) -> Self {
         if radius == 0 {
             return self.clone();
         }
-        let r = radius as i32;
-        let mut out = Self::empty(self.width, self.height);
-        for y in 0..self.height as i32 {
-            for x in 0..self.width as i32 {
-                let mut hit = !grow;
-                'scan: for dy in -r..=r {
-                    for dx in -r..=r {
-                        let inside = self.contains(x + dx, y + dy);
-                        if grow && inside {
-                            hit = true;
-                            break 'scan;
-                        }
-                        if !grow && !inside {
-                            hit = false;
-                            break 'scan;
-                        }
-                    }
+        let (w, h) = (self.width as usize, self.height as usize);
+        let r = radius as usize;
+        // Row pass: `rows` holds 1 where the row window hits.
+        let mut rows = vec![0u32; w * h];
+        let mut line = Vec::with_capacity(w);
+        let mut counts = Vec::with_capacity(w + 1);
+        let mut hits = Vec::with_capacity(w);
+        for y in 0..h {
+            line.clear();
+            line.extend(self.data[y * w..(y + 1) * w].iter().map(|&v| v != 0));
+            window_pass(&line, r, grow, &mut counts, &mut hits);
+            for (cell, &hit) in rows[y * w..(y + 1) * w].iter_mut().zip(&hits) {
+                *cell = u32::from(hit);
+            }
+        }
+        // Column pass, row by row: `sums[x]` counts the hits of rows
+        // `y - r ..= y + r` in column `x`, slid down one row at a time.
+        let mut sums = vec![0u32; w];
+        let add_row = |sums: &mut [u32], y: usize, add: bool| {
+            for (sum, &cell) in sums.iter_mut().zip(&rows[y * w..(y + 1) * w]) {
+                if add {
+                    *sum += cell;
+                } else {
+                    *sum -= cell;
                 }
-                out.set(x as u32, y as u32, hit);
+            }
+        };
+        for y in 0..=r.min(h.saturating_sub(1)) {
+            add_row(&mut sums, y, true);
+        }
+        let mut out = Self::empty(self.width, self.height);
+        for y in 0..h {
+            let lo = y.saturating_sub(r);
+            let hi = y.saturating_add(r).min(h - 1);
+            // A window clipped by either edge holds an off-canvas cell.
+            let whole = !grow && y >= r && y.saturating_add(r) < h;
+            let span = (hi - lo + 1) as u32;
+            for (o, &sum) in out.data[y * w..(y + 1) * w].iter_mut().zip(&sums) {
+                let hit = if grow { sum > 0 } else { whole && sum == span };
+                *o = if hit { 255 } else { 0 };
+            }
+            let next = y.saturating_add(r).saturating_add(1);
+            if next < h {
+                add_row(&mut sums, next, true);
+            }
+            if y >= r {
+                add_row(&mut sums, y - r, false);
             }
         }
         out
@@ -452,6 +538,32 @@ impl SelectionMask {
         }
         out
     }
+}
+
+/// One 1-D pass of [`SelectionMask::morph`]: `hits[i]` is whether any
+/// (`grow`) or every (`!grow`) cell of `line[i - r ..= i + r]` is set, cells
+/// beyond either end counting as unset. `counts` is scratch space.
+fn window_pass(line: &[bool], r: usize, grow: bool, counts: &mut Vec<usize>, hits: &mut Vec<bool>) {
+    let n = line.len();
+    counts.clear();
+    counts.push(0);
+    let mut sum = 0;
+    for &on in line {
+        sum += usize::from(on);
+        counts.push(sum);
+    }
+    hits.clear();
+    hits.extend((0..n).map(|i| {
+        let lo = i.saturating_sub(r);
+        let hi = i.saturating_add(r).min(n - 1);
+        let set = counts[hi + 1] - counts[lo];
+        if grow {
+            set > 0
+        } else {
+            // A window clipped by either end holds an off-canvas cell.
+            i >= r && i.saturating_add(r) < n && set == hi - lo + 1
+        }
+    }));
 }
 
 #[cfg(test)]
@@ -508,6 +620,27 @@ mod tests {
         let mut b = PixelBuffer::empty(w, h, ColorMode::Rgba);
         b.data = px.iter().flatten().copied().collect();
         b
+    }
+
+    #[test]
+    fn layer_canvas_places_the_cel_and_composite_canvas_composes_the_frame() {
+        use crate::document::{Cel, Frame, Layer};
+        let layer = LayerId::new(0);
+        let sprite = Sprite::builder(3, 2)
+            .add_layer(Layer::image(layer, "L"))
+            .add_frame(Frame::new(100))
+            .build()
+            .expect("sprite");
+        let mut cels = CelMap::new();
+        let mut cel = Cel::image(layer, FrameIndex::new(0), buffer(1, 1, &[[9, 8, 7, 255]]));
+        cel.position = (2, 1);
+        cels.insert(cel);
+        let canvas = layer_canvas(&sprite, &cels, layer, FrameIndex::new(0));
+        assert_eq!((canvas.width, canvas.height), (3, 2));
+        assert_eq!(&canvas.data[20..24], &[9, 8, 7, 255]);
+        assert!(canvas.data[..20].iter().all(|&b| b == 0));
+        let composed = composite_canvas(&sprite, &cels, FrameIndex::new(0)).expect("compose");
+        assert_eq!(composed.data, canvas.data);
     }
 
     #[test]
@@ -593,5 +726,78 @@ mod tests {
             assert_eq!(SelectionMode::from_name(m.name()), Some(m));
         }
         assert_eq!(SelectionMode::from_name("xor"), None);
+    }
+
+    /// The window scan `expand` / `contract` used before the separable
+    /// passes: every pixel tests its whole (2r+1)² square, off-canvas
+    /// counting as unselected.
+    fn morph_by_window_scan(m: &SelectionMask, radius: u32, grow: bool) -> SelectionMask {
+        let r = radius as i32;
+        let mut out = SelectionMask::empty(m.width, m.height);
+        for y in 0..m.height as i32 {
+            for x in 0..m.width as i32 {
+                let mut hit = !grow;
+                'scan: for dy in -r..=r {
+                    for dx in -r..=r {
+                        let inside = m.contains(x + dx, y + dy);
+                        if grow == inside {
+                            hit = grow;
+                            break 'scan;
+                        }
+                    }
+                }
+                out.set(x as u32, y as u32, hit);
+            }
+        }
+        out
+    }
+
+    /// A reproducible pseudo-random mask (xorshift) with about
+    /// `density` / 256 of its pixels selected.
+    fn noise_mask(w: u32, h: u32, seed: u64, density: u64) -> SelectionMask {
+        let mut s = seed | 1;
+        let mut m = SelectionMask::empty(w, h);
+        for y in 0..h {
+            for x in 0..w {
+                s ^= s << 13;
+                s ^= s >> 7;
+                s ^= s << 17;
+                m.set(x, y, s % 256 < density);
+            }
+        }
+        m
+    }
+
+    #[test]
+    fn expand_and_contract_equal_the_window_scan() {
+        let sizes = [(1, 1), (1, 7), (7, 1), (2, 3), (13, 9), (24, 17)];
+        let mut cases = 0;
+        for (i, &(w, h)) in sizes.iter().enumerate() {
+            let mut masks = vec![
+                SelectionMask::empty(w, h),
+                SelectionMask::full(w, h),
+                SelectionMask::rect(w, h, Rect::new(w as i32 / 2, h as i32 / 2, 1, 1)),
+                SelectionMask::ellipse(w, h, Rect::new(1, 0, w, h)),
+            ];
+            for (j, density) in [8, 64, 128, 200, 248].into_iter().enumerate() {
+                masks.push(noise_mask(w, h, (i * 31 + j + 1) as u64, density));
+            }
+            for m in &masks {
+                for radius in [0, 1, 2, 3, 5, 8, 13, w.max(h), w.max(h) + 7, 40] {
+                    assert_eq!(
+                        m.expand(radius),
+                        morph_by_window_scan(m, radius, true),
+                        "expand {w}x{h} r{radius}"
+                    );
+                    assert_eq!(
+                        m.contract(radius),
+                        morph_by_window_scan(m, radius, false),
+                        "contract {w}x{h} r{radius}"
+                    );
+                    cases += 1;
+                }
+            }
+        }
+        assert_eq!(cases, 6 * 9 * 10);
     }
 }

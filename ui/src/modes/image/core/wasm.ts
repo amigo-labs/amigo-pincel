@@ -12,12 +12,16 @@ import initWasm, {
   image_key,
   get_selection_bounds,
   save_project,
+  snapshot_document,
+  open_snapshot,
   close_document,
   document_count,
   composite,
   composite_region,
   apply_command,
   apply_effect,
+  apply_effect_region,
+  effect_region_bytes,
   preview_effect,
   pick_color,
   set_active_layer,
@@ -30,13 +34,21 @@ import initWasm, {
   export_bmp,
   export_tiff,
   get_document_info,
+  document_dpi,
   get_selection_mask,
+  live_object,
+  text_layout,
   register_font,
   vectorizer,
   type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../../../lib/diagnostics';
+import type { LiveObjectSpec } from './generated/LiveObjectSpec';
+import type { TextLayout } from './generated/TextLayout';
+import type { TextLayoutRequest } from './generated/TextLayoutRequest';
+
+export type { LiveObjectSpec, TextLayout, TextLayoutRequest };
 
 export type { Vectorizer };
 
@@ -329,7 +341,7 @@ export type SelectionCommand =
   | { type: 'feather_selection'; radius: number };
 
 /** Resampling quality for Scale Image (spec §10.5). */
-export type Interpolation = 'nearest' | 'bilinear' | 'bicubic';
+export type Interpolation = 'supersampling' | 'nearest' | 'bilinear' | 'bicubic';
 
 /** The 9-grid anchor for Resize Canvas (spec §10.4). */
 export type ResizeAnchor =
@@ -351,7 +363,8 @@ export type TransformCommand =
   | { type: 'rotate_canvas'; rotation: 'cw90' | 'ccw90' | 'rotate_180' }
   | { type: 'scale_image'; width: number; height: number; interpolation: Interpolation }
   | { type: 'resize_canvas'; width: number; height: number; anchor: ResizeAnchor }
-  | { type: 'crop_to_selection' };
+  | { type: 'crop_to_selection' }
+  | { type: 'auto_crop' };
 
 /** Geometric shape kinds the Shapes tool can draw (spec §9.2 Shapes). */
 export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' | 'polygon';
@@ -402,7 +415,102 @@ export interface DrawTextCommand {
   italic: boolean;
   anti_alias: boolean;
   align: TextAlign;
+  underline?: boolean;
+  strikethrough?: boolean;
 }
+
+/** Two canvas points: endpoints, box corners or a gradient's drag. */
+export type PointPair = [[number, number], [number, number]];
+
+/** Begins a live Line or box shape (docs/specs/image-live-objects.md). */
+export interface BeginLiveShapeCommand {
+  type: 'begin_live_shape';
+  layer: number;
+  shape: ShapeKind;
+  points: PointPair;
+  corner_radius?: number;
+  sides?: number;
+  mode?: ShapeMode;
+  stroke_width?: number;
+  stroke_color?: Rgba;
+  fill_color?: Rgba;
+  anti_alias?: boolean;
+  dash?: DashPattern;
+}
+
+/** Begins a live gradient (docs/specs/image-live-objects.md). */
+export interface BeginLiveGradientCommand {
+  type: 'begin_live_gradient';
+  layer: number;
+  kind?: GradientKind;
+  channel?: GradientChannel;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  from?: Rgba;
+  to?: Rgba;
+  opacity?: number;
+}
+
+/** Edits the live object; absent fields keep their value. Edits sharing a
+ *  `gesture` form one undo step. */
+export interface EditLiveCommand {
+  type: 'edit_live';
+  gesture?: number;
+  points?: PointPair;
+  shape?: ShapeKind;
+  mode?: ShapeMode;
+  stroke_width?: number;
+  dash?: DashPattern;
+  anti_alias?: boolean;
+  corner_radius?: number;
+  sides?: number;
+  stroke_color?: Rgba;
+  fill_color?: Rgba;
+  kind?: GradientKind;
+  channel?: GradientChannel;
+  from?: Rgba;
+  to?: Rgba;
+  opacity?: number;
+  text?: string;
+  size?: number;
+  color?: Rgba;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  align?: TextAlign;
+}
+
+/** Begins a live text whose box has its top-left at `(x, y)`
+ *  (docs/specs/image-live-text.md). */
+export interface BeginLiveTextCommand {
+  type: 'begin_live_text';
+  layer: number;
+  font_id: number;
+  text: string;
+  x: number;
+  y: number;
+  size?: number;
+  color?: Rgba;
+  bold?: boolean;
+  italic?: boolean;
+  anti_alias?: boolean;
+  align?: TextAlign;
+  underline?: boolean;
+  strikethrough?: boolean;
+}
+
+/** Begin, edit, commit or cancel the live object. */
+export type LiveCommand =
+  | BeginLiveShapeCommand
+  | BeginLiveGradientCommand
+  | BeginLiveTextCommand
+  | EditLiveCommand
+  | { type: 'commit_live' }
+  | { type: 'cancel_live' }
+  | { type: 'cancel_live_gesture'; gesture: number };
 
 /** Any command emitted to the core. */
 export type ToolCommand =
@@ -420,23 +528,54 @@ export type ToolCommand =
   | TransformCommand
   | DrawShapeCommand
   | DrawGradientCommand
-  | DrawTextCommand;
+  | DrawTextCommand
+  | LiveCommand;
 
 let initialized: Promise<unknown> | null = null;
+let compiled: WebAssembly.Module | null = null;
 
-/** Initializes the WASM module exactly once. Safe to call repeatedly. */
-export async function initCore(): Promise<void> {
+/** Fetches and compiles the core. Like wasm-bindgen's own loader, it
+ *  compiles the whole body when a host serves the .wasm without the
+ *  `application/wasm` type that streaming compilation needs. */
+async function compileCore(): Promise<WebAssembly.Module> {
+  // Pass the asset URL explicitly (as the Pixel-mode adapter does) so Vite
+  // fingerprints the .wasm and the precache sees it.
+  const response = await fetch(wasmUrl);
+  if (!response.ok) throw new Error(`could not load the Image core (${response.status})`);
+  if (response.headers.get('Content-Type')?.startsWith('application/wasm')) {
+    return WebAssembly.compileStreaming(response);
+  }
+  return WebAssembly.compile(await response.arrayBuffer());
+}
+
+/**
+ * Initializes the WASM module exactly once. Safe to call repeatedly.
+ * `module` is a core the page already compiled (a job worker gets it from
+ * `compiledCore`): it is instantiated instead of fetched and compiled a
+ * second time.
+ */
+export async function initCore(module?: WebAssembly.Module): Promise<void> {
   if (!initialized) {
-    // Same pattern as the Pixel-mode adapter (src/lib/core): pass the asset
-    // URL explicitly so Vite fingerprints the .wasm and the precache sees it.
-    initialized = initWasm({ module_or_path: wasmUrl }).catch((err: unknown) => {
-      // A failed download (offline) is retried by the next caller.
-      initialized = null;
-      throw err;
-    });
+    initialized = (module ? Promise.resolve(module) : compileCore())
+      .then((m) => {
+        compiled = m;
+        return initWasm({ module_or_path: m });
+      })
+      .catch((err: unknown) => {
+        // A failed download (offline) is retried by the next caller.
+        initialized = null;
+        compiled = null;
+        throw err;
+      });
   }
   await initialized;
   publishDocumentCount('image', document_count);
+}
+
+/** The compiled core once `initCore` has loaded it, for a job worker to
+ *  instantiate (docs/specs/performance-background-jobs.md). */
+export function compiledCore(): WebAssembly.Module | null {
+  return compiled;
 }
 
 export const core = {
@@ -475,6 +614,11 @@ export const core = {
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
   saveProject: (handle: number, compression: number): Uint8Array =>
     save_project(handle, compression),
+  /** An uncompressed copy of the whole document for the job worker
+   *  (docs/specs/performance-background-jobs.md). */
+  snapshotDocument: (handle: number): Uint8Array => snapshot_document(handle),
+  /** Opens a `snapshotDocument` copy as a new document. */
+  openSnapshot: (data: Uint8Array): number => open_snapshot(data),
   closeDocument: (handle: number): void => close_document(handle),
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
@@ -502,6 +646,20 @@ export const core = {
    *  as one undoable step. `false`: the selection is empty, nothing changed. */
   applyEffect: (handle: number, layer: number, name: string, params: number[]): boolean =>
     apply_effect(handle, layer, name, Float64Array.from(params)),
+  /** The region effect `name` / `params` would change on `layer` (empty:
+   *  nothing, the selection is empty), computed but not committed: the
+   *  job worker's half of `applyEffect`. */
+  effectRegionBytes: (handle: number, layer: number, name: string, params: number[]): Uint8Array =>
+    effect_region_bytes(handle, layer, name, Float64Array.from(params)),
+  /** Commits `effectRegionBytes` of the same effect as the undo step
+   *  `applyEffect` makes; `false`: the region is empty, nothing changed. */
+  applyEffectRegion: (
+    handle: number,
+    layer: number,
+    name: string,
+    params: number[],
+    region: Uint8Array,
+  ): boolean => apply_effect_region(handle, layer, name, Float64Array.from(params), region),
   /** Composites the document with the effect previewed on `layer`; no mutation. */
   previewEffect: (
     handle: number,
@@ -538,6 +696,15 @@ export const core = {
   exportBmp: (handle: number): Uint8Array => export_bmp(handle),
   exportTiff: (handle: number): Uint8Array => export_tiff(handle),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
+  /** Line boxes and caret positions of a text as a live text draws it
+   *  with font `fontId` (docs/specs/image-live-text.md AC-22). */
+  textLayout: (fontId: number, request: TextLayoutRequest): TextLayout =>
+    text_layout(fontId, JSON.stringify(request)) as TextLayout,
+  /** The document's stored resolution in pixels per inch (docs/specs/image-view-aids.md AC-23). */
+  documentDpi: (handle: number): number => document_dpi(handle),
+  /** The live object (docs/specs/image-live-objects.md), or `null`. */
+  liveObject: (handle: number): LiveObjectSpec | null =>
+    live_object(handle) as LiveObjectSpec | null,
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),
 };

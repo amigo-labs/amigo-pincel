@@ -27,6 +27,34 @@ pub(crate) fn snapshot(doc: &Document) -> DocSnapshot {
     }
 }
 
+/// Like [`snapshot`], but moves the layers out of `doc` and puts `layers`
+/// in their place, so the prior stack is not copied.
+pub(crate) fn take_snapshot(doc: &mut Document, layers: Vec<Layer>) -> DocSnapshot {
+    DocSnapshot {
+        layers: std::mem::replace(&mut doc.layers, layers),
+        canvas: doc.canvas,
+        selection: doc.selection.clone(),
+        active: doc.active_layer_index(),
+    }
+}
+
+impl DocSnapshot {
+    /// Bytes of pixel and selection data held.
+    pub(crate) fn bytes(&self) -> usize {
+        layers_bytes(&self.layers) + mask_bytes(self.selection.as_ref())
+    }
+}
+
+/// Bytes of pixel data in `layers`.
+pub(crate) fn layers_bytes(layers: &[Layer]) -> usize {
+    layers.iter().map(|l| l.pixels.data().len()).sum()
+}
+
+/// Bytes of coverage data in `mask`.
+pub(crate) fn mask_bytes(mask: Option<&SelectionMask>) -> usize {
+    mask.map_or(0, |m| m.data().len())
+}
+
 /// Restores a previously captured document state.
 pub(crate) fn restore(doc: &mut Document, snap: DocSnapshot) -> Result<(), DocumentError> {
     doc.layers = snap.layers;

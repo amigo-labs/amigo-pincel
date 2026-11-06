@@ -8,7 +8,7 @@ use pincel_image_core::command::spec::CommandSpec;
 use pincel_image_core::{DEFAULT_BRUSH_ANGLE, ImageBuffer, masked_region};
 use serde_json::{Map, Value, json};
 
-use super::{ImageDoc, color_arg, color_prop, core_err};
+use super::{ImageDoc, color_arg, core_err};
 use crate::args::Args;
 use crate::pixel::effects::{ADJUSTMENTS, catalog_summary, is_adjustment, wire_params};
 use crate::pixel::{layer_prop, tool_schema};
@@ -64,6 +64,24 @@ fn edit_schema(properties: Value, required: &[&str]) -> Value {
     tool_schema(Value::Object(props), required)
 }
 
+/// Refuse arguments only the Pixel editor offers (mcp-parity-drawing
+/// AC-18).
+fn refuse_pixel_args(ctx: &Ctx<'_>, args: &Args, keys: &[&str]) -> Result<(), AgentError> {
+    if let Some(k) = keys.iter().find(|k| args.get(k).is_some()) {
+        let id = ctx.ws.resolve(args)?;
+        return Err(AgentError::tool(format!(
+            "argument `{k}` works on Pixel documents only; document `{id}` is an Image document"
+        )));
+    }
+    Ok(())
+}
+
+/// A shared color argument: Image documents take `#RRGGBB` /
+/// `#RRGGBBAA`, Pixel documents also `{"index": n}`.
+fn shared_color(description: &str) -> Value {
+    crate::args::color_schema(description)
+}
+
 /// Run `build(doc, layer)`'s command on the target layer as one undo step.
 fn edit(
     ctx: &mut Ctx<'_>,
@@ -74,6 +92,28 @@ fn edit(
     let layer = doc.target(args)?;
     let spec = build(doc, layer)?;
     let changed = doc.run(spec)?;
+    Ok(ToolOutput::json(json!({
+        "doc": id,
+        "layer": doc.layer_id(layer),
+        "changed": changed,
+    })))
+}
+
+/// Like [`edit`], but a call that changes no pixel records no undo step:
+/// `build` runs twice (a dry run on a copy decides), with the same stroke
+/// id (mcp-parity-drawing-image AC-13).
+fn edit_checked(
+    ctx: &mut Ctx<'_>,
+    args: &Args,
+    build: impl Fn(usize, u64) -> Result<CommandSpec, AgentError>,
+) -> Result<ToolOutput, AgentError> {
+    let (id, doc) = ctx.ws.image_mut(args)?;
+    let layer = doc.target(args)?;
+    build(layer, 0)?;
+    let stroke = doc.next_stroke();
+    let changed = doc.run_if_changed(|| {
+        build(layer, stroke).expect("the arguments were checked by the first build")
+    })?;
     Ok(ToolOutput::json(json!({
         "doc": id,
         "layer": doc.layer_id(layer),
@@ -105,11 +145,9 @@ fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
         .collect()
 }
 
-const SHAPES: [&str; 3] = ["hard_round", "soft_round", "flat"];
-
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Image documents: paint a brush stroke through `points` ([[x, y], …], document pixels; one point is a single dab) like the editor's Brush, or erase to transparency with `tool: \"eraser\"`. size 1–500 px (default 8), hardness and opacity in % (default 100), `shape` hard_round / soft_round / flat. Every call is one undo step.",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp), or erase to transparency with `tool: \"eraser\"`; color default #000000; every call is one undo step. Image documents (the Brush): size 1–500 px (default 8), hardness and opacity in % (default 100), `shape` hard_round (default) / soft_round / flat. Pixel documents (the Pencil): integer points, size 1–8 (default 1), `shape` square (default) / round, `pixel_perfect`, `ink: \"shading\"` with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 / -1, symmetry `mirror` x / y / xy with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy.",
     schema: || {
         edit_schema(
             json!({
@@ -120,16 +158,53 @@ pub(crate) const STROKE: Tool = Tool {
                     "description": "Stroke path as [x, y] pairs",
                 },
                 "tool": choice(&["brush", "eraser"], "brush (default) or eraser"),
-                "color": color_prop("Brush color; default #000000"),
-                "size": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Brush diameter in px; default 8" },
-                "hardness": percent_prop("Edge hardness"),
-                "opacity": percent_prop("Stroke opacity"),
-                "shape": choice(&SHAPES, "Brush tip; default hard_round"),
+                "color": shared_color("Brush color; default #000000"),
+                "size": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Brush size in px: Image 1–500 (default 8), Pixel 1–8 (default 1)" },
+                "hardness": percent_prop("Image: edge hardness"),
+                "opacity": percent_prop("Image: stroke opacity"),
+                "shape": choice(&["hard_round", "soft_round", "flat", "square", "round"], "Brush tip: Image hard_round (default) / soft_round / flat; Pixel square (default) / round"),
+                "pixel_perfect": { "type": "boolean", "description": "Pixel: drop L-shaped corners of 1-px strokes; default false" },
+                "ink": choice(&["simple", "shading"], "Pixel: simple (default) or shading"),
+                "ramp_from": { "type": "integer", "minimum": 0, "description": "Pixel shading: first palette index of the ramp" },
+                "ramp_to": { "type": "integer", "minimum": 0, "description": "Pixel shading: last palette index of the ramp (inclusive)" },
+                "step": { "type": "integer", "description": "Pixel shading: 1 (toward the ramp's end, default) or -1" },
+                "mirror": choice(&["x", "y", "xy"], "Pixel: symmetry left-right (x), top-bottom (y) or both"),
+                "axis_x2": { "type": "integer", "description": "Pixel: vertical symmetry axis in half pixels from the left edge; default the canvas width (the centre)" },
+                "axis_y2": { "type": "integer", "description": "Pixel: horizontal symmetry axis in half pixels from the top edge; default the canvas height" },
+                "wrap": choice(&["x", "y", "xy"], "Pixel: tiled mode, wrap across the canvas edges"),
+                "eraser_mode": choice(&["to_transparent", "to_background"], "Image eraser: erase to transparency (default) or paint `background`"),
+                "background": shared_color("Image eraser with to_background: the color; default #FFFFFF"),
+                "angle": angle_prop(),
+                "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
         )
     },
     run: |ctx, args| {
+        if !ctx.ws.is_image(args)? {
+            return crate::pixel::paint::stroke(ctx, args);
+        }
+        refuse_pixel_args(
+            ctx,
+            args,
+            &[
+                "pixel_perfect",
+                "ink",
+                "ramp_from",
+                "ramp_to",
+                "step",
+                "mirror",
+                "axis_x2",
+                "axis_y2",
+                "wrap",
+            ],
+        )?;
+        if let Some(s @ ("square" | "round")) = args.str("shape") {
+            let id = ctx.ws.resolve(args)?;
+            return Err(AgentError::tool(format!(
+                "argument `shape`: {s:?} works on Pixel documents only; document `{id}` is an Image document (hard_round, soft_round, flat)"
+            )));
+        }
         edit(ctx, args, |doc, layer| {
             let points = points_arg(args)?;
             let size = args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32;
@@ -143,14 +218,17 @@ pub(crate) const STROKE: Tool = Tool {
                     opacity,
                     shape,
                     hardness,
-                    mode: "to_transparent".to_owned(),
-                    background: [255, 255, 255, 255],
+                    mode: str_or(args, "eraser_mode", "to_transparent").to_owned(),
+                    background: match args.get("background") {
+                        Some(_) => color_arg(args, "background")?,
+                        None => [255, 255, 255, 255],
+                    },
                     points,
                     pressure: Vec::new(),
                     pressure_size: false,
                     pressure_opacity: false,
                     azimuth: Vec::new(),
-                    angle: DEFAULT_BRUSH_ANGLE,
+                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
                     stroke_id,
                 }
@@ -171,7 +249,7 @@ pub(crate) const STROKE: Tool = Tool {
                     pressure_size: false,
                     pressure_opacity: false,
                     azimuth: Vec::new(),
-                    angle: DEFAULT_BRUSH_ANGLE,
+                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
                     stroke_id,
                 }
@@ -180,9 +258,127 @@ pub(crate) const STROKE: Tool = Tool {
     },
 };
 
+fn angle_prop() -> Value {
+    json!({ "type": "number", "minimum": 0, "maximum": 180, "description": "Image: flat-nib angle in degrees 0–180; default 45 (a round tip ignores it)" })
+}
+
+/// The brush arguments `draw.recolor` and `draw.smudge` share with Image
+/// `draw.stroke`.
+fn brush_props() -> Value {
+    json!({
+        "points": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+            "description": "Stroke path as [x, y] pairs",
+        },
+        "size": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Brush size in px 1–500; default 8" },
+        "hardness": percent_prop("Edge hardness"),
+        "opacity": percent_prop("Stroke opacity"),
+        "shape": choice(&["hard_round", "soft_round", "flat"], "Brush tip; default hard_round"),
+        "angle": angle_prop(),
+    })
+}
+
+fn with_props(mut base: Value, extra: Value) -> Value {
+    if let (Some(b), Value::Object(e)) = (base.as_object_mut(), extra) {
+        b.extend(e);
+    }
+    base
+}
+
+pub(crate) const RECOLOR: Tool = Tool {
+    name: "draw.recolor",
+    description: "Image documents: the editor's Recolor tool along `points`: pixels within `tolerance` (0–255, default 32) of the color `from` become `color` (default #000000), with the brush arguments of draw.stroke (size default 8, hardness, opacity, shape, angle). Respects the selection. One undo step.",
+    schema: || {
+        edit_schema(
+            with_props(
+                brush_props(),
+                json!({
+                    "from": color_prop_image("The color to replace"),
+                    "color": color_prop_image("The replacement; default #000000"),
+                    "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Color distance still replaced; default 32" },
+                }),
+            ),
+            &["points", "from"],
+        )
+    },
+    run: |ctx, args| {
+        edit_checked(ctx, args, |layer, stroke_id| {
+            let points = points_arg(args)?;
+            let from = color_arg(args, "from")?;
+            let to = match args.get("color") {
+                Some(_) => color_arg(args, "color")?,
+                None => [0, 0, 0, 255],
+            };
+            Ok(CommandSpec::RecolorStroke {
+                layer,
+                size: args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32,
+                opacity: percent(args, "opacity"),
+                shape: str_or(args, "shape", "hard_round").to_owned(),
+                hardness: percent(args, "hardness"),
+                from,
+                to,
+                tolerance: args.i64("tolerance").map_or(TOLERANCE, |t| t as u64) as u8,
+                points,
+                pressure: Vec::new(),
+                pressure_size: false,
+                pressure_opacity: false,
+                azimuth: Vec::new(),
+                angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
+                tilt_angle: false,
+                stroke_id,
+            })
+        })
+    },
+};
+
+pub(crate) const SMUDGE: Tool = Tool {
+    name: "draw.smudge",
+    description: "Image documents: the editor's Smudge tool along `points`: drags color along the path with `strength` 1–100 % (default 60) and the brush arguments of draw.stroke (size default 8, hardness, opacity, shape, angle). Respects the selection. One undo step.",
+    schema: || {
+        edit_schema(
+            with_props(
+                brush_props(),
+                json!({
+                    "strength": { "type": "number", "minimum": 1, "maximum": 100, "description": "How much color is carried, in %; default 60" },
+                }),
+            ),
+            &["points"],
+        )
+    },
+    run: |ctx, args| {
+        edit_checked(ctx, args, |layer, stroke_id| {
+            let points = points_arg(args)?;
+            Ok(CommandSpec::SmudgeStroke {
+                layer,
+                size: args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32,
+                opacity: percent(args, "opacity"),
+                shape: str_or(args, "shape", "hard_round").to_owned(),
+                hardness: percent(args, "hardness"),
+                strength: num_or(args, "strength", 60.0) / 100.0,
+                points,
+                pressure: Vec::new(),
+                pressure_size: false,
+                pressure_opacity: false,
+                azimuth: Vec::new(),
+                angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
+                tilt_angle: false,
+                stroke_id,
+            })
+        })
+    },
+};
+
+/// An Image-only color argument: `#RRGGBB` or `#RRGGBBAA` (the schema
+/// also admits the Pixel `{index}` form, so its use gets a named error).
+fn color_prop_image(description: &str) -> Value {
+    crate::args::color_schema(description)
+}
+
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Image documents: draw a shape like the editor's shape tools. `shape`: rect, rounded (corner_radius, default 16), ellipse (inscribed in the box) and line take the corners / endpoints (x0, y0) and (x1, y1); polygon takes the center (cx, cy), radius, sides (default 5) and rotation in degrees. Give `stroke` (outline color, stroke_width default 3 px, dash solid / dashed / dotted), `fill` (fill color) or both. anti_alias defaults to true.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. Image documents: `shape` rect, rounded (corner_radius, default 16), ellipse (inscribed in the box) and line take the corners / endpoints (x0, y0) and (x1, y1); polygon takes the center (cx, cy), radius, sides 3–100 (default 5) and rotation in degrees; stroke_width 1–500 (default 3), dash solid / dashed / dotted, anti_alias (default true). Pixel documents: rect, rounded (corner_radius 0–256, default 4), ellipse and polygon (sides 3–64, default 6, inscribed in the box, first vertex up) over the integer corners (x0, y0)–(x1, y1); stroke_width 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
@@ -191,22 +387,26 @@ pub(crate) const SHAPE: Tool = Tool {
                 "y0": number("First corner / start y"),
                 "x1": number("Opposite corner / end x"),
                 "y1": number("Opposite corner / end y"),
-                "corner_radius": { "type": "number", "minimum": 0, "description": "rounded: corner radius in px; default 16" },
+                "corner_radius": { "type": "number", "minimum": 0, "description": "rounded: corner radius in px; default 16 (Image) / 4 (Pixel, 0–256)" },
                 "cx": number("polygon: center x"),
                 "cy": number("polygon: center y"),
                 "radius": { "type": "number", "minimum": 0, "description": "polygon: circumradius in px" },
-                "sides": { "type": "integer", "minimum": 3, "maximum": 100, "description": "polygon: number of sides; default 5" },
+                "sides": { "type": "integer", "minimum": 3, "maximum": 100, "description": "polygon: number of sides; Image 3–100 (default 5), Pixel 3–64 (default 6)" },
                 "rotation": number("polygon: rotation in degrees; default 0"),
-                "stroke": color_prop("Outline color"),
-                "fill": color_prop("Fill color"),
-                "stroke_width": { "type": "number", "minimum": 1, "maximum": 500, "description": "Outline width in px; default 3" },
-                "dash": choice(&["solid", "dashed", "dotted"], "Outline dash pattern; default solid"),
-                "anti_alias": { "type": "boolean", "description": "Smooth edges; default true" },
+                "stroke": shared_color("Outline color"),
+                "fill": shared_color("Fill color"),
+                "stroke_width": { "type": "number", "minimum": 1, "maximum": 500, "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
+                "dash": choice(&["solid", "dashed", "dotted"], "Image: outline dash pattern; default solid"),
+                "anti_alias": { "type": "boolean", "description": "Image: smooth edges; default true" },
+                "frame": crate::pixel::frame_prop(),
             }),
             &["shape"],
         )
     },
     run: |ctx, args| {
+        if !ctx.ws.is_image(args)? {
+            return crate::pixel::paint::shape(ctx, args);
+        }
         edit(ctx, args, |_, layer| {
             let kind = args.req_str("shape")?;
             let stroke = args
@@ -273,24 +473,37 @@ pub(crate) const SHAPE: Tool = Tool {
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Image documents: write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align`. size in px (default 48), color (default #000000), bold, italic, anti_alias (default true).",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` (default left). color default #000000, bold, italic. Image documents: underline, strikethrough (default false); size 1–999 px (default 48), anti_alias default true. Pixel documents: integer x, y, size 1–2000 (default 12), anti_alias default false; the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
                 "text": { "type": "string", "description": "The text" },
                 "x": number("Anchor x (see align)"),
                 "y": number("Top of the first line"),
-                "size": { "type": "number", "minimum": 1, "maximum": 999, "description": "Font size in px; default 48" },
-                "color": color_prop("Text color; default #000000"),
+                "size": { "type": "number", "minimum": 1, "maximum": 2000, "description": "Font size in px; Image 1–999 (default 48), Pixel 1–2000 (default 12)" },
+                "color": shared_color("Text color; default #000000"),
                 "align": choice(&["left", "center", "right"], "Horizontal alignment; default left"),
                 "bold": { "type": "boolean" },
                 "italic": { "type": "boolean" },
-                "anti_alias": { "type": "boolean", "description": "Smooth glyph edges; default true" },
+                "anti_alias": { "type": "boolean", "description": "Smooth glyph edges; default true (Image) / false (Pixel)" },
+                "underline": { "type": "boolean", "description": "Image: a stroke below each line; default false" },
+                "strikethrough": { "type": "boolean", "description": "Image: a stroke through each line; default false" },
+                "frame": crate::pixel::frame_prop(),
             }),
             &["text", "x", "y"],
         )
     },
     run: |ctx, args| {
+        if !ctx.ws.is_image(args)? {
+            return crate::pixel::paint::text(ctx, args);
+        }
+        if args
+            .get("size")
+            .and_then(Value::as_f64)
+            .is_some_and(|s| s > 999.0)
+        {
+            return Err(AgentError::tool("`size` must be 1–999 on Image documents"));
+        }
         edit(ctx, args, |_, layer| {
             let color = match args.get("color") {
                 Some(_) => color_arg(args, "color")?,
@@ -308,6 +521,8 @@ pub(crate) const TEXT: Tool = Tool {
                 italic: args.bool("italic").unwrap_or(false),
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 align: str_or(args, "align", "left").to_owned(),
+                underline: args.bool("underline").unwrap_or(false),
+                strikethrough: args.bool("strikethrough").unwrap_or(false),
             })
         })
     },
@@ -324,7 +539,7 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
             tolerance: u8::try_from(tolerance)
                 .map_err(|_| AgentError::tool("tolerance must be 0–255"))?,
             contiguous: args.bool("contiguous").unwrap_or(true),
-            sample: "current_layer".to_owned(),
+            sample: str_or(args, "sample", "current_layer").to_owned(),
             x: num(args, "x")?,
             y: num(args, "y")?,
         })
@@ -333,7 +548,7 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
 
 pub(crate) const GRADIENT: Tool = Tool {
     name: "draw.gradient",
-    description: "Image documents: paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool. kind linear (default) / reflected / radial / conical / diamond; channel color (default) or transparency (fades existing alpha); opacity in %. Respects the selection.",
+    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. Image documents: kind linear (default) / reflected / radial / conical / diamond; channel color (default) or transparency (fades existing alpha); opacity in %. Pixel documents (RGBA only): integer corners, kind linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
     schema: || {
         edit_schema(
             json!({
@@ -341,16 +556,22 @@ pub(crate) const GRADIENT: Tool = Tool {
                 "y0": number("Start y"),
                 "x1": number("End x"),
                 "y1": number("End y"),
-                "from": color_prop("Start color"),
-                "to": color_prop("End color"),
-                "kind": choice(&["linear", "reflected", "radial", "conical", "diamond"], "Gradient shape; default linear"),
-                "channel": choice(&["color", "transparency"], "What the gradient paints; default color"),
-                "opacity": percent_prop("Gradient opacity"),
+                "from": shared_color("Start color"),
+                "to": shared_color("End color"),
+                "kind": choice(&["linear", "reflected", "radial", "conical", "diamond"], "Gradient shape; default linear (Pixel: linear / radial)"),
+                "channel": choice(&["color", "transparency"], "Image: what the gradient paints; default color"),
+                "opacity": percent_prop("Image: gradient opacity"),
+                "dither": { "type": "integer", "description": "Pixel: Bayer matrix size 0, 2, 4 (default) or 8" },
+                "frame": crate::pixel::frame_prop(),
             }),
             &["x0", "y0", "x1", "y1", "from", "to"],
         )
     },
     run: |ctx, args| {
+        if !ctx.ws.is_image(args)? {
+            return crate::pixel::paint::gradient(ctx, args);
+        }
+        refuse_pixel_args(ctx, args, &["dither"])?;
         edit(ctx, args, |_, layer| {
             Ok(CommandSpec::DrawGradient {
                 layer,
@@ -368,125 +589,6 @@ pub(crate) const GRADIENT: Tool = Tool {
     },
 };
 
-const MODES: [&str; 4] = ["replace", "add", "subtract", "intersect"];
-
-fn selection_schema(wand: bool) -> Value {
-    let mut props = if wand {
-        json!({
-            "x": number("Seed x"),
-            "y": number("Seed y"),
-            "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Color distance still selected; default 32" },
-            "contiguous": { "type": "boolean", "description": "Only the connected area; default true" },
-            "sample": choice(&["current_layer", "all_layers"], "Color source; default current_layer"),
-            "layer": layer_prop(),
-        })
-    } else {
-        json!({
-            "x": { "type": "integer", "description": "Left" },
-            "y": { "type": "integer", "description": "Top" },
-            "width": { "type": "integer", "minimum": 1 },
-            "height": { "type": "integer", "minimum": 1 },
-            "feather": { "type": "integer", "minimum": 0, "maximum": 250, "description": "Soft edge radius in px; default 0" },
-        })
-    };
-    props["mode"] = choice(
-        &MODES,
-        "How it combines with the current selection; default replace",
-    );
-    let required: &[&str] = if wand {
-        &["x", "y"]
-    } else {
-        &["x", "y", "width", "height"]
-    };
-    tool_schema(props, required)
-}
-
-/// Run a selection command (an undo step in Image mode, as in the editor).
-fn select(
-    ctx: &mut Ctx<'_>,
-    args: &Args,
-    build: impl FnOnce(&ImageDoc) -> Result<CommandSpec, AgentError>,
-) -> Result<ToolOutput, AgentError> {
-    let (id, doc) = ctx.ws.image_mut(args)?;
-    let spec = build(doc)?;
-    doc.run(spec)?;
-    Ok(ToolOutput::json(
-        json!({ "doc": id, "selection": doc.info(&id)["selection"] }),
-    ))
-}
-
-fn box_selection(args: &Args, ellipse: bool) -> Result<CommandSpec, AgentError> {
-    let (x, y) = (args.req_i32("x")?, args.req_i32("y")?);
-    let (w, h) = (args.req_u32("width")?, args.req_u32("height")?);
-    let mode = str_or(args, "mode", "replace").to_owned();
-    let feather = args.u32("feather")?.unwrap_or(0);
-    Ok(if ellipse {
-        CommandSpec::SelectEllipse {
-            x,
-            y,
-            w,
-            h,
-            mode,
-            feather,
-        }
-    } else {
-        CommandSpec::SelectRectangle {
-            x,
-            y,
-            w,
-            h,
-            mode,
-            feather,
-        }
-    })
-}
-
-pub(crate) const SELECT_RECT: Tool = Tool {
-    name: "select.rect",
-    description: "Image documents: select a rectangle like the editor's Rectangle Select (`feather` softens the edge; `mode` combines with the current selection). While a selection exists, draw.fill, draw.gradient, adjust.apply and effect.apply change only the selected pixels, blending feathered edges by coverage. One undo step.",
-    schema: || selection_schema(false),
-    run: |ctx, args| select(ctx, args, |_| box_selection(args, false)),
-};
-
-pub(crate) const SELECT_ELLIPSE: Tool = Tool {
-    name: "select.ellipse",
-    description: "Image documents: select the ellipse inscribed in the rectangle (x, y, width, height) like the editor's Ellipse Select; `feather` and `mode` as for select.rect. One undo step.",
-    schema: || selection_schema(false),
-    run: |ctx, args| select(ctx, args, |_| box_selection(args, true)),
-};
-
-pub(crate) const SELECT_WAND: Tool = Tool {
-    name: "select.wand",
-    description: "Image documents: select the area around the seed (x, y) within `tolerance` (default 32) of its color, like the editor's Magic Wand (on the target `layer` or all layers with `sample`). On a uniform layer it selects the whole canvas. One undo step.",
-    schema: || selection_schema(true),
-    run: |ctx, args| {
-        select(ctx, args, |doc| {
-            let layer = match args.u32("layer")? {
-                Some(id) => doc.layer_index(id)?,
-                None => doc.document().active_layer_index(),
-            };
-            let tolerance = args.i64("tolerance").map_or(TOLERANCE, |t| t as u64);
-            Ok(CommandSpec::SelectWand {
-                layer,
-                x: num(args, "x")?,
-                y: num(args, "y")?,
-                tolerance: u8::try_from(tolerance)
-                    .map_err(|_| AgentError::tool("tolerance must be 0–255"))?,
-                contiguous: args.bool("contiguous").unwrap_or(true),
-                sample: str_or(args, "sample", "current_layer").to_owned(),
-                mode: str_or(args, "mode", "replace").to_owned(),
-            })
-        })
-    },
-};
-
-pub(crate) const SELECT_CLEAR: Tool = Tool {
-    name: "select.clear",
-    description: "Image documents: drop the selection (the editor's Deselect); edits act on the whole layer again. One undo step.",
-    schema: || tool_schema(json!({}), &[]),
-    run: |ctx, args| select(ctx, args, |_| Ok(CommandSpec::Deselect)),
-};
-
 /// The `pincel_effects` spec for `id` and the named `params`, checked
 /// against the catalog ranges.
 fn effect_spec(args: &Args) -> Result<EffectSpec, AgentError> {
@@ -496,7 +598,7 @@ fn effect_spec(args: &Args) -> Result<EffectSpec, AgentError> {
         .get("params")
         .and_then(Value::as_object)
         .unwrap_or(&empty);
-    let wire = wire_params(id, params)?;
+    let wire = wire_params(id, params, true)?;
     EffectSpec::from_params(id, &wire).map_err(|e| AgentError::tool(e.to_string()))
 }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, penStroke, pixelCanvas } from './helpers';
+import { createDocument, penStroke, pixelCanvas, setColor } from './helpers';
 
 // Pen pressure in Pixel mode (docs/specs/pixel-pressure.md): pressure
 // scales the Pencil / Eraser stamp size behind the "Size" option; mouse,
@@ -12,7 +12,7 @@ const H = 16;
 async function setup(page: Page): Promise<Locator> {
   await createDocument(page, 'pixel', { width: W, height: H });
   await page.getByTitle('Pencil (B)').click();
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   const size = page.getByLabel('Brush size', { exact: true });
   await size.fill('8');
   await size.blur();

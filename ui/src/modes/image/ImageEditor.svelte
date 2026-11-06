@@ -1,9 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { hexToRgb, toHex } from '../../lib/color';
+  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
+  import { onMount, untrack } from 'svelte';
+  import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
   import {
     clampCanvasSize,
     editor,
+    isShapeTool,
+    live,
+    shapeOf,
     tabs,
     tool,
     ui,
@@ -14,13 +20,17 @@
     viewCommands,
     type ToolKind,
   } from './stores/editor.svelte';
+  import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { installLiveSync } from './core/live-sync.svelte';
   import {
     addGroup,
     addLayer,
-    applyEffect,
+    applyEffectRegion,
     clearEffectPreview,
+    autoCrop,
     cropToSelection,
     deleteLayer,
+    documentDpi,
     duplicateLayer,
     flattenImage,
     flipCanvas,
@@ -28,7 +38,8 @@
     mergeGroup,
     renameLayer,
     mergeVisible,
-    previewEffect,
+    effectJobFor,
+    showEffectPreview,
     resizeCanvas,
     rotateCanvas,
     rotateLayer90,
@@ -69,7 +80,9 @@
   } from './core/tab-session';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
-  import MainCanvas from './components/canvas/MainCanvas.svelte';
+  import ImageViewport from './components/canvas/ImageViewport.svelte';
+  import { loadViewAids, setViewAids, viewAids } from './stores/view-aids.svelte';
+  import { formatPixels, type ViewUnit } from './view-units';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
@@ -100,12 +113,14 @@
   import { effectMenus } from '../../lib/effects/menu';
   import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
+  import { effectRun, type EffectRun } from './jobs';
   import {
     OPACITY_ACTIONS,
     actionFor,
     hint,
     isStageTarget,
     isTypingTarget,
+    NEW_DOCUMENT_KEY,
     nativeMenuOwns,
     opacityPercent,
     toolGroupForKey,
@@ -133,7 +148,7 @@
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { reduceMotionMenuItem } from '../../lib/motion.svelte';
-  import { t } from '../../lib/i18n/index.svelte';
+  import { locale, t, type MessageKey } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
@@ -208,6 +223,8 @@
   function runCopy(kind: 'copy' | 'merged' | 'cut'): void {
     const handle = editor.handle;
     if (handle === null) return;
+    // Copy reads the final pixels: commit a live object first (AC-09).
+    commitLive();
     let copied: { png: Uint8Array; x: number; y: number } | null;
     try {
       copied = copyImage(kind);
@@ -308,7 +325,13 @@
     editor.notice = null;
   }
 
-  function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
+  function runPaste(
+    handle: number,
+    bytes: Uint8Array,
+    x: number,
+    y: number,
+    expand: boolean,
+  ): void {
     pasteDialog = null;
     if (editor.handle !== handle) return;
     try {
@@ -340,7 +363,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen()) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen())
+      return;
     if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
@@ -351,8 +375,14 @@
     void beginPaste(pasteEventImage(e), handle);
   }
 
+  /** Image ▸ Auto Crop; a notice when nothing is cropped (image-resize-autocrop AC-15). */
+  function runAutoCrop(): void {
+    editor.notice = autoCrop() ? null : t('image.nothingToCrop');
+  }
+
   function openSvgExport(): void {
     if (editor.handle === null) return;
+    commitLive();
     closeSvgExport();
     svgOpen = true;
   }
@@ -363,12 +393,15 @@
   }
 
   function runExport(format: ExportFormat, quality?: number): void {
+    commitLive();
     // JPEG is lossy: ask for the quality first (spec §13.2).
     if (format === 'jpeg' && quality === undefined) {
       jpegDialogOpen = true;
       return;
     }
-    exportImage(format, quality).catch((e) => (loadError = t('img.exportFailed', { error: String(e) })));
+    exportImage(format, quality).catch(
+      (e) => (loadError = t('img.exportFailed', { error: String(e) })),
+    );
   }
 
   // Tool rail (spec §9.2): same groups, order and keys as Pixel mode
@@ -478,6 +511,7 @@
    * serves. No frames in Image mode, so no frame keys and no sheet export.
    */
   const IMAGE_ACTIONS: readonly ShortcutAction[] = [
+    ...(NEW_DOCUMENT_KEY ? (['newDocument'] as const) : []),
     'open',
     'save',
     'saveAs',
@@ -512,9 +546,33 @@
     'rotateCw',
     'rotateCcw',
     'toggleUi',
+    'togglePixelGrid',
+    'toggleRulers',
     'commandPalette',
     ...OPACITY_ACTIONS,
   ];
+
+  // View ▸ Units and the status bar (docs/specs/image-view-aids.md AC-11, AC-12).
+  const UNIT_ITEMS: readonly (readonly [ViewUnit, MessageKey])[] = [
+    ['px', 'menu.unitPixels'],
+    ['in', 'menu.unitInches'],
+    ['cm', 'menu.unitCentimeters'],
+  ];
+  const UNIT_SUFFIX: Record<ViewUnit, MessageKey> = {
+    px: 'units.px',
+    in: 'units.in',
+    cm: 'units.cm',
+  };
+  // The active document's resolution, read again on every tab switch and
+  // document change (AC-19, AC-23).
+  const statusDpi = $derived.by(() => {
+    void editor.handle;
+    void editor.revision;
+    return documentDpi();
+  });
+  function unitValue(p: number): string {
+    return formatPixels(p, viewAids.units, statusDpi, locale());
+  }
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
   function openOverview(): void {
@@ -554,6 +612,20 @@
   // File ▸ Open Recent. `null` keeps the entry out of the menu where the
   // registry cannot work at all; an empty array shows it disabled.
   let recents = $state<RecentFile[]>([]);
+
+  // The Magic Wand link (docs/specs/image-editing.md AC-33, AC-34): every
+  // value the settings take recomputes the linked click; choosing another
+  // tool ends the link, even if the wand is chosen again later.
+  $effect(() => {
+    void tool.tolerance;
+    void tool.contiguous;
+    void tool.wandSample;
+    untrack(relinkWand);
+  });
+  $effect(() => {
+    void tool.kind;
+    untrack(dropWandLink);
+  });
 
   // Keep the native Open Recent submenu in step with the recents, as the
   // shell and the Pixel editor do (desktop-app.md AC-19). Only entries
@@ -652,7 +724,28 @@
     attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
+  const FG_PREF = 'lastColor:image';
+  const BG_PREF = 'lastBgColor:image';
+  // The last foreground / background colors and the recent colors, per
+  // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
+  // so a slow store cannot overwrite them with the defaults.
+  let colorPrefsLoaded = $state(false);
+  $effect(() => {
+    const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
+    const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
+    if (!colorPrefsLoaded) return;
+    saveColorPref(FG_PREF, fg);
+    saveColorPref(BG_PREF, bg);
+  });
+
   onMount(() => {
+    void loadRecent('image');
+    void loadViewAids();
+    void Promise.all([loadColorPref(FG_PREF), loadColorPref(BG_PREF)]).then(([fg, bg]) => {
+      if (fg) [tool.foreground, tool.foregroundAlpha] = [toHex(fg), fg.a];
+      if (bg) [tool.background, tool.backgroundAlpha] = [toHex(bg), bg.a];
+      colorPrefsLoaded = true;
+    });
     bindTabHooks({
       registerDocument,
       confirmClose,
@@ -715,7 +808,29 @@
   // this too. Leaving for another mode's tab drops a gesture in flight.
   $effect.pre(() => {
     ui.active = active;
-    if (!active) gestureControl.cancel();
+    if (!active) {
+      gestureControl.cancel();
+      untrack(commitLive);
+    }
+  });
+
+  // Option and color changes reach the live object (AC-06, AC-07).
+  installLiveSync();
+
+  // Another tool commits a live object; another box shape converts a live
+  // box shape (image-live-objects-ui AC-08, AC-09).
+  $effect(() => {
+    const kind = tool.kind;
+    untrack(() => {
+      const own = liveToolOf();
+      if (own === null || own === kind) return;
+      const shape = shapeOf(kind);
+      if (shape !== null && shape !== 'line' && isShapeTool(own) && own !== 'line') {
+        editLive({ shape });
+      } else {
+        commitLive();
+      }
+    });
   });
 
   const dirty = $derived(isDirty(tabs.active));
@@ -735,7 +850,20 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
-    if (!active || e.defaultPrevented || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
+    if (
+      !active ||
+      e.defaultPrevented ||
+      ui.modalOpen ||
+      helpDialogOpen() ||
+      isTypingTarget(e.target)
+    ) {
+      return;
+    }
+    // Enter commits a live object (image-live-objects-ui AC-09); Image
+    // mode has no Play for the key to mean otherwise.
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.object !== null) {
+      e.preventDefault();
+      commitLive();
       return;
     }
     const action = actionFor(e);
@@ -750,10 +878,11 @@
       if (runShortcut(action)) e.preventDefault();
       return;
     }
-    // Escape drops a gesture in progress; with none, it deselects
+    // Escape drops a gesture in progress; with none it cancels a live
+    // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
       return;
     }
     const group = toolGroupForKey(e);
@@ -767,6 +896,9 @@
   /** Runs a shared shortcut; false when Image mode has no such action. */
   function runShortcut(action: ReturnType<typeof actionFor>): boolean {
     switch (action) {
+      case 'newDocument':
+        onRequestNew();
+        return true;
       case 'open':
         onRequestOpen();
         return true;
@@ -841,6 +973,12 @@
         return true;
       case 'toggleUi':
         toggleUi();
+        return true;
+      case 'togglePixelGrid':
+        setViewAids({ showPixelGrid: !viewAids.showPixelGrid });
+        return true;
+      case 'toggleRulers':
+        setViewAids({ showRulers: !viewAids.showRulers });
         return true;
       case 'commandPalette':
         // Ctrl+K: the command palette over these menus and tools.
@@ -918,7 +1056,12 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
-    if (effectOpen) clearEffectPreview();
+    // The effect previews and applies to the committed pixels (AC-09).
+    commitLive();
+    if (effectOpen) {
+      endEffectRun();
+      clearEffectPreview();
+    }
     // Colour parameters start at the current colours (outline-effect AC-01).
     effectOpen = new EffectSession(def, {
       foreground: rgbaOf(tool.foreground),
@@ -927,29 +1070,78 @@
   }
 
   function closeEffect(): void {
+    endEffectRun();
     clearEffectPreview();
     effectOpen = null;
+  }
+
+  // The open panel's jobs in the job worker
+  // (docs/specs/performance-background-jobs.md); started at its first
+  // preview or apply.
+  let fxRun: EffectRun | null = null;
+
+  function effectRunFor(): EffectRun | null {
+    if (editor.handle === null) return null;
+    fxRun ??= effectRun(
+      editor.handle,
+      (composite) => {
+        effectSucceeded();
+        showEffectPreview(composite);
+      },
+      (err) => effectFailed(err, t('act.preview')),
+    );
+    return fxRun;
+  }
+
+  function endEffectRun(): void {
+    fxRun?.close();
+    fxRun = null;
   }
 
   // The notice of the last failed effect run, cleared by the next success.
   let effectFailure: string | null = null;
 
-  /** Runs a preview or apply; on failure shows the error in the notice line
-   *  and returns `null` — the document is unchanged (effect-panel AC-16). */
-  function runEffect<T>(run: () => T, action: string): T | null {
+  function effectSucceeded(): void {
+    if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
+    effectFailure = null;
+  }
+
+  /** Shows a failed preview or apply in the notice line; the document is
+   *  unchanged (effect-panel AC-16). */
+  function effectFailed(err: unknown, action: string): void {
+    effectFailure = t('status.failed', {
+      action,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    editor.notice = effectFailure;
+  }
+
+  /** Applies the open effect once the worker has computed it; a panel
+   *  cancelled or replaced meanwhile changes nothing (AC-08). */
+  async function applyOpenEffect(session: EffectSession, params: number[]): Promise<void> {
+    const run = effectRunFor();
+    if (!run) return;
+    const label = effectLabel(session.def);
+    let region: Uint8Array;
     try {
-      const result = run();
-      if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
-      effectFailure = null;
-      return result;
+      region = await run.region(effectJobFor(session.def.id, params));
     } catch (err) {
-      effectFailure = t('status.failed', {
-        action,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      editor.notice = effectFailure;
-      return null;
+      // A failed effect keeps the panel open with its values (AC-16).
+      if (effectOpen === session) effectFailed(err, label);
+      return;
     }
+    if (effectOpen !== session) return;
+    let changed: boolean;
+    try {
+      changed = applyEffectRegion(session.def.id, params, region);
+    } catch (err) {
+      effectFailed(err, label);
+      return;
+    }
+    effectSucceeded();
+    if (!changed) editor.notice = t('fx.selectionEmpty', { effect: label });
+    endEffectRun();
+    effectOpen = null;
   }
 
   // The preview is not part of the document (AC-17): the shell cancels the
@@ -976,7 +1168,7 @@
       id: 'file',
       label: t('menu.file'),
       items: tidy([
-        { label: t('menu.new'), run: onRequestNew },
+        { label: t('menu.new'), shortcut: hint('newDocument'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         droppedImagesMenu(),
@@ -1124,6 +1316,7 @@
         },
         { label: t('menu.scaleImage'), disabled: !hasDoc, run: () => (transformDialog = 'scale') },
         { label: t('menu.crop'), disabled: !editor.hasSelection, run: cropToSelection },
+        { label: t('menu.autoCrop'), disabled: !hasDoc, run: runAutoCrop },
       ],
     },
     {
@@ -1226,6 +1419,28 @@
           run: () => viewCommands.actual(),
         },
         { kind: 'separator' },
+        {
+          label: t('menu.rulers'),
+          shortcut: hint('toggleRulers'),
+          checked: viewAids.showRulers,
+          run: () => setViewAids({ showRulers: !viewAids.showRulers }),
+        },
+        {
+          label: t('menu.pixelGrid'),
+          shortcut: hint('togglePixelGrid'),
+          checked: viewAids.showPixelGrid,
+          run: () => setViewAids({ showPixelGrid: !viewAids.showPixelGrid }),
+        },
+        {
+          kind: 'submenu',
+          label: t('menu.units'),
+          items: UNIT_ITEMS.map(([units, label]) => ({
+            label: t(label),
+            checked: viewAids.units === units,
+            run: () => setViewAids({ units }),
+          })),
+        },
+        { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
         { kind: 'separator' },
@@ -1248,18 +1463,14 @@
         hasSelection={editor.hasSelection}
         onPreview={(params) => {
           // `null` means "preview off": show the real composite.
-          if (params === null) clearEffectPreview();
-          else runEffect(() => previewEffect(session.def.id, params), t('act.preview'));
-        }}
-        onApply={(params) => {
-          const changed = runEffect(() => applyEffect(session.def.id, params), effectLabel(session.def));
-          // A failed effect keeps the panel open with its values (AC-16).
-          if (changed === null) return;
-          if (!changed) {
-            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(session.def) });
+          if (params === null) {
+            fxRun?.stopPreview();
+            clearEffectPreview();
+          } else {
+            effectRunFor()?.preview(effectJobFor(session.def.id, params));
           }
-          effectOpen = null;
         }}
+        onApply={(params) => void applyOpenEffect(session, params)}
         onCancel={closeEffect}
       />
     {/key}
@@ -1309,12 +1520,28 @@
     <ToolOptions />
   {/snippet}
   {#snippet viewport()}
-    <MainCanvas />
+    <ImageViewport />
   {/snippet}
   {#snippet statusbar()}
     <span>{toolLabel}</span>
     <span>·</span>
-    <span>{editor.width} × {editor.height} · sRGB</span>
+    {#if viewAids.pointer}
+      <span data-testid="status-pointer"
+        >{t('status.position', {
+          x: unitValue(Math.floor(viewAids.pointer.x)),
+          y: unitValue(Math.floor(viewAids.pointer.y)),
+          unit: t(UNIT_SUFFIX[viewAids.units]),
+        })}</span
+      >
+      <span>·</span>
+    {/if}
+    <span
+      >{t('status.size', {
+        width: unitValue(editor.width),
+        height: unitValue(editor.height),
+        unit: t(UNIT_SUFFIX[viewAids.units]),
+      })} · sRGB</span
+    >
     <span
       class="min-w-0 flex-1 truncate text-center"
       class:text-amber-400={loadError !== null || editor.notice !== null}
@@ -1349,6 +1576,7 @@
 
 {#if transformDialog === 'resize'}
   <ResizeDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, anchor) => {
       resizeCanvas(w, h, anchor);
       transformDialog = null;
@@ -1357,6 +1585,7 @@
   />
 {:else if transformDialog === 'scale'}
   <ScaleDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, interp) => {
       scaleImage(w, h, interp);
       transformDialog = null;

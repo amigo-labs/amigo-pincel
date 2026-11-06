@@ -51,6 +51,7 @@ export interface ShortcutRow {
 // Toggle UI with View; the layer and image keys (Layer / Image menus,
 // which have no section of their own) with Edit.
 const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
+  newDocument: 'file',
   open: 'file',
   save: 'file',
   saveAs: 'file',
@@ -72,6 +73,7 @@ const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
   zoomActual: 'view',
   toggleGrid: 'view',
   togglePixelGrid: 'view',
+  toggleRulers: 'view',
   shortcuts: 'view',
   swapColors: 'tools',
   resetColors: 'tools',
@@ -112,6 +114,7 @@ const ACTION_SECTION: Record<ShortcutAction, ShortcutSection> = {
 
 /** Row label per action; a `Record`, so a new action without one fails `pnpm check`. */
 export const ACTION_LABEL: Record<ShortcutAction, MessageKey> = {
+  newDocument: 'menu.new',
   open: 'menu.open',
   save: 'menu.save',
   saveAs: 'menu.saveAs',
@@ -133,6 +136,7 @@ export const ACTION_LABEL: Record<ShortcutAction, MessageKey> = {
   zoomActual: 'menu.zoomActual',
   toggleGrid: 'menu.showGrid',
   togglePixelGrid: 'menu.showPixelGrid',
+  toggleRulers: 'menu.rulers',
   shortcuts: 'menu.shortcuts',
   swapColors: 'menu.swapColors',
   resetColors: 'menu.defaultColors',

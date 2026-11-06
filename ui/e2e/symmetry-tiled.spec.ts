@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, menu, pixelCanvas } from './helpers';
+import { colorOf, createDocument, menu, pixelCanvas, setColor } from './helpers';
 
 // Symmetry drawing and tiled mode (docs/specs/symmetry-tiled-mode.md).
 // Pixels are read back with the Eyedropper (the app never reads canvas
@@ -22,7 +22,6 @@ async function mapper(page: Page, w: number, h: number): Promise<At> {
     [box.x + ((px + 0.5) * box.width) / w, box.y + ((py + 0.5) * box.height) / h] as const;
 }
 
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
 const symmetry = (page: Page) => page.getByLabel('Symmetry', { exact: true });
 const axisX = (page: Page) => page.getByTestId('symmetry-axis-x');
 const axisY = (page: Page) => page.getByTestId('symmetry-axis-y');
@@ -36,10 +35,10 @@ async function tool(page: Page, title: RegExp): Promise<void> {
 
 /** Sample sprite pixel (x, y) with the Eyedropper; `#000000` is transparent. */
 async function pick(page: Page, at: At, x: number, y: number): Promise<string> {
-  await fg(page).fill('#000000');
+  await setColor(page, 'fg', '#000000');
   await tool(page, /^Eyedropper/);
   await page.mouse.click(...at(x, y));
-  return fg(page).inputValue();
+  return colorOf(page, 'fg');
 }
 
 /** Press at the first point, move through the rest one sample each, release. */
@@ -60,7 +59,7 @@ async function redPencil(page: Page): Promise<void> {
 
 /** Foreground `color` at full alpha. */
 async function opaque(page: Page, color: string): Promise<void> {
-  await fg(page).fill(color);
+  await setColor(page, 'fg', color);
   await page.getByLabel('Foreground alpha').fill('255');
 }
 
@@ -107,8 +106,28 @@ test.describe('symmetry', () => {
       [3, 2],
     ]);
     // Width 16: column x mirrors to 15 − x.
-    await expectColors(page, at, [[1, 2], [2, 2], [3, 2], [14, 2], [13, 2], [12, 2]], '#ff0000');
-    await expectColors(page, at, [[4, 2], [11, 2]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [1, 2],
+        [2, 2],
+        [3, 2],
+        [14, 2],
+        [13, 2],
+        [12, 2],
+      ],
+      '#ff0000',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [4, 2],
+        [11, 2],
+      ],
+      '#000000',
+    );
   });
 
   test('top-bottom and both mirror across the horizontal axis too', async ({ page }) => {
@@ -116,12 +135,38 @@ test.describe('symmetry', () => {
     await redPencil(page);
     await symmetry(page).selectOption('y');
     await page.mouse.click(...at(2, 1));
-    await expectColors(page, at, [[2, 1], [2, 8]], '#ff0000');
-    await expectColors(page, at, [[13, 1], [13, 8]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [2, 1],
+        [2, 8],
+      ],
+      '#ff0000',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [13, 1],
+        [13, 8],
+      ],
+      '#000000',
+    );
     await redPencil(page);
     await symmetry(page).selectOption('xy');
     await page.mouse.click(...at(5, 3));
-    await expectColors(page, at, [[5, 3], [10, 3], [5, 6], [10, 6]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [5, 3],
+        [10, 3],
+        [5, 6],
+        [10, 6],
+      ],
+      '#ff0000',
+    );
   });
 
   test('an odd width puts the axis through the middle pixel', async ({ page }) => {
@@ -130,8 +175,25 @@ test.describe('symmetry', () => {
     await symmetry(page).selectOption('x');
     await page.mouse.click(...at(7, 1));
     await page.mouse.click(...at(2, 2));
-    await expectColors(page, at, [[7, 1], [2, 2], [12, 2]], '#ff0000');
-    await expectColors(page, at, [[6, 1], [8, 1]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [7, 1],
+        [2, 2],
+        [12, 2],
+      ],
+      '#ff0000',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [6, 1],
+        [8, 1],
+      ],
+      '#000000',
+    );
   });
 
   test('a symmetric stroke is one undo step', async ({ page }) => {
@@ -143,7 +205,19 @@ test.describe('symmetry', () => {
       [4, 3],
     ]);
     await page.keyboard.press('ControlOrMeta+z');
-    await expectColors(page, at, [[1, 1], [14, 1], [1, 14], [14, 14], [4, 3], [11, 12]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [1, 1],
+        [14, 1],
+        [1, 14],
+        [14, 14],
+        [4, 3],
+        [11, 12],
+      ],
+      '#000000',
+    );
   });
 
   test('the eraser mirrors too, and line and bucket do not', async ({ page }) => {
@@ -156,8 +230,24 @@ test.describe('symmetry', () => {
     await tool(page, /^Eraser/);
     await symmetry(page).selectOption('x');
     await page.mouse.click(...at(2, 5));
-    await expectColors(page, at, [[2, 5], [13, 5]], '#000000');
-    await expectColors(page, at, [[3, 5], [12, 5]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [2, 5],
+        [13, 5],
+      ],
+      '#000000',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [3, 5],
+        [12, 5],
+      ],
+      '#ff0000',
+    );
     // Line: only the drawn pixels.
     await tool(page, /^Line/);
     await opaque(page, '#00ff00');
@@ -165,8 +255,24 @@ test.describe('symmetry', () => {
       [1, 9],
       [3, 9],
     ]);
-    await expectColors(page, at, [[1, 9], [3, 9]], '#00ff00');
-    await expectColors(page, at, [[14, 9], [12, 9]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [1, 9],
+        [3, 9],
+      ],
+      '#00ff00',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [14, 9],
+        [12, 9],
+      ],
+      '#000000',
+    );
     // Shapes: only the drawn rectangle.
     await tool(page, /^Shapes/);
     await opaque(page, '#00ff00');
@@ -174,8 +280,24 @@ test.describe('symmetry', () => {
       [1, 1],
       [3, 2],
     ]);
-    await expectColors(page, at, [[1, 1], [3, 2]], '#00ff00');
-    await expectColors(page, at, [[14, 1], [12, 2]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [1, 1],
+        [3, 2],
+      ],
+      '#00ff00',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [14, 1],
+        [12, 2],
+      ],
+      '#000000',
+    );
     // Bucket: fills the clicked region only — a closed box on the left.
     await redPencil(page);
     await symmetry(page).selectOption('none');
@@ -225,7 +347,7 @@ test.describe('symmetry', () => {
     if (!box) throw new Error('no handle');
     // Drag from the centre (x = 8 px) to the edge between columns 11 and 12.
     const [x12] = at(12, 0);
-    const cell = (at(1, 0)[0] - at(0, 0)[0]);
+    const cell = at(1, 0)[0] - at(0, 0)[0];
     await tool(page, /^Line/);
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -235,7 +357,15 @@ test.describe('symmetry', () => {
     await redPencil(page);
     await page.mouse.click(...at(10, 4));
     // A = 24: column 10 mirrors to 13.
-    await expectColors(page, at, [[10, 4], [13, 4]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [10, 4],
+        [13, 4],
+      ],
+      '#ff0000',
+    );
     // A mirror image beyond the canvas is skipped.
     await redPencil(page);
     await page.mouse.click(...at(2, 6));
@@ -244,7 +374,15 @@ test.describe('symmetry', () => {
     await expect(handleX(page)).toHaveAttribute('data-axis', '16');
     await redPencil(page);
     await page.mouse.click(...at(10, 8));
-    await expectColors(page, at, [[10, 8], [5, 8]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [10, 8],
+        [5, 8],
+      ],
+      '#ff0000',
+    );
   });
 
   test('a press inside the canvas never moves an axis', async ({ page }) => {
@@ -325,7 +463,9 @@ test.describe('tiled mode', () => {
     const at = await setup(page, 8, 8);
     await expect(copies(page)).toHaveCount(0);
     const offsets = async () =>
-      (await copies(page).evaluateAll((els) => els.map((e) => e.getAttribute('data-offset')))).sort();
+      (
+        await copies(page).evaluateAll((els) => els.map((e) => e.getAttribute('data-offset')))
+      ).sort();
     await tiled(page, 'X');
     expect(await offsets()).toEqual(['-1,0', '1,0']);
     await tiled(page, 'Y');
@@ -357,11 +497,31 @@ test.describe('tiled mode', () => {
       [13, 4],
       [18, 4],
     ]);
-    await expectColors(page, at, [[13, 4], [14, 4], [15, 4], [0, 4], [1, 4], [2, 4]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [13, 4],
+        [14, 4],
+        [15, 4],
+        [0, 4],
+        [1, 4],
+        [2, 4],
+      ],
+      '#ff0000',
+    );
     await expectColors(page, at, [[3, 4]], '#000000');
     // Undo restores both sides of the seam in one step.
     await page.keyboard.press('ControlOrMeta+z');
-    await expectColors(page, at, [[14, 4], [1, 4]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [14, 4],
+        [1, 4],
+      ],
+      '#000000',
+    );
   });
 
   test('pressing on a repeated copy paints the corresponding canvas pixel', async ({ page }) => {
@@ -375,7 +535,16 @@ test.describe('tiled mode', () => {
     await page.mouse.click(...at(16 + 3, 5));
     await page.mouse.click(...at(4, -16 + 6));
     await page.mouse.click(...at(-16 + 9, 16 + 2));
-    await expectColors(page, at, [[3, 5], [4, 6], [9, 2]], '#ff0000');
+    await expectColors(
+      page,
+      at,
+      [
+        [3, 5],
+        [4, 6],
+        [9, 2],
+      ],
+      '#ff0000',
+    );
   });
 
   test('an axis tiled mode does not cover clips the stroke', async ({ page }) => {
@@ -387,7 +556,15 @@ test.describe('tiled mode', () => {
       [18, 4],
     ]);
     await expectColors(page, at, [[15, 4]], '#ff0000');
-    await expectColors(page, at, [[0, 4], [1, 4]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [0, 4],
+        [1, 4],
+      ],
+      '#000000',
+    );
   });
 
   test('line, shapes and bucket clip at the edges in tiled mode', async ({ page }) => {
@@ -399,16 +576,48 @@ test.describe('tiled mode', () => {
       [12, 7],
       [19, 7],
     ]);
-    await expectColors(page, at, [[12, 7], [15, 7]], '#00ff00');
-    await expectColors(page, at, [[0, 7], [2, 7]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [12, 7],
+        [15, 7],
+      ],
+      '#00ff00',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [0, 7],
+        [2, 7],
+      ],
+      '#000000',
+    );
     await tool(page, /^Shapes/);
     await opaque(page, '#00ff00');
     await stroke(page, at, [
       [13, 1],
       [18, 3],
     ]);
-    await expectColors(page, at, [[13, 1], [15, 1]], '#00ff00');
-    await expectColors(page, at, [[0, 1], [2, 3]], '#000000');
+    await expectColors(
+      page,
+      at,
+      [
+        [13, 1],
+        [15, 1],
+      ],
+      '#00ff00',
+    );
+    await expectColors(
+      page,
+      at,
+      [
+        [0, 1],
+        [2, 3],
+      ],
+      '#000000',
+    );
     // A bucket press on a repeated copy does nothing.
     await tool(page, /^Fill/);
     await opaque(page, '#0000ff');
@@ -416,9 +625,7 @@ test.describe('tiled mode', () => {
     await expectColors(page, at, [[4, 12]], '#000000');
   });
 
-  test('tiled mode never changes the document and a reload starts with None', async ({
-    page,
-  }) => {
+  test('tiled mode never changes the document and a reload starts with None', async ({ page }) => {
     const at = await setup(page, 8, 8);
     await redPencil(page);
     await page.mouse.click(...at(2, 3));
@@ -435,8 +642,9 @@ test.describe('tiled mode', () => {
     await createDocument(page, 'pixel', { width: 8, height: 8 });
     await expect(copies(page)).toHaveCount(0);
     await menu(page, 'View', 'Tiled Mode');
-    await expect(
-      tiledMenu(page).getByRole('menuitemcheckbox', { name: 'None' }),
-    ).toHaveAttribute('aria-checked', 'true');
+    await expect(tiledMenu(page).getByRole('menuitemcheckbox', { name: 'None' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 });

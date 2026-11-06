@@ -30,7 +30,7 @@ fn edit_on_large_cel_stores_only_the_diff_rect() {
     };
     assert_eq!(stored(&s), 3 * 2 * 4);
     s.ok(
-        "selection.set_rect",
+        "select.rect",
         json!({ "x": 100, "y": 200, "width": 4, "height": 5 }),
     );
     s.ok(
@@ -235,7 +235,7 @@ fn selection_limits_fill_and_effect_until_cleared() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
     s.ok(
-        "selection.set_rect",
+        "select.rect",
         json!({ "x": 2, "y": 2, "width": 3, "height": 3 }),
     );
     s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#00ff00" }));
@@ -250,7 +250,7 @@ fn selection_limits_fill_and_effect_until_cleared() {
     let inv = s.cel_rgba(&id, 0, 0);
     assert_eq!(px(&inv, 8, 3, 3), [255, 0, 255, 255]);
     assert_eq!(px(&inv, 8, 0, 0), [0, 0, 0, 0]);
-    s.ok("selection.clear", json!({}));
+    s.ok("select.clear", json!({}));
     s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#0000ff" }));
     assert_eq!(px(&s.cel_rgba(&id, 0, 0), 8, 7, 7), [0, 0, 255, 255]);
 }
@@ -621,11 +621,8 @@ fn paint_target_defaults_to_active_layer_and_frame() {
             .contains("frame 9")
     );
     assert!(
-        s.err(
-            "selection.set_rect",
-            json!({ "x": 0, "y": 0, "width": 1, "height": 1, "frame": 5 })
-        )
-        .contains("frame 5")
+        s.err("select.wand", json!({ "x": 0, "y": 0, "frame": 5 }))
+            .contains("frame 5")
     );
 }
 

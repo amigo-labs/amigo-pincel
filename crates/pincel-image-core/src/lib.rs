@@ -22,11 +22,13 @@ pub mod transform;
 
 pub use color::{BlendMode, Color};
 pub use command::{
-    AddGroup, AddLayer, Anchor, CanvasRotation, Command, CommandBus, CropToSelection,
-    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
-    MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
-    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
-    SetPixels, SetSelection, TransformLayer, UndoStack,
+    AddGroup, AddLayer, Anchor, AutoCrop, BoxShape, CanvasRotation, Command, CommandBus,
+    CropToSelection, DuplicateLayer, FlattenImage, FlipCanvas, LIVE_REACH, LayerTransform,
+    LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind, MergeDown,
+    MergeGroup, MergeVisible, MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer,
+    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
+    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer, UndoStack,
+    auto_crop_rect,
 };
 pub use document::{
     CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,
@@ -40,8 +42,8 @@ pub use tools::{
     Brush, BrushShape, DEFAULT_BRUSH_ANGLE, DashPattern, Eraser, EraserMode, Eyedropper, Fill,
     FillOptions, Gradient, GradientChannel, GradientKind, Move, PenSamples, Pencil,
     PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape, ShapeMode,
-    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, copy_selection,
-    delete_selection,
+    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextLayout, TextStyle,
+    copy_selection, delete_selection,
 };
 pub use transform::{
     Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,

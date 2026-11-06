@@ -9,6 +9,9 @@ use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::{
     to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
+use pincel_image_core::command::live_spec::{
+    TextLayoutRequest, live_object_spec, text_layout as layout_text,
+};
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
@@ -117,6 +120,27 @@ pub fn open_image(data: &[u8], _mime_type: &str) -> Result<u32, JsError> {
 pub fn open_project(data: &[u8]) -> Result<u32, JsError> {
     let doc =
         pincel_image_core::codec::from_ora_bytes(data).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(insert(CommandBus::new(doc)))
+}
+
+/// An uncompressed copy of the whole document for another wasm instance —
+/// the job worker that encodes autosaves and exports
+/// (docs/specs/performance-background-jobs.md). [`open_snapshot`] turns it
+/// back into a document.
+#[wasm_bindgen]
+pub fn snapshot_document(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        Ok(pincel_image_core::codec::snapshot::to_snapshot_bytes(
+            &bus.document,
+        ))
+    })
+}
+
+/// Opens bytes from [`snapshot_document`] as a new document and returns
+/// its handle; the copy equals the document the snapshot was taken of.
+#[wasm_bindgen]
+pub fn open_snapshot(data: &[u8]) -> Result<u32, JsError> {
+    let doc = pincel_image_core::codec::snapshot::from_snapshot_bytes(data).map_err(to_js)?;
     Ok(insert(CommandBus::new(doc)))
 }
 
@@ -369,10 +393,38 @@ pub fn pick_color(
 
 /// Selects the active layer by `index`. Layer selection is UI state, not an
 /// undoable edit, so this is a setter rather than a command (spec §5, §7.3).
+/// A change to another layer commits the live object first
+/// (docs/specs/image-live-objects.md AC-08).
 #[wasm_bindgen]
 pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
-    with_bus(handle, |bus| {
-        bus.document.set_active_layer(index).map_err(to_js)
+    with_bus(handle, |bus| bus.set_active_layer(index).map_err(to_js))
+}
+
+/// Lays out a text with the registered font `font_id` as a live text with
+/// these settings is drawn (docs/specs/image-live-text.md AC-22): `request`
+/// is a JSON `TextLayoutRequest`; returns a `TextLayout` object (line boxes,
+/// caret x per character boundary).
+#[wasm_bindgen]
+pub fn text_layout(font_id: u32, request: &str) -> Result<JsValue, JsError> {
+    let req: TextLayoutRequest =
+        serde_json::from_str(request).map_err(|e| JsError::new(&e.to_string()))?;
+    let layout = FONTS.with(|fonts| {
+        let fonts = fonts.borrow();
+        let bytes = fonts
+            .get(font_id as usize)
+            .ok_or_else(|| JsError::new("unknown font id"))?;
+        layout_text(&req, bytes).ok_or_else(|| JsError::new("the font could not be read"))
+    })?;
+    serde_wasm_bindgen::to_value(&layout).map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// The live object (docs/specs/image-live-objects.md) as a
+/// `LiveObjectSpec` JS object, or `null` when nothing is live.
+#[wasm_bindgen]
+pub fn live_object(handle: u32) -> Result<JsValue, JsError> {
+    with_bus(handle, |bus| match live_object_spec(bus) {
+        Some(spec) => serde_wasm_bindgen::to_value(&spec).map_err(|e| JsError::new(&e.to_string())),
+        None => Ok(JsValue::NULL),
     })
 }
 
@@ -405,13 +457,103 @@ pub fn apply_effect(
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        let Some((region, after)) = effect_region(&bus.document, layer, &spec)? else {
-            return Ok(false);
-        };
-        let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
-        bus.apply(Box::new(cmd)).map_err(to_js)?;
-        Ok(true)
+        let region = effect_region(&bus.document, layer, &spec)?;
+        commit_region(bus, layer, &spec, region)
     })
+}
+
+/// Commits an effect's region as one undoable `SetPixels` labelled like
+/// the effect; `false` (no undo step) for `None`.
+fn commit_region(
+    bus: &mut CommandBus,
+    layer: usize,
+    spec: &EffectSpec,
+    region: Option<(Rect, ImageBuffer)>,
+) -> Result<bool, JsError> {
+    let Some((region, after)) = region else {
+        return Ok(false);
+    };
+    let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
+    bus.apply(Box::new(cmd)).map_err(to_js)?;
+    Ok(true)
+}
+
+/// Runs effect `name` / `params` on the layer at `layer` the way
+/// [`apply_effect`] does, but returns the result instead of committing it:
+/// empty when the selection is empty, otherwise a 16-byte header (x, y as
+/// little-endian `i32`, width, height as little-endian `u32`) followed by
+/// the region's RGBA8 pixels. The Image job worker computes it on a
+/// document snapshot and the page commits it with [`apply_effect_region`]
+/// (docs/specs/performance-background-jobs.md AC-07).
+#[wasm_bindgen]
+pub fn effect_region_bytes(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+) -> Result<Vec<u8>, JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    with_bus(handle, |bus| {
+        Ok(encode_region(effect_region(&bus.document, layer, &spec)?))
+    })
+}
+
+/// Commits `region` (bytes from [`effect_region_bytes`] for the same
+/// effect, layer and document state) to the layer at `layer` as the one
+/// undoable step [`apply_effect`] makes. Returns `false` (no undo step)
+/// for an empty region.
+#[wasm_bindgen]
+pub fn apply_effect_region(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+    region: &[u8],
+) -> Result<bool, JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    let region = decode_region(region).map_err(|e| JsError::new(&e))?;
+    with_bus(handle, |bus| {
+        if layer_locked(&bus.document, layer) {
+            return Err(JsError::new(LOCKED));
+        }
+        commit_region(bus, layer, &spec, region)
+    })
+}
+
+/// The wire form of an effect region (see [`effect_region_bytes`]).
+fn encode_region(region: Option<(Rect, ImageBuffer)>) -> Vec<u8> {
+    let Some((rect, pixels)) = region else {
+        return Vec::new();
+    };
+    let mut out = Vec::with_capacity(16 + pixels.data().len());
+    out.extend_from_slice(&rect.x.to_le_bytes());
+    out.extend_from_slice(&rect.y.to_le_bytes());
+    out.extend_from_slice(&rect.w.to_le_bytes());
+    out.extend_from_slice(&rect.h.to_le_bytes());
+    out.extend_from_slice(pixels.data());
+    out
+}
+
+/// Reads [`encode_region`]'s wire form back.
+fn decode_region(bytes: &[u8]) -> Result<Option<(Rect, ImageBuffer)>, String> {
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+    let field = |i: usize| -> Result<[u8; 4], String> {
+        bytes
+            .get(i * 4..i * 4 + 4)
+            .and_then(|b| b.try_into().ok())
+            .ok_or_else(|| "effect region header is truncated".to_string())
+    };
+    let rect = Rect {
+        x: i32::from_le_bytes(field(0)?),
+        y: i32::from_le_bytes(field(1)?),
+        w: u32::from_le_bytes(field(2)?),
+        h: u32::from_le_bytes(field(3)?),
+    };
+    let pixels =
+        ImageBuffer::from_raw(rect.w, rect.h, bytes[16..].to_vec()).map_err(|e| e.to_string())?;
+    Ok(Some((rect, pixels)))
 }
 
 /// Runs `spec` on the layer at `layer` and keeps the result inside the
@@ -620,6 +762,14 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     })
 }
 
+/// The document's stored resolution in pixels per inch (`DocumentMetadata::dpi`),
+/// read-only (docs/specs/image-view-aids.md AC-23; reused by
+/// docs/specs/image-resize-autocrop.md AC-01).
+#[wasm_bindgen]
+pub fn document_dpi(handle: u32) -> Result<f32, JsError> {
+    with_bus(handle, |bus| Ok(bus.document.metadata.dpi))
+}
+
 /// Returns a 32×32 RGBA8 thumbnail of the layer with `layer_id` as a
 /// `Uint8ClampedArray`, ready to wrap in an `ImageData` (spec §5.3, §17).
 #[wasm_bindgen]
@@ -690,6 +840,8 @@ fn to_js(e: pincel_image_core::DocumentError) -> JsError {
 #[cfg(test)]
 mod ts_bindings {
     use super::CommandSpec;
+    use pincel_image_core::TextLayout;
+    use pincel_image_core::command::live_spec::{LiveObjectSpec, TextLayoutRequest};
     use ts_rs::{Config, TS};
 
     /// Regenerates the TypeScript mirror of `CommandSpec` (Fineliner
@@ -704,6 +856,9 @@ mod ts_bindings {
             .with_large_int("number")
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
+        LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
+        TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
+        TextLayout::export_all(&cfg).expect("export TextLayout bindings");
     }
 }
 
@@ -1336,6 +1491,23 @@ mod export_tests {
 }
 
 #[cfg(test)]
+mod document_dpi_tests {
+    use super::*;
+
+    #[test]
+    fn document_dpi_reports_the_stored_resolution() {
+        let handle = create_document(4, 4).expect("doc");
+        assert_eq!(document_dpi(handle).expect("dpi"), 96.0);
+        let mut doc = Document::new(4, 4).expect("doc");
+        doc.metadata.dpi = 300.0;
+        let other = insert(CommandBus::new(doc));
+        assert_eq!(document_dpi(other).expect("dpi"), 300.0);
+        close_document(handle);
+        close_document(other);
+    }
+}
+
+#[cfg(test)]
 mod document_count_tests {
     use super::*;
 
@@ -1460,5 +1632,159 @@ mod effect_handle_tests {
             "half selected"
         );
         assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT, "unselected");
+    }
+}
+
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+
+    const BEGIN: &str = r#"{"type":"begin_live_shape","layer":1,"shape":"rectangle",
+        "points":[[1,1],[6,5]],"mode":"fill","fill_color":[255,0,0,255]}"#;
+
+    /// A document with a live rectangle on its top layer.
+    fn live_doc() -> u32 {
+        let mut doc = Document::new(8, 8).expect("doc");
+        doc.add_layer("Top").expect("layer");
+        let handle = insert(CommandBus::new(doc));
+        apply_command(handle, BEGIN).expect("begin");
+        handle
+    }
+
+    fn is_live(handle: u32) -> bool {
+        with_bus(handle, |bus| Ok(bus.live_object().is_some())).expect("bus")
+    }
+
+    fn depth(handle: u32) -> usize {
+        with_bus(handle, |bus| Ok(bus.history.undo_depth())).expect("bus")
+    }
+
+    /// An editor action run on a document handle, given PNG bytes to paste.
+    type Action = fn(u32, &[u8]);
+
+    #[test]
+    fn paths_beside_apply_command_commit_the_live_object_first() {
+        let png = pincel_image_core::codec::to_png_bytes(&ImageBuffer::new_transparent(2, 2), 1)
+            .expect("png");
+        let actions: [(&str, Action); 4] = [
+            ("effect", |h, _| {
+                apply_effect(h, 1, "invert", &[]).expect("effect");
+            }),
+            ("paste", |h, png| {
+                paste_layer(h, png, 0, 0, false).expect("paste")
+            }),
+            ("cut", |h, _| {
+                cut_selection(h).expect("cut");
+            }),
+            ("active layer", |h, _| {
+                set_active_layer(h, 0).expect("active")
+            }),
+        ];
+        for (name, action) in actions {
+            let handle = live_doc();
+            assert!(is_live(handle), "{name}");
+            action(handle, &png);
+            assert!(!is_live(handle), "{name} commits");
+            let committed = with_bus(handle, |bus| {
+                Ok(bus.history.undo_depth() >= 1 && !bus.history.can_redo())
+            })
+            .expect("bus");
+            assert!(committed, "{name}");
+        }
+    }
+
+    #[test]
+    fn save_and_export_while_live_do_not_commit() {
+        let handle = live_doc();
+        save_project(handle, 1).expect("save");
+        export_png(handle, 1).expect("export");
+        copy_selection(handle, true).expect("copy");
+        composite(handle).expect("composite");
+        assert!(is_live(handle));
+        assert_eq!(depth(handle), 1);
+    }
+}
+
+#[cfg(test)]
+mod effect_region_tests {
+    use super::*;
+
+    /// A 6 × 5 document with a pattern on its single layer and a 3 × 2
+    /// selection, open twice.
+    fn twins() -> (u32, u32) {
+        let make = || {
+            let mut doc = Document::new(6, 5).expect("doc");
+            for y in 0..5 {
+                for x in 0..6 {
+                    let v = (x * 40 + y * 13) as u8;
+                    doc.active_layer_mut().pixels.set_pixel(
+                        x,
+                        y,
+                        Color::rgba(v, 255 - v, v / 2, 255),
+                    );
+                }
+            }
+            insert(CommandBus::new(doc))
+        };
+        let (a, b) = (make(), make());
+        for h in [a, b] {
+            with_bus(h, |bus| {
+                bus.document.selection = Some(pincel_image_core::SelectionMask::rectangle(
+                    6,
+                    5,
+                    Rect {
+                        x: 1,
+                        y: 1,
+                        w: 3,
+                        h: 2,
+                    },
+                ));
+                Ok(())
+            })
+            .expect("select");
+        }
+        (a, b)
+    }
+
+    fn pixels_and_depth(handle: u32) -> (Vec<u8>, usize) {
+        with_bus(handle, |bus| {
+            Ok((
+                bus.document.layers()[0].pixels.data().to_vec(),
+                bus.history.undo_depth(),
+            ))
+        })
+        .expect("read")
+    }
+
+    #[test]
+    fn apply_effect_region_matches_apply_effect() {
+        for (name, params) in [("invert", vec![]), ("gaussian_blur", vec![2.0])] {
+            let (a, b) = twins();
+            assert!(apply_effect(a, 0, name, &params).expect("apply"));
+            let region = effect_region_bytes(b, 0, name, &params).expect("region");
+            assert!(apply_effect_region(b, 0, name, &params, &region).expect("commit"));
+            assert_eq!(pixels_and_depth(a), pixels_and_depth(b), "{name}");
+        }
+    }
+
+    #[test]
+    fn effect_region_bytes_round_trips_through_decode() {
+        let rect = Rect {
+            x: -2,
+            y: 3,
+            w: 2,
+            h: 1,
+        };
+        let pixels = ImageBuffer::from_raw(2, 1, vec![1, 2, 3, 4, 5, 6, 7, 8]).expect("buf");
+        let bytes = encode_region(Some((rect, pixels.clone())));
+        let (r, p) = decode_region(&bytes).expect("decode").expect("some");
+        assert_eq!((r.x, r.y, r.w, r.h), (-2, 3, 2, 1));
+        assert_eq!(p.data(), pixels.data());
+        assert!(
+            decode_region(&encode_region(None))
+                .expect("empty")
+                .is_none()
+        );
+        assert!(decode_region(&bytes[..10]).is_err());
     }
 }

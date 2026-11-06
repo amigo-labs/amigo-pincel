@@ -38,6 +38,9 @@ interface Bridge {
   files?: Record<string, number[]>;
   /** What `updater_state` answers. */
   updater?: { supported: boolean; autoUpdate: boolean; ready: string | null };
+  /** Files the OS handed over before the page listened (launch argument);
+   *  the first `take_open_files` returns them, later calls nothing. */
+  launchFiles?: string[];
 }
 
 interface Call {
@@ -59,6 +62,7 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
       checks: [] as ({ version: string | null } | { error: string })[],
       /** What `updater_set_auto` stores; `null` stores the requested value. */
       storeAuto: null as boolean | null,
+      launchFiles: [...(cfg.launchFiles ?? [])],
     };
     const invoke = async (cmd: string, args: Record<string, unknown> = {}): Promise<unknown> => {
       calls.push({ cmd, args: JSON.parse(JSON.stringify(args)) as Record<string, unknown> });
@@ -75,6 +79,8 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
           if (!bytes) throw `read ${String(args.path)}: No such file or directory (os error 2)`;
           return bytes;
         }
+        case 'take_open_files':
+          return state.launchFiles.splice(0);
         case 'updater_state':
           return { ...state.updater };
         case 'updater_check': {
@@ -222,6 +228,21 @@ test.describe('desktop on Linux', () => {
     await expectActive(page, 'sprite.aseprite');
     expect(await tabNames(page)).toEqual(['sprite.aseprite', 'pic.png', 'other.png']);
     await expect(unsaved(page)).toHaveCount(0);
+  });
+
+  test('a file passed at launch, before the page listens, opens instead of the start screen (AC-04)', async ({
+    page,
+  }) => {
+    await desktop(page, {
+      files: { '/home/u/pic.png': await bytes(PNG) },
+      launchFiles: ['/home/u/pic.png'],
+    });
+    await page.goto('./');
+    await waitForEditor(page, 'image');
+    await expect(docTitle(page, 'pic.png')).toBeVisible();
+    expect(await calls(page, 'read_file_bytes')).toEqual([
+      { cmd: 'read_file_bytes', args: { path: '/home/u/pic.png' } },
+    ]);
   });
 
   test('a .psd the OS hands over opens in Image mode; the open dialog offers .psd (psd-import AC-11, AC-13)', async ({

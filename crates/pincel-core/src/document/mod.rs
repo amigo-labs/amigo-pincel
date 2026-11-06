@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 
 use crate::error::DocumentError;
 use crate::geometry::Rect;
-use crate::selection::SelectionMask;
+use crate::selection::{SelectionMask, SelectionMode};
 
 /// Free-form metadata associated with a sprite.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -134,6 +134,26 @@ impl Sprite {
                 self.selection_mask = if mask.is_rect() { None } else { Some(mask) };
             }
         }
+    }
+
+    /// Combine `shape` (a canvas-sized mask) into the selection per `mode`,
+    /// as the editor's selection tools do. With no selection, `subtract`
+    /// and `intersect` leave nothing selected and `add` selects the shape.
+    pub fn combine_selection(&mut self, shape: SelectionMask, mode: SelectionMode) {
+        let mask = match (mode, self.selection_as_mask()) {
+            (SelectionMode::Replace, _) | (_, None) => {
+                if matches!(mode, SelectionMode::Subtract | SelectionMode::Intersect) {
+                    SelectionMask::empty(self.width, self.height)
+                } else {
+                    shape
+                }
+            }
+            (mode, Some(mut base)) => {
+                base.combine(&shape, mode);
+                base
+            }
+        };
+        self.set_selection_mask(mask);
     }
 
     /// Drop the active marquee selection, if any.
@@ -452,6 +472,26 @@ mod tests {
             .expect("minimal sprite should build");
         assert_eq!(s.selection, None);
         assert!(!s.has_selection());
+    }
+
+    #[test]
+    fn combine_selection_without_selection_adds_but_never_subtracts() {
+        let mut s = Sprite::builder(8, 8).build().expect("sprite");
+        let shape = SelectionMask::rect(8, 8, Rect::new(1, 1, 3, 3));
+        s.combine_selection(shape.clone(), SelectionMode::Subtract);
+        assert!(!s.has_selection());
+        s.combine_selection(shape.clone(), SelectionMode::Intersect);
+        assert!(!s.has_selection());
+        s.combine_selection(shape, SelectionMode::Add);
+        assert_eq!(s.selection, Some(Rect::new(1, 1, 3, 3)));
+        assert_eq!(s.selection_mask, None);
+        s.combine_selection(
+            SelectionMask::rect(8, 8, Rect::new(2, 2, 1, 1)),
+            SelectionMode::Subtract,
+        );
+        assert!(s.selection_mask.is_some());
+        assert!(!s.selection_contains(2, 2));
+        assert!(s.selection_contains(1, 1));
     }
 
     #[test]

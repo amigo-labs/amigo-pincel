@@ -26,7 +26,7 @@ const PNG_1X1 = Buffer.from(
   'base64',
 );
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} · sRGB`);
+const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px · sRGB`);
 
 function card(page: Page): Locator {
   return page.getByRole('region', { name: 'Image on the clipboard' });

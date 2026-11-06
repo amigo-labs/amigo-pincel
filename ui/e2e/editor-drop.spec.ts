@@ -58,7 +58,7 @@ const layerRows = (page: Page, mode: Mode) =>
 
 /** The status bar's document size. */
 const sizeShown = (page: Page, mode: Mode, [w, h]: [number, number]) =>
-  page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`, { exact: true });
+  page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, { exact: true });
 
 const overlay = (page: Page) => page.getByText('Drop to add or open', { exact: true });
 const dropDialog = (page: Page) => page.getByRole('dialog', { name: 'Dropped images' });

@@ -97,8 +97,8 @@ fn tag_tools_change_and_list_tags() {
     assert_eq!(
         tags,
         json!([
-            { "index": 0, "name": "walk", "from": 0, "to": 1, "direction": "forward" },
-            { "index": 1, "name": "jump", "from": 1, "to": 2, "direction": "pingpong" },
+            { "index": 0, "name": "walk", "from": 0, "to": 1, "direction": "forward", "color": "#5B8DEF" },
+            { "index": 1, "name": "jump", "from": 1, "to": 2, "direction": "pingpong", "color": "#E0A83C" },
         ])
     );
     s.ok("tag.remove", json!({ "tag": 0 }));
@@ -109,6 +109,16 @@ fn tag_tools_change_and_list_tags() {
         s.err("tag.add", json!({ "name": "x", "from": 0, "to": 9 }))
             .contains("frame 9")
     );
+}
+
+/// The entry colors of a `palette.get` result.
+pub(super) fn colors(palette: &serde_json::Value) -> Vec<String> {
+    palette["entries"]
+        .as_array()
+        .expect("entries")
+        .iter()
+        .map(|e| e["color"].as_str().expect("color").to_owned())
+        .collect()
 }
 
 #[test]
@@ -122,8 +132,8 @@ fn palette_tools_set_and_load_presets() {
         json!({ "entries": ["#000000", "#FF000080"] }),
     );
     assert_eq!(
-        s.ok("palette.get", json!({}))["entries"],
-        json!(["#000000FF", "#FF000080"])
+        colors(&s.ok("palette.get", json!({}))),
+        ["#000000FF", "#FF000080"]
     );
     for preset in PalettePreset::ALL {
         s.ok("palette.load_preset", json!({ "preset": preset.name() }));
@@ -132,7 +142,7 @@ fn palette_tools_set_and_load_presets() {
             .iter()
             .map(|e| hex(e.rgba))
             .collect();
-        assert_eq!(s.ok("palette.get", json!({}))["entries"], json!(expected));
+        assert_eq!(colors(&s.ok("palette.get", json!({}))), expected);
     }
     let e = s.err("palette.set", json!({ "entries": ["#00000"] }));
     assert!(e.contains("entries[0]"), "{e}");

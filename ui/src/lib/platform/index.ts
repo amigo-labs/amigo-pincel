@@ -44,3 +44,14 @@ export function isMac(): boolean {
 export function hasNativeMenu(): boolean {
   return isTauri() && isMac();
 }
+
+/** True in an installed web app's own window (display mode `standalone` or
+ *  `window-controls-overlay`) rather than a browser tab. Such a window gets
+ *  chords a tab leaves to the browser, like Ctrl+N
+ *  (docs/specs/power-user-shortcuts-coverage.md AC-20). */
+export function isInstalledWindow(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return ['standalone', 'window-controls-overlay'].some(
+    (mode) => window.matchMedia(`(display-mode: ${mode})`).matches,
+  );
+}

@@ -7,6 +7,7 @@ import { core } from './wasm';
 import {
   docInit,
   editor,
+  live,
   selectionPreview,
   shapePreview,
   tabs,
@@ -54,7 +55,12 @@ export function openTab(handle: number, file: DocumentFile): ImageTab {
 export function activateTab(tab: ImageTab): void {
   if (tabs.active === tab) return;
   gestureControl.cancel();
+  // The live object is committed in the tab it belongs to (AC-09).
+  gestureControl.commitLive();
   tabs.active = tab;
+  // Only the active tab can have a live object, and switching committed it.
+  live.object = null;
+  live.cursor = null;
   editor.previewComposite = null;
   editor.notice = null;
   selectionPreview.value = null;

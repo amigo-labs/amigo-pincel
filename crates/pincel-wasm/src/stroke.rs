@@ -5,7 +5,8 @@
 //! pixels.
 
 use pincel_core::{
-    BrushShape, FrameIndex, Ink, LayerId, Mirror, PencilStroke, PixelBrush, Point, Rgba, Wrap,
+    BrushShape, DirtyRegion, FrameIndex, Ink, LayerId, Mirror, PencilStroke, PixelBrush, Point,
+    Rect, Rgba, Wrap,
 };
 use wasm_bindgen::prelude::*;
 
@@ -145,11 +146,94 @@ impl Document {
     /// interpolated linearly between consecutive points.
     #[wasm_bindgen(js_name = strokeTo)]
     pub fn stroke_to(&mut self, x: i32, y: i32, pressure: Option<f32>) -> Result<(), String> {
+        let dirty = self.stroke_point(x, y, pressure.unwrap_or(1.0))?;
+        if let Some(ev) = Event::from_dirty(dirty) {
+            self.events.push(ev);
+        }
+        Ok(())
+    }
+
+    /// [`Self::stroke_to`] for several pointer samples at once — all
+    /// samples of one animation frame (`docs/specs/performance-input-path.md`).
+    /// Paints exactly what calling `strokeTo` once per point would, but
+    /// emits one `dirty-rect` covering the whole batch.
+    ///
+    /// - `xy`: the sprite-space points as `x0, y0, x1, y1, …`.
+    /// - `pressure`: empty for full pressure at every point, otherwise one
+    ///   value per point (as `strokeTo`'s `pressure`).
+    ///
+    /// Errors for an odd `xy` length, a `pressure` length that is neither
+    /// zero nor the point count, or no stroke in progress; points before a
+    /// failing one stay painted.
+    #[wasm_bindgen(js_name = strokeToBatch)]
+    pub fn stroke_to_batch(&mut self, xy: &[i32], pressure: &[f32]) -> Result<(), String> {
+        if !xy.len().is_multiple_of(2) {
+            return Err(format!("odd coordinate count: {}", xy.len()));
+        }
+        let count = xy.len() / 2;
+        if !pressure.is_empty() && pressure.len() != count {
+            return Err(format!(
+                "{} pressure values for {count} points",
+                pressure.len()
+            ));
+        }
+        let mut dirty = DirtyRegion::None;
+        let mut result = Ok(());
+        for (i, &[x, y]) in xy.as_chunks::<2>().0.iter().enumerate() {
+            match self.stroke_point(x, y, pressure.get(i).copied().unwrap_or(1.0)) {
+                Ok(d) => dirty = union_dirty(dirty, d),
+                Err(e) => {
+                    result = Err(e);
+                    break;
+                }
+            }
+        }
+        if let Some(ev) = Event::from_dirty(dirty) {
+            self.events.push(ev);
+        }
+        result
+    }
+}
+
+/// The region covering both `a` and `b`: their bounding box when both are
+/// rects on the same cel, the whole canvas when they are on different cels.
+fn union_dirty(a: DirtyRegion, b: DirtyRegion) -> DirtyRegion {
+    match (a, b) {
+        (DirtyRegion::None, r) | (r, DirtyRegion::None) => r,
+        (
+            DirtyRegion::Layer {
+                layer,
+                frame,
+                rect: ra,
+            },
+            DirtyRegion::Layer {
+                layer: lb,
+                frame: fb,
+                rect: rb,
+            },
+        ) if layer == lb && frame == fb => {
+            let x0 = ra.x.min(rb.x);
+            let y0 = ra.y.min(rb.y);
+            let x1 =
+                (i64::from(ra.x) + i64::from(ra.width)).max(i64::from(rb.x) + i64::from(rb.width));
+            let y1 = (i64::from(ra.y) + i64::from(ra.height))
+                .max(i64::from(rb.y) + i64::from(rb.height));
+            let w = (x1 - i64::from(x0)).clamp(0, i64::from(u32::MAX)) as u32;
+            let h = (y1 - i64::from(y0)).clamp(0, i64::from(u32::MAX)) as u32;
+            DirtyRegion::layer_rect(layer, frame, Rect::new(x0, y0, w, h))
+        }
+        _ => DirtyRegion::Canvas,
+    }
+}
+
+impl Document {
+    /// One point of the gesture in progress (see [`Self::stroke_to`]);
+    /// returns what it changed instead of emitting the event.
+    fn stroke_point(&mut self, x: i32, y: i32, pressure: f32) -> Result<DirtyRegion, String> {
         let Some(live) = self.stroke.clone() else {
             return Err("no stroke in progress: call beginStroke first".to_string());
         };
         let to = Point::new(x, y);
-        let pressure = pressure.unwrap_or(1.0);
         let extended = live.started
             && self
                 .bus
@@ -183,10 +267,7 @@ impl Document {
                 ..live
             });
         }
-        if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {
-            self.events.push(ev);
-        }
-        Ok(())
+        Ok(self.bus.last_dirty_region())
     }
 }
 
@@ -675,5 +756,146 @@ mod tests {
             doc.begin_shading_stroke(&[R0], 1, 1, "oval", false)
                 .is_err()
         );
+    }
+
+    /// Every pixel of a `w`×`h` document, row by row.
+    fn all_pixels(doc: &Document, w: i32, h: i32) -> Vec<u32> {
+        (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .map(|(x, y)| px(doc, x, y))
+            .collect()
+    }
+
+    /// A deterministic wandering drag: `n` points with jumps of up to
+    /// ±`step` pixels, plus a pressure per point.
+    fn wander(n: usize, step: i32, seed: u32) -> (Vec<i32>, Vec<f32>) {
+        let mut state = seed;
+        let mut next = move || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            state >> 8
+        };
+        let (mut x, mut y) = (16, 16);
+        let mut xy = Vec::with_capacity(n * 2);
+        let mut pressure = Vec::with_capacity(n);
+        for _ in 0..n {
+            x = (x + (next() % (2 * step as u32 + 1)) as i32 - step).clamp(-4, 36);
+            y = (y + (next() % (2 * step as u32 + 1)) as i32 - step).clamp(-4, 36);
+            xy.extend([x, y]);
+            pressure.push((next() % 100) as f32 / 99.0);
+        }
+        (xy, pressure)
+    }
+
+    #[test]
+    fn stroke_to_batch_matches_per_sample_stroke_to() {
+        // (tool, size, shape, pixel-perfect, with pressure)
+        let cases = [
+            ("pencil", 1, "square", false, false),
+            ("pencil", 1, "square", true, false),
+            ("pencil", 3, "round", false, true),
+            ("pencil", 8, "square", false, true),
+            ("eraser", 2, "round", false, false),
+        ];
+        for (seed, &(tool, size, shape, pp, with_pressure)) in cases.iter().enumerate() {
+            let (xy, pressure) = wander(60, 5, seed as u32 + 7);
+            let pressure: &[f32] = if with_pressure { &pressure } else { &[] };
+            let make = || {
+                let mut doc = Document::new(32, 32).expect("dims");
+                if tool == "eraser" {
+                    gesture(
+                        &mut doc,
+                        "pencil",
+                        8,
+                        "square",
+                        false,
+                        &[(0, 0), (31, 31), (0, 31)],
+                    );
+                }
+                doc
+            };
+            let mut one_by_one = make();
+            one_by_one
+                .begin_stroke(tool, BLUE, size, shape, pp)
+                .expect("begin");
+            for (i, &[x, y]) in xy.as_chunks::<2>().0.iter().enumerate() {
+                one_by_one
+                    .stroke_to(x, y, pressure.get(i).copied())
+                    .expect("stroke");
+            }
+            one_by_one.end_stroke();
+            // Batched as a frame loop would: uneven batches of 1–9 points.
+            let mut batched = make();
+            batched
+                .begin_stroke(tool, BLUE, size, shape, pp)
+                .expect("begin");
+            let mut start = 0;
+            let mut len = 1;
+            while start < xy.len() / 2 {
+                let end = (start + len).min(xy.len() / 2);
+                let pr = if pressure.is_empty() {
+                    &[][..]
+                } else {
+                    &pressure[start..end]
+                };
+                batched
+                    .stroke_to_batch(&xy[start * 2..end * 2], pr)
+                    .expect("batch");
+                start = end;
+                len = len % 9 + 1;
+            }
+            batched.end_stroke();
+            assert_eq!(
+                all_pixels(&batched, 32, 32),
+                all_pixels(&one_by_one, 32, 32),
+                "{tool} size {size} {shape} pp={pp} pressure={with_pressure}"
+            );
+            assert_eq!(
+                batched.undo_depth(),
+                one_by_one.undo_depth(),
+                "one undo entry"
+            );
+        }
+    }
+
+    #[test]
+    fn stroke_to_batch_passes_through_every_sample() {
+        let mut doc = Document::new(32, 32).expect("dims");
+        doc.drain_events();
+        let samples = [(2, 2), (9, 4), (14, 13), (5, 20), (25, 28), (30, 3)];
+        let xy: Vec<i32> = samples.iter().flat_map(|&(x, y)| [x, y]).collect();
+        doc.begin_stroke("pencil", RED, 1, "square", false)
+            .expect("begin");
+        doc.stroke_to_batch(&xy, &[]).expect("batch");
+        doc.end_stroke();
+        for (x, y) in samples {
+            assert_eq!(px(&doc, x, y), RED, "sample ({x}, {y}) painted");
+        }
+        // One dirty-rect for the whole batch, covering every sample.
+        let events = doc.drain_events();
+        assert_eq!(events.len(), 1, "one event per batch");
+        let ev = &events[0];
+        assert_eq!(ev.kind(), "dirty-rect");
+        assert_eq!((ev.x(), ev.y()), (2, 2));
+        assert_eq!((ev.width(), ev.height()), (29, 27));
+    }
+
+    #[test]
+    fn stroke_to_batch_rejects_bad_lengths_and_missing_stroke() {
+        let mut doc = Document::new(4, 4).expect("dims");
+        assert!(doc.stroke_to_batch(&[1, 1], &[]).is_err(), "no stroke");
+        doc.begin_stroke("pencil", RED, 1, "square", false)
+            .expect("begin");
+        assert!(doc.stroke_to_batch(&[1, 1, 2], &[]).is_err(), "odd xy");
+        assert!(
+            doc.stroke_to_batch(&[1, 1, 2, 2], &[1.0]).is_err(),
+            "pressure count"
+        );
+        assert!(
+            painted(&doc, 4, 4, RED).is_empty(),
+            "rejected batches paint nothing"
+        );
+        doc.stroke_to_batch(&[], &[])
+            .expect("empty batch is a no-op");
+        assert!(doc.drain_events().is_empty());
     }
 }

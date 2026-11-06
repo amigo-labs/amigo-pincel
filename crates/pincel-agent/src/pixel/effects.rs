@@ -48,8 +48,34 @@ enum Wire {
 
 pub(crate) struct EffectDef {
     pub id: &'static str,
+    /// The parameters with the Image editor's defaults (the catalog's).
     pub params: &'static [Param],
+    /// Pixel-mode default overrides by parameter (the catalog's
+    /// `modeDefaults.pixel`); a choice's value is its option index.
+    pub pixel: &'static [(&'static str, f64)],
     wire: Wire,
+}
+
+impl EffectDef {
+    /// The default of parameter `p` in a document of the given mode, as a
+    /// wire number (choice index, 0 / 1 for a flag, packed RGBA).
+    pub(crate) fn default_of(&self, p: &Param, image: bool) -> f64 {
+        let over = (!image)
+            .then(|| self.pixel.iter().find(|(k, _)| *k == p.key))
+            .flatten();
+        match (over, p.kind) {
+            (Some((_, v)), _) => *v,
+            (None, Kind::Number { default, .. }) => default,
+            (None, Kind::Bool { default }) => f64::from(u8::from(default)),
+            (None, Kind::Choice { default, .. }) => default as f64,
+            (None, Kind::Color { default }) => f64::from(default),
+        }
+    }
+
+    /// The same definition with Pixel-mode default overrides.
+    const fn with_pixel(self, pixel: &'static [(&'static str, f64)]) -> Self {
+        EffectDef { pixel, ..self }
+    }
 }
 
 const fn num(key: &'static str, min: f64, max: f64, default: f64) -> Param {
@@ -98,6 +124,7 @@ const fn plain(id: &'static str, params: &'static [Param]) -> EffectDef {
     EffectDef {
         id,
         params,
+        pixel: &[],
         wire: Wire::Plain,
     }
 }
@@ -205,6 +232,7 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("y192", 0.0, 255.0, 192.0),
             num("y255", 0.0, 255.0, 255.0),
         ],
+        pixel: &[],
         wire: Wire::Curves,
     },
     EffectDef {
@@ -217,6 +245,7 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             num("out_black", 0.0, 255.0, 0.0),
             num("out_white", 0.0, 255.0, 255.0),
         ],
+        pixel: &[],
         wire: Wire::Levels,
     },
     plain(
@@ -374,10 +403,11 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
         "pixelate",
         &[
             num("cell_size", 2.0, 200.0, 8.0),
-            // Pixel mode's default: the centre pixel adds no colour.
-            choice_at("color", &["average", "centre"], 1),
+            choice("color", &["average", "centre"]),
         ],
-    ),
+    )
+    // Pixel mode samples the centre pixel, which adds no colour.
+    .with_pixel(&[("color", 1.0)]),
     plain(
         "polar_inversion",
         &[
@@ -413,11 +443,13 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
         &[
             num("offset_x", -100.0, 100.0, 4.0),
             num("offset_y", -100.0, 100.0, 4.0),
-            num("blur", 0.0, 50.0, 0.0),
+            num("blur", 0.0, 50.0, 4.0),
             color("color", 0x0000_00FF),
             num("opacity", 0.0, 100.0, 50.0),
         ],
-    ),
+    )
+    // Pixel mode keeps the shadow hard.
+    .with_pixel(&[("blur", 0.0)]),
     plain(
         "stylize_outline",
         &[
@@ -604,8 +636,14 @@ pub(crate) fn catalog_summary() -> String {
 }
 
 /// Build the wire vector for effect `id` from named `params`, checking
-/// every name and range.
-pub(crate) fn wire_params(id: &str, params: &Map<String, Value>) -> Result<Vec<f64>, AgentError> {
+/// every name and range; omitted parameters take the defaults of the
+/// editor of the document's mode (`image`; mcp-parity-drawing-image
+/// AC-09 … AC-11).
+pub(crate) fn wire_params(
+    id: &str,
+    params: &Map<String, Value>,
+    image: bool,
+) -> Result<Vec<f64>, AgentError> {
     let def = EFFECTS.iter().find(|e| e.id == id).ok_or_else(|| {
         AgentError::tool(format!(
             "unknown effect id `{id}`; known ids: {}",
@@ -627,7 +665,11 @@ pub(crate) fn wire_params(id: &str, params: &Map<String, Value>) -> Result<Vec<f
     }
     let mut values = Vec::with_capacity(def.params.len());
     for p in def.params {
-        values.push(value_of(id, p, params.get(p.key))?);
+        let value = match params.get(p.key) {
+            Some(v) => value_of(id, p, v)?,
+            None => def.default_of(p, image),
+        };
+        values.push(value);
     }
     Ok(match def.wire {
         Wire::Plain => values,
@@ -650,12 +692,9 @@ pub(crate) fn wire_params(id: &str, params: &Map<String, Value>) -> Result<Vec<f
     })
 }
 
-fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
+fn value_of(id: &str, p: &Param, v: &Value) -> Result<f64, AgentError> {
     match p.kind {
-        Kind::Number { min, max, default } => {
-            let Some(v) = v else {
-                return Ok(default);
-            };
+        Kind::Number { min, max, .. } => {
             let n = v.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
                 AgentError::tool(format!(
                     "parameter `{}` of `{id}` must be a number {min}–{max}",
@@ -670,19 +709,17 @@ fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
             }
             Ok(n)
         }
-        Kind::Bool { default } => match v {
-            None => Ok(f64::from(u8::from(default))),
-            Some(Value::Bool(b)) => Ok(f64::from(u8::from(*b))),
-            Some(_) => Err(AgentError::tool(format!(
+        Kind::Bool { .. } => match v {
+            Value::Bool(b) => Ok(f64::from(u8::from(*b))),
+            _ => Err(AgentError::tool(format!(
                 "parameter `{}` of `{id}` must be true or false",
                 p.key
             ))),
         },
-        Kind::Choice { options, default } => {
+        Kind::Choice { options, .. } => {
             let idx = match v {
-                None => Some(default),
-                Some(Value::String(s)) => options.iter().position(|o| o == s),
-                Some(v) => v
+                Value::String(s) => options.iter().position(|o| o == s),
+                v => v
                     .as_u64()
                     .and_then(|i| usize::try_from(i).ok())
                     .filter(|&i| i < options.len()),
@@ -695,11 +732,10 @@ fn value_of(id: &str, p: &Param, v: Option<&Value>) -> Result<f64, AgentError> {
                 ))
             })
         }
-        Kind::Color { default } => {
+        Kind::Color { .. } => {
             let rgba = match v {
-                None => Some(default),
-                Some(Value::String(s)) => parse_hex(s).map(|c| c.to_u32()),
-                Some(_) => None,
+                Value::String(s) => parse_hex(s).map(|c| c.to_u32()),
+                _ => None,
             };
             rgba.map(f64::from).ok_or_else(|| {
                 AgentError::tool(format!(
@@ -721,6 +757,58 @@ mod tests {
         v.as_object().cloned().unwrap_or_default()
     }
 
+    /// The default wire vector of every effect per mode, colour slots
+    /// `null` (mcp-parity-drawing-image AC-11). `ui/e2e/effect-defaults.spec.ts`
+    /// checks the editor's catalog against the committed copy.
+    fn default_wires() -> String {
+        let mut out = serde_json::Map::new();
+        for e in EFFECTS {
+            let mut modes = serde_json::Map::new();
+            for (mode, image) in [("pixel", false), ("image", true)] {
+                let wire = wire_params(e.id, &Map::new(), image).expect("defaults");
+                let plain = e.wire == Wire::Plain;
+                let slots: Vec<Value> = wire
+                    .iter()
+                    .enumerate()
+                    .map(|(i, v)| {
+                        let colour = plain
+                            && e.params
+                                .get(i)
+                                .is_some_and(|p| matches!(p.kind, Kind::Color { .. }));
+                        if colour { Value::Null } else { json!(v) }
+                    })
+                    .collect();
+                modes.insert(mode.to_owned(), Value::Array(slots));
+            }
+            out.insert(e.id.to_owned(), Value::Object(modes));
+        }
+        let mut text = serde_json::to_string_pretty(&Value::Object(out)).expect("json");
+        text.push('\n');
+        text
+    }
+
+    #[test]
+    fn effect_defaults_file_is_current() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/effect-defaults.json");
+        let want = default_wires();
+        let have = std::fs::read_to_string(path)
+            .unwrap_or_default()
+            .replace("\r\n", "\n");
+        if have != want {
+            std::fs::write(path, &want).expect("write effect-defaults.json");
+            panic!("{path} was stale and has been regenerated; commit it");
+        }
+    }
+
+    #[test]
+    fn pixel_and_image_defaults_differ_where_the_editors_do() {
+        let pixelate = |image| wire_params("pixelate", &Map::new(), image).expect("ok");
+        assert_eq!(pixelate(true), vec![8.0, 0.0], "Image: average colour");
+        assert_eq!(pixelate(false), vec![8.0, 1.0], "Pixel: centre pixel");
+        let blur = |image| wire_params("drop_shadow", &Map::new(), image).expect("ok")[2];
+        assert_eq!((blur(true), blur(false)), (4.0, 0.0));
+    }
+
     #[test]
     fn catalog_covers_every_effect_in_menu_order() {
         assert_eq!(effect_ids(), EFFECT_NAMES);
@@ -729,14 +817,14 @@ mod tests {
     #[test]
     fn wire_params_defaults_build_valid_specs_for_every_effect() {
         for e in EFFECTS {
-            let wire = wire_params(e.id, &Map::new()).expect("defaults are in range");
+            let wire = wire_params(e.id, &Map::new(), true).expect("defaults are in range");
             pincel_effects::EffectSpec::from_params(e.id, &wire).expect("spec accepts defaults");
         }
     }
 
     #[test]
     fn wire_params_out_of_range_names_parameter_and_range() {
-        let err = wire_params("gaussian_blur", &map(json!({ "radius": 300 }))).unwrap_err();
+        let err = wire_params("gaussian_blur", &map(json!({ "radius": 300 })), true).unwrap_err();
         assert_eq!(
             err,
             AgentError::tool("parameter `radius` of `gaussian_blur` must be 0.1–250, got 300")
@@ -745,14 +833,15 @@ mod tests {
 
     #[test]
     fn wire_params_levels_scales_points_like_the_editor() {
-        let w = wire_params("levels", &map(json!({ "in_white": 51, "gamma": 2 }))).expect("ok");
+        let w =
+            wire_params("levels", &map(json!({ "in_white": 51, "gamma": 2 })), true).expect("ok");
         assert_eq!(w, vec![0.0, 0.0, 0.2, 2.0, 0.0, 1.0]);
     }
 
     #[test]
     fn wire_params_choice_accepts_name_or_index() {
-        let a = wire_params("radial_blur", &map(json!({ "kind": "zoom" }))).expect("ok");
-        let b = wire_params("radial_blur", &map(json!({ "kind": 1 }))).expect("ok");
+        let a = wire_params("radial_blur", &map(json!({ "kind": "zoom" })), true).expect("ok");
+        let b = wire_params("radial_blur", &map(json!({ "kind": 1 })), true).expect("ok");
         assert_eq!(a, b);
         assert_eq!(a[3], 1.0);
     }
@@ -761,20 +850,21 @@ mod tests {
     /// as one `0xRRGGBBAA` slot, like the editor's colour control.
     #[test]
     fn wire_params_outline_colour_is_one_rrggbbaa_slot() {
-        let d = wire_params("outline", &Map::new()).expect("defaults");
+        let d = wire_params("outline", &Map::new(), true).expect("defaults");
         assert_eq!(d, vec![0.0, 1.0, 1.0, f64::from(0x0000_00FF_u32)]);
         let w = wire_params(
             "outline",
             &map(
                 json!({ "place": "both", "shape": "circle", "thickness": 3, "color": "#FF801080" }),
             ),
+            true,
         )
         .expect("ok");
         assert_eq!(w, vec![2.0, 0.0, 3.0, f64::from(0xFF80_1080_u32)]);
-        let opaque = wire_params("outline", &map(json!({ "color": "#ff8010" }))).expect("ok");
+        let opaque = wire_params("outline", &map(json!({ "color": "#ff8010" })), true).expect("ok");
         assert_eq!(opaque[3], f64::from(0xFF80_10FF_u32));
         for bad in [json!("red"), json!("#ff80"), json!(255)] {
-            let err = wire_params("outline", &map(json!({ "color": bad }))).unwrap_err();
+            let err = wire_params("outline", &map(json!({ "color": bad })), true).unwrap_err();
             assert_eq!(
                 err,
                 AgentError::tool(
@@ -782,6 +872,6 @@ mod tests {
                 )
             );
         }
-        assert!(wire_params("outline", &map(json!({ "thickness": 9 }))).is_err());
+        assert!(wire_params("outline", &map(json!({ "thickness": 9 })), true).is_err());
     }
 }

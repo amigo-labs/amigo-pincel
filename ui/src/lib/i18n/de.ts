@@ -22,7 +22,8 @@ export const de: Record<MessageKey, string> = {
   'shell.loadingEditor': '{mode}-Editor wird geladen…',
   'shell.couldNotOpen': '{name} konnte nicht geöffnet werden: {error}',
   'shell.newDocument': 'Neues {mode}-Dokument',
-  'shell.ignoredPrompt': '{name} wurde nicht geöffnet: Eine Abfrage zu ungespeicherten Änderungen ist offen',
+  'shell.ignoredPrompt':
+    '{name} wurde nicht geöffnet: Eine Abfrage zu ungespeicherten Änderungen ist offen',
   'shell.saveFailed': 'Speichern von {name} fehlgeschlagen: {error}',
   'shell.dismiss': 'Schließen',
 
@@ -63,6 +64,8 @@ export const de: Record<MessageKey, string> = {
   'start.newImageHint':
     'Ebenen, weiche Pinsel, Auswahlen, Effekte. Speichert als .ora; exportiert PNG / JPEG / WebP.',
   'start.open': 'Öffnen…',
+  'start.unsupportedBrowser':
+    'Dieser Browser ist zu alt für Pincel (benötigt Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',
   'start.openHint':
     '.aseprite öffnet im Pixel-Modus; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF und PSD öffnen im Bild-Modus.',
   'start.recent': 'Zuletzt geöffnet',
@@ -146,6 +149,20 @@ export const de: Record<MessageKey, string> = {
   'color.hex': 'Hex',
   'color.hexLabel': 'Hex-Wert der Vordergrundfarbe',
   'color.alpha': 'Deckkraft der Vordergrundfarbe',
+  'color.pickerFg': 'Farbwähler Vordergrundfarbe',
+  'color.pickerBg': 'Farbwähler Hintergrundfarbe',
+  'color.closePicker': 'Farbwähler schließen',
+  'color.satValue': 'Sättigung und Hellwert',
+  'color.satValueText': 'Sättigung {s} %, Hellwert {v} %',
+  'color.hue': 'Farbton',
+  'color.alphaSlider': 'Alpha',
+  'color.hexField': 'Hex-Farbwert',
+  'color.red': 'Rot',
+  'color.green': 'Grün',
+  'color.blue': 'Blau',
+  'color.alphaChannel': 'Alphawert',
+  'color.recent': 'Zuletzt verwendete Farben',
+  'color.palette': 'Farbpalette',
 
   // Language menu
   'menu.language': 'Sprache',
@@ -215,7 +232,8 @@ export const de: Record<MessageKey, string> = {
   'pressure.opacity': 'Deckkraft',
   'pressure.hint': 'Was der Druck eines Stifts verändert (Maus und Finger malen mit vollem Druck)',
   'tilt.angle': 'Neigung dreht die Spitze',
-  'tilt.hint': 'Eine flache Spitze folgt der Richtung, in die der Stift geneigt ist (Stifte ohne Neigung nutzen den Winkel)',
+  'tilt.hint':
+    'Eine flache Spitze folgt der Richtung, in die der Stift geneigt ist (Stifte ohne Neigung nutzen den Winkel)',
 
   // Menus
   'menu.file': 'Datei',
@@ -282,8 +300,10 @@ export const de: Record<MessageKey, string> = {
   'copy.failed': 'Kopieren fehlgeschlagen: {error}',
   'cut.imageLayersOnly': 'Ausschneiden geht nur auf Bildebenen',
   'paste.largerTitle': 'Größeres Bild einfügen',
-  'paste.larger': 'Das eingefügte Bild ({w} × {h}) ist größer als die Leinwand. Leinwand passend vergrößern?',
-  'paste.tooLarge': 'Das eingefügte Bild ({w} × {h}) ist größer als die Leinwand und zu groß, um sie darauf zu vergrößern. Es wird beschnitten.',
+  'paste.larger':
+    'Das eingefügte Bild ({w} × {h}) ist größer als die Leinwand. Leinwand passend vergrößern?',
+  'paste.tooLarge':
+    'Das eingefügte Bild ({w} × {h}) ist größer als die Leinwand und zu groß, um sie darauf zu vergrößern. Es wird beschnitten.',
   'paste.expand': 'Leinwand vergrößern',
   'paste.keep': 'Leinwandgröße beibehalten',
   'paste.newImageName': 'Eingefügtes Bild.png',
@@ -312,6 +332,8 @@ export const de: Record<MessageKey, string> = {
   'menu.resizeCanvas': 'Arbeitsfläche ändern…',
   'menu.scaleImage': 'Bild skalieren…',
   'menu.crop': 'Auf Auswahl zuschneiden',
+  'menu.autoCrop': 'Automatisch zuschneiden',
+  'image.nothingToCrop': 'Nichts zum Zuschneiden',
   'menu.newGroup': 'Neue Gruppe',
   'menu.newLayer': 'Neue Ebene',
   'menu.duplicateLayer': 'Ebene duplizieren',
@@ -332,6 +354,17 @@ export const de: Record<MessageKey, string> = {
   'menu.zoomActual': 'Originalgröße',
   'menu.showPixelGrid': 'Pixelraster anzeigen',
   'menu.showGrid': 'Raster anzeigen',
+  'menu.rulers': 'Lineale',
+  'menu.pixelGrid': 'Pixelraster',
+  'menu.units': 'Einheiten',
+  'menu.unitPixels': 'Pixel',
+  'menu.unitInches': 'Zoll',
+  'menu.unitCentimeters': 'Zentimeter',
+  'units.px': 'px',
+  'units.in': 'Zoll',
+  'units.cm': 'cm',
+  'status.position': '{x}, {y} {unit}',
+  'status.size': '{width} × {height} {unit}',
   'menu.gridSettings': 'Rastereinstellungen…',
   'menu.tiledMode': 'Kachelmodus',
   'menu.tiledNone': 'Aus',
@@ -346,7 +379,8 @@ export const de: Record<MessageKey, string> = {
   'grid.color': 'Linienfarbe',
   'grid.opacity': 'Deckkraft (%)',
   'grid.useTileSize': 'Kachelgröße übernehmen ({w}×{h})',
-  'grid.invalid': 'Die Zellgröße muss eine ganze Zahl von 1–65535 sein, der Versatz von −32768–32767.',
+  'grid.invalid':
+    'Die Zellgröße muss eine ganze Zahl von 1–65535 sein, der Versatz von −32768–32767.',
   'menu.probe': 'Frame-Zeit-Messung',
   'menu.toggleUi': 'Oberfläche ein-/ausblenden',
   'menu.reduceMotion': 'Bewegung reduzieren',
@@ -571,6 +605,7 @@ export const de: Record<MessageKey, string> = {
   'effectDlg.picking': 'Auf die Leinwand klicken, um {label} zu setzen',
   'effectDlg.reseed': 'Neu würfeln',
   'effectDlg.link': '{a} und {b} verknüpfen',
+  'effectDlg.move': 'Dialog verschieben',
   'effectDlg.reset': 'Zurücksetzen',
   'effectDlg.hex': '{label} als Hex',
   'effectDlg.hexInvalid': '#RRGGBB oder #RRGGBBAA verwenden',
@@ -725,7 +760,8 @@ export const de: Record<MessageKey, string> = {
   'tl.notIdent': 'Kein gültiger Bezeichner',
   'tl.tagEditor': 'Tag-Editor',
   'tl.tagName': 'Tag-Name',
-  'tl.identHint': 'Nur Buchstaben, Ziffern und _ verwenden – Animations-Zustandsautomaten suchen Tags per Name.',
+  'tl.identHint':
+    'Nur Buchstaben, Ziffern und _ verwenden – Animations-Zustandsautomaten suchen Tags per Name.',
   'tl.from': 'Von',
   'tl.tagFrom': 'Tag von',
   'tl.to': 'Bis',
@@ -820,7 +856,8 @@ export const de: Record<MessageKey, string> = {
   'anim.timesSuffix': 'Mal',
   'anim.estimate': 'Frames: {n} · Größe: {w}×{h} px',
   'anim.gifApproximated': 'Einige Frames haben mehr als 256 Farben: Das GIF nähert sie an.',
-  'anim.gifAlpha': 'GIF kennt nur volle Transparenz: Halbtransparente Pixel werden deckend oder transparent.',
+  'anim.gifAlpha':
+    'GIF kennt nur volle Transparenz: Halbtransparente Pixel werden deckend oder transparent.',
   'tiles.add': 'Tileset hinzufügen',
   'tiles.w': 'Kachel B',
   'tiles.h': 'Kachel H',
@@ -834,7 +871,8 @@ export const de: Record<MessageKey, string> = {
   'palette.delete': 'Eintrag löschen',
   'tiles.editor': 'Kachel-Editor',
   'common.done': 'Fertig',
-  'tiles.editorHint': 'Klicken oder ziehen malt mit der aktuellen Farbe. Rückgängig / Wiederholen stellt frühere Pixel wieder her.',
+  'tiles.editorHint':
+    'Klicken oder ziehen malt mit der aktuellen Farbe. Rückgängig / Wiederholen stellt frühere Pixel wieder her.',
 
   // Pixel editor
   'act.stamp': 'Stempeln',
@@ -918,7 +956,8 @@ export const de: Record<MessageKey, string> = {
   'px.symmetryAxisX': 'Vertikale Symmetrieachse',
   'px.symmetryAxisY': 'Horizontale Symmetrieachse',
   'px.symmetryHandleHint': 'Ziehen verschiebt die Achse, Doppelklick zentriert sie',
-  'px.shadingWholePalette': 'Rampe: die ganze Palette — Umschalt+Klick auf einen Palettenfarbton wählt einen Bereich',
+  'px.shadingWholePalette':
+    'Rampe: die ganze Palette — Umschalt+Klick auf einen Palettenfarbton wählt einen Bereich',
   'px.shadingRange': 'Rampe: Paletteneinträge {from}–{to}',
   'px.dither': 'Dithering-Matrix',
   'px.gradientHint': 'ziehen: von der Vordergrund- zur Hintergrundfarbe',
@@ -968,7 +1007,24 @@ export const de: Record<MessageKey, string> = {
     'die Ebenendaten sind nicht lesbar; das reduzierte Bild wurde geöffnet',
   'psd.fallback.unrepresentable':
     'keine Ebene, die Pincel darstellen kann, bleibt übrig; das reduzierte Bild wurde geöffnet',
-  'resize.constrain': 'Proportionen beibehalten',
+  'resize.maintainAspect': 'Seitenverhältnis beibehalten',
+  'resize.byPercentage': 'Prozentual',
+  'resize.byAbsolute': 'Absolute Größe',
+  'resize.percentage': 'Prozentsatz',
+  'resize.unit': 'Einheit',
+  'resize.unitPixels': 'Pixel',
+  'resize.unitPercent': 'Prozent',
+  'resize.unitInches': 'Zoll',
+  'resize.unitCentimeters': 'Zentimeter',
+  'resize.resolution': 'Auflösung',
+  'resize.pixelsPerInch': 'Pixel/Zoll',
+  'resize.newSize': 'Neue Größe',
+  'resize.sizePx': '{width} × {height} px',
+  'resize.noSize': '—',
+  'resize.invalidValue': 'Gib eine positive Zahl ein',
+  'resize.invalidPixels': 'Gib eine positive ganze Pixelzahl ein',
+  'resize.invalidResolution': 'Gib eine Auflösung über 0 bis 10000 Pixel/Zoll ein',
+  'resize.supersampling': 'Supersampling',
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',
   'img.empty': 'Öffne ein Bild oder lege ein neues Dokument an.',
@@ -1031,7 +1087,8 @@ export const de: Record<MessageKey, string> = {
   'keys.importIgnoredMany': '{n} unbekannte Einträge ignoriert.',
   'keys.importReplacedOne': '1 Standardkürzel ersetzt.',
   'keys.importReplacedMany': '{n} Standardkürzel ersetzt.',
-  'keys.importInvalid': 'Diese Datei ist keine Pincel-Tastenbelegung; die Belegung bleibt unverändert.',
+  'keys.importInvalid':
+    'Diese Datei ist keine Pincel-Tastenbelegung; die Belegung bleibt unverändert.',
   'keys.importDuplicate': 'Die Datei belegt {chord} mehrfach; die Belegung bleibt unverändert.',
   'keys.importFailed': 'Die Tastenbelegung konnte nicht gelesen werden: {error}',
   'keys.exportFailed': 'Die Tastenbelegung konnte nicht exportiert werden: {error}',

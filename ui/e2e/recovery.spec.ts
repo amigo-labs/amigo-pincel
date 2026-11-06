@@ -1,14 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
+  colorOf,
   createDocument,
   drag,
   gotoStart,
   imageCanvas,
   menu,
+  newDocument,
   pixelCanvas,
+  setColor,
   storedPref,
   waitForEditor,
 } from './helpers';
+import { tabs } from './tab-helpers';
 
 // Autosave and recovery (spec §10, M10.3; docs/specs/autosave-recovery.md),
 // the same in both modes: an edit is snapshotted after 30 s, a reload
@@ -237,13 +241,62 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: each Recover opens its document as a new active, unsaved tab; the dialog stays for the rest (AC-05)`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    // Two documents with autosaved edits: the first, then a second tab.
+    await createDocument(page, mode, { width: 32, height: 32 });
+    await autosavedEdit(page, mode);
+    await menu(page, 'File', 'New…');
+    await page
+      .getByRole('dialog', { name: 'New document' })
+      .getByRole('button', { name: 'Create' })
+      .click();
+    await expect(tabs(page)).toHaveCount(2);
+    await autosavedEdit(page, mode);
+    await expect.poll(async () => (await metaRows(page)).length).toBe(2);
+    await settle(page);
+
+    await page.reload();
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await expect(tabs(page)).toHaveCount(1);
+    const dialog = recoveryDialog(page);
+    const rows = dialog.getByRole('listitem');
+    await expect(rows).toHaveCount(2);
+
+    // The first Recover: a second tab, active and unsaved; one row left.
+    await rows.first().getByRole('button', { name: 'Recover' }).click();
+    await expect(tabs(page)).toHaveCount(2);
+    await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs(page).nth(1).getByText('unsaved changes')).toHaveCount(1);
+    await expect(tabs(page).nth(0).getByText('unsaved changes')).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(rows).toHaveCount(1);
+
+    // The last Recover: a third tab, and the dialog closes.
+    await rows.first().getByRole('button', { name: 'Recover' }).click();
+    await expect(tabs(page)).toHaveCount(3);
+    await expect(tabs(page).nth(2)).toHaveAttribute('aria-selected', 'true');
+    await expect(tabs(page).nth(2).getByText('unsaved changes')).toHaveCount(1);
+    await expect(dialog).toHaveCount(0);
+  });
+}
+
 test('the dialog lists each document’s latest snapshot of both modes, newest first (AC-04)', async ({
   page,
 }) => {
   await gotoStart(page);
   const base = Date.UTC(2026, 9, 1, 12, 0);
   const metas: Meta[] = [
-    { docId: 'older', ts: base - 3_600_000, name: 'older.aseprite', byteLength: 2048, mode: 'pixel' },
+    {
+      docId: 'older',
+      ts: base - 3_600_000,
+      name: 'older.aseprite',
+      byteLength: 2048,
+      mode: 'pixel',
+    },
     { docId: 'newer', ts: base - 60_000, name: 'newer.aseprite', byteLength: 512, mode: 'pixel' },
     // An earlier row of the same document (a partial write): not listed.
     { docId: 'newer', ts: base - 7_200_000, name: 'stale.aseprite', byteLength: 1, mode: 'pixel' },
@@ -327,19 +380,23 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   await page.getByTitle('Pencil (B)').click();
   await drag(page, pixelCanvas(page), [0.2, 0.2], [0.8, 0.8]);
   await page.clock.fastForward(31_000);
-  await page.waitForTimeout(500);
+  await expect.poll(async () => (await metaRows(page)).length).toBe(1);
 
   // Closing the tab with Don't Save drops the work (unsaved-changes-prompt
-  // AC-05); a New document of the other mode opens afterwards.
+  // AC-05); a New document of the other mode opens afterwards, in the same
+  // page load (`newDocument`: `createDocument` would load the page).
   await menu(page, 'File', 'Close');
   await page.getByRole('button', { name: "Don't Save" }).click();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
-  await createDocument(page, 'image', { width: 16, height: 16 });
+  await newDocument(page, 'image', { width: 16, height: 16 });
   const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
   // The probe is async; give it time to (not) open the dialog.
   await page.waitForTimeout(500);
   await expect(recovery).toHaveCount(0);
 
+  // The snapshot is deleted in the background; a reload before the delete
+  // is stored aborts it, so wait for it as for any IndexedDB write.
+  await expect.poll(() => metaRows(page)).toEqual([]);
   await page.reload();
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await page.waitForTimeout(500);
@@ -409,17 +466,15 @@ for (const mode of ['pixel', 'image'] as const) {
 
 test('the last Pixel colors start the next session’s new documents', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const fg = page.getByRole('textbox', { name: 'Foreground color', exact: true });
-  const bg = page.getByRole('textbox', { name: 'Background color', exact: true });
-  await fg.fill('#123456');
-  await bg.fill('#abcdef');
-  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456');
-  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdef');
+  await setColor(page, 'fg', '#123456');
+  await setColor(page, 'bg', '#abcdef');
+  await expect.poll(() => storedPref(page, 'lastColor')).toBe('#123456ff');
+  await expect.poll(() => storedPref(page, 'lastBgColor')).toBe('#abcdefff');
 
   await page.reload();
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await expect(fg).toHaveValue('#123456');
-  await expect(bg).toHaveValue('#abcdef');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#123456');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#abcdef');
 });
 
 test.describe('without IndexedDB', () => {

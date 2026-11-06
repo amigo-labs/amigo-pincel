@@ -30,6 +30,21 @@ if ! command -v wasm-pack >/dev/null 2>&1; then
   cargo install wasm-pack --locked
 fi
 
+# --- wasm-opt (binaryen) ---------------------------------------------------
+# Both wasm crates switch wasm-pack's own wasm-opt pass off, and Cloudflare's
+# image has no binaryen: fetch a pinned release build (a static binary).
+# The release workflow gets the same tool from apt.
+BINARYEN_VERSION=133
+if ! command -v wasm-opt >/dev/null 2>&1; then
+  binaryen_dir="$HOME/.local/binaryen-$BINARYEN_VERSION"
+  mkdir -p "$binaryen_dir"
+  curl --proto '=https' --tlsv1.2 -sSfL \
+    "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-x86_64-linux.tar.gz" |
+    tar -xzf - -C "$binaryen_dir" --strip-components=2 "binaryen-version_$BINARYEN_VERSION/bin/wasm-opt"
+  export PATH="$binaryen_dir:$PATH"
+fi
+wasm-opt --version
+
 # --- pnpm -----------------------------------------------------------------
 if ! command -v pnpm >/dev/null 2>&1; then
   corepack enable
@@ -42,18 +57,18 @@ pnpm build
 
 # --- Editor → ui/dist/app/ ------------------------------------------------
 # The wasm packages must exist before `pnpm install` (ui preinstall check).
-# wasm-pack's own wasm-opt pass is off in both crates' Cargo.toml; run a
-# system wasm-opt when the image has one, else ship the rustc release build.
+# wasm-pack's own wasm-opt pass is off in both crates' Cargo.toml, so the
+# wasm-opt installed above runs here; the check below still fails the deploy
+# on a module that skipped it (docs/specs/performance-build-simd.md AC-03).
 cd "$root/ui"
 pnpm wasm:build:release
-if command -v wasm-opt >/dev/null 2>&1; then
-  for wasm in ../crates/pincel-wasm/pkg/pincel_wasm_bg.wasm \
-    ../crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
-    wasm-opt -O3 -o "$wasm" "$wasm"
-  done
-fi
+for wasm in ../crates/pincel-wasm/pkg/pincel_wasm_bg.wasm \
+  ../crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
+  wasm-opt -O3 -o "$wasm" "$wasm"
+done
 pnpm install --frozen-lockfile
 pnpm build
+node "$root/scripts/check-wasm-release.mjs" "$root/ui/dist/app/assets"
 
 # --- Merge: the editor lands under the site's /app/ -----------------------
 rm -rf "$root/website/build/app"

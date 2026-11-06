@@ -78,6 +78,7 @@
     pickAndOpen,
     sameFile,
     sniffFormat,
+    takeLaunchFiles,
     type OpenedFile,
   } from './lib/fs';
   import type { AutosaveSnapshotMeta } from './lib/idb/autosave';
@@ -93,12 +94,18 @@
   import { initLocale } from './lib/i18n/locale';
   import { initMotion } from './lib/motion.svelte';
   import { loadKeymap } from './lib/shell/keymap';
+  import { supportsWasmSimd } from './lib/platform/wasm-simd';
 
   // Dynamic imports keep each editor (and its wasm package) in its own
-  // chunk; Vite only fetches the ones that get mounted (AC-22).
+  // chunk; Vite only fetches the ones that get mounted (AC-22). Both cores
+  // need wasm SIMD: without it no editor loads, whichever way a document
+  // arrives (performance-build-simd AC-07).
+  const wasmSimd = supportsWasmSimd();
+  const unsupported = (): Promise<never> =>
+    Promise.reject(new Error(t('start.unsupportedBrowser')));
   setEditorLoaders({
-    pixel: () => import('./modes/pixel/PixelEditor.svelte'),
-    image: () => import('./modes/image/ImageEditor.svelte'),
+    pixel: () => (wasmSimd ? import('./modes/pixel/PixelEditor.svelte') : unsupported()),
+    image: () => (wasmSimd ? import('./modes/image/ImageEditor.svelte') : unsupported()),
   });
 
   const MODES: readonly EditorMode[] = ['pixel', 'image'];
@@ -385,7 +392,15 @@
   }
 
   function onShellKeydown(e: KeyboardEvent) {
-    if (actionFor(e) !== 'pasteNewImage' || !startScreenIdle(e.target)) return;
+    const action = actionFor(e);
+    if (action === null || !startScreenIdle(e.target)) return;
+    // Ctrl/⌘+N where the page gets it (power-user-shortcuts-coverage AC-20).
+    if (action === 'newDocument') {
+      e.preventDefault();
+      requestNew('pixel');
+      return;
+    }
+    if (action !== 'pasteNewImage') return;
     e.preventDefault();
     void clipboardImage().then(openPasted);
   }
@@ -600,8 +615,30 @@
     void loadDropChoice();
     const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
-    void loadAutoNew()
-      .then((params) => {
+    let unlistenOpenFile: UnlistenFn | null = null;
+    // Files the OS hands over: each as an `open-file` event once the
+    // listener is armed; those from before (a cold start by double-click)
+    // wait on the Rust side until asked for (desktop-app AC-04).
+    const launchOpened: Promise<void> = tauriHost
+      ? listen<string>('open-file', (e) => {
+          if (typeof e.payload === 'string') openByPath(e.payload);
+        })
+          .then((fn) => {
+            if (cancelled) {
+              fn();
+              return;
+            }
+            unlistenOpenFile = fn;
+            return takeLaunchFiles().then((paths) => {
+              if (!cancelled) for (const path of paths) openByPath(path);
+            });
+          })
+          .catch((err: unknown) => {
+            console.error('open-file listen failed', err);
+          })
+      : Promise.resolve();
+    void Promise.all([loadAutoNew(), launchOpened])
+      .then(([params]) => {
         // An OS-handed file that arrived meanwhile wins over the empty document.
         if (!cancelled && params && session.tabs.length === 0 && editors.pending === 0) {
           createNew(params);
@@ -609,7 +646,6 @@
       })
       .finally(() => (booting = false));
     let unlistenMenu: UnlistenFn | null = null;
-    let unlistenOpenFile: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
     if (tauriHost) {
@@ -663,18 +699,6 @@
         .catch((err: unknown) => {
           console.error('wireNativeMenu failed', err);
         });
-      listen<string>('open-file', (e) => {
-        if (typeof e.payload === 'string') {
-          openByPath(e.payload);
-        }
-      })
-        .then((fn) => {
-          if (cancelled) fn();
-          else unlistenOpenFile = fn;
-        })
-        .catch((err: unknown) => {
-          console.error('open-file listen failed', err);
-        });
       // First-launch file-association advisory. Best-effort: a missing
       // IDB or a getPref failure silently skips the dialog.
       if (isIdbAvailable()) {
@@ -711,12 +735,13 @@
   <StartScreen
     {recents}
     busy={picking || editors.pending > 0}
+    unsupported={!wasmSimd}
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
     {dropHover}
   />
-  {#if offer.image && !modalOpen}
+  {#if offer.image && !modalOpen && wasmSimd}
     <ClipboardOffer
       image={offer.image}
       busy={picking || editors.pending > 0}

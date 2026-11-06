@@ -3,6 +3,10 @@
   // dropdown menus; `compact` collapses them behind one ☰ button into a
   // stacked sheet (phones). Dropdowns are `position: fixed`, anchored to
   // their trigger, so a horizontally scrolling bar never clips them.
+  // `restricted` (an effect is open, effect-panel AC-03) leaves only the
+  // menus marked `liveWithEffect` usable: the others are inert, and the
+  // live triggers sit above the top bar's shade (`z-[46]`, app.css 45),
+  // on an opaque background so the shade does not show through them.
   import Icon from '../icons/Icon.svelte';
   import type { MenuAction, MenuDef, MenuItem } from './menu';
   import { t } from '../../i18n/index.svelte';
@@ -11,8 +15,13 @@
     menus: MenuDef[];
     /** Collapse into a single ☰ sheet. */
     compact?: boolean;
+    /** Only the `liveWithEffect` menus stay usable. */
+    restricted?: boolean;
   }
-  const { menus, compact = false }: Props = $props();
+  const { menus, compact = false, restricted = false }: Props = $props();
+
+  const isLive = (m: MenuDef): boolean => !restricted || m.liveWithEffect === true;
+  const liveMenus = $derived(menus.filter(isLive));
 
   // Open top-level menu id (or '☰' for the compact sheet).
   let openId = $state<string | null>(null);
@@ -108,8 +117,9 @@
     }
     if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !compact) {
       e.preventDefault();
-      const at = menus.findIndex((m) => m.id === openId);
-      const next = menus[(at + (e.key === 'ArrowRight' ? 1 : -1) + menus.length) % menus.length];
+      const row = liveMenus;
+      const at = row.findIndex((m) => m.id === openId);
+      const next = row[(at + (e.key === 'ArrowRight' ? 1 : -1) + row.length) % row.length];
       const trigger = document.querySelector<HTMLElement>(`[data-menu-trigger="${next?.id}"]`);
       if (next && trigger) {
         sub = null;
@@ -197,6 +207,9 @@
     type="button"
     class="flex h-9 w-9 items-center justify-center rounded hover:bg-pc-hover"
     class:bg-pc-active={openId === '☰'}
+    class:relative={restricted}
+    class:z-[46]={restricted}
+    class:bg-pc-panel={restricted && openId !== '☰'}
     aria-label={t('frame.menu')}
     aria-haspopup="menu"
     aria-expanded={openId === '☰'}
@@ -209,8 +222,8 @@
        trigger switches menus (see `hoverSwitch`). -->
   <div
     class="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
-    class:relative={openId !== null}
-    class:z-50={openId !== null}
+    class:relative={openId !== null && !restricted}
+    class:z-50={openId !== null && !restricted}
     role="menubar"
   >
     {#each menus as m (m.id)}
@@ -218,6 +231,10 @@
         type="button"
         class="shrink-0 rounded px-2 py-1 text-sm whitespace-nowrap hover:bg-pc-hover lg:px-2.5"
         class:bg-pc-active={openId === m.id}
+        class:relative={restricted && isLive(m)}
+        class:z-[46]={restricted && isLive(m)}
+        class:bg-pc-panel={restricted && isLive(m) && openId !== m.id}
+        inert={!isLive(m)}
         data-menu-trigger={m.id}
         role="menuitem"
         aria-haspopup="menu"
@@ -251,10 +268,12 @@
     >
       {#each menus as m, i (m.id)}
         {#if i > 0}<div class="my-1 border-t border-pc-border"></div>{/if}
-        <div class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase">
-          {m.label}
+        <div class="relative" inert={!isLive(m)} data-dimmed={isLive(m) ? undefined : ''}>
+          <div class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase">
+            {m.label}
+          </div>
+          {@render rows(m.items, 0)}
         </div>
-        {@render rows(m.items, 0)}
       {/each}
     </div>
   {:else if openMenu}

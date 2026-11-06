@@ -1,5 +1,7 @@
 // Application logic bridging the WASM core and reactive state. Components call
 // these functions on events; no business logic lives in components (CLAUDE.md §5.4).
+import type { Rgba8 } from '../../../lib/color';
+import { noteUsed } from '../../../lib/colors/recent.svelte';
 import {
   core,
   initCore,
@@ -27,7 +29,7 @@ import {
   type Vectorizer,
 } from './wasm';
 import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
-import { editor, tool, type ImageTab } from '../stores/editor.svelte';
+import { editor, live, tool, type ImageTab } from '../stores/editor.svelte';
 import {
   formatFromName,
   saveExport,
@@ -35,9 +37,18 @@ import {
   type ImageExportFormat as ExportFormat,
   type SaveTarget,
 } from '../../../lib/fs';
-import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
+import {
+  blankFile,
+  docFormat,
+  fileStem,
+  markSaved,
+  openedFile,
+  type DocFormat,
+} from './document-file';
 import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
+import { encodeInBackground, type EffectJob } from '../jobs';
+import { gestureControl } from '../tools/gesture-control';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -55,20 +66,51 @@ function rgbToHex(r: number, g: number, b: number): string {
 }
 
 /** Opacity as a 0–1 fraction, clamped. */
-function opacity01(): number {
+export function opacity01(): number {
   return Math.min(1, Math.max(0, tool.opacity / 100));
 }
 
-/** The active foreground (or background) color as opaque RGBA. */
-function activeColor(useBackground: boolean): Rgba {
+/** The active foreground (or background) color with its own alpha; the
+ *  core combines it with the tool opacity it gets separately. */
+export function activeColor(useBackground: boolean): Rgba {
   const [r, g, b] = hexToRgb(useBackground ? tool.background : tool.foreground);
-  return [r, g, b, 255];
+  return [r, g, b, useBackground ? tool.backgroundAlpha : tool.foregroundAlpha];
 }
 
-/** A #RRGGBB color with the current tool opacity baked into its alpha. */
-function colorWithOpacity(hex: string): Rgba {
+/** The foreground (or background) color as RGBA bytes with its alpha. */
+function usedColor(useBackground: boolean): Rgba8 {
+  const [r, g, b, a] = activeColor(useBackground);
+  return { r, g, b, a };
+}
+
+/** Records `used` (foreground first) as painted with when the document
+ *  gained an undo step since `depthBefore` (color-picker AC-24). A merged
+ *  stroke adds its step once, so it is recorded once. */
+export function notePainted(depthBefore: number, used: readonly Rgba8[]): void {
+  if (editor.undoDepth > depthBefore) noteUsed('image', used);
+}
+
+/** The colors a Line or box shape paints with under the current options: a
+ *  line strokes only; a shape strokes with the foreground and fills with the
+ *  background, as its mode says (color-picker AC-24). */
+export function shapeColors(shape: ShapeKind): Rgba8[] {
+  const mode = shape === 'line' ? 'outline' : tool.shapeMode;
+  if (mode === 'outline') return [usedColor(false)];
+  if (mode === 'fill') return [usedColor(true)];
+  return [usedColor(false), usedColor(true)];
+}
+
+/** The colors a gradient paints with: from and to in the Color channel,
+ *  none in Transparency mode, which fades what is there (AC-24). */
+export function gradientColors(): Rgba8[] {
+  return tool.gradientChannel === 'color' ? [usedColor(false), usedColor(true)] : [];
+}
+
+/** A color with the tool opacity baked into its alpha: round(alpha ×
+ *  opacity / 100) (color-picker Decisions 2026-10-29). */
+export function colorWithOpacity(hex: string, alpha: number): Rgba {
   const [r, g, b] = hexToRgb(hex);
-  return [r, g, b, Math.round(opacity01() * 255)];
+  return [r, g, b, Math.round((alpha * Math.min(100, Math.max(0, tool.opacity))) / 100)];
 }
 
 /** Pen input and the brush dynamics it drives (spec §17.4). */
@@ -108,6 +150,7 @@ export function syncInfo(): void {
   editor.undoDepth = info.undo_depth;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
+  live.object = core.liveObject(editor.handle);
   editor.revision += 1;
 }
 
@@ -387,7 +430,8 @@ export function copyImage(
     return null;
   }
   const [x, y] = core.selectionBounds(handle) ?? [0, 0];
-  const png = kind === 'cut' ? core.cutSelection(handle) : core.copySelection(handle, kind === 'merged');
+  const png =
+    kind === 'cut' ? core.cutSelection(handle) : core.copySelection(handle, kind === 'merged');
   if (kind === 'cut') syncInfo();
   return { png, x, y };
 }
@@ -397,26 +441,46 @@ export function cropToSelection(): void {
   applyTransform({ type: 'crop_to_selection' });
 }
 
-/** Applies an effect to the active layer as one undoable step (spec §11). */
-/** Applies an effect to the active layer, inside the selection. Returns
- *  `false` when the selection is empty and nothing changed. */
-export function applyEffect(name: string, params: number[]): boolean {
+/** Image ▸ Auto Crop (docs/specs/image-resize-autocrop.md AC-13 – AC-15):
+ *  `false` when there was nothing to crop, which adds no undo step. */
+export function autoCrop(): boolean {
+  const [w, h] = [editor.width, editor.height];
+  applyTransform({ type: 'auto_crop' });
+  return editor.width !== w || editor.height !== h;
+}
+
+/** The active document's stored resolution in pixels per inch, or 0
+ *  without a document (docs/specs/image-view-aids.md AC-23). */
+export function documentDpi(): number {
+  return editor.handle === null ? 0 : core.documentDpi(editor.handle);
+}
+
+/** Effect `name` / `params` on the active layer, as a job
+ *  (docs/specs/performance-background-jobs.md). */
+export function effectJobFor(name: string, params: number[]): EffectJob {
+  return { layer: editor.activeLayer, name, params };
+}
+
+/** Applies an effect to the active layer, inside the selection, as one
+ *  undoable step (spec §11): commits the `region` the job worker computed
+ *  for it. Returns `false` when the selection is empty and nothing changed. */
+export function applyEffectRegion(name: string, params: number[], region: Uint8Array): boolean {
   if (editor.handle === null) {
     return false;
   }
-  const changed = core.applyEffect(editor.handle, editor.activeLayer, name, params);
+  const changed = core.applyEffectRegion(editor.handle, editor.activeLayer, name, params, region);
   editor.previewComposite = null;
   syncInfo();
   return changed;
 }
 
-/** Sets the live effect preview over the canvas without mutating the document
- * (spec §11 live preview). Call from an open effect dialog. */
-export function previewEffect(name: string, params: number[]): void {
+/** Shows a computed effect preview over the canvas without mutating the
+ *  document (spec §11 live preview). Call from an open effect dialog. */
+export function showEffectPreview(composite: Uint8ClampedArray<ArrayBuffer>): void {
   if (editor.handle === null) {
     return;
   }
-  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, name, params);
+  editor.previewComposite = composite;
   editor.revision += 1;
 }
 
@@ -433,11 +497,7 @@ export function clearEffectPreview(): void {
  * `a`/`b` are the drag endpoints (line) or opposite corners of the drag box
  * (rectangle/rounded/ellipse); a polygon is inscribed in that box. Stroke uses
  * the foreground color, fill the background color, both at the tool opacity. */
-export function drawShape(
-  a: [number, number],
-  b: [number, number],
-  shape: ShapeKind,
-): void {
+export function drawShape(a: [number, number], b: [number, number], shape: ShapeKind): void {
   if (editor.handle === null) {
     return;
   }
@@ -447,8 +507,8 @@ export function drawShape(
     shape: shape,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
-    stroke_color: colorWithOpacity(tool.foreground),
-    fill_color: colorWithOpacity(tool.background),
+    stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
+    fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   };
@@ -465,8 +525,10 @@ export function drawShape(
       cmd.corner_radius = tool.cornerRadius;
     }
   }
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, shapeColors(shape));
 }
 
 // The default font is fetched once and registered with the core (ADR-012,
@@ -521,14 +583,16 @@ export async function renderText(x: number, y: number, text: string): Promise<vo
     x,
     y,
     size: tool.fontSize,
-    color: colorWithOpacity(tool.foreground),
+    color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     bold: tool.textBold,
     italic: tool.textItalic,
     anti_alias: tool.textAntiAlias,
     align: tool.textAlign,
   };
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(false)]);
 }
 
 /** Marks the document as having unsaved changes (e.g. after recovering an
@@ -614,6 +678,7 @@ export function paintStroke(
   if (editor.handle === null || points.length === 0) {
     return;
   }
+  const before = editor.undoDepth;
   const cmd: PencilStrokeCommand = {
     type: 'pencil_stroke',
     layer: editor.activeLayer,
@@ -628,6 +693,7 @@ export function paintStroke(
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(useBackground)]);
 }
 
 /** Applies an eraser stroke over the given canvas-space points. */
@@ -717,6 +783,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
   if (editor.handle === null) {
     return;
   }
+  const before = editor.undoDepth;
   const cmd: FillBucketCommand = {
     type: 'fill_bucket',
     layer: editor.activeLayer,
@@ -730,6 +797,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, [usedColor(useBackground)]);
 }
 
 /** Erases the selected pixels of the active layer (Delete / Edit ▸ Clear).
@@ -797,8 +865,10 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
     to: activeColor(true),
     opacity: opacity01(),
   };
+  const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
+  notePainted(before, gradientColors());
 }
 
 /** Move Selection: drags the outline only. */
@@ -823,15 +893,19 @@ export function sampleColor(x: number, y: number, toBackground = false): void {
     return;
   }
   const rgba = core.pickColor(editor.handle, x, y, tool.eyedropperSample, tool.sampleSize);
-  const [r, g, b] = rgba;
+  const [r, g, b, a] = rgba;
   if (r === undefined || g === undefined || b === undefined) {
     return; // off-canvas
   }
+  // Hex and alpha both (color-picker AC-17, AC-22).
   const hex = rgbToHex(r, g, b);
+  const alpha = a ?? 255;
   if (toBackground) {
     tool.background = hex;
+    tool.backgroundAlpha = alpha;
   } else {
     tool.foreground = hex;
+    tool.foregroundAlpha = alpha;
   }
 }
 
@@ -859,8 +933,10 @@ export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
   return core.composite(editor.handle);
 }
 
-/** Undoes the last command. */
+/** Undoes the last command. During a live-object handle drag it only drops
+ *  that drag (docs/specs/image-live-objects-ui.md AC-11). */
 export function undo(): void {
+  if (gestureControl.cancelLiveDrag()) return;
   if (editor.handle !== null && core.undo(editor.handle)) {
     syncInfo();
   }
@@ -921,19 +997,9 @@ export async function exportImage(format: ExportFormat = 'png', quality = 90): P
   if (editor.handle === null) {
     return false;
   }
-  let bytes: Uint8Array;
-  switch (format) {
-    case 'jpeg':
-      bytes = core.exportJpeg(editor.handle, Math.min(100, Math.max(1, Math.round(quality))));
-      break;
-    case 'webp':
-      bytes = core.exportWebp(editor.handle);
-      break;
-    case 'png':
-      bytes = core.exportPng(editor.handle, 6);
-      break;
-  }
-  // Copy into a fresh ArrayBuffer so the file layer owns standalone memory.
+  // Encoded off the main thread from the document as it is now
+  // (performance-background-jobs).
+  const bytes = await encodeInBackground(editor.handle, format, { level: 6, quality });
   const name = `${fileStem()}.${format === 'jpeg' ? 'jpg' : format}`;
   return saveExport(new Uint8Array(bytes), name, format);
 }

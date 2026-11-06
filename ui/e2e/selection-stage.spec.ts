@@ -7,6 +7,7 @@ import {
   menu,
   pixelCanvas,
   pixelOf,
+  setColor,
   type ClipImage,
 } from './helpers';
 
@@ -74,19 +75,24 @@ async function useTool(page: Page, key: string, name: string): Promise<void> {
 /** Rectangle marquee over the pixels `(x0, y0)` – `(x1, y1)`, both inclusive. */
 async function marquee(page: Page, mode: Mode, x0: number, y0: number, x1: number, y1: number) {
   await useTool(page, 'm', 'Rectangle Select');
-  if (mode === 'pixel') await dragFrom(page, await mid(page, mode, x0, y0), await mid(page, mode, x1, y1));
+  if (mode === 'pixel')
+    await dragFrom(page, await mid(page, mode, x0, y0), await mid(page, mode, x1, y1));
   else await dragFrom(page, await pt(page, mode, x0, y0), await pt(page, mode, x1 + 1, y1 + 1));
 }
 
 async function paintRed(page: Page, mode: Mode, x: number, y: number): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press(mode === 'pixel' ? 'b' : 'g');
   await page.mouse.click(...(await mid(page, mode, x, y)));
 }
 
 /** A document of `mode`, zoomed out so the stage shows on every side. */
 async function openDoc(page: Page, mode: Mode): Promise<void> {
-  await createDocument(page, mode, mode === 'pixel' ? { width: PX, height: PX } : { width: IMG, height: IMG });
+  await createDocument(
+    page,
+    mode,
+    mode === 'pixel' ? { width: PX, height: PX } : { width: IMG, height: IMG },
+  );
   const before = await canvasOf(page, mode).boundingBox();
   await page.keyboard.press('-');
   await page.keyboard.press('-');
@@ -174,7 +180,9 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(await size(page)).toEqual(full);
   });
 
-  test(`${mode}: a Magic Wand click on the stage deselects in replace mode only`, async ({ page }) => {
+  test(`${mode}: a Magic Wand click on the stage deselects in replace mode only`, async ({
+    page,
+  }) => {
     await open(page);
     await marquee(page, mode, 2, 2, 5, 5);
     await useTool(page, 'w', 'Magic Wand');
@@ -258,7 +266,12 @@ test('image: the Pan tool pans from the stage', async ({ page }) => {
 // ---- Round 2: the remaining gestures of AC-21 – AC-24 / AC-29 – AC-32 ----
 
 /** A point on the stage left of the canvas, `dx` CSS px out, at canvas row fraction `fy`. */
-async function stageLeft(page: Page, mode: Mode, dx: number, fy: number): Promise<[number, number]> {
+async function stageLeft(
+  page: Page,
+  mode: Mode,
+  dx: number,
+  fy: number,
+): Promise<[number, number]> {
   const box = await canvasOf(page, mode).boundingBox();
   if (!box) throw new Error('canvas not visible');
   return [box.x - dx, box.y + box.height * fy];
@@ -452,7 +465,9 @@ test('pixel: a marquee selects A–B inclusive and draws its outline (AC-01)', a
     .not.toBe(0);
 });
 
-test('pixel: polygonal lasso closes on Enter, Escape discards its vertices (AC-04)', async ({ page }) => {
+test('pixel: polygonal lasso closes on Enter, Escape discards its vertices (AC-04)', async ({
+  page,
+}) => {
   await createDocument(page, 'pixel', { width: PX, height: PX });
   await useTool(page, 'q', 'Polygonal Lasso');
   for (const [x, y] of [

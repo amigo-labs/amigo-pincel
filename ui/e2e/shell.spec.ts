@@ -9,7 +9,15 @@ import {
   storedPref,
   waitForEditor,
 } from './helpers';
-import { editorOf, shownEditor, tabs } from './tab-helpers';
+import {
+  dropFiles,
+  editorOf,
+  expectActive,
+  fileOf,
+  shownEditor,
+  tab,
+  tabs,
+} from './tab-helpers';
 
 // The app shell (docs/specs/app-shell.md): start screen, New cards and the
 // New dialog, at most one editor per mode behind the tab bar, and the
@@ -23,7 +31,7 @@ const canvasOf = (page: Page, mode: Mode) =>
 
 /** The document size as the mode's status bar shows it. */
 const sizeText = (mode: Mode, w: number, h: number) =>
-  mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`;
+  mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`;
 
 /** The editor top bar (mode badge, menus, document name). */
 const topBar = (page: Page) => page.getByRole('banner');
@@ -271,6 +279,33 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(bar.getByTitle(name, { exact: true })).toHaveText(name);
   });
 }
+
+test('AC-16: with several tabs the top bar follows the active tab: mode, name and its marker', async ({
+  page,
+}) => {
+  // A dirty Image tab, then a clean Pixel tab opened beside it.
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  await edit(page, 'image');
+  await dropFiles(page, [await fileOf('pixel', 'a')]);
+  await waitForEditor(page, 'pixel');
+  await expectActive(page, 'a.aseprite');
+
+  const bar = topBar(page);
+  const badge = (text: string) =>
+    bar.locator('span').filter({ hasText: new RegExp(`^${text}$`) });
+  // The clean Pixel tab: its badge and name, no marker of the other tab.
+  await expect(badge('Pixel')).toBeVisible();
+  await expect(bar.getByTitle('a.aseprite', { exact: true })).toHaveText('a.aseprite');
+  await expect(bar.getByTitle(/ — unsaved changes$/)).toHaveCount(0);
+  await expect(bar.getByTitle('image.ora', { exact: true })).toHaveCount(0);
+
+  // The dirty Image tab: its badge, name and marker.
+  await tab(page, 'image.ora').click();
+  await expectActive(page, 'image.ora');
+  await expect(badge('Image')).toBeVisible();
+  await expect(bar.getByTitle('image.ora — unsaved changes', { exact: true })).toBeVisible();
+  await expect(bar.getByTitle('a.aseprite', { exact: true })).toHaveCount(0);
+});
 
 test('AC-18: a hidden sidebar and a collapsed panel come back on remount and reload', async ({
   page,

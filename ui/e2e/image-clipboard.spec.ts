@@ -8,8 +8,9 @@ import {
   pixelCanvas,
   pixelOf,
   putClipboardImage,
-  waitForEditor,
+  setColor,
   type ClipImage,
+  waitForEditor,
 } from './helpers';
 
 // Image mode: Edit ▸ Cut / Copy / Copy Merged / Paste, and copy / paste
@@ -44,11 +45,9 @@ async function select(page: Page, x: number, y: number, w: number, h: number): P
 
 /** Paint Bucket of `color` at document pixel `(x, y)`. */
 async function fill(page: Page, color: string, x: number, y: number): Promise<void> {
-  // The shown editor's: the other mode's editor may stay mounted, hidden.
-  await page
-    .locator('[data-editor]:not([inert])')
-    .getByLabel('Foreground color', { exact: true })
-    .fill(color);
+  // `setColor` uses the shown editor's swatch: the other mode's editor
+  // may stay mounted, hidden.
+  await setColor(page, 'fg', color);
   await page.keyboard.press('g');
   await page.mouse.click(...(await point(page, x + 0.5, y + 0.5)));
 }
@@ -270,7 +269,7 @@ test('image: another image lands at the viewport top-left; Cancel on a larger on
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
   await expect(layerRows(page)).toHaveCount(2);
-  await expect(page.getByText('200 × 150 · sRGB')).toBeVisible();
+  await expect(page.getByText('200 × 150 px · sRGB')).toBeVisible();
 });
 
 test('image: Ctrl+C / X / V in a text field act on the field only', async ({ page }) => {
@@ -326,7 +325,7 @@ test('a copy pastes into the other mode as a new layer at the viewport top-left'
     box.y + ((y + 0.5) * box.height) / SIZE,
   ];
   await page.getByTitle('Pencil (B)').click();
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.mouse.click(...at(2, 2));
   await page.keyboard.press('m');
   await page.mouse.move(...at(2, 2));
@@ -349,7 +348,9 @@ test('a copy pastes into the other mode as a new layer at the viewport top-left'
   await newDocument(page, 'pixel');
   await menu(page, 'Edit', 'Paste');
   await expect(
-    page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / }),
+    page
+      .getByRole('list', { name: 'Layer list' })
+      .getByRole('button', { name: /^Drag to reorder / }),
   ).toHaveCount(2);
   await page.keyboard.press('ControlOrMeta+d');
   layer = await copyVia(page, () => menu(page, 'Edit', 'Copy'));

@@ -4,9 +4,13 @@
 //! undone and redone. The [`CommandBus`] applies a command and records it on the
 //! [`UndoStack`].
 
+mod auto_crop;
 mod batch;
 mod damage;
 mod layers;
+mod live;
+pub mod live_spec;
+mod live_text;
 mod merge;
 mod paste;
 mod pixels;
@@ -15,19 +19,26 @@ mod resize;
 mod selection;
 mod snapshot;
 pub mod spec;
+mod tiles;
 mod transform;
 
+pub use auto_crop::{AutoCrop, auto_crop_rect};
 pub(crate) use batch::Batch;
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
+pub use live::{
+    BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
+};
+pub use live_text::{LiveFont, LiveText, text_box};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
-pub use pixels::{PixelEdit, SetPixels};
+pub use pixels::SetPixels;
 pub use properties::{
     RenameLayer, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
 };
 pub use resize::{Anchor, ResizeCanvas};
 pub use selection::{MoveSelection, SetSelection};
+pub use tiles::TILE as UNDO_TILE;
 pub use transform::{
     CanvasRotation, CropToSelection, FlipCanvas, LayerTransform, RotateCanvas, RotateLayer90,
     ScaleImage, TransformLayer,
@@ -39,6 +50,10 @@ use std::any::Any;
 
 /// Default maximum undo depth (spec §7.2; configurable 10–500).
 pub const DEFAULT_UNDO_CAPACITY: usize = 100;
+
+/// Default cap on the undo data a history holds: 512 MB
+/// (docs/specs/performance-image-undo-memory.md AC-05).
+pub const DEFAULT_UNDO_BYTE_CAP: usize = 512 * 1024 * 1024;
 
 /// An undoable mutation of a [`Document`] (spec §7.1).
 pub trait Command: Send + Sync {
@@ -68,6 +83,14 @@ pub trait Command: Send + Sync {
         Damage::Full
     }
 
+    /// Bytes of pixel and selection data this command holds right now to
+    /// undo or redo itself (docs/specs/performance-image-undo-memory.md).
+    /// The history sums it for its byte cap; a command holding none keeps
+    /// the default 0.
+    fn undo_bytes(&self) -> usize {
+        0
+    }
+
     /// Downcast support, required for type-aware merging.
     fn as_any(&self) -> &dyn Any;
 }
@@ -77,6 +100,9 @@ pub struct UndoStack {
     undo: Vec<Box<dyn Command>>,
     redo: Vec<Box<dyn Command>>,
     capacity: usize,
+    /// [`Command::undo_bytes`] summed over both stacks, kept up to date.
+    bytes: usize,
+    byte_cap: usize,
 }
 
 impl UndoStack {
@@ -91,7 +117,31 @@ impl UndoStack {
             undo: Vec::new(),
             redo: Vec::new(),
             capacity: capacity.clamp(10, 500),
+            bytes: 0,
+            byte_cap: DEFAULT_UNDO_BYTE_CAP,
         }
+    }
+
+    /// Sets the cap on held undo data in bytes (default
+    /// [`DEFAULT_UNDO_BYTE_CAP`]); applies from the next push.
+    pub fn set_byte_cap(&mut self, bytes: usize) {
+        self.byte_cap = bytes;
+    }
+
+    /// Bytes of undo and redo data held, as tracked on every push, undo,
+    /// redo and drop.
+    pub fn stored_bytes(&self) -> usize {
+        self.bytes
+    }
+
+    /// The same sum as [`stored_bytes`](Self::stored_bytes), recomputed
+    /// from the commands themselves — a check of the bookkeeping.
+    pub fn recount_bytes(&self) -> usize {
+        self.undo
+            .iter()
+            .chain(&self.redo)
+            .map(|c| c.undo_bytes())
+            .sum()
     }
 
     /// Number of commands available to undo.
@@ -118,23 +168,83 @@ impl UndoStack {
     pub fn clear(&mut self) {
         self.undo.clear();
         self.redo.clear();
+        self.bytes = 0;
     }
 
     /// Records an already-applied command.
     ///
     /// First tries to merge into the top command; otherwise pushes it. Any new
     /// command discards the redo branch (spec §7.2). Enforces the capacity by
-    /// dropping the oldest command.
+    /// dropping the oldest command — unless it begins the live object, whose
+    /// steps are never dropped: then its oldest edit folds into the begin
+    /// step (docs/specs/image-live-objects.md AC-14).
     pub fn push(&mut self, cmd: Box<dyn Command>) {
-        self.redo.clear();
-        if let Some(top) = self.undo.last_mut()
-            && top.merge_with(cmd.as_ref())
-        {
-            return;
+        for dropped in self.redo.drain(..) {
+            self.bytes -= dropped.undo_bytes();
         }
+        if let Some(top) = self.undo.last_mut() {
+            let before = top.undo_bytes();
+            if top.merge_with(cmd.as_ref()) {
+                self.bytes = self.bytes - before + top.undo_bytes();
+                self.enforce_byte_cap();
+                return;
+            }
+        }
+        self.bytes += cmd.undo_bytes();
         self.undo.push(cmd);
         if self.undo.len() > self.capacity {
-            self.undo.remove(0);
+            self.drop_oldest();
+        }
+        self.enforce_byte_cap();
+    }
+
+    /// Drops the oldest undo step, keeping the byte count — unless it begins
+    /// the live object: then its oldest edit folds into the begin step
+    /// (docs/specs/image-live-objects.md AC-14).
+    fn drop_oldest(&mut self) {
+        let folded = match self.undo.as_slice() {
+            [first, second, ..] => live::LiveStep::fold(first.as_ref(), second.as_ref()),
+            _ => None,
+        };
+        match folded {
+            Some(step) => {
+                for gone in self.undo.drain(..2) {
+                    self.bytes -= gone.undo_bytes();
+                }
+                self.bytes += step.undo_bytes();
+                self.undo.insert(0, step);
+            }
+            None => {
+                let dropped = self.undo.remove(0);
+                self.bytes -= dropped.undo_bytes();
+            }
+        }
+    }
+
+    /// Drops the oldest undo steps until the held data fits the byte cap;
+    /// the newest step always stays (docs/specs/performance-image-undo-memory.md
+    /// AC-05). Redo steps never count here: a push has discarded them.
+    fn enforce_byte_cap(&mut self) {
+        while self.bytes > self.byte_cap && self.undo.len() > 1 {
+            self.drop_oldest();
+        }
+    }
+
+    /// Takes the newest undo step off the stack, keeping the byte count.
+    pub(crate) fn pop_undo(&mut self) -> Option<Box<dyn Command>> {
+        let step = self.undo.pop()?;
+        self.bytes -= step.undo_bytes();
+        Some(step)
+    }
+
+    /// Drops every undo step above the oldest `keep` and the redo branch,
+    /// keeping the byte count.
+    pub(crate) fn truncate_undo(&mut self, keep: usize) {
+        for gone in self.undo.drain(keep.min(self.undo.len())..) {
+            self.bytes -= gone.undo_bytes();
+        }
+        for gone in self.redo.drain(..) {
+            self.bytes -= gone.undo_bytes();
         }
     }
 
@@ -144,7 +254,12 @@ impl UndoStack {
     pub fn undo(&mut self, doc: &mut Document) -> Result<bool, DocumentError> {
         match self.undo.pop() {
             Some(mut cmd) => {
-                cmd.revert(doc)?;
+                let before = cmd.undo_bytes();
+                let reverted = cmd.revert(doc);
+                // A failed step is dropped with whatever it held.
+                self.bytes -= before;
+                reverted?;
+                self.bytes += cmd.undo_bytes();
                 self.redo.push(cmd);
                 Ok(true)
             }
@@ -168,7 +283,12 @@ impl UndoStack {
     pub fn redo(&mut self, doc: &mut Document) -> Result<bool, DocumentError> {
         match self.redo.pop() {
             Some(mut cmd) => {
-                cmd.apply(doc)?;
+                let before = cmd.undo_bytes();
+                let applied = cmd.apply(doc);
+                // A failed step is dropped with whatever it held.
+                self.bytes -= before;
+                applied?;
+                self.bytes += cmd.undo_bytes();
                 self.undo.push(cmd);
                 Ok(true)
             }
@@ -192,6 +312,9 @@ pub struct CommandBus {
     /// What the commands applied, undone or redone since the last
     /// [`take_damage`](CommandBus::take_damage) changed in the composite.
     damage: Damage,
+    /// What the next live-object edit may merge with
+    /// (docs/specs/image-live-objects.md AC-03).
+    live_merge: Option<live::MergeKey>,
 }
 
 impl CommandBus {
@@ -201,11 +324,14 @@ impl CommandBus {
             document,
             history: UndoStack::new(),
             damage: Damage::Full,
+            live_merge: None,
         }
     }
 
-    /// Applies `cmd` to the document and records it in history.
+    /// Applies `cmd` to the document and records it in history. A live
+    /// object is committed first (docs/specs/image-live-objects.md AC-08).
     pub fn apply(&mut self, mut cmd: Box<dyn Command>) -> Result<(), DocumentError> {
+        self.commit_if_live()?;
         let applied = cmd.apply(&mut self.document);
         // A failed command may have changed part of the document.
         self.damage.add(match applied {
@@ -219,6 +345,7 @@ impl CommandBus {
 
     /// Undoes the last command. Returns `false` if nothing to undo.
     pub fn undo(&mut self) -> Result<bool, DocumentError> {
+        self.live_merge = None;
         let damage = self.history.next_undo_damage();
         let undone = self.history.undo(&mut self.document);
         self.record(damage, undone.is_ok());
@@ -227,6 +354,7 @@ impl CommandBus {
 
     /// Redoes the last undone command. Returns `false` if nothing to redo.
     pub fn redo(&mut self) -> Result<bool, DocumentError> {
+        self.live_merge = None;
         let damage = self.history.next_redo_damage();
         let redone = self.history.redo(&mut self.document);
         self.record(damage, redone.is_ok());
@@ -357,5 +485,74 @@ mod tests {
         bus.history.clear();
         assert!(!bus.history.can_undo());
         assert!(!bus.history.can_redo());
+    }
+
+    /// A whole-layer edit of a `w`×`h` document filled with `v`.
+    fn fill_layer(bus: &mut CommandBus, v: u8) {
+        let (w, h) = (bus.document.canvas.width(), bus.document.canvas.height());
+        let data = vec![v; (w * h * 4) as usize];
+        let after = crate::ImageBuffer::from_raw(w, h, data).unwrap();
+        bus.apply(Box::new(SetPixels::new(0, Rect::new(0, 0, w, h), after)))
+            .unwrap();
+    }
+
+    #[test]
+    fn byte_cap_drops_oldest_steps_and_keeps_the_rest_exact() {
+        // 256×256: each whole-layer edit holds four 64 KiB tiles.
+        let mut bus = CommandBus::new(Document::new(256, 256).unwrap());
+        let step = 256 * 256 * 4;
+        bus.history.set_byte_cap(3 * step);
+        let mut states = vec![bus.document.clone()];
+        for v in 1..=5u8 {
+            fill_layer(&mut bus, v * 40);
+            states.push(bus.document.clone());
+            assert!(bus.history.stored_bytes() <= 3 * step);
+            assert_eq!(bus.history.stored_bytes(), bus.history.recount_bytes());
+        }
+        assert_eq!(bus.history.undo_depth(), 3, "two oldest steps dropped");
+        for want in states[2..5].iter().rev() {
+            assert!(bus.undo().unwrap());
+            assert!(&bus.document == want, "undo restores its state exactly");
+        }
+        assert!(!bus.undo().unwrap(), "nothing older is left");
+    }
+
+    #[test]
+    fn byte_cap_keeps_a_step_larger_than_the_cap_alone() {
+        let mut bus = CommandBus::new(Document::new(256, 256).unwrap());
+        let before = bus.document.clone();
+        fill_layer(&mut bus, 10);
+        fill_layer(&mut bus, 20);
+        bus.history.set_byte_cap(1000);
+        let middle = bus.document.clone();
+        fill_layer(&mut bus, 30);
+        assert_eq!(bus.history.undo_depth(), 1, "only the step just performed");
+        assert!(bus.history.stored_bytes() > 1000);
+        assert!(bus.undo().unwrap());
+        assert!(bus.document == middle);
+        assert!(bus.document != before);
+        assert!(!bus.undo().unwrap());
+    }
+
+    #[test]
+    fn stored_bytes_follow_undo_redo_and_new_pushes() {
+        let mut bus = CommandBus::new(Document::new(200, 130).unwrap());
+        assert_eq!(bus.history.stored_bytes(), 0);
+        fill_layer(&mut bus, 9);
+        bus.apply(Box::new(AddLayer::above(0))).unwrap();
+        bus.apply(Box::new(crate::MergeDown::at(1))).unwrap();
+        let held = bus.history.stored_bytes();
+        assert!(held > 0);
+        for _ in 0..3 {
+            assert!(bus.undo().unwrap());
+            assert_eq!(bus.history.stored_bytes(), bus.history.recount_bytes());
+        }
+        // Undone, the added layer is held for redo.
+        assert!(bus.history.stored_bytes() >= 200 * 130 * 4);
+        assert!(bus.redo().unwrap());
+        assert_eq!(bus.history.stored_bytes(), bus.history.recount_bytes());
+        fill_layer(&mut bus, 77);
+        assert_eq!(bus.history.redo_depth(), 0);
+        assert_eq!(bus.history.stored_bytes(), bus.history.recount_bytes());
     }
 }

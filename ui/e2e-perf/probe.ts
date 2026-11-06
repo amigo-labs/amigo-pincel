@@ -10,7 +10,12 @@
 //   probe only observes that a draw happened.
 // - Dab latency: every pointer event (capture phase, its `timeStamp`) is
 //   matched with the first draw after it, and "presented" is the first frame
-//   that starts after that draw — pointer event → pixels presented.
+//   that starts after that draw — pointer event → pixels presented. The
+//   draw latency is the part Pincel controls: from the page receiving the
+//   event (`performance.now()` in this first capture listener) to that draw.
+//   Chrome dispatches `pointermove` aligned to the frame, so the event can
+//   wait up to a frame before it reaches the page, and the frame that shows
+//   the draw starts up to a frame later; neither is the app's work.
 // - Memory: every `WebAssembly.Memory` the app instantiates is kept, so the
 //   script can read `buffer.byteLength`.
 
@@ -18,6 +23,8 @@
 export interface PerfInput {
   readonly type: string;
   readonly t: number;
+  /** `performance.now()` when the page received the event. */
+  readonly dispatchedAt: number;
   drawnAt: number | null;
   presentedAt: number | null;
 }
@@ -92,7 +99,13 @@ export function installProbe(): void {
 
   const onInput = (e: Event): void => {
     if (perf.recording) {
-      perf.inputs.push({ type: e.type, t: e.timeStamp, drawnAt: null, presentedAt: null });
+      perf.inputs.push({
+        type: e.type,
+        t: e.timeStamp,
+        dispatchedAt: performance.now(),
+        drawnAt: null,
+        presentedAt: null,
+      });
     }
   };
   for (const type of ['pointerdown', 'pointermove']) {

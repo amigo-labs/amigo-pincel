@@ -12,7 +12,8 @@ import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
 import { saveDocument } from './save-flow';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
-import { core } from './wasm';
+import { encodeInBackground } from '../jobs';
+import { gestureControl } from '../tools/gesture-control';
 
 /** The shell and editor callbacks the tabs need (`EditorProps`). */
 export interface TabHooks {
@@ -78,7 +79,8 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
       busy: () => runningSave(tab) !== null,
       name: () => fileName(tab),
       format: () => fileFormat(tab),
-      encode: () => (tab.doc.handle === null ? null : core.saveProject(tab.doc.handle, 1)),
+      encode: () =>
+        tab.doc.handle === null ? null : encodeInBackground(tab.doc.handle, 'ora', { level: 1 }),
       report: (error) => hooks.report(t('img.autosaveFailed', { error })),
     },
     opts.docId,
@@ -115,6 +117,8 @@ export function saveTab(tab: ImageTab | null = tabs.active, forceAs = false): Pr
   if (tab === null || ex === undefined || ex.running !== null || tab.doc.handle === null) {
     return Promise.resolve(false);
   }
+  // Save commits the live object first, so the file has it (AC-09, AC-15).
+  if (tab === tabs.active) gestureControl.commitLive();
   const run = saveInner(tab, ex, forceAs).finally(() => {
     ex.running = null;
   });

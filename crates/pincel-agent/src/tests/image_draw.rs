@@ -197,6 +197,40 @@ fn draw_text_matches_the_text_tool() {
 }
 
 #[test]
+fn draw_text_underline_and_strikethrough_match_the_text_tool() {
+    let mut s = S::new();
+    let id = s.new_image(160, 60);
+    let want = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false,
+            "underline": true, "strikethrough": true
+        })],
+    );
+    let plain = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false
+        })],
+    );
+    s.ok(
+        "draw.text",
+        json!({ "text": "Ag\nline", "x": 150, "y": 4, "size": 20, "align": "right",
+                "anti_alias": false, "underline": true, "strikethrough": true }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+    assert_ne!(
+        pixels(&plain, 0),
+        pixels(&want, 0),
+        "the strokes were drawn"
+    );
+}
+
+#[test]
 fn draw_fill_and_gradient_match_bucket_and_gradient_tools() {
     let mut s = S::new();
     let id = s.new_image(16, 12);
@@ -602,34 +636,20 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
 
     let px = s.new_doc(8, 8);
     for (name, args) in [
+        // Image-only options of the shared drawing tools
+        // (mcp-parity-drawing AC-18).
         (
             "draw.stroke",
-            json!({ "points": [[1, 1]], "color": "#000000" }),
+            json!({ "points": [[1, 1]], "color": "#000000", "opacity": 50 }),
         ),
         (
             "draw.shape",
-            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000" }),
+            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "dash": "dotted" }),
         ),
-        ("draw.text", json!({ "text": "A", "x": 0, "y": 0 })),
         (
             "draw.gradient",
-            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff" }),
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "channel": "transparency" }),
         ),
-        (
-            "select.rect",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        (
-            "select.ellipse",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        ("select.wand", json!({ "x": 0, "y": 0 })),
-        ("select.clear", json!({})),
-        ("canvas.resize", json!({ "width": 4, "height": 4 })),
-        ("image.scale", json!({ "width": 4, "height": 4 })),
-        ("image.crop_to_selection", json!({})),
-        ("image.flip", json!({ "direction": "horizontal" })),
-        ("image.rotate", json!({ "angle": 180 })),
         (
             "draw.fill",
             json!({ "x": 1, "y": 1, "color": "#000000", "tolerance": 4 }),

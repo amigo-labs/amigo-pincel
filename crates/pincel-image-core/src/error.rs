@@ -61,7 +61,36 @@ pub enum DocumentError {
         len: usize,
     },
 
+    /// A pixel edit targeted a layer that is locked, itself or through a
+    /// parent group, or a group (which has no pixels).
+    #[error("layer is locked")]
+    LayerLocked {
+        /// The refused layer's index.
+        index: usize,
+    },
+
+    /// A live-object edit, commit or cancel arrived while no object is live
+    /// (docs/specs/image-live-objects.md AC-16).
+    #[error("no live object")]
+    NoLiveObject,
+
+    /// A live-object edit does not fit the object's kind, e.g. a gradient
+    /// field on a shape or a change from a box shape to a Line
+    /// (docs/specs/image-live-objects.md AC-07).
+    #[error("the edit does not fit the live object")]
+    LiveEditMismatch,
+
+    /// A live object's point would lie too far outside the canvas
+    /// (docs/specs/image-live-objects.md AC-10).
+    #[error("the object would lie more than 32768 px outside the canvas")]
+    LiveGeometryOutOfRange,
+
     /// A pixel region did not fit the target buffer.
     #[error("region does not fit the target buffer")]
     RegionOutOfBounds,
+
+    /// Bytes handed to `codec::snapshot::from_snapshot_bytes` are not a
+    /// whole document snapshot.
+    #[error("not a document snapshot")]
+    InvalidSnapshot,
 }

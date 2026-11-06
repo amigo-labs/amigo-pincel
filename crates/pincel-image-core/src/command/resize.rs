@@ -1,6 +1,7 @@
 //! The `ResizeCanvas` command (spec §7.3, §10.4).
 
 use super::Command;
+use super::snapshot::mask_bytes;
 use crate::document::{CanvasSize, Document, ImageBuffer};
 use crate::error::DocumentError;
 use crate::selection::SelectionMask;
@@ -144,6 +145,18 @@ impl Command for ResizeCanvas {
 
     fn label(&self) -> &str {
         "Resize Canvas"
+    }
+
+    fn undo_bytes(&self) -> usize {
+        let pixels = self
+            .prev
+            .as_ref()
+            .map_or(0, |(_, bufs)| bufs.iter().map(|b| b.data().len()).sum());
+        pixels
+            + self
+                .prev_selection
+                .as_ref()
+                .map_or(0, |m| mask_bytes(m.as_ref()))
     }
 
     fn as_any(&self) -> &dyn Any {

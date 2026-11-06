@@ -45,8 +45,6 @@ const EXPECTED_TOOLS: &[&str] = &[
     "draw.ellipse",
     "draw.fill",
     "draw.clear",
-    "selection.set_rect",
-    "selection.clear",
     "effect.apply",
     // Image tools (mcp-headless-image)
     "draw.stroke",
@@ -65,6 +63,61 @@ const EXPECTED_TOOLS: &[&str] = &[
     "image.rotate",
     "export.jpeg",
     "export.webp",
+    // mcp-parity-structure
+    "layer.duplicate",
+    "layer.move",
+    "layer.merge_down",
+    "layer.merge_visible",
+    "layer.merge_group",
+    "layer.flatten",
+    "tag.set",
+    "palette.set_entry",
+    "palette.add_entry",
+    "palette.remove_entry",
+    "palette.move_entry",
+    "palette.import",
+    "palette.export",
+    // mcp-parity-selection-transform
+    "select.polygon",
+    "select.all",
+    "select.invert",
+    "select.expand",
+    "select.contract",
+    "select.feather",
+    "select.get",
+    "select.delete",
+    "layer.flip",
+    "layer.rotate",
+    // mcp-parity-selection-transform-content
+    "layer.translate",
+    "select.move_content",
+    "select.move",
+    "layer.import",
+    "export.selection",
+    // mcp-parity-drawing-image
+    "draw.recolor",
+    "draw.smudge",
+    // mcp-parity-export
+    "export.bmp",
+    "export.tiff",
+    "export.apng",
+    "export.gif",
+    "export.svg",
+    // mcp-parity-pixel-assets
+    "slice.list",
+    "slice.add",
+    "slice.remove",
+    "slice.set_key",
+    "tileset.list",
+    "tileset.add",
+    "tile.add",
+    "tile.read_pixels",
+    "tile.set_pixels",
+    "tilemap.get",
+    "tilemap.place",
+    "grid.set",
+    // image-resize-autocrop
+    "image.auto_crop",
 ];
 
 /// One valid example call per tool.
@@ -75,13 +128,16 @@ fn example(name: &str) -> Value {
         "doc.open" => json!({ "path": "hero.aseprite" }),
         "doc.preview" => json!({ "frame": 0, "scale": 4, "grid": true, "region": region }),
         "doc.read_pixels" => json!({ "region": region, "layer": 0, "frame": 0, "format": "hex" }),
-        "doc.save" => json!({ "path": "hero.aseprite", "doc": "doc-1" }),
+        "doc.save" => json!({ "path": "hero.jpg", "doc": "doc-1", "flatten": true, "quality": 80 }),
         "export.png" => json!({ "path": "hero.png", "frame": 0, "scale": 2 }),
         "export.sheet" => {
             json!({ "columns": 4, "path": "s.png", "tag": "walk", "scale": 2, "json": "s.json" })
         }
         "layer.add" => json!({ "name": "Outline", "kind": "image", "parent": 1 }),
-        "layer.remove" => json!({ "layer": 1 }),
+        "layer.remove" | "layer.duplicate" | "layer.merge_down" | "layer.merge_group" => {
+            json!({ "layer": 1 })
+        }
+        "layer.move" => json!({ "layer": 1, "target": 0, "place": "into" }),
         "layer.set" => {
             json!({ "layer": 0, "name": "A", "visible": false, "opacity": 128, "blend": "multiply", "locked": true })
         }
@@ -90,6 +146,13 @@ fn example(name: &str) -> Value {
         "frame.set_duration" => json!({ "frame": 0, "duration_ms": 120 }),
         "tag.add" => json!({ "name": "walk", "from": 0, "to": 1, "direction": "pingpong" }),
         "tag.remove" => json!({ "tag": 0 }),
+        "tag.set" => json!({ "tag": 0, "name": "run", "from": 0, "to": 1, "direction": "reverse" }),
+        "palette.set_entry" => json!({ "index": 1, "color": "#ff0000" }),
+        "palette.add_entry" => json!({ "color": { "index": 0 } }),
+        "palette.remove_entry" => json!({ "index": 1 }),
+        "palette.move_entry" => json!({ "from": 0, "to": 3 }),
+        "palette.import" => json!({ "path": "p.gpl" }),
+        "palette.export" => json!({ "path": "p.png", "format": "png", "cell": 4, "name": "x" }),
         "palette.set" => json!({ "entries": ["#000000", "#ffffff80"] }),
         "palette.load_preset" => json!({ "preset": "nes" }),
         "draw.pixels" => {
@@ -101,7 +164,38 @@ fn example(name: &str) -> Value {
         }
         "draw.fill" => json!({ "x": 1, "y": 1, "color": "#0000ff", "contiguous": false }),
         "draw.clear" => json!({ "region": region }),
-        "selection.set_rect" => json!({ "x": 0, "y": 0, "width": 4, "height": 4 }),
+        "select.polygon" => {
+            json!({ "points": [[0, 0], [4, 0], [2.5, 3]], "mode": "add", "feather": 1 })
+        }
+        "select.expand" | "select.contract" | "select.feather" => json!({ "radius": 2 }),
+        "select.get" => json!({ "region": region }),
+        "select.delete" => json!({ "layer": 0, "frame": 0 }),
+        "layer.flip" => json!({ "direction": "horizontal", "layer": 0, "frame": 0 }),
+        "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
+        "layer.translate" | "select.move_content" => json!({ "dx": 2, "dy": -1, "layer": 0 }),
+        "select.move" => json!({ "dx": 1, "dy": 1 }),
+        "draw.recolor" => {
+            json!({ "points": [[1, 2]], "from": "#ff0000", "color": "#00ff00", "tolerance": 10, "size": 4, "angle": 30 })
+        }
+        "slice.add" => json!({ "name": "hit", "bounds": region, "color": "#ff0000" }),
+        "slice.remove" => json!({ "slice": 0 }),
+        "slice.set_key" => {
+            json!({ "slice": 0, "frame": 1, "bounds": region, "center": { "x": 1, "y": 1, "width": 1, "height": 1 }, "pivot": null })
+        }
+        "tileset.add" => json!({ "name": "ground", "tile_width": 8, "tile_height": 8 }),
+        "tile.add" => json!({ "tileset": 0 }),
+        "tile.read_pixels" => {
+            json!({ "tileset": 0, "tile": 1, "region": region, "format": "index" })
+        }
+        "tile.set_pixels" => {
+            json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 1, "color": { "index": 2 } }] })
+        }
+        "tilemap.get" => json!({ "layer": 1, "frame": 0 }),
+        "tilemap.place" => json!({ "layer": 1, "cells": [{ "col": 0, "row": 1, "tile": 1 }] }),
+        "grid.set" => json!({ "x": -4, "y": 0, "width": 8, "height": 16 }),
+        "draw.smudge" => json!({ "points": [[1, 2], [3, 4]], "strength": 40, "shape": "flat" }),
+        "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
+        "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
         "draw.stroke" => {
             json!({ "points": [[1, 2], [8.5, 3]], "tool": "brush", "color": "#ff000080", "size": 4, "hardness": 50, "opacity": 80, "shape": "soft_round", "layer": 0 })
@@ -128,6 +222,14 @@ fn example(name: &str) -> Value {
         "image.rotate" => json!({ "angle": 270 }),
         "export.jpeg" => json!({ "path": "a.jpg", "quality": 80 }),
         "export.webp" => json!({ "path": "a.webp" }),
+        "export.bmp" => json!({ "path": "a.bmp" }),
+        "export.svg" => {
+            json!({ "path": "a.svg", "mode": "mono", "threshold": "auto", "fill": "#102030", "alpha_max": 1.2, "frame": 0 })
+        }
+        "export.apng" | "export.gif" => {
+            json!({ "path": "a.gif", "tag": "walk", "scale": 2, "loops": 3 })
+        }
+        "export.tiff" => json!({ "path": "a.tif" }),
         _ => json!({}),
     }
 }
@@ -157,6 +259,11 @@ fn tool_schemas_are_valid() {
     }
     for name in EXPECTED_TOOLS {
         assert!(names.contains(name), "missing tool {name}");
+    }
+    // Renamed to select.rect / select.clear without aliases
+    // (mcp-parity-selection-transform AC-01).
+    for gone in ["selection.set_rect", "selection.clear"] {
+        assert!(!names.contains(gone), "{gone} is still listed");
     }
 }
 

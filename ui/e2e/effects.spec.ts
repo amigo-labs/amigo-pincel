@@ -9,14 +9,17 @@ import {
   menu,
   pixelCanvas,
   pixelOf,
-  waitForEditor,
+  setColor,
   type ClipImage,
+  waitForEditor,
 } from './helpers';
+import { installTauriMock, launchDesktop, nativeSave, putFile, setMock } from './tauri-mock';
 
 // Effects and adjustments in both modes (docs/specs/effects-adjustments.md):
 // the shared menus and dialog, preview, cancel, the scope line and the
-// refusals. Document state is read through Edit ▸ Copy (the clipboard);
-// what the canvas shows is compared through screenshots.
+// refusals. Document state is read through Edit ▸ Copy (the clipboard),
+// or through a native save while an effect is open (its Edit menu is
+// inert then); what the canvas shows is compared through screenshots.
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
@@ -30,9 +33,20 @@ const canvasOf = (page: Page, mode: Mode): Locator =>
 
 /** Fills the (empty) active layer with opaque red: Bucket at the top-left. */
 async function fillRed(page: Page, mode: Mode): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press('g');
   await canvasOf(page, mode).click({ position: { x: 4, y: 4 } });
+}
+
+/** A transparent `size`² PNG, drawn in the page. */
+async function blankPng(page: Page, size: number): Promise<Buffer> {
+  const bytes = await page.evaluate(async (s) => {
+    const canvas = new OffscreenCanvas(s, s);
+    if (!canvas.getContext('2d')) throw new Error('no 2d context');
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return Array.from(new Uint8Array(await blob.arrayBuffer()));
+  }, size);
+  return Buffer.from(bytes);
 }
 
 /**
@@ -506,10 +520,29 @@ for (const mode of MODES) {
   test(`${mode}: the preview shows the effect and leaves the document and its history alone (AC-03)`, async ({
     page,
   }) => {
-    await createDocument(page, mode, { width: 16, height: 16 });
+    // The Edit menu is inert while an effect is open (effect-panel AC-03):
+    // the document is read through a save from the desktop app's native
+    // menu instead, against the mocked Tauri bridge.
+    await installTauriMock(page);
+    await launchDesktop(page);
+    const file = mode === 'pixel' ? '/docs/sprite.aseprite' : '/docs/blank.png';
+    if (mode === 'pixel') {
+      await setMock(page, { savePick: file });
+      await page.getByRole('button', { name: 'New pixel sprite' }).click();
+      const card = page.getByRole('form', { name: 'New pixel sprite' });
+      for (const label of ['Width', 'Height']) await card.getByLabel(label).fill('16');
+      await card.getByRole('button', { name: 'Create' }).click();
+    } else {
+      // An opened PNG saves back to its path as PNG, byte-stable across saves.
+      await putFile(page, file, await blankPng(page, 16));
+      await setMock(page, { openPick: file });
+      await page.getByRole('button', { name: 'Open…' }).click();
+    }
+    await waitForEditor(page, mode);
     await fillRed(page, mode);
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
     await expect(undo).toBeEnabled();
+    const saved = await nativeSave(page, file);
     const shot = await spot(page, mode);
     const plain = await shot();
     const dialog = effectDialog(page);
@@ -521,7 +554,7 @@ for (const mode of MODES) {
       await expectShot(shot, plain, false);
       const previewed = await shot();
       // Under the preview the document is still the red fill, one undo step.
-      expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);
+      expect((await nativeSave(page, file)).equals(saved)).toBe(true);
       if (mode === 'pixel') await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
       await expect(dialog).toBeVisible();
       // Preview off: the image without the effect; on again: the effect.

@@ -305,19 +305,11 @@ fn tools_of_the_other_mode_fail_naming_the_mode_and_change_nothing() {
             json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 3, "color": "#ff0000" }),
         ),
         ("draw.clear", json!({})),
-        (
-            "selection.set_rect",
-            json!({ "x": 0, "y": 0, "width": 2, "height": 2 }),
-        ),
-        ("selection.clear", json!({})),
         ("export.sheet", json!({ "columns": 1, "path": "s.png" })),
         (
             "doc.read_pixels",
             json!({ "region": region, "format": "index" }),
         ),
-        ("layer.add", json!({ "parent": 0 })),
-        ("layer.add", json!({ "kind": "group" })),
-        ("layer.set", json!({ "layer": 0, "parent": 0 })),
     ];
     for (name, args) in pixel_only {
         let before = state(&s, &img);
@@ -394,22 +386,28 @@ fn image_doc_open_corrupt_or_unsupported_file_fails_naming_it() {
 }
 
 #[test]
-fn image_doc_save_without_path_after_flat_open_fails_and_writes_nothing() {
+fn image_doc_save_without_path_after_flat_open_refuses_a_lossy_flatten() {
+    // mcp-parity-export AC-14 / AC-15 supersede mcp-headless-image AC-20:
+    // the opened file's format is the save target, and a layered document
+    // needs `flatten: true` there.
     let mut s = S::new();
     let png = to_png_bytes(&pattern(3, 3), 6).expect("png");
     s.host.files.insert("shot.png".to_owned(), png.clone());
     s.ok("doc.open", json!({ "path": "shot.png" }));
     s.ok("layer.add", json!({}));
     let e = s.err("doc.save", json!({}));
-    assert!(e.contains("PNG") && e.contains("shot.png"), "{e}");
-    assert!(e.contains(".ora") && e.contains("export.png"), "{e}");
+    assert!(
+        e.contains("PNG") && e.contains("shot.png") && e.contains("2 layers"),
+        "{e}"
+    );
+    assert!(e.contains(".ora") && e.contains("flatten: true"), "{e}");
     assert_eq!(s.host.files.len(), 1);
     assert_eq!(s.host.files.get("shot.png"), Some(&png));
-    // A new document asks for a path; a non-.ora path is refused.
+    // A new document asks for a path; an unwritable extension is refused.
     s.new_image(2, 2);
     assert!(s.err("doc.save", json!({})).contains("path"));
     assert!(
-        s.err("doc.save", json!({ "path": "x.png" }))
+        s.err("doc.save", json!({ "path": "x.gif" }))
             .contains(".ora")
     );
     assert_eq!(s.host.files.len(), 1);

@@ -14,8 +14,8 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
-| Both modes | [i18n](i18n.md), [effects-adjustments](effects-adjustments.md) |
-| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md), [app-shell](app-shell.md), [autosave-recovery](autosave-recovery.md) |
+| Both modes | [i18n](i18n.md) |
+| Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
 | Website | [website](website.md) |
 
 ## Planned features — order
@@ -35,7 +35,7 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 | A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
 | A6 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
 | A7 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
-| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
+| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
 
 ### B — Image live objects
 
@@ -91,6 +91,7 @@ Independent of every other group.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
+| F0 | [save-original-format](save-original-format.md) | Image | S | — | Revision 2026-11-06: one Save As dialog (format, JPEG quality, flatten checkbox); before image-formats-more, which extends the same format list |
 | F1 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
 | F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
@@ -135,13 +136,29 @@ No shared files with the groups above; pick by priority.
 | H15 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | H16 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 
+### I — AI assistant and image generation
+
+Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist), and image generation with ComfyUI. Desktop only. The chat line needs `mcp-live-desktop` (A8); the ComfyUI line starts independently. Decision Log 2026-11-06.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| I1 | [ai-chat-panel](ai-chat-panel.md) | both | L | mcp-live-desktop | Assistant panel, Claude Code CLI over the live endpoint, one undo step per answer |
+| I2 | [ai-chat-clis](ai-chat-clis.md) | both | M | ai-chat-panel | Codex CLI, Gemini CLI, opencode (local models) |
+| I3 | [comfyui-connect](comfyui-connect.md) | shell | M | — | Find / start / connect a ComfyUI server, model list |
+| I4 | [comfyui-install](comfyui-install.md) | shell | L | comfyui-connect | One-click managed install (uv, PyTorch for NVIDIA / Apple Silicon, model catalog) |
+| I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
+| I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
+- [app-shell](app-shell.md)
+- [autosave-recovery](autosave-recovery.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
+- [effects-adjustments](effects-adjustments.md)
 - [effects-artistic-photo](effects-artistic-photo.md)
 - [effects-blurs](effects-blurs.md)
 - [effects-distort](effects-distort.md)
@@ -157,6 +174,7 @@ No shared files with the groups above; pick by priority.
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
+- [performance-image-kernel](performance-image-kernel.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
@@ -166,7 +184,6 @@ No shared files with the groups above; pick by priority.
 - [pixel-pressure](pixel-pressure.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
-- [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
@@ -205,6 +222,10 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | ICO export, rulers / guides (Image), settings dialog, light theme | Small, as needed |
 | Adobe .ase / .aco swatches | After palette-formats |
 | WebMCP (agents in the PWA) | Watch browser proposals; see mcp-live-desktop |
+| AI image generation: outpainting, upscaling, control layers (ControlNet), live painting | After comfyui-generate (owner, 2026-11-06); krita-ai-diffusion shows the scope |
+| ComfyUI custom workflows | Import API-format workflows with marked placeholders; after comfyui-generate |
+| ComfyUI managed install for AMD (ROCm), Intel (XPU), CPU | After comfyui-install; v1 is NVIDIA and Apple Silicon |
+| Agent vision tools: object detection, segmentation, style transfer | Need local vision models (e.g. SAM); the PixelAssist prompt names them as unavailable |
 | Shared shell package (`@amigo-labs/canvas-shell`) | Extract `fs` / `idb` / PWA / Tauri wrapper for other amigo-labs tools; cut: what knows the document model stays in the app |
 | Aseprite round-trip gaps | Layer flags Background / Reference / Collapsed / LockMovement, cel `z_index`, user data on layers / cels / sprite / tags, slice note text and properties |
 | Mid-list AddFrame / duplicate frame | Append-only today; needs a FrameIndex remap of cels, tags, slices |
@@ -213,4 +234,5 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Per-command dirty regions, per-tile dirty events | Undo / redo and `setTilePixel` emit full-canvas dirty |
 | `pincel-wasm` errors as `JsError` | Returns `Result<_, String>` today |
 | Scope Tauri file commands | `read_file_bytes` / `write_file_bytes` accept any path from the webview |
+| Live-edit speed in Image mode | Proposed budgets 8 ms (ellipse handle edit) and 16 ms (gradient); today 200 ms / 767 ms on 4096² / 2048² with 5 layers. Needs span-based shape fill, a cheaper gradient pass and a faster region compose; budgets join `performance-benchmarks` (image-live-objects Decisions, 2026-11-06) |
 | Error surfacing | Failures only reach the transient status bar; a toast area would be harder to miss |

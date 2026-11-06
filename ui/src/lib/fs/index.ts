@@ -518,6 +518,16 @@ async function pickAndOpenTauri(kind: PickKind): Promise<OpenedFile | null> {
   return { name: basename(picked), bytes, mime: mimeFromName(picked), handle: null, path: picked };
 }
 
+/**
+ * The file paths the OS handed the desktop app before the page listened
+ * for `open-file` (a file double-clicked on a cold start). Call once the
+ * listener is armed: from then on each path arrives as an event.
+ */
+export async function takeLaunchFiles(): Promise<string[]> {
+  const paths = await invoke<unknown>('take_open_files');
+  return Array.isArray(paths) ? paths.filter((p): p is string => typeof p === 'string') : [];
+}
+
 function basename(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
   return i >= 0 ? p.slice(i + 1) : p;

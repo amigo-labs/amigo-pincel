@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: both
@@ -33,7 +33,7 @@ Both editors offer the same twenty effects and adjustments — blurs, sharpening
 ## Acceptance criteria
 
 - ~~AC-01 (always): In both modes the Effects menu holds the submenus Blur, Sharpen, Distort and Noise, and the Adjustments menu lists nine adjustments …~~ dropped: superseded by [effect-catalog-v2](effect-catalog-v2.md) AC-01 – AC-06 (paint.net submenus, per-mode filter).
-- [ ] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes, as amended by the later effect specs (`effects-blurs`, `effects-object-stylize-color-noise`, …) for the parameters they changed — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown, an angle, point, random seed or linked pair as [effect-catalog-v2](effect-catalog-v2.md) AC-09 – AC-13 specify — or "This effect has no parameters."; Reset returns every parameter to its default.
+- [x] AC-02 (event): When the user picks an effect, then its dialog opens titled with the effect's name, showing each parameter at its default from the table in Technical notes, as amended by the later effect specs (`effects-blurs`, `effects-object-stylize-color-noise`, …) for the parameters they changed — a number as a slider with a number field, a switch as a checkbox, a choice as a dropdown, an angle, point, random seed or linked pair as [effect-catalog-v2](effect-catalog-v2.md) AC-09 – AC-13 specify — or "This effect has no parameters."; Reset returns every parameter to its default.
 - [x] AC-03 (state): While the effect dialog is open with Preview on, the canvas shows the active layer with the effect at the current parameters, and the document and its undo history stay unchanged; turning Preview off shows the image without the effect.
 - [x] AC-04 (event): When the user confirms the dialog (OK or Enter), then the effect is applied to the active layer (Pixel mode: the active layer's cel on the current frame) as exactly one undo step that never merges with a neighbouring stroke, and the dialog closes; Pixel mode's status bar reads "<Effect> applied".
 - [x] AC-05 (event): When the user cancels the dialog (Cancel or Escape), then it closes, the canvas shows the unchanged image and no undo step is added.
@@ -101,12 +101,11 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 ## Summary
 
-> Completed: 2026-11-03
+> Completed: 2026-11-05
 
-- The Effects and Adjustments menus list every entry in both modes and are disabled without a document
-- The effect dialog shows each parameter at its default, previews live without touching the document or its history, resets, applies on OK as one undo step, and closes on Cancel / Escape
-- Effects apply to the active layer or cel inside the selection; an empty selection, a missing cel, an indexed sprite or a locked layer change nothing and are reported in both modes
-- Spatial effects no longer take the hidden colour of fully transparent pixels into account (Emboss, Edge Detect, Relief, Reduce Noise); Preview off hides the preview of parameterless effects too
+- The effect dialog shows each parameter at its default as the right control (slider and field, checkbox, dropdown, angle dial, point, seed, linked pair, as amended by the later effect specs), resets, previews live without touching the document or its history, applies on OK / Enter as one undo step, and closes on Cancel / Escape
+- Effects apply to the active layer or cel inside the selection (Image mode blends feathered pixels by coverage); the dialog names its scope; an empty selection, a missing cel, an indexed sprite, a locked layer or a bad wire request change nothing and are reported
+- The pixel contract of the shared effects is pinned in `pincel-effects`: neutral settings are identities, solid areas stay solid, Invert and Add Noise behave as specified, and spatial effects ignore the colour of fully transparent pixels
 
 ## Open questions
 
@@ -117,25 +116,27 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | dropped |        |
-| AC-02 |      | open   |        |
-| AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | verified | 6aed618 |
-| AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | verified | ba53299 |
+| AC-02 | `ui/e2e/effects.spec.ts`: "{pixel,image}: every effect panel shows its parameters at their defaults; Reset restores them (AC-02)" (all 20 effects of the Technical notes table, per mode as the catalog lists them, with the defaults of the later effect specs) | verified | b6a1eb2 |
+| AC-03 | `ui/e2e/effects.spec.ts › pixel: the preview shows the effect and leaves the document and its history alone (AC-03)`, `ui/e2e/effects.spec.ts › image: …` (same title); `pincel-image-wasm: effect_handle_tests::preview_effect_shows_the_effect_and_leaves_document_and_history_untouched`; `pincel-wasm: effects::tests::preview_effect_leaves_document_and_history_untouched` | verified | 6aed618 |
+| AC-04 | `ui/e2e/effects.spec.ts › image mode: effects and adjustments come from the shared catalog`; `ui/e2e/effects.spec.ts › pixel mode: the Levels adjustment applies`; `ui/e2e/effect-panel.spec.ts › {pixel,image}: OK applies and Cancel, × and Escape leave the document alone (AC-04)` (Enter); `pincel-wasm: effects::tests::apply_effect_invert_changes_pixels_and_undo_restores`, `effects::tests::apply_effect_is_its_own_undo_entry_after_a_stroke` | verified | ba53299 |
 | AC-05 | `ui/e2e/effects.spec.ts › pixel: Cancel and Escape close the dialog and change nothing (AC-05)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 35f631c |
 | AC-06 | `ui/e2e/effects.spec.ts › image mode: an effect stays inside the selection`; `pincel-image-core: selection::tests::masked_region_with_hard_mask_crops_to_the_selection`, `selection::tests::masked_region_mixes_partial_coverage` | verified | 6aed618 |
 | AC-07 | `pincel-wasm: effects::tests::apply_effect_respects_the_marquee_selection` | verified | 35f631c |
 | AC-08 | `ui/e2e/effects.spec.ts › pixel: the dialog names its scope, selection or whole layer (AC-08)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 9af6b69 |
-| AC-09 | `ui/e2e/effects.spec.ts › image: an empty selection changes nothing and says so (AC-09)`, `ui/e2e/effects.spec.ts › pixel: a selection outside the active cel changes nothing and says so (AC-09)`; `pincel-image-wasm: effect_tests::apply_effect_with_an_empty_selection_changes_nothing`; `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` | verified | 9a7f4f0 |
+| AC-09 | `ui/e2e/effects.spec.ts › image: an empty selection changes nothing and says so (AC-09)`, `ui/e2e/effects.spec.ts › pixel: a selection outside the active cel changes nothing and says so (AC-09)`; `pincel-image-wasm: effect_handle_tests::apply_effect_with_an_empty_selection_changes_nothing`; `pincel-wasm: effects::tests::apply_effect_with_selection_off_canvas_is_a_noop` | verified | 9a7f4f0 |
 | AC-10 | `pincel-effects: spec::tests::from_params_unknown_name_is_an_error`, `spec::tests::from_params_wrong_arity_is_an_error`; `pincel-wasm: effects::tests::apply_effect_unknown_name_or_bad_arity_errors` | verified | c43a845 |
 | AC-11 | `pincel-wasm: effects::tests::apply_effect_on_an_indexed_sprite_errors_and_changes_nothing`, `effects::tests::apply_effect_without_a_cel_on_the_current_frame_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a layer without a cel on the current frame refuses the effect (AC-11)` | verified | 5dd2afe |
 | AC-12 | `pincel-wasm: effects::tests::apply_effect_on_a_locked_layer_errors_and_changes_nothing`; `ui/e2e/effects.spec.ts › pixel: a locked layer stays unchanged and gains no undo step (AC-12)`, `ui/e2e/effects.spec.ts › image: …` (same title) | verified | 22f5a52 |
 | AC-13 | `pincel-effects: spec::tests::from_params_every_name_parses_with_its_documented_arity`, `adjust::brightness_contrast::tests::zero_is_identity_legacy`, `adjust::brightness_contrast::tests::zero_is_identity_enhanced`, `adjust::color_balance::tests::zero_balance_is_identity`, `adjust::curves::tests::curves_identity_is_a_no_op`, `adjust::levels::tests::levels_identity_is_a_no_op`, `adjust::hue_sat::tests::identity_on_gray_is_unchanged`, `blur::box_blur::tests::box_blur_1x1_returns_identity`, `blur::gaussian::tests::gaussian_blur_with_sigma_zero_returns_identity`, `blur::motion::tests::motion_blur_distance_one_is_identity`, `sharpen::unsharp_mask::tests::unsharp_amount_zero_is_identity`, `noise::add_noise::tests::add_noise_amount_zero_is_identity` | verified | 3678aba |
-| AC-14 | `pincel-effects: blur::gaussian::tests::gaussian_blur_of_solid_color_is_unchanged`, `blur::box_blur::tests::box_blur_of_solid_color_is_unchanged`, `blur::motion::tests::motion_blur_of_solid_color_is_unchanged`, `blur::radial::tests::radial_spin_of_solid_color_is_unchanged`, `blur::radial::tests::radial_zoom_of_solid_color_is_unchanged`, `sharpen::convolution::tests::sharpen_of_solid_color_is_unchanged`, `sharpen::unsharp_mask::tests::unsharp_of_solid_color_is_unchanged`, `distort::relief::tests::relief_of_solid_color_is_unchanged`, `noise::reduce_noise::tests::median_of_solid_is_unchanged`, `distort::edge_detect::tests::edge_detect_of_solid_is_black`, `distort::emboss::tests::emboss_of_solid_is_flat_gray` | verified | 48b5d53 |
+| AC-14 | `pincel-effects: blur::gaussian::tests::gaussian_blur_of_solid_color_is_unchanged`, `blur::box_blur::tests::box_blur_of_solid_color_is_unchanged`, `blur::motion::tests::motion_blur_of_solid_color_is_unchanged`, `blur::radial::tests::radial_spin_of_solid_color_is_unchanged`, `blur::radial::tests::radial_zoom_of_solid_color_is_unchanged`, `sharpen::convolution::tests::sharpen_of_solid_color_is_unchanged`, `sharpen::unsharp_mask::tests::unsharp_of_solid_color_is_unchanged`, `distort::relief::tests::relief_of_solid_color_is_unchanged`, `noise::reduce_noise::tests::reduce_noise_of_solid_is_unchanged`, `distort::edge_detect::tests::edge_detect_of_solid_is_black`, `distort::emboss::tests::emboss_of_solid_is_flat_gray` | verified | 48b5d53 |
 | AC-15 | `pincel-effects: spec::tests::run_invert_flips_rgb_and_keeps_alpha`, `adjust::invert::tests::invert_of_invert_is_identity`, `adjust::invert::tests::invert_preserves_alpha` | verified | 6aed618 |
 | AC-16 | `pincel-effects: noise::add_noise::tests::add_noise_is_reproducible_for_a_fixed_seed`, `noise::add_noise::tests::different_seeds_differ`, `noise::add_noise::tests::add_noise_changes_pixels_and_preserves_alpha`, `noise::add_noise::tests::monochromatic_keeps_channels_equal_on_gray` | verified | 35f631c |
 | AC-17 | `pincel-effects: adjust::grayscale::tests::grayscale_output_channels_are_equal`, `adjust::threshold::tests::threshold_splits_by_luminance`, `adjust::posterize::tests::posterize_two_levels_snaps_to_black_or_white`, `adjust::posterize::tests::posterize_preserves_endpoints`, `adjust::curves::tests::red_channel_curve_leaves_others_untouched` | verified | b5e6482 |
 | AC-18 | `pincel-effects: tests/transparent_neighbours.rs › spatial_effects_ignore_the_colour_of_transparent_pixels`, `spatial_effects_keep_gray_neighbours_of_transparent_red_pixels_gray` | verified | 6aed618 |
 
 ## Decisions
+
+- 2026-11-06 — effect-panel AC-03 (owner option c) makes the Edit menu inert while an effect is open, so the AC-03 e2e can no longer read the document under the preview through Edit ▸ Copy. It now runs against the mocked Tauri bridge and compares a native-menu save taken under each preview with one taken before (byte-equal: the document is unchanged). Counter-checked: a save after applying Invert Colors with OK differs, so the comparison sees a real change.
 
 - 2026-11-03 — The open question about Image mode's locked layer was settled as a bug, not a wording change: an effect refused there threw out of the dialog's Apply, left the dialog open and reported nothing. Apply now closes the dialog, clears the preview and shows "<Effect> failed: …" as Pixel mode does; AC-12's e2e test checks both modes and was red for Image mode before.
 
@@ -146,3 +147,4 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 - 2026-11-03: AC-09 in Pixel mode needs a cel smaller than the canvas; New and Paste create canvas-sized cels, so the e2e test opens a hand-built `.aseprite` with a 2 × 2 cel.
 - 2026-11-04: AC-01 dropped (superseded by `effect-catalog-v2`: paint.net submenus, Pixel mode shows only hard-edged effects); AC-02 reworded to cover the new parameter kinds, back to `open`. The Technical notes table keeps the old group column as history; the catalog mapping lives in `effect-catalog-v2`.
 - 2026-11-05: AC-02's defaults follow the later effect specs where they changed a parameter (Box Blur as a linked pair, Motion Blur's Centered, Radial Blur without its kind, Reduce Noise's Radius 6 / Strength 40); the Technical notes table stays as history. Found when PR #123's AC-02 test met the merged catalog.
+- 2026-11-05 (spec-build): AC-02 needed no new test: the test adapted in `d364a53` after the 2026-11-04/05 rewording covers all 20 effects of the table with the amended defaults and the new parameter kinds, and passes in the full gate run of 2026-11-05; its red run against a deliberate break is recorded under 2026-11-03.
