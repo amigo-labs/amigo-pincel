@@ -988,6 +988,8 @@ export const de: Record<MessageKey, string> = {
   'save.dontAskAgain': 'Für dieses Dokument nicht mehr fragen',
   'save.asTitle': 'Speichern unter',
   'save.format': 'Format',
+  'save.mergeLayers': 'Ebenen in der Datei zusammenführen',
+  'save.mergeLayersHint': 'Die Datei wird auf eine Ebene reduziert gespeichert; das Dokument behält seine Ebenen.',
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.noEncoder':
     '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',

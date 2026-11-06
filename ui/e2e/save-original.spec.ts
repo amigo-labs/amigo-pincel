@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   RASTER_MIME,
   drag,
@@ -275,6 +275,64 @@ test('"Don\'t ask again" flattens later Saves of the document without asking', a
 
 const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
 
+/** Opens `photo.jpeg`, paints and adds a second layer. */
+async function openLayeredJpeg(page: Page): Promise<void> {
+  await openFile(page, 'photo.jpeg', 'jpeg');
+  await paint(page);
+  await page.getByTitle('Add layer').click();
+  await expect(layerRows(page)).toHaveCount(2);
+}
+
+test('a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-17)', async ({
+  page,
+}) => {
+  await openLayeredJpeg(page);
+  await page.keyboard.press('Control+s');
+  const prompt = flattenPrompt(page);
+  const quality = prompt.getByLabel('Quality');
+  await expect(quality).toHaveValue('90');
+  await setRange(quality, 55);
+  const first = await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
+  expect(first.name).toBe('photo.jpeg');
+  expect(formatOf(first.bytes)).toBe('jpeg');
+  // No JPEG quality dialog follows the prompt.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  // The quality is remembered: the next flatten prompt asks no quality.
+  await paint(page);
+  await page.keyboard.press('Control+s');
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByLabel('Quality')).toHaveCount(0);
+  await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('Cancel and Save as .ora… in the combined prompt remember no quality (AC-17)', async ({
+  page,
+}) => {
+  await openLayeredJpeg(page);
+  const prompt = flattenPrompt(page);
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await page.keyboard.press('Control+s');
+  await setRange(prompt.getByLabel('Quality'), 55);
+  await prompt.getByRole('button', { name: 'Cancel' }).click();
+  await expect(prompt).toHaveCount(0);
+  expect(downloads).toBe(0);
+
+  await page.keyboard.press('Control+s');
+  await expect(prompt.getByLabel('Quality')).toHaveValue('90');
+  await setRange(prompt.getByLabel('Quality'), 55);
+  const ora = await download(page, () => prompt.getByRole('button', { name: 'Save as .ora…' }).click());
+  expect(ora.name).toBe('photo.ora');
+  expect(formatOf(ora.bytes)).toBe('ora');
+
+  await menu(page, 'File', 'Save As…');
+  await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
+  await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('90');
+});
+
+
 test('Save As offers every writable format and writes the chosen one', async ({ page }) => {
   await openFile(page, 'screenshot.png', 'png');
   await menu(page, 'File', 'Save As…');
@@ -305,6 +363,102 @@ test('Save As preselects .ora for a layered document', async ({ page }) => {
   const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
   expect(written.name).toBe('screenshot.ora');
   expect(formatOf(written.bytes)).toBe('ora');
+});
+
+/** Sets a range input the way a drag would (Playwright cannot fill one). */
+async function setRange(input: Locator, value: number): Promise<void> {
+  await input.evaluate((el, v) => {
+    (el as HTMLInputElement).value = String(v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+const mergeBox = (page: Page) => saveAsDialog(page).getByLabel('Merge layers in the file');
+
+test('Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)', async ({
+  page,
+}) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  const saveButton = dialog.getByRole('button', { name: 'Save' });
+  await dialog.getByLabel('Format').selectOption('jpeg');
+  const quality = dialog.getByLabel('Quality');
+  await expect(quality).toHaveValue('90');
+  await expect(mergeBox(page)).not.toBeChecked();
+  await expect(saveButton).toBeDisabled();
+  await setRange(quality, 40);
+  await mergeBox(page).check();
+  await expect(saveButton).toBeEnabled();
+
+  const written = await download(page, () => saveButton.click());
+  expect(written.name).toBe('screenshot.jpg');
+  expect(formatOf(written.bytes)).toBe('jpeg');
+  // No flatten prompt and no quality dialog follow the Save As dialog.
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(layerRows(page)).toHaveCount(2);
+  await expect(page.getByTitle('screenshot.jpg', { exact: true })).toBeVisible();
+
+  // The quality saved with is remembered for the document.
+  await menu(page, 'File', 'Save As…');
+  await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
+  await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('40');
+});
+
+test('the Save As merge checkbox keeps its state and hides for .ora (AC-16)', async ({ page }) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  const format = dialog.getByLabel('Format');
+  const saveButton = dialog.getByRole('button', { name: 'Save' });
+  await format.selectOption('png');
+  await expect(dialog.getByLabel('Quality')).toHaveCount(0);
+  await expect(saveButton).toBeDisabled();
+  await mergeBox(page).check();
+  await format.selectOption('ora');
+  await expect(mergeBox(page)).toHaveCount(0);
+  await expect(saveButton).toBeEnabled();
+  await format.selectOption('png');
+  await expect(mergeBox(page)).toBeChecked();
+  await format.selectOption('jpeg');
+  await expect(mergeBox(page)).toBeChecked();
+  await expect(saveButton).toBeEnabled();
+
+  // Cancel writes and remembers nothing.
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
+  expect(downloads).toBe(0);
+});
+
+test('Save As needs no merge confirmation when flattening loses nothing (AC-16)', async ({
+  page,
+}) => {
+  await openFile(page, 'screenshot.png', 'png');
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  await dialog.getByLabel('Format').selectOption('jpeg');
+  await expect(dialog.getByLabel('Quality')).toBeVisible();
+  await expect(mergeBox(page)).toHaveCount(0);
+  const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
+  expect(formatOf(written.bytes)).toBe('jpeg');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('"Don\'t ask again" hides the Save As merge checkbox (AC-16)', async ({ page }) => {
+  await openLayered(page);
+  await menu(page, 'File', 'Save');
+  const prompt = flattenPrompt(page);
+  await prompt.getByLabel("Don't ask again for this document").check();
+  await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
+
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  await dialog.getByLabel('Format').selectOption('png');
+  await expect(mergeBox(page)).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeEnabled();
 });
 
 test('Save of a GIF opens Save As with a notice that GIF is not written back', async ({ page }) => {
