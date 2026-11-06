@@ -354,10 +354,16 @@ fn moves_on_locked_group_or_tilemap_layers_fail_with_the_reason() {
     s.ok("layer.set", json!({ "layer": 0, "locked": false }));
     s.ok("layer.set", json!({ "layer": 1, "locked": true }));
     for tool in ["layer.translate", "select.move_content"] {
-        let before = s.image(&id).document().clone();
-        let e = s.err(tool, json!({ "dx": 1, "dy": 0, "layer": 0 }));
-        assert!(e.contains("locked") && e.contains("layer 0"), "{tool}: {e}");
-        assert_eq!(s.image(&id).document(), &before);
+        for (dx, dy) in [(1, 0), (0, 0)] {
+            // A zero offset is refused as well: the lock decides first.
+            let before = s.image(&id).document().clone();
+            let e = s.err(tool, json!({ "dx": dx, "dy": dy, "layer": 0 }));
+            assert!(
+                e.contains("locked") && e.contains("layer 0"),
+                "{tool} ({dx}, {dy}): {e}"
+            );
+            assert_eq!(s.image(&id).document(), &before);
+        }
     }
 }
 

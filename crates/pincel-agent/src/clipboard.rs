@@ -73,8 +73,9 @@ pub(crate) const LAYER_TRANSLATE: Tool = Tool {
         let (dx, dy) = offset(args)?;
         let (id, doc) = ctx.ws.image_mut(args)?;
         let layer = image_layer(doc, args)?;
-        let changed = (dx, dy) != (0, 0)
-            && doc.run_if_changed(|| CommandSpec::TranslateLayer { layer, dx, dy })?;
+        // No zero-offset shortcut: the lock check runs first (AC-08), and
+        // the dry run reports a zero offset as no change (AC-07).
+        let changed = doc.run_if_changed(|| CommandSpec::TranslateLayer { layer, dx, dy })?;
         Ok(changed_out(&id, Some(doc.layer_id(layer)), changed))
     },
 };
