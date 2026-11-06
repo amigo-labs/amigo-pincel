@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, pixelCanvas } from './helpers';
+import { colorOf, createDocument, imageCanvas, pixelCanvas, setColor } from './helpers';
 
 // Input path (docs/specs/performance-input-path.md): coalesced pointer
 // samples reach the Pixel stroke, and a touch drag on either canvas never
@@ -18,14 +18,12 @@ async function pixelAt(page: Page): Promise<At> {
     [box.x + ((px + 0.5) * box.width) / N, box.y + ((py + 0.5) * box.height) / N] as const;
 }
 
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
-
 /** Sample sprite pixel (x, y) with the Pixel Eyedropper; `#000000` is transparent. */
 async function pick(page: Page, at: At, x: number, y: number): Promise<string> {
-  await fg(page).fill('#000000');
+  await setColor(page, 'fg', '#000000');
   await page.getByTitle(/Eyedropper/).click();
   await page.mouse.click(...at(x, y));
-  return fg(page).inputValue();
+  return colorOf(page, 'fg');
 }
 
 test('pixel: a move event with several coalesced samples paints through every sample (AC-02)', async ({
@@ -34,7 +32,7 @@ test('pixel: a move event with several coalesced samples paints through every sa
   await createDocument(page, 'pixel', { width: N, height: N });
   const at = await pixelAt(page);
   await page.getByTitle('Pencil (B)').click();
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await page.mouse.move(...at(1, 1));
   await page.mouse.down();
   // One `pointermove` at (12, 12) that carries the samples a fast pen
@@ -139,7 +137,7 @@ for (const mode of ['pixel', 'image'] as const) {
     // the finger (or an ancestor up to the scroller) disallows panning.
     expect(await touchActions(canvas)).toContain('none');
     await MODES[mode].brush(page);
-    await fg(page).fill('#ff0000');
+    await setColor(page, 'fg', '#ff0000');
     await page.evaluate(() => {
       (window as unknown as { __inputPathMarker?: boolean }).__inputPathMarker = true;
     });
@@ -153,14 +151,14 @@ for (const mode of ['pixel', 'image'] as const) {
     const box = await canvas.boundingBox();
     if (!box) throw new Error('canvas not visible');
     if (mode === 'pixel') {
-      await fg(page).fill('#000000');
+      await setColor(page, 'fg', '#000000');
       await page.getByTitle(/Eyedropper/).click();
       await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
     } else {
-      await fg(page).fill('#000000');
+      await setColor(page, 'fg', '#000000');
       await page.keyboard.press('i');
       await page.mouse.click(box.x + box.width * 0.5, box.y + box.height / 2);
     }
-    await expect(fg(page)).toHaveValue('#ff0000');
+    await expect.poll(() => colorOf(page, 'fg')).toBe('#ff0000');
   });
 }
