@@ -572,6 +572,17 @@ pub(crate) static EFFECTS: &[EffectDef] = &[
             flag("invert", false),
         ],
     ),
+    // Layer ▸ Rotate / Zoom (image-transform-handles-rotate-zoom).
+    plain(
+        "rotate_zoom",
+        &[
+            num("angle", -180.0, 180.0, 0.0),
+            num("pan_x", -100.0, 100.0, 0.0),
+            num("pan_y", -100.0, 100.0, 0.0),
+            num("zoom", 0.1, 10.0, 1.0),
+            choice_at("quality", &["nearest", "bilinear", "bicubic"], 1),
+        ],
+    ),
 ];
 
 /// The blend modes of Clouds and Turbulence (effects-render).

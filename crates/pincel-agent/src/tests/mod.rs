@@ -17,6 +17,7 @@ mod image_draw;
 mod layers;
 mod pixel_paint;
 mod preview;
+mod rotate_zoom;
 mod select;
 mod structure;
 mod tags_palette;
