@@ -99,6 +99,7 @@ impl Command for AutoCrop {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::color::BlendMode;
     use crate::command::CommandBus;
     use crate::command::spec::{CommandSpec, StrokeScratch, run_command};
     use crate::document::Layer;
@@ -185,6 +186,36 @@ mod tests {
         assert_eq!(auto_crop_rect(&doc), None);
         doc.layers[1].opacity = 1.0;
         assert_eq!(auto_crop_rect(&doc), Some(Rect::new(2, 2, 1, 1)));
+    }
+
+    #[test]
+    fn auto_crop_rect_hides_the_content_of_a_hidden_group() {
+        // A visible layer inside a hidden group: the canvas shows nothing.
+        let mut doc = doc_filled(6, 6, WHITE);
+        let group = Layer::new_group("group");
+        let mut child = Layer::new_transparent("child", 6, 6);
+        child.pixels.set_pixel(2, 2, RED);
+        child.parent = Some(group.id);
+        doc.layers.push(group);
+        doc.layers.push(child);
+        doc.layers[1].visible = false;
+        assert!(doc.layers[2].visible);
+        assert_eq!(auto_crop_rect(&doc), None);
+        doc.layers[1].visible = true;
+        assert_eq!(auto_crop_rect(&doc), Some(Rect::new(2, 2, 1, 1)));
+    }
+
+    #[test]
+    fn auto_crop_rect_follows_the_blend_mode() {
+        // Black in Screen mode over white composites to white: no content.
+        let mut doc = doc_filled(6, 6, WHITE);
+        let mut top = Layer::new_transparent("top", 6, 6);
+        top.pixels.set_pixel(2, 3, Color::rgba(0, 0, 0, 255));
+        top.blend_mode = BlendMode::Screen;
+        doc.layers.push(top);
+        assert_eq!(auto_crop_rect(&doc), None);
+        doc.layers[1].blend_mode = BlendMode::Normal;
+        assert_eq!(auto_crop_rect(&doc), Some(Rect::new(2, 3, 1, 1)));
     }
 
     #[test]
