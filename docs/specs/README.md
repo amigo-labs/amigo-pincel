@@ -49,7 +49,6 @@ Owner feedback of 2026-11-05 on the running editor. Touches the options bar and 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | C4 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
-| C6 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
 
 ### D — Image tools
 
@@ -149,6 +148,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
+- [history-panel](history-panel.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
