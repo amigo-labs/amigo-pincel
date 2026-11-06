@@ -429,6 +429,9 @@ fn layer_import_of_an_image_doc_open_refuses_fails_like_doc_open() {
         e.contains("16385×1 px exceeds the Image document limit of 16384 px per side"),
         "{e}"
     );
+    // The same size refusal as doc.open's, after each tool's own prefix.
+    let reason = |m: &str| m.split_once("16385×1").map(|(_, r)| r.to_owned());
+    assert_eq!(reason(&e), reason(&opened), "{e} / {opened}");
     assert_eq!(s.image(&id).document(), &before);
 }
 
