@@ -273,6 +273,14 @@ export interface DeleteSelectionCommand {
   layer: number;
 }
 
+/** Fill the selected pixels of a layer with `color` — the whole layer when
+ * no selection is active (Edit ▸ Fill Selection). */
+export interface FillSelectionCommand {
+  type: 'fill_selection';
+  layer: number;
+  color: Rgba;
+}
+
 /** Layer-structure and -property commands (spec §5.2 / §7.3). */
 export type LayerCommand =
   | { type: 'add_layer'; active: number }
@@ -523,6 +531,7 @@ export type ToolCommand =
   | TranslateSelectionCommand
   | TranslateSelectionMaskCommand
   | DeleteSelectionCommand
+  | FillSelectionCommand
   | LayerCommand
   | SelectionCommand
   | TransformCommand

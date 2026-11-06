@@ -312,6 +312,7 @@ export const en = {
   'offer.open': 'Open',
   'offer.ignore': 'Ignore',
   'menu.deleteSelection': 'Delete Selection',
+  'menu.fillSelection': 'Fill Selection',
   'menu.swapColors': 'Swap Colors',
   'menu.defaultColors': 'Default Colors',
   'menu.expand': 'Expand…',

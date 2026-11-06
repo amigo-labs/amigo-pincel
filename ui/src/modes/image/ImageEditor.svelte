@@ -63,6 +63,7 @@
     selectAll,
     deselect,
     deleteSelection,
+    fillSelection,
     invertSelection,
     expandSelection,
     contractSelection,
@@ -529,6 +530,7 @@
     'paste',
     'pasteNewImage',
     'deleteSelection',
+    'fillSelection',
     'selectAll',
     'deselect',
     'invertSelection',
@@ -961,6 +963,9 @@
       case 'deleteSelection':
         layerEdit(false, deleteSelection);
         return true;
+      case 'fillSelection':
+        layerEdit(false, fillSelection);
+        return true;
       case 'zoomIn':
         viewCommands.zoomIn();
         return true;
@@ -1269,6 +1274,12 @@
           shortcut: hint('deleteSelection'),
           disabled: !editor.hasSelection,
           run: () => layerEdit(false, deleteSelection),
+        },
+        {
+          label: t('menu.fillSelection'),
+          shortcut: hint('fillSelection'),
+          disabled: !hasDoc,
+          run: () => layerEdit(false, fillSelection),
         },
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
