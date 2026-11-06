@@ -665,6 +665,8 @@ export const en = {
   'opt.gradientRadial': 'Radial',
   'opt.gradientConical': 'Conical',
   'opt.gradientDiamond': 'Diamond',
+  'opt.gradientSpiralCw': 'Spiral (clockwise)',
+  'opt.gradientSpiralCcw': 'Spiral (counter-clockwise)',
   'opt.gradientChannel': 'Channel',
   'opt.gradientColor': 'Color',
   'opt.gradientTransparency': 'Transparency',

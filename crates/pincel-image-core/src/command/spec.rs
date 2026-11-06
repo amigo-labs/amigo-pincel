@@ -184,6 +184,8 @@ pub(super) fn parse_gradient_kind(s: &str) -> GradientKind {
         "radial" => GradientKind::Radial,
         "conical" => GradientKind::Conical,
         "diamond" => GradientKind::Diamond,
+        "spiral_cw" => GradientKind::SpiralCw,
+        "spiral_ccw" => GradientKind::SpiralCcw,
         _ => GradientKind::Linear,
     }
 }

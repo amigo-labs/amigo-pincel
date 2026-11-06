@@ -192,6 +192,8 @@
         <option value="radial">{t('opt.gradientRadial')}</option>
         <option value="conical">{t('opt.gradientConical')}</option>
         <option value="diamond">{t('opt.gradientDiamond')}</option>
+        <option value="spiral_cw">{t('opt.gradientSpiralCw')}</option>
+        <option value="spiral_ccw">{t('opt.gradientSpiralCcw')}</option>
       </select>
     </label>
 

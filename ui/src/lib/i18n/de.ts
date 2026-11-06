@@ -668,6 +668,8 @@ export const de: Record<MessageKey, string> = {
   'opt.gradientRadial': 'Radial',
   'opt.gradientConical': 'Konisch',
   'opt.gradientDiamond': 'Raute',
+  'opt.gradientSpiralCw': 'Spirale (im Uhrzeigersinn)',
+  'opt.gradientSpiralCcw': 'Spirale (gegen den Uhrzeigersinn)',
   'opt.gradientChannel': 'Kanal',
   'opt.gradientColor': 'Farbe',
   'opt.gradientTransparency': 'Transparenz',

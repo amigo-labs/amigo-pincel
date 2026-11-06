@@ -87,23 +87,28 @@ Terms used below: the drag runs from the start point `a` to the end point `b`; `
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `the Gradient options offer both spirals after the five kinds (AC-01)` (`ui/e2e/image-gradient-spiral.spec.ts`) | built |  |
+| AC-02 | `spiral_every_pixel_follows_the_spiral_formula`, `spiral_start_pixel_takes_the_start_color_for_any_direction` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-03 | `spiral_pins_the_spec_example_values` (`crates/pincel-image-core/tests/gradient_spiral.rs`); `a spiral drag paints the spec example and is one undo step (AC-03, AC-08)` (`ui/e2e/image-gradient-spiral.spec.ts`) | built |  |
+| AC-04 | `spiral_ccw_mirrors_spiral_cw_across_a_horizontal_drag_on_a_boundary` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-05 | `spiral_repeats_the_ramp_every_drag_length_on_the_drag_line` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-06 | `spiral_transparency_fades_alpha_along_t_and_keeps_the_color` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-07 | `spiral_inside_a_feathered_selection_changes_only_selected_pixels` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-08 | `spiral_is_one_undo_step_and_undo_restores_the_layer_exactly` (`crates/pincel-image-core/tests/gradient_spiral.rs`); `a spiral drag paints the spec example and is one undo step (AC-03, AC-08)` (`ui/e2e/image-gradient-spiral.spec.ts`) | built |  |
+| AC-09 | `spiral_zero_length_drag_changes_nothing_and_adds_no_step` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-10 | `tools_list_offers_the_spiral_kinds_for_draw_gradient` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-11 | `draw_gradient_spiral_matches_the_editor_gradient_tool` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-12 | `draw_gradient_with_an_unknown_kind_lists_the_accepted_kinds` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-13 | `draw_gradient_spiral_on_a_pixel_document_is_a_mode_error` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-14 | `the spiral kinds read in German (AC-14)` (`ui/e2e/image-gradient-spiral.spec.ts`) | built |  |
 
 ## Decisions
 
 - 2026-11-05: Split from `image-palette-gradient.md`, because palette and spiral together exceed size L and share no code.
 - 2026-11-05: `draw.gradient` gains the spiral kinds in the same change as the editor, because the MCP tool parity decision (2026-11-05) requires the tool to reach every kind the editor offers.
 - 2026-11-05: `frac` is defined with `floor` (AC terms), because a truncating fractional part keeps the sign and would paint the start color where the spiral should continue.
+- 2026-11-06: The spiral `t` takes `θ` from the same `atan2` minus the drag angle as Conical, and sets `θ` = 0 when the pixel centre is the drag start, because `atan2(0, 0)` minus a non-zero drag angle would otherwise give the start pixel a ramp position other than 0 (Edge cases).
+- 2026-11-06: The core tests drive the spirals through `run_command` with `begin_live_gradient` + `commit_live`, because a Gradient drag in the editor begins a live gradient (`image-live-objects-ui`); a separate test pins that `draw_gradient` (MCP's path) paints the same pixels.
+- 2026-11-06: The test reference for `t` (AC-02, AC-06) accepts a 0 ↔ 255 difference only at the seam (one side ≤ 2), because the `f64` reference and the core's `f32` math may put a pixel that sits on the seam on opposite sides of it.
+- 2026-11-06: Red runs. Before the core change all value tests failed (`spiral_*` parsed as Linear). Tests green before the change were shown red against temporary breaks, then reverted: AC-02 start pixel (no `θ` = 0 case at `a`), AC-04 (counter-clockwise = clockwise), AC-07 (spirals ignore the selection), AC-08 (`draw_gradient` records two steps for a spiral), AC-09 (a zero-length spiral falls back to a unit drag), `draw_gradient` parity (live path maps spirals to Linear), the live-object kind report (`spiral_ccw` reported as `spiral_cw`), AC-13 (Pixel route without the spiral refusal: "unknown gradient kind"), AC-03 e2e (UI sends `spiral_ccw` for `spiral_cw`: pixel (8, 16) not 64). AC-01, AC-10, AC-11, AC-12, AC-14 failed before their implementation.
+- 2026-11-06: The e2e AC-03 check samples after Enter commits the live gradient, because the live handles' guide line runs along row 8 and covers pixel (16, 8).

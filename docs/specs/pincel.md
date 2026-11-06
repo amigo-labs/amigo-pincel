@@ -456,7 +456,7 @@ Image mode is the paint.net-style editor (§1.1). Its tools live in `crates/pinc
 | Recolor | `R` | A brush that writes only where it finds the background color, within a tolerance, and paints the foreground there |
 | Smudge | `S` | Carries the color under the tip along the stroke. Strength governs how far: 0 changes nothing, 1 drags one color the whole way |
 | Paint Bucket | `G` | Flood fill, contiguous or global, with a tolerance, sampling the layer or the composite |
-| Gradient | `N` | Linear / reflected / radial / conical / diamond ramp along the drag, in the Color or Transparency channel |
+| Gradient | `N` | Linear / reflected / radial / conical / diamond / spiral (clockwise, counter-clockwise) ramp along the drag, in the Color or Transparency channel |
 | Eyedropper | `I` | Samples 1 / 3 / 5 / 11 / 31 px from the layer or the composite |
 | Line | `L` | A straight line with the shape style (width, dash, anti-alias) |
 | Shapes | `U` | Rectangle, rounded rectangle, ellipse and regular polygon, as outline / fill / both |
