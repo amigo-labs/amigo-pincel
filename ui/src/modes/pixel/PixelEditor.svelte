@@ -25,6 +25,7 @@
   import PreviewPanel from './components/PreviewPanel.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
+  import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
@@ -104,6 +105,7 @@
     deselect,
     duplicateLayer,
     flattenLayers,
+    jumpHistory,
     mergeDownLayer,
     moveLayerTo,
     redo,
@@ -1134,6 +1136,10 @@
     }}
   />
 {/snippet}
+{#snippet historyBody()}
+  <HistoryPanel history={ed.history} origin={ed.origin} busy={gestureInProgress} onJump={jumpHistory} />
+{/snippet}
+
 {#snippet slicesBody()}
   <SlicesPanel
     doc={ed.doc}
@@ -1214,6 +1220,13 @@
       title: t('panel.slices'),
       icon: 'slice',
       body: slicesBody,
+      defaultCollapsed: true,
+    },
+    {
+      id: 'history',
+      title: t('historyPanel.title'),
+      icon: 'history',
+      body: historyBody,
       defaultCollapsed: true,
     },
     {

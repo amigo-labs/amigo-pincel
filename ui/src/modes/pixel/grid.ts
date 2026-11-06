@@ -10,6 +10,7 @@ import { isIdbAvailable } from '../../lib/idb/db';
 import { getPref, setPref } from '../../lib/idb/prefs';
 import { t } from '../../lib/i18n/index.svelte';
 import type { GridSettings } from './components/GridSettingsDialog.svelte';
+import { syncHistory } from './history';
 import { dialogs, ed, live, view } from './stores/editor.svelte';
 
 /** IndexedDB pref key of the grid view settings. */
@@ -134,6 +135,7 @@ export function applyGridSettings(s: GridSettings): void {
     }
     ed.undoDepth = d.undoDepth;
     ed.redoDepth = d.redoDepth;
+    syncHistory();
   }
   if (s.color !== view.gridColor || s.opacity !== view.gridOpacity) {
     view.gridColor = s.color;
