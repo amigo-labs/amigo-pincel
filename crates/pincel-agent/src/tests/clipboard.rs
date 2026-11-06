@@ -1388,6 +1388,94 @@ fn export_selection_clips_to_the_canvas_and_cuts_the_selection_shape() {
 }
 
 #[test]
+fn moves_reach_other_layers_frames_and_beyond_the_canvas() {
+    // AC-03: `layer` other than the active layer, and a group move is one
+    // undo step.
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    s.ok("layer.add", json!({}));
+    let want = image_editor(
+        &s,
+        &id,
+        CommandSpec::TranslateLayer {
+            layer: 0,
+            dx: 1,
+            dy: 0,
+        },
+    );
+    let out = s.ok("layer.translate", json!({ "dx": 1, "dy": 0, "layer": 0 }));
+    assert_eq!(out, json!({ "doc": id, "layer": 0, "changed": true }));
+    assert_eq!(s.image(&id).document().layers(), want.layers());
+
+    // AC-04: every selected pixel moved off the canvas is gone; one undo
+    // restores pixels and selection, in both modes.
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 2, "height": 2 }),
+    );
+    let before = s.state(&id);
+    let depth = undo_depth(&mut s);
+    let want = pixel_editor(
+        &s,
+        &id,
+        MoveSelectionContent::new(LayerId::new(0), FrameIndex::new(0), 10, 0).into(),
+    );
+    s.ok("select.move_content", json!({ "dx": 10, "dy": 0 }));
+    assert_eq!(s.state(&id), want);
+    assert_eq!(px(&s.cel_rgba(&id, 0, 0), 6, 1, 1), [0, 0, 0, 0]);
+    assert_eq!(undo_depth(&mut s), depth + 1);
+    s.ok("doc.undo", json!({}));
+    assert_eq!(s.state(&id), before);
+
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 2, "height": 2 }),
+    );
+    let before = s.image(&id).document().clone();
+    let want = image_editor(
+        &s,
+        &id,
+        CommandSpec::TranslateSelection {
+            layer: 0,
+            dx: 10,
+            dy: 0,
+        },
+    );
+    s.ok("select.move_content", json!({ "dx": 10, "dy": 0 }));
+    assert_eq!(s.image(&id).document().layers(), want.layers());
+    assert_eq!(s.image(&id).document().selection, want.selection);
+    s.ok("doc.undo", json!({}));
+    assert_eq!(s.image(&id).document(), &before);
+
+    // AC-15: Copy Merged at a frame other than the active one.
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    s.ok("frame.add", json!({}));
+    s.ok(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#123456" }] }),
+    );
+    let d = s.doc(&id);
+    let want =
+        copy_pixels(&d.sprite, &d.cels, FrameIndex::new(0), CopySource::Merged).expect("copy");
+    let other =
+        copy_pixels(&d.sprite, &d.cels, FrameIndex::new(1), CopySource::Merged).expect("copy");
+    assert_ne!(want.rgba, other.rgba);
+    s.ok(
+        "export.selection",
+        json!({ "path": "m.png", "merged": true, "frame": 0 }),
+    );
+    assert_eq!(
+        import_png(&s.host.files["m.png"]).expect("png").rgba,
+        want.rgba
+    );
+}
+
+#[test]
 fn a_refusing_move_command_fails_with_its_reason() {
     let mut s = S::new();
     let id = pixel_doc(&mut s);
