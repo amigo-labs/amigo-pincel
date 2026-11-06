@@ -217,4 +217,5 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Per-command dirty regions, per-tile dirty events | Undo / redo and `setTilePixel` emit full-canvas dirty |
 | `pincel-wasm` errors as `JsError` | Returns `Result<_, String>` today |
 | Scope Tauri file commands | `read_file_bytes` / `write_file_bytes` accept any path from the webview |
+| Live-edit speed in Image mode | Proposed budgets 8 ms (ellipse handle edit) and 16 ms (gradient); today 200 ms / 767 ms on 4096² / 2048² with 5 layers. Needs span-based shape fill, a cheaper gradient pass and a faster region compose; budgets join `performance-benchmarks` (image-live-objects Decisions, 2026-11-06) |
 | Error surfacing | Failures only reach the transient status bar; a toast area would be harder to miss |
