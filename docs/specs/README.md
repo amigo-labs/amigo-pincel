@@ -30,7 +30,6 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 | - | ---- | ---- | ---- | ---------- | ---- |
 | A3 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
 | A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
-| A6 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
 | A7 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
 | A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
 
@@ -166,6 +165,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
 - [mcp-parity-drawing](mcp-parity-drawing.md)
+- [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md)
 - [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
 - [mcp-parity-structure](mcp-parity-structure.md)
 - [outline-effect](outline-effect.md)
