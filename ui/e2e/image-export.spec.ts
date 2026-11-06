@@ -124,6 +124,8 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   // An edge beyond 16384 px is cut to 16384 px.
   await menu(page, 'Image', 'Resize Canvas…');
   const resize = page.getByRole('dialog', { name: 'Resize Canvas' });
+  await resize.getByRole('radio', { name: 'By absolute size' }).check();
+  await resize.getByLabel('Maintain aspect ratio').uncheck();
   await resize.getByLabel('Width').fill('20000');
   await resize.getByLabel('Height').fill('50');
   await resize.getByRole('button', { name: 'Resize' }).click();
@@ -133,7 +135,8 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   // 16384 × 8192 · √½ → 11585 × 5792.
   await menu(page, 'Image', 'Scale Image…');
   const scale = page.getByRole('dialog', { name: 'Scale Image' });
-  await scale.getByLabel('Constrain proportions').uncheck();
+  await scale.getByRole('radio', { name: 'By absolute size' }).check();
+  await scale.getByLabel('Maintain aspect ratio').uncheck();
   await scale.getByLabel('Width').fill('16384');
   await scale.getByLabel('Height').fill('8192');
   await scale.getByLabel('Resampling').selectOption('nearest');

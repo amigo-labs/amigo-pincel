@@ -1,19 +1,21 @@
 <script lang="ts">
   import { t } from '../../../../lib/i18n/index.svelte';
-  // Resize Canvas dialog (spec §10.4, §16): width/height + 9-grid anchor. Does
-  // not scale content; layers are padded/cropped per the anchor.
-  import { editor, MAX_CANVAS_DIM, clampCanvasSize } from '../../stores/editor.svelte';
+  // Resize Canvas dialog (spec §10.4, §16; docs/specs/image-resize-autocrop.md):
+  // the shared size input + 9-grid anchor. Does not scale content; layers are
+  // padded/cropped per the anchor.
   import type { ResizeAnchor } from '../../core/wasm';
+  import type { SizeDoc } from '../../size-input';
   import Modal from './Modal.svelte';
+  import SizeInput from './SizeInput.svelte';
 
   interface Props {
+    doc: SizeDoc;
     onApply: (width: number, height: number, anchor: ResizeAnchor) => void;
     onClose: () => void;
   }
-  const { onApply, onClose }: Props = $props();
+  const { doc, onApply, onClose }: Props = $props();
 
-  let width = $state(editor.width);
-  let height = $state(editor.height);
+  let size = $state<[number, number] | null>(null);
   let anchor = $state<ResizeAnchor>('center');
 
   // 3×3 anchor grid in row-major (top→bottom, left→right) order.
@@ -29,36 +31,19 @@
     'bottom_right',
   ];
 
-  // Typed values can exceed the input's max; clamp to the edge / area limits.
-
   function apply(): void {
-    if (width > 0 && height > 0) {
-      onApply(...clampCanvasSize(width, height), anchor);
-    }
+    if (size) onApply(size[0], size[1], anchor);
   }
 </script>
 
-<Modal title={t('resize.resizeCanvasTitle')} applyLabel={t('resize.resize')} onApply={apply} {onClose}>
-  <label class="mb-2 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">{t('common.width')}</span>
-    <input
-      type="number"
-      min="1"
-      max={MAX_CANVAS_DIM}
-      bind:value={width}
-      class="w-24 rounded border border-pc-border bg-pc-bg px-2 py-1"
-    />
-  </label>
-  <label class="mb-3 flex items-center justify-between gap-2">
-    <span class="text-pc-muted">{t('common.height')}</span>
-    <input
-      type="number"
-      min="1"
-      max={MAX_CANVAS_DIM}
-      bind:value={height}
-      class="w-24 rounded border border-pc-border bg-pc-bg px-2 py-1"
-    />
-  </label>
+<Modal
+  title={t('resize.resizeCanvasTitle')}
+  applyLabel={t('resize.resize')}
+  applyDisabled={size === null}
+  onApply={apply}
+  {onClose}
+>
+  <SizeInput {doc} onSize={(next) => (size = next)} />
 
   <div class="mb-3">
     <span class="mb-1 block text-pc-muted">{t('resize.anchor')}</span>
