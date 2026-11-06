@@ -244,41 +244,56 @@ fn draw_fill_sample_all_layers_equals_the_editors_bucket() {
 fn out_of_range_or_unknown_brush_values_fail_naming_the_argument() {
     let mut s = S::new();
     let id = painted(&mut s);
-    for (tool, args, arg) in [
+    for (tool, args, arg, allowed) in [
         (
             "draw.recolor",
             json!({ "points": [[1, 1]], "from": "#ff0000", "tolerance": 300 }),
             "tolerance",
+            &["0–255"][..],
         ),
         (
             "draw.smudge",
             json!({ "points": [[1, 1]], "strength": 0 }),
             "strength",
+            &["1–100"][..],
         ),
         (
             "draw.smudge",
             json!({ "points": [[1, 1]], "angle": 200 }),
             "angle",
+            &["0–180"][..],
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "angle": -1 }),
+            "angle",
+            &["0–180"][..],
         ),
         (
             "draw.stroke",
             json!({ "points": [[1, 1]], "tool": "eraser", "eraser_mode": "to_white" }),
             "eraser_mode",
+            &["to_transparent", "to_background"][..],
         ),
         (
             "draw.stroke",
             json!({ "points": [[1, 1]], "tool": "eraser", "background": "white" }),
             "background",
+            &["#RRGGBB", "#RRGGBBAA"][..],
         ),
         (
             "draw.fill",
             json!({ "x": 1, "y": 1, "color": "#000000", "sample": "screen" }),
             "sample",
+            &["current_layer", "all_layers"][..],
         ),
     ] {
         let before = layers(&s, &id);
         let e = s.err(tool, args.clone());
         assert!(e.contains(arg), "{tool} {args}: {e}");
+        for a in allowed {
+            assert!(e.contains(a), "{tool} {args} misses {a}: {e}");
+        }
         assert_eq!(layers(&s, &id), before);
     }
 }
@@ -363,22 +378,102 @@ fn recolor_and_smudge_stay_inside_the_selection() {
     }
 }
 
+/// The painted document's layer 0 before and after `tool` runs with the
+/// rectangle x 8–11 selected and feathered by 2 px, or (`hard`) with every
+/// pixel that feathered selection touches fully selected; plus the
+/// feathered coverage per pixel.
+fn brushed_in_selection(tool: &str, hard: bool) -> (Vec<u8>, Vec<u8>, Vec<u8>) {
+    let mut s = S::new();
+    let id = painted(&mut s);
+    let before = layers(&s, &id)[0].pixels.data().to_vec();
+    s.ok(
+        "select.rect",
+        json!({ "x": 8, "y": 0, "width": 4, "height": 16, "feather": 2 }),
+    );
+    let soft = s
+        .image(&id)
+        .document()
+        .selection
+        .clone()
+        .expect("selection");
+    let cov = soft.data().to_vec();
+    if hard {
+        let b = soft.bounding_box().expect("bounds");
+        s.ok(
+            "select.rect",
+            json!({ "x": b.x, "y": b.y, "width": b.w, "height": b.h }),
+        );
+        let mask = s.image(&id).document().selection.clone().expect("mask");
+        let full: Vec<u8> = cov.iter().map(|&c| if c > 0 { 255 } else { 0 }).collect();
+        assert_eq!(mask.data(), full.as_slice(), "hard mask");
+    }
+    let mut args = json!({ "points": [[0, 8], [23, 8]], "size": 12 });
+    if tool == "draw.recolor" {
+        args["from"] = json!("#ff0000");
+        args["color"] = json!("#00ff00");
+    }
+    s.ok(tool, args);
+    let after = layers(&s, &id)[0].pixels.data().to_vec();
+    (cov, before, after)
+}
+
+#[test]
+fn recolor_and_smudge_blend_feathered_selection_edges_by_coverage() {
+    for tool in ["draw.recolor", "draw.smudge"] {
+        let (cov, before, soft) = brushed_in_selection(tool, false);
+        let (_, _, hard) = brushed_in_selection(tool, true);
+        assert!(cov.iter().any(|&c| c > 0 && c < 255), "feathered edge");
+        let mut blended = false;
+        for (i, &c) in cov.iter().enumerate() {
+            let px = |b: &[u8]| b[i * 4..i * 4 + 4].to_vec();
+            match c {
+                0 => assert_eq!(px(&soft), px(&before), "{tool} changed {i} outside"),
+                255 if tool == "draw.recolor" => {
+                    assert_eq!(px(&soft), px(&hard), "{tool} fully selected pixel {i}")
+                }
+                255 => {}
+                _ => blended |= px(&soft) != px(&hard) && px(&soft) != px(&before),
+            }
+        }
+        assert!(
+            blended,
+            "{tool}: no feathered pixel was blended by its coverage"
+        );
+    }
+}
+
 #[test]
 fn recolor_and_smudge_refuse_empty_points_locked_and_group_targets() {
     let mut s = S::new();
     let id = painted(&mut s);
-    s.ok("layer.add", json!({ "kind": "group" }));
-    s.ok("layer.set", json!({ "layer": 0, "locked": true }));
+    s.ok(
+        "layer.set",
+        json!({ "layer": 0, "name": "Base", "locked": true }),
+    );
+    let group = s.ok("layer.add", json!({ "kind": "group", "name": "Box" }))["layer"]
+        .as_u64()
+        .expect("group id");
+    let inner = s.ok("layer.add", json!({ "name": "Inner", "parent": group }))["layer"]
+        .as_u64()
+        .expect("layer id");
+    s.ok("layer.set", json!({ "layer": group, "locked": true }));
     for tool in ["draw.recolor", "draw.smudge"] {
         for (args, needle) in [
-            (json!({ "points": [], "from": "#ff0000" }), "points"),
             (
-                json!({ "points": [[1, 1]], "from": "#ff0000", "layer": 0 }),
-                "locked",
+                json!({ "points": [], "from": "#ff0000" }),
+                "points".to_owned(),
             ),
             (
-                json!({ "points": [[1, 1]], "from": "#ff0000", "layer": 1 }),
-                "is a group",
+                json!({ "points": [[1, 1]], "from": "#ff0000", "layer": 0 }),
+                "layer 0 (\"Base\") is locked".to_owned(),
+            ),
+            (
+                json!({ "points": [[1, 1]], "from": "#ff0000", "layer": inner }),
+                format!("layer {inner} (\"Inner\") is locked"),
+            ),
+            (
+                json!({ "points": [[1, 1]], "from": "#ff0000", "layer": group }),
+                format!("layer {group} (\"Box\") is a group"),
             ),
         ] {
             let mut a = args.clone();
@@ -387,7 +482,7 @@ fn recolor_and_smudge_refuse_empty_points_locked_and_group_targets() {
             }
             let before = layers(&s, &id);
             let e = s.err(tool, a);
-            assert!(e.contains(needle), "{tool} {args}: {e}");
+            assert!(e.contains(&needle), "{tool} {args}: {e}");
             assert_eq!(layers(&s, &id), before);
         }
     }
