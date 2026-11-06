@@ -193,9 +193,9 @@ fn jpeg_quality_is_remembered_per_document() {
 fn bad_save_arguments_name_the_argument() {
     let mut s = S::new();
     s.new_image(4, 4);
-    for q in [json!(0), json!(101), json!(50.5)] {
+    for q in [json!(0), json!(101), json!(50.5), json!("80")] {
         let e = s.err("doc.save", json!({ "path": "a.jpg", "quality": q }));
-        assert!(e.contains("quality"), "{e}");
+        assert!(e.contains("quality") && e.contains("1–100"), "{e}");
     }
     s.new_doc(4, 4);
     for args in [
