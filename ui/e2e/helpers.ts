@@ -28,7 +28,10 @@ export async function storedPref(page: Page, key: string): Promise<unknown> {
   );
 }
 
-/** Creates a new document of `mode` through the start screen's New card. */
+/** Creates a new document of `mode` through the start screen's New card,
+ *  after loading the start screen afresh: a page load, so state the
+ *  previous page held (the Recovery probe, IndexedDB writes still in
+ *  flight) does not carry over. `newDocument` stays in the page. */
 export async function createDocument(
   page: Page,
   mode: 'pixel' | 'image',
@@ -36,6 +39,16 @@ export async function createDocument(
   url = './',
 ): Promise<void> {
   await gotoStart(page, url);
+  await newDocument(page, mode, size);
+}
+
+/** Creates a new document of `mode` through the New card of the start
+ *  screen already shown, without loading the page. */
+export async function newDocument(
+  page: Page,
+  mode: 'pixel' | 'image',
+  size?: { width: number; height: number },
+): Promise<void> {
   const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
   await page.getByRole('button', { name }).click();
   const card = page.getByRole('form', { name });

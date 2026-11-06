@@ -6,6 +6,7 @@ import {
   gotoStart,
   imageCanvas,
   menu,
+  newDocument,
   pixelCanvas,
   setColor,
   storedPref,
@@ -379,19 +380,23 @@ test('a discarded document is not offered again, on New or after a reload', asyn
   await page.getByTitle('Pencil (B)').click();
   await drag(page, pixelCanvas(page), [0.2, 0.2], [0.8, 0.8]);
   await page.clock.fastForward(31_000);
-  await page.waitForTimeout(500);
+  await expect.poll(async () => (await metaRows(page)).length).toBe(1);
 
   // Closing the tab with Don't Save drops the work (unsaved-changes-prompt
-  // AC-05); a New document of the other mode opens afterwards.
+  // AC-05); a New document of the other mode opens afterwards, in the same
+  // page load (`newDocument`: `createDocument` would load the page).
   await menu(page, 'File', 'Close');
   await page.getByRole('button', { name: "Don't Save" }).click();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
-  await createDocument(page, 'image', { width: 16, height: 16 });
+  await newDocument(page, 'image', { width: 16, height: 16 });
   const recovery = page.getByRole('dialog', { name: 'Recover unsaved work?' });
   // The probe is async; give it time to (not) open the dialog.
   await page.waitForTimeout(500);
   await expect(recovery).toHaveCount(0);
 
+  // The snapshot is deleted in the background; a reload before the delete
+  // is stored aborts it, so wait for it as for any IndexedDB write.
+  await expect.poll(() => metaRows(page)).toEqual([]);
   await page.reload();
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await page.waitForTimeout(500);
