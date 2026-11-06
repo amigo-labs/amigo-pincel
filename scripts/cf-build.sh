@@ -33,14 +33,19 @@ fi
 # --- wasm-opt (binaryen) ---------------------------------------------------
 # Both wasm crates switch wasm-pack's own wasm-opt pass off, and Cloudflare's
 # image has no binaryen: fetch a pinned release build (a static binary).
-# The release workflow gets the same tool from apt.
+# The release workflow's desktop job pins the same release; its web job
+# gets the tool from apt. The archive runs only if it matches the pinned
+# SHA-256 (the release's .sha256 file); a new version needs a new hash.
 BINARYEN_VERSION=133
+BINARYEN_SHA256=2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
 if ! command -v wasm-opt >/dev/null 2>&1; then
   binaryen_dir="$HOME/.local/binaryen-$BINARYEN_VERSION"
+  binaryen_archive="$binaryen_dir.tar.gz"
   mkdir -p "$binaryen_dir"
-  curl --proto '=https' --tlsv1.2 -sSfL \
-    "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-x86_64-linux.tar.gz" |
-    tar -xzf - -C "$binaryen_dir" --strip-components=2 "binaryen-version_$BINARYEN_VERSION/bin/wasm-opt"
+  curl --proto '=https' --tlsv1.2 -sSfL -o "$binaryen_archive" \
+    "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-x86_64-linux.tar.gz"
+  echo "$BINARYEN_SHA256  $binaryen_archive" | sha256sum -c -
+  tar -xzf "$binaryen_archive" -C "$binaryen_dir" --strip-components=2 "binaryen-version_$BINARYEN_VERSION/bin/wasm-opt"
   export PATH="$binaryen_dir:$PATH"
 fi
 wasm-opt --version
