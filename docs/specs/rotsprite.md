@@ -102,12 +102,12 @@ This is part C of the legacy plan `08-pixel-tools.md`; `dithered-gradient` and `
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-01 | `rotate_by_zero_or_full_turns_is_identity_for_both_methods` (`crates/pincel-core/src/command/rotsprite.rs`); `rotate_cel_by_zero_keeps_every_pixel_and_the_bounds` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
+| AC-02 | `rotsprite_90_matches_orient_rotate90` (`crates/pincel-core/src/command/rotsprite.rs`); `rotate_cel_rotsprite_90_matches_the_quarter_turn` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
+| AC-03 | `rotation_keeps_palette_no_new_colors`, `single_pixel_survives_45_degrees`, `fully_transparent_stays_transparent` (`crates/pincel-core/src/command/rotsprite.rs`); `rotate_cel_adds_no_colours` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
+| AC-04 | `rotation_grows_bounds_and_never_crops` (`crates/pincel-core/src/command/rotsprite.rs`); `rotate_cel_grows_bounds_and_reverts` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
+| AC-05 | `rotate_cel_grows_bounds_and_reverts` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
+| AC-06 | `rotate_cel_within_selection_keeps_uncovered_outside_pixels` (`crates/pincel-core/src/command/rotate_cel.rs`) | built |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
