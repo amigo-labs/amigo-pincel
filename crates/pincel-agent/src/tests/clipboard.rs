@@ -2,11 +2,11 @@
 //! AC-01 … AC-22).
 
 use pincel_core::{
-    AnyCommand, Bus, CelData, CelMap, ColorMode, CopySource, FrameIndex, LayerId,
-    MoveSelectionContent, Sprite, copy_pixels, import_png,
+    AnyCommand, Bus, CelData, CelMap, ColorMode, CopySource, FrameIndex, Layer, LayerId,
+    MoveSelectionContent, PasteLayer, PastedImage, Sprite, copy_pixels, import_png,
 };
 use pincel_image_core::Document;
-use pincel_image_core::codec::{decode, to_jpeg_bytes, to_png_bytes};
+use pincel_image_core::codec::{decode, to_bmp_bytes, to_jpeg_bytes, to_png_bytes};
 use pincel_image_core::command::CommandBus;
 use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
 use pincel_image_core::{ImageBuffer, copy_selection};
@@ -308,6 +308,20 @@ fn moves_on_locked_group_or_tilemap_layers_fail_with_the_reason() {
         );
         assert_eq!(s.state(&id), before);
     }
+    // A layer inside a locked group.
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    s.ok(
+        "layer.move",
+        json!({ "layer": 0, "target": 1, "place": "into" }),
+    );
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    let before = s.state(&id);
+    let e = s.err(
+        "select.move_content",
+        json!({ "dx": 1, "dy": 0, "layer": 0 }),
+    );
+    assert!(e.contains("locked") && e.contains("layer 0"), "{e}");
+    assert_eq!(s.state(&id), before);
 
     let mut s = S::new();
     let id = image_doc(&mut s);
@@ -317,15 +331,28 @@ fn moves_on_locked_group_or_tilemap_layers_fail_with_the_reason() {
         json!({ "layer": 0, "target": 1, "place": "into" }),
     );
     s.ok("layer.set", json!({ "layer": 0, "locked": true }));
-    for (tool, layer, reason) in [
-        ("layer.translate", 0, "locked"),
-        ("layer.translate", 1, "locked"),
-        ("select.move_content", 0, "locked"),
-        ("select.move_content", 1, "group"),
+    // (tool, target layer, reason, the layer the message names)
+    for (tool, layer, reason, named) in [
+        ("layer.translate", 0, "locked", 0),
+        ("layer.translate", 1, "locked", 0),
+        ("select.move_content", 0, "locked", 0),
+        ("select.move_content", 1, "group", 1),
     ] {
         let before = s.image(&id).document().clone();
         let e = s.err(tool, json!({ "dx": 1, "dy": 0, "layer": layer }));
-        assert!(e.contains(reason), "{tool} {layer}: {e}");
+        assert!(
+            e.contains(reason) && e.contains(&format!("layer {named}")),
+            "{tool} {layer}: {e}"
+        );
+        assert_eq!(s.image(&id).document(), &before);
+    }
+    // A layer inside a locked group.
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    for tool in ["layer.translate", "select.move_content"] {
+        let before = s.image(&id).document().clone();
+        let e = s.err(tool, json!({ "dx": 1, "dy": 0, "layer": 0 }));
+        assert!(e.contains("locked") && e.contains("layer 0"), "{tool}: {e}");
         assert_eq!(s.image(&id).document(), &before);
     }
 }
@@ -386,43 +413,201 @@ fn layer_import_pastes_above_the_active_layer_like_the_editor() {
 }
 
 #[test]
-fn layer_import_expands_or_crops_like_the_editors_paste() {
-    for image in [false, true] {
-        let mut s = S::new();
-        if image {
-            s.new_image(4, 4);
-        } else {
-            s.new_doc(4, 4);
-        }
-        s.host.files.insert("b.png".into(), png(3, 3, &[200; 36]));
-        let out = s.ok(
-            "layer.import",
-            json!({ "path": "b.png", "x": 2, "y": 3, "expand": true }),
+fn layer_import_lands_on_the_target_frame() {
+    let mut s = S::new();
+    let id = s.new_doc(4, 4);
+    s.ok("frame.add", json!({}));
+    s.host
+        .files
+        .insert("a.png".into(), png(1, 1, &[255, 0, 0, 255]));
+    for frame in [0, 1] {
+        let new = s.ok("layer.import", json!({ "path": "a.png", "frame": frame }))["layer"]
+            .as_u64()
+            .expect("id") as u32;
+        let other = 1 - frame;
+        assert_eq!(px(&s.cel_rgba(&id, new, frame), 4, 0, 0), [255, 0, 0, 255]);
+        assert!(
+            s.doc(&id)
+                .cels
+                .get(LayerId::new(new), FrameIndex::new(other))
+                .is_none(),
+            "nothing lands on frame {other}"
         );
-        assert_eq!(
-            (out["width"].clone(), out["height"].clone()),
-            (json!(5), json!(6)),
-            "image={image}"
-        );
-        // Negative offsets are cut off even with expand; the canvas only
-        // grows right and down.
-        let out = s.ok(
-            "layer.import",
-            json!({ "path": "b.png", "x": -2, "y": -1, "expand": true }),
-        );
-        assert_eq!(
-            (out["width"].clone(), out["height"].clone()),
-            (json!(5), json!(6))
-        );
-        // Without expand: cropped, canvas unchanged; wholly outside: empty layer.
-        let out = s.ok("layer.import", json!({ "path": "b.png", "x": 4, "y": 4 }));
-        assert_eq!(
-            (out["width"].clone(), out["height"].clone()),
-            (json!(5), json!(6))
-        );
-        let out = s.ok("layer.import", json!({ "path": "b.png", "x": 50, "y": 50 }));
-        assert_eq!(out["width"], 5);
     }
+    // Without `frame`: the active frame.
+    let active = s.ok("doc.info", json!({}))["active_frame"]
+        .as_u64()
+        .expect("active frame") as u32;
+    let new = s.ok("layer.import", json!({ "path": "a.png" }))["layer"]
+        .as_u64()
+        .expect("id") as u32;
+    assert_eq!(px(&s.cel_rgba(&id, new, active), 4, 0, 0), [255, 0, 0, 255]);
+    assert!(
+        s.doc(&id)
+            .cels
+            .get(LayerId::new(new), FrameIndex::new(1 - active))
+            .is_none()
+    );
+}
+
+#[test]
+fn layer_import_expands_or_crops_like_the_editors_paste() {
+    // A 3×3 image whose pixel (i, j) is [10i + 1, 10j + 1, 7, 255].
+    let src: Vec<u8> = (0..3u8)
+        .flat_map(|j| (0..3u8).flat_map(move |i| [10 * i + 1, 10 * j + 1, 7, 255]))
+        .collect();
+    let bytes = png(3, 3, &src);
+    let img = |i: u8, j: u8| [10 * i + 1, 10 * j + 1, 7, 255];
+    // (x, y, expand, canvas after, the image pixels that land on the canvas
+    // as (canvas x, canvas y, image i, image j))
+    type Case = (i32, i32, bool, (u32, u32), &'static [(u32, u32, u8, u8)]);
+    let cases: [Case; 4] = [
+        // Grows right and down to cover the image.
+        (
+            2,
+            3,
+            true,
+            (5, 6),
+            &[(2, 3, 0, 0), (4, 5, 2, 2), (3, 4, 1, 1)],
+        ),
+        // Negative offsets are cut off even with expand.
+        (-2, -1, true, (5, 6), &[(0, 0, 2, 1), (0, 1, 2, 2)]),
+        // Without expand: cropped at the right and bottom edges.
+        (4, 4, false, (5, 6), &[(4, 4, 0, 0), (4, 5, 0, 1)]),
+        // Wholly outside: an empty layer.
+        (50, 50, false, (5, 6), &[]),
+    ];
+
+    let mut s = S::new();
+    let id = s.new_doc(4, 4);
+    s.host.files.insert("b.png".into(), bytes.clone());
+    for (x, y, expand, (w, h), landed) in cases {
+        let want = {
+            let d = s.doc(&id);
+            let new_id = d
+                .sprite
+                .layers
+                .iter()
+                .map(|l| l.id.0)
+                .max()
+                .map_or(0, |m| m + 1);
+            let name = format!("Layer {}", d.sprite.layers.len() + 1);
+            let png = import_png(&bytes).expect("png");
+            let image = PastedImage {
+                width: png.width,
+                height: png.height,
+                rgba: png.rgba,
+            };
+            let cmd = PasteLayer::new(
+                Layer::image(LayerId::new(new_id), name),
+                d.active_frame,
+                image,
+            )
+            .at(x, y)
+            .above(d.active_layer)
+            .expanding(expand);
+            pixel_editor(&s, &id, cmd.into())
+        };
+        let out = s.ok(
+            "layer.import",
+            json!({ "path": "b.png", "x": x, "y": y, "expand": expand }),
+        );
+        assert_eq!(
+            (out["width"].clone(), out["height"].clone()),
+            (json!(w), json!(h))
+        );
+        assert_eq!(
+            s.state(&id),
+            want,
+            "Pixel paste at ({x}, {y}), expand {expand}"
+        );
+        let new = out["layer"].as_u64().expect("id") as u32;
+        let rgba = s.cel_rgba(&id, new, 0);
+        for &(cx, cy, i, j) in landed {
+            assert_eq!(
+                px(&rgba, w, cx, cy),
+                img(i, j),
+                "({x}, {y}) at ({cx}, {cy})"
+            );
+        }
+        let opaque = rgba.iter().skip(3).step_by(4).filter(|&&a| a != 0).count();
+        let visible =
+            (x.max(0)..(x + 3).min(w as i32)).len() * (y.max(0)..(y + 3).min(h as i32)).len();
+        assert_eq!(
+            opaque, visible,
+            "Pixel paste at ({x}, {y}): every other pixel is dropped"
+        );
+    }
+
+    let mut s = S::new();
+    let id = s.new_image(4, 4);
+    s.host.files.insert("b.png".into(), bytes.clone());
+    let view = |d: &Document| -> Vec<(String, Vec<u8>)> {
+        d.layers()
+            .iter()
+            .map(|l| (l.name.clone(), l.pixels.data().to_vec()))
+            .collect()
+    };
+    for (x, y, expand, (w, h), landed) in cases {
+        let want = {
+            let mut bus = CommandBus::new(s.image(&id).document().clone());
+            let buf = decode(&bytes).expect("decode");
+            bus.apply(Box::new(pincel_image_core::command::PasteLayer::at(
+                buf, x, y, expand,
+            )))
+            .expect("paste");
+            bus.document
+        };
+        let out = s.ok(
+            "layer.import",
+            json!({ "path": "b.png", "x": x, "y": y, "expand": expand }),
+        );
+        assert_eq!(
+            (out["width"].clone(), out["height"].clone()),
+            (json!(w), json!(h))
+        );
+        let doc = s.image(&id).document();
+        assert_eq!(
+            view(doc),
+            view(&want),
+            "Image paste at ({x}, {y}), expand {expand}"
+        );
+        let index = doc.active_layer_index();
+        let layer = &doc.layers()[index].pixels;
+        for &(cx, cy, i, j) in landed {
+            let p = layer.get_pixel(cx, cy).expect("pixel");
+            assert_eq!(
+                [p.r, p.g, p.b, p.a],
+                img(i, j),
+                "({x}, {y}) at ({cx}, {cy})"
+            );
+        }
+        let opaque = layer
+            .data()
+            .iter()
+            .skip(3)
+            .step_by(4)
+            .filter(|&&a| a != 0)
+            .count();
+        let visible =
+            (x.max(0)..(x + 3).min(w as i32)).len() * (y.max(0)..(y + 3).min(h as i32)).len();
+        assert_eq!(
+            opaque, visible,
+            "Image paste at ({x}, {y}): every other pixel is dropped"
+        );
+    }
+}
+
+/// `buf` encoded by the `image` crate (WebP, GIF and TIFF have no encoder
+/// in `pincel-image-core` the tests can call).
+fn encode_with_image(buf: &ImageBuffer, format: image::ImageFormat) -> Vec<u8> {
+    let img = image::RgbaImage::from_raw(buf.width(), buf.height(), buf.data().to_vec())
+        .expect("rgba image");
+    let mut out = Vec::new();
+    image::DynamicImage::ImageRgba8(img)
+        .write_to(&mut std::io::Cursor::new(&mut out), format)
+        .expect("encode");
+    out
 }
 
 #[test]
@@ -435,15 +620,43 @@ fn layer_import_accepts_each_modes_formats_by_content() {
         ],
     )
     .expect("buf");
-    let jpeg = to_jpeg_bytes(&buf, 90).expect("jpeg");
+    // Every file is stored under a name that hides its format.
+    let files = [
+        ("PNG", png(2, 2, buf.data())),
+        ("JPEG", to_jpeg_bytes(&buf, 90).expect("jpeg")),
+        ("WebP", encode_with_image(&buf, image::ImageFormat::WebP)),
+        ("BMP", to_bmp_bytes(&buf).expect("bmp")),
+        ("GIF", encode_with_image(&buf, image::ImageFormat::Gif)),
+        ("TIFF", encode_with_image(&buf, image::ImageFormat::Tiff)),
+    ];
     let mut s = S::new();
-    s.new_image(4, 4);
-    s.host.files.insert("photo.png".into(), jpeg.clone());
-    s.host
-        .files
-        .insert("pic.jpg".into(), png(1, 1, &[1, 2, 3, 255]));
-    s.ok("layer.import", json!({ "path": "photo.png" }));
-    s.ok("layer.import", json!({ "path": "pic.jpg" }));
+    let id = s.new_image(4, 4);
+    for (format, bytes) in &files {
+        s.host.files.insert("pasted.dat".into(), bytes.clone());
+        // The editor's Paste of the same bytes.
+        let want = {
+            let mut bus = CommandBus::new(s.image(&id).document().clone());
+            let decoded = decode(bytes).expect("decode");
+            bus.apply(Box::new(pincel_image_core::command::PasteLayer::at(
+                decoded, 1, 1, false,
+            )))
+            .expect("paste");
+            bus.document
+        };
+        s.ok(
+            "layer.import",
+            json!({ "path": "pasted.dat", "x": 1, "y": 1 }),
+        );
+        let got = s.image(&id).document();
+        assert_eq!(got.layer_count(), want.layer_count(), "{format}");
+        for (g, w) in got.layers().iter().zip(want.layers()) {
+            assert_eq!(
+                (&g.name, g.pixels.data()),
+                (&w.name, w.pixels.data()),
+                "{format}"
+            );
+        }
+    }
 
     let mut s = S::new();
     let id = s.new_doc(4, 4);
@@ -451,11 +664,13 @@ fn layer_import_accepts_each_modes_formats_by_content() {
         .files
         .insert("pic.jpg".into(), png(1, 1, &[1, 2, 3, 255]));
     s.ok("layer.import", json!({ "path": "pic.jpg" }));
-    s.host.files.insert("photo.png".into(), jpeg);
-    let before = s.state(&id);
-    let e = s.err("layer.import", json!({ "path": "photo.png" }));
-    assert!(e.contains("PNG"), "{e}");
-    assert_eq!(s.state(&id), before);
+    for (format, bytes) in files.iter().skip(1) {
+        s.host.files.insert("photo.png".into(), bytes.clone());
+        let before = s.state(&id);
+        let e = s.err("layer.import", json!({ "path": "photo.png" }));
+        assert!(e.contains("PNG"), "{format}: {e}");
+        assert_eq!(s.state(&id), before, "{format}");
+    }
 }
 
 #[test]
@@ -751,6 +966,15 @@ fn export_selection_bad_combinations_write_nothing() {
     let id = pixel_doc(&mut s);
     s.ok("layer.add", json!({ "kind": "group" }));
     s.ok("layer.set", json!({ "layer": 0, "locked": true }));
+    s.ws.get_mut(&id)
+        .expect("doc")
+        .sprite
+        .layers
+        .push(pincel_core::Layer::tilemap(
+            LayerId::new(7),
+            "Map",
+            pincel_core::TilesetId::new(0),
+        ));
     for (args, needle) in [
         (
             json!({ "path": "a.png", "cut": true, "merged": true }),
@@ -767,6 +991,10 @@ fn export_selection_bad_combinations_write_nothing() {
         (
             json!({ "path": "a.png", "cut": true, "layer": 1 }),
             "a group",
+        ),
+        (
+            json!({ "path": "a.png", "cut": true, "layer": 7 }),
+            "a tilemap layer",
         ),
     ] {
         let before = s.state(&id);

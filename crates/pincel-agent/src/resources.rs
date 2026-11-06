@@ -464,6 +464,33 @@ mod tests {
     }
 
     #[test]
+    fn guide_names_the_modes_of_the_clipboard_tools() {
+        // mcp-parity-selection-transform-content AC-22: modes, and
+        // export.selection + layer.import as Copy / Cut / Paste.
+        let section = "## Moving content and the clipboard";
+        assert_mode_line(
+            section,
+            "`select.move_content` (both modes)",
+            &["select.move_content"],
+        );
+        assert_mode_line(
+            section,
+            "Image documents only: `layer.translate`",
+            &["layer.translate", "select.move"],
+        );
+        for tool in ["export.selection", "layer.import"] {
+            let bullets = guide_bullets(section, tool);
+            assert!(
+                bullets.iter().any(|b| b.contains("Both modes;")
+                    && b.contains("`export.selection` is the headless Copy")
+                    && b.contains("`cut: true`: Cut")
+                    && b.contains("`layer.import` is the headless Paste")),
+                "{tool}: {bullets:?}"
+            );
+        }
+    }
+
+    #[test]
     fn effects_resource_lists_exactly_the_catalog_with_ranges() {
         let text = read_resource("pincel://effects").expect("effects");
         let v: Value = serde_json::from_str(&text).expect("json");

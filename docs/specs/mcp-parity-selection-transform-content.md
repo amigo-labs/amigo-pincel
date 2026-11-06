@@ -131,7 +131,7 @@ Every capability exists already. Grep for these names, because line numbers drif
 | AC-06 | `select_move_shifts_only_the_selection` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-07 | `moves_are_one_undo_step_restoring_pixels_and_selection` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-08 | `moves_on_locked_group_or_tilemap_layers_fail_with_the_reason` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
-| AC-09 | `layer_import_pastes_above_the_active_layer_like_the_editor` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
+| AC-09 | `layer_import_pastes_above_the_active_layer_like_the_editor`, `layer_import_lands_on_the_target_frame` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-10 | `layer_import_expands_or_crops_like_the_editors_paste` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-11 | `layer_import_accepts_each_modes_formats_by_content` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-12 | `layer_import_failures_state_the_reason_and_change_nothing`, `layer_import_accepts_each_modes_formats_by_content` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
@@ -144,7 +144,7 @@ Every capability exists already. Grep for these names, because line numbers drif
 | AC-19 | `export_selection_that_cannot_write_leaves_the_document_unchanged` (`crates/pincel-mcp/tests/stdio.rs`) | built  |        |
 | AC-20 | `clipboard_tools_naming_a_missing_layer_or_frame_or_a_fractional_offset_fail` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
 | AC-21 | `a_refusing_move_command_fails_with_its_reason` (`crates/pincel-agent/src/tests/clipboard.rs`) | built  |        |
-| AC-22 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-22 | `read_resource_guide_covers_workflow_and_both_modes`, `guide_names_the_modes_of_the_clipboard_tools` (`crates/pincel-agent/src/resources.rs`) | built  |        |
 
 ## Decisions
 
@@ -158,3 +158,4 @@ Every capability exists already. Grep for these names, because line numbers drif
 - 2026-11-05 (spec-build): `export.selection` of an Image layer that is not the active one runs the editor's `copy_selection` on a copy of the document with that layer active, because the core's Copy reads the active layer only.
 - 2026-11-05 (spec-build): A Pixel `select.move_content` on a layer without a cel at the target frame adds an empty cel in the same undo step, as the editor's paint target does, so a move of transparent pixels still moves the selection (AC-07).
 - 2026-11-05 (spec-build): `export.selection` reports `{doc, path, area: {x, y, w, h}, cut, changed}`, `layer.import` `{doc, layer, width, height}` (the canvas size after an `expand`).
+- 2026-11-06 (spec-build): Acceptance found test gaps in AC-08, AC-09, AC-10, AC-11, AC-18 and AC-22; the behavior existed, so the added checks were green at once. Counter-checks, all reverted: a Pixel lock check that ignores the group's lock and an Image lock message without the layer id made `moves_on_locked_group_or_tilemap_layers_fail_with_the_reason` fail (AC-08, which now covers a layer inside a locked group in both modes); `layer.import` ignoring `frame` made `layer_import_lands_on_the_target_frame` fail (AC-09); clamping negative paste offsets to 0 made `layer_import_expands_or_crops_like_the_editors_paste` fail (AC-10, which now compares every case with the editor's `PasteLayer` in both modes and checks the landed, clipped and dropped pixels and the empty layer of an image wholly outside the canvas); refusing GIF in Image documents made `layer_import_accepts_each_modes_formats_by_content` fail (AC-11, now PNG, JPEG, WebP, BMP, GIF and TIFF under a file name that hides the format, compared with the editor's Paste; Pixel refuses the five non-PNG formats); skipping the paint-target check for a tilemap `cut` made `export_selection_bad_combinations_write_nothing` fail, the cut then writing the file (AC-18); dropping "Both modes;" from the clipboard bullet made `guide_names_the_modes_of_the_clipboard_tools` fail (AC-22).
