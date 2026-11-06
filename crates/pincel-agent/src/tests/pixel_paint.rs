@@ -83,13 +83,155 @@ const BLACK: Rgba = Rgba::new(0, 0, 0, 255);
 
 #[test]
 fn drawing_tools_describe_both_modes() {
-    for t in list_tools() {
-        if ["draw.stroke", "draw.shape", "draw.text", "draw.gradient"].contains(&t.name) {
+    // (tool, facts both modes share, Image facts, Pixel facts): every
+    // argument of each mode with its range and default, found in the part
+    // of the description that belongs to that mode (or the shared start).
+    type Facts = (
+        &'static str,
+        &'static [&'static str],
+        &'static [&'static str],
+        &'static [&'static str],
+    );
+    let table: [Facts; 4] = [
+        (
+            "draw.stroke",
+            &[
+                "`points`",
+                "`tool` brush (default)",
+                "`tool: \"eraser\"`",
+                "`color` default #000000",
+            ],
+            &[
+                "`size` 1–500 px (default 8)",
+                "`hardness` and `opacity` in % (default 100)",
+                "`shape` hard_round (default) / soft_round / flat",
+                "`angle` 0–180",
+                "(default 45)",
+                "`eraser_mode` to_transparent (default) / to_background",
+                "`background` (default #FFFFFF)",
+            ],
+            &[
+                "integer points",
+                "`size` 1–8 (default 1)",
+                "`shape` square (default) / round",
+                "`pixel_perfect` (default false)",
+                "`ink` simple (default) / shading",
+                "`ramp_from` / `ramp_to`",
+                "default the whole palette",
+                "`step` 1 (default) / -1",
+                "`mirror` x / y / xy (default none)",
+                "`axis_x2` / `axis_y2`",
+                "default the centre",
+                "`wrap` x / y / xy (default none)",
+            ],
+        ),
+        (
+            "draw.shape",
+            &["`stroke`", "`fill`"],
+            &[
+                "`shape` rect, rounded, ellipse or line",
+                "(x0, y0) and (x1, y1)",
+                "polygon takes the center",
+                "`corner_radius` (default 16)",
+                "center (`cx`, `cy`)",
+                "`radius`",
+                "`sides` 3–100 (default 5)",
+                "`rotation` in degrees (default 0)",
+                "`stroke_width` 1–500 (default 3)",
+                "`dash` solid (default) / dashed / dotted",
+                "`anti_alias` (default true)",
+            ],
+            &[
+                "`shape` rect, rounded, ellipse or polygon",
+                "integer corners (x0, y0)–(x1, y1)",
+                "`corner_radius` 0–256 (default 4)",
+                "`sides` 3–64 (default 6)",
+                "`stroke_width` 1–64 (default 1)",
+            ],
+        ),
+        (
+            "draw.text",
+            &[
+                "`text`",
+                "(x, y)",
+                "`align` left (default) / center / right",
+                "`color` default #000000",
+                "`bold` and `italic` (default false)",
+            ],
+            &[
+                "`underline` and `strikethrough` (default false)",
+                "`size` 1–999 px (default 48)",
+                "`anti_alias` (default true)",
+            ],
+            &[
+                "integer x, y",
+                "`size` 1–2000 (default 12)",
+                "`anti_alias` (default false)",
+            ],
+        ),
+        (
+            "draw.gradient",
+            &["(x0, y0) → (x1, y1)", "`from`", "`to`"],
+            &[
+                "`kind` linear (default) / reflected / radial / conical / diamond",
+                "`channel` color (default) / transparency",
+                "`opacity` in % (default 100)",
+            ],
+            &[
+                "integer corners",
+                "`kind` linear (default) / radial",
+                "`dither` 0 (two hard bands), 2, 4 (default) or 8",
+            ],
+        ),
+    ];
+    let tools = list_tools();
+    for (name, shared, image, pixel) in table {
+        assert_eq!(
+            tools.iter().filter(|t| t.name == name).count(),
+            1,
+            "exactly one {name}"
+        );
+        let d = tools
+            .iter()
+            .find(|t| t.name == name)
+            .expect("listed")
+            .description;
+        let (i, p) = (
+            d.find("Image documents").expect("Image part"),
+            d.find("Pixel documents").expect("Pixel part"),
+        );
+        assert!(i < p, "{name}: the Image part comes first");
+        let (start, image_part, pixel_part) = (&d[..i], &d[i..p], &d[p..]);
+        for fact in shared {
+            assert!(start.contains(fact), "{name}: shared part misses {fact}");
+        }
+        for fact in image {
             assert!(
-                t.description.contains("Image documents")
-                    && t.description.contains("Pixel documents"),
-                "{}",
-                t.name
+                start.contains(fact) || image_part.contains(fact),
+                "{name}: Image part misses {fact}"
+            );
+        }
+        for fact in pixel {
+            assert!(
+                start.contains(fact) || pixel_part.contains(fact),
+                "{name}: Pixel part misses {fact}"
+            );
+        }
+        // Every argument of the schema but the document id (which every
+        // tool takes) is named in the description.
+        let schema = &tools
+            .iter()
+            .find(|t| t.name == name)
+            .expect("listed")
+            .input_schema;
+        let props = schema["properties"].as_object().expect("properties");
+        let words: Vec<&str> = d
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .collect();
+        for key in props.keys().filter(|k| *k != "doc") {
+            assert!(
+                words.contains(&key.as_str()),
+                "{name}: description does not name `{key}`"
             );
         }
     }
@@ -122,6 +264,8 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
         (
             "`draw.stroke`:",
             &[
+                "`points` (`[[x, y], …]`, one point is one stamp)",
+                "`tool` `brush` (default) or `eraser`",
                 "integer points",
                 "`size` 1–8 (default 1)",
                 "`shape` `square` (default) or `round`",
@@ -129,9 +273,9 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
                 "`ink: \"shading\"` (default `simple`)",
                 "`ramp_from` / `ramp_to` (default the whole palette)",
                 "`step` 1 (default) / -1",
-                "`mirror` `x` / `y` / `xy`",
+                "`mirror` `x` / `y` / `xy` (default none)",
                 "`axis_x2` / `axis_y2` in half pixels (default the centre)",
-                "`wrap` `x` / `y` / `xy`",
+                "`wrap` `x` / `y` / `xy` (tiled mode, default none)",
                 "`size` 1–500 (default 8)",
                 "`hardness` and `opacity` in % (default 100)",
                 "`shape` `hard_round` (default), `soft_round` or `flat`",
@@ -159,6 +303,7 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
         (
             "`draw.text`:",
             &[
+                "`text` at `x`, `y` (the top of the first line)",
                 "`color` default `#000000`",
                 "`bold` and `italic` (default false)",
                 "`align` `left` (default)",
@@ -173,6 +318,7 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
         (
             "`draw.gradient`:",
             &[
+                "from `x0`, `y0` to `x1`, `y1`, `from` color to `to` color",
                 "RGBA only",
                 "integer corners",
                 "`kind` `linear` (default) / `radial`",
@@ -225,6 +371,20 @@ fn pixel_stroke_equals_the_editors_pencil() {
         json!({ "points": [[12, 4]], "color": "#ff0000", "size": 3, "shape": "round" }),
     );
     assert_eq!(canvas(&s, &id), want, "one point is one stamp");
+
+    // A palette index paints that entry's color, as `draw.pixels` does.
+    let entry = s.doc(&id).sprite.palette.colors[6].rgba;
+    let want = editor(
+        &s,
+        &id,
+        pencil(entry, 2, BrushShape::Square, false, (3, 10)).into(),
+        &pts(&[(9, 10)]),
+    );
+    s.ok(
+        "draw.stroke",
+        json!({ "points": [[3, 10], [9, 10]], "color": { "index": 6 }, "size": 2 }),
+    );
+    assert_eq!(canvas(&s, &id), want, "palette index");
 }
 
 #[test]
@@ -274,12 +434,29 @@ fn pixel_eraser_stroke_equals_the_editors_eraser() {
     );
     assert_eq!(canvas(&s, &id), want);
     assert_eq!(px(&canvas(&s, &id), 16, 2, 2), [0, 0, 0, 0]);
+    // The same shape: a round eraser.
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    let want = editor(
+        &s,
+        &id,
+        pencil(Rgba::TRANSPARENT, 4, BrushShape::Round, false, (6, 5)).into(),
+        &[],
+    );
+    s.ok(
+        "draw.stroke",
+        json!({ "points": [[6, 5]], "tool": "eraser", "size": 4, "shape": "round" }),
+    );
+    assert_eq!(canvas(&s, &id), want, "round eraser");
 }
 
 #[test]
 fn pixel_shading_stroke_equals_the_editors_shading_ink() {
     for (args, from, to, step) in [
         (json!({}), 0usize, 31usize, 1i8),
+        // The default ramp is the whole palette in both directions: the
+        // first and the last entry lie on the path.
+        (json!({ "step": -1 }), 0, 31, -1),
         (
             json!({ "ramp_from": 3, "ramp_to": 7, "step": -1 }),
             3,
@@ -289,6 +466,11 @@ fn pixel_shading_stroke_equals_the_editors_shading_ink() {
     ] {
         let mut s = S::new();
         let id = pixel_doc(&mut s);
+        assert_eq!(s.doc(&id).sprite.palette.colors.len(), 32);
+        s.ok(
+            "draw.pixels",
+            json!({ "pixels": [{ "x": 2, "y": 5, "color": { "index": 0 } }, { "x": 3, "y": 5, "color": { "index": 31 } }] }),
+        );
         let ramp: Vec<Rgba> = s.doc(&id).sprite.palette.colors[from..=to]
             .iter()
             .map(|e| e.rgba)
@@ -312,6 +494,8 @@ fn bad_shading_arguments_fail_naming_the_argument() {
         (json!({ "ramp_from": 40, "ramp_to": 41 }), "`ramp_from`"),
         (json!({ "ramp_from": 5, "ramp_to": 2 }), "`ramp_from`"),
         (json!({ "ramp_from": 5 }), "`ramp_to`"),
+        (json!({ "ramp_to": 5 }), "`ramp_from`"),
+        (json!({ "ramp_from": 0, "ramp_to": 32 }), "`ramp_to`"),
         (json!({ "step": 2 }), "`step`"),
         (json!({ "tool": "eraser" }), "`tool`"),
     ] {
@@ -324,11 +508,13 @@ fn bad_shading_arguments_fail_naming_the_argument() {
         assert_eq!(s.state(&id), before);
     }
     s.ws.get_mut(&id).expect("doc").sprite.palette = pincel_core::Palette::from_entries(Vec::new());
+    let before = s.state(&id);
     let e = s.err(
         "draw.stroke",
         json!({ "points": [[1, 1]], "ink": "shading" }),
     );
     assert!(e.contains("palette is empty"), "{e}");
+    assert_eq!(s.state(&id), before);
 }
 
 #[test]
@@ -345,6 +531,47 @@ fn pixel_mirror_and_wrap_equal_the_editors_symmetry_and_tiled_mode() {
         json!({ "points": [[2, 1], [5, 3]], "mirror": "xy", "axis_y2": 9 }),
     );
     assert_eq!(canvas(&s, &id), want);
+    // Each axis alone at its default (the centre), a mirror image beyond
+    // the canvas skipped without `wrap`, and wrapping along y alone.
+    for (args, mirror, wrap) in [
+        (
+            json!({ "mirror": "x" }),
+            Some(Mirror {
+                axis_x2: Some(16),
+                axis_y2: None,
+            }),
+            Wrap { x: false, y: false },
+        ),
+        (
+            json!({ "mirror": "y" }),
+            Some(Mirror {
+                axis_x2: None,
+                axis_y2: Some(12),
+            }),
+            Wrap { x: false, y: false },
+        ),
+        (
+            json!({ "mirror": "x", "axis_x2": 3 }),
+            Some(Mirror {
+                axis_x2: Some(3),
+                axis_y2: None,
+            }),
+            Wrap { x: false, y: false },
+        ),
+        (json!({ "wrap": "y" }), None, Wrap { x: false, y: true }),
+    ] {
+        let mut s = S::new();
+        let id = s.new_doc(16, 12);
+        let mut cmd = pencil(BLACK, 1, BrushShape::Square, false, (2, 1)).with_wrap(wrap);
+        if let Some(m) = mirror {
+            cmd = cmd.with_mirror(m);
+        }
+        let want = editor(&s, &id, cmd.into(), &pts(&[(5, 14)]));
+        let mut a = args.clone();
+        a["points"] = json!([[2, 1], [5, 14]]);
+        s.ok("draw.stroke", a);
+        assert_eq!(canvas(&s, &id), want, "{args}");
+    }
 
     // AC-08's example: a 64-px-wide canvas, (60, 0)–(70, 0), wrap x.
     let mut s = S::new();
@@ -391,6 +618,26 @@ fn bad_axes_and_fractional_pixel_coordinates_fail_naming_the_argument() {
         ),
         (
             "draw.stroke",
+            json!({ "points": [[1, 1]], "mirror": "y", "axis_x2": 4 }),
+            "`axis_x2`",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "mirror": "xy", "axis_y2": 17 }),
+            "`axis_y2`",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "mirror": "x", "axis_x2": -1 }),
+            "`axis_x2`",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1], [2, 1], [3, 1.5]] }),
+            "points[2]",
+        ),
+        (
+            "draw.stroke",
             json!({ "points": [[1, 1], [2.5, 1]] }),
             "points[1]",
         ),
@@ -405,11 +652,42 @@ fn bad_axes_and_fractional_pixel_coordinates_fail_naming_the_argument() {
             "`x1`",
         ),
         ("draw.text", json!({ "text": "A", "x": 0.5, "y": 0 }), "`x`"),
+        ("draw.text", json!({ "text": "A", "x": 0, "y": 0.5 }), "`y`"),
     ] {
         let before = s.state(&id);
         let e = s.err(tool, args.clone());
         assert!(e.contains(needle), "{tool} {args}: {e}");
         assert_eq!(s.state(&id), before);
+    }
+    // Every corner of the Pixel shape and gradient.
+    for key in ["x0", "y0", "x1", "y1"] {
+        for (tool, mut args) in [
+            (
+                "draw.shape",
+                json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000" }),
+            ),
+            (
+                "draw.gradient",
+                json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 2, "from": "#000000", "to": "#ffffff" }),
+            ),
+        ] {
+            args[key] = json!(1.5);
+            let before = s.state(&id);
+            let e = s.err(tool, args.clone());
+            assert!(e.contains(&format!("`{key}`")), "{tool} {args}: {e}");
+            assert_eq!(s.state(&id), before);
+        }
+    }
+    // The axes reach from the canvas edge (0) to twice its side.
+    for args in [
+        json!({ "mirror": "x", "axis_x2": 0 }),
+        json!({ "mirror": "x", "axis_x2": 16 }),
+        json!({ "mirror": "y", "axis_y2": 0 }),
+        json!({ "mirror": "y", "axis_y2": 16 }),
+    ] {
+        let mut a = args.clone();
+        a["points"] = json!([[1, 1]]);
+        s.ok("draw.stroke", a);
     }
     // Image documents keep fractional coordinates.
     s.new_image(8, 8);
@@ -420,6 +698,14 @@ fn bad_axes_and_fractional_pixel_coordinates_fail_naming_the_argument() {
     s.ok(
         "draw.text",
         json!({ "text": "A", "x": 0.5, "y": 0.5, "size": 6 }),
+    );
+    s.ok(
+        "draw.shape",
+        json!({ "shape": "rect", "x0": 0.5, "y0": 0.5, "x1": 5.5, "y1": 5.5, "fill": "#000000" }),
+    );
+    s.ok(
+        "draw.gradient",
+        json!({ "x0": 0.5, "y0": 0, "x1": 6.5, "y1": 0.5, "from": "#000000", "to": "#ffffff" }),
     );
 }
 
@@ -506,19 +792,34 @@ fn pixel_shapes_equal_the_editors_shape_tools() {
 fn pixel_shape_line_and_polygon_center_point_elsewhere() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
-    for (args, needle) in [
+    for (args, needle, arg) in [
         (
             json!({ "shape": "line", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000" }),
             "draw.line",
+            "shape",
         ),
         (
             json!({ "shape": "polygon", "cx": 4, "cy": 4, "radius": 3, "stroke": "#000000" }),
             "(x0, y0)–(x1, y1)",
+            "cx",
+        ),
+        (
+            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 5, "y1": 5, "cy": 4, "stroke": "#000000" }),
+            "(x0, y0)–(x1, y1)",
+            "cy",
+        ),
+        (
+            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 5, "y1": 5, "radius": 3, "stroke": "#000000" }),
+            "(x0, y0)–(x1, y1)",
+            "radius",
         ),
     ] {
         let before = s.state(&id);
         let e = s.err("draw.shape", args.clone());
-        assert!(e.contains(needle), "{args}: {e}");
+        assert!(
+            e.contains(needle) && e.contains(&format!("`{arg}`")),
+            "{args}: {e}"
+        );
         assert_eq!(s.state(&id), before);
     }
 }
@@ -592,14 +893,27 @@ fn pixel_text_equals_the_editors_text_tool() {
             true,
             TextAlign::Center,
         ),
+        (
+            json!({ "size": 10, "italic": true, "align": "right", "color": "#ff0000" }),
+            10.0,
+            false,
+            false,
+            TextAlign::Right,
+        ),
     ] {
         let mut s = S::new();
         let id = s.new_doc(40, 20);
+        let italic = args.get("italic").is_some();
+        let color = if args.get("color").is_some() {
+            Rgba::new(255, 0, 0, 255)
+        } else {
+            BLACK
+        };
         let style = TextStyle {
             size,
-            color: BLACK,
+            color,
             bold,
-            italic: false,
+            italic,
             anti_alias: aa,
             align,
         };
@@ -618,8 +932,13 @@ fn pixel_text_equals_the_editors_text_tool() {
 #[test]
 fn text_that_lands_nowhere_and_zero_length_gradients_change_nothing() {
     let mut s = S::new();
-    s.new_doc(8, 8);
+    let id = s.new_doc(8, 8);
+    s.ok(
+        "draw.pixels",
+        json!({ "pixels": [{ "x": 1, "y": 1, "color": "#ff0000" }] }),
+    );
     let depth = undo_depth(&mut s);
+    let before = s.state(&id);
     for (tool, args) in [
         ("draw.text", json!({ "text": "Hi", "x": 100, "y": 100 })),
         ("draw.text", json!({ "text": "", "x": 0, "y": 0 })),
@@ -631,6 +950,7 @@ fn text_that_lands_nowhere_and_zero_length_gradients_change_nothing() {
         let out = s.ok(tool, args);
         assert_eq!(out["changed"], false, "{tool}");
         assert_eq!(undo_depth(&mut s), depth, "{tool}");
+        assert_eq!(s.state(&id), before, "{tool}");
     }
 }
 
@@ -920,11 +1240,22 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
             json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "channel": "transparency" }),
             "channel",
         ),
+        // The Pixel editor's Text dialog has no underline or strikethrough.
+        (
+            "draw.text",
+            json!({ "text": "A", "x": 0, "y": 0, "underline": true }),
+            "underline",
+        ),
+        (
+            "draw.text",
+            json!({ "text": "A", "x": 0, "y": 0, "strikethrough": false }),
+            "strikethrough",
+        ),
     ] {
         let before = s.state(&id);
         let e = s.err(tool, args.clone());
         assert!(
-            e.contains(&format!("`{arg}`")) && e.contains("Pixel document"),
+            e.contains(&format!("`{arg}`")) && e.contains("is a Pixel document"),
             "{tool} {args}: {e}"
         );
         assert_eq!(s.state(&id), before);
@@ -996,7 +1327,7 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
         let before = s.image(&id).document().clone();
         let e = s.err(tool, args.clone());
         assert!(
-            e.contains(&format!("`{arg}`")) && e.contains("Image document"),
+            e.contains(&format!("`{arg}`")) && e.contains("is an Image document"),
             "{tool} {args}: {e}"
         );
         assert_eq!(s.image(&id).document(), &before);

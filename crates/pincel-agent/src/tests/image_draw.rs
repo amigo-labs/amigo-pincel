@@ -204,6 +204,11 @@ fn image_drawing_defaults_are_the_image_editors_starting_options() {
             json!({ "shape": "polygon", "cx": 30, "cy": 25, "radius": 20, "stroke": "#ff0000" }),
             json!({ "type": "draw_shape", "layer": 0, "shape": "polygon", "center": [30, 25], "radius": 20, "sides": 5, "rotation": 0.0, "mode": "outline", "stroke_width": 3, "stroke_color": [255, 0, 0, 255], "anti_alias": true, "dash": "solid" }),
         ),
+        (
+            "draw.gradient",
+            json!({ "x0": 2, "y0": 2, "x1": 60, "y1": 50, "from": "#ff0000", "to": "#0000ff80" }),
+            json!({ "type": "draw_gradient", "layer": 0, "kind": "linear", "channel": "color", "x0": 2, "y0": 2, "x1": 60, "y1": 50, "from": [255, 0, 0, 255], "to": [0, 0, 255, 128], "opacity": 1.0 }),
+        ),
     ];
     for (tool, args, cmd) in cases {
         let mut s = S::new();

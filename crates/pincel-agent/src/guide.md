@@ -26,13 +26,15 @@ and so does an argument only the other mode's editor offers.
 
 ## Drawing in each mode
 
-- `draw.stroke`: Pixel documents (the Pencil) take integer points, `size`
+- `draw.stroke`: paints through `points` (`[[x, y], …]`, one point is one
+  stamp) with `tool` `brush` (default) or `eraser`. Pixel documents (the
+  Pencil) take integer points, `size`
   1–8 (default 1), `shape` `square` (default) or `round`, `pixel_perfect`
   (default false), `ink: "shading"` (default `simple`) with `ramp_from` /
   `ramp_to` (default the whole palette) and `step` 1 (default) / -1,
-  `mirror` `x` / `y` / `xy` with `axis_x2` / `axis_y2` in half pixels
-  (default the centre) and `wrap` `x` / `y` / `xy` (tiled mode). Image
-  documents (the Brush) take `size` 1–500
+  `mirror` `x` / `y` / `xy` (default none) with `axis_x2` / `axis_y2` in
+  half pixels (default the centre) and `wrap` `x` / `y` / `xy` (tiled
+  mode, default none). Image documents (the Brush) take `size` 1–500
   (default 8), `hardness` and `opacity` in % (default 100) and `shape`
   `hard_round` (default), `soft_round` or `flat`. Both: `tool: "eraser"`,
   `color` default `#000000`.
