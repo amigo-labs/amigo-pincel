@@ -61,6 +61,8 @@ export const en = {
   'start.newImageHint':
     'Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.',
   'start.open': 'Open…',
+  'start.unsupportedBrowser':
+    'This browser is too old for Pincel (needs Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',
   'start.openHint':
     '.aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF and PSD open in Image mode.',
   'start.recent': 'Recent',

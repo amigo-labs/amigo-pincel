@@ -20,6 +20,7 @@ use image::{ExtendedColorType, ImageEncoder};
 use std::io::{Cursor, Seek, Write};
 pub mod ora;
 pub mod psd;
+pub mod snapshot;
 
 pub use ora::{OraError, from_ora_bytes, to_ora_bytes};
 

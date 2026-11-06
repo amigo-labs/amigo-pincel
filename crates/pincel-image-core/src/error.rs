@@ -88,4 +88,9 @@ pub enum DocumentError {
     /// A pixel region did not fit the target buffer.
     #[error("region does not fit the target buffer")]
     RegionOutOfBounds,
+
+    /// Bytes handed to `codec::snapshot::from_snapshot_bytes` are not a
+    /// whole document snapshot.
+    #[error("not a document snapshot")]
+    InvalidSnapshot,
 }

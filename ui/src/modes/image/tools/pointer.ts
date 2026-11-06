@@ -34,6 +34,7 @@ import { editRefused } from '../core/layer-tree';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 import { gestureControl } from './gesture-control';
+import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
@@ -240,6 +241,17 @@ export function attachTools(
   // undo step but keeps separate strokes separate.
   let nextStrokeId = 1;
   let strokeId = 0;
+  // Brush samples wait for the next animation frame: one stroke command and
+  // one presentation per frame, however many events arrive
+  // (performance-input-path). Flushed before the gesture ends.
+  const brushFrames = frameBatch((b) => {
+    if (gestureKind === 'pencil')
+      paintStroke(b.points, strokeId, useBackground, b.pressure, b.azimuth);
+    else if (gestureKind === 'recolor') recolorStroke(b.points, strokeId, b.pressure, b.azimuth);
+    else if (gestureKind === 'smudge') smudgeStroke(b.points, strokeId, b.pressure, b.azimuth);
+    else eraseStroke(b.points, strokeId, b.pressure, b.azimuth);
+  }, redraw);
+
   // A handle or body drag on the live object: one gesture id per drag, so
   // the core keeps the drag as one undo step (image-live-objects AC-03).
   let liveDrag: {
@@ -446,17 +458,19 @@ export function attachTools(
     stage.setPointerCapture(e.pointerId);
 
     switch (tool.kind) {
+      // The press dab is its own command (a click is one dab); it shows in
+      // the next frame together with whatever the drag adds by then.
       case 'pencil':
         paintStroke([point], strokeId, useBackground, [lastPressure], [lastAzimuth]);
-        redraw();
+        brushFrames.present();
         break;
       case 'eraser':
         eraseStroke([point], strokeId, [lastPressure], [lastAzimuth]);
-        redraw();
+        brushFrames.present();
         break;
       case 'recolor':
         recolorStroke([point], strokeId, [lastPressure], [lastAzimuth]);
-        redraw();
+        brushFrames.present();
         break;
       case 'smudge':
         // A single dab only picks colour up; the stroke starts on the move.
@@ -544,19 +558,13 @@ export function attachTools(
       // strokes keep their shape and pressure.
       const samples = e.getCoalescedEvents?.() ?? [];
       const events = samples.length > 0 ? samples : [e];
-      const points: Array<[number, number]> = [last];
-      const pressure = [lastPressure];
-      const azimuth = [lastAzimuth];
-      for (const ev of events) {
-        points.push(toCanvasPoint(canvas, ev));
-        pressure.push(pressureOf(ev));
-        azimuth.push(azimuthOf(ev));
-      }
-      if (gestureKind === 'pencil') paintStroke(points, strokeId, useBackground, pressure, azimuth);
-      else if (gestureKind === 'recolor') recolorStroke(points, strokeId, pressure, azimuth);
-      else if (gestureKind === 'smudge') smudgeStroke(points, strokeId, pressure, azimuth);
-      else eraseStroke(points, strokeId, pressure, azimuth);
-      redraw();
+      const points = events.map((ev) => toCanvasPoint(canvas, ev));
+      const pressure = events.map(pressureOf);
+      const azimuth = events.map(azimuthOf);
+      brushFrames.queue(
+        { points: [last], pressure: [lastPressure], azimuth: [lastAzimuth] },
+        { points, pressure, azimuth },
+      );
       last = points[points.length - 1] ?? point;
       lastPressure = pressure[pressure.length - 1] ?? 1;
       lastAzimuth = azimuth[azimuth.length - 1] ?? null;
@@ -583,6 +591,8 @@ export function attachTools(
     if (!active || e.pointerId !== activePointer) {
       return;
     }
+    // Samples queued since the last frame belong to the stroke.
+    brushFrames.flush();
     if (DRAG_SELECT.has(gestureKind) && start && last) {
       if (gestureKind === 'lasso') {
         if (lassoPath.length >= 3 && !offCanvas(lassoPath)) {
@@ -650,6 +660,8 @@ export function attachTools(
   const abort = (): boolean => {
     if (cancelLiveDrag()) return true;
     const inProgress = active || polygonPoints.length > 0;
+    // Brush pixels painted so far stay; so do the samples still queued.
+    if (active) brushFrames.flush();
     if (activePointer !== null && stage.hasPointerCapture(activePointer)) {
       stage.releasePointerCapture(activePointer);
     }
@@ -701,6 +713,7 @@ export function attachTools(
   gestureControl.cancelLiveDrag = cancelLiveDrag;
 
   return () => {
+    brushFrames.dispose();
     gestureControl.cancel = () => false;
     gestureControl.cancelLiveDrag = () => false;
     endLiveDrag();

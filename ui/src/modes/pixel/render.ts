@@ -16,6 +16,7 @@ import { motion } from '../../lib/motion.svelte';
 import { colors, ed, live, preview, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
 import { clampAxes } from './symmetry';
+import { flushStrokePoints } from './stroke-batch';
 
 // Debug toggle (spec §4.4): `?renderer=canvas2d` forces the Canvas2D
 // fallback so WebGPU can be A/B'd against it on the same build.
@@ -196,6 +197,9 @@ export function tick() {
     live.lastTickTs = now;
   }
   if (ed.doc) {
+    // All pencil / eraser samples of this frame reach the core in one call,
+    // and their pixels are presented below in the same tick.
+    flushStrokePoints();
     const events = ed.doc.drainEvents();
     let selectionTouched = false;
     // Aggregate dirty events: any `dirty-canvas` (or `dirty-rect`

@@ -106,6 +106,10 @@ impl Command for Batch {
         "Agent Edit"
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.0.iter().map(|c| c.undo_bytes()).sum()
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

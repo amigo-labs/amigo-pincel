@@ -443,6 +443,17 @@ impl Command for LiveStep {
         rect_damage(self.before.as_ref().and_then(|d| d.rect), self.after.rect)
     }
 
+    /// The pre-object layer is held once per live object, by its begin step
+    /// (the edits share it), so the byte cap of
+    /// docs/specs/performance-image-undo-memory.md sees it.
+    fn undo_bytes(&self) -> usize {
+        if self.before.is_none() {
+            self.base.data().len()
+        } else {
+            0
+        }
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -561,7 +572,7 @@ impl CommandBus {
         };
         if key.is_some()
             && key == self.live_merge
-            && let Some(prev) = self.history.undo.pop()
+            && let Some(prev) = self.history.pop_undo()
             && let Some(prev) = prev.as_any().downcast_ref::<LiveStep>()
         {
             step = LiveStep::joined(prev, &step);
@@ -586,15 +597,14 @@ impl CommandBus {
                 let before = base.copy_region(rect)?;
                 let after = self.document.layers[layer].pixels.copy_region(rect)?;
                 (before != after)
-                    .then(|| SetPixels::applied(layer, rect, before, after, drawn.params.label()))
+                    .then(|| SetPixels::applied(layer, rect, before, drawn.params.label()))
             }
             None => None,
         };
         let keep = self.history.undo.len() - n;
-        self.history.undo.truncate(keep);
-        self.history.redo.clear();
+        self.history.truncate_undo(keep);
         if let Some(cmd) = committed {
-            self.history.undo.push(Box::new(cmd));
+            self.history.push(Box::new(cmd));
         }
         self.live_merge = None;
         Ok(())
@@ -614,8 +624,7 @@ impl CommandBus {
         render(&mut self.document, layer, &base, rect, None)?;
         self.damage.add(rect_damage(rect, None));
         let keep = self.history.undo.len() - n;
-        self.history.undo.truncate(keep);
-        self.history.redo.clear();
+        self.history.truncate_undo(keep);
         self.live_merge = None;
         Ok(())
     }
@@ -633,7 +642,7 @@ impl CommandBus {
         if self.live_merge != Some(MergeKey::Gesture(gesture)) || self.top_live_step().is_none() {
             return Ok(false);
         }
-        if let Some(mut step) = self.history.undo.pop() {
+        if let Some(mut step) = self.history.pop_undo() {
             self.damage.add(step.damage());
             step.revert(&mut self.document)?;
         }

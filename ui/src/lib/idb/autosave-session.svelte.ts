@@ -49,8 +49,9 @@ export interface AutosaveHost {
   /** File format stored with the snapshot, for editors that track one
    *  apart from the name (`AutosaveSnapshotMeta.format`). */
   format?(): string | null;
-  /** The document's project bytes (`.aseprite` / OpenRaster). */
-  encode(): Uint8Array | null;
+  /** The document's project bytes (`.aseprite` / OpenRaster), as the
+   *  document is when called — possibly encoded off the main thread. */
+  encode(): Uint8Array | null | Promise<Uint8Array | null>;
   /** Surface a failed snapshot write. */
   report(error: string): void;
 }
@@ -111,6 +112,10 @@ export class AutosaveSession {
   async tick(): Promise<void> {
     const depth = this.host.depth();
     if (!this.available || this.timer === null || depth === null || this.host.busy()) return;
+    // One autosave at a time: a tick due while one is still encoding is
+    // skipped, and the next tick saves the latest state
+    // (performance-background-jobs AC-10).
+    if (this.writing) return;
     if (depth === this.lastWriteDepth) return;
     if (depth === this.host.savedDepth() && !this.retainAtSaved) return;
     await this.write(depth);
@@ -137,7 +142,7 @@ export class AutosaveSession {
 
   private async writeNow(depth: number): Promise<void> {
     try {
-      const bytes = this.host.encode();
+      const bytes = await this.host.encode();
       if (bytes === null) return;
       const format = this.host.format?.() ?? undefined;
       await writeSnapshot(this.docId, this.host.name(), bytes, this.host.mode, format);

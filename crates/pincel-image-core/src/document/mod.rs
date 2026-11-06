@@ -71,7 +71,7 @@ pub struct Document {
     /// [`Document::layers`].
     pub(crate) layers: Vec<Layer>,
     /// Index of the active layer.
-    active_layer: usize,
+    pub(crate) active_layer: usize,
     /// Optional global selection mask; `None` means everything is selected.
     pub selection: Option<crate::selection::SelectionMask>,
     /// Document metadata.

@@ -4,18 +4,21 @@
 //! Each bakes several layers into one. `MergeVisible`/`FlattenImage` produce a
 //! plain raster layer (Normal blend, opacity 1.0) since their pixels encode
 //! the full composite; `MergeDown` keeps the lower layer's blend mode and
-//! opacity, which relate it to the layers *beneath* the pair. For undo, the
-//! full prior layer stack and active index are snapshotted and restored
-//! verbatim — structural merges are infrequent, so the clone cost is
-//! acceptable (spec §7.1).
+//! opacity, which relate it to the layers *beneath* the pair. For undo,
+//! `MergeDown` keeps the removed upper layer and the lower layer's changed
+//! tiles (docs/specs/performance-image-undo-memory.md); the others replace
+//! several layers at once and snapshot the prior layer stack and active
+//! index, restoring them verbatim (spec §7.1).
 
 use super::Command;
-use super::snapshot::{DocSnapshot, restore, snapshot};
+use super::snapshot::{DocSnapshot, restore, snapshot, take_snapshot};
+use super::tiles::LayerTiles;
 use crate::color::{BlendMode, Color};
 use crate::document::{Document, ImageBuffer, Layer, LayerKind};
 use crate::error::DocumentError;
 use crate::render::{compose, compose_over};
 use std::any::Any;
+use uuid::Uuid;
 
 /// Merges the layer at `index` onto the layer directly below it.
 ///
@@ -27,7 +30,16 @@ use std::any::Any;
 /// or out of range.
 pub struct MergeDown {
     index: usize,
-    before: Option<DocSnapshot>,
+    before: Option<MergeDownUndo>,
+}
+
+/// What undoing a merge-down needs: the upper layer it removed, the lower
+/// layer's changed tiles and the active index — not the whole document
+/// (docs/specs/performance-image-undo-memory.md).
+struct MergeDownUndo {
+    upper: Layer,
+    lower: LayerTiles,
+    active: usize,
 }
 
 impl MergeDown {
@@ -60,29 +72,58 @@ impl Command for MergeDown {
         if doc.layers()[self.index - 1].parent != doc.layers()[self.index].parent {
             return Err(DocumentError::MergeAcrossGroups);
         }
-        self.before = Some(snapshot(doc));
-
-        let mut merged = doc.layers()[self.index - 1].clone();
-        let upper = doc.layers()[self.index].clone();
+        let active = doc.active_layer_index();
         // Bake the upper layer onto the lower one's raw pixels. The lower
         // layer's own blend mode/opacity must not be baked in — they apply
         // against the layers beneath and stay on the merged layer instead.
+        // The pixels move into `base` and back, so no layer is copied.
+        let lower = &mut doc.layers[self.index - 1];
+        let pixels = std::mem::replace(&mut lower.pixels, ImageBuffer::new_transparent(0, 0));
         let base = Layer {
             opacity: 1.0,
             blend_mode: BlendMode::Normal,
             visible: true,
-            ..merged.clone()
+            pixels,
+            ..lower.clone()
         };
-        merged.pixels = compose(&[base, upper]);
-
-        doc.layers.remove(self.index);
-        doc.layers[self.index - 1] = merged;
+        let upper = doc.layers.remove(self.index);
+        let pair = [base, upper];
+        let merged = compose(&pair);
+        let [base, upper] = pair;
+        let tiles = LayerTiles::diff(&base.pixels, &merged);
+        doc.layers[self.index - 1].pixels = merged;
+        self.before = Some(MergeDownUndo {
+            upper,
+            lower: tiles,
+            active,
+        });
         doc.set_active_layer(self.index - 1)
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        let snap = self.before.take().ok_or(DocumentError::RegionOutOfBounds)?;
-        restore(doc, snap)
+        let undo = self.before.take().ok_or(DocumentError::RegionOutOfBounds)?;
+        let MergeDownUndo {
+            upper,
+            mut lower,
+            active,
+        } = undo;
+        let len = doc.layers.len();
+        let target =
+            doc.layers
+                .get_mut(self.index - 1)
+                .ok_or(DocumentError::LayerIndexOutOfBounds {
+                    index: self.index - 1,
+                    len,
+                })?;
+        lower.swap(&mut target.pixels);
+        doc.insert_layer(self.index, upper)?;
+        doc.set_active_layer(active)
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.before
+            .as_ref()
+            .map_or(0, |u| u.upper.pixels.data().len() + u.lower.bytes())
     }
 
     fn label(&self) -> &str {
@@ -159,6 +200,10 @@ impl Command for MergeGroup {
         "Merge Group"
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, DocSnapshot::bytes)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -171,12 +216,18 @@ impl Command for MergeGroup {
 /// no-op if no layer is visible.
 pub struct MergeVisible {
     before: Option<DocSnapshot>,
+    /// Id of the merged layer, fixed on first apply so redo recreates it
+    /// exactly.
+    id: Option<Uuid>,
 }
 
 impl MergeVisible {
     /// Creates the command.
     pub fn new() -> Self {
-        Self { before: None }
+        Self {
+            before: None,
+            id: None,
+        }
     }
 }
 
@@ -212,7 +263,8 @@ impl Command for MergeVisible {
             .iter()
             .flat_map(|&(s, e)| doc.layers()[s..e].iter().cloned())
             .collect();
-        let merged = Layer::from_pixels("Merged", canvas_composite(doc, &visible_layers));
+        let mut merged = Layer::from_pixels("Merged", canvas_composite(doc, &visible_layers));
+        merged.id = *self.id.get_or_insert(merged.id);
 
         // Keep the hidden runs in order and put the merged layer where the
         // lowest visible run was; everything below it is hidden.
@@ -241,6 +293,10 @@ impl Command for MergeVisible {
         "Merge Visible"
     }
 
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, DocSnapshot::bytes)
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -250,12 +306,18 @@ impl Command for MergeVisible {
 /// fully opaque "Background" layer (spec §5.2).
 pub struct FlattenImage {
     before: Option<DocSnapshot>,
+    /// Id of the flattened layer, fixed on first apply so redo recreates
+    /// it exactly.
+    id: Option<Uuid>,
 }
 
 impl FlattenImage {
     /// Creates the command.
     pub fn new() -> Self {
-        Self { before: None }
+        Self {
+            before: None,
+            id: None,
+        }
     }
 }
 
@@ -267,10 +329,11 @@ impl Default for FlattenImage {
 
 impl Command for FlattenImage {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        self.before = Some(snapshot(doc));
         let flattened = compose_over(doc.layers(), Color::WHITE);
-        doc.layers.clear();
-        doc.layers.push(Layer::from_pixels("Background", flattened));
+        let mut layer = Layer::from_pixels("Background", flattened);
+        layer.id = *self.id.get_or_insert(layer.id);
+        // The old layers move into the snapshot instead of being copied.
+        self.before = Some(take_snapshot(doc, vec![layer]));
         doc.set_active_layer(0)
     }
 
@@ -281,6 +344,10 @@ impl Command for FlattenImage {
 
     fn label(&self) -> &str {
         "Flatten Image"
+    }
+
+    fn undo_bytes(&self) -> usize {
+        self.before.as_ref().map_or(0, DocSnapshot::bytes)
     }
 
     fn as_any(&self) -> &dyn Any {

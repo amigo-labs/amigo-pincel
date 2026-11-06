@@ -12,7 +12,7 @@ import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
 import { saveDocument } from './save-flow';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
-import { core } from './wasm';
+import { encodeInBackground } from '../jobs';
 
 /** The shell and editor callbacks the tabs need (`EditorProps`). */
 export interface TabHooks {
@@ -78,7 +78,8 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
       busy: () => runningSave(tab) !== null,
       name: () => fileName(tab),
       format: () => fileFormat(tab),
-      encode: () => (tab.doc.handle === null ? null : core.saveProject(tab.doc.handle, 1)),
+      encode: () =>
+        tab.doc.handle === null ? null : encodeInBackground(tab.doc.handle, 'ora', { level: 1 }),
       report: (error) => hooks.report(t('img.autosaveFailed', { error })),
     },
     opts.docId,

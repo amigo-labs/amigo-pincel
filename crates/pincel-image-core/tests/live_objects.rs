@@ -792,3 +792,37 @@ fn cancel_live_gesture_drops_the_drag_step_without_a_redo() {
     assert!(!bus.cancel_live_gesture(11).expect("other gesture"));
     assert_eq!(bus.history.undo_depth(), 2);
 }
+
+/// The byte-capped undo history (performance-image-undo-memory AC-03,
+/// AC-05) keeps its count exact through live objects: begin, joined edits,
+/// a cancelled drag, commit, cancel, undo and redo.
+#[test]
+fn live_object_steps_keep_the_undo_byte_count_exact() {
+    let mut bus = bus();
+    let exact = |bus: &CommandBus, at: &str| {
+        assert_eq!(
+            bus.history.stored_bytes(),
+            bus.history.recount_bytes(),
+            "{at}"
+        );
+    };
+    let params = line(p(2.0, 3.0), p(50.0, 40.0));
+    bus.begin_live(1, params.clone()).expect("begin");
+    exact(&bus, "begin");
+    bus.edit_live(&moved(&params, 1.0, 1.0), Some(7))
+        .expect("drag");
+    bus.edit_live(&moved(&params, 2.0, 2.0), Some(7))
+        .expect("drag on");
+    exact(&bus, "joined edits");
+    assert!(bus.cancel_live_gesture(7).expect("cancel drag"));
+    exact(&bus, "cancelled drag");
+    bus.commit_live().expect("commit");
+    exact(&bus, "commit");
+    bus.undo().expect("undo");
+    exact(&bus, "undo");
+    bus.redo().expect("redo");
+    exact(&bus, "redo");
+    bus.begin_live(1, params).expect("begin again");
+    bus.cancel_live().expect("cancel");
+    exact(&bus, "cancel");
+}

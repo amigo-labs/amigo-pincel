@@ -12,12 +12,16 @@ import initWasm, {
   image_key,
   get_selection_bounds,
   save_project,
+  snapshot_document,
+  open_snapshot,
   close_document,
   document_count,
   composite,
   composite_region,
   apply_command,
   apply_effect,
+  apply_effect_region,
+  effect_region_bytes,
   preview_effect,
   pick_color,
   set_active_layer,
@@ -493,20 +497,50 @@ export type ToolCommand =
   | LiveCommand;
 
 let initialized: Promise<unknown> | null = null;
+let compiled: WebAssembly.Module | null = null;
 
-/** Initializes the WASM module exactly once. Safe to call repeatedly. */
-export async function initCore(): Promise<void> {
+/** Fetches and compiles the core. Like wasm-bindgen's own loader, it
+ *  compiles the whole body when a host serves the .wasm without the
+ *  `application/wasm` type that streaming compilation needs. */
+async function compileCore(): Promise<WebAssembly.Module> {
+  // Pass the asset URL explicitly (as the Pixel-mode adapter does) so Vite
+  // fingerprints the .wasm and the precache sees it.
+  const response = await fetch(wasmUrl);
+  if (!response.ok) throw new Error(`could not load the Image core (${response.status})`);
+  if (response.headers.get('Content-Type')?.startsWith('application/wasm')) {
+    return WebAssembly.compileStreaming(response);
+  }
+  return WebAssembly.compile(await response.arrayBuffer());
+}
+
+/**
+ * Initializes the WASM module exactly once. Safe to call repeatedly.
+ * `module` is a core the page already compiled (a job worker gets it from
+ * `compiledCore`): it is instantiated instead of fetched and compiled a
+ * second time.
+ */
+export async function initCore(module?: WebAssembly.Module): Promise<void> {
   if (!initialized) {
-    // Same pattern as the Pixel-mode adapter (src/lib/core): pass the asset
-    // URL explicitly so Vite fingerprints the .wasm and the precache sees it.
-    initialized = initWasm({ module_or_path: wasmUrl }).catch((err: unknown) => {
-      // A failed download (offline) is retried by the next caller.
-      initialized = null;
-      throw err;
-    });
+    initialized = (module ? Promise.resolve(module) : compileCore())
+      .then((m) => {
+        compiled = m;
+        return initWasm({ module_or_path: m });
+      })
+      .catch((err: unknown) => {
+        // A failed download (offline) is retried by the next caller.
+        initialized = null;
+        compiled = null;
+        throw err;
+      });
   }
   await initialized;
   publishDocumentCount('image', document_count);
+}
+
+/** The compiled core once `initCore` has loaded it, for a job worker to
+ *  instantiate (docs/specs/performance-background-jobs.md). */
+export function compiledCore(): WebAssembly.Module | null {
+  return compiled;
 }
 
 export const core = {
@@ -545,6 +579,11 @@ export const core = {
   /** Serializes the document as OpenRaster; `compression` is the 0–9 PNG level. */
   saveProject: (handle: number, compression: number): Uint8Array =>
     save_project(handle, compression),
+  /** An uncompressed copy of the whole document for the job worker
+   *  (docs/specs/performance-background-jobs.md). */
+  snapshotDocument: (handle: number): Uint8Array => snapshot_document(handle),
+  /** Opens a `snapshotDocument` copy as a new document. */
+  openSnapshot: (data: Uint8Array): number => open_snapshot(data),
   closeDocument: (handle: number): void => close_document(handle),
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
@@ -572,6 +611,20 @@ export const core = {
    *  as one undoable step. `false`: the selection is empty, nothing changed. */
   applyEffect: (handle: number, layer: number, name: string, params: number[]): boolean =>
     apply_effect(handle, layer, name, Float64Array.from(params)),
+  /** The region effect `name` / `params` would change on `layer` (empty:
+   *  nothing, the selection is empty), computed but not committed: the
+   *  job worker's half of `applyEffect`. */
+  effectRegionBytes: (handle: number, layer: number, name: string, params: number[]): Uint8Array =>
+    effect_region_bytes(handle, layer, name, Float64Array.from(params)),
+  /** Commits `effectRegionBytes` of the same effect as the undo step
+   *  `applyEffect` makes; `false`: the region is empty, nothing changed. */
+  applyEffectRegion: (
+    handle: number,
+    layer: number,
+    name: string,
+    params: number[],
+    region: Uint8Array,
+  ): boolean => apply_effect_region(handle, layer, name, Float64Array.from(params), region),
   /** Composites the document with the effect previewed on `layer`; no mutation. */
   previewEffect: (
     handle: number,

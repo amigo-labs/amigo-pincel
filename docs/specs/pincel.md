@@ -380,10 +380,10 @@ The budgets are contracts (Decision Log 2026-10-29): every performance change st
 
 | Scenario | Budget | Owning spec |
 | -------- | ------ | ----------- |
-| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom | ≤ 16 ms (60 fps) | `performance-image-cache` |
+| Brush dab, Image, 3840×2160, 10 layers, any zoom: dab latency (pointer event received → draw call) | ≤ 16 ms | `performance-image-cache` |
 | Pan / zoom, Image 4K 10 layers | 60 fps, no recompose while panning | `performance-image-cache` |
 | Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | `performance-image-kernel`, `performance-build-simd` |
-| Pixel: pencil drag on 256×256 at zoom 32 | 60 fps, dab latency ≤ 8 ms | `performance-input-path` |
+| Pixel: pencil drag on 256×256 at zoom 32 | 60 fps, dab latency (pointer event received → draw call) ≤ 8 ms | `performance-input-path` |
 | Open a 4K PNG | ≤ 1 s to first paint | measured first; `performance-image-open` if missed |
 | Effect preview (Gaussian r = 10) on 4K | proxy ≤ 100 ms, full result ≤ 500 ms, UI never blocks | `performance-background-jobs` |
 | Autosave and export of a 4K multi-layer doc | zero UI jank (no frame > 50 ms) | `performance-background-jobs` |
@@ -653,6 +653,7 @@ doc.beginStroke(tool, color, size, shape, pixelPerfect); // Pencil / Eraser gest
 doc.setStrokeMirror(axisX2, axisY2);      // optional symmetry axes (half pixels), before the first strokeTo
 doc.setStrokeWrap(wrapX, wrapY);           // optional tiled-mode wrapping, before the first strokeTo
 doc.strokeTo(x, y, pressure);             // per pointer sample (pressure optional); one undo entry
+doc.strokeToBatch(xy, pressure);          // all samples of one animation frame (Int32Array x0,y0,…; Float32Array, empty = full)
 doc.endStroke();                           // on pointer-up
 const frame = doc.compose(0, 1);           // frame index, zoom 1..=64
 //  ^ frame.pixels is a fresh Uint8Array copy (RGBA8, row-major) on each read
@@ -1004,6 +1005,8 @@ Out of scope indefinitely. Local-first by design.
 | 2026-11-05 | File ▸ Print… (Image mode only) prints a print-only rendering of the PNG-encoded composite through `window.print()` / the webview's print. | No canvas readback (§17.1); one path for PWA and desktop (`image-formats-more-print`). |
 | 2026-11-05 | MCP `doc.save` writes Image documents back in their own format (PNG / JPEG / WebP / BMP / TIFF) like the editor's Save; flattening that would lose something needs `flatten: true`. Supersedes `mcp-headless-image` AC-20. | Parity with the editor without losing layers silently when no user is present (`mcp-parity-export`). |
 | 2026-11-05 | Pixel selection combine, wand sampling and paste / copy-target logic move from `pincel-wasm` into `pincel-core` as public API with thin wasm wrappers. | `pincel-agent` must run the editor's own selection and clipboard logic natively, as the 2026-10-29 phase-0 move did (`mcp-parity-selection-transform`). |
+| 2026-11-05 | The Pixel pencil's dab-latency budget (§4.5, ≤ 8 ms) is measured from the page receiving the pointer event to the draw call, not to the next frame that starts after the draw; the browser performance script reports it as `dab-draw-latency`. The Image brush budget kept "pixels on screen" until 2026-11-06 (next entry). | Owner: the budget covers the work Pincel controls; Chrome dispatches `pointermove` aligned to the frame, so the wait for the next frame after a draw (up to one frame) is outside the app's reach (`performance-input-path` AC-04). |
+| 2026-11-06 | The Image brush budget (§4.5, ≤ 16 ms) is measured like the Pixel pencil's: from the page receiving the pointer event to the draw call (`image-brush-4k` › `dab-draw-latency-p95`). | Owner, 2026-11-05: the presented-frame latency stayed over 16 ms (p95 32.3 ms on the reference machine), and the rest of it — the frame-aligned dispatch and the wait for the presenting frame — is not work the render cache owns (`performance-image-cache` AC-03). |
 | 2026-11-05 | The effect UI becomes a small movable dialog over the canvas area (docked to the bottom edge below 640 px); while it is open the rest of the UI is dimmed and inert, the canvas is not and keeps zoom and pan; the panel position persists per mode in the IndexedDB layout prefs. The sidebar splitter stays. Amends 2026-11-04 "The effect UI becomes a panel docked at the top of the right sidebar". | Owner: the docked panel was misleading, because the tools beside it looked usable but were inert. A dialog with a dimmed surrounding shows the modal state; dragging answers the 2026-11-04 complaint that the old box covered the preview. Feature spec `effect-panel.md` |
 
 ---

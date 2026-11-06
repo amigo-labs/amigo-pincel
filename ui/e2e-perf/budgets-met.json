@@ -1,5 +1,7 @@
 {
   "browser/cold-start/cold": "2026-10-29",
   "browser/cold-start/warm": "2026-10-29",
-  "browser/pixel-pencil-256-z32/frame-p95": "2026-10-29"
+  "browser/pixel-pencil-256-z32/frame-p95": "2026-10-29",
+  "browser/pixel-pencil-256-z32/dab-draw-latency-p95": "2026-11-05",
+  "browser/image-brush-4k/dab-draw-latency-p95": "2026-11-06"
 }

@@ -57,12 +57,22 @@ test('pixel: a failing preview keeps the panel open with its values (AC-16)', as
 test.describe('image mode', () => {
   // Image mode previews even a locked layer, and every parameter vector the
   // panel sends is valid; a failing preview is forced at the core boundary:
-  // the wasm export `preview_effect` throws while `__failPreview` is set.
+  // the page's wasm export `preview_effect` throws while `__failPreview` is
+  // set. Previews run in the job worker, which an init script cannot reach,
+  // so the worker is kept from starting: a preview then falls back to the
+  // page (performance-background-jobs AC-09), and fails there.
   test.beforeEach(async ({ page }) => {
+    await page.route(/\/assets\/worker-[^/]*\.js$/, (route) => route.abort());
     await page.addInitScript(() => {
       const w = window as unknown as { __failPreview?: boolean };
-      const patch = <T extends { instance: WebAssembly.Instance }>(result: T): T => {
-        const exports = result.instance.exports;
+      // `instantiate` answers a compiled module with an Instance, bytes with
+      // `{ instance, module }`; the page's core is compiled ahead.
+      const patch = <T>(result: T): T => {
+        const isInstance = result instanceof WebAssembly.Instance;
+        const instance = isInstance
+          ? (result as WebAssembly.Instance)
+          : (result as { instance: WebAssembly.Instance }).instance;
+        const exports = instance.exports;
         if (typeof exports.preview_effect !== 'function') return result;
         const original = exports.preview_effect as (...args: unknown[]) => unknown;
         const patched: Record<string, unknown> = { ...exports };
@@ -70,7 +80,10 @@ test.describe('image mode', () => {
           if (w.__failPreview) throw new Error('forced preview failure');
           return original(...args);
         };
-        return { ...result, instance: { exports: patched } as unknown as WebAssembly.Instance };
+        // Still an Instance to wasm-bindgen's loader, with the patched exports.
+        const fake = Object.create(WebAssembly.Instance.prototype) as WebAssembly.Instance;
+        Object.defineProperty(fake, 'exports', { value: patched });
+        return (isInstance ? fake : { ...result, instance: fake }) as T;
       };
       const streaming = WebAssembly.instantiateStreaming.bind(WebAssembly);
       WebAssembly.instantiateStreaming = async (source, imports) =>
