@@ -88,14 +88,14 @@ Terms used below: the drag runs from the start point `a` to the end point `b`; `
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-02 | `spiral_every_pixel_follows_the_spiral_formula`, `spiral_start_pixel_takes_the_start_color_for_any_direction` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-03 | `spiral_pins_the_spec_example_values` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-04 | `spiral_ccw_mirrors_spiral_cw_across_a_horizontal_drag_on_a_boundary` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-05 | `spiral_repeats_the_ramp_every_drag_length_on_the_drag_line` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-06 | `spiral_transparency_fades_alpha_along_t_and_keeps_the_color` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-07 | `spiral_inside_a_feathered_selection_changes_only_selected_pixels` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-08 | `spiral_is_one_undo_step_and_undo_restores_the_layer_exactly` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
+| AC-09 | `spiral_zero_length_drag_changes_nothing_and_adds_no_step` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
