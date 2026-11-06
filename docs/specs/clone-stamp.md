@@ -136,8 +136,8 @@ Existing parts to reuse (grep for the names, line numbers drift):
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-19 | `draw_clone_is_listed_for_image_documents`, `draw_clone_equals_the_editors_clone_stamp`, `draw_clone_samples_the_layer_or_the_visible_composite`, `draw_clone_is_one_undo_step_per_changing_call` (crates/pincel-agent/src/tests/image_clone.rs) | built |        |
+| AC-20 | `draw_clone_refuses_bad_arguments_and_targets` (crates/pincel-agent/src/tests/image_clone.rs) | built |        |
 
 ## Decisions
 

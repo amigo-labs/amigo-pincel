@@ -15,7 +15,7 @@ use crate::pixel::{layer_prop, tool_schema};
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
 /// The editor's default brush size, tolerance and shape stroke width.
-const BRUSH_SIZE: u64 = 8;
+pub(super) const BRUSH_SIZE: u64 = 8;
 const TOLERANCE: u64 = 32;
 const STROKE_WIDTH: f64 = 3.0;
 const CORNER_RADIUS: f64 = 16.0;
@@ -29,16 +29,16 @@ fn num(args: &Args, key: &str) -> Result<f32, AgentError> {
         .ok_or_else(|| AgentError::tool(format!("missing required argument `{key}`")))
 }
 
-fn num_or(args: &Args, key: &str, default: f64) -> f32 {
+pub(super) fn num_or(args: &Args, key: &str, default: f64) -> f32 {
     args.get(key).and_then(Value::as_f64).unwrap_or(default) as f32
 }
 
 /// A percentage argument (0–100) as the core's 0–1 fraction.
-fn percent(args: &Args, key: &str) -> f32 {
+pub(super) fn percent(args: &Args, key: &str) -> f32 {
     num_or(args, key, 100.0) / 100.0
 }
 
-fn str_or<'a>(args: &'a Args, key: &str, default: &'a str) -> &'a str {
+pub(super) fn str_or<'a>(args: &'a Args, key: &str, default: &'a str) -> &'a str {
     args.str(key).unwrap_or(default)
 }
 
@@ -50,12 +50,12 @@ fn percent_prop(description: &str) -> Value {
     json!({ "type": "number", "minimum": 0, "maximum": 100, "description": format!("{description} in %; default 100") })
 }
 
-fn choice(options: &[&str], description: &str) -> Value {
+pub(super) fn choice(options: &[&str], description: &str) -> Value {
     json!({ "type": "string", "enum": options, "description": description })
 }
 
 /// Schema of an Image edit: `doc`, `layer` and the tool's own properties.
-fn edit_schema(properties: Value, required: &[&str]) -> Value {
+pub(super) fn edit_schema(properties: Value, required: &[&str]) -> Value {
     let mut props = match properties {
         Value::Object(m) => m,
         _ => Map::new(),
@@ -109,7 +109,7 @@ fn shared_color(description: &str) -> Value {
 /// changes no pixel records no undo step:
 /// `build` runs twice (a dry run on a copy decides), with the same stroke
 /// id (mcp-parity-drawing-image AC-13).
-fn edit_checked(
+pub(super) fn edit_checked(
     ctx: &mut Ctx<'_>,
     args: &Args,
     build: impl Fn(usize, u64) -> Result<CommandSpec, AgentError>,
@@ -128,7 +128,7 @@ fn edit_checked(
     })))
 }
 
-fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
+pub(super) fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
     let items = args
         .get("points")
         .and_then(Value::as_array)
@@ -270,7 +270,7 @@ fn angle_prop() -> Value {
 
 /// The brush arguments `draw.recolor` and `draw.smudge` share with Image
 /// `draw.stroke`.
-fn brush_props() -> Value {
+pub(super) fn brush_props() -> Value {
     json!({
         "points": {
             "type": "array",
@@ -286,7 +286,7 @@ fn brush_props() -> Value {
     })
 }
 
-fn with_props(mut base: Value, extra: Value) -> Value {
+pub(super) fn with_props(mut base: Value, extra: Value) -> Value {
     if let (Some(b), Value::Object(e)) = (base.as_object_mut(), extra) {
         b.extend(e);
     }

@@ -4,6 +4,7 @@
 //! runs it through [`run_command`], so a tool call leaves exactly the
 //! pixels the editor's tool would. See docs/specs/mcp-headless-image.md.
 
+pub(crate) mod clone;
 pub(crate) mod doc;
 pub(crate) mod draw;
 pub(crate) mod layer;
@@ -38,6 +39,7 @@ pub(crate) static TOOLS: &[Tool] = &[
     draw::GRADIENT,
     draw::RECOLOR,
     draw::SMUDGE,
+    clone::CLONE,
     draw::ADJUST_APPLY,
     doc::EXPORT_JPEG,
     doc::EXPORT_WEBP,

@@ -334,7 +334,7 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
                 "in Pixel documents `draw.gradient`, `draw.text` and `draw.fill` stay inside it",
                 "while `draw.stroke`, `draw.shape`, `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse` and `draw.clear` ignore it",
                 "Pixel `draw.fill` clips to the selection although the Pixel editor's Bucket does not",
-                "In Image documents every drawing tool stays inside the selection (`draw.stroke`, `draw.shape`, `draw.text`, `draw.fill`, `draw.gradient`, `draw.recolor`, `draw.smudge`)",
+                "In Image documents every drawing tool stays inside the selection (`draw.stroke`, `draw.shape`, `draw.text`, `draw.fill`, `draw.gradient`, `draw.recolor`, `draw.smudge`, `draw.clone`)",
             ][..],
         ),
     ] {

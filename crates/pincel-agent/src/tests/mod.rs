@@ -13,6 +13,7 @@ mod export_svg;
 mod image;
 mod image_brush_parity;
 mod image_brushes;
+mod image_clone;
 mod image_draw;
 mod layers;
 mod pixel_paint;
