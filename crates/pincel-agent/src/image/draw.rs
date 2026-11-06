@@ -64,6 +64,29 @@ fn edit_schema(properties: Value, required: &[&str]) -> Value {
     tool_schema(Value::Object(props), required)
 }
 
+/// A number argument within the Image editor's range `lo..=hi` (no upper
+/// bound when `hi` is `None`), else `default`. The schemas carry no bounds
+/// for arguments whose range differs per mode, so the message can name the
+/// mode (mcp-parity-drawing AC-24).
+fn image_ranged(
+    args: &Args,
+    key: &str,
+    lo: f64,
+    hi: Option<f64>,
+    default: f64,
+) -> Result<f32, AgentError> {
+    let Some(v) = args.get(key) else {
+        return Ok(default as f32);
+    };
+    match v.as_f64() {
+        Some(n) if n >= lo && hi.is_none_or(|hi| n <= hi) => Ok(n as f32),
+        _ => Err(AgentError::tool(match hi {
+            Some(hi) => format!("`{key}` must be {lo}–{hi} on Image documents"),
+            None => format!("`{key}` must be at least {lo} on Image documents"),
+        })),
+    }
+}
+
 /// Refuse arguments only the Pixel editor offers (mcp-parity-drawing
 /// AC-18).
 fn refuse_pixel_args(ctx: &Ctx<'_>, args: &Args, keys: &[&str]) -> Result<(), AgentError> {
@@ -159,7 +182,7 @@ pub(crate) const STROKE: Tool = Tool {
                 },
                 "tool": choice(&["brush", "eraser"], "brush (default) or eraser"),
                 "color": shared_color("Brush color; default #000000"),
-                "size": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Brush size in px: Image 1–500 (default 8), Pixel 1–8 (default 1)" },
+                "size": { "type": "integer", "description": "Brush size in px: Image 1–500 (default 8), Pixel 1–8 (default 1)" },
                 "hardness": percent_prop("Image: edge hardness"),
                 "opacity": percent_prop("Image: stroke opacity"),
                 "shape": choice(&["hard_round", "soft_round", "flat", "square", "round"], "Brush tip: Image hard_round (default) / soft_round / flat; Pixel square (default) / round"),
@@ -207,7 +230,7 @@ pub(crate) const STROKE: Tool = Tool {
         }
         edit(ctx, args, |doc, layer| {
             let points = points_arg(args)?;
-            let size = args.i64("size").map_or(BRUSH_SIZE, |s| s as u64) as u32;
+            let size = image_ranged(args, "size", 1.0, Some(500.0), BRUSH_SIZE as f64)? as u32;
             let (opacity, hardness) = (percent(args, "opacity"), percent(args, "hardness"));
             let shape = str_or(args, "shape", "hard_round").to_owned();
             let stroke_id = doc.next_stroke();
@@ -387,15 +410,15 @@ pub(crate) const SHAPE: Tool = Tool {
                 "y0": number("First corner / start y"),
                 "x1": number("Opposite corner / end x"),
                 "y1": number("Opposite corner / end y"),
-                "corner_radius": { "type": "number", "minimum": 0, "description": "rounded: corner radius in px; default 16 (Image) / 4 (Pixel, 0–256)" },
+                "corner_radius": { "type": "number", "description": "rounded: corner radius in px; Image at least 0 (default 16), Pixel 0–256 (default 4)" },
                 "cx": number("polygon: center x"),
                 "cy": number("polygon: center y"),
                 "radius": { "type": "number", "minimum": 0, "description": "polygon: circumradius in px" },
-                "sides": { "type": "integer", "minimum": 3, "maximum": 100, "description": "polygon: number of sides; Image 3–100 (default 5), Pixel 3–64 (default 6)" },
+                "sides": { "type": "integer", "description": "polygon: number of sides; Image 3–100 (default 5), Pixel 3–64 (default 6)" },
                 "rotation": number("polygon: rotation in degrees; default 0"),
                 "stroke": shared_color("Outline color"),
                 "fill": shared_color("Fill color"),
-                "stroke_width": { "type": "number", "minimum": 1, "maximum": 500, "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
+                "stroke_width": { "type": "number", "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
                 "dash": choice(&["solid", "dashed", "dotted"], "Image: outline dash pattern; default solid"),
                 "anti_alias": { "type": "boolean", "description": "Image: smooth edges; default true" },
                 "frame": crate::pixel::frame_prop(),
@@ -429,7 +452,8 @@ pub(crate) const SHAPE: Tool = Tool {
             };
             let (shape, points, center, radius, sides, rotation) = if kind == "polygon" {
                 let center = [num(args, "cx")?, num(args, "cy")?];
-                let sides = args.i64("sides").map_or(POLYGON_SIDES, |s| s as u64) as u32;
+                let sides =
+                    image_ranged(args, "sides", 3.0, Some(100.0), POLYGON_SIDES as f64)? as u32;
                 let rotation = num_or(args, "rotation", 0.0).to_radians();
                 (
                     "polygon",
@@ -451,17 +475,23 @@ pub(crate) const SHAPE: Tool = Tool {
                 ];
                 (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
             };
+            let stroke_width = image_ranged(args, "stroke_width", 1.0, Some(500.0), STROKE_WIDTH)?;
+            let corner_radius = if kind == "rounded" {
+                image_ranged(args, "corner_radius", 0.0, None, CORNER_RADIUS)?
+            } else {
+                num_or(args, "corner_radius", CORNER_RADIUS)
+            };
             Ok(CommandSpec::DrawShape {
                 layer,
                 shape: shape.to_owned(),
                 points,
-                corner_radius: num_or(args, "corner_radius", CORNER_RADIUS),
+                corner_radius,
                 center,
                 radius,
                 sides,
                 rotation,
                 mode: mode.to_owned(),
-                stroke_width: num_or(args, "stroke_width", STROKE_WIDTH),
+                stroke_width,
                 stroke_color: stroke.unwrap_or_default(),
                 fill_color: fill.unwrap_or_default(),
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
@@ -480,7 +510,7 @@ pub(crate) const TEXT: Tool = Tool {
                 "text": { "type": "string", "description": "The text" },
                 "x": number("Anchor x (see align)"),
                 "y": number("Top of the first line"),
-                "size": { "type": "number", "minimum": 1, "maximum": 2000, "description": "Font size in px; Image 1–999 (default 48), Pixel 1–2000 (default 12)" },
+                "size": { "type": "number", "description": "Font size in px; Image 1–999 (default 48), Pixel 1–2000 (default 12)" },
                 "color": shared_color("Text color; default #000000"),
                 "align": choice(&["left", "center", "right"], "Horizontal alignment; default left"),
                 "bold": { "type": "boolean" },
@@ -497,13 +527,7 @@ pub(crate) const TEXT: Tool = Tool {
         if !ctx.ws.is_image(args)? {
             return crate::pixel::paint::text(ctx, args);
         }
-        if args
-            .get("size")
-            .and_then(Value::as_f64)
-            .is_some_and(|s| s > 999.0)
-        {
-            return Err(AgentError::tool("`size` must be 1–999 on Image documents"));
-        }
+        let size = image_ranged(args, "size", 1.0, Some(999.0), TEXT_SIZE)?;
         edit(ctx, args, |_, layer| {
             let color = match args.get("color") {
                 Some(_) => color_arg(args, "color")?,
@@ -515,7 +539,7 @@ pub(crate) const TEXT: Tool = Tool {
                 text: args.req_str("text")?.to_owned(),
                 x: num(args, "x")?,
                 y: num(args, "y")?,
-                size: num_or(args, "size", TEXT_SIZE),
+                size,
                 color,
                 bold: args.bool("bold").unwrap_or(false),
                 italic: args.bool("italic").unwrap_or(false),

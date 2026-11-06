@@ -772,61 +772,212 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
 
 #[test]
 fn values_outside_the_modes_range_fail_with_the_range() {
-    let mut s = S::new();
-    let id = s.new_doc(8, 8);
-    for (tool, args, msg) in [
+    let stroke = |extra: Value| {
+        let mut a = json!({ "points": [[1, 1]] });
+        a.as_object_mut()
+            .expect("obj")
+            .extend(extra.as_object().expect("obj").clone());
+        a
+    };
+    let shape = |kind: &str, extra: Value| {
+        let mut a =
+            json!({ "shape": kind, "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000" });
+        a.as_object_mut()
+            .expect("obj")
+            .extend(extra.as_object().expect("obj").clone());
+        a
+    };
+    let text = |size: f64| json!({ "text": "A", "x": 0, "y": 0, "size": size });
+    let gradient = |extra: Value| {
+        let mut a =
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff" });
+        a.as_object_mut()
+            .expect("obj")
+            .extend(extra.as_object().expect("obj").clone());
+        a
+    };
+    let pixel = [
         (
             "draw.stroke",
-            json!({ "points": [[1, 1]], "size": 9 }),
+            stroke(json!({ "size": 9 })),
+            "`size` must be 1–8 on Pixel documents",
+        ),
+        (
+            "draw.stroke",
+            stroke(json!({ "size": 0 })),
+            "`size` must be 1–8 on Pixel documents",
+        ),
+        (
+            "draw.stroke",
+            stroke(json!({ "size": 501 })),
             "`size` must be 1–8 on Pixel documents",
         ),
         (
             "draw.shape",
-            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000", "stroke_width": 65 }),
+            shape("rect", json!({ "stroke_width": 65 })),
             "`stroke_width` must be 1–64 on Pixel documents",
         ),
         (
             "draw.shape",
-            json!({ "shape": "rounded", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000", "corner_radius": 300 }),
+            shape("rect", json!({ "stroke_width": 501 })),
+            "`stroke_width` must be 1–64 on Pixel documents",
+        ),
+        (
+            "draw.shape",
+            shape("rect", json!({ "stroke_width": 0 })),
+            "`stroke_width` must be 1–64 on Pixel documents",
+        ),
+        (
+            "draw.shape",
+            shape("rounded", json!({ "corner_radius": 300 })),
             "`corner_radius` must be 0–256 on Pixel documents",
         ),
         (
             "draw.shape",
-            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000", "sides": 65 }),
+            shape("rounded", json!({ "corner_radius": -1 })),
+            "`corner_radius` must be 0–256 on Pixel documents",
+        ),
+        (
+            "draw.shape",
+            shape("polygon", json!({ "sides": 65 })),
             "`sides` must be 3–64 on Pixel documents",
         ),
         (
+            "draw.shape",
+            shape("polygon", json!({ "sides": 101 })),
+            "`sides` must be 3–64 on Pixel documents",
+        ),
+        (
+            "draw.shape",
+            shape("polygon", json!({ "sides": 2 })),
+            "`sides` must be 3–64 on Pixel documents",
+        ),
+        (
+            "draw.text",
+            text(2001.0),
+            "`size` must be 1–2000 on Pixel documents",
+        ),
+        (
+            "draw.text",
+            text(0.0),
+            "`size` must be 1–2000 on Pixel documents",
+        ),
+        (
             "draw.gradient",
-            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "dither": 3 }),
+            gradient(json!({ "dither": 3 })),
             "`dither` must be 0, 2, 4 or 8 on Pixel documents",
         ),
-    ] {
+    ];
+    let mut s = S::new();
+    let id = s.new_doc(8, 8);
+    for (tool, args, msg) in pixel {
         let before = s.state(&id);
         let e = s.err(tool, args.clone());
         assert!(e.contains(msg), "{tool} {args}: {e}");
         assert_eq!(s.state(&id), before);
     }
+    let image = [
+        (
+            "draw.stroke",
+            stroke(json!({ "size": 501 })),
+            "`size` must be 1–500 on Image documents",
+        ),
+        (
+            "draw.stroke",
+            stroke(json!({ "size": 0 })),
+            "`size` must be 1–500 on Image documents",
+        ),
+        (
+            "draw.shape",
+            shape("rect", json!({ "stroke_width": 501 })),
+            "`stroke_width` must be 1–500 on Image documents",
+        ),
+        (
+            "draw.shape",
+            shape("rect", json!({ "stroke_width": 0.5 })),
+            "`stroke_width` must be 1–500 on Image documents",
+        ),
+        (
+            "draw.shape",
+            shape(
+                "polygon",
+                json!({ "sides": 101, "cx": 2, "cy": 2, "radius": 2 }),
+            ),
+            "`sides` must be 3–100 on Image documents",
+        ),
+        (
+            "draw.shape",
+            shape(
+                "polygon",
+                json!({ "sides": 2, "cx": 2, "cy": 2, "radius": 2 }),
+            ),
+            "`sides` must be 3–100 on Image documents",
+        ),
+        (
+            "draw.text",
+            text(1000.0),
+            "`size` must be 1–999 on Image documents",
+        ),
+        (
+            "draw.text",
+            text(1500.0),
+            "`size` must be 1–999 on Image documents",
+        ),
+        (
+            "draw.text",
+            text(0.5),
+            "`size` must be 1–999 on Image documents",
+        ),
+    ];
     let mut s = S::new();
-    s.new_image(8, 8);
-    let e = s.err(
-        "draw.text",
-        json!({ "text": "A", "x": 0, "y": 0, "size": 1500 }),
-    );
-    assert!(e.contains("`size` must be 1–999 on Image documents"), "{e}");
-    let e = s.err(
-        "draw.stroke",
-        json!({ "points": [[1, 1]], "tool": "spray" }),
-    );
-    assert!(e.contains("spray"), "{e}");
-    let mut s = S::new();
-    s.new_doc(8, 8);
-    let e = s.err(
-        "draw.text",
-        json!({ "text": "A", "x": 0, "y": 0, "size": 2001 }),
-    );
-    assert!(e.contains("2000"), "{e}");
-    let e = s.err("draw.stroke", json!({ "points": [[1, 1]], "mirror": "z" }));
-    assert!(e.contains("\"z\""), "{e}");
+    let id = s.new_image(8, 8);
+    for (tool, args, msg) in image {
+        let before = s.image(&id).document().clone();
+        let e = s.err(tool, args.clone());
+        assert!(e.contains(msg), "{tool} {args}: {e}");
+        assert_eq!(s.image(&id).document(), &before);
+    }
+    // Unknown values name the rejected value, in both modes.
+    let unknown = [
+        (
+            "draw.stroke",
+            stroke(json!({ "tool": "spray" })),
+            "\"spray\"",
+        ),
+        (
+            "draw.stroke",
+            stroke(json!({ "ink": "glaze" })),
+            "\"glaze\"",
+        ),
+        ("draw.stroke", stroke(json!({ "mirror": "z" })), "\"z\""),
+        (
+            "draw.stroke",
+            stroke(json!({ "wrap": "diagonal" })),
+            "\"diagonal\"",
+        ),
+        (
+            "draw.gradient",
+            gradient(json!({ "kind": "spiral" })),
+            "\"spiral\"",
+        ),
+        (
+            "draw.text",
+            json!({ "text": "A", "x": 0, "y": 0, "align": "justify" }),
+            "\"justify\"",
+        ),
+    ];
+    for image in [false, true] {
+        let mut s = S::new();
+        if image {
+            s.new_image(8, 8);
+        } else {
+            s.new_doc(8, 8);
+        }
+        for (tool, args, value) in &unknown {
+            let e = s.err(tool, args.clone());
+            assert!(e.contains(value), "image: {image}, {tool} {args}: {e}");
+        }
+    }
 }
 
 #[test]
