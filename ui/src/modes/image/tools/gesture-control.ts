@@ -17,4 +17,7 @@ export const gestureControl = {
    *  and closes an empty box (docs/specs/image-live-text.md AC-01, AC-13).
    *  Set by `core/live-text`. */
   historyMoved: (): void => {},
+  /** A commit trigger runs: the live text closes an empty or loading box
+   *  (docs/specs/image-live-text.md AC-01). Set by `core/live-text`. */
+  closeTextBox: (): void => {},
 };

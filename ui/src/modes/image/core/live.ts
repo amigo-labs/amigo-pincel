@@ -105,8 +105,10 @@ export function editLive(fields: Omit<EditLiveCommand, 'type'>): boolean {
   return send({ type: 'edit_live', ...fields });
 }
 
-/** Commits the live object, if any (AC-09). */
+/** Commits the live object, if any (AC-09); an empty text box just
+ *  closes (image-live-text AC-01). */
 export function commitLive(): void {
+  gestureControl.closeTextBox();
   if (live.object !== null) send({ type: 'commit_live' });
 }
 

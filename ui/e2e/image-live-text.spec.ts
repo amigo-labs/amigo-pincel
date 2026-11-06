@@ -10,6 +10,7 @@ import {
   docRect,
   ink,
   liveInput,
+  moveHandle,
   redoButton,
   setFontSize,
   textBox,
@@ -69,6 +70,71 @@ test('a Text press opens an empty box; the first character begins the text', asy
   await expect(textBox(page)).toHaveCount(0);
   await expect(undoButton(page)).toBeDisabled();
   expect(await ink(page)).toBeNull();
+});
+
+test('an empty box: a paste begins the text; Undo and the commit triggers just close it', async ({
+  page,
+}) => {
+  // A brush dot as the step before.
+  await page.getByRole('button', { name: 'Brush', exact: true }).click();
+  await clickAt(page, [150, 100]);
+  await chooseText(page);
+
+  // Undo closes the empty box and undoes the step before as usual.
+  await clickAt(page, [20, 20]);
+  await expect(liveInput(page)).toBeFocused();
+  await page.keyboard.press('Control+z');
+  await expect(textBox(page)).toHaveCount(0);
+  await expect(undoButton(page)).toBeDisabled();
+  await expect(redoButton(page)).toBeEnabled();
+
+  // Commit triggers close the empty box and add no step of their own.
+  const triggers: [string, () => Promise<void>][] = [
+    ['Finish', () => page.getByRole('button', { name: 'Finish', exact: true }).click()],
+    ['Edit ▸ Copy', () => menu(page, 'Edit', 'Copy')],
+    ['Layer ▸ New Layer', () => menu(page, 'Layer', 'New Layer')],
+    ['an active-layer change', () => page.getByRole('button', { name: 'Layer 1', exact: true }).click()],
+  ];
+  for (const [name, run] of triggers) {
+    await clickAt(page, [20, 20]);
+    await expect(textBox(page), name).toBeVisible();
+    await run();
+    await expect(textBox(page), name).toHaveCount(0);
+  }
+  // Only New Layer is a step; nothing of the boxes is.
+  expect(await undoAll(page)).toBe(1);
+
+  // A paste into an empty box begins the live text as one step.
+  await page.evaluate(() => navigator.clipboard.writeText('Hi'));
+  await clickAt(page, [20, 20]);
+  await expect(liveInput(page)).toBeFocused();
+  await page.keyboard.press('Control+v');
+  await expect(textBox(page)).toBeVisible();
+  expect(await ink(page)).not.toBeNull();
+  await expect(moveHandle(page)).toBeVisible();
+  expect(await undoAll(page)).toBe(1);
+  await expect(textBox(page)).toHaveCount(0);
+  expect(await ink(page)).toBeNull();
+});
+
+test('typing draws the text into the layer as the commit leaves it', async ({ page }) => {
+  await typeAt(page, [20, 20], 'Hellx');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type('o');
+  await expect(textBox(page)).toBeVisible();
+  const live = await canvasShot(page);
+  expect(await ink(page)).not.toBeNull();
+
+  await page.keyboard.press('Control+Enter');
+  await expect(textBox(page)).toHaveCount(0);
+  expect((await canvasShot(page)).equals(live)).toBe(true);
+  // The commit is one undo step.
+  expect(await undoAll(page)).toBe(1);
+  expect(await ink(page)).toBeNull();
+
+  // The same text typed in one go paints the same pixels.
+  await typeAt(page, [20, 20], 'Hello');
+  expect((await canvasShot(page)).equals(live)).toBe(true);
 });
 
 test('typing draws the text into the layer as the commit leaves it', async ({ page }) => {

@@ -273,6 +273,9 @@ export function installLiveText(): void {
     endBurst();
     textEdit.pending = null;
   };
+  gestureControl.closeTextBox = () => {
+    closeTextBox();
+  };
   // The box follows the core's live text (AC-13, AC-24).
   let had = false;
   $effect(() => {

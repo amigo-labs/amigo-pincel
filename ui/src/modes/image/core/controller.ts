@@ -141,6 +141,13 @@ export function syncInfo(): void {
     return;
   }
   const info = core.documentInfo(editor.handle);
+  // A document command or an active-layer change is a commit trigger the
+  // core runs on its own: it closes an empty text box at once, before a
+  // Text press that follows the commit opens the next one
+  // (docs/specs/image-live-text.md AC-01, AC-11).
+  if (info.undo_depth !== editor.undoDepth || info.active_layer !== editor.activeLayer) {
+    gestureControl.closeTextBox();
+  }
   editor.width = info.width;
   editor.height = info.height;
   editor.activeLayer = info.active_layer;
