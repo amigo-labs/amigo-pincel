@@ -61,7 +61,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 | D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
 | D3 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
-| D5 | [image-palette-gradient-spiral](image-palette-gradient-spiral.md) | Image | M | — | Spiral gradients, also in MCP draw.gradient |
 
 ### E — Text and fonts
 
@@ -155,6 +154,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
 - [image-live-text](image-live-text.md)
+- [image-palette-gradient-spiral](image-palette-gradient-spiral.md)
 - [image-resize-autocrop](image-resize-autocrop.md)
 - [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
