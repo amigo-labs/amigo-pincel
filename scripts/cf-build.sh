@@ -43,7 +43,9 @@ pnpm build
 # --- Editor → ui/dist/app/ ------------------------------------------------
 # The wasm packages must exist before `pnpm install` (ui preinstall check).
 # wasm-pack's own wasm-opt pass is off in both crates' Cargo.toml; run a
-# system wasm-opt when the image has one, else ship the rustc release build.
+# system wasm-opt when the image has one. Without it the check below fails
+# the deploy instead of shipping an unoptimized build
+# (docs/specs/performance-build-simd.md AC-03).
 cd "$root/ui"
 pnpm wasm:build:release
 if command -v wasm-opt >/dev/null 2>&1; then
@@ -54,6 +56,7 @@ if command -v wasm-opt >/dev/null 2>&1; then
 fi
 pnpm install --frozen-lockfile
 pnpm build
+node "$root/scripts/check-wasm-release.mjs" "$root/ui/dist/app/assets"
 
 # --- Merge: the editor lands under the site's /app/ -----------------------
 rm -rf "$root/website/build/app"
