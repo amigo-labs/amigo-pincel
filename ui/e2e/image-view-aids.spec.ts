@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDocument, imageCanvas, menu, waitForEditor } from './helpers';
 import { installTauriMock } from './tauri-mock';
+import { canvasShot, liveInput, textBox } from './text-helpers';
 import {
   area,
   box,
@@ -169,25 +170,36 @@ async function fitHeightTo(page: Page, docH: number, zoom: number, delta = 0): P
     .toBeLessThan(1e-6);
 }
 
-/** Screenshots of the canvas area beside the image: three grid cells right
- *  of it along its rows and three below it along its columns. */
+/** Screenshots of the canvas area beside the image: three grid cells left
+ *  and right of it along its rows, and three above and below it along its
+ *  columns, each where it lies inside the canvas area. */
 async function besideImage(page: Page, cell: number): Promise<Buffer[]> {
   const img = await box(imageCanvas(page));
   const a = await box(area(page));
+  const side = 3 * cell;
+  const left = Math.floor(img.x) - 1 - side;
   const right = Math.ceil(img.x + img.width) + 1;
+  const above = Math.floor(img.y) - 1 - side;
   const bottom = Math.ceil(img.y + img.height) + 1;
   const top = Math.ceil(Math.max(img.y, a.y));
   const rowsEnd = Math.floor(Math.min(img.y + img.height, a.y + a.height));
-  const shots = [
-    await page.screenshot({ clip: { x: right, y: top, width: 3 * cell, height: rowsEnd - top } }),
+  const colsStart = Math.ceil(Math.max(img.x, a.x));
+  const colsEnd = Math.floor(Math.min(img.x + img.width, a.x + a.width));
+  const clips = [
+    { x: right, y: top, width: side, height: rowsEnd - top, inside: right + side <= a.x + a.width },
+    { x: left, y: top, width: side, height: rowsEnd - top, inside: left >= a.x },
+    {
+      x: colsStart,
+      y: bottom,
+      width: colsEnd - colsStart,
+      height: side,
+      inside: bottom + side <= a.y + a.height,
+    },
+    { x: colsStart, y: above, width: colsEnd - colsStart, height: side, inside: above >= a.y },
   ];
-  // Below the image, when it ends inside the canvas area.
-  if (bottom + 3 * cell <= a.y + a.height) {
-    shots.push(
-      await page.screenshot({
-        clip: { x: Math.ceil(img.x), y: bottom, width: Math.floor(img.width), height: 3 * cell },
-      }),
-    );
+  const shots: Buffer[] = [];
+  for (const { inside, ...clip } of clips) {
+    if (inside) shots.push(await page.screenshot({ clip }));
   }
   return shots;
 }
@@ -208,6 +220,8 @@ test('pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image
   expect(await zoomPercent(page)).toBe(400);
   const off = await canvasArea.screenshot();
   const besideOff = await besideImage(page, 4);
+  // Fit centres the narrow image: all four sides lie in the canvas area.
+  expect(besideOff).toHaveLength(4);
 
   // The menu entry turns it on: lines inside the image, nothing beside it.
   await check(page, 'View', 'Pixel Grid');
@@ -251,6 +265,33 @@ test('pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image
   await page.mouse.move(0, 0);
   expect((await canvasArea.screenshot()).equals(highOn)).toBe(false);
   expectSameShots(await besideImage(page, cell), besideHighOn);
+});
+
+test("Ctrl+Shift+' in a live text toggles the pixel grid and leaves the text alone (AC-16)", async ({
+  page,
+}) => {
+  // image-live-text AC-23: a Ctrl chord the text does not own runs as on
+  // the canvas; a view toggle is no document command, so the text stays
+  // open and unchanged (spec Decisions 2026-11-06).
+  await createDocument(page, 'image', { width: 400, height: 300 });
+  expect(await checked(page, 'Pixel Grid')).toBe(false);
+  await page.keyboard.press('t');
+  const img = await box(imageCanvas(page));
+  await page.mouse.click(img.x + img.width * 0.1, img.y + img.height * 0.2);
+  await expect(liveInput(page)).toBeFocused();
+  await page.keyboard.type('Hi');
+  await expect(textBox(page)).toBeVisible();
+  const textBefore = await box(textBox(page));
+  const valueBefore = await liveInput(page).inputValue();
+  const shotBefore = await canvasShot(page);
+
+  await page.keyboard.press('ControlOrMeta+Shift+Quote');
+  // No character typed, nothing committed: the same open text.
+  await expect(liveInput(page)).toBeFocused();
+  expect(await liveInput(page).inputValue()).toBe(valueBefore);
+  expect(await box(textBox(page))).toEqual(textBefore);
+  expect((await canvasShot(page)).equals(shotBefore)).toBe(true);
+  expect(await checked(page, 'Pixel Grid')).toBe(true);
 });
 
 test('pixel grid: its backing store follows a device-pixel-ratio change without a resize (AC-09)', async ({
