@@ -134,13 +134,13 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 | AC-04 | `ui/e2e/image-live-text-caret.spec.ts` `arrows, Home and End move the caret; Shift extends the selection`, `Ctrl+A selects the characters, not the canvas` | built |        |
 | AC-05 | `ui/e2e/image-live-text-caret.spec.ts` `the caret sits on the layout's boundary (left)`, `(center)`, `(right)`, `(bold)`, `(italic)` | built |        |
 | AC-06 | `ui/e2e/image-live-text-caret.spec.ts` `a press inside the box places the caret; a drag selects` | built |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-07 | `ui/e2e/image-live-text-edit.spec.ts` `the move handle drags the text by whole pixels as one step` | built |        |
+| AC-08 | `ui/e2e/image-live-text-edit.spec.ts` `options and the color apply to the live text, one step each` | built |        |
 | AC-09 | `ui/e2e/image-live-text.spec.ts` `Enter breaks the line; the box keeps its top-left and fits the lines`, `left-aligned lines line up inside the box`, `center-aligned lines line up inside the box`, `right-aligned lines line up inside the box` | built |        |
 | AC-10 | `crates/pincel-image-core/src/tools/text.rs` `underline_runs_below_the_baseline_to_the_last_ink`, `strikethrough_crosses_the_lowercase_letters`, `a_whitespace_only_text_gets_no_decoration`, `decorations_combine_with_bold_italic_and_alignment` | built |        |
 | AC-11 | `ui/e2e/image-live-text.spec.ts` `Ctrl+Enter, Finish, another tool and a press outside commit the text`, `a document command or an active-layer change commits the text first`; save, export, copy, tab switch and close commit through the shared live-object hooks (`ui/e2e/image-live-commit.spec.ts`) | built |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `ui/e2e/image-live-text-edit.spec.ts` `panning, zooming and the options bar leave the text open` | built |        |
+| AC-13 | `ui/e2e/image-live-text-edit.spec.ts` `Undo and Redo step through the live text and reopen it`; `ui/e2e/image-live-text.spec.ts` `a Text press opens an empty box; the first character begins the text`, `a typing burst is one step; a caret jump starts the next` | built |        |
 | AC-14 | `ui/e2e/image-live-text-caret.spec.ts` `Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste plain text` | built |        |
 | AC-15 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
 | AC-16 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
@@ -151,7 +151,7 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 | AC-21 | `ui/e2e/image-live-text.spec.ts` `Escape cancels the live text and keeps the step before it` | built |        |
 | AC-22 | `crates/pincel-image-core/src/tools/text.rs` `layout_carets_split_a_line_without_changing_its_pixels`, `layout_reports_aligned_lines_inside_one_box`; `crates/pincel-image-core/tests/live_text.rs` `text_layout_query_matches_the_drawn_box` | built |        |
 | AC-23 | `ui/e2e/image-live-text.spec.ts` `in the text, tool keys and Space type; Tab stays; Undo undoes a step`, `a document command or an active-layer change commits the text first` (a Ctrl chord in the text); `ui/e2e/image-live-text-caret.spec.ts` `Ctrl+A selects the characters, not the canvas`, `Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste plain text` | built |        |
-| AC-24 |      | open   |        |
+| AC-24 | `ui/e2e/image-live-text-edit.spec.ts` `a command from outside the text closes the box`, `Undo and Redo step through the live text and reopen it` | built |        |
 
 ## Decisions
 
@@ -179,3 +179,5 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 - 2026-11-06 (spec-build) — Focus returns to the live text after an option change once no pointer is down and no other text field (hex field, rename field) holds the focus, so a slider drag or a hex entry is not interrupted; a select or checkbox gives the focus back at once.
 - 2026-11-06 (spec-build) — Red run (block 1, `ui/e2e/image-live-text.spec.ts`): all 12 tests failed against the textarea entry ("element(s) not found" for the live text field and box).
 - 2026-11-06 (spec-build) — Block 2 (AC-04 – AC-06, AC-14, AC-23): the caret, selection and clipboard code shipped with block 1, so `ui/e2e/image-live-text-caret.spec.ts` was green on its first run. Its red run is a mutation run instead: with caret x taken from the column instead of the layout, Up / Down keeping the caret and the hit test always at column 0, 7 of its 9 tests failed (every caret-position variant, the arrow-key test and the press / drag test).
+- 2026-11-06 (spec-build) — Block 3 (AC-07, AC-08, AC-12, AC-13, AC-24) also shipped with block 1; `ui/e2e/image-live-text-edit.spec.ts` was written after it. Its red run is a mutation run: with unrounded handle moves, option edits not forwarded and no focus request when the core reports a new live text, 4 of its 5 tests failed.
+- 2026-11-06 (spec-build) — The AC-24 MCP route is the same as any other command from outside the text: the core commits first and the next `syncInfo` reports no live text, so the box closes. The e2e test drives it with the layers panel's Add layer button; there is no MCP client in the browser build.
