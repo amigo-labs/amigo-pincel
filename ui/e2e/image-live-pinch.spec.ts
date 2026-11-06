@@ -103,7 +103,7 @@ test('a pinch beside the live text keeps it open with its caret', async ({ page 
   expect(await undoAll(page)).toBe(3);
 });
 
-test('a one-finger tap beside the live text still commits it', async ({ page }) => {
+test('a one-finger tap beside the live text commits it and focuses the new box', async ({ page }) => {
   await createDocument(page, 'image', { width: W, height: H });
   await chooseText(page);
   await setFontSize(page, 24);
@@ -115,6 +115,8 @@ test('a one-finger tap beside the live text still commits it', async ({ page }) 
   const fresh = await docRect(page, textBox(page));
   expect(fresh.x0).toBeCloseTo(120, 0);
   expect(fresh.y0).toBeCloseTo(80, 0);
+  // The tap's compatibility mousedown, after the lift, keeps the focus there.
+  await expect(liveInput(page)).toBeFocused();
   expect(await ink(page)).not.toBeNull();
   // The commit is one step; the new box is none.
   expect(await undoAll(page)).toBe(1);

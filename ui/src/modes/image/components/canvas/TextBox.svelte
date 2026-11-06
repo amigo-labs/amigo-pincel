@@ -70,23 +70,34 @@
   });
 
   onMount(() => {
+    // A touch tap's compatibility mousedown comes after the pointerup that
+    // focused the text; its default action would move the focus to the
+    // stage. Between a touch lift and the next press any mousedown is one.
+    let touchLifted = false;
     const down = (): void => {
       pointerDown = true;
+      touchLifted = false;
     };
-    const up = (): void => {
+    const up = (e: PointerEvent): void => {
       pointerDown = false;
+      touchLifted = e.pointerType === 'touch';
       queueMicrotask(tryFocus);
+    };
+    const mouseDown = (e: MouseEvent): void => {
+      if (touchLifted && input !== null && document.activeElement === input) e.preventDefault();
     };
     const focusChange = (): void => queueMicrotask(tryFocus);
     window.addEventListener('pointerdown', down, true);
     window.addEventListener('pointerup', up, true);
     window.addEventListener('pointercancel', up, true);
+    window.addEventListener('mousedown', mouseDown, true);
     window.addEventListener('focusin', focusChange);
     window.addEventListener('focusout', focusChange);
     return () => {
       window.removeEventListener('pointerdown', down, true);
       window.removeEventListener('pointerup', up, true);
       window.removeEventListener('pointercancel', up, true);
+      window.removeEventListener('mousedown', mouseDown, true);
       window.removeEventListener('focusin', focusChange);
       window.removeEventListener('focusout', focusChange);
     };
