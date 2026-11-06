@@ -14,6 +14,7 @@ mod image;
 mod image_brush_parity;
 mod image_brushes;
 mod image_draw;
+mod image_gradient_spiral;
 mod layers;
 mod pixel_paint;
 mod preview;

@@ -323,7 +323,7 @@ fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
                 "integer corners",
                 "`kind` `linear` (default) / `radial`",
                 "`dither` 0, 2, 4 (default) or 8",
-                "`kind` `linear` (default), `reflected`, `radial`, `conical` or `diamond`",
+                "`kind` `linear` (default), `reflected`, `radial`, `conical`, `diamond`, `spiral_cw` or `spiral_ccw`",
                 "`channel` `color` (default) or `transparency`",
                 "`opacity` in % (default 100)",
             ][..],

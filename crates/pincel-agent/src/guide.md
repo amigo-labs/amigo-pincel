@@ -59,8 +59,9 @@ and so does an argument only the other mode's editor offers.
   color. Pixel documents (RGBA only) take integer corners, `kind` `linear`
   (default) / `radial` and `dither` 0, 2, 4 (default) or 8; Image
   documents take `kind` `linear` (default), `reflected`, `radial`,
-  `conical` or `diamond`, `channel` `color` (default) or `transparency`
-  and `opacity` in % (default 100).
+  `conical`, `diamond`, `spiral_cw` or `spiral_ccw` (a spiral winding
+  clockwise / counter-clockwise), `channel` `color` (default) or
+  `transparency` and `opacity` in % (default 100).
 - The selection: in Pixel documents `draw.gradient`, `draw.text` and
   `draw.fill` stay inside it, while `draw.stroke`, `draw.shape`,
   `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse` and `draw.clear`

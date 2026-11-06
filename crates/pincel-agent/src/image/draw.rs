@@ -558,7 +558,7 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
 
 pub(crate) const GRADIENT: Tool = Tool {
     name: "draw.gradient",
-    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond; `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100). Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
+    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond / spiral_cw (spiral winding clockwise) / spiral_ccw (counter-clockwise); `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100). Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
     schema: || {
         edit_schema(
             json!({
@@ -568,7 +568,7 @@ pub(crate) const GRADIENT: Tool = Tool {
                 "y1": number("End y"),
                 "from": shared_color("Start color"),
                 "to": shared_color("End color"),
-                "kind": choice(&["linear", "reflected", "radial", "conical", "diamond"], "Gradient shape; default linear (Pixel: linear / radial)"),
+                "kind": choice(&["linear", "reflected", "radial", "conical", "diamond", "spiral_cw", "spiral_ccw"], "Gradient shape; default linear (Pixel: linear / radial)"),
                 "channel": choice(&["color", "transparency"], "Image: what the gradient paints; default color"),
                 "opacity": percent_prop("Image: gradient opacity"),
                 "dither": { "type": "integer", "description": "Pixel: Bayer matrix size 0, 2, 4 (default) or 8" },

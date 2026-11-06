@@ -96,10 +96,10 @@ Terms used below: the drag runs from the start point `a` to the end point `b`; `
 | AC-07 | `spiral_inside_a_feathered_selection_changes_only_selected_pixels` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
 | AC-08 | `spiral_is_one_undo_step_and_undo_restores_the_layer_exactly` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
 | AC-09 | `spiral_zero_length_drag_changes_nothing_and_adds_no_step` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | built |  |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-10 | `tools_list_offers_the_spiral_kinds_for_draw_gradient` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-11 | `draw_gradient_spiral_matches_the_editor_gradient_tool` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-12 | `draw_gradient_with_an_unknown_kind_lists_the_accepted_kinds` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
+| AC-13 | `draw_gradient_spiral_on_a_pixel_document_is_a_mode_error` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | built |  |
 | AC-14 |      | open   |        |
 
 ## Decisions

@@ -340,7 +340,9 @@ pub(crate) fn gradient(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
     let colors = {
         let (id, doc) = ctx.ws.doc(args)?;
         refuse_image_args(&id, args, &["opacity", "channel"])?;
-        if let Some(k @ ("reflected" | "conical" | "diamond")) = args.str("kind") {
+        if let Some(k @ ("reflected" | "conical" | "diamond" | "spiral_cw" | "spiral_ccw")) =
+            args.str("kind")
+        {
             return Err(AgentError::tool(format!(
                 "argument `kind`: {k:?} works on Image documents only; document `{id}` is a Pixel document (linear, radial)"
             )));
