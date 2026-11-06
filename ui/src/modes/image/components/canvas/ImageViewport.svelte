@@ -21,7 +21,8 @@
   });
 
   // Touch has no hover: a touch shows the position only while it is down,
-  // following the first contact (AC-24).
+  // following the first contact of a gesture and hiding when that one
+  // lifts; the others never take over (AC-24).
   let touches: readonly number[] = [];
   let firstTouch: number | null = null;
 
@@ -55,8 +56,8 @@
 
   function onDown(e: PointerEvent): void {
     if (e.pointerType === 'touch') {
+      if (touches.length === 0) firstTouch = e.pointerId;
       touches = [...touches, e.pointerId];
-      firstTouch ??= e.pointerId;
       if (e.pointerId !== firstTouch) return;
     }
     track(e);
@@ -70,7 +71,7 @@
   function onUp(e: PointerEvent): void {
     if (e.pointerType !== 'touch') return;
     touches = touches.filter((id) => id !== e.pointerId);
-    if (touches.length === 0) {
+    if (e.pointerId === firstTouch) {
       firstTouch = null;
       hide();
     }
