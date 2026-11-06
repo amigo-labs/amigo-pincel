@@ -28,6 +28,13 @@ impl Document {
         self.bus.redo_kinds().map(|k| k.id().into_owned()).collect()
     }
 
+    /// Changes whenever the list of steps changes, so the UI re-reads
+    /// [`Document::undo_kinds`] / [`Document::redo_kinds`] only then.
+    #[wasm_bindgen(getter, js_name = historyRevision)]
+    pub fn history_revision(&self) -> u32 {
+        self.bus.revision()
+    }
+
     /// `true` once the 100-step cap has dropped a step from the history.
     #[wasm_bindgen(getter, js_name = historyDropped)]
     pub fn history_dropped(&self) -> bool {
