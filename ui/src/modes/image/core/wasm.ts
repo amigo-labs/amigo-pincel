@@ -240,7 +240,8 @@ export interface SmudgeStrokeCommand {
 }
 
 /** The five ramps a gradient drag can describe. */
-export type GradientKind = 'linear' | 'reflected' | 'radial' | 'conical' | 'diamond';
+export type GradientKind =
+  'linear' | 'reflected' | 'radial' | 'conical' | 'diamond' | 'spiral_cw' | 'spiral_ccw';
 
 /** Whether the ramp paints color or fades alpha. */
 export type GradientChannel = 'color' | 'transparency';
