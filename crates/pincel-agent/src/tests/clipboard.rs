@@ -1251,6 +1251,25 @@ fn clipboard_tools_naming_a_missing_layer_or_frame_or_a_fractional_offset_fail()
 }
 
 #[test]
+fn layer_import_of_an_image_doc_open_refuses_fails_like_doc_open() {
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    s.host.files.insert(
+        "big.png".into(),
+        png(16385, 1, &[0, 0, 0, 255].repeat(16385)),
+    );
+    let opened = s.err("doc.open", json!({ "path": "big.png", "mode": "image" }));
+    assert!(opened.contains("16385×1 px exceeds"), "{opened}");
+    let before = s.image(&id).document().clone();
+    let e = s.err("layer.import", json!({ "path": "big.png", "doc": id }));
+    assert!(
+        e.contains("16385×1 px exceeds the Image document limit of 16384 px per side"),
+        "{e}"
+    );
+    assert_eq!(s.image(&id).document(), &before);
+}
+
+#[test]
 fn a_refusing_move_command_fails_with_its_reason() {
     let mut s = S::new();
     let id = pixel_doc(&mut s);

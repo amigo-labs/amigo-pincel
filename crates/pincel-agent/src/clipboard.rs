@@ -202,6 +202,9 @@ fn layer_import(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError
                 "cannot paste `{path}`: {e} (Image documents paste PNG, JPEG, WebP, BMP, GIF or TIFF)"
             ))
         })?;
+        // An image doc.open refuses is refused here as well.
+        check_size(buffer.width(), buffer.height())
+            .map_err(|e| AgentError::tool(format!("cannot paste `{path}`: {e}")))?;
         let (id, doc) = ctx.ws.image_mut(args)?;
         if expand {
             let (w, h) = expanded(
