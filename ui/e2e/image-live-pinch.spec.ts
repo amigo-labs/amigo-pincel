@@ -41,24 +41,19 @@ async function touch(
 }
 
 /**
- * A pinch around document point `centre`: one finger lands first, the
- * second follows, both spread apart and lift. The fingers stay at least
- * `spread0` CSS px from the centre.
+ * A pinch whose first finger lands at document point `first`: the second
+ * finger follows 24 CSS px to its right, both spread apart and lift.
  */
-async function pinchAround(page: Page, centre: Pt, spread0 = 12): Promise<void> {
-  const [cx, cy] = await at(page, centre);
+async function pinchFrom(page: Page, first: Pt): Promise<void> {
+  const [x, y] = await at(page, first);
   const cdp = await page.context().newCDPSession(page);
   const points = (s: number): Pt[] => [
-    [cx - s, cy],
-    [cx + s, cy],
+    [x - s, y],
+    [x + 24 + s, y],
   ];
-  const [first] = points(spread0);
-  if (!first) throw new Error('no first finger');
-  await touch(cdp, 'touchStart', [first]);
-  await touch(cdp, 'touchStart', points(spread0));
-  for (const s of [spread0 + 4, spread0 + 8, spread0 + 12]) {
-    await touch(cdp, 'touchMove', points(s));
-  }
+  await touch(cdp, 'touchStart', [[x, y]]);
+  await touch(cdp, 'touchStart', points(0));
+  for (const s of [4, 8]) await touch(cdp, 'touchMove', points(s));
   await touch(cdp, 'touchEnd', []);
   await cdp.detach();
 }
@@ -83,19 +78,29 @@ test('a pinch beside the live text keeps it open with its caret', async ({ page 
   const at0 = await docRect(page, caret(page));
   const zoom0 = await zoomOf(page);
 
-  // Both fingers well outside the box (it ends near x 80, y 50).
-  await pinchAround(page, [140, 90]);
-  await expect.poll(() => zoomOf(page)).toBeGreaterThan(zoom0);
+  /** The box and the caret are where they were, the text has the focus. */
+  const unchanged = async (when: string): Promise<void> => {
+    await expect(textBox(page), when).toHaveCount(1);
+    await expect(textBox(page), when).toBeVisible();
+    await expect(liveInput(page), when).toBeFocused();
+    const moved = await docRect(page, textBox(page));
+    expect(moved.x0, when).toBeCloseTo(box.x0, 0);
+    expect(moved.y0, when).toBeCloseTo(box.y0, 0);
+    const at1 = await docRect(page, caret(page));
+    expect((at1.x0 + at1.x1) / 2, when).toBeCloseTo((at0.x0 + at0.x1) / 2, 0);
+    expect(at1.y0, when).toBeCloseTo(at0.y0, 0);
+  };
 
-  await expect(textBox(page)).toHaveCount(1);
-  await expect(textBox(page)).toBeVisible();
-  await expect(liveInput(page)).toBeFocused();
-  const moved = await docRect(page, textBox(page));
-  expect(moved.x0).toBeCloseTo(box.x0, 0);
-  expect(moved.y0).toBeCloseTo(box.y0, 0);
-  const at1 = await docRect(page, caret(page));
-  expect((at1.x0 + at1.x1) / 2).toBeCloseTo((at0.x0 + at0.x1) / 2, 0);
-  expect(at1.y0).toBeCloseTo(at0.y0, 0);
+  // The first finger inside the box, near its left edge: the caret stays.
+  await pinchFrom(page, [box.x0 + 2, (box.y0 + box.y1) / 2]);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(zoom0);
+  await unchanged('first finger inside');
+
+  // Both fingers outside the box (it ends near x 80, y 50).
+  const zoom1 = await zoomOf(page);
+  await pinchFrom(page, [110, 70]);
+  await expect.poll(() => zoomOf(page)).toBeGreaterThan(zoom1);
+  await unchanged('fingers outside');
 
   // The pinch added no step: typing goes on at the caret as its own burst.
   await page.keyboard.type('X');
@@ -103,7 +108,9 @@ test('a pinch beside the live text keeps it open with its caret', async ({ page 
   expect(await undoAll(page)).toBe(3);
 });
 
-test('a one-finger tap beside the live text commits it and focuses the new box', async ({ page }) => {
+test('a one-finger tap beside the live text commits it and focuses the new box', async ({
+  page,
+}) => {
   await createDocument(page, 'image', { width: W, height: H });
   await chooseText(page);
   await setFontSize(page, 24);
@@ -137,7 +144,7 @@ test('a pinch beside a live shape keeps it live; a touch drag beside it commits'
   const count = await handles.count();
   const zoom0 = await zoomOf(page);
 
-  await pinchAround(page, [140, 90]);
+  await pinchFrom(page, [130, 90]);
   await expect.poll(() => zoomOf(page)).toBeGreaterThan(zoom0);
   // Still live, with every handle, and nothing to redo or undo beyond it.
   await expect(handles).toHaveCount(count);
