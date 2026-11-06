@@ -22,6 +22,7 @@
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import { installLiveSync } from './core/live-sync.svelte';
+  import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
     addGroup,
     addLayer,
@@ -818,6 +819,8 @@
 
   // Option and color changes reach the live object (AC-06, AC-07).
   installLiveSync();
+  // The live text's box follows the core (docs/specs/image-live-text.md).
+  installLiveText();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).
@@ -852,12 +855,15 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
+    // The live text's field passes on only the chords it does not own
+    // (docs/specs/image-live-text.md AC-23): they run as on the canvas.
+    const inLiveText = e.target instanceof HTMLElement && e.target.dataset.liveText !== undefined;
     if (
       !active ||
       e.defaultPrevented ||
       ui.modalOpen ||
       helpDialogOpen() ||
-      isTypingTarget(e.target)
+      (isTypingTarget(e.target) && !inLiveText)
     ) {
       return;
     }
@@ -884,7 +890,9 @@
     // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && !closeTextBox() && editor.hasSelection) {
+        deselect();
+      }
       return;
     }
     const group = toolGroupForKey(e);

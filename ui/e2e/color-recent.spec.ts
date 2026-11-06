@@ -11,6 +11,7 @@ import {
   waitForEditor,
 } from './helpers';
 import { effectPanel } from './effect-panel-helpers';
+import { liveInput, textBox, undoButton } from './text-helpers';
 import { dropFiles, tabNames } from './tab-helpers';
 import { closeWindow, destroyed, installTauriMock, launchDesktop } from './tauri-mock';
 
@@ -174,8 +175,12 @@ for (const mode of ['pixel', 'image'] as const) {
       await dialog.getByRole('button', { name: 'Place' }).click();
       await expect(dialog).toBeHidden();
     } else {
+      // The live text (image-live-text): type into it, Ctrl+Enter places it.
+      await expect(liveInput(page)).toBeFocused();
       await page.keyboard.type('Hi');
-      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+Enter');
+      await expect(textBox(page)).toHaveCount(0);
+      await expect(undoButton(page)).toBeEnabled();
     }
     await expect.poll(() => recent(page)).toEqual(['#ff0000']);
   });

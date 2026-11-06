@@ -31,11 +31,29 @@ import type { PointPair, SelectionMode, ShapeKind } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
 import { cursorOf, dragPoints, hitLive, type LiveHit, type Pt } from './live-handles';
 import { editRefused } from '../core/layer-tree';
+import {
+  caretToPoint,
+  hitText,
+  pressText,
+  requestTextFocus,
+} from '../core/live-text.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
 import { gestureControl } from './gesture-control';
 import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
+
+/** A live text's box corner moved by the drag `start` → `p`, rounded to
+ *  whole document pixels (docs/specs/image-live-text.md AC-07). */
+function wholeMove(from: PointPair, start: Pt, p: Pt): PointPair {
+  const dx = Math.round(p[0] - start[0]);
+  const dy = Math.round(p[1] - start[1]);
+  const [a] = from;
+  return [
+    [a[0] + dx, a[1] + dy],
+    [a[0] + dx, a[1] + dy],
+  ];
+}
 
 /** Converts a pointer event into document-pixel coordinates. `surface` is
  *  the element that covers the document on screen (any size / transform). */
@@ -216,7 +234,6 @@ export function attachTools(
   canvas: HTMLElement,
   stage: HTMLElement,
   redraw: () => void,
-  onPlaceText?: (cx: number, cy: number, e: PointerEvent) => void,
 ): () => void {
   let active = false;
   // The pointer that owns the in-flight gesture: a second pointer coming down
@@ -262,7 +279,12 @@ export function attachTools(
     gesture: number;
     pending: PointPair | null;
     frame: number;
+    /** A live text moves by whole document pixels (image-live-text AC-07). */
+    whole: boolean;
   } | null = null;
+  // A press-and-drag placing the caret and selecting characters in the live
+  // text (image-live-text AC-06): the pointer that owns it.
+  let textSelect: number | null = null;
 
   /** Sends the drag's latest points, at most once per frame. */
   const flushLive = (): void => {
@@ -303,6 +325,29 @@ export function attachTools(
     if (obj === null) return false;
     if (obj.type === 'text') {
       if (e.button !== 0) return true;
+      // The move handle drags the text; inside the box a press places the
+      // caret; outside it commits (image-live-text AC-06, AC-07, AC-11).
+      const hit = hitText(point, view.zoom, e.pointerType !== 'mouse');
+      if (hit === 'handle') {
+        const at: [number, number] = [obj.x, obj.y];
+        liveDrag = {
+          pointer: e.pointerId,
+          hit: { kind: 'body' },
+          from: [at, [at[0], at[1]]],
+          start: point,
+          gesture: nextStrokeId++,
+          pending: null,
+          frame: 0,
+          whole: true,
+        };
+        stage.setPointerCapture(e.pointerId);
+        requestTextFocus();
+        return true;
+      }
+      if (hit === 'inside') {
+        startTextSelect(e, point);
+        return true;
+      }
       commitLive();
       redraw();
       return false;
@@ -320,6 +365,7 @@ export function attachTools(
         gesture: nextStrokeId++,
         pending: null,
         frame: 0,
+        whole: false,
       };
       stage.setPointerCapture(e.pointerId);
       return true;
@@ -327,6 +373,21 @@ export function attachTools(
     commitLive();
     redraw();
     return false;
+  };
+
+  /** Places the caret in the open text box and starts a selecting drag. */
+  const startTextSelect = (e: PointerEvent, point: Pt): void => {
+    caretToPoint(point, shiftHeld(e));
+    textSelect = e.pointerId;
+    stage.setPointerCapture(e.pointerId);
+    requestTextFocus();
+  };
+
+  const endTextSelect = (): void => {
+    if (textSelect !== null && stage.hasPointerCapture(textSelect)) {
+      stage.releasePointerCapture(textSelect);
+    }
+    textSelect = null;
   };
 
   /** Commits the placed polygon if it has enough vertices, then resets. */
@@ -344,7 +405,7 @@ export function attachTools(
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
-    if (active || liveDrag !== null) {
+    if (active || liveDrag !== null || textSelect !== null) {
       return;
     }
     if (pressLive(e, toCanvasPoint(canvas, e))) {
@@ -369,8 +430,9 @@ export function attachTools(
 
     const point = toCanvasPoint(canvas, e);
     const inside = onCanvas(point);
-    // Beside the canvas only the selection gestures start (AC-32).
-    if (!inside && !STAGE_TOOLS.has(tool.kind)) {
+    // Beside the canvas only the selection gestures and a text box start
+    // (AC-32; image-live-text AC-01).
+    if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
       return;
     }
 
@@ -391,12 +453,14 @@ export function attachTools(
       return;
     }
 
-    // Text places a cursor for the entry overlay; it has no drag gesture here.
+    // Text opens a box (image-live-text AC-01); inside an empty box the
+    // press keeps it.
     if (tool.kind === 'text') {
-      // Keep the press from moving focus: the entry box focuses itself, and
-      // the mousedown's default focus change would blur (and commit) it at once.
-      e.preventDefault();
-      onPlaceText?.(point[0], point[1], e);
+      if (hitText(point, view.zoom, e.pointerType !== 'mouse') !== null) {
+        startTextSelect(e, point);
+      } else {
+        void pressText(point);
+      }
       return;
     }
 
@@ -503,7 +567,9 @@ export function attachTools(
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
-      liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      liveDrag.pending = liveDrag.whole
+        ? wholeMove(liveDrag.from, liveDrag.start, p)
+        : dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
       if (liveDrag.frame === 0) {
         liveDrag.frame = requestAnimationFrame(() => {
           if (liveDrag !== null) liveDrag.frame = 0;
@@ -512,13 +578,19 @@ export function attachTools(
       }
       return;
     }
+    if (textSelect !== null) {
+      if (e.pointerId === textSelect) caretToPoint(toCanvasPoint(canvas, e), true);
+      return;
+    }
     // The cursor over the live object's handles and body (AC-13).
     if (!active) {
       const obj = live.object;
-      live.cursor =
-        obj === null || obj.type === 'text'
-          ? null
-          : cursorOf(hitLive(obj, toCanvasPoint(canvas, e), view.zoom, e.pointerType !== 'mouse'));
+      const p = toCanvasPoint(canvas, e);
+      const touch = e.pointerType !== 'mouse';
+      if (obj === null) live.cursor = null;
+      else if (obj.type === 'text') {
+        live.cursor = hitText(p, view.zoom, touch) === 'handle' ? 'move' : null;
+      } else live.cursor = cursorOf(hitLive(obj, p, view.zoom, touch));
     }
     // Only the pointer that started the gesture may drive it.
     if (active && e.pointerId !== activePointer) {
@@ -597,6 +669,10 @@ export function attachTools(
       endLiveDrag();
       return;
     }
+    if (textSelect !== null && e.pointerId === textSelect) {
+      endTextSelect();
+      return;
+    }
     if (!active || e.pointerId !== activePointer) {
       return;
     }
@@ -668,6 +744,10 @@ export function attachTools(
    */
   const abort = (): boolean => {
     if (cancelLiveDrag()) return true;
+    if (textSelect !== null) {
+      endTextSelect();
+      return true;
+    }
     const inProgress = active || polygonPoints.length > 0;
     // Brush pixels painted so far stay; so do the samples still queued.
     if (active) brushFrames.flush();
@@ -688,6 +768,10 @@ export function attachTools(
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
   // the in-flight gesture — unless the cancel is for a bystander pointer.
   const onCancel = (e: PointerEvent): void => {
+    if (textSelect !== null) {
+      if (e.pointerId === textSelect) endTextSelect();
+      return;
+    }
     if (liveDrag !== null) {
       if (e.pointerId === liveDrag.pointer) {
         cancelAnimationFrame(liveDrag.frame);

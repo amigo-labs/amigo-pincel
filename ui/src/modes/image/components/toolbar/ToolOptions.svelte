@@ -19,6 +19,7 @@
     featherSelection,
   } from '../../core/controller';
   import { t } from '../../../../lib/i18n/index.svelte';
+  import { commitText, textBoxOpen } from '../../core/live-text.svelte';
 
   // Hardness only matters for soft/flat tips.
   const showHardness = $derived(tool.shape !== 'hard_round');
@@ -265,7 +266,14 @@
   {:else if tool.kind === 'text'}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
-      <input type="range" min="6" max="400" bind:value={tool.fontSize} class="w-32" />
+      <input
+        type="range"
+        min="6"
+        max="400"
+        bind:value={tool.fontSize}
+        class="w-32"
+        aria-label={t('text.fontSize')}
+      />
       <span class="w-10 tabular-nums text-pc-text">{tool.fontSize}</span>
     </label>
 
@@ -277,6 +285,16 @@
     <label class="flex items-center gap-2">
       <input type="checkbox" bind:checked={tool.textItalic} />
       <span class="text-pc-muted">{t('opt.italic')}</span>
+    </label>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" bind:checked={tool.textUnderline} />
+      <span class="text-pc-muted">{t('opt.underline')}</span>
+    </label>
+
+    <label class="flex items-center gap-2">
+      <input type="checkbox" bind:checked={tool.textStrikethrough} />
+      <span class="text-pc-muted">{t('opt.strikethrough')}</span>
     </label>
 
     <label class="flex items-center gap-2">
@@ -292,6 +310,12 @@
       <input type="checkbox" bind:checked={tool.textAntiAlias} />
       <span class="text-pc-muted">{t('opt.antiAlias')}</span>
     </label>
+    <!-- Finishes the live text (docs/specs/image-live-text.md AC-11). -->
+    <button
+      class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+      disabled={!textBoxOpen()}
+      onclick={commitText}>{t('opt.finish')}</button
+    >
     <span class="text-pc-faint">{t('opt.textHint')}</span>
   {/if}
 
