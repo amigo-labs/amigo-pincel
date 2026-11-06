@@ -49,8 +49,10 @@ fn offset(args: &Args) -> Result<(i32, i32), AgentError> {
 }
 
 /// The Image layer an edit targets (`layer` or the active layer), without
-/// the paint checks: the editor command decides what it refuses.
+/// the paint checks: the editor command decides what it refuses. A
+/// `frame` other than 0 does not exist in an Image document.
 fn image_layer(doc: &ImageDoc, args: &Args) -> Result<usize, AgentError> {
+    crate::image::doc::check_frame(args)?;
     match args.u32("layer")? {
         Some(id) => doc.layer_arg(id, "layer"),
         None => Ok(doc.document().active_layer_index()),
@@ -194,6 +196,7 @@ fn layer_import(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError
         .read(path)
         .map_err(|e| AgentError::tool(format!("cannot read `{path}`: {e}")))?;
     if image {
+        crate::image::doc::check_frame(args)?;
         let buffer = decode(&bytes).map_err(|e| {
             AgentError::tool(format!(
                 "cannot paste `{path}`: {e} (Image documents paste PNG, JPEG, WebP, BMP, GIF or TIFF)"

@@ -156,7 +156,7 @@ pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentErr
 }
 
 /// Image documents have one frame; `frame` may only name it.
-fn check_frame(args: &Args) -> Result<(), AgentError> {
+pub(crate) fn check_frame(args: &Args) -> Result<(), AgentError> {
     match args.u32("frame")? {
         None | Some(0) => Ok(()),
         Some(f) => Err(AgentError::tool(format!(

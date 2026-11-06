@@ -1218,6 +1218,27 @@ fn clipboard_tools_naming_a_missing_layer_or_frame_or_a_fractional_offset_fail()
             json!({ "path": "a.png", "y": 0.5 }),
             "y must",
         ),
+        // Image documents have one frame: any other is missing.
+        (
+            "layer.translate",
+            json!({ "dx": 1, "dy": 0, "frame": 9 }),
+            "frame 9",
+        ),
+        (
+            "select.move_content",
+            json!({ "dx": 1, "dy": 0, "frame": 9 }),
+            "frame 9",
+        ),
+        (
+            "export.selection",
+            json!({ "path": "x.png", "frame": 9 }),
+            "frame 9",
+        ),
+        (
+            "layer.import",
+            json!({ "path": "a.png", "frame": 9 }),
+            "frame 9",
+        ),
     ] {
         let before = s.image(&id).document().clone();
         let e = s.err(tool, args.clone());
