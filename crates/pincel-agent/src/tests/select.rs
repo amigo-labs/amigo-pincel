@@ -225,6 +225,33 @@ fn pixel_subtract_or_intersect_without_selection_selects_nothing() {
     assert_eq!(out["selection"], json!({ "x": 1, "y": 1, "w": 2, "h": 2 }));
 }
 
+/// The Image editor counts "no selection" as everything selected
+/// (mcp-parity-selection-transform AC-06).
+#[test]
+fn image_subtract_or_intersect_without_selection_follows_the_editor() {
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    let shape = |mode: &str| {
+        format!(
+            r#"{{"type":"select_rectangle","x":1,"y":1,"w":2,"h":2,"mode":"{mode}","feather":0}}"#
+        )
+    };
+    let args = |mode: &str| json!({ "x": 1, "y": 1, "width": 2, "height": 2, "mode": mode });
+    for (mode, bounds, count) in [
+        ("subtract", json!({ "x": 0, "y": 0, "w": 10, "h": 8 }), 76),
+        ("intersect", json!({ "x": 1, "y": 1, "w": 2, "h": 2 }), 4),
+        ("add", json!({ "x": 1, "y": 1, "w": 2, "h": 2 }), 4),
+    ] {
+        s.ok("select.clear", json!({}));
+        assert_eq!(image_sel(&s, &id), None, "{mode}");
+        let want = image_editor(&s, &id, &shape(mode));
+        let out = s.ok("select.rect", args(mode));
+        assert_eq!(image_sel(&s, &id), want, "{mode}");
+        assert_eq!(out["selection"], bounds, "{mode}");
+        assert_eq!(out["count"], count, "{mode}");
+    }
+}
+
 #[test]
 fn image_feather_matches_the_editors_coverage() {
     let mut s = S::new();
