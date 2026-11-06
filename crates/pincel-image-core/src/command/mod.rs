@@ -6,6 +6,7 @@
 
 mod auto_crop;
 mod batch;
+mod clone_spec;
 mod damage;
 mod layers;
 mod live;

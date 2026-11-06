@@ -18,11 +18,11 @@ use super::{
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
-    BlendMode, Brush, BrushShape, Color, DashPattern, Eraser, EraserMode, Fill, FillOptions,
-    Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil, Point,
-    PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode,
-    Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle,
-    apply_mode, delete_selection, magic_wand,
+    BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode, Fill,
+    FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil,
+    Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask,
+    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
+    TextStyle, apply_mode, delete_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -32,15 +32,17 @@ pub struct StrokeScratch {
     id: u64,
     smudge: SmudgeCarry,
     recolor: RecolorOrigins,
+    pub(super) clone: CloneSnapshot,
 }
 
 impl StrokeScratch {
     /// Start over when this is a different drag than the one we remember.
-    fn rewind(&mut self, id: u64) {
+    pub(super) fn rewind(&mut self, id: u64) {
         if self.id != id {
             self.id = id;
             self.smudge.clear();
             self.recolor.clear();
+            self.clone.clear();
         }
     }
 }
@@ -60,7 +62,7 @@ fn default_angle() -> f32 {
 }
 
 /// Pen azimuth per point for the core: a missing reading becomes NaN.
-fn azimuth_samples(azimuth: &[Option<f32>]) -> Vec<f32> {
+pub(super) fn azimuth_samples(azimuth: &[Option<f32>]) -> Vec<f32> {
     azimuth.iter().map(|a| a.unwrap_or(f32::NAN)).collect()
 }
 
@@ -125,7 +127,7 @@ fn parse_text_align(s: &str) -> TextAlign {
 }
 
 /// Maps a brush-shape string to a [`BrushShape`], defaulting to hard round.
-fn parse_shape(s: &str) -> BrushShape {
+pub(super) fn parse_shape(s: &str) -> BrushShape {
     match s {
         "soft_round" => BrushShape::SoftRound,
         "flat" => BrushShape::Flat,
@@ -349,6 +351,38 @@ pub enum CommandSpec {
         /// How far a color is dragged, 0.0–1.0.
         #[serde(default = "default_opacity")]
         strength: f32,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
+    /// A Clone Stamp stroke: copies the pixels `offset` away through the
+    /// brush tip (docs/specs/clone-stamp.md).
+    CloneStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// Source position minus destination position, in whole pixels.
+        offset: [i32; 2],
+        /// Where the copied pixels come from: `current_layer` (default) or
+        /// `all_layers`.
+        #[serde(default = "default_sample")]
+        sample: String,
         points: Vec<[f32; 2]>,
         /// Pen input, as for `PencilStroke`.
         #[serde(default)]
@@ -791,6 +825,7 @@ impl CommandSpec {
             | Self::DrawGradient { layer, .. }
             | Self::RecolorStroke { layer, .. }
             | Self::SmudgeStroke { layer, .. }
+            | Self::CloneStroke { layer, .. }
             | Self::DeleteSelection { layer }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
@@ -1009,6 +1044,7 @@ pub fn run_command(
                 None => Ok(()), // stroke missed the canvas — no-op
             }
         }
+        clone @ CommandSpec::CloneStroke { .. } => super::clone_spec::run(bus, clone, scratch),
         CommandSpec::EraserStroke {
             layer,
             size,
