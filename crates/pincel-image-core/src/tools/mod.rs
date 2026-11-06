@@ -224,7 +224,8 @@ impl Brush {
     /// the pen pressure at `points[i]`, applied per [`Brush::dynamics`];
     /// `pen.azimuth[i]` turns the flat nib when [`Brush::follow_tilt`] is on.
     /// Returns the painted region and its new pixels, or `None` if the stroke
-    /// misses the canvas, the layer is invalid, or `strength <= 0`.
+    /// misses the canvas, the layer is invalid, `strength <= 0`, or no dab
+    /// reaches a pixel (all of them outside the selection).
     pub(crate) fn rasterize<F>(
         &self,
         layer_index: usize,
@@ -254,6 +255,13 @@ impl Brush {
             p: pen.pressure.get(i).copied().unwrap_or(1.0).clamp(0.0, 1.0),
             angle: self.dab_angle(pen.azimuth.get(i).copied()),
         };
+        // Whether any dab reached a pixel: a stroke that reaches none is no
+        // change at all and must not become an (empty) undo step.
+        let mut touched = false;
+        let mut op = |p: DabPixel| {
+            touched = true;
+            op(p)
+        };
         if points.len() == 1 {
             self.stamp(&mut after, points[0], at(0), &ctx, &mut op);
         } else {
@@ -262,7 +270,7 @@ impl Brush {
                 self.stamp_segment(&mut after, a, b, &ctx, &mut op);
             }
         }
-        Some((region, after))
+        touched.then_some((region, after))
     }
 
     /// Bounding region of the stroke, clamped to the canvas. `None` if off-canvas.
@@ -442,8 +450,9 @@ impl Pencil {
 
     /// Rasterizes a stroke over `points` into a [`SetPixels`] command.
     ///
-    /// Returns `None` if the stroke does not touch the canvas or `points` is
-    /// empty. A single point paints one dab; multiple points paint connected
+    /// Returns `None` if the stroke does not touch the canvas or the
+    /// selection, or `points` is empty, so such a stroke adds no undo step.
+    /// A single point paints one dab; multiple points paint connected
     /// segments. Painting uses straight-alpha source-over within the stroke's
     /// bounding region; the command captures the prior pixels for undo.
     pub fn stroke(
@@ -682,6 +691,20 @@ mod tests {
             doc.layers[0].pixels.get_pixel(16, 10),
             Some(Color::TRANSPARENT)
         );
+    }
+
+    #[test]
+    fn stroke_outside_selection_returns_none() {
+        // No command, so the stroke adds no empty undo step.
+        let mut doc = Document::new(20, 20).unwrap();
+        doc.selection = Some(SelectionMask::rectangle(20, 20, Rect::new(0, 0, 10, 20)));
+        let line = [Point::new(14.0, 4.0), Point::new(16.0, 16.0)];
+        assert!(black_pencil(6).stroke(0, &line, &doc).is_none());
+        let eraser = Eraser::new(Brush::new(6, Color::BLACK, 1.0), EraserMode::ToTransparent);
+        assert!(eraser.stroke(0, &line, &doc).is_none());
+        // The same stroke inside the selection paints.
+        doc.selection = None;
+        assert!(black_pencil(6).stroke(0, &line, &doc).is_some());
     }
 
     #[test]
