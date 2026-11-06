@@ -39,16 +39,27 @@ fn slice_add_with_bad_arguments_adds_nothing() {
     let id = s.new_doc(8, 8);
     for (args, arg) in [
         (json!({ "name": "  " }), "name"),
+        (json!({ "name": "" }), "name"),
         (
             json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 0, "height": 2 } }),
             "width",
         ),
+        (
+            json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": 2, "height": 0 } }),
+            "height",
+        ),
+        (
+            json!({ "name": "a", "bounds": { "x": 0, "y": 0, "width": -3, "height": 2 } }),
+            "width",
+        ),
         (json!({ "name": "a", "color": "blue" }), "color"),
+        (json!({ "name": "a", "color": "#12345" }), "color"),
     ] {
         let before = s.state(&id);
         let e = s.err("slice.add", args.clone());
         assert!(e.contains(arg), "{args}: {e}");
         assert_eq!(s.state(&id), before);
+        assert_eq!(s.ok("slice.list", json!({}))["slices"], json!([]), "{args}");
     }
 }
 
@@ -98,15 +109,29 @@ fn slice_set_key_with_bad_arguments_leaves_the_slice() {
     s.ok("doc.undo", json!({}));
     for (args, arg) in [
         (json!({ "slice": 0 }), "bounds"),
+        (json!({ "slice": 0, "frame": 1 }), "pivot"),
         (
             json!({ "slice": 0, "bounds": { "x": 0, "y": 0, "width": 0, "height": 1 } }),
             "bounds.width",
         ),
         (
+            json!({ "slice": 0, "bounds": { "x": 0, "y": 0, "width": 1, "height": 0 } }),
+            "bounds.height",
+        ),
+        (
             json!({ "slice": 0, "center": { "x": 0, "y": 0, "width": 1, "height": 0 } }),
             "center",
         ),
+        (
+            json!({ "slice": 0, "center": { "x": 0, "y": 0, "width": 0, "height": 1 } }),
+            "center",
+        ),
+        (
+            json!({ "slice": 0, "center": { "x": 0, "y": 0, "width": 1 } }),
+            "center",
+        ),
         (json!({ "slice": 0, "pivot": { "x": 1 } }), "pivot"),
+        (json!({ "slice": 0, "pivot": { "y": 1 } }), "pivot"),
     ] {
         let before = s.state(&id);
         let e = s.err("slice.set_key", args.clone());
@@ -119,9 +144,95 @@ fn slice_set_key_with_bad_arguments_leaves_the_slice() {
         let d = s.ws.get_mut(&id).expect("doc");
         d.sprite.slices[0].keys.remove(0);
     }
+    let before = s.state(&id);
     let e = s.err(
         "slice.set_key",
         json!({ "slice": 0, "frame": 0, "pivot": { "x": 0, "y": 0 } }),
     );
     assert!(e.contains("`bounds`"), "{e}");
+    assert_eq!(s.state(&id), before);
+}
+
+#[test]
+fn slice_set_key_takes_omitted_fields_from_the_key_in_effect() {
+    let mut s = S::new();
+    let id = s.new_doc(16, 8);
+    for _ in 0..4 {
+        s.ok("frame.add", json!({}));
+    }
+    let bounds = |x: i32| json!({ "x": x, "y": 0, "width": 8, "height": 8 });
+    let center = |x: i32| json!({ "x": x, "y": 1, "width": 2, "height": 2 });
+    let pivot = |x: i32| json!({ "x": x, "y": 7 });
+    s.ok("slice.add", json!({ "name": "a", "bounds": bounds(0) }));
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "center": center(0), "pivot": pivot(0) }),
+    );
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 2, "bounds": bounds(2), "center": center(2), "pivot": pivot(2) }),
+    );
+    let key = |s: &mut S, frame: u64| -> Value {
+        s.ok("slice.list", json!({}))["slices"][0]["keys"]
+            .as_array()
+            .expect("keys")
+            .iter()
+            .find(|k| k["frame"] == frame)
+            .cloned()
+            .expect("key at frame")
+    };
+    // Frame 3 has no key: the nearest earlier key (frame 2, not the first
+    // key at frame 0) gives the omitted fields.
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 3, "pivot": pivot(3) }),
+    );
+    assert_eq!(
+        key(&mut s, 3),
+        json!({ "frame": 3, "bounds": bounds(2), "center": center(2), "pivot": pivot(3) })
+    );
+    // Frame 1 sits between the keys at 0 and 2: frame 0's key applies.
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 1, "bounds": bounds(1) }),
+    );
+    assert_eq!(
+        key(&mut s, 1),
+        json!({ "frame": 1, "bounds": bounds(1), "center": center(0), "pivot": pivot(0) })
+    );
+    // Frame 2 has its own key: it keeps its own fields; `center: null`
+    // stores the key without a center.
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 2, "center": null }),
+    );
+    assert_eq!(
+        key(&mut s, 2),
+        json!({ "frame": 2, "bounds": bounds(2), "center": null, "pivot": pivot(2) })
+    );
+    // The other keys stay as they were; the result equals the editor's
+    // `SetSliceKey` with the inherited fields.
+    assert_eq!(
+        key(&mut s, 0),
+        json!({ "frame": 0, "bounds": bounds(0), "center": center(0), "pivot": pivot(0) })
+    );
+    let want = {
+        let (mut sprite, mut cels) = s.state(&id);
+        let mut k = sprite.slices[0].keys[2];
+        assert_eq!(k.frame, FrameIndex::new(2));
+        k.pivot = None;
+        pincel_core::Bus::new()
+            .execute(
+                pincel_core::SetSliceKey::new(sprite.slices[0].id, k).into(),
+                &mut sprite,
+                &mut cels,
+            )
+            .expect("editor");
+        (sprite, cels)
+    };
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": 0, "frame": 2, "pivot": null }),
+    );
+    assert_eq!(s.state(&id), want);
 }
