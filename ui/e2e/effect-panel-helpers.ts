@@ -29,6 +29,21 @@ export async function boxOf(target: Locator): Promise<Box> {
   return box;
 }
 
+/** The width of `target`, or `null` while it has no box: for `expect.poll`
+ *  across a layout change, where the frame re-mounts the effect panel and
+ *  `boundingBox()` of the element it resolved first comes back `null` once
+ *  that element is detached. A throw would end the poll at once. */
+export async function widthOf(target: Locator): Promise<number | null> {
+  return (await target.boundingBox())?.width ?? null;
+}
+
+/** True when `inner` lies wholly inside `outer`; `false` while either has
+ *  no box, so `expect.poll` keeps polling through a re-mount (see `widthOf`). */
+export async function liesInside(inner: Locator, outer: Locator): Promise<boolean> {
+  const [a, b] = await Promise.all([inner.boundingBox(), outer.boundingBox()]);
+  return a !== null && b !== null && inside(a, b);
+}
+
 /** True when `inner` lies wholly inside `outer` (1 px tolerance). */
 export function inside(inner: Box, outer: Box): boolean {
   return (

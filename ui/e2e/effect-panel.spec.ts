@@ -6,9 +6,11 @@ import {
   dragBy,
   effectPanel,
   inside,
+  liesInside,
   phoneMenu,
   storedLayout,
   titleBar,
+  widthOf,
   type Mode,
 } from './effect-panel-helpers';
 
@@ -326,28 +328,31 @@ test('resizing across 640 px keeps the effect, its values and the panel inside (
   await panel.getByLabel('Radius value', { exact: true }).fill('7');
   // To the bottom-left corner of the canvas area.
   await dragBy(page, titleBar(panel), -2000, 2000);
-  let area = await boxOf(canvasArea(page));
-  let box = await boxOf(panel);
+  const area = await boxOf(canvasArea(page));
+  const box = await boxOf(panel);
   expect(Math.round(box.x)).toBe(Math.round(area.x));
   expect(Math.round(box.y + box.height)).toBe(Math.round(area.y + area.height));
 
   // Tablet with a smaller canvas area: the panel moves back inside it.
   await page.setViewportSize({ width: 700, height: 500 });
-  await expect
-    .poll(async () => inside(await boxOf(panel), await boxOf(canvasArea(page))))
-    .toBe(true);
+  await expect.poll(() => liesInside(panel, canvasArea(page))).toBe(true);
 
-  // Phone: docked to the bottom across the window, values kept.
+  // Phone: docked to the bottom across the window, values kept. The frame
+  // re-mounts the panel in the other layout, so its box is read only
+  // through polls that outlast the swap (`widthOf`, `liesInside`).
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect.poll(async () => Math.round((await boxOf(panel)).width)).toBe(390);
+  await expect
+    .poll(async () => {
+      const width = await widthOf(panel);
+      return width === null ? null : Math.round(width);
+    })
+    .toBe(390);
   await expect(panel.getByLabel('Radius value', { exact: true })).toHaveValue('7');
 
   // Back to a wide window: floating again, inside the canvas area.
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect.poll(async () => (await boxOf(panel)).width).toBeLessThanOrEqual(360);
-  area = await boxOf(canvasArea(page));
-  box = await boxOf(panel);
-  expect(inside(box, area)).toBe(true);
+  await expect.poll(() => widthOf(panel)).toBeLessThanOrEqual(360);
+  await expect.poll(() => liesInside(panel, canvasArea(page))).toBe(true);
   await expect(panel.getByLabel('Radius value', { exact: true })).toHaveValue('7');
 
   await panel.getByRole('button', { name: 'Cancel' }).click();
