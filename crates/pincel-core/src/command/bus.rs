@@ -34,6 +34,8 @@ pub struct Bus {
     /// Set once the cap has dropped an entry from the bottom of the undo
     /// stack (`docs/specs/history-panel.md` AC-03).
     dropped: bool,
+    /// Bumped whenever the list of steps changes (see [`Bus::revision`]).
+    revision: u32,
     /// The [`DirtyRegion`] reported by the most recent successful
     /// `execute` / `undo` / `redo`. Stays as the last value across
     /// subsequent no-op calls so the caller can read it after the fact
@@ -57,6 +59,7 @@ impl Bus {
             redo: Vec::new(),
             cap,
             dropped: false,
+            revision: 0,
             last_dirty: DirtyRegion::None,
             sealed: false,
         }
@@ -121,6 +124,7 @@ impl Bus {
         }
 
         self.undo.push_back(Step { cmd, kind });
+        self.revision = self.revision.wrapping_add(1);
         if self.undo.len() > self.cap {
             self.undo.pop_front();
             self.dropped = true;
@@ -171,6 +175,7 @@ impl Bus {
         self.last_dirty = step.cmd.dirty_region();
         self.redo.push(step);
         self.sealed = true;
+        self.revision = self.revision.wrapping_add(1);
         true
     }
 
@@ -187,6 +192,7 @@ impl Bus {
         }
         self.last_dirty = step.cmd.dirty_region();
         self.undo.push_back(step);
+        self.revision = self.revision.wrapping_add(1);
         Ok(true)
     }
 
@@ -250,6 +256,14 @@ impl Bus {
     /// them (the next redo first).
     pub fn redo_kinds(&self) -> impl Iterator<Item = HistoryKind> + '_ {
         self.redo.iter().rev().map(|s| s.kind)
+    }
+
+    /// A counter that changes whenever the list of steps changes (a new
+    /// step, an undo, a redo, a dropped step) and stays put while a stroke
+    /// or another merge only grows the newest step, so a host re-reads
+    /// [`Bus::undo_kinds`] / [`Bus::redo_kinds`] only when it moved.
+    pub fn revision(&self) -> u32 {
+        self.revision
     }
 
     /// `true` once the history cap has dropped a step: the oldest state
@@ -358,6 +372,33 @@ mod tests {
         )
         .expect("duration");
         assert_eq!(ids(bus.undo_kinds()), ["crop_to_selection", "paste"]);
+    }
+
+    #[test]
+    fn revision_moves_with_the_step_list_but_not_with_a_merge() {
+        let (mut s, mut c) = doc();
+        let mut bus = Bus::new();
+        let r0 = bus.revision();
+        bus.execute(
+            SetFrameDuration::new(FrameIndex::new(0), 10).into(),
+            &mut s,
+            &mut c,
+        )
+        .expect("duration");
+        let r1 = bus.revision();
+        assert_ne!(r1, r0, "a new step");
+        bus.execute(
+            SetFrameDuration::new(FrameIndex::new(0), 20).into(),
+            &mut s,
+            &mut c,
+        )
+        .expect("duration");
+        assert_eq!(bus.revision(), r1, "a merge keeps the list");
+        assert!(bus.undo(&mut s, &mut c));
+        let r2 = bus.revision();
+        assert_ne!(r2, r1, "an undo");
+        assert_eq!(bus.redo(&mut s, &mut c), Ok(true));
+        assert_ne!(bus.revision(), r2, "a redo");
     }
 
     #[test]
