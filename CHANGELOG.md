@@ -1,5 +1,92 @@
 # Changelog
 
+## [1.8.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.7.0...v1.8.0) (2026-11-06)
+
+
+### Features
+
+* implement the open feature specs ([7084aed](https://github.com/amigo-labs/amigo-pincel/commit/7084aedb75028405170a7c849b46d7220c5f27ba))
+* **open-files:** implement handling of OS-provided file paths before renderer is ready ([3bcd2b3](https://github.com/amigo-labs/amigo-pincel/commit/3bcd2b36a30034a81fc7d0036c945af169740166))
+* **pincel-agent:** accept underline and strikethrough in draw.text (AC-20) ([2fbaa44](https://github.com/amigo-labs/amigo-pincel/commit/2fbaa445e64a32771e6b5da09e88a03a442b4817))
+* **pincel-agent:** add content moves and the headless clipboard (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-20, AC-21, AC-22) ([d494997](https://github.com/amigo-labs/amigo-pincel/commit/d494997c9510d2672f0a98bec96273ddb2a49e35))
+* **pincel-agent:** add export.svg and document the file tools (AC-01, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-26) ([4e6ec0d](https://github.com/amigo-labs/amigo-pincel/commit/4e6ec0d7ca26060d9e613fbd1ef01b6de49b8094))
+* **pincel-agent:** add Image recolor, smudge and per-mode effect defaults (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17) ([374e2b5](https://github.com/amigo-labs/amigo-pincel/commit/374e2b517d6e7136b55b1c98533358a78b4f5fc3))
+* **pincel-agent:** add image.auto_crop and supersampling to image.scale (AC-17, AC-18, AC-19, AC-20) ([ea9a7e7](https://github.com/amigo-labs/amigo-pincel/commit/ea9a7e7265897c1f58506cbfbda7ae80abcf0b1a))
+* **pincel-agent:** add layer duplicate, move, merge and flatten tools (AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-28, AC-29) ([46efed9](https://github.com/amigo-labs/amigo-pincel/commit/46efed9bfffdd80c83e5d46533f4faaf091f9324))
+* **pincel-agent:** add select.* and transforms for both modes (AC-01, AC-02, AC-03, AC-04, AC-05, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-21, AC-22, AC-23, AC-24, AC-25, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-34, AC-35, AC-36, AC-37, AC-38) ([a6c7bf6](https://github.com/amigo-labs/amigo-pincel/commit/a6c7bf62fe5120d0a40bf50375c69eeef6408f84))
+* **pincel-agent:** add slice, tileset, tilemap and grid tools (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-21, AC-22, AC-23, AC-24, AC-25, AC-26, AC-27, AC-28, AC-29, AC-30, AC-31, AC-32, AC-33, AC-34, AC-35) ([c928b0d](https://github.com/amigo-labs/amigo-pincel/commit/c928b0def7fc0222bb9d0d282fc1eb1ea494492c))
+* **pincel-agent:** add tag.set, palette entry and palette file tools (AC-01, AC-02, AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-21, AC-22, AC-24, AC-25, AC-26, AC-27, AC-30) ([9caf0c0](https://github.com/amigo-labs/amigo-pincel/commit/9caf0c042d94cce1b5c224b02b208d84d00a5c5d))
+* **pincel-agent:** draw.stroke, shape, text and gradient on Pixel documents (AC-01, AC-02, AC-03, AC-04, AC-05, AC-06, AC-07, AC-08, AC-09, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-21, AC-22, AC-23, AC-24) ([9e6bf45](https://github.com/amigo-labs/amigo-pincel/commit/9e6bf45181c14f87a1e49b63d0cb1638f8c1fc6c))
+* **pincel-agent:** export Pixel animations as APNG and GIF (AC-02, AC-11, AC-12, AC-13, AC-27) ([e4e8614](https://github.com/amigo-labs/amigo-pincel/commit/e4e8614d562037adc3880e843e19f950a2ec4f31))
+* **pincel-agent:** open PSD files and PNG as Pixel documents (AC-21, AC-22, AC-23, AC-24, AC-25, AC-29) ([48d5a5a](https://github.com/amigo-labs/amigo-pincel/commit/48d5a5a62df4284311fde799fc27263dbaf18828))
+* **pincel-agent:** save Image documents in flat formats and export BMP / TIFF (AC-14, AC-15, AC-16, AC-17, AC-18, AC-19, AC-20, AC-28) ([c2d5e54](https://github.com/amigo-labs/amigo-pincel/commit/c2d5e54745f893ef75e5798f62d5db6e5431efa6))
+* **pincel-image-core:** add a live text kind and the text-layout query (AC-20, AC-22) ([8b7a815](https://github.com/amigo-labs/amigo-pincel/commit/8b7a815b5d1f6d399c4eda22361dd8064ab4c7d8))
+* **pincel-image-core:** add AutoCrop command and supersampling spec name (AC-12, AC-13, AC-14, AC-15) ([2211175](https://github.com/amigo-labs/amigo-pincel/commit/221117552278b91cb29618a4f814d0dc5f2247df))
+* **pincel-image-core:** add live shapes, lines and gradients (AC-01..AC-16) ([ba790bd](https://github.com/amigo-labs/amigo-pincel/commit/ba790bd9622cad42cdb32411cf58fee16b95167a))
+* **pincel-image-core:** add Supersampling area-average resampling (AC-10, AC-11) ([0dc524f](https://github.com/amigo-labs/amigo-pincel/commit/0dc524f5f365a0b32464dc003c517f9f5037fbe6))
+* **pincel-image-core:** add underline, strikethrough and a text layout to the Text tool (AC-10, AC-22) ([4639962](https://github.com/amigo-labs/amigo-pincel/commit/463996268ceaea3543640a41ab4d3332448ed1e9))
+* **pincel-image-core:** drop a live handle drag without a redo step (image-live-objects-ui AC-11) ([1b51b06](https://github.com/amigo-labs/amigo-pincel/commit/1b51b06de4a9e9d1e7b123cfbbd945976bb73802))
+* **pincel-image-wasm:** add document snapshots for the job worker (AC-01, AC-02) ([65fa727](https://github.com/amigo-labs/amigo-pincel/commit/65fa7279e04a6eaad530fb9e42be6833740a923d))
+* **pincel-image-wasm:** compute and commit effect regions apart (AC-07) ([27960e4](https://github.com/amigo-labs/amigo-pincel/commit/27960e42cd51cfda1f657a96d0119e465862e858))
+* **pincel-image-wasm:** expose document_dpi and the auto_crop command (AC-01, AC-13) ([feff31c](https://github.com/amigo-labs/amigo-pincel/commit/feff31cd9064b047c4f70741ac8beae1f1001eef))
+* **pincel-image-wasm:** expose live objects and commit them on layer change (AC-08, AC-13) ([8e61d9b](https://github.com/amigo-labs/amigo-pincel/commit/8e61d9b8d48084f485e92b83f8155b432dd47f53))
+* **pincel-image-wasm:** expose the text-layout query and live text commands (AC-22) ([a341755](https://github.com/amigo-labs/amigo-pincel/commit/a3417550f645cc9466c479cc8d15891e2461e9d1))
+* **pincel-wasm:** add setSelectionMask to restore a saved selection (AC-25) ([73bb09e](https://github.com/amigo-labs/amigo-pincel/commit/73bb09eda5591affd10265fb914feaf7e52bfb30))
+* **pincel-wasm:** add strokeToBatch for one frame of samples (AC-01, AC-02) ([c4de827](https://github.com/amigo-labs/amigo-pincel/commit/c4de827ba5a790375ac846bc59b2ecf0a80a14c4))
+* **ui:** add latest-only scheduling for superseded jobs (AC-06, AC-08) ([6b2cbdf](https://github.com/amigo-labs/amigo-pincel/commit/6b2cbdfa4779eb7f81ccf565c5fe306bbfd5975e))
+* **ui:** apply toolbar, color and shape changes to the live object (AC-06, AC-07, AC-08) ([955e7ba](https://github.com/amigo-labs/amigo-pincel/commit/955e7ba669ab3bc2f00b997c7d37d4f85ab45118))
+* **ui:** commit the live object before tab switch, copy, effects, export and save (AC-09, AC-14, AC-15) ([d8bcb1f](https://github.com/amigo-labs/amigo-pincel/commit/d8bcb1f96da309848618122fef802cc82ade5f32))
+* **ui:** Ctrl+N opens New in the desktop app and an installed window (AC-14, AC-20) ([3cf0cc4](https://github.com/amigo-labs/amigo-pincel/commit/3cf0cc4c92fbbf8f644cd40a4724280bf92c071b))
+* **ui:** dim the top bar except Effects and Adjustments while an effect is open (AC-03) ([16a6a28](https://github.com/amigo-labs/amigo-pincel/commit/16a6a282e9183bae2d0af284c862f2baa30d8a6d))
+* **ui:** effect panel as a movable modal dialog over the canvas area (AC-01, AC-02, AC-04, AC-12, AC-13, AC-14, AC-15, AC-18, AC-19, AC-20, AC-21) ([5b32777](https://github.com/amigo-labs/amigo-pincel/commit/5b32777f3085e93f6ead02b639340d831ce222cd))
+* **ui:** hex, HSV, recent-list and palette helpers for the color picker (AC-05, AC-06, AC-07, AC-11, AC-23) ([e8d3bf2](https://github.com/amigo-labs/amigo-pincel/commit/e8d3bf285d0905b3bef0b24588441431a0785f2f))
+* **ui:** Image &gt; Auto Crop with a nothing-to-crop notice (AC-12 – AC-16) ([cf6ee4c](https://github.com/amigo-labs/amigo-pincel/commit/cf6ee4c5a024f2a6f9030521683e0bc27b314a6b))
+* **ui:** Image mode paints and samples with the color's alpha (AC-17, AC-22) ([024535f](https://github.com/amigo-labs/amigo-pincel/commit/024535f62a4d4abcff479260840f77b27e9ab526))
+* **ui:** Image rulers, pixel grid and units in View (AC-01 – AC-08, AC-10 – AC-21, AC-23 – AC-25) ([3add075](https://github.com/amigo-labs/amigo-pincel/commit/3add075ccffa4e17c5672544f1e96df5bc5c8164))
+* **ui:** keep Image shapes, lines and gradients live with handles (AC-01, AC-10, AC-12, AC-16, AC-17) ([ff06083](https://github.com/amigo-labs/amigo-pincel/commit/ff060839f05bbe23651ee4f629a3e7d9f23b6d6c))
+* **ui:** keep recent colors and the last colors with alpha across reloads (AC-15, AC-30) ([303f6ad](https://github.com/amigo-labs/amigo-pincel/commit/303f6adca7189b8308a71620edeae0e7fbe240a2))
+* **ui:** mirror the live text commands in the Image adapter (AC-10, AC-20, AC-22) ([253a0d8](https://github.com/amigo-labs/amigo-pincel/commit/253a0d8ea181ac9fd344c2b7b85e99b33009f0dc))
+* **ui:** mirror the live-object commands in the Image adapter (AC-01..AC-17) ([5a429ad](https://github.com/amigo-labs/amigo-pincel/commit/5a429adb1a497b467c50452e9dbfedfa9f17dbf3))
+* **ui:** own color picker popover on both swatches, with alpha in both modes (AC-01, AC-02, AC-03, AC-04, AC-08, AC-09, AC-10, AC-11, AC-18, AC-19, AC-20, AC-21, AC-23) ([7c034ba](https://github.com/amigo-labs/amigo-pincel/commit/7c034bad44259dd667edcf0bdf1494703424308e))
+* **ui:** percentage, print-size and Supersampling input in Scale Image and Resize Canvas (AC-01 – AC-09, AC-21, AC-22) ([8aa9cf9](https://github.com/amigo-labs/amigo-pincel/commit/8aa9cf997c203d107b9c20ae8893bf925e19d7f0))
+* **ui:** recent colors and default palette in Image mode's Colors panel (AC-25, AC-26, AC-27, AC-28, AC-29) ([9d020b4](https://github.com/amigo-labs/amigo-pincel/commit/9d020b49e8cfa2b9f043e65cdae72f11a110a627))
+* **ui:** recompute the Image Magic Wand click as its settings change (AC-33, AC-34) ([9a845a1](https://github.com/amigo-labs/amigo-pincel/commit/9a845a1cd55ff9c623297881e4cae3c0d0bea5f1))
+* **ui:** recompute the Pixel Magic Wand click on a settings commit (AC-25, AC-26) ([48feb87](https://github.com/amigo-labs/amigo-pincel/commit/48feb87dfa7a274ceed143fac1a74d5c4ad0e05c))
+* **ui:** record the colors a tool paints with as recent colors per mode (AC-12, AC-13, AC-14, AC-24) ([f3fe953](https://github.com/amigo-labs/amigo-pincel/commit/f3fe9531f99b9e1d99a572d4624f7d8ececc9346))
+* **ui:** right button with the Image Zoom tool zooms out (AC-35) ([4a1bdbc](https://github.com/amigo-labs/amigo-pincel/commit/4a1bdbc8f2d9098a7f88ad37107cc3ef88cafed6))
+* **ui:** tell browsers without wasm SIMD they are too old (AC-07) ([cda89c8](https://github.com/amigo-labs/amigo-pincel/commit/cda89c8057140cfdecc51edcb8b90e062e00d7d0))
+* **website:** compare pixel-art and image editors in two honest tables (AC-01..AC-03, AC-05..AC-11) ([a10e031](https://github.com/amigo-labs/amigo-pincel/commit/a10e0311b752ab4429100001d6c4daa6f215320c))
+
+
+### Bug Fixes
+
+* **pincel-image-core:** count live objects in the undo byte cap (AC-03, AC-05) ([267b04d](https://github.com/amigo-labs/amigo-pincel/commit/267b04d93450ead8adf0ec12266e74411d3455e4))
+* **ui:** align menu rows and calm the dialogs ([bbe79f6](https://github.com/amigo-labs/amigo-pincel/commit/bbe79f6e4296ca1ee98235a966fe141089ca9457))
+* **ui:** count live Image shapes, lines and gradients as painted ([75ba5df](https://github.com/amigo-labs/amigo-pincel/commit/75ba5df3fa35e0b320e7b21705e383a87ccd6868))
+* **ui:** effect panel shows label and value on one row ([7ecef08](https://github.com/amigo-labs/amigo-pincel/commit/7ecef0871bf8b89b61cd112129c678080227c6e5))
+* **ui:** forward the swatch alpha to live objects after the color-picker merge (AC-07) ([c09f413](https://github.com/amigo-labs/amigo-pincel/commit/c09f4132358ee25b70d1d7a6d8f9d2bd21da11b9))
+* **ui:** group options-bar controls with dividers ([05d1e78](https://github.com/amigo-labs/amigo-pincel/commit/05d1e78f0436bd72c224779660b5e678e06025b8))
+* **ui:** let the Image job worker instantiate the page's compiled core ([d5ef45c](https://github.com/amigo-labs/amigo-pincel/commit/d5ef45c077a77a41c06e7e5cac86a8dec56ecc30))
+* **ui:** meet contrast and forced-colors floors from review ([e40a6cc](https://github.com/amigo-labs/amigo-pincel/commit/e40a6ccc5bbc26613ee5ff9f8125ce59d9e048e6))
+* **ui:** meet contrast and forced-colors floors from review ([3450c69](https://github.com/amigo-labs/amigo-pincel/commit/3450c69b235b5a6c53c174656ad3100c0c683224))
+* **ui:** meet contrast and forced-colors floors from review ([6887061](https://github.com/amigo-labs/amigo-pincel/commit/6887061675946cd2f259ced1f3bceeb843391d6d))
+* **ui:** meet contrast and forced-colors floors from review ([153953c](https://github.com/amigo-labs/amigo-pincel/commit/153953c69c368a23dbefce54e5399245f80a6b71))
+* **ui:** one selected and disabled look across rails and panels ([c25da2d](https://github.com/amigo-labs/amigo-pincel/commit/c25da2dc451a583e9e3d8a4c1a329b5cbd6f5a40))
+* **ui:** rebalance the start screen card ([5b9cdd9](https://github.com/amigo-labs/amigo-pincel/commit/5b9cdd9a683df906354a368b5675656d8d0a5d56))
+* **ui:** style the About and file-association dialog buttons ([9dcdb58](https://github.com/amigo-labs/amigo-pincel/commit/9dcdb587306331903a2eb0bf6953b093ed2bd324))
+* **ui:** theme form controls and raise contrast tokens to WCAG AA ([fe9693e](https://github.com/amigo-labs/amigo-pincel/commit/fe9693eeac7f71aaf383af20ee23f15ceaabfe61))
+* **ui:** UI polish pass — contrast, themed controls, consistent states ([697200a](https://github.com/amigo-labs/amigo-pincel/commit/697200a328f99db35e21363bb76834f3f3e03693))
+
+
+### Performance Improvements
+
+* **pincel-core:** expand and contract selections in O(w*h) ([c78385a](https://github.com/amigo-labs/amigo-pincel/commit/c78385a975ca7f5c6765788c7756f6ebac38b161))
+* **pincel-image-core:** keep only changed tiles for undo (AC-01..AC-05) ([370202a](https://github.com/amigo-labs/amigo-pincel/commit/370202aa28d6c08c7e0257b28cfa5bcc953bd785))
+* **ui:** batch Image brush samples per animation frame (AC-01, AC-02, AC-03) ([2601ddc](https://github.com/amigo-labs/amigo-pincel/commit/2601ddc23b37023ab8281e5b2fabce706781777f))
+* **ui:** encode Image saves, exports and autosaves in a job worker (AC-01, AC-02, AC-03, AC-09, AC-10) ([2354177](https://github.com/amigo-labs/amigo-pincel/commit/235417715bfa656f306f2769abb4192cd1cd5b56))
+* **ui:** feed Pixel pencil samples to the core once per frame (AC-01, AC-02) ([7362567](https://github.com/amigo-labs/amigo-pincel/commit/73625671a5f21abf4627987893e270415d8041ba))
+* **ui:** run Image effect previews and applies in the job worker (AC-06, AC-07, AC-08, AC-09) ([7154e32](https://github.com/amigo-labs/amigo-pincel/commit/7154e328ad9a53836f491542b62d66210924094b))
+
 ## [1.7.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.6.0...v1.7.0) (2026-11-05)
 
 
