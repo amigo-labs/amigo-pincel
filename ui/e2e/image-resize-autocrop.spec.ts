@@ -134,8 +134,8 @@ test.describe('anchor', () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     const red = [255, 0, 0, 255];
     for (const [anchor, kept, added] of [
-      ['top_left', [0, 0], [7, 7]],
-      ['bottom_right', [7, 7], [0, 0]],
+      ['Top left', [0, 0], [7, 7]],
+      ['Bottom right', [7, 7], [0, 0]],
     ] as const) {
       const dialog = await open(page, 'Resize Canvas…');
       await dialog.getByLabel('Percentage', { exact: true }).fill('200');

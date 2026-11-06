@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../../../lib/i18n/index.svelte';
+  import { t, type MessageKey } from '../../../../lib/i18n/index.svelte';
   // Resize Canvas dialog (spec §10.4, §16; docs/specs/image-resize-autocrop.md):
   // the shared size input + 9-grid anchor. Does not scale content; layers are
   // padded/cropped per the anchor.
@@ -31,6 +31,18 @@
     'bottom_right',
   ];
 
+  const ANCHOR_LABEL: Readonly<Record<ResizeAnchor, MessageKey>> = {
+    top_left: 'resize.anchorTopLeft',
+    top_center: 'resize.anchorTopCenter',
+    top_right: 'resize.anchorTopRight',
+    center_left: 'resize.anchorCenterLeft',
+    center: 'resize.anchorCenter',
+    center_right: 'resize.anchorCenterRight',
+    bottom_left: 'resize.anchorBottomLeft',
+    bottom_center: 'resize.anchorBottomCenter',
+    bottom_right: 'resize.anchorBottomRight',
+  };
+
   function apply(): void {
     if (size) onApply(size[0], size[1], anchor);
   }
@@ -55,7 +67,7 @@
           class:bg-pc-accent={anchor === a}
           class:border-transparent={anchor !== a}
           class:bg-pc-raised={anchor !== a}
-          aria-label={a}
+          aria-label={t(ANCHOR_LABEL[a])}
           aria-pressed={anchor === a}
           onclick={() => (anchor = a)}
         >
