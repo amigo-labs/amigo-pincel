@@ -98,6 +98,84 @@ fn rotate_zoom_half_turn_either_way_is_the_same() {
     }
 }
 
+#[test]
+fn rotate_zoom_arbitrary_angle_turns_clockwise_about_the_centre() {
+    // Each source pixel carries its own coordinates, so every target pixel
+    // names the source pixel it shows (an asymmetric marker everywhere).
+    let coords = |n: u32| image(n, n, |x, y| [x as u8 * 30, y as u8 * 30, 200, 255]);
+    let source_of = |out: &EffectImage, x: u32, y: u32| {
+        let p = px(out, x, y);
+        (p[3] != 0).then_some((u32::from(p[0]) / 30, u32::from(p[1]) / 30))
+    };
+    // Target pixel (x, y) shows source floor(c + R(-angle) · (p - c)) with
+    // p = (x + 0.5, y + 0.5), c = (n / 2, n / 2) and
+    // R(-angle) · (dx, dy) = (dx cos + dy sin, -dx sin + dy cos), worked by
+    // hand; e.g. n = 8, 30°, target (6, 4): d = (2.5, 0.5),
+    // source = (4 + 2.165 + 0.25, 4 - 1.25 + 0.433) = (6.415, 3.183) → (6, 3).
+    // Every listed source position is at least 0.17 px from a pixel edge,
+    // and a negated angle, the angle read as radians or the centre at
+    // ((n - 1) / 2, (n - 1) / 2) each show another source pixel there. The
+    // top-left corner reads from outside the source and stays transparent.
+    // (target pixel, the source pixel it shows or `None` for transparent)
+    type Probe = ((u32, u32), Option<(u32, u32)>);
+    let cases: [(u32, f64, [Probe; 5]); 4] = [
+        (
+            8,
+            30.0,
+            [
+                ((3, 0), Some((1, 1))),
+                ((5, 0), Some((3, 0))),
+                ((6, 4), Some((6, 3))),
+                ((3, 7), Some((5, 7))),
+                ((0, 0), None),
+            ],
+        ),
+        (
+            8,
+            45.0,
+            [
+                ((5, 0), Some((2, 0))),
+                ((0, 2), Some((0, 5))),
+                ((7, 2), Some((5, 0))),
+                ((5, 7), Some((7, 5))),
+                ((0, 0), None),
+            ],
+        ),
+        (
+            7,
+            30.0,
+            [
+                ((2, 1), Some((1, 2))),
+                ((4, 1), Some((3, 1))),
+                ((1, 5), Some((2, 6))),
+                ((5, 5), Some((6, 4))),
+                ((0, 0), None),
+            ],
+        ),
+        (
+            7,
+            45.0,
+            [
+                ((3, 0), Some((1, 1))),
+                ((6, 3), Some((5, 1))),
+                ((1, 5), Some((3, 6))),
+                ((4, 5), Some((5, 4))),
+                ((0, 0), None),
+            ],
+        ),
+    ];
+    for (n, angle, expected) in cases {
+        let out = rz(angle, 0.0, 0.0, 1.0, Quality::Nearest).apply(&coords(n));
+        for ((x, y), source) in expected {
+            assert_eq!(
+                source_of(&out, x, y),
+                source,
+                "{n} x {n}, {angle}°, ({x}, {y})"
+            );
+        }
+    }
+}
+
 /// The source column each target column of row 0 shows, read from the red
 /// channel (`x · 30` in the sources below); `None` where transparent.
 fn columns(out: &EffectImage) -> Vec<Option<u32>> {
