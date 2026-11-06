@@ -59,7 +59,7 @@ const isOra = (bytes: Buffer) =>
 
 /** The status bar's document size of `mode`. */
 function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]) {
-  return page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`, { exact: true });
+  return page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, { exact: true });
 }
 
 /** The unsaved marker of the top bar for document `name`. */

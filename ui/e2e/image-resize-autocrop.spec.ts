@@ -6,7 +6,7 @@ import { createDocument, drag, imageCanvas, menu } from './helpers';
 // is pinned without a page in size-input.spec.ts.
 
 function status(page: Page, w: number, h: number): Locator {
-  return page.getByText(`${w} × ${h} · sRGB`, { exact: true });
+  return page.getByText(`${w} × ${h} px · sRGB`, { exact: true });
 }
 
 async function open(page: Page, item: 'Scale Image…' | 'Resize Canvas…'): Promise<Locator> {
@@ -136,9 +136,9 @@ test('Auto Crop trims the border in one undo step (AC-13 – AC-16)', async ({ p
   await page.keyboard.press('m');
   await drag(page, imageCanvas(page), [0.05, 0.05], [0.2, 0.2]);
   await menu(page, 'Image', 'Auto Crop');
-  const size = page.getByText(/^\d+ × \d+ · sRGB$/);
-  await expect(size).not.toHaveText('40 × 30 · sRGB');
-  const [w, h] = ((await size.textContent()) ?? '').split(/ × | · /).map(Number);
+  const size = page.getByText(/^\d+ × \d+ px · sRGB$/);
+  await expect(size).not.toHaveText('40 × 30 px · sRGB');
+  const [w, h] = ((await size.textContent()) ?? '').split(/ × | px · /).map(Number);
   expect(w).toBeLessThan(40);
   expect(h).toBeLessThan(30);
   await page.keyboard.press('ControlOrMeta+z');

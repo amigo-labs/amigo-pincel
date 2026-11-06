@@ -73,7 +73,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'sample.psd', await fixture('sample.psd'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
+    await expect(page.getByText('40 × 30 px · sRGB')).toBeVisible();
     await expect(page.getByTitle('sample.psd', { exact: true })).toBeVisible();
     // Base, Folder, Ink, Title — the Curves adjustment layer is left out.
     await expect(hideButtons(page)).toHaveCount(4);
@@ -94,7 +94,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'flat.psd', await fixture('flat.psd'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
+    await expect(page.getByText('40 × 30 px · sRGB')).toBeVisible();
     await expect(hideButtons(page)).toHaveCount(1);
     await expect(openNotice(page)).toContainText(
       'the file has no layers; opened its flattened image',
@@ -105,7 +105,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'photo.psd', await rasterFile(page, 'png'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('8 × 6 · sRGB')).toBeVisible();
+    await expect(page.getByText('8 × 6 px · sRGB')).toBeVisible();
     await expect(openNotice(page)).toHaveCount(0);
   });
 
@@ -142,7 +142,7 @@ test.describe('without File System Access', () => {
       await choose(page, () => menu(page, 'File', 'Open…'), name, bytes);
       await expect(page.getByRole('alert')).toContainText(`Open failed: ${message}`);
       await expect(page.getByTitle('sample.psd', { exact: true })).toBeVisible();
-      await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
+      await expect(page.getByText('40 × 30 px · sRGB')).toBeVisible();
       await expect(hideButtons(page)).toHaveCount(4);
     }
   });

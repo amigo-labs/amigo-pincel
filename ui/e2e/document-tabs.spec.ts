@@ -558,7 +558,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await createDocument(page, mode, { width: 16, height: 16 });
     await paint(page, mode);
     const footer = page.locator('footer');
-    const size = mode === 'pixel' ? '16×16' : '16 × 16 · sRGB';
+    const size = mode === 'pixel' ? '16×16' : '16 × 16 px · sRGB';
     await expect(footer).toContainText(size);
     const swatches = page.getByRole('group', { name: 'Palette colors' }).getByRole('button');
     const paletteFirst = mode === 'pixel' ? await swatches.count() : 0;
@@ -636,11 +636,11 @@ test.describe('clipboard', () => {
     await page.keyboard.press('ControlOrMeta+Alt+v');
     await expectActive(page, 'Pasted image.png');
     expect(await tabNames(page)).toEqual(['image.ora', 'Pasted image.png']);
-    await expect(page.locator('footer')).toContainText('24 × 12 · sRGB');
+    await expect(page.locator('footer')).toContainText('24 × 12 px · sRGB');
     await expectDirty(page, 'image.ora', true);
     await expect(prompt(page)).toHaveCount(0);
     await tab(page, 'image.ora').click();
-    await expect(page.locator('footer')).toContainText('16 × 16 · sRGB');
+    await expect(page.locator('footer')).toContainText('16 × 16 px · sRGB');
   });
 
   test('pixel: Paste as New Image opens a Pixel tab after the unsaved one, without a prompt (AC-02)', async ({
