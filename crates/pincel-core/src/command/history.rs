@@ -94,6 +94,8 @@ history_kinds! {
     LayerOpacity => "layer_opacity",
     /// Layer blend mode.
     LayerBlendMode => "layer_blend_mode",
+    /// Several layer properties at once (MCP `layer.set`).
+    LayerProperties => "layer_properties",
     /// Moving a layer in the stack.
     MoveLayer => "move_layer",
     /// Merge down.
@@ -118,6 +120,8 @@ history_kinds! {
     RenameTag => "rename_tag",
     /// Tag direction.
     TagDirection => "tag_direction",
+    /// Several tag properties at once (MCP `tag.set`).
+    TagProperties => "tag_properties",
     /// Palette entry color.
     PaletteColor => "palette_color",
     /// New palette entry.
