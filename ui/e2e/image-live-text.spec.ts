@@ -1,10 +1,11 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createDocument, drag, imageCanvas, menu } from './helpers';
 import {
   H,
   W,
   at,
   canvasShot,
+  caret,
   chooseText,
   clickAt,
   docRect,
@@ -32,6 +33,42 @@ test.beforeEach(async ({ page }) => {
   await setFontSize(page, 24);
 });
 
+/** A row of the layers panel. */
+function layerRow(page: Page, name: string): Locator {
+  return page.getByRole('list', { name: 'Layer list' }).locator('li', {
+    has: page.getByRole('button', { name: `Drag to reorder ${name}`, exact: true }),
+  });
+}
+
+/**
+ * The right edge of the dark (ink) pixels in Layer 1's thumbnail, as a
+ * fraction of the thumbnail's width; 0 when there is none. Reads a
+ * screenshot of the thumbnail inside its border.
+ */
+async function thumbnailInkRight(page: Page): Promise<number> {
+  const png = await layerRow(page, 'Layer 1').locator('canvas').screenshot();
+  return page.evaluate(async (b64) => {
+    const blob = await (await fetch(`data:image/png;base64,${b64}`)).blob();
+    const bitmap = await createImageBitmap(blob);
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2d context');
+    ctx.drawImage(bitmap, 0, 0);
+    const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
+    const inner = bitmap.width - 2;
+    let right = 0;
+    // 2 px in: the border and its rounded corners are dark too.
+    for (let y = 2; y < bitmap.height - 2; y += 1) {
+      for (let x = 2; x < bitmap.width - 2; x += 1) {
+        const i = (y * bitmap.width + x) * 4;
+        const sum = (data[i] ?? 255) + (data[i + 1] ?? 255) + (data[i + 2] ?? 255);
+        if (sum < 300) right = Math.max(right, x);
+      }
+    }
+    return right / inner;
+  }, png.toString('base64'));
+}
+
 test('a Text press opens an empty box; the first character begins the text', async ({ page }) => {
   const z = await zoomOf(page);
   const [px, py] = await at(page, [40, 30]);
@@ -42,6 +79,12 @@ test('a Text press opens an empty box; the first character begins the text', asy
   const box = await textBox(page).boundingBox();
   expect(Math.abs((box?.x ?? 0) - px)).toBeLessThanOrEqual(z + 1);
   expect(Math.abs((box?.y ?? 0) - py)).toBeLessThanOrEqual(z + 1);
+  // The empty box shows a caret at its left edge.
+  await expect(caret(page)).toBeVisible();
+  const c0 = await docRect(page, caret(page));
+  const b0 = await docRect(page, textBox(page));
+  expect(Math.abs((c0.x0 + c0.x1) / 2 - b0.x0)).toBeLessThanOrEqual(1.5);
+  expect(c0.y0).toBeGreaterThanOrEqual(b0.y0 - 0.5);
 
   // Options on an empty box change only the tool option: no step.
   await page.getByRole('checkbox', { name: 'Bold' }).check();
@@ -186,6 +229,46 @@ test('a typing burst is one step; a caret jump starts the next', async ({ page }
   await expect(undoButton(page)).toBeDisabled();
 });
 
+test('the layer thumbnail shows the live text as it is typed', async ({ page }) => {
+  await setFontSize(page, 48);
+  await expect.poll(() => thumbnailInkRight(page)).toBe(0);
+  await typeAt(page, [10, 20], 'HH');
+  const two = await ink(page);
+  await expect
+    .poll(async () => Math.abs((await thumbnailInkRight(page)) - (two?.x1 ?? 0) / W))
+    .toBeLessThan(0.08);
+  // More characters of the same burst: no new undo step, a new thumbnail.
+  await page.keyboard.type('HHH');
+  const five = await ink(page);
+  expect((five?.x1 ?? 0) - (two?.x1 ?? 0)).toBeGreaterThan(60);
+  await expect
+    .poll(async () => Math.abs((await thumbnailInkRight(page)) - (five?.x1 ?? 0) / W))
+    .toBeLessThan(0.08);
+  await expect(textBox(page)).toBeVisible();
+  // Steps: begin "H", the burst "HHHH".
+  expect(await undoAll(page)).toBe(2);
+});
+
+test('a press inside the text is a caret jump: the next typing is its own step', async ({
+  page,
+}) => {
+  await typeAt(page, [20, 20], 'ab');
+  const box = await docRect(page, textBox(page));
+  // A press at the end of the text, inside its box.
+  await clickAt(page, [box.x1 - 1, (box.y0 + box.y1) / 2]);
+  await expect(liveInput(page)).toBeFocused();
+  await page.keyboard.type('c');
+  await expect(textBox(page)).toBeVisible();
+  const abc = await ink(page);
+  expect((abc?.x1 ?? 0) - (box.x1 - 2)).toBeGreaterThan(0);
+  // Undo takes "c" alone: the text is "ab" again and still open.
+  await undoButton(page).click();
+  await expect(textBox(page)).toBeVisible();
+  await expect.poll(async () => (await ink(page))?.x1).toBeLessThan(abc?.x1 ?? 0);
+  // Steps left: begin "a", the burst "b".
+  expect(await undoAll(page)).toBe(2);
+});
+
 test('Enter breaks the line; the box keeps its top-left and fits the lines', async ({ page }) => {
   await typeAt(page, [20, 20], 'H');
   const one = await docRect(page, textBox(page));
@@ -287,6 +370,19 @@ test('a document command or an active-layer change commits the text first', asyn
   expect(await ink(page, 0, 50)).not.toBeNull();
   // Steps: commit, New Layer, commit, commit, Invert Selection.
   expect(await undoAll(page)).toBe(5);
+});
+
+test('an Alt chord in the text commits it, then runs', async ({ page }) => {
+  await menu(page, 'Layer', 'New Layer');
+  await expect(layerRow(page, 'Layer 2')).toHaveClass(/layer-active/);
+  await typeAt(page, [20, 20], 'Hi');
+  // Alt+Down selects the layer below (AC-23): the text commits first.
+  await page.keyboard.press('Alt+ArrowDown');
+  await expect(textBox(page)).toHaveCount(0);
+  await expect(layerRow(page, 'Layer 1')).toHaveClass(/layer-active/);
+  expect(await ink(page)).not.toBeNull();
+  // Steps: New Layer, the commit.
+  expect(await undoAll(page)).toBe(2);
 });
 
 test('a text of only whitespace or wholly off the canvas leaves no step', async ({ page }) => {
