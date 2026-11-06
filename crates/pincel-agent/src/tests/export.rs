@@ -111,7 +111,7 @@ fn a_lossy_flatten_needs_flatten_true_and_names_every_cause() {
         "3 layers",
         "hidden layer \"Off\"",
         "\"Ink\" at 50 % opacity",
-        "\"Ink\" with blend mode",
+        "\"Ink\" with blend mode Multiply",
     ] {
         assert!(e.contains(cause), "{cause}: {e}");
     }
@@ -198,7 +198,14 @@ fn bad_save_arguments_name_the_argument() {
         json!({ "path": "a.aseprite", "quality": 80 }),
     ] {
         let e = s.err("doc.save", args.clone());
-        assert!(e.contains("Image documents only"), "{args}: {e}");
+        let key = args
+            .as_object()
+            .and_then(|o| o.keys().find(|k| *k != "path").cloned())
+            .expect("the Image-only argument");
+        assert!(
+            e.contains(&format!("`{key}`")) && e.contains("Image documents only"),
+            "{args}: {e}"
+        );
     }
     assert!(s.host.files.is_empty());
 }
@@ -375,9 +382,12 @@ fn doc_open_of_a_bad_psd_names_the_file_and_reason() {
     s.host
         .files
         .insert("cut.psd".into(), SAMPLE_PSD[..40].to_vec());
-    for path in ["big.psd", "cut.psd"] {
+    for (path, reason) in [
+        ("big.psd", "PSB (large document format) is not supported"),
+        ("cut.psd", "the file ends early"),
+    ] {
         let e = s.err("doc.open", json!({ "path": path }));
-        assert!(e.contains(path), "{e}");
+        assert!(e.contains(path) && e.contains(reason), "{e}");
     }
     assert!(s.ws.is_empty());
 }
@@ -572,7 +582,11 @@ fn bad_animation_arguments_write_nothing() {
     let mut s = S::new();
     animated(&mut s);
     for (args, needle) in [
-        (json!({ "path": "x.gif", "tag": "jump" }), "jump"),
+        (
+            json!({ "path": "x.gif", "tag": "jump" }),
+            "tag \"jump\" not found",
+        ),
+        (json!({ "path": "x.gif", "scale": 0 }), "scale"),
         (json!({ "path": "x.gif", "scale": 11 }), "scale"),
         (json!({ "path": "x.gif", "loops": -1 }), "loops"),
         (json!({ "path": "x.gif", "loops": 65536 }), "loops"),
@@ -583,7 +597,10 @@ fn bad_animation_arguments_write_nothing() {
     let mut big = S::new();
     big.new_doc(2000, 10);
     let e = big.err("export.apng", json!({ "path": "x.png", "scale": 10 }));
-    assert!(e.contains("16384") || e.contains("20000"), "{e}");
+    assert!(
+        e.contains("20000") && e.contains("16384") && e.contains("exceeds"),
+        "{e}"
+    );
     assert!(s.host.files.is_empty() && big.host.files.is_empty());
 }
 
@@ -717,20 +734,46 @@ fn bad_svg_arguments_write_nothing() {
     let mut s = S::new();
     s.new_image(4, 4);
     for (args, needle) in [
-        (json!({ "path": "x.svg", "colors": 1 }), "colors"),
+        (
+            json!({ "path": "x.svg", "colors": 1 }),
+            "colors must be 2–16",
+        ),
         (
             json!({ "path": "x.svg", "mode": "mono", "fill": "#ff000080" }),
             "fill",
         ),
-        (json!({ "path": "x.svg", "mode": "outline" }), "mode"),
-        (json!({ "path": "x.svg", "alpha_max": 2 }), "alpha_max"),
-        (json!({ "path": "x.svg", "threshold": 300 }), "threshold"),
-        (json!({ "path": "x.svg", "min_area": 200000 }), "min_area"),
+        (
+            json!({ "path": "x.svg", "mode": "outline" }),
+            "mode must be one of: pixel_exact, colors, mono",
+        ),
+        (
+            json!({ "path": "x.svg", "alpha_max": 2 }),
+            "alpha_max must be 0–1.34",
+        ),
+        (json!({ "path": "x.svg", "threshold": 300 }), "0–255"),
+        (
+            json!({ "path": "x.svg", "min_area": 200000 }),
+            "min_area must be 0–100000",
+        ),
         (
             json!({ "path": "x.svg", "opt_tolerance": -1 }),
-            "opt_tolerance",
+            "opt_tolerance must be at least 0",
         ),
-        (json!({ "path": "x.svg", "frame": 1 }), "frame"),
+        (
+            json!({ "path": "x.svg", "frame": 1 }),
+            "Image documents have a single frame (0)",
+        ),
+        // Options the chosen mode ignores are still checked.
+        (
+            json!({ "path": "x.svg", "mode": "mono", "colors": 40 }),
+            "colors must be 2–16",
+        ),
+        (
+            json!({ "path": "x.svg", "mode": "colors", "fill": "#ff000080" }),
+            "fill",
+        ),
+        (json!({ "path": "x.svg", "threshold": "low" }), "threshold"),
+        (json!({ "path": "x.svg", "colors": 3.5 }), "colors"),
     ] {
         let e = s.err("export.svg", args.clone());
         assert!(e.contains(needle), "{args}: {e}");

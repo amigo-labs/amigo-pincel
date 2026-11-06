@@ -339,6 +339,23 @@ mod tests {
         ] {
             assert!(flat.contains(fact), "missing {fact}");
         }
+        // mcp-parity-export AC-26: every tool and argument, and each mode.
+        for fact in [
+            "`export.png` and `export.svg`. Pixel-only",
+            "`export.apng`, `export.gif`. Image-only",
+            "`export.bmp`, `export.tiff`.",
+            "`doc.open` of `.ora`, Photoshop `.psd`",
+            "PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered)",
+            "or of a PNG with `mode: \"pixel\"`",
+            "`mode: \"image\"` or no `mode` lets the file decide",
+            "`colors`, `threshold`, `invert`, `fill`, `despeckle`, `min_area`, `alpha_max`, `opt_curve` and `opt_tolerance`, at `frame`",
+            "`tag`, `scale`, `loops`; GIF reports `warnings`",
+            "`quality` for JPEG",
+            "A layered Image document needs `flatten: true`",
+            "a PSD result lists `notices`",
+        ] {
+            assert!(flat.contains(fact), "missing {fact}");
+        }
         // mcp-parity-drawing AC-22.
         for fact in [
             "`size`\n  1–8 (default 1)",
