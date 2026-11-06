@@ -25,17 +25,32 @@
   let touches: readonly number[] = [];
   let firstTouch: number | null = null;
 
+  // The tracked pointer in client coordinates: the area itself moves when
+  // the rulers or the panels toggle under a resting pointer.
+  let client: { x: number; y: number } | null = null;
+
   function track(e: PointerEvent): void {
+    client = { x: e.clientX, y: e.clientY };
+    place();
+  }
+
+  /** The tracked pointer inside the area, or hidden outside it. */
+  function place(): void {
+    if (client === null) return;
     const rect = area.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
+    const sx = client.x - rect.left;
+    const sy = client.y - rect.top;
     // A tool's pointer capture keeps the moves of a pressed pointer coming
     // after it left the area and holds back its pointerleave.
     if (sx < 0 || sy < 0 || sx >= rect.width || sy >= rect.height) {
       viewAids.pointer = null;
       return;
     }
-    viewAids.pointer = { x: (sx - view.panX) / view.zoom, y: (sy - view.panY) / view.zoom };
+    // Kept in screen space: the markers sit at it and the status bar maps it
+    // through the view current at render time, so a zoom, a pan (whose
+    // move handler runs after this capture handler) or a tab switch never
+    // leaves them stale.
+    viewAids.pointer = { x: sx, y: sy };
   }
 
   function onDown(e: PointerEvent): void {
@@ -57,33 +72,33 @@
     touches = touches.filter((id) => id !== e.pointerId);
     if (touches.length === 0) {
       firstTouch = null;
-      viewAids.pointer = null;
+      hide();
     }
   }
 
   function onLeave(e: PointerEvent): void {
-    if (e.pointerType !== 'touch') viewAids.pointer = null;
+    if (e.pointerType !== 'touch') hide();
+  }
+
+  function hide(): void {
+    client = null;
+    viewAids.pointer = null;
   }
 
   onMount(() => {
     const ro = new ResizeObserver(() => {
       areaSize = { w: area.clientWidth, h: area.clientHeight };
+      // The rulers, the panels or the window moved the area under a
+      // resting pointer.
+      place();
     });
     ro.observe(area);
     return () => {
       ro.disconnect();
-      viewAids.pointer = null;
+      hide();
     };
   });
 
-  const marker = $derived(
-    viewAids.pointer === null
-      ? null
-      : {
-          x: view.panX + viewAids.pointer.x * view.zoom,
-          y: view.panY + viewAids.pointer.y * view.zoom,
-        },
-  );
 </script>
 
 <div class="flex h-full w-full flex-col">
@@ -101,7 +116,7 @@
           zoom={view.zoom}
           unit={viewAids.units}
           {dpi}
-          marker={marker?.x ?? null}
+          marker={viewAids.pointer?.x ?? null}
         />
       </div>
     </div>
@@ -115,7 +130,7 @@
         zoom={view.zoom}
         unit={viewAids.units}
         {dpi}
-        marker={marker?.y ?? null}
+        marker={viewAids.pointer?.y ?? null}
       />
     {/if}
     <div

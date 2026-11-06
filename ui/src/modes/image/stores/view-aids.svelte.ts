@@ -4,6 +4,7 @@
 // step, nothing in any file (AC-14, AC-15).
 
 import { getPref, setPref } from '../../../lib/idb/prefs';
+import { view } from './editor.svelte';
 import {
   DEFAULT_IMAGE_VIEW,
   IMAGE_VIEW_PREF,
@@ -17,10 +18,23 @@ export const viewAids = $state<{
   showRulers: boolean;
   showPixelGrid: boolean;
   units: ViewUnit;
-  /** The image coordinate under the pointer, or `null` outside the canvas
-   *  area (AC-10, AC-24). */
+  /** The pointer's position inside the canvas area in CSS px, or `null`
+   *  outside it (AC-04, AC-24). A screen position, not an image one: the
+   *  image pixel under it follows every zoom, pan and tab switch without a
+   *  pointer move (`pointerPixel`). */
   pointer: { x: number; y: number } | null;
 }>({ ...DEFAULT_IMAGE_VIEW, pointer: null });
+
+/** The image pixel under the pointer through the active tab's current
+ *  view, rounded down, or `null` outside the canvas area (AC-10). */
+export function pointerPixel(): { x: number; y: number } | null {
+  const p = viewAids.pointer;
+  if (p === null) return null;
+  return {
+    x: Math.floor((p.x - view.panX) / view.zoom),
+    y: Math.floor((p.y - view.panY) / view.zoom),
+  };
+}
 
 let loaded = false;
 

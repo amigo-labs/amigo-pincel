@@ -81,7 +81,7 @@
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import ImageViewport from './components/canvas/ImageViewport.svelte';
-  import { loadViewAids, setViewAids, viewAids } from './stores/view-aids.svelte';
+  import { loadViewAids, pointerPixel, setViewAids, viewAids } from './stores/view-aids.svelte';
   import { formatPixels, type ViewUnit } from './view-units';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
@@ -573,6 +573,8 @@
   function unitValue(p: number): string {
     return formatPixels(p, viewAids.units, statusDpi, locale());
   }
+  // The pixel under the pointer through the current view (AC-10, AC-19).
+  const statusPointer = $derived(pointerPixel());
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
   function openOverview(): void {
@@ -1525,11 +1527,11 @@
   {#snippet statusbar()}
     <span>{toolLabel}</span>
     <span>·</span>
-    {#if viewAids.pointer}
+    {#if statusPointer}
       <span data-testid="status-pointer"
         >{t('status.position', {
-          x: unitValue(Math.floor(viewAids.pointer.x)),
-          y: unitValue(Math.floor(viewAids.pointer.y)),
+          x: unitValue(statusPointer.x),
+          y: unitValue(statusPointer.y),
           unit: t(UNIT_SUFFIX[viewAids.units]),
         })}</span
       >

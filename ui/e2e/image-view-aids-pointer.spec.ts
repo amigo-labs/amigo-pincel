@@ -1,5 +1,6 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { createDocument } from './helpers';
+import { createDocument, menu, waitForEditor } from './helpers';
+import { installTauriMock } from './tauri-mock';
 import { box, check, mapping, marker, pointerStatus } from './view-aids-helpers';
 
 // image-view-aids: the pointer position in the status bar and the ruler
@@ -101,6 +102,114 @@ test('a pressed mouse follows the drag and hides when it leaves the canvas area 
   await expectHidden(page);
 });
 
+/** Position and markers show the pixel under the mouse at (sx, sy), mapped
+ *  through the view the active tab has now. */
+async function expectUnderMouse(
+  page: Page,
+  width: number,
+  sx: number,
+  sy: number,
+): Promise<void> {
+  /** Both roundings of a value within 0.01 px of a pixel edge. */
+  const floors = (v: number): number[] => [...new Set([Math.floor(v - 0.01), Math.floor(v + 0.01)])];
+  await expect(async () => {
+    const m = await mapping(page, width);
+    const texts = floors((sx - m.x) / m.z).flatMap((x) =>
+      floors((sy - m.y) / m.z).map((y) => `${x}, ${y} px`),
+    );
+    expect(texts).toContain(await pointerStatus(page).textContent({ timeout: 1000 }));
+    const mh = await box(marker(page, 'h'));
+    const mv = await box(marker(page, 'v'));
+    expect(Math.abs(mh.x - sx), 'horizontal marker').toBeLessThanOrEqual(1);
+    expect(Math.abs(mv.y - sy), 'vertical marker').toBeLessThanOrEqual(1);
+  }).toPass({ timeout: 5000 });
+}
+
+test('a zoom by key without a pointer move: position and markers follow the new view (AC-04, AC-10)', async ({
+  page,
+}) => {
+  await rulersOn(page);
+  const [sx, sy] = await at(page, 30.5, 20.5);
+  await page.mouse.move(sx, sy);
+  await expectShown(page, '30, 20 px', sx, sy);
+  const before = await mapping(page, DOC.width);
+  await page.keyboard.press('+');
+  await expect.poll(async () => (await mapping(page, DOC.width)).z).not.toBe(before.z);
+  await expectUnderMouse(page, DOC.width, sx, sy);
+});
+
+test('a middle-button pan: position and markers follow the moved view (AC-04, AC-10, AC-24)', async ({
+  page,
+}) => {
+  await rulersOn(page);
+  let [sx, sy] = await at(page, 50.5, 50.5);
+  await page.mouse.move(sx, sy);
+  await page.mouse.down({ button: 'middle' });
+  [sx, sy] = [sx + 60, sy + 40];
+  await page.mouse.move(sx, sy, { steps: 4 });
+  // Still pressed: the image moved with the mouse, so the pixel stays.
+  await expectUnderMouse(page, DOC.width, sx, sy);
+  await expect(pointerStatus(page)).toHaveText('50, 50 px');
+  await page.mouse.up({ button: 'middle' });
+  await expectUnderMouse(page, DOC.width, sx, sy);
+  await expect(pointerStatus(page)).toHaveText('50, 50 px');
+});
+
+test('a tab switch under a resting mouse: position and markers follow the new tab’s view (AC-04, AC-10, AC-19)', async ({
+  page,
+}) => {
+  await rulersOn(page);
+  // A second, larger Image tab: a different zoom and pan when fitted.
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  await dialog.getByRole('radio', { name: /^Image/ }).click();
+  await dialog.getByLabel('Width').fill('800');
+  await dialog.getByLabel('Height').fill('300');
+  await dialog.getByRole('button', { name: 'Create' }).click();
+  await waitForEditor(page, 'image');
+  const tabs = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
+  await tabs.first().click();
+  await expect(page.getByText('200 × 100 px · sRGB', { exact: true })).toBeVisible();
+  const [sx, sy] = await at(page, 121.3, 61.3);
+  await page.mouse.move(sx, sy);
+  await expectShown(page, '121, 61 px', sx, sy);
+  await page.keyboard.press('Alt+PageDown');
+  await expect(page.getByText('800 × 300 px · sRGB', { exact: true })).toBeVisible();
+  await expectUnderMouse(page, 800, sx, sy);
+});
+
+test.describe('desktop', () => {
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  });
+
+  test('Ctrl+Alt+R under a resting mouse: position and markers stay at the mouse (AC-04, AC-10)', async ({
+    page,
+  }) => {
+    await installTauriMock(page);
+    await page.goto('./');
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await page.getByRole('button', { name: 'New image' }).click();
+    const card = page.getByRole('form', { name: 'New image' });
+    await card.getByLabel('Width').fill(String(DOC.width));
+    await card.getByLabel('Height').fill(String(DOC.height));
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+    const [sx, sy] = await at(page, 63.3, 41.3);
+    await page.mouse.move(sx, sy);
+    await expect(pointerStatus(page)).toHaveText('63, 41 px');
+    // The rulers take their strips out of the area and Fit re-fits.
+    await page.keyboard.press('Control+Alt+KeyR');
+    await expect(page.getByTestId('ruler-h')).toBeVisible();
+    await expectUnderMouse(page, DOC.width, sx, sy);
+    // Off again: the area grows back under the mouse.
+    await page.keyboard.press('Control+Alt+KeyR');
+    await expect(page.getByTestId('ruler-h')).toHaveCount(0);
+    await expect(pointerStatus(page)).toHaveText('63, 41 px');
+  });
+});
+
 /** One CDP pen event at screen (x, y); `buttons` 1 while the tip is down. */
 async function pen(
   cdp: CDPSession,
@@ -191,7 +300,9 @@ test.describe('touch', () => {
     await expect(pointerStatus(page)).toHaveText('50, 50 px');
     const moved = await at(page, 120.5, 20.5);
     await touch(cdp, 'touchMove', [first, moved]);
-    await expect(pointerStatus(page)).toHaveText('50, 50 px');
+    // The second contact pinches the view; the position stays the pixel
+    // under the first contact through the view as it is now.
+    await expectUnderMouse(page, DOC.width, first[0], first[1]);
     await touch(cdp, 'touchEnd', []);
     await expectHidden(page);
     await cdp.detach();
