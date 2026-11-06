@@ -377,34 +377,92 @@ fn select_feather_matches_the_editor_on_image_documents() {
 
 #[test]
 fn select_clear_lets_edits_act_on_the_whole_layer() {
-    for image in [false, true] {
+    /// Every pixel of the 4×4 canvas as `#RRGGBBAA`.
+    fn all_pixels(s: &mut S) -> Vec<String> {
+        let rows = s.ok(
+            "doc.read_pixels",
+            json!({ "region": { "x": 0, "y": 0, "width": 4, "height": 4 } }),
+        )["rows"]
+            .clone();
+        rows.as_array()
+            .expect("rows")
+            .iter()
+            .flat_map(|r| {
+                r.as_str()
+                    .expect("row")
+                    .split(' ')
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+    /// Fill, invert, a red block and a blur; with `clear_first`, after a
+    /// 1×1 selection that `select.clear` drops again.
+    fn edit(image: bool, clear_first: bool) -> S {
         let mut s = S::new();
         if image {
             s.new_image(4, 4);
         } else {
             s.new_doc(4, 4);
         }
-        s.ok(
-            "select.rect",
-            json!({ "x": 0, "y": 0, "width": 1, "height": 1 }),
-        );
-        let out = s.ok("select.clear", json!({}));
-        assert_eq!(out["selection"], Value::Null);
-        assert_eq!(out["count"], 0);
+        if clear_first {
+            s.ok(
+                "select.rect",
+                json!({ "x": 0, "y": 0, "width": 1, "height": 1 }),
+            );
+            let out = s.ok("select.clear", json!({}));
+            assert_eq!(out["selection"], Value::Null);
+            assert_eq!(out["count"], 0);
+        }
         s.ok("draw.fill", json!({ "x": 2, "y": 2, "color": "#00ff00" }));
-        let rows = s.ok(
-            "doc.read_pixels",
-            json!({ "region": { "x": 0, "y": 0, "width": 4, "height": 4 } }),
-        )["rows"]
-            .clone();
         assert!(
-            rows.as_array().expect("rows").iter().all(|r| r
-                .as_str()
-                .expect("row")
-                .split(' ')
-                .all(|p| p == "#00FF00FF")),
-            "image={image}: {rows}"
+            all_pixels(&mut s).iter().all(|p| p == "#00FF00FF"),
+            "draw.fill, image={image}"
         );
+        s.ok("adjust.apply", json!({ "id": "invert" }));
+        assert!(
+            all_pixels(&mut s).iter().all(|p| p == "#FF00FFFF"),
+            "adjust.apply, image={image}"
+        );
+        if image {
+            s.ok(
+                "draw.shape",
+                json!({ "shape": "rect", "x0": 2, "y0": 2, "x1": 3, "y1": 3, "fill": "#ff0000", "anti_alias": false }),
+            );
+        } else {
+            s.ok(
+                "draw.rect",
+                json!({ "x0": 2, "y0": 2, "x1": 3, "y1": 3, "color": "#ff0000", "filled": true }),
+            );
+        }
+        let before = all_pixels(&mut s);
+        s.ok(
+            "effect.apply",
+            json!({ "id": "gaussian_blur", "params": { "radius": 2.0 } }),
+        );
+        let after = all_pixels(&mut s);
+        assert!(
+            (1..16).any(|i| before[i] != after[i]),
+            "the blur reaches beyond pixel (0, 0), image={image}"
+        );
+        s
+    }
+    for image in [false, true] {
+        let mut s = edit(image, true);
+        let mut twin = edit(image, false);
+        // effect.apply after select.clear equals the same edits without
+        // any selection.
+        assert_eq!(all_pixels(&mut s), all_pixels(&mut twin), "image={image}");
+        // select.delete acts as without a selection (AC-22).
+        let before = all_pixels(&mut s);
+        let out = s.ok("select.delete", json!({}));
+        if image {
+            assert_eq!(out["changed"], true);
+            assert!(all_pixels(&mut s).iter().all(|p| p == "#00000000"));
+        } else {
+            assert_eq!(out["changed"], false);
+            assert_eq!(all_pixels(&mut s), before);
+        }
     }
 }
 
@@ -496,6 +554,22 @@ fn shaped_selections_limit_fill_adjust_and_effect_to_the_shape() {
     let rgba = s.cel_rgba(&id, 0, 0);
     assert_eq!(px(&rgba, 6, 5, 5), [0, 0, 255, 255], "outside the triangle");
     assert_ne!(px(&rgba, 6, 0, 0), [0, 0, 255, 255]);
+    // Pixel adjust.apply inside an ellipse.
+    s.ok("select.all", json!({}));
+    s.ok(
+        "draw.rect",
+        json!({ "x0": 0, "y0": 0, "x1": 5, "y1": 5, "color": "#0000ff", "filled": true }),
+    );
+    s.ok(
+        "select.ellipse",
+        json!({ "x": 0, "y": 0, "width": 6, "height": 6 }),
+    );
+    s.ok("adjust.apply", json!({ "id": "invert" }));
+    let rgba = s.cel_rgba(&id, 0, 0);
+    assert_eq!(px(&rgba, 6, 3, 3), [255, 255, 0, 255], "inside the ellipse");
+    for (x, y) in [(0, 0), (5, 0), (0, 5), (5, 5)] {
+        assert_eq!(px(&rgba, 6, x, y), [0, 0, 255, 255], "corner ({x}, {y})");
+    }
 
     let mut s = S::new();
     let id = s.new_image(6, 6);
@@ -515,6 +589,20 @@ fn shaped_selections_limit_fill_adjust_and_effect_to_the_shape() {
     assert_ne!(px_at(&s, 3, 3).b, 255);
     s.ok("effect.apply", json!({ "id": "gaussian_blur" }));
     assert_eq!(px_at(&s, 0, 0).b, 255);
+
+    // Image draw.fill inside a polygon.
+    let mut s = S::new();
+    let id = s.new_image(6, 6);
+    s.ok(
+        "select.polygon",
+        json!({ "points": [[0, 0], [6, 0], [0, 6]] }),
+    );
+    s.ok("draw.fill", json!({ "x": 1, "y": 1, "color": "#ff0000" }));
+    let layer = &s.image(&id).document().layers()[0].pixels;
+    let at = |x, y| layer.get_pixel(x, y).expect("pixel");
+    assert_eq!((at(1, 1).r, at(1, 1).a), (255, 255), "inside the triangle");
+    assert_eq!(at(5, 5).a, 0, "outside the triangle");
+    assert_eq!(at(4, 4).a, 0, "outside the triangle, inside its bounds");
 }
 
 #[test]
@@ -596,6 +684,7 @@ fn select_wand_seed_outside_the_canvas_fails_naming_seed_and_canvas() {
 
 #[test]
 fn bad_selection_arguments_fail_naming_the_argument() {
+    // (tool, arguments, the argument named, its allowed values or range)
     for image in [false, true] {
         let mut s = S::new();
         if image {
@@ -608,33 +697,44 @@ fn bad_selection_arguments_fail_naming_the_argument() {
                 "select.rect",
                 json!({ "x": 0, "y": 0, "width": 2, "height": 2, "mode": "xor" }),
                 "mode",
+                "replace, add, subtract, intersect",
             ),
             (
                 "select.wand",
                 json!({ "x": 0, "y": 0, "sample": "screen" }),
                 "sample",
+                "current_layer, all_layers",
             ),
             (
                 "select.wand",
                 json!({ "x": 0, "y": 0, "tolerance": 256 }),
                 "tolerance",
+                "0–255",
             ),
-            ("select.expand", json!({ "radius": 0 }), "radius"),
-            ("select.contract", json!({ "radius": 251 }), "radius"),
+            ("select.expand", json!({ "radius": 0 }), "radius", "1–250"),
+            (
+                "select.contract",
+                json!({ "radius": 251 }),
+                "radius",
+                "1–250",
+            ),
             (
                 "select.rect",
                 json!({ "x": 0, "y": 0, "width": 0, "height": 2 }),
                 "width",
+                "at least 1",
             ),
             (
                 "select.rect",
                 json!({ "x": 0.5, "y": 0, "width": 2, "height": 2 }),
                 "x",
+                "integer",
             ),
             (
                 "select.ellipse",
                 json!({ "x": 0, "y": 0, "width": 2, "height": 2.5 }),
                 "height",
+                "integer",
             ),
         ];
         if image {
@@ -642,15 +742,24 @@ fn bad_selection_arguments_fail_naming_the_argument() {
                 "select.rect",
                 json!({ "x": 0, "y": 0, "width": 2, "height": 2, "feather": 251 }),
                 "feather",
+                "0–250",
             ));
-            cases.push(("select.feather", json!({ "radius": 300 }), "radius"));
+            cases.push((
+                "select.feather",
+                json!({ "radius": 300 }),
+                "radius",
+                "1–250",
+            ));
         } else {
-            cases.push(("select.wand", json!({ "x": 0.5, "y": 0 }), "x"));
+            cases.push(("select.wand", json!({ "x": 0.5, "y": 0 }), "`x`", "integer"));
         }
-        for (tool, args, arg) in cases {
+        for (tool, args, arg, allowed) in cases {
             let before = s.ok("doc.info", json!({}));
             let e = s.err(tool, args.clone());
-            assert!(e.contains(arg), "image={image} {tool} {args}: {e}");
+            assert!(
+                e.contains(arg) && e.contains(allowed),
+                "image={image} {tool} {args}: {e}"
+            );
             assert_eq!(s.ok("doc.info", json!({})), before);
         }
     }
@@ -886,6 +995,17 @@ fn select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason() {
         );
         assert_eq!(s.state(&id), before);
     }
+    // A layer inside a locked group.
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    s.ok(
+        "layer.move",
+        json!({ "layer": 0, "target": 1, "place": "into" }),
+    );
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    let before = s.state(&id);
+    let e = s.err("select.delete", json!({ "layer": 0 }));
+    assert!(e.contains("locked") && e.contains("layer 0"), "{e}");
+    assert_eq!(s.state(&id), before);
 
     let mut s = S::new();
     let id = s.new_image(4, 4);
@@ -894,15 +1014,30 @@ fn select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason() {
     for (layer, reason) in [(0, "locked"), (1, "group")] {
         let before = s.image(&id).document().clone();
         let e = s.err("select.delete", json!({ "layer": layer }));
-        assert!(e.contains(reason), "{e}");
+        assert!(
+            e.contains(reason) && e.contains(&format!("layer {layer}")),
+            "{e}"
+        );
         assert_eq!(s.image(&id).document(), &before);
     }
+    // A layer inside a locked group.
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    s.ok(
+        "layer.move",
+        json!({ "layer": 0, "target": 1, "place": "into" }),
+    );
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    let before = s.image(&id).document().clone();
+    let e = s.err("select.delete", json!({ "layer": 0 }));
+    assert!(e.contains("locked") && e.contains("layer 0"), "{e}");
+    assert_eq!(s.image(&id).document(), &before);
 }
 
 #[test]
 fn selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value() {
     let mut s = S::new();
-    s.new_doc(4, 4);
+    let id = s.new_doc(4, 4);
+    s.ok("select.all", json!({}));
     for (tool, args, needle) in [
         (
             "select.wand",
@@ -917,17 +1052,22 @@ fn selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value(
         ("select.delete", json!({ "layer": 9 }), "`layer`"),
         ("select.delete", json!({ "frame": 9 }), "frame 9"),
     ] {
+        let before = s.state(&id);
         let e = s.err(tool, args);
         assert!(e.contains(needle) && e.contains('9'), "{tool}: {e}");
+        assert_eq!(s.state(&id), before, "{tool}");
     }
     let mut s = S::new();
-    s.new_image(4, 4);
+    let id = s.new_image(4, 4);
+    s.ok("select.all", json!({}));
     for (tool, args) in [
         ("select.wand", json!({ "x": 0, "y": 0, "layer": 9 })),
         ("select.delete", json!({ "layer": 9 })),
     ] {
+        let before = s.image(&id).document().clone();
         let e = s.err(tool, args);
         assert!(e.contains("`layer`") && e.contains('9'), "{tool}: {e}");
+        assert_eq!(s.image(&id).document(), &before, "{tool}");
     }
 }
 

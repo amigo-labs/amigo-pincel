@@ -23,6 +23,9 @@ pub(crate) struct Doc {
     pub active_frame: FrameIndex,
     /// The file the document was opened from or last saved to.
     pub path: Option<String>,
+    /// The file a document without a file of its own was made from (a PNG
+    /// opened with `mode: "pixel"`); `doc.save` suggests its stem.
+    pub source_name: Option<String>,
     /// Changed since it was opened, created or last saved.
     pub dirty: bool,
 }
@@ -57,6 +60,7 @@ impl Doc {
             active_layer: None,
             active_frame: FrameIndex::new(0),
             path,
+            source_name: None,
             dirty: false,
         }
     }

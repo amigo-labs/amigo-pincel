@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: both
@@ -65,65 +65,65 @@ Decision Log 2026-11-05 "MCP tool parity" sets the naming rule. A capability get
 
 ### Tool list and naming
 
-- [ ] AC-01 (always): `tools/list` contains `select.rect`, `select.ellipse`, `select.polygon`, `select.wand`, `select.all`, `select.clear`, `select.invert`, `select.expand`, `select.contract`, `select.feather`, `select.get`, `select.delete`, `layer.flip` and `layer.rotate`, each meeting `mcp-headless-pixel` AC-02, and contains neither `selection.set_rect` nor `selection.clear`.
-- [ ] AC-02 (error): If `tools/call` names `selection.set_rect` or `selection.clear`, then the server answers as for any unknown tool (`mcp-headless-pixel` AC-37).
+- [x] AC-01 (always): `tools/list` contains `select.rect`, `select.ellipse`, `select.polygon`, `select.wand`, `select.all`, `select.clear`, `select.invert`, `select.expand`, `select.contract`, `select.feather`, `select.get`, `select.delete`, `layer.flip` and `layer.rotate`, each meeting `mcp-headless-pixel` AC-02, and contains neither `selection.set_rect` nor `selection.clear`.
+- [x] AC-02 (error): If `tools/call` names `selection.set_rect` or `selection.clear`, then the server answers as for any unknown tool (`mcp-headless-pixel` AC-37).
 
 ### Selecting
 
-- [ ] AC-03 (event): When the client calls `select.rect` or `select.ellipse` with `x`, `y`, `width`, `height` and a `mode` (`replace` by default, `add`, `subtract` or `intersect`) on a document of either mode, then the document's selection equals the one the editor's Rectangle or Ellipse Select makes from the same rectangle and mode.
-- [ ] AC-04 (event): When the client calls `select.polygon` with `points` (at least three `[x, y]` pairs, the polygon implicitly closed) and a `mode`, then the document's selection equals the one the editor's Lasso / Polygonal Lasso makes from the same points and mode.
-- [ ] AC-05 (event): When the client calls `select.wand` with a seed `x`, `y`, `tolerance`, `contiguous`, `sample` (`current_layer`, the target layer at the target frame, or `all_layers`, the composed frame) and a `mode`, then the document's selection equals the one the editor's Magic Wand makes with the same settings. Omitted settings take the defaults of the document's editor: `tolerance` 0 in Pixel documents and 32 in Image documents, `contiguous: true`, `sample: current_layer`, `mode: replace`.
-- [ ] AC-06 (event): When a `subtract` or `intersect` shape is applied while no selection exists, then the result follows each editor: in a Pixel document no selection exists afterwards; in an Image document, where no selection counts as everything selected, `subtract` selects the canvas minus the shape and `intersect` selects the shape. In both modes `add` without a selection selects the shape.
-- [ ] AC-07 (option): Where `select.rect`, `select.ellipse` or `select.polygon` on an Image document gets `feather` (0–250 px, default 0), the selection's coverage equals the editor's for that feather radius.
-- [ ] AC-08 (event): When the client calls `select.all`, `select.invert`, `select.expand` (`radius`) or `select.contract` (`radius`), then the selection equals the editor's after Select All, Invert Selection, Expand or Contract by that radius. `select.invert` without a selection selects nothing in an Image document and the whole canvas in a Pixel document, as each editor does. `select.expand` / `select.contract` without a selection succeed and change nothing.
-- [ ] AC-09 (event): When the client calls `select.feather` with `radius` on an Image document, then the selection's coverage equals the editor's after Feather Selection by that radius.
-- [ ] AC-10 (event): When the client calls `select.clear`, then no selection exists afterwards, and `draw.fill`, `adjust.apply`, `effect.apply` and `select.delete` act on the whole target layer again.
-- [ ] AC-11 (always): Every successful call of a selection tool (`select.rect`, `select.ellipse`, `select.polygon`, `select.wand`, `select.all`, `select.clear`, `select.invert`, `select.expand`, `select.contract`, `select.feather`) returns the selection's bounds, or `null` when nothing is selected, and the selected-pixel count. In an Image document, such a call that changes the selection's coverage is exactly one undo step, and one that leaves it unchanged (for example `select.clear` without a selection, or a second `select.all`) adds none. In a Pixel document no selection tool adds an undo step, and `doc.undo` does not change the selection a selection tool set. Pixel edits that move the selection with the pixels (`select.move_content` in `mcp-parity-selection-transform-content`) are undo steps of their own.
-- [ ] AC-12 (state): While a shaped selection (ellipse, polygon, wand, or a combination) exists, `draw.fill`, `adjust.apply` and `effect.apply` change no pixel outside the shape in either mode, not only no pixel outside its bounding box.
+- [x] AC-03 (event): When the client calls `select.rect` or `select.ellipse` with `x`, `y`, `width`, `height` and a `mode` (`replace` by default, `add`, `subtract` or `intersect`) on a document of either mode, then the document's selection equals the one the editor's Rectangle or Ellipse Select makes from the same rectangle and mode.
+- [x] AC-04 (event): When the client calls `select.polygon` with `points` (at least three `[x, y]` pairs, the polygon implicitly closed) and a `mode`, then the document's selection equals the one the editor's Lasso / Polygonal Lasso makes from the same points and mode.
+- [x] AC-05 (event): When the client calls `select.wand` with a seed `x`, `y`, `tolerance`, `contiguous`, `sample` (`current_layer`, the target layer at the target frame, or `all_layers`, the composed frame) and a `mode`, then the document's selection equals the one the editor's Magic Wand makes with the same settings. Omitted settings take the defaults of the document's editor: `tolerance` 0 in Pixel documents and 32 in Image documents, `contiguous: true`, `sample: current_layer`, `mode: replace`.
+- [x] AC-06 (event): When a `subtract` or `intersect` shape is applied while no selection exists, then the result follows each editor: in a Pixel document no selection exists afterwards; in an Image document, where no selection counts as everything selected, `subtract` selects the canvas minus the shape and `intersect` selects the shape. In both modes `add` without a selection selects the shape.
+- [x] AC-07 (option): Where `select.rect`, `select.ellipse` or `select.polygon` on an Image document gets `feather` (0–250 px, default 0), the selection's coverage equals the editor's for that feather radius.
+- [x] AC-08 (event): When the client calls `select.all`, `select.invert`, `select.expand` (`radius`) or `select.contract` (`radius`), then the selection equals the editor's after Select All, Invert Selection, Expand or Contract by that radius. `select.invert` without a selection selects nothing in an Image document and the whole canvas in a Pixel document, as each editor does. `select.expand` / `select.contract` without a selection succeed and change nothing.
+- [x] AC-09 (event): When the client calls `select.feather` with `radius` on an Image document, then the selection's coverage equals the editor's after Feather Selection by that radius.
+- [x] AC-10 (event): When the client calls `select.clear`, then no selection exists afterwards, and `draw.fill`, `adjust.apply` and `effect.apply` act on the whole target layer again; `select.delete` acts as without a selection (AC-22): it clears the whole target layer in an Image document and changes nothing in a Pixel document.
+- [x] AC-11 (always): Every successful call of a selection tool (`select.rect`, `select.ellipse`, `select.polygon`, `select.wand`, `select.all`, `select.clear`, `select.invert`, `select.expand`, `select.contract`, `select.feather`) returns the selection's bounds, or `null` when nothing is selected, and the selected-pixel count. In an Image document, such a call that changes the selection's coverage is exactly one undo step, and one that leaves it unchanged (for example `select.clear` without a selection, or a second `select.all`) adds none. In a Pixel document no selection tool adds an undo step, and `doc.undo` does not change the selection a selection tool set. Pixel edits that move the selection with the pixels (`select.move_content` in `mcp-parity-selection-transform-content`) are undo steps of their own.
+- [x] AC-12 (state): While a shaped selection (ellipse, polygon, wand, or a combination) exists, `draw.fill`, `adjust.apply` and `effect.apply` change no pixel outside the shape in either mode, not only no pixel outside its bounding box.
 
 ### Selection errors
 
-- [ ] AC-13 (error): If `select.feather` is called on a Pixel document, or `select.rect` / `select.ellipse` / `select.polygon` gets a `feather` above 0 on a Pixel document, then the call fails with `isError: true`, the message names `feather` and the document's mode, and the selection is unchanged.
-- [ ] AC-14 (error): If `select.polygon` gets fewer than three points, a point that is not a pair of numbers, or (on a Pixel document) a non-integer coordinate, then the call fails with `isError: true` naming `points` and the offending entry, and the selection is unchanged.
-- [ ] AC-15 (error): If the `select.wand` seed lies outside the canvas, then the call fails with `isError: true` naming the seed and the canvas size, and the selection is unchanged.
-- [ ] AC-16 (error): If a `mode`, `sample`, `direction`, `anchor` or `interpolation` value is not one of the listed values, `angle` is not 90, 180 or 270, `tolerance` is outside 0–255, `radius` is outside 1–250, `feather` is outside 0–250, `width` / `height` is below 1, or `x`, `y`, `width` or `height` of `select.rect` / `select.ellipse` (or the `select.wand` seed in a Pixel document) is not an integer, then the call fails with `isError: true` naming the argument and its allowed values or range, and the document is unchanged.
+- [x] AC-13 (error): If `select.feather` is called on a Pixel document, or `select.rect` / `select.ellipse` / `select.polygon` gets a `feather` above 0 on a Pixel document, then the call fails with `isError: true`, the message names `feather` and the document's mode, and the selection is unchanged.
+- [x] AC-14 (error): If `select.polygon` gets fewer than three points, a point that is not a pair of numbers, or (on a Pixel document) a non-integer coordinate, then the call fails with `isError: true` naming `points` and the offending entry, and the selection is unchanged.
+- [x] AC-15 (error): If the `select.wand` seed lies outside the canvas, then the call fails with `isError: true` naming the seed and the canvas size, and the selection is unchanged.
+- [x] AC-16 (error): If a `mode`, `sample`, `direction`, `anchor` or `interpolation` value is not one of the listed values, `angle` is not 90, 180 or 270, `tolerance` is outside 0–255, `radius` is outside 1–250, `feather` is outside 0–250, `width` / `height` is below 1, or `x`, `y`, `width` or `height` of `select.rect` / `select.ellipse` (or the `select.wand` seed in a Pixel document) is not an integer, then the call fails with `isError: true` naming the argument and its allowed values or range, and the document is unchanged.
 
 ### Reading the selection
 
-- [ ] AC-17 (event): When the client calls `select.get` with a `region` (`{x, y, width, height}`, the argument form of `doc.read_pixels`) of at most 64×64 inside the canvas, then the result carries the selection's bounds (or `null`), the selected-pixel count over the whole canvas, the `region` read, and `rows`: one text row per pixel row of the region, as in `doc.read_pixels`. Each row holds one two-digit lowercase hex coverage value per pixel, separated by single spaces: `00` unselected and `ff` selected, and in an Image document every value 00–ff the coverage has.
-- [ ] AC-18 (option): Where `select.get` gets no `region`, the region is the selection's bounds. Without a selection, the result carries `null` bounds, a count of 0 and no rows.
-- [ ] AC-19 (error): If the `select.get` region (given, or the bounds when omitted) is larger than 64×64 in either dimension, or lies wholly or partly outside the canvas (it is not clipped), then the call fails with `isError: true`, and the message states the 64×64 limit (suggesting `region`) or the canvas size.
-- [ ] AC-20 (always): `select.get` never changes the document, the selection or the undo history.
+- [x] AC-17 (event): When the client calls `select.get` with a `region` (`{x, y, width, height}`, the argument form of `doc.read_pixels`) of at most 64×64 inside the canvas, then the result carries the selection's bounds (or `null`), the selected-pixel count over the whole canvas, the `region` read, and `rows`: one text row per pixel row of the region, as in `doc.read_pixels`. Each row holds one two-digit lowercase hex coverage value per pixel, separated by single spaces: `00` unselected and `ff` selected, and in an Image document every value 00–ff the coverage has.
+- [x] AC-18 (option): Where `select.get` gets no `region`, the region is the selection's bounds. Without a selection, the result carries `null` bounds, a count of 0 and no rows.
+- [x] AC-19 (error): If the `select.get` region (given, or the bounds when omitted) is larger than 64×64 in either dimension, or lies wholly or partly outside the canvas (it is not clipped), then the call fails with `isError: true`, and the message states the 64×64 limit (suggesting `region`) or the canvas size.
+- [x] AC-20 (always): `select.get` never changes the document, the selection or the undo history.
 
 ### Delete
 
-- [ ] AC-21 (event): When the client calls `select.delete` while a selection exists, then the target layer's pixels at the target frame equal the editor's after Delete. Every selected pixel becomes transparent; in an Image document, a feathered pixel's alpha is scaled down by its coverage. No pixel outside the selection changes, the selection stays, and the result is `{doc, layer, changed}`. The call is one undo step when a pixel changed. When every selected pixel was already transparent, it reports `changed: false` and adds no undo step (AC-36).
-- [ ] AC-22 (state): While no selection exists, `select.delete` acts as each editor's Delete does: in an Image document it clears the whole target layer (one undo step when a pixel changed, AC-36); in a Pixel document it changes nothing, adds no undo step and reports `changed: false`.
-- [ ] AC-23 (error): If `select.delete` targets a locked layer (or a layer in a locked group), a group, or a tilemap layer, then the call fails with `isError: true` naming the layer and the reason, and the document is unchanged.
+- [x] AC-21 (event): When the client calls `select.delete` while a selection exists, then the target layer's pixels at the target frame equal the editor's after Delete. Every selected pixel becomes transparent; in an Image document, a feathered pixel's alpha is scaled down by its coverage. No pixel outside the selection changes, the selection stays, and the result is `{doc, layer, changed}`. The call is one undo step when a pixel changed. When every selected pixel was already transparent, it reports `changed: false` and adds no undo step (AC-36).
+- [x] AC-22 (state): While no selection exists, `select.delete` acts as each editor's Delete does: in an Image document it clears the whole target layer (one undo step when a pixel changed, AC-36); in a Pixel document it changes nothing, adds no undo step and reports `changed: false`.
+- [x] AC-23 (error): If `select.delete` targets a locked layer (or a layer in a locked group), a group, or a tilemap layer, then the call fails with `isError: true` naming the layer and the reason, and the document is unchanged.
 
 ### Canvas and image transforms on Pixel documents
 
-- [ ] AC-24 (event): When the client calls `image.flip` (`direction`: `horizontal` or `vertical`) or `image.rotate` (`angle`: 90, 180 or 270 degrees clockwise) on a Pixel document, with the arguments these tools take on Image documents today, then its size, every layer's cels in every frame, and its slices equal the editor's after the matching Flip Canvas / Rotate Canvas command; 90 and 270 swap width and height.
-- [ ] AC-25 (event): When the client calls `canvas.resize` (`width`, `height`, `anchor`) or `image.scale` (`width`, `height`, `interpolation`: `nearest`, `bilinear` or `bicubic`) on a Pixel document, then its size and pixels in every frame equal the editor's after Canvas Size or Scale Image with the same values.
-- [ ] AC-26 (option): Where `anchor` or `interpolation` is omitted, the default of the document's editor applies: `center` and `nearest` in Pixel documents, `top_left` and `bilinear` in Image documents (unchanged from `mcp-headless-image`). `anchor` takes the nine values `canvas.resize` accepts today (`top_left` … `bottom_right`) in both modes.
-- [ ] AC-27 (event): When the client calls `image.crop_to_selection` on a Pixel document with a selection, then the canvas equals the editor's after Crop to Selection, which crops to the selection's bounds clipped to the canvas.
-- [ ] AC-28 (error): If `image.crop_to_selection` is called on a Pixel document without a selection, then it fails as in `mcp-headless-image` AC-14, and the document is unchanged.
-- [ ] AC-29 (error): If `canvas.resize` or `image.scale` on a Pixel document gets a `width` or `height` outside 1–4096, then the call fails with `isError: true` and the message "width must be 1–4096" (or "height must be 1–4096"), and the document is unchanged.
-- [ ] AC-30 (error): If `image.flip`, `image.rotate` or `image.scale` is called on a Pixel document that has a tilemap layer, then the call fails with `isError: true` saying that tilemap layers cannot be transformed, and the document is unchanged.
+- [x] AC-24 (event): When the client calls `image.flip` (`direction`: `horizontal` or `vertical`) or `image.rotate` (`angle`: 90, 180 or 270 degrees clockwise) on a Pixel document, with the arguments these tools take on Image documents today, then its size, every layer's cels in every frame, and its slices equal the editor's after the matching Flip Canvas / Rotate Canvas command; 90 and 270 swap width and height.
+- [x] AC-25 (event): When the client calls `canvas.resize` (`width`, `height`, `anchor`) or `image.scale` (`width`, `height`, `interpolation`: `nearest`, `bilinear` or `bicubic`) on a Pixel document, then its size and pixels in every frame equal the editor's after Canvas Size or Scale Image with the same values.
+- [x] AC-26 (option): Where `anchor` or `interpolation` is omitted, the default of the document's editor applies: `center` and `nearest` in Pixel documents, `top_left` and `bilinear` in Image documents (unchanged from `mcp-headless-image`). `anchor` takes the nine values `canvas.resize` accepts today (`top_left` … `bottom_right`) in both modes.
+- [x] AC-27 (event): When the client calls `image.crop_to_selection` on a Pixel document with a selection, then the canvas equals the editor's after Crop to Selection, which crops to the selection's bounds clipped to the canvas.
+- [x] AC-28 (error): If `image.crop_to_selection` is called on a Pixel document without a selection, then it fails as in `mcp-headless-image` AC-14, and the document is unchanged.
+- [x] AC-29 (error): If `canvas.resize` or `image.scale` on a Pixel document gets a `width` or `height` outside 1–4096, then the call fails with `isError: true` and the message "width must be 1–4096" (or "height must be 1–4096"), and the document is unchanged.
+- [x] AC-30 (error): If `image.flip`, `image.rotate` or `image.scale` is called on a Pixel document that has a tilemap layer, then the call fails with `isError: true` saying that tilemap layers cannot be transformed, and the document is unchanged.
 
 ### Layer transforms
 
-- [ ] AC-31 (event): When the client calls `layer.flip` (`direction`: `horizontal` or `vertical`) or `layer.rotate` (`angle`: 90, 180 or 270 degrees clockwise) on a layer, then the document's pixels equal the editor's after the matching Flip / Rotate Layer command on that layer, and the canvas size is unchanged. In a Pixel document this applies to the target frame's cel. In an Image document a group's whole subtree turns, as in the editor. The result is `{doc, layer, changed}`.
-- [ ] AC-32 (state): While a selection exists in a Pixel document, `layer.flip` and `layer.rotate` turn only the pixels inside the selection's bounds, about the centre of those bounds, as the Pixel editor does. In an Image document they turn the whole layer whatever is selected, as the Image editor does.
-- [ ] AC-33 (error): If `layer.flip` or `layer.rotate` targets a locked layer, a layer in a locked group, a group containing a locked layer (Image), or a group or tilemap layer (Pixel), then the call fails with `isError: true` naming the layer and the reason, and the document is unchanged.
+- [x] AC-31 (event): When the client calls `layer.flip` (`direction`: `horizontal` or `vertical`) or `layer.rotate` (`angle`: 90, 180 or 270 degrees clockwise) on a layer, then the document's pixels equal the editor's after the matching Flip / Rotate Layer command on that layer, and the canvas size is unchanged. In a Pixel document this applies to the target frame's cel. In an Image document a group's whole subtree turns, as in the editor. The result is `{doc, layer, changed}`.
+- [x] AC-32 (state): While a selection exists in a Pixel document, `layer.flip` and `layer.rotate` turn only the pixels inside the selection's bounds, about the centre of those bounds, as the Pixel editor does. In an Image document they turn the whole layer whatever is selected, as the Image editor does.
+- [x] AC-33 (error): If `layer.flip` or `layer.rotate` targets a locked layer, a layer in a locked group, a group containing a locked layer (Image), or a group or tilemap layer (Pixel), then the call fails with `isError: true` naming the layer and the reason, and the document is unchanged.
 
 ### Shared rules
 
-- [ ] AC-34 (error): If a tool of this spec names a `layer` or `frame` that does not exist, then the call fails with `isError: true` naming the argument and its value, and the document is unchanged.
-- [ ] AC-35 (error): If the core command the editor issues for a tool of this spec refuses the call (for example a cel color mode the command does not support), then the call fails with `isError: true` carrying the command's reason, and the document is unchanged.
-- [ ] AC-36 (always): Every successful call of `select.delete`, `layer.flip`, `layer.rotate`, `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate` that changes the document is exactly one undo step (`mcp-headless-pixel` AC-09); one that changes nothing adds no undo step. `canvas.resize` and the `image.*` tools report `{doc, width, height, changed}` in both modes, as on Image documents today.
-- [ ] AC-37 (always): The `pincel://guide` resource names every tool of this spec and the modes it works in, and states the per-mode differences: selection undo, `feather` and `select.feather` only in Image mode, the per-mode defaults of AC-05 and AC-26, and Delete and layer transforms with and without a selection.
-- [ ] AC-38 (event): When `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate` succeeds on a Pixel document, then no selection exists afterwards, and one `doc.undo` restores the selection the document had before the call, together with its size and pixels, as the Pixel editor's commands do.
+- [x] AC-34 (error): If a tool of this spec names a `layer` or `frame` that does not exist, then the call fails with `isError: true` naming the argument and its value, and the document is unchanged.
+- [x] AC-35 (error): If the core command the editor issues for a tool of this spec refuses the call (for example a cel color mode the command does not support), then the call fails with `isError: true` carrying the command's reason, and the document is unchanged.
+- [x] AC-36 (always): Every successful call of `select.delete`, `layer.flip`, `layer.rotate`, `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate` that changes the document is exactly one undo step (`mcp-headless-pixel` AC-09); one that changes nothing adds no undo step. `canvas.resize` and the `image.*` tools report `{doc, width, height, changed}` in both modes, as on Image documents today.
+- [x] AC-37 (always): The `pincel://guide` resource names every tool of this spec and the modes it works in, and states the per-mode differences: selection undo, `feather` and `select.feather` only in Image mode, the per-mode defaults of AC-05 and AC-26, and Delete and layer transforms with and without a selection.
+- [x] AC-38 (event): When `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` or `image.rotate` succeeds on a Pixel document, then no selection exists afterwards, and one `doc.undo` restores the selection the document had before the call, together with its size and pixels, as the Pixel editor's commands do.
 
 ## Technical notes
 
@@ -188,44 +188,53 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
-| AC-02 | `selection_set_rect_and_selection_clear_are_unknown_tools` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-03 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-04 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-05 | `select_wand_matches_the_editor_with_each_modes_defaults` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-06 | `pixel_subtract_or_intersect_without_selection_selects_nothing`, `image_subtract_or_intersect_without_selection_follows_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-07 | `image_feather_matches_the_editors_coverage` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-08 | `select_all_invert_expand_contract_match_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-09 | `select_feather_matches_the_editor_on_image_documents` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-10 | `select_clear_lets_edits_act_on_the_whole_layer` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-11 | `selection_undo_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-12 | `shaped_selections_limit_fill_adjust_and_effect_to_the_shape` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-13 | `feather_on_a_pixel_document_fails_naming_feather_and_the_mode` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-14 | `select_polygon_with_bad_points_fails_naming_the_entry` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-15 | `select_wand_seed_outside_the_canvas_fails_naming_seed_and_canvas` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-16 | `bad_selection_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/select.rs`), `bad_transform_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-17 | `select_get_reports_bounds_count_and_coverage_rows` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-18 | `select_get_without_selection_returns_null_bounds_and_no_rows` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-19 | `select_get_refuses_large_or_off_canvas_regions` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-20 | `select_get_changes_nothing` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-21 | `select_delete_clears_the_selected_pixels_like_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-22 | `select_delete_without_selection_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-23 | `select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-24 | `pixel_flip_and_rotate_equal_the_editors_canvas_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-25 | `pixel_resize_and_scale_equal_the_editors_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-26 | `resize_and_scale_defaults_follow_each_editor` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-27 | `pixel_crop_to_selection_crops_to_the_clipped_bounds` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-28 | `pixel_crop_without_selection_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-29 | `pixel_sizes_outside_1_to_4096_fail` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-30 | `pixel_transforms_refuse_tilemap_documents` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-31 | `layer_flip_and_rotate_equal_the_editors_layer_commands` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-32 | `layer_transforms_follow_each_editors_selection_rule` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-33 | `layer_transforms_refuse_locked_group_and_tilemap_targets` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-34 | `selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value` (`crates/pincel-agent/src/tests/select.rs`), `layer_transforms_naming_a_missing_layer_or_frame_fail` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-35 | `a_refusing_core_command_fails_with_its_reason` (`crates/pincel-agent/src/tests/select.rs`) | built  |        |
-| AC-36 | `transforms_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
-| AC-37 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
-| AC-38 | `pixel_canvas_transforms_clear_the_selection_and_undo_restores_it` (`crates/pincel-agent/src/tests/transform.rs`) | built  |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | verified |  |
+| AC-02 | `selection_set_rect_and_selection_clear_are_unknown_tools` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-03 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-04 | `select_shapes_combine_like_the_editor_in_both_modes` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-05 | `select_wand_matches_the_editor_with_each_modes_defaults` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-06 | `pixel_subtract_or_intersect_without_selection_selects_nothing`, `image_subtract_or_intersect_without_selection_follows_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-07 | `image_feather_matches_the_editors_coverage` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-08 | `select_all_invert_expand_contract_match_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-09 | `select_feather_matches_the_editor_on_image_documents` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-10 | `select_clear_lets_edits_act_on_the_whole_layer` (`crates/pincel-agent/src/tests/select.rs`) | verified | 8f3e675 |
+| AC-11 | `selection_undo_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-12 | `shaped_selections_limit_fill_adjust_and_effect_to_the_shape` (`crates/pincel-agent/src/tests/select.rs`) | verified | ce92614 |
+| AC-13 | `feather_on_a_pixel_document_fails_naming_feather_and_the_mode` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-14 | `select_polygon_with_bad_points_fails_naming_the_entry` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-15 | `select_wand_seed_outside_the_canvas_fails_naming_seed_and_canvas` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-16 | `bad_selection_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/select.rs`), `bad_transform_arguments_fail_naming_the_argument` (`crates/pincel-agent/src/tests/transform.rs`) | verified | ce92614 |
+| AC-17 | `select_get_reports_bounds_count_and_coverage_rows` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-18 | `select_get_without_selection_returns_null_bounds_and_no_rows` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-19 | `select_get_refuses_large_or_off_canvas_regions` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-20 | `select_get_changes_nothing` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-21 | `select_delete_clears_the_selected_pixels_like_the_editor` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-22 | `select_delete_without_selection_follows_each_editor` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-23 | `select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason` (`crates/pincel-agent/src/tests/select.rs`) | verified | ce92614 |
+| AC-24 | `pixel_flip_and_rotate_equal_the_editors_canvas_commands` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-25 | `pixel_resize_and_scale_equal_the_editors_commands` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-26 | `resize_and_scale_defaults_follow_each_editor` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-27 | `pixel_crop_to_selection_crops_to_the_clipped_bounds` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-28 | `pixel_crop_without_selection_fails_and_changes_nothing` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-29 | `pixel_sizes_outside_1_to_4096_fail` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-30 | `pixel_transforms_refuse_tilemap_documents` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-31 | `layer_flip_and_rotate_equal_the_editors_layer_commands` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-32 | `layer_transforms_follow_each_editors_selection_rule` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-33 | `layer_transforms_refuse_locked_group_and_tilemap_targets`, `layer_transforms_refuse_a_layer_inside_a_locked_pixel_group` (`crates/pincel-agent/src/tests/transform.rs`) | verified | ce92614 |
+| AC-34 | `selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value` (`crates/pincel-agent/src/tests/select.rs`), `layer_transforms_naming_a_missing_layer_or_frame_fail` (`crates/pincel-agent/src/tests/transform.rs`) | verified | ce92614 |
+| AC-35 | `a_refusing_core_command_fails_with_its_reason` (`crates/pincel-agent/src/tests/select.rs`) | verified |  |
+| AC-36 | `transforms_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+| AC-37 | `read_resource_guide_covers_workflow_and_both_modes`, `guide_names_the_modes_of_the_selection_and_transform_tools` (`crates/pincel-agent/src/resources.rs`) | verified | ce92614 |
+| AC-38 | `pixel_canvas_transforms_clear_the_selection_and_undo_restores_it` (`crates/pincel-agent/src/tests/transform.rs`) | verified |  |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- `select.rect`, `select.ellipse`, `select.polygon` and `select.wand` with replace / add / subtract / intersect on both modes (feather on Image documents), plus `select.all`, `select.clear`, `select.invert`, `select.expand`, `select.contract` and Image-only `select.feather`; `selection.set_rect` / `selection.clear` removed without alias
+- `select.get` reads the selection's bounds, count and a hex coverage grid of up to 64×64; `select.delete` is each editor's Delete
+- `canvas.resize`, `image.scale`, `image.crop_to_selection`, `image.flip` and `image.rotate` work on Pixel documents (per-mode defaults, selection cleared and restored by undo); new `layer.flip` / `layer.rotate` follow each editor's selection rule
+- The Pixel combine rule and wand sample buffers moved into `pincel-core` (`Sprite::combine_selection`, `layer_canvas`, `composite_canvas`); `SelectionMask::{expand, contract}` became O(w·h) whatever the radius
 
 ## Decisions
 
@@ -248,3 +257,5 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 - 2026-11-06 (spec-build): The Image half of AC-06 (`image_subtract_or_intersect_without_selection_follows_the_editor`) was green at once, because the tools already predict with the Image core's `apply_mode`; no red run was possible. Counter-check: with `apply_mode` temporarily starting Subtract / Intersect from an empty mask instead of a full one, the test failed at `subtract` (bounds `null` instead of the whole canvas); reverted.
 - 2026-11-06 (spec-build): The Assumptions risk was measured with a release-build timing probe on a 4096×4096 Pixel mask with a centred 2048×2048 rectangle at radius 250. The window scan of `SelectionMask::{expand, contract}` did not finish within 120 s; at 512×512 its `expand` alone took 29.6 s (256×256: 5.4 s), so 4096×4096 (64 times the pixels) extrapolates to about half an hour. Fixed at the cause in `pincel-core`: the square is separable, so `morph` now runs a row pass over prefix counts and a column pass with running column sums, O(w·h) whatever the radius — 0.20 s for `expand` and 0.19 s for `contract` at 4096×4096, radius 250 (release). `expand_and_contract_equal_the_window_scan` pins the output to the old window scan (kept in the test module as the oracle) over 540 cases: four fixed masks (empty, full, one pixel, an ellipse) and five noise densities on six canvases from 1×1 to 24×17, at ten radii from 0 to beyond the canvas. It was green on the old code by construction (the oracle is that code); counter-check: dropping the top-edge clip from the new contract made it fail (`contract 13x9 r1`); reverted. No public API changed. The only difference from the old code is a radius above `i32::MAX`, where the old cast wrapped negative; the tools limit the radius to 1–250.
 - 2026-11-05 (spec-build): New public `pincel-core` API: `Sprite::combine_selection`, `selection::{layer_canvas, composite_canvas}` (Decision Log row 2026-11-05 in `pincel.md` §15).
+- 2026-11-06: Owner decision on the contradiction between AC-10 and AC-22 found at acceptance: AC-22 and the code are right, so in a Pixel document `select.delete` after `select.clear` changes nothing (the Pixel editor's Delete without a selection), while in an Image document it clears the whole layer. AC-10 reworded to defer to AC-22; `draw.fill`, `adjust.apply` and `effect.apply` still act on the whole layer in both modes.
+- 2026-11-06 (spec-build): Acceptance found test gaps in AC-10, AC-12, AC-16, AC-23, AC-33, AC-34 and AC-37; the behavior existed, so the added checks were green at once. Counter-checks, all reverted: Pixel `select.delete` without a selection clearing the whole layer made `select_clear_lets_edits_act_on_the_whole_layer` fail (AC-10; it now also compares `adjust.apply` and `effect.apply` after `select.clear` with the same edits on a document that never had a selection); Pixel `effect.apply` / `adjust.apply` ignoring the selection's shape made `shaped_selections_limit_fill_adjust_and_effect_to_the_shape` fail (AC-12, which now also covers Pixel `adjust.apply` in an ellipse and Image `draw.fill` in a polygon); argument messages without the allowed values or range made `bad_selection_arguments_fail_naming_the_argument` and `bad_transform_arguments_fail_naming_the_argument` fail (AC-16); a Pixel lock check that ignores the group's lock made `select_delete_on_a_locked_group_or_tilemap_layer_fails_with_the_reason`, `layer_transforms_refuse_locked_group_and_tilemap_targets` and `layer_transforms_refuse_a_layer_inside_a_locked_pixel_group` fail, and an Image lock message without the layer id failed the Image cases (AC-23, AC-33); clearing the selection or the slices before the layer / frame is resolved made `selection_tools_naming_a_missing_layer_or_frame_fail_with_argument_and_value` and `layer_transforms_naming_a_missing_layer_or_frame_fail` fail (AC-34); renaming the guide lines "Selecting, both modes:" and "Transforms, both modes:" made `guide_names_the_modes_of_the_selection_and_transform_tools` fail (AC-37).

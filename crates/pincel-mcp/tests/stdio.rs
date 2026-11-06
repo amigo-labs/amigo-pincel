@@ -269,47 +269,51 @@ fn read_only_mode_refuses_palette_export_and_allows_palette_import() {
 
 #[test]
 fn export_selection_that_cannot_write_leaves_the_document_unchanged() {
+    // mcp-parity-selection-transform-content AC-19: the same failure as
+    // `export.png` with that path, and a cut changes nothing.
     let root = temp_workspace("cut");
-    let mut c = Client::spawn(&[], &root);
-    c.initialize();
-    c.tool(
-        "doc.new",
-        json!({ "mode": "pixel", "width": 2, "height": 2 }),
-    );
-    c.tool(
-        "draw.pixels",
-        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ffffff" }] }),
-    );
-    let depth = c.tool("doc.info", json!({}))["structuredContent"]["undo_depth"].clone();
-    let r = c.tool(
-        "export.selection",
-        json!({ "path": "../out.png", "cut": true }),
-    );
-    assert_eq!(r["isError"], true, "{r}");
-    let text = r["content"][0]["text"].as_str().unwrap_or_default();
-    assert!(text.contains("E007"), "{text}");
-    let info = c.tool("doc.info", json!({}));
-    assert_eq!(info["structuredContent"]["undo_depth"], depth);
-    drop(c);
-
-    let mut c = Client::spawn(&["--read-only"], &root);
-    c.initialize();
-    c.tool(
-        "doc.new",
-        json!({ "mode": "image", "width": 2, "height": 2 }),
-    );
-    let r = c.tool(
-        "export.selection",
-        json!({ "path": "out.png", "cut": true }),
-    );
-    assert_eq!(r["isError"], true, "{r}");
-    let text = r["content"][0]["text"].as_str().unwrap_or_default();
-    assert!(text.contains("read-only"), "{text}");
-    assert_eq!(
-        c.tool("doc.info", json!({}))["structuredContent"]["undo_depth"],
-        0
-    );
+    let outside = format!("pincel-mcp-it-cut-out-{}.png", std::process::id());
+    let escaping = format!("../{outside}");
+    for (flags, path, reason) in [
+        (&[][..], escaping.as_str(), "E007"),
+        (&["--read-only"][..], "out.png", "read-only"),
+    ] {
+        for mode in ["pixel", "image"] {
+            let mut c = Client::spawn(flags, &root);
+            c.initialize();
+            c.tool("doc.new", json!({ "mode": mode, "width": 2, "height": 2 }));
+            c.tool("draw.fill", json!({ "x": 0, "y": 0, "color": "#ffffff" }));
+            let region = json!({ "region": { "x": 0, "y": 0, "width": 2, "height": 2 } });
+            let pixels = c.tool("doc.read_pixels", region.clone())["structuredContent"].clone();
+            assert!(pixels["rows"].is_array(), "{mode}: {pixels}");
+            let depth = c.tool("doc.info", json!({}))["structuredContent"]["undo_depth"].clone();
+            let png = c.tool("export.png", json!({ "path": path }));
+            assert_eq!(png["isError"], true, "{mode} {path}: {png}");
+            let png_text = png["content"][0]["text"].as_str().unwrap_or_default();
+            assert!(png_text.contains(reason), "{mode} {path}: {png_text}");
+            for cut in [false, true] {
+                let r = c.tool("export.selection", json!({ "path": path, "cut": cut }));
+                assert_eq!(r["isError"], true, "{mode} {path} cut {cut}: {r}");
+                assert_eq!(
+                    r["content"][0]["text"], png["content"][0]["text"],
+                    "{mode} {path} cut {cut}: fails as export.png does"
+                );
+            }
+            let info = c.tool("doc.info", json!({}));
+            assert_eq!(
+                info["structuredContent"]["undo_depth"], depth,
+                "{mode} {path}"
+            );
+            assert_eq!(
+                c.tool("doc.read_pixels", region)["structuredContent"],
+                pixels,
+                "{mode} {path}: the cut left the pixels"
+            );
+        }
+    }
     assert!(!root.join("out.png").exists());
+    let parent = root.parent().expect("temp dir");
+    assert!(!parent.join(&outside).exists());
 }
 
 #[test]

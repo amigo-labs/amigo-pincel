@@ -985,6 +985,8 @@ export const en = {
   'save.dontAskAgain': "Don't ask again for this document",
   'save.asTitle': 'Save As',
   'save.format': 'Format',
+  'save.mergeLayers': 'Merge layers in the file',
+  'save.mergeLayersHint': 'The file is saved flattened; the document keeps its layers.',
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.noEncoder': '{format} files cannot be written back. Choose a format to save in.',
   // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)

@@ -365,6 +365,22 @@ impl AnyCommand {
         }
     }
 
+    /// `true` for an applied one-shot paint command (fill, shape, text,
+    /// gradient) that wrote no pixel, which [`Bus::execute`] keeps off the
+    /// undo stack. Strokes and structural commands are never reported:
+    /// a stroke's first segment opens its gesture even when it misses, and
+    /// structural commands report [`DirtyRegion::None`] for changes the
+    /// composite does not show.
+    pub(crate) fn wrote_no_pixel(&self) -> bool {
+        matches!(
+            self,
+            Self::FillRegion(_)
+                | Self::DrawShape(_)
+                | Self::DrawText(_)
+                | Self::DrawDitherGradient(_)
+        ) && self.dirty_region().is_none()
+    }
+
     /// Forward [`Command::dirty_region`] through the enum dispatch so the
     /// bus can surface a per-command dirty rect to its callers.
     pub fn dirty_region(&self) -> DirtyRegion {
