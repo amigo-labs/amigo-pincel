@@ -531,4 +531,56 @@ mod tests {
         assert_eq!(flat_format(b"RIFF\0\0\0\0WEBPVP8L"), "WebP");
         assert_eq!(flat_format(b"nothing"), "image");
     }
+
+    #[test]
+    fn psd_notice_names_the_layer_or_blend_key_of_each_item() {
+        // mcp-parity-export AC-21: one English line per notice, naming
+        // what it concerns.
+        let layer = || "Ink 2".to_owned();
+        for (notice, want) in [
+            (
+                PsdNotice::Adjustment { layer: layer() },
+                "adjustment or fill layer \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Text { layer: layer() },
+                "text layer \"Ink 2\" opened as pixels",
+            ),
+            (
+                PsdNotice::SmartObject { layer: layer() },
+                "smart object \"Ink 2\" opened as pixels",
+            ),
+            (
+                PsdNotice::Effects { layer: layer() },
+                "layer effects of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Mask { layer: layer() },
+                "mask of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Clipping { layer: layer() },
+                "clipping mask of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Blend {
+                    layer: layer(),
+                    key: "hLit".to_owned(),
+                },
+                "blend mode \"hLit\" of \"Ink 2\" opened as Normal",
+            ),
+            (
+                PsdNotice::PassThrough { group: layer() },
+                "pass-through group \"Ink 2\" opened as an isolated Normal group",
+            ),
+            (
+                PsdNotice::Fallback {
+                    reason: PsdFallback::Compressed,
+                },
+                "opened as one flattened layer: the layers are ZIP-compressed",
+            ),
+        ] {
+            assert_eq!(psd_notice(&notice), want);
+        }
+    }
 }
