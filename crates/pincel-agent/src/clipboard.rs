@@ -417,6 +417,14 @@ fn image_copy(
         doc.check_paintable(layer)?;
     }
     let d = doc.document();
+    if !merged && d.layers()[layer].is_group() {
+        // The editor's Copy has nothing to copy from a group either.
+        return Err(AgentError::tool(format!(
+            "layer {} ({:?}) is a group, which has no pixels of its own to copy in Image documents; pass `merged: true` for the composite or the id of an image layer inside it",
+            doc.layer_id(layer),
+            d.layers()[layer].name
+        )));
+    }
     // The editor's Copy reads the active layer; copy another one from a
     // copy of the document with that layer active.
     let other;
