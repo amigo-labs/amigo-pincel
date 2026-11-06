@@ -26,8 +26,10 @@
     addLayer,
     applyEffectRegion,
     clearEffectPreview,
+    autoCrop,
     cropToSelection,
     deleteLayer,
+    documentDpi,
     duplicateLayer,
     flattenImage,
     flipCanvas,
@@ -366,6 +368,11 @@
     }
     e.preventDefault();
     void beginPaste(pasteEventImage(e), handle);
+  }
+
+  /** Image ▸ Auto Crop; a notice when nothing is cropped (image-resize-autocrop AC-15). */
+  function runAutoCrop(): void {
+    editor.notice = autoCrop() ? null : t('image.nothingToCrop');
   }
 
   function openSvgExport(): void {
@@ -1263,6 +1270,7 @@
         },
         { label: t('menu.scaleImage'), disabled: !hasDoc, run: () => (transformDialog = 'scale') },
         { label: t('menu.crop'), disabled: !editor.hasSelection, run: cropToSelection },
+        { label: t('menu.autoCrop'), disabled: !hasDoc, run: runAutoCrop },
       ],
     },
     {
@@ -1484,6 +1492,7 @@
 
 {#if transformDialog === 'resize'}
   <ResizeDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, anchor) => {
       resizeCanvas(w, h, anchor);
       transformDialog = null;
@@ -1492,6 +1501,7 @@
   />
 {:else if transformDialog === 'scale'}
   <ScaleDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, interp) => {
       scaleImage(w, h, interp);
       transformDialog = null;

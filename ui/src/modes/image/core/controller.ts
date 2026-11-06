@@ -441,6 +441,20 @@ export function cropToSelection(): void {
   applyTransform({ type: 'crop_to_selection' });
 }
 
+/** Image ▸ Auto Crop (docs/specs/image-resize-autocrop.md AC-13 – AC-15):
+ *  `false` when there was nothing to crop, which adds no undo step. */
+export function autoCrop(): boolean {
+  const [w, h] = [editor.width, editor.height];
+  applyTransform({ type: 'auto_crop' });
+  return editor.width !== w || editor.height !== h;
+}
+
+/** The active document's stored resolution in pixels per inch, or 0
+ *  without a document (docs/specs/image-view-aids.md AC-23). */
+export function documentDpi(): number {
+  return editor.handle === null ? 0 : core.documentDpi(editor.handle);
+}
+
 /** Effect `name` / `params` on the active layer, as a job
  *  (docs/specs/performance-background-jobs.md). */
 export function effectJobFor(name: string, params: number[]): EffectJob {
