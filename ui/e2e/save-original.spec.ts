@@ -120,10 +120,12 @@ test('JPEG asks its quality once per document', async ({ page }) => {
 
   const first = await download(page, async () => {
     await page.keyboard.press('Control+s');
+    await setRange(dialog.getByLabel('Quality'), 70);
     await dialog.getByRole('button', { name: 'Save' }).click();
   });
   expect(first.name).toBe('photo.jpeg');
   expect(formatOf(first.bytes)).toBe('jpeg');
+  await expectRememberedQuality(page, '70');
 
   await paint(page);
   const second = await download(page, save(page));
@@ -275,6 +277,17 @@ test('"Don\'t ask again" flattens later Saves of the document without asking', a
 
 const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
 
+/** The document's remembered JPEG quality, read from Save As ▸ JPEG
+ *  (the dialog is cancelled again). */
+async function expectRememberedQuality(page: Page, value: string): Promise<void> {
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  await dialog.getByLabel('Format').selectOption('jpeg');
+  await expect(dialog.getByLabel('Quality')).toHaveValue(value);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
 /** Opens `photo.jpeg`, paints and adds a second layer. */
 async function openLayeredJpeg(page: Page): Promise<void> {
   await openFile(page, 'photo.jpeg', 'jpeg');
@@ -297,6 +310,7 @@ test('a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-1
   expect(formatOf(first.bytes)).toBe('jpeg');
   // No JPEG quality dialog follows the prompt.
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expectRememberedQuality(page, '55');
 
   // The quality is remembered: the next flatten prompt asks no quality.
   await paint(page);
