@@ -476,9 +476,15 @@ fn commit_region(
     if unchanged {
         return Ok(false);
     }
-    let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
-    bus.apply(Box::new(cmd)).map_err(to_js)?;
+    bus.apply(Box::new(effect_step(layer, region, after, spec)))
+        .map_err(to_js)?;
     Ok(true)
+}
+
+/// The undo step of an effect's region: a `SetPixels` labelled with the
+/// effect's history name (`EffectSpec::label`, e.g. "Rotate / Zoom").
+fn effect_step(layer: usize, region: Rect, after: ImageBuffer, spec: &EffectSpec) -> SetPixels {
+    SetPixels::new(layer, region, after).with_label(spec.label())
 }
 
 /// Runs effect `name` / `params` on the layer at `layer` the way
