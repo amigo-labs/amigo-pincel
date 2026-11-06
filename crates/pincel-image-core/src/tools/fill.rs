@@ -7,6 +7,7 @@
 
 use super::src_over;
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::{Document, ImageBuffer};
 use crate::geometry::{Point, Rect};
@@ -202,7 +203,7 @@ impl Fill {
             }
         }
 
-        Some(SetPixels::new(layer_index, region, after).with_label("Fill"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Fill))
     }
 }
 

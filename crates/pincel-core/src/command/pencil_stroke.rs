@@ -30,6 +30,7 @@ use super::Command;
 use super::dirty::DirtyRegion;
 use super::draw_line::bresenham;
 use super::error::CommandError;
+use super::history::HistoryKind;
 
 /// Smallest Pixel-mode brush size.
 pub const MIN_BRUSH_SIZE: u8 = 1;
@@ -336,6 +337,16 @@ fn pressure_size(size: u8, p: f32) -> u8 {
 }
 
 impl PencilStroke {
+    /// The history kind: Shading for the Shading ink, Eraser for a stroke
+    /// that paints transparent (what the Eraser passes), Pencil otherwise.
+    pub(crate) fn history_kind(&self) -> HistoryKind {
+        match self.ink {
+            Ink::Shading { .. } => HistoryKind::Shading,
+            Ink::Simple if self.color == Rgba::TRANSPARENT => HistoryKind::Eraser,
+            Ink::Simple => HistoryKind::Pencil,
+        }
+    }
+
     /// Start a stroke at `start` on the cel at `(layer, frame)`. Applying
     /// it stamps `brush` at `start`; [`Self::extend_to`] (via
     /// [`super::Bus::continue_stroke`]) adds the following samples.

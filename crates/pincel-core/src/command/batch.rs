@@ -34,6 +34,11 @@ impl CommandBatch {
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+
+    /// The kind of the first member, the default kind of the batch.
+    pub(crate) fn first_kind(&self) -> Option<super::HistoryKind> {
+        self.commands.first().map(AnyCommand::kind)
+    }
 }
 
 impl Command for CommandBatch {

@@ -10,6 +10,7 @@
 
 use super::src_over;
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::{Point, Rect};
@@ -219,7 +220,7 @@ impl Shapes {
             }
         }
 
-        Some(SetPixels::new(layer_index, region, after).with_label(self.shape.label()))
+        Some(SetPixels::new(layer_index, region, after).with_kind(self.shape.kind()))
     }
 
     /// The painted region: the shape's bounding box expanded by the stroke half
@@ -258,14 +259,14 @@ impl Shape {
         }
     }
 
-    /// Undo label for this shape's command.
-    pub(crate) fn label(&self) -> &'static str {
+    /// History kind of this shape's command.
+    pub(crate) fn kind(&self) -> HistoryKind {
         match self {
-            Shape::Line { .. } => "Draw Line",
-            Shape::Rectangle { .. } => "Draw Rectangle",
-            Shape::RoundedRectangle { .. } => "Draw Rounded Rectangle",
-            Shape::Ellipse { .. } => "Draw Ellipse",
-            Shape::Polygon { .. } => "Draw Polygon",
+            Shape::Line { .. } => HistoryKind::Line,
+            Shape::Rectangle { .. } => HistoryKind::Rectangle,
+            Shape::RoundedRectangle { .. } => HistoryKind::RoundedRectangle,
+            Shape::Ellipse { .. } => HistoryKind::Ellipse,
+            Shape::Polygon { .. } => HistoryKind::Polygon,
         }
     }
 

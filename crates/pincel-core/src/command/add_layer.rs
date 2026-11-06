@@ -3,10 +3,11 @@
 //! No cels are added or removed; cels associated with this layer must be
 //! managed by other commands (M3+).
 
-use crate::document::{CelMap, Layer, Sprite};
+use crate::document::{CelMap, Layer, LayerKind, Sprite};
 
 use super::Command;
 use super::error::CommandError;
+use super::history::HistoryKind;
 
 /// Insert a layer at a chosen z-order position. `None` means "on top".
 #[derive(Debug, Clone)]
@@ -18,6 +19,15 @@ pub struct AddLayer {
 }
 
 impl AddLayer {
+    /// The history kind: New Group for a group layer, New Layer otherwise.
+    /// Read before `apply`, which takes the layer.
+    pub(crate) fn history_kind(&self) -> HistoryKind {
+        match &self.layer {
+            Some(layer) if matches!(layer.kind, LayerKind::Group) => HistoryKind::AddGroup,
+            _ => HistoryKind::AddLayer,
+        }
+    }
+
     /// Add `layer` on top of the existing stack.
     pub fn on_top(layer: Layer) -> Self {
         Self {

@@ -5,6 +5,7 @@
 //! (docs/specs/image-layer-groups.md); removing, moving or duplicating a
 //! group acts on that whole run in one undo step.
 
+use super::HistoryKind;
 use super::snapshot::layers_bytes;
 use super::{Command, Damage};
 use crate::document::tree::SubtreeMove;
@@ -69,8 +70,8 @@ impl Command for AddLayer {
         self.layer.as_ref().map_or(0, |l| l.pixels.data().len())
     }
 
-    fn label(&self) -> &str {
-        "Add Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::AddLayer
     }
 
     /// The inserted layer is fully transparent (redo restores the layer
@@ -127,8 +128,8 @@ impl Command for AddGroup {
         doc.set_active_layer(self.prev_active.min(doc.layers.len() - 1))
     }
 
-    fn label(&self) -> &str {
-        "Add Group"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::AddGroup
     }
 
     /// An empty group contributes nothing to the composite.
@@ -176,8 +177,8 @@ impl Command for RemoveLayer {
         doc.set_active_layer(self.prev_active)
     }
 
-    fn label(&self) -> &str {
-        "Delete Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::DeleteLayer
     }
 
     fn undo_bytes(&self) -> usize {
@@ -220,8 +221,8 @@ impl Command for MoveLayer {
         doc.set_active_layer(self.prev_active)
     }
 
-    fn label(&self) -> &str {
-        "Move Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MoveLayer
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -269,8 +270,8 @@ impl Command for MoveLayerTo {
         doc.set_active_layer(self.prev_active)
     }
 
-    fn label(&self) -> &str {
-        "Move Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MoveLayer
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -353,8 +354,8 @@ impl Command for DuplicateLayer {
         self.copy.as_deref().map_or(0, layers_bytes)
     }
 
-    fn label(&self) -> &str {
-        "Duplicate Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::DuplicateLayer
     }
 
     fn as_any(&self) -> &dyn Any {

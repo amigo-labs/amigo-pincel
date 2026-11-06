@@ -568,6 +568,24 @@ mod tests {
     }
 
     #[test]
+    fn noop_fill_adds_no_undo_step_and_keeps_redo() {
+        let (mut sprite, mut cels) = fixture();
+        let mut bus = super::super::Bus::new();
+        let fill = |x, color| FillRegion::new(LayerId::new(1), FrameIndex::new(0), x, 0, color);
+        bus.execute(fill(0, RED).into(), &mut sprite, &mut cels)
+            .expect("fill ok");
+        bus.execute(fill(0, BLUE).into(), &mut sprite, &mut cels)
+            .expect("fill ok");
+        assert!(bus.undo(&mut sprite, &mut cels));
+        assert_eq!((bus.undo_depth(), bus.redo_depth()), (1, 1));
+        // Red into the area that is red already writes nothing.
+        bus.execute(fill(3, RED).into(), &mut sprite, &mut cels)
+            .expect("noop ok");
+        assert_eq!((bus.undo_depth(), bus.redo_depth()), (1, 1));
+        assert_eq!(bus.last_dirty_region(), DirtyRegion::None);
+    }
+
+    #[test]
     fn dirty_region_survives_revert() {
         let (mut sprite, mut cels) = fixture();
         let mut cmd = FillRegion::new(LayerId::new(1), FrameIndex::new(0), 0, 0, RED);

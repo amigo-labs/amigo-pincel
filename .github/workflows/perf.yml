@@ -93,6 +93,13 @@ jobs:
       - name: install dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile
+      # performance-build-simd AC-02: the SIMD release modules compose and
+      # run every effect to the same bytes as a scalar build.
+      - name: SIMD equals scalar
+        working-directory: ui
+        run: |
+          pnpm wasm:build:scalar
+          pnpm simd:check
       - name: build
         working-directory: ui
         run: pnpm build

@@ -7,8 +7,8 @@
 
 use pincel_core::{
     BrushShape, Cel, CelMap, ColorMode, Command, DitherMatrix, DrawDitherGradient, DrawShape,
-    DrawText, GradientKind, Ink, Mirror, PencilStroke, PixelBrush, Point, Rgba, ShapeKind,
-    ShapeMode, ShapeStyle, Sprite, TextAlign, TextStyle, Wrap,
+    DrawText, GradientKind, HistoryKind, Ink, Mirror, PencilStroke, PixelBrush, Point, Rgba,
+    ShapeKind, ShapeMode, ShapeStyle, Sprite, TextAlign, TextStyle, Wrap,
 };
 use serde_json::Value;
 
@@ -247,7 +247,12 @@ pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
         };
         (ink, color, mirror_arg(doc, args)?)
     };
-    paint(ctx, args, |doc, cel| {
+    let history_kind = match (eraser, shading) {
+        (true, _) => HistoryKind::Eraser,
+        (false, true) => HistoryKind::Shading,
+        (false, false) => HistoryKind::Pencil,
+    };
+    paint(ctx, args, history_kind, |doc, cel| {
         let mut cmd = PencilStroke::new(
             cel.layer,
             cel.frame,
@@ -329,7 +334,13 @@ pub(crate) fn shape(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         stroke: stroke.unwrap_or(Rgba::TRANSPARENT),
         fill: fill.unwrap_or(Rgba::TRANSPARENT),
     };
-    paint(ctx, args, |doc, cel| {
+    let history_kind = match kind {
+        ShapeKind::Rectangle => HistoryKind::Rectangle,
+        ShapeKind::RoundedRectangle { .. } => HistoryKind::RoundedRectangle,
+        ShapeKind::Ellipse => HistoryKind::Ellipse,
+        ShapeKind::Polygon { .. } => HistoryKind::Polygon,
+    };
+    paint(ctx, args, history_kind, |doc, cel| {
         let cmd = DrawShape::new(cel.layer, cel.frame, (x0, y0), (x1, y1), kind, style);
         run_core(&doc.sprite, cel, cmd)
     })
@@ -340,7 +351,9 @@ pub(crate) fn gradient(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
     let colors = {
         let (id, doc) = ctx.ws.doc(args)?;
         refuse_image_args(&id, args, &["opacity", "channel"])?;
-        if let Some(k @ ("reflected" | "conical" | "diamond")) = args.str("kind") {
+        if let Some(k @ ("reflected" | "conical" | "diamond" | "spiral_cw" | "spiral_ccw")) =
+            args.str("kind")
+        {
             return Err(AgentError::tool(format!(
                 "argument `kind`: {k:?} works on Image documents only; document `{id}` is a Pixel document (linear, radial)"
             )));
@@ -372,7 +385,7 @@ pub(crate) fn gradient(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
         Some(_) => None,
     }
     .ok_or_else(|| AgentError::tool("`dither` must be 0, 2, 4 or 8 on Pixel documents"))?;
-    paint(ctx, args, |doc, cel| {
+    paint(ctx, args, HistoryKind::Gradient, |doc, cel| {
         match DrawDitherGradient::new(
             cel.layer,
             cel.frame,
@@ -392,7 +405,9 @@ pub(crate) fn gradient(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
 /// `draw.text` on a Pixel document.
 pub(crate) fn text(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let color = {
-        let (_, doc) = ctx.ws.doc(args)?;
+        let (id, doc) = ctx.ws.doc(args)?;
+        // The Pixel editor's Text dialog has no underline or strikethrough.
+        refuse_image_args(&id, args, &["underline", "strikethrough"])?;
         color_or_black(doc, args, "color")?
     };
     let (x, y) = (int_coord(args, "x")?, int_coord(args, "y")?);
@@ -414,7 +429,7 @@ pub(crate) fn text(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
         align,
     };
     let text = args.req_str("text")?.to_owned();
-    paint(ctx, args, |doc, cel| {
+    paint(ctx, args, HistoryKind::Text, |doc, cel| {
         let cmd = DrawText::new(
             cel.layer,
             cel.frame,

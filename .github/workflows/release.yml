@@ -86,18 +86,23 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: ui/pnpm-lock.yaml
-      - name: gate — rust core tests
-        run: cargo test -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
+      # performance-build-simd AC-04: the tests pass under the release
+      # profile that ships (fat LTO, one codegen unit).
+      - name: gate — rust core tests (release profile)
+        run: cargo test --release -p pincel-core -p pincel-effects -p pincel-trace -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp
       - name: build wasm packages (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
+      # performance-build-simd AC-02: every shipped module uses wasm SIMD.
+      - name: check wasm uses SIMD
+        run: node scripts/check-wasm-simd.mjs crates/pincel-wasm/pkg crates/pincel-image-wasm/pkg
       - name: optimize wasm (system binaryen)
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y binaryen
           for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
-            wasm-opt -O3 -o "$wasm" "$wasm"
+            wasm-opt -O3 --enable-simd -o "$wasm" "$wasm"
             ls -lh "$wasm"
           done
       # performance-build-simd AC-03: fail on a module that skipped wasm-opt.
@@ -106,6 +111,13 @@ jobs:
       - name: install ui dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile
+      # performance-build-simd AC-02: the shipped SIMD modules compose and
+      # run every effect to the same bytes as a scalar build.
+      - name: SIMD equals scalar
+        working-directory: ui
+        run: |
+          pnpm wasm:build:scalar
+          pnpm simd:check
       - name: build web app
         working-directory: ui
         env:
@@ -181,6 +193,52 @@ jobs:
       - name: build wasm packages (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
+      # performance-build-simd AC-02: every shipped module uses wasm SIMD.
+      - name: check wasm uses SIMD
+        run: node scripts/check-wasm-simd.mjs crates/pincel-wasm/pkg crates/pincel-image-wasm/pkg
+      # The desktop bundle ships the same optimized modules as the web one.
+      # wasm-pack's own wasm-opt pass is off and only Linux has binaryen in
+      # apt, so every runner fetches the pinned release (as cf-build.sh does).
+      - name: optimize wasm (pinned binaryen)
+        shell: bash
+        env:
+          BINARYEN_VERSION: '133'
+          RUNNER_OS_NAME: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          # SHA-256 of each pinned archive (matches the release's .sha256
+          # files): this job holds the signing secrets, so nothing unverified
+          # runs in it. A new BINARYEN_VERSION needs new hashes.
+          case "$RUNNER_OS_NAME" in
+            Linux) asset=x86_64-linux; sha=2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489 ;;
+            macOS) asset=arm64-macos; sha=ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8 ;;
+            Windows) asset=x86_64-windows; sha=17a2cbeac6b5693c5fbafab3838d3c65fd9c1eb38b05f5baec6c657e8c84995b ;;
+            *) echo "no binaryen build for $RUNNER_OS_NAME"; exit 1 ;;
+          esac
+          tmp="$RUNNER_TEMP"
+          if command -v cygpath >/dev/null 2>&1; then tmp="$(cygpath -u "$tmp")"; fi
+          dir="$tmp/binaryen-$BINARYEN_VERSION"
+          archive="$tmp/binaryen-$BINARYEN_VERSION.tar.gz"
+          mkdir -p "$dir"
+          curl -fsSL -o "$archive" "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-$asset.tar.gz"
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual="$(sha256sum "$archive" | cut -d' ' -f1)"
+          else
+            actual="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+          fi
+          if [ "$actual" != "$sha" ]; then
+            echo "binaryen archive checksum mismatch: $actual"; exit 1
+          fi
+          tar -xzf "$archive" -C "$dir" --strip-components=1
+          export PATH="$dir/bin:$PATH"
+          wasm-opt --version
+          for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
+            wasm-opt -O3 --enable-simd -o "$wasm" "$wasm"
+            ls -lh "$wasm"
+          done
+      # performance-build-simd AC-03: fail on a module that skipped wasm-opt.
+      - name: check wasm is optimized
+        run: node scripts/check-wasm-release.mjs crates/pincel-wasm/pkg crates/pincel-image-wasm/pkg
       - name: install ui dependencies
         working-directory: ui
         run: pnpm install --frozen-lockfile
@@ -448,12 +506,15 @@ jobs:
       - name: build wasm package (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
+      # performance-build-simd AC-02: the published module uses wasm SIMD.
+      - name: check wasm uses SIMD
+        run: node scripts/check-wasm-simd.mjs crates/pincel-wasm/pkg
       - name: optimize wasm (system binaryen)
         run: |
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y binaryen
-          wasm-opt -O3 -o crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-wasm/pkg/pincel_wasm_bg.wasm
+          wasm-opt -O3 --enable-simd -o crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-wasm/pkg/pincel_wasm_bg.wasm
       - name: check wasm is optimized
         run: node scripts/check-wasm-release.mjs crates/pincel-wasm/pkg
       # The crate already carries the release version; this only guards

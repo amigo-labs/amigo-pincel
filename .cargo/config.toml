@@ -1,0 +1,9 @@
+# Both wasm modules are built with 128-bit wasm SIMD, in every delivery
+# (website / PWA, Tauri bundle, npm package) and in dev builds alike, so the
+# e2e suite runs the code that ships (docs/specs/performance-build-simd.md
+# AC-02, Decision Log 2026-10-29). A `RUSTFLAGS` environment variable
+# replaces this list; `ui/scripts/wasm-build-scalar.mjs` uses that to build
+# the scalar comparison packages. `scripts/check-wasm-simd.mjs` fails a
+# shipped module without `+simd128`.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]

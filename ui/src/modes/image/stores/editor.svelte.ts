@@ -2,6 +2,7 @@
 // The document and view stores are per tab (docs/specs/document-tabs.md):
 // their per-document keys forward to the active tab (`lib/shell/tab-store`).
 import { tabStore } from '../../../lib/shell/tab-store';
+import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../../lib/history/names';
 import type {
   BrushShape,
   DashPattern,
@@ -32,6 +33,10 @@ export function docInit() {
     /** `undoDepth` at the last save / open: the document is dirty while
      *  the two differ. */
     savedUndoDepth: 0,
+    /** The undo history the History panel lists (history-panel AC-02). */
+    history: EMPTY_HISTORY as HistorySnapshot,
+    /** How the document began: names the start entry (history-panel AC-03). */
+    origin: 'start' as HistoryOrigin,
     /** Layers ordered bottom (index 0) to top, mirrored from the core. */
     layers: [] as LayerInfo[],
     /** Whether a selection is currently active (mirrored from the core). */
@@ -106,23 +111,44 @@ export const ui = $state({
  *  dialog that answers it calls `resolve`. */
 export type SavePrompt =
   | { kind: 'jpeg'; resolve: (quality: number | null) => void }
-  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void }
   | {
-      /** Save As: pick the format to write. */
+      kind: 'flatten';
+      /** The format is JPEG and the document has no remembered quality:
+       *  the prompt asks it too (AC-17). */
+      askQuality: boolean;
+      resolve: (choice: FlattenChoice | null) => void;
+    }
+  | {
+      /** Save As: the format, its JPEG quality and the merge confirmation
+       *  in one dialog (AC-10, AC-15, AC-16). */
       kind: 'format';
       preselect: DocSaveFormat;
       /** The document's own format when it cannot be written back (e.g.
        *  `GIF`): the dialog says so. */
       unwritable: string | null;
-      resolve: (format: DocSaveFormat | null) => void;
+      /** The JPEG quality the dialog starts with. */
+      quality: number;
+      /** A format other than `.ora` loses layers, visibility, opacity or
+       *  blend modes and must be confirmed. */
+      confirmMerge: boolean;
+      resolve: (choice: SaveAsChoice | null) => void;
     };
 
 /** The answer to "Flatten image?": write the flattened composite, or save
  *  the layers as `.ora` instead; `dontAsk` remembers Flatten for the
- *  document. `null` (Cancel) writes nothing. */
+ *  document; `quality` is the JPEG quality when the prompt asked it.
+ *  `null` (Cancel) writes nothing. */
 export interface FlattenChoice {
   action: 'flatten' | 'ora';
   dontAsk: boolean;
+  quality?: number;
+}
+
+/** The answer to the Save As dialog: the format, and the JPEG quality
+ *  (used only for JPEG). */
+export interface SaveAsChoice {
+  format: DocSaveFormat;
+  quality: number;
 }
 
 /** The Save flow's open prompt, `null` while none is shown. */
@@ -158,6 +184,7 @@ export type ToolKind =
   | 'gradient'
   | 'recolor'
   | 'smudge'
+  | 'clone'
   | 'line'
   | 'rectangle'
   | 'rounded_rect'
@@ -268,6 +295,10 @@ export const tool = $state({
   recolorTolerance: 32,
   /** Smudge: how far a color is dragged, 1–100 (%). */
   smudgeStrength: 60,
+  /** Clone Stamp: copy from the active layer or the visible composite. */
+  cloneSample: 'current_layer' as SampleSource,
+  /** Clone Stamp: the next press on the canvas sets the source point. */
+  cloneSetSource: false,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */
@@ -294,6 +325,10 @@ export const tool = $state({
   textAntiAlias: true,
   /** Text: per-line horizontal alignment. */
   textAlign: 'left' as TextAlign,
+  /** Text: a stroke below the baseline (docs/specs/image-live-text.md AC-10). */
+  textUnderline: false,
+  /** Text: a stroke through the lowercase letters (AC-10). */
+  textStrikethrough: false,
 });
 
 /** Swaps foreground and background colors (spec §4.2, `X`). */

@@ -4,8 +4,8 @@
 //! docs/specs/mcp-parity-selection-transform.md AC-24 … AC-33.
 
 use pincel_core::{
-    Anchor, AnyCommand, Interpolation, LayerKind, Orientation, Rect, ReframeCanvas, ScaleImage,
-    TransformCanvas, TransformCel,
+    Anchor, AnyCommand, HistoryKind, Interpolation, LayerKind, Orientation, Rect, ReframeCanvas,
+    ScaleImage, TransformCanvas, TransformCel,
 };
 use pincel_image_core::auto_crop_rect;
 use pincel_image_core::command::spec::CommandSpec;
@@ -227,7 +227,10 @@ pub(crate) const CROP: Tool = Tool {
             .map(|r| r.intersect(canvas))
             .filter(|r| !r.is_empty())
             .ok_or_else(|| no_selection(&id))?;
-        pixel_canvas(&id, doc, || ReframeCanvas::new(rect).into())
+        let changed = doc.commit_if_changed_as(HistoryKind::CropToSelection, || {
+            vec![ReframeCanvas::new(rect).into()]
+        })?;
+        Ok(size_out(&id, doc.sprite.width, doc.sprite.height, changed))
     },
 };
 

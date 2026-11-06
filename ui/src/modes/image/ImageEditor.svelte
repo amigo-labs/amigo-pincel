@@ -1,6 +1,11 @@
 <script lang="ts">
   import { hexToRgb, toHex } from '../../lib/color';
-  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
+  import {
+    colorDraft,
+    loadColorPref,
+    loadRecent,
+    saveColorPref,
+  } from '../../lib/colors/recent.svelte';
   import { onMount, untrack } from 'svelte';
   import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
@@ -22,6 +27,7 @@
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import { installLiveSync } from './core/live-sync.svelte';
+  import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
     addGroup,
     addLayer,
@@ -54,9 +60,11 @@
     markUnsaved,
     undo,
     redo,
+    jumpHistory,
     selectAll,
     deselect,
     deleteSelection,
+    fillSelection,
     invertSelection,
     expandSelection,
     contractSelection,
@@ -81,7 +89,7 @@
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
   import ImageViewport from './components/canvas/ImageViewport.svelte';
-  import { loadViewAids, setViewAids, viewAids } from './stores/view-aids.svelte';
+  import { loadViewAids, pointerPixel, setViewAids, viewAids } from './stores/view-aids.svelte';
   import { formatPixels, type ViewUnit } from './view-units';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
@@ -105,13 +113,14 @@
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
+  import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
   import { tidy, type MenuDef } from '../../lib/components/layout/menu';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
-  import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
+  import { effectById, forMode, rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import { effectRun, type EffectRun } from './jobs';
   import {
@@ -469,6 +478,11 @@
         tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
       },
       {
+        id: 'clone',
+        label: t('tool.clone'),
+        tools: [{ id: 'clone', label: t('tool.clone'), icon: 'clone-stamp' }],
+      },
+      {
         id: 'fill',
         label: t('tool.fill'),
         tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
@@ -523,6 +537,7 @@
     'paste',
     'pasteNewImage',
     'deleteSelection',
+    'fillSelection',
     'selectAll',
     'deselect',
     'invertSelection',
@@ -573,6 +588,8 @@
   function unitValue(p: number): string {
     return formatPixels(p, viewAids.units, statusDpi, locale());
   }
+  // The pixel under the pointer through the current view (AC-10, AC-19).
+  const statusPointer = $derived(pointerPixel());
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
   function openOverview(): void {
@@ -721,6 +738,7 @@
       format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
     });
     markUnsaved();
+    tab.doc.origin = 'recovered';
     attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
@@ -728,12 +746,14 @@
   const BG_PREF = 'lastBgColor:image';
   // The last foreground / background colors and the recent colors, per
   // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
-  // so a slow store cannot overwrite them with the defaults.
+  // so a slow store cannot overwrite them with the defaults, and happens
+  // once per picker interaction: a drag's live colors wait for its end.
   let colorPrefsLoaded = $state(false);
   $effect(() => {
     const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
     const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
-    if (!colorPrefsLoaded) return;
+    const draft = colorDraft.image;
+    if (!colorPrefsLoaded || draft) return;
     saveColorPref(FG_PREF, fg);
     saveColorPref(BG_PREF, bg);
   });
@@ -816,6 +836,8 @@
 
   // Option and color changes reach the live object (AC-06, AC-07).
   installLiveSync();
+  // The live text's box follows the core (docs/specs/image-live-text.md).
+  installLiveText();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).
@@ -850,12 +872,15 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
+    // The live text's field passes on only the chords it does not own
+    // (docs/specs/image-live-text.md AC-23): they run as on the canvas.
+    const inLiveText = e.target instanceof HTMLElement && e.target.dataset.liveText !== undefined;
     if (
       !active ||
       e.defaultPrevented ||
       ui.modalOpen ||
       helpDialogOpen() ||
-      isTypingTarget(e.target)
+      (isTypingTarget(e.target) && !inLiveText)
     ) {
       return;
     }
@@ -882,7 +907,9 @@
     // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && !closeTextBox() && editor.hasSelection) {
+        deselect();
+      }
       return;
     }
     const group = toolGroupForKey(e);
@@ -943,6 +970,9 @@
         return true;
       case 'deleteSelection':
         layerEdit(false, deleteSelection);
+        return true;
+      case 'fillSelection':
+        layerEdit(false, fillSelection);
         return true;
       case 'zoomIn':
         viewCommands.zoomIn();
@@ -1069,6 +1099,13 @@
     });
   }
 
+  /** Layer ▸ Rotate / Zoom… (image-transform-handles-rotate-zoom): the
+   *  effect panel, unless the active layer refuses pixel edits (AC-08). */
+  function openRotateZoom(): void {
+    const def = effectById('rotate_zoom');
+    if (def) layerEdit(false, () => openEffect(forMode(def, 'image')));
+  }
+
   function closeEffect(): void {
     endEffectRun();
     clearEffectPreview();
@@ -1139,7 +1176,9 @@
       return;
     }
     effectSucceeded();
-    if (!changed) editor.notice = t('fx.selectionEmpty', { effect: label });
+    // An empty region is an empty selection; a region that changes no
+    // pixel adds no step and needs no notice.
+    if (!changed && region.length === 0) editor.notice = t('fx.selectionEmpty', { effect: label });
     endEffectRun();
     effectOpen = null;
   }
@@ -1243,6 +1282,12 @@
           shortcut: hint('deleteSelection'),
           disabled: !editor.hasSelection,
           run: () => layerEdit(false, deleteSelection),
+        },
+        {
+          label: t('menu.fillSelection'),
+          shortcut: hint('fillSelection'),
+          disabled: !hasDoc,
+          run: () => layerEdit(false, fillSelection),
         },
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
@@ -1387,6 +1432,7 @@
           disabled: !hasDoc,
           run: () => layerEdit(true, () => transformLayer('rotate_180')),
         },
+        { label: t('menu.rotateZoom'), disabled: !hasDoc, run: openRotateZoom },
       ],
     },
     ...effectMenus(openEffect, !hasDoc, 'image'),
@@ -1477,6 +1523,14 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
+{#snippet historyBody()}
+  <HistoryPanel
+    history={editor.history}
+    origin={editor.origin}
+    busy={() => gestureControl.inProgress()}
+    onJump={jumpHistory}
+  />
+{/snippet}
 
 <EditorFrame
   mode="image"
@@ -1488,6 +1542,13 @@
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
+    {
+      id: 'history',
+      title: t('historyPanel.title'),
+      icon: 'history',
+      body: historyBody,
+      defaultCollapsed: true,
+    },
   ]}
 >
   {#snippet quick()}
@@ -1525,11 +1586,11 @@
   {#snippet statusbar()}
     <span>{toolLabel}</span>
     <span>·</span>
-    {#if viewAids.pointer}
+    {#if statusPointer}
       <span data-testid="status-pointer"
         >{t('status.position', {
-          x: unitValue(Math.floor(viewAids.pointer.x)),
-          y: unitValue(Math.floor(viewAids.pointer.y)),
+          x: unitValue(statusPointer.x),
+          y: unitValue(statusPointer.y),
           unit: t(UNIT_SUFFIX[viewAids.units]),
         })}</span
       >

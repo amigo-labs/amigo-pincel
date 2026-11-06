@@ -19,8 +19,12 @@
     onReset: () => void;
     /** The mode's recent colors, most recent first. */
     recent: readonly Rgba8[];
+    /** `true` while a picker or slider interaction is under way (its
+     *  colors reach `onFg` / `onBg` live), `false` once it ended — the
+     *  parent stores the colors then, once per interaction. */
+    onDraft: (active: boolean) => void;
   }
-  const { fg, bg, onFg, onBg, onSwap, onReset, recent }: Props = $props();
+  const { fg, bg, onFg, onBg, onSwap, onReset, recent, onDraft }: Props = $props();
 
   // The panel's hex field mirrors the foreground; a full #RRGGBB commits.
   let hexText = $state('');
@@ -59,13 +63,18 @@
   // Field text left uncommitted commits on its blur — but only while the
   // picker is open: Escape closes first, so its text is dropped (AC-18).
   function apply(c: Rgba8): void {
+    if (editing === null) return;
+    onDraft(true);
     if (editing === 'fg') onFg(c);
-    else if (editing === 'bg') onBg(c);
+    else onBg(c);
   }
 
   function close(): void {
     const which = editing;
     editing = null;
+    // A drag the closing cut short ends here (spec: the last previewed
+    // color counts).
+    onDraft(false);
     swatches.querySelector<HTMLElement>(`[data-swatch="${which}"]`)?.focus();
   }
 
@@ -162,7 +171,11 @@
         min="0"
         max="255"
         value={fg.a}
-        oninput={(e) => onFg({ ...fg, a: Number(e.currentTarget.value) })}
+        oninput={(e) => {
+          onDraft(true);
+          onFg({ ...fg, a: Number(e.currentTarget.value) });
+        }}
+        onchange={() => onDraft(false)}
         class="w-20"
         aria-label={t('color.alpha')}
       />
@@ -193,7 +206,12 @@
     tabindex="-1"
     onkeydown={onPopKey}
   >
-    <ColorPicker value={editing === 'fg' ? fg : bg} {recent} onChange={apply} />
+    <ColorPicker
+      value={editing === 'fg' ? fg : bg}
+      {recent}
+      onChange={apply}
+      onCommit={() => onDraft(false)}
+    />
   </div>
 {/if}
 

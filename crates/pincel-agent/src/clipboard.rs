@@ -5,8 +5,9 @@
 //! docs/specs/mcp-parity-selection-transform-content.md.
 
 use pincel_core::{
-    ClearRegion, ColorMode, CopySource, Layer, LayerId, MoveSelectionContent, PasteLayer,
-    PastedImage, PutCel, Rect, copy_pixels, encode_png, import_png,
+    AnyCommand, Bus, ClearRegion, ColorMode, CopySource, HistoryKind, Layer, LayerId,
+    MoveSelectionContent, PasteLayer, PastedImage, PutCel, Rect, copy_pixels, encode_png,
+    import_png,
 };
 use pincel_image_core::codec::{decode, to_png_bytes};
 use pincel_image_core::command::PasteLayer as ImagePaste;
@@ -49,8 +50,10 @@ fn offset(args: &Args) -> Result<(i32, i32), AgentError> {
 }
 
 /// The Image layer an edit targets (`layer` or the active layer), without
-/// the paint checks: the editor command decides what it refuses.
+/// the paint checks: the editor command decides what it refuses. A
+/// `frame` other than 0 does not exist in an Image document.
 fn image_layer(doc: &ImageDoc, args: &Args) -> Result<usize, AgentError> {
+    crate::image::doc::check_frame(args)?;
     match args.u32("layer")? {
         Some(id) => doc.layer_arg(id, "layer"),
         None => Ok(doc.document().active_layer_index()),
@@ -73,8 +76,9 @@ pub(crate) const LAYER_TRANSLATE: Tool = Tool {
         let (dx, dy) = offset(args)?;
         let (id, doc) = ctx.ws.image_mut(args)?;
         let layer = image_layer(doc, args)?;
-        let changed = (dx, dy) != (0, 0)
-            && doc.run_if_changed(|| CommandSpec::TranslateLayer { layer, dx, dy })?;
+        // No zero-offset shortcut: the lock check runs first (AC-08), and
+        // the dry run reports a zero offset as no change (AC-07).
+        let changed = doc.run_if_changed(|| CommandSpec::TranslateLayer { layer, dx, dy })?;
         Ok(changed_out(&id, Some(doc.layer_id(layer)), changed))
     },
 };
@@ -112,7 +116,7 @@ fn select_move_content(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
         .get(layer, frame)
         .is_none()
         .then(|| doc.cel_or_empty(layer, frame));
-    let changed = doc.commit_if_changed(|| {
+    let changed = doc.commit_if_changed_as(HistoryKind::MoveSelection, || {
         let mut cmds: Vec<pincel_core::AnyCommand> = empty
             .iter()
             .map(|c| PutCel::new(c.clone()).into())
@@ -193,11 +197,15 @@ fn layer_import(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError
         .read(path)
         .map_err(|e| AgentError::tool(format!("cannot read `{path}`: {e}")))?;
     if image {
+        crate::image::doc::check_frame(args)?;
         let buffer = decode(&bytes).map_err(|e| {
             AgentError::tool(format!(
                 "cannot paste `{path}`: {e} (Image documents paste PNG, JPEG, WebP, BMP, GIF or TIFF)"
             ))
         })?;
+        // An image doc.open refuses is refused here as well.
+        check_size(buffer.width(), buffer.height())
+            .map_err(|e| AgentError::tool(format!("cannot paste `{path}`: {e}")))?;
         let (id, doc) = ctx.ws.image_mut(args)?;
         if expand {
             let (w, h) = expanded(
@@ -325,6 +333,15 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
     } else {
         pixel_copy(ctx, args, merged, cut)?
     };
+    // A cut the core refuses fails before anything is written (AC-21).
+    if let Some(CutTarget::Pixel(layer, frame)) = cut_target {
+        let (_, doc) = ctx.ws.doc(args)?;
+        let (mut sprite, mut cels) = (doc.sprite.clone(), doc.cels.clone());
+        let cmd = pixel_cut(layer, frame, copied.area, doc.sprite.has_selection());
+        Bus::new()
+            .execute(cmd, &mut sprite, &mut cels)
+            .map_err(|e| AgentError::tool(e.to_string()))?;
+    }
     // The file first: a refused write leaves the document unchanged (AC-19).
     ctx.host
         .check_write(&path)
@@ -336,14 +353,9 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         None => false,
         Some(CutTarget::Pixel(layer, frame)) => {
             let (_, doc) = ctx.ws.doc_mut(args)?;
-            let rect = copied.area;
             let masked = doc.sprite.has_selection();
-            doc.commit_if_changed(|| {
-                let mut cmd = ClearRegion::new(layer, frame, rect);
-                if masked {
-                    cmd = cmd.masked();
-                }
-                vec![cmd.into()]
+            doc.commit_if_changed_as(HistoryKind::Cut, || {
+                vec![pixel_cut(layer, frame, copied.area, masked)]
             })?
         }
         Some(CutTarget::Image(layer)) => {
@@ -360,6 +372,18 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         "cut": cut,
         "changed": changed,
     })))
+}
+
+/// The Pixel editor's Cut of `rect`: `ClearRegion`, masked by the
+/// selection's shape when there is one.
+fn pixel_cut(
+    layer: LayerId,
+    frame: pincel_core::FrameIndex,
+    rect: Rect,
+    masked: bool,
+) -> AnyCommand {
+    let cmd = ClearRegion::new(layer, frame, rect);
+    if masked { cmd.masked() } else { cmd }.into()
 }
 
 /// The layer (and frame) a `cut` clears once the file is written.
@@ -417,6 +441,14 @@ fn image_copy(
         doc.check_paintable(layer)?;
     }
     let d = doc.document();
+    if !merged && d.layers()[layer].is_group() {
+        // The editor's Copy has nothing to copy from a group either.
+        return Err(AgentError::tool(format!(
+            "layer {} ({:?}) is a group, which has no pixels of its own to copy in Image documents; pass `merged: true` for the composite or the id of an image layer inside it",
+            doc.layer_id(layer),
+            d.layers()[layer].name
+        )));
+    }
     // The editor's Copy reads the active layer; copy another one from a
     // copy of the document with that layer active.
     let other;

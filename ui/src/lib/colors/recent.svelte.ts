@@ -12,6 +12,11 @@ export type ColorMode = 'pixel' | 'image';
 /** Most recent first, at most `RECENT_MAX` per mode. */
 export const recentColors = $state<Record<ColorMode, Rgba8[]>>({ pixel: [], image: [] });
 
+/** Whether a picker interaction (a drag) of each mode is still under way:
+ *  the tools paint with its color live, but the last-color prefs wait for
+ *  its end — one commit per interaction (color-picker spec). */
+export const colorDraft = $state<Record<ColorMode, boolean>>({ pixel: false, image: false });
+
 const key = (mode: ColorMode): string => `recentColors:${mode}`;
 
 /** Records `used` (foreground first) as painted with in `mode` and stores

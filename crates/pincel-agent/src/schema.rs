@@ -20,6 +20,21 @@ pub(crate) fn object(properties: Value, required: &[&str]) -> Value {
     })
 }
 
+/// Characters of an unknown argument's value quoted in its error.
+const QUOTE_MAX: usize = 60;
+
+/// `v` as JSON, cut to [`QUOTE_MAX`] characters plus `…` when longer, so a
+/// large value (a pixel array) does not bloat the error.
+fn quoted(v: &Value) -> String {
+    let text = v.to_string();
+    if text.chars().count() <= QUOTE_MAX {
+        return text;
+    }
+    let mut short: String = text.chars().take(QUOTE_MAX).collect();
+    short.push('…');
+    short
+}
+
 /// Validate `value` against `schema`; the error names the offending
 /// argument path (e.g. `pixels[2].x`) and what was expected.
 pub(crate) fn validate(schema: &Value, value: &Value) -> Result<(), String> {
@@ -35,6 +50,40 @@ fn child(path: &str, key: &str) -> String {
         key.to_owned()
     } else {
         format!("{path}.{key}")
+    }
+}
+
+/// The schema's description as a suffix for an error message, so a
+/// missing or mistyped argument says what it takes (e.g. the accepted
+/// color forms); empty without a description.
+fn described(schema: &Value) -> String {
+    describe(schema.as_object())
+}
+
+fn describe(schema: Option<&Map<String, Value>>) -> String {
+    schema
+        .and_then(|s| s.get("description"))
+        .and_then(Value::as_str)
+        .map_or_else(String::new, |d| format!(" — {d}"))
+}
+
+/// The values or range a schema accepts, as a suffix for a type error
+/// (e.g. ` (2–16)`, ` (one of: a, b)`); empty without `enum` or bounds.
+fn accepted(schema: &Map<String, Value>) -> String {
+    if let Some(options) = schema.get("enum").and_then(Value::as_array) {
+        let names: Vec<String> = options
+            .iter()
+            .map(|o| o.as_str().map_or_else(|| o.to_string(), str::to_owned))
+            .collect();
+        return format!(" (one of: {})", names.join(", "));
+    }
+    let min = schema.get("minimum").and_then(Value::as_f64);
+    let max = schema.get("maximum").and_then(Value::as_f64);
+    match (min, max) {
+        (Some(lo), Some(hi)) => format!(" ({}–{})", fmt_num(lo), fmt_num(hi)),
+        (Some(lo), None) => format!(" (at least {})", fmt_num(lo)),
+        (None, Some(hi)) => format!(" (at most {})", fmt_num(hi)),
+        (None, None) => String::new(),
     }
 }
 
@@ -86,7 +135,12 @@ fn check(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
     if let Some(ty) = schema.get("type").and_then(Value::as_str)
         && !type_matches(ty, value)
     {
-        return Err(format!("{} must be of type {ty}", label(path)));
+        return Err(format!(
+            "{} must be of type {ty}{}{}",
+            label(path),
+            accepted(schema),
+            describe(Some(schema))
+        ));
     }
     if let Some(options) = schema.get("enum").and_then(Value::as_array)
         && !options.contains(value)
@@ -96,9 +150,10 @@ fn check(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
             .map(|o| o.as_str().map_or_else(|| o.to_string(), str::to_owned))
             .collect();
         return Err(format!(
-            "{} must be one of: {} (got {value})",
+            "{} must be one of: {} (got {value}){}",
             label(path),
-            names.join(", ")
+            names.join(", "),
+            describe(Some(schema))
         ));
     }
     if let Some(n) = value.as_f64() {
@@ -153,7 +208,11 @@ fn check_object(
     if let Some(required) = schema.get("required").and_then(Value::as_array) {
         for key in required.iter().filter_map(Value::as_str) {
             if !obj.contains_key(key) {
-                return Err(format!("missing required argument `{}`", child(path, key)));
+                return Err(format!(
+                    "missing required argument `{}`{}",
+                    child(path, key),
+                    props.get(key).map_or_else(String::new, described)
+                ));
             }
         }
     }
@@ -164,8 +223,9 @@ fn check_object(
             None if closed => {
                 let known: Vec<&str> = props.keys().map(String::as_str).collect();
                 return Err(format!(
-                    "unknown argument `{}` (accepted: {})",
+                    "unknown argument `{}` (got {}; accepted: {})",
                     child(path, key),
+                    quoted(v),
                     known.join(", ")
                 ));
             }
@@ -217,6 +277,14 @@ mod tests {
     }
 
     #[test]
+    fn validate_type_error_names_the_accepted_range_or_values() {
+        let err = validate(&schema(), &json!({ "width": 2.5 })).unwrap_err();
+        assert_eq!(err, "width must be of type integer (1–4096)");
+        let err = validate(&schema(), &json!({ "width": 1, "mode": 3 })).unwrap_err();
+        assert_eq!(err, "mode must be of type string (one of: pixel)");
+    }
+
+    #[test]
     fn validate_missing_and_unknown_arguments_are_named() {
         assert_eq!(
             validate(&schema(), &json!({})).unwrap_err(),
@@ -225,7 +293,41 @@ mod tests {
         assert!(
             validate(&schema(), &json!({ "width": 1, "bogus": 1 }))
                 .unwrap_err()
-                .starts_with("unknown argument `bogus`")
+                .starts_with("unknown argument `bogus` (got 1;")
+        );
+    }
+
+    #[test]
+    fn validate_unknown_argument_quotes_a_long_value_shortened() {
+        let pixels: Vec<Value> = (0..500).map(|i| json!({ "x": i, "y": i })).collect();
+        let e = validate(&schema(), &json!({ "width": 1, "bogus": pixels })).unwrap_err();
+        let got = e
+            .split("(got ")
+            .nth(1)
+            .and_then(|r| r.split("; accepted").next())
+            .expect("quoted value");
+        assert!(got.ends_with('…'), "{got}");
+        assert_eq!(got.chars().count(), QUOTE_MAX + 1, "{got}");
+        assert!(got.starts_with(r#"[{"x":0,"y":0}"#), "{got}");
+        assert!(e.len() < 200, "{e}");
+    }
+
+    #[test]
+    fn validate_missing_or_unlisted_value_appends_the_description() {
+        let described = object(
+            json!({
+                "from": { "type": "string", "description": "The color: \"#RRGGBB\"" },
+                "tool": { "type": "string", "enum": ["brush"], "description": "brush; recolor is draw.recolor" },
+            }),
+            &["from"],
+        );
+        assert_eq!(
+            validate(&described, &json!({})).unwrap_err(),
+            "missing required argument `from` — The color: \"#RRGGBB\""
+        );
+        assert_eq!(
+            validate(&described, &json!({ "from": "x", "tool": "recolor" })).unwrap_err(),
+            "tool must be one of: brush (got \"recolor\") — brush; recolor is draw.recolor"
         );
     }
 

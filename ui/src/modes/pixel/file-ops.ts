@@ -86,6 +86,7 @@ export function createTab(params: Pick<NewDocParams, 'width' | 'height'>): void 
   const h = Math.max(1, Math.min(MAX_DOC_SIZE, Math.floor(params.height)));
   const tab = openTab(new Document(w, h), { name: DEFAULT_FILE_NAME, handle: null, path: null });
   tab.doc.lastSavedUndoDepth = tab.doc.undoDepth;
+  tab.doc.origin = 'new';
   attachTab(tab);
   ed.status = t('px.ready');
 }
@@ -154,6 +155,7 @@ export async function openOpened(opened: OpenedFile): Promise<string | null> {
         : { name: opened.name, handle: opened.handle, path: opened.path },
     );
     tab.doc.lastSavedUndoDepth = next.undoDepth;
+    tab.doc.origin = opened.origin ?? 'open';
     attachTab(tab);
     ed.status = t('px.opened', { name: opened.name, w: next.width, h: next.height });
     await recordRecent(tab);
@@ -241,6 +243,7 @@ async function applyRecent(r: RecentFile, read: ReadRecent): Promise<void> {
   }
   const tab = openTab(next, read.target);
   tab.doc.lastSavedUndoDepth = next.undoDepth;
+  tab.doc.origin = 'open';
   // Keep the recent's id so re-opens count as the same document.
   attachTab(tab, { docId: r.id });
   ed.status = t('px.opened', { name: read.name, w: next.width, h: next.height });
@@ -254,6 +257,7 @@ export function openRecovered(bytes: Uint8Array, name: string, docId: string): v
   const tab = openTab(next, { name, handle: null, path: null });
   // Recovered work is not on disk yet: it reads as unsaved.
   tab.doc.lastSavedUndoDepth = -1;
+  tab.doc.origin = 'recovered';
   attachTab(tab, { docId, recovered: true });
   ed.status = t('px.recovered', { name, w: next.width, h: next.height });
 }

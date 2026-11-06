@@ -3,6 +3,7 @@
 //! in-app record; this module only turns document pixels into PNG bytes
 //! and PNG bytes into a pasted layer.
 
+use pincel_core::HistoryKind;
 use pincel_core::{
     ClearRegion, CopySource, LayerId, LayerKind, PasteLayer, PastedImage, copy_pixels, encode_png,
     import_png,
@@ -114,7 +115,12 @@ impl Document {
             cmd = cmd.masked();
         }
         self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .execute_as(
+                HistoryKind::Cut,
+                cmd.into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
             .map_err(|e| format!("failed to cut: {e}"))?;
         self.bus.seal();
         if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {

@@ -41,6 +41,7 @@ const RAIL_SECTIONS: Record<string, string> = {
   eraser: 'paint',
   recolor: 'paint',
   smudge: 'paint',
+  clone: 'paint',
   fill: 'color',
   gradient: 'color',
   eyedropper: 'color',

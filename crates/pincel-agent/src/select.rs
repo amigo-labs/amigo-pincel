@@ -1,5 +1,5 @@
-//! `select.*`: the selection tools of both editors, plus `select.get` and
-//! `select.delete`. Pixel selections are transient editor state (no undo
+//! `select.*`: the selection tools of both editors, plus `select.get`,
+//! `select.delete` and `select.fill` (Image only). Pixel selections are transient editor state (no undo
 //! step); Image selection changes are undo steps, as in each editor. See
 //! docs/specs/mcp-parity-selection-transform.md.
 
@@ -15,14 +15,14 @@ use pincel_image_core::{
 use serde_json::{Value, json};
 
 use crate::args::{Args, parse_region};
-use crate::image::ImageDoc;
+use crate::image::{ImageDoc, color_arg};
 use crate::pixel::{READ_MAX, frame_prop, layer_prop, tool_schema};
 use crate::workspace::Doc;
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
 /// Every selection tool, in `tools/list` order.
 pub(crate) static TOOLS: &[Tool] = &[
-    RECT, ELLIPSE, POLYGON, WAND, ALL, CLEAR, INVERT, EXPAND, CONTRACT, FEATHER, GET, DELETE,
+    RECT, ELLIPSE, POLYGON, WAND, ALL, CLEAR, INVERT, EXPAND, CONTRACT, FEATHER, GET, DELETE, FILL,
 ];
 
 const MODES: [&str; 4] = ["replace", "add", "subtract", "intersect"];
@@ -690,6 +690,37 @@ fn select_delete(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentErro
     Ok(ToolOutput::json(json!({
         "doc": id,
         "layer": layer.0,
+        "changed": changed,
+    })))
+}
+
+pub(crate) const FILL: Tool = Tool {
+    name: "select.fill",
+    description: "Image documents only: the editor's Edit ▸ Fill Selection. Fill the selected pixels of the target layer with `color`; a feathered pixel moves toward the color by its coverage. Without a selection the whole layer is filled; the selection stays. Returns {doc, layer, changed}; one undo step when a pixel changed.",
+    schema: || {
+        let mut color = crate::args::color_schema("Fill color");
+        color["description"] = json!("Fill color: \"#RRGGBB\" or \"#RRGGBBAA\"; default #000000");
+        tool_schema(json!({ "layer": layer_prop(), "color": color }), &[])
+    },
+    run: select_fill,
+};
+
+/// docs/specs/image-edit-extras.md AC-10 – AC-12: the core command runs
+/// only when it changes a pixel, so a no-op records no undo step.
+fn select_fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let (id, doc) = ctx.ws.image_mut(args)?;
+    let index = doc.target(args)?;
+    let color = match args.get("color") {
+        Some(_) => color_arg(args, "color")?,
+        None => [0, 0, 0, 255],
+    };
+    let changed = doc.run(CommandSpec::FillSelection {
+        layer: index,
+        color,
+    })?;
+    Ok(ToolOutput::json(json!({
+        "doc": id,
+        "layer": doc.layer_id(index),
         "changed": changed,
     })))
 }

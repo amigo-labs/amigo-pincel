@@ -492,18 +492,28 @@ fn merge_and_flatten_refuse_locked_layers_while_duplicate_and_move_work() {
         json!({ "layer": 2, "target": 0, "place": "below" }),
     );
 
+    // A layer inside a locked group (Pixel): the group's lock reaches it.
+    s.ok("layer.set", json!({ "layer": 2, "locked": false }));
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    let before = s.state(&id);
+    let e = s.err("layer.merge_down", json!({ "layer": 3 }));
+    assert!(e.contains("layer 3") && e.contains("locked"), "{e}");
+    assert_eq!(s.state(&id), before);
+
     let mut s = S::new();
     let id = image_tree(&mut s);
     s.ok("layer.set", json!({ "layer": 1, "locked": true }));
-    for (tool, args) in [
-        ("layer.merge_down", json!({ "layer": 3 })),
-        ("layer.merge_group", json!({ "layer": 1 })),
-        ("layer.merge_visible", json!({})),
-        ("layer.flatten", json!({})),
+    // Every refused tool names a layer of the locked group's subtree: the
+    // group itself or the image layer inside it that the merge would change.
+    for (tool, args, named) in [
+        ("layer.merge_down", json!({ "layer": 3 }), "layer 3"),
+        ("layer.merge_group", json!({ "layer": 1 }), "layer 1"),
+        ("layer.merge_visible", json!({}), "layer 1"),
+        ("layer.flatten", json!({}), "layer 1"),
     ] {
         let before = s.image(&id).document().clone();
         let e = s.err(tool, args);
-        assert!(e.contains("locked"), "{tool}: {e}");
+        assert!(e.contains("locked") && e.contains(named), "{tool}: {e}");
         assert_eq!(s.image(&id).document(), &before);
     }
     s.ok("layer.duplicate", json!({ "layer": 2 }));
@@ -646,11 +656,11 @@ fn layer_tools_record_one_undo_step_and_none_without_a_change() {
 fn layer_tools_naming_a_missing_layer_fail_with_argument_and_value() {
     for image in [false, true] {
         let mut s = S::new();
-        if image {
-            image_tree(&mut s);
+        let id = if image {
+            image_tree(&mut s)
         } else {
-            pixel_tree(&mut s);
-        }
+            pixel_tree(&mut s)
+        };
         for (tool, args, arg) in [
             ("layer.duplicate", json!({ "layer": 42 }), "layer"),
             (
@@ -670,17 +680,26 @@ fn layer_tools_naming_a_missing_layer_fail_with_argument_and_value() {
             ),
             ("layer.merge_down", json!({ "layer": 42 }), "layer"),
         ] {
+            let pixel_before = (!image).then(|| s.state(&id));
+            let image_before = image.then(|| s.image(&id).document().clone());
             let e = s.err(tool, args);
             assert!(
                 e.contains(&format!("`{arg}`")) && e.contains("42"),
                 "{tool}: {e}"
             );
+            if image {
+                assert_eq!(Some(s.image(&id).document()), image_before.as_ref());
+            } else {
+                assert_eq!(Some(s.state(&id)), pixel_before, "{tool}");
+            }
         }
     }
     let mut s = S::new();
-    image_tree(&mut s);
+    let id = image_tree(&mut s);
+    let before = s.image(&id).document().clone();
     let e = s.err("layer.merge_group", json!({ "layer": 42 }));
     assert!(e.contains("`layer`") && e.contains("42"), "{e}");
+    assert_eq!(s.image(&id).document(), &before);
 }
 
 #[test]

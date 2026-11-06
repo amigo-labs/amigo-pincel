@@ -326,6 +326,36 @@ mod tests {
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }
+        // The same section with its line breaks folded: each tool's
+        // arguments, values and defaults.
+        let flat = guide.split_whitespace().collect::<Vec<_>>().join(" ");
+        for fact in [
+            "`draw.recolor` (the Recolor tool: `from`, the replacement `color`, `tolerance` default 32)",
+            "`draw.smudge` (`strength` 1–100, default 60) take the brush arguments of `draw.stroke`",
+            "`eraser_mode` `to_transparent` (default) or `to_background` with `background` (default `#FFFFFF`)",
+            "flat-nib `angle` 0–180 (default 45)",
+            "`sample` `current_layer` (default) or `all_layers`",
+            "`pincel://effects` lists `defaults` per mode where they differ",
+        ] {
+            assert!(flat.contains(fact), "missing {fact}");
+        }
+        // mcp-parity-export AC-26: every tool and argument, and each mode.
+        for fact in [
+            "`export.png` and `export.svg`. Pixel-only",
+            "`export.apng`, `export.gif`. Image-only",
+            "`export.bmp`, `export.tiff`.",
+            "`doc.open` of `.ora`, Photoshop `.psd`",
+            "PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered)",
+            "or of a PNG with `mode: \"pixel\"`",
+            "`mode: \"image\"` or no `mode` lets the file decide",
+            "`colors`, `threshold`, `invert`, `fill`, `despeckle`, `min_area`, `alpha_max`, `opt_curve` and `opt_tolerance`, at `frame`",
+            "`tag`, `scale`, `loops`; GIF reports `warnings`",
+            "`quality` for JPEG",
+            "A layered Image document needs `flatten: true`",
+            "a PSD result lists `notices`",
+        ] {
+            assert!(flat.contains(fact), "missing {fact}");
+        }
         // mcp-parity-drawing AC-22.
         for fact in [
             "`size`\n  1–8 (default 1)",
@@ -351,6 +381,150 @@ mod tests {
             if looks_like_tool && !part.ends_with(".ora") {
                 assert!(tools.contains(&part), "guide names unknown tool `{part}`");
             }
+        }
+    }
+
+    /// The bullets of the guide's `section` that name `tool` in backticks,
+    /// with their line breaks folded into single spaces.
+    fn guide_bullets(section: &str, tool: &str) -> Vec<String> {
+        let guide = read_resource("pincel://guide").expect("guide");
+        let start = guide.find(section).expect(section) + section.len();
+        let body = &guide[start..];
+        let body = &body[..body.find("\n## ").unwrap_or(body.len())];
+        body.split("\n- ")
+            .map(|b| b.split_whitespace().collect::<Vec<_>>().join(" "))
+            .filter(|b| b.contains(&format!("`{tool}`")))
+            .collect()
+    }
+
+    /// Asserts that a bullet of `section` starting with `prefix` (the mode
+    /// line) names each of `tools`.
+    fn assert_mode_line(section: &str, prefix: &str, tools: &[&str]) {
+        for tool in tools {
+            let bullets = guide_bullets(section, tool);
+            assert!(
+                bullets.iter().any(|b| b.starts_with(prefix)),
+                "{tool} is not on the line {prefix:?}: {bullets:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn guide_names_the_modes_of_the_structure_tools() {
+        // mcp-parity-structure AC-26: each tool sits on the line of its modes.
+        let section = "## Document structure";
+        for (prefix, tools) in [
+            (
+                "Layers, both modes:",
+                &[
+                    "layer.add",
+                    "layer.duplicate",
+                    "layer.move",
+                    "layer.merge_down",
+                    "layer.flatten",
+                ][..],
+            ),
+            (
+                "Layers, Image documents only:",
+                &["layer.merge_visible", "layer.merge_group"][..],
+            ),
+            ("Tags, Pixel documents only:", &["tag.set"][..]),
+            (
+                "Palette, Pixel documents only:",
+                &[
+                    "palette.set_entry",
+                    "palette.add_entry",
+                    "palette.remove_entry",
+                    "palette.move_entry",
+                    "palette.import",
+                    "palette.export",
+                ][..],
+            ),
+        ] {
+            assert_mode_line(section, prefix, tools);
+        }
+    }
+
+    #[test]
+    fn guide_names_the_modes_of_the_selection_and_transform_tools() {
+        // mcp-parity-selection-transform AC-37: each tool sits on the line
+        // of its modes.
+        let section = "## Selections and transforms";
+        for (prefix, tools) in [
+            (
+                "Selecting, both modes:",
+                &[
+                    "select.rect",
+                    "select.ellipse",
+                    "select.polygon",
+                    "select.wand",
+                    "select.all",
+                    "select.clear",
+                    "select.invert",
+                    "select.expand",
+                    "select.contract",
+                    "select.get",
+                ][..],
+            ),
+            ("Image documents only: `feather`", &["select.feather"][..]),
+            (
+                "Transforms, both modes:",
+                &[
+                    "canvas.resize",
+                    "image.scale",
+                    "image.crop_to_selection",
+                    "image.flip",
+                    "image.rotate",
+                    "layer.flip",
+                    "layer.rotate",
+                ][..],
+            ),
+        ] {
+            assert_mode_line(section, prefix, tools);
+        }
+        // image-edit-extras AC-13: select.fill, its mode, the whole layer
+        // without a selection.
+        let fill = guide_bullets(section, "select.fill");
+        assert!(
+            fill.iter().any(|b| b.contains("Image documents only")
+                && b.contains("Without a selection it fills the whole layer")),
+            "{fill:?}"
+        );
+        // select.delete names what it does in each mode.
+        let delete = guide_bullets(section, "select.delete");
+        assert!(
+            delete
+                .iter()
+                .any(|b| b.contains("Image documents clear the whole layer")
+                    && b.contains("Pixel documents change nothing")),
+            "{delete:?}"
+        );
+    }
+
+    #[test]
+    fn guide_names_the_modes_of_the_clipboard_tools() {
+        // mcp-parity-selection-transform-content AC-22: modes, and
+        // export.selection + layer.import as Copy / Cut / Paste.
+        let section = "## Moving content and the clipboard";
+        assert_mode_line(
+            section,
+            "`select.move_content` (both modes)",
+            &["select.move_content"],
+        );
+        assert_mode_line(
+            section,
+            "Image documents only: `layer.translate`",
+            &["layer.translate", "select.move"],
+        );
+        for tool in ["export.selection", "layer.import"] {
+            let bullets = guide_bullets(section, tool);
+            assert!(
+                bullets.iter().any(|b| b.contains("Both modes;")
+                    && b.contains("`export.selection` is the headless Copy")
+                    && b.contains("`cut: true`: Cut")
+                    && b.contains("`layer.import` is the headless Paste")),
+                "{tool}: {bullets:?}"
+            );
         }
     }
 

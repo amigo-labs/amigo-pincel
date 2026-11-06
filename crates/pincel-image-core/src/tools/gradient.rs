@@ -1,7 +1,7 @@
 //! The Gradient tool (spec §5.4).
 //!
 //! A drag from `a` to `b` defines the ramp; every pixel takes a parameter
-//! `t` in `[0, 1]` from its position relative to that line, which the five
+//! `t` in `[0, 1]` from its position relative to that line, which the seven
 //! kinds compute differently. In Color mode the ramp is painted over the
 //! layer; in Transparency mode it erases, turning the existing pixels from
 //! opaque to clear along the same ramp — paint.net's two gradient channels.
@@ -14,6 +14,7 @@ use std::f32::consts::TAU;
 use pincel_effects::gradient::GradientLine;
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
@@ -34,6 +35,11 @@ pub enum GradientKind {
     Conical,
     /// Out from `a` by Manhattan distance in the drag's frame.
     Diamond,
+    /// Around and out from `a`: the ramp repeats once per drag length
+    /// outward and once per turn, so its bands wind clockwise.
+    SpiralCw,
+    /// As [`GradientKind::SpiralCw`], winding counter-clockwise.
+    SpiralCcw,
 }
 
 /// What the ramp changes (spec §5.4).
@@ -116,7 +122,7 @@ impl Gradient {
         }
 
         let (region, cropped) = masked_region(src, &after, doc.selection.as_ref())?;
-        Some(SetPixels::new(layer_index, region, cropped).with_label("Gradient"))
+        Some(SetPixels::new(layer_index, region, cropped).with_kind(HistoryKind::Gradient))
     }
 
     /// `t` in `[0, 1]` for the pixel offset `(px, py)` from the drag's start.
@@ -140,6 +146,8 @@ impl Gradient {
                 let across = -px * uy + py * ux;
                 ((along.abs() + across.abs()) / len).clamp(0.0, 1.0)
             }
+            GradientKind::SpiralCw => spiral(px, py, r, -1.0),
+            GradientKind::SpiralCcw => spiral(px, py, r, 1.0),
         }
     }
 
@@ -174,6 +182,23 @@ impl Gradient {
             }
         }
     }
+}
+
+/// `frac(r / L + turn · θ / 360°)` with `turn` −1 for a clockwise spiral
+/// and +1 for a counter-clockwise one (docs/specs/image-palette-gradient-spiral.md
+/// AC-02). `θ` is the angle from the drag direction, clockwise on screen,
+/// and 0 at the drag start itself.
+fn spiral(px: f32, py: f32, r: &Ramp, turn: f32) -> f32 {
+    let theta = if px == 0.0 && py == 0.0 {
+        0.0
+    } else {
+        (py.atan2(px) - r.base_angle).rem_euclid(TAU) / TAU
+    };
+    let v = px.hypot(py) / r.line.len() + turn * theta;
+    // `floor`, not truncation, so a negative `v` keeps winding; rounding can
+    // land exactly on 1.0, which is the seam's start color.
+    let f = v - v.floor();
+    if f >= 1.0 { 0.0 } else { f }
 }
 
 #[cfg(test)]

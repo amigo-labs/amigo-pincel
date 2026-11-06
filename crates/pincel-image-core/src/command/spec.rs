@@ -10,19 +10,19 @@ use serde::Deserialize;
 
 use super::{
     AddGroup, AddLayer, Anchor, AutoCrop, Batch, CanvasRotation, CommandBus, CropToSelection,
-    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
-    MoveLayer, MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
-    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
-    SetSelection, TransformLayer, auto_crop_rect,
+    DuplicateLayer, FlattenImage, FlipCanvas, HistoryKind, LayerTransform, MergeDown, MergeGroup,
+    MergeVisible, MoveLayer, MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas,
+    RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity,
+    SetLayerVisible, SetSelection, TransformLayer, auto_crop_rect,
 };
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
-    BlendMode, Brush, BrushShape, Color, DashPattern, Eraser, EraserMode, Fill, FillOptions,
-    Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil, Point,
-    PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode,
-    Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle,
-    apply_mode, delete_selection, magic_wand,
+    BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode, Fill,
+    FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil,
+    Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask,
+    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
+    TextStyle, apply_mode, delete_selection, fill_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -32,15 +32,17 @@ pub struct StrokeScratch {
     id: u64,
     smudge: SmudgeCarry,
     recolor: RecolorOrigins,
+    pub(super) clone: CloneSnapshot,
 }
 
 impl StrokeScratch {
     /// Start over when this is a different drag than the one we remember.
-    fn rewind(&mut self, id: u64) {
+    pub(super) fn rewind(&mut self, id: u64) {
         if self.id != id {
             self.id = id;
             self.smudge.clear();
             self.recolor.clear();
+            self.clone.clear();
         }
     }
 }
@@ -60,7 +62,7 @@ fn default_angle() -> f32 {
 }
 
 /// Pen azimuth per point for the core: a missing reading becomes NaN.
-fn azimuth_samples(azimuth: &[Option<f32>]) -> Vec<f32> {
+pub(super) fn azimuth_samples(azimuth: &[Option<f32>]) -> Vec<f32> {
     azimuth.iter().map(|a| a.unwrap_or(f32::NAN)).collect()
 }
 
@@ -125,7 +127,7 @@ fn parse_text_align(s: &str) -> TextAlign {
 }
 
 /// Maps a brush-shape string to a [`BrushShape`], defaulting to hard round.
-fn parse_shape(s: &str) -> BrushShape {
+pub(super) fn parse_shape(s: &str) -> BrushShape {
     match s {
         "soft_round" => BrushShape::SoftRound,
         "flat" => BrushShape::Flat,
@@ -184,6 +186,8 @@ pub(super) fn parse_gradient_kind(s: &str) -> GradientKind {
         "radial" => GradientKind::Radial,
         "conical" => GradientKind::Conical,
         "diamond" => GradientKind::Diamond,
+        "spiral_cw" => GradientKind::SpiralCw,
+        "spiral_ccw" => GradientKind::SpiralCcw,
         _ => GradientKind::Linear,
     }
 }
@@ -365,6 +369,38 @@ pub enum CommandSpec {
         tilt_angle: bool,
         stroke_id: u64,
     },
+    /// A Clone Stamp stroke: copies the pixels `offset` away through the
+    /// brush tip (docs/specs/clone-stamp.md).
+    CloneStroke {
+        layer: usize,
+        size: u32,
+        opacity: f32,
+        #[serde(default = "default_shape")]
+        shape: String,
+        #[serde(default = "default_hardness")]
+        hardness: f32,
+        /// Source position minus destination position, in whole pixels.
+        offset: [i32; 2],
+        /// Where the copied pixels come from: `current_layer` (default) or
+        /// `all_layers`.
+        #[serde(default = "default_sample")]
+        sample: String,
+        points: Vec<[f32; 2]>,
+        /// Pen input, as for `PencilStroke`.
+        #[serde(default)]
+        pressure: Vec<f32>,
+        #[serde(default)]
+        pressure_size: bool,
+        #[serde(default)]
+        pressure_opacity: bool,
+        #[serde(default)]
+        azimuth: Vec<Option<f32>>,
+        #[serde(default = "default_angle")]
+        angle: f32,
+        #[serde(default)]
+        tilt_angle: bool,
+        stroke_id: u64,
+    },
     /// An eraser stroke over a polyline of `[x, y]` points.
     EraserStroke {
         layer: usize,
@@ -417,6 +453,10 @@ pub enum CommandSpec {
     /// Erase the selected pixels of `layer` to transparent; the whole layer
     /// when no selection is active (Edit ▸ Clear / Delete key).
     DeleteSelection { layer: usize },
+    /// Fill the selected pixels of `layer` with `color` (RGBA), partial
+    /// coverage moving a pixel toward it; the whole layer when no selection
+    /// is active (Edit ▸ Fill Selection). No undo step when nothing changes.
+    FillSelection { layer: usize, color: [u8; 4] },
     /// Add a transparent layer above `active`.
     AddLayer { active: usize },
     /// Remove the layer at `index`.
@@ -791,7 +831,9 @@ impl CommandSpec {
             | Self::DrawGradient { layer, .. }
             | Self::RecolorStroke { layer, .. }
             | Self::SmudgeStroke { layer, .. }
+            | Self::CloneStroke { layer, .. }
             | Self::DeleteSelection { layer }
+            | Self::FillSelection { layer, .. }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
             | Self::DrawShape { layer, .. }
@@ -857,12 +899,12 @@ fn group_edits(
 fn apply_group_edits(
     bus: &mut CommandBus,
     cmds: Vec<Box<dyn super::Command>>,
-    label: &str,
+    kind: HistoryKind,
 ) -> Result<(), DocumentError> {
     if cmds.is_empty() {
         return Ok(());
     }
-    bus.apply(Box::new(Batch::new(cmds, label)))
+    bus.apply(Box::new(Batch::new(cmds, kind)))
 }
 
 /// Applies `spec` to `bus` exactly as the editor does: one tool or command,
@@ -1009,6 +1051,7 @@ pub fn run_command(
                 None => Ok(()), // stroke missed the canvas — no-op
             }
         }
+        clone @ CommandSpec::CloneStroke { .. } => super::clone_spec::run(bus, clone, scratch),
         CommandSpec::EraserStroke {
             layer,
             size,
@@ -1080,7 +1123,7 @@ pub fn run_command(
                 Move.translate(i, dx, dy, doc)
                     .map(|c| Box::new(c) as Box<dyn super::Command>)
             }) {
-                return apply_group_edits(bus, cmds, "Move Layer");
+                return apply_group_edits(bus, cmds, HistoryKind::TranslateLayer);
             }
             match Move.translate(layer, dx, dy, &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
@@ -1109,6 +1152,13 @@ pub fn run_command(
             match delete_selection(layer, &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()), // empty selection or invalid layer — no-op
+            }
+        }
+        CommandSpec::FillSelection { layer, color } => {
+            let [r, g, b, a] = color;
+            match fill_selection(layer, Color::rgba(r, g, b, a), &bus.document) {
+                Some(cmd) => bus.apply(Box::new(cmd)),
+                None => Ok(()), // nothing would change, or an invalid layer
             }
         }
         CommandSpec::AddLayer { active } => bus.apply(Box::new(AddLayer::above(active))),
@@ -1158,7 +1208,12 @@ pub fn run_command(
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let mut shape = SelectionMask::rectangle(cw, ch, Rect::new(x, y, w, h));
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Rectangle Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectRectangle,
+            )
         }
         CommandSpec::SelectEllipse {
             x,
@@ -1171,7 +1226,12 @@ pub fn run_command(
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let mut shape = SelectionMask::ellipse(cw, ch, Rect::new(x, y, w, h));
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Ellipse Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectEllipse,
+            )
         }
         CommandSpec::SelectPolygon {
             points,
@@ -1182,7 +1242,12 @@ pub fn run_command(
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let mut shape = SelectionMask::polygon(cw, ch, &pts);
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Lasso Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectLasso,
+            )
         }
         CommandSpec::SelectWand {
             layer,
@@ -1201,16 +1266,20 @@ pub fn run_command(
                 contiguous,
                 parse_sample(&sample),
             ) {
-                Some(shape) => {
-                    apply_selection(bus, shape, parse_selection_mode(&mode), "Magic Wand")
-                }
+                Some(shape) => apply_selection(
+                    bus,
+                    shape,
+                    parse_selection_mode(&mode),
+                    HistoryKind::SelectMagicWand,
+                ),
                 None => Ok(()), // off-canvas seed — no-op
             }
         }
         CommandSpec::SelectAll => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             bus.apply(Box::new(
-                SetSelection::replace(SelectionMask::new_full(cw, ch)).with_label("Select All"),
+                SetSelection::replace(SelectionMask::new_full(cw, ch))
+                    .with_kind(HistoryKind::SelectAll),
             ))
         }
         CommandSpec::Deselect => bus.apply(Box::new(SetSelection::clear())),
@@ -1224,17 +1293,17 @@ pub fn run_command(
                 .unwrap_or_else(|| SelectionMask::new_full(cw, ch));
             mask.invert();
             bus.apply(Box::new(
-                SetSelection::replace(mask).with_label("Invert Selection"),
+                SetSelection::replace(mask).with_kind(HistoryKind::InvertSelection),
             ))
         }
         CommandSpec::ExpandSelection { radius } => {
-            modify_selection(bus, "Expand Selection", |m| m.expand(radius))
+            modify_selection(bus, HistoryKind::ExpandSelection, |m| m.expand(radius))
         }
         CommandSpec::ContractSelection { radius } => {
-            modify_selection(bus, "Contract Selection", |m| m.contract(radius))
+            modify_selection(bus, HistoryKind::ContractSelection, |m| m.contract(radius))
         }
         CommandSpec::FeatherSelection { radius } => {
-            modify_selection(bus, "Feather Selection", |m| m.feather(radius))
+            modify_selection(bus, HistoryKind::FeatherSelection, |m| m.feather(radius))
         }
         CommandSpec::TransformLayer { layer, op } => {
             let op = match op.as_str() {
@@ -1245,7 +1314,8 @@ pub fn run_command(
             if let Some(cmds) = group_edits(&bus.document, layer, |i| {
                 Some(Box::new(TransformLayer::new(i, op)))
             }) {
-                return apply_group_edits(bus, cmds, "Transform Layer");
+                let kind = super::Command::kind(&TransformLayer::new(layer, op));
+                return apply_group_edits(bus, cmds, kind);
             }
             bus.apply(Box::new(TransformLayer::new(layer, op)))
         }
@@ -1253,7 +1323,8 @@ pub fn run_command(
             if let Some(cmds) = group_edits(&bus.document, layer, |i| {
                 Some(Box::new(RotateLayer90::new(i, ccw)))
             }) {
-                return apply_group_edits(bus, cmds, "Rotate Layer");
+                let kind = super::Command::kind(&RotateLayer90::new(layer, ccw));
+                return apply_group_edits(bus, cmds, kind);
             }
             bus.apply(Box::new(RotateLayer90::new(layer, ccw)))
         }
@@ -1576,29 +1647,29 @@ fn rgba(c: [u8; 4]) -> Color {
 }
 
 /// Combines `shape` with the current selection per `mode` and applies it as an
-/// undoable [`SetSelection`] labeled `label`.
+/// undoable [`SetSelection`] of history kind `kind`.
 fn apply_selection(
     bus: &mut CommandBus,
     shape: SelectionMask,
     mode: SelectionMode,
-    label: &'static str,
+    kind: HistoryKind,
 ) -> Result<(), DocumentError> {
     let after = apply_mode(bus.document.selection.as_ref(), shape, mode);
-    bus.apply(Box::new(SetSelection::replace(after).with_label(label)))
+    bus.apply(Box::new(SetSelection::replace(after).with_kind(kind)))
 }
 
 /// Applies an in-place modifier (`expand`/`contract`/`feather`) to the current
 /// selection. A no-op when nothing is selected (the whole canvas is implied).
 fn modify_selection(
     bus: &mut CommandBus,
-    label: &'static str,
+    kind: HistoryKind,
     f: impl FnOnce(&mut SelectionMask),
 ) -> Result<(), DocumentError> {
     let Some(mut mask) = bus.document.selection.clone() else {
         return Ok(());
     };
     f(&mut mask);
-    bus.apply(Box::new(SetSelection::replace(mask).with_label(label)))
+    bus.apply(Box::new(SetSelection::replace(mask).with_kind(kind)))
 }
 
 /// `true` when pixel edits on the layer at `index` are refused: it exists
@@ -1641,13 +1712,17 @@ mod tests {
             CommandBus::new(doc)
         }
 
-        const PIXEL_EDITS: [&str; 5] = [
+        /// Edits that write a layer's own pixels: refused on a group.
+        const PIXEL_ONLY_EDITS: [&str; 5] = [
             r#"{"type":"pencil_stroke","layer":L,"size":1,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
             r#"{"type":"fill_bucket","layer":L,"x":1,"y":1,"color":[0,0,0,255],"opacity":1,"tolerance":0,"contiguous":true}"#,
             r#"{"type":"translate_selection","layer":L,"dx":1,"dy":0}"#,
             r#"{"type":"delete_selection","layer":L}"#,
-            r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#,
+            r#"{"type":"fill_selection","layer":L,"color":[0,0,0,255]}"#,
         ];
+
+        /// Move (layer): allowed on a group, where it moves the descendants.
+        const TRANSLATE_LAYER: &str = r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#;
 
         fn edit(json: &str, layer: usize) -> CommandSpec {
             parse(&json.replace(":L", &format!(":{layer}")))
@@ -1659,14 +1734,14 @@ mod tests {
             bus.document.layers[1].locked = true;
             for layer in [2, 4] {
                 assert!(layer_locked(&bus.document, layer), "{layer}");
-                for json in PIXEL_EDITS {
+                for json in PIXEL_ONLY_EDITS.into_iter().chain([TRANSLATE_LAYER]) {
                     assert!(
                         edit(json, layer).refused(&bus.document),
                         "{json} on {layer}"
                     );
                 }
             }
-            assert!(!edit(PIXEL_EDITS[0], 0).refused(&bus.document));
+            assert!(!edit(PIXEL_ONLY_EDITS[0], 0).refused(&bus.document));
             assert!(
                 !bus.document.layers[2].locked,
                 "the child's own flag is untouched"
@@ -1677,11 +1752,11 @@ mod tests {
         fn pixel_edits_on_a_group_are_refused() {
             let bus = bus();
             assert!(layer_locked(&bus.document, 1));
-            for json in &PIXEL_EDITS[..4] {
+            for json in PIXEL_ONLY_EDITS {
                 assert!(edit(json, 1).refused(&bus.document), "{json}");
             }
             // Move (layer) on a group is allowed: it moves its content.
-            assert!(!edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+            assert!(!edit(TRANSLATE_LAYER, 1).refused(&bus.document));
         }
 
         #[test]
@@ -1746,8 +1821,12 @@ mod tests {
         #[test]
         fn move_on_a_group_with_a_locked_descendant_is_refused() {
             let mut bus = bus();
+            assert!(
+                !edit(TRANSLATE_LAYER, 1).refused(&bus.document),
+                "allowed while nothing below is locked"
+            );
             bus.document.layers[4].locked = true;
-            assert!(edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+            assert!(edit(TRANSLATE_LAYER, 1).refused(&bus.document));
         }
     }
 
@@ -1781,6 +1860,7 @@ mod tests {
             r#"{"type":"translate_layer","layer":2,"dx":1,"dy":0}"#,
             r#"{"type":"translate_selection","layer":2,"dx":1,"dy":0}"#,
             r#"{"type":"delete_selection","layer":2}"#,
+            r#"{"type":"fill_selection","layer":2,"color":[0,0,0,255]}"#,
             r#"{"type":"transform_layer","layer":2,"op":"flip_h"}"#,
             r#"{"type":"rotate_layer_90","layer":2,"ccw":false}"#,
             r#"{"type":"draw_shape","layer":2,"shape":"line","points":[[0,0],[3,3]]}"#,

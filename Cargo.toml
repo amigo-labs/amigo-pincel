@@ -57,3 +57,12 @@ all = { level = "warn", priority = -1 }
 # about a minute. Optimised it fits the test budget (AGENTS.md §7.5).
 [profile.dev.package.pincel-trace]
 opt-level = 3
+
+# Chosen by measurement (docs/specs/performance-build-simd.md AC-01,
+# candidates under Decisions): whole-program LTO with one codegen unit gave
+# the smallest wasm modules and the fastest browser recompose; `opt-level`
+# stays 3 everywhere (an "s" build for the non-hot crates was larger and
+# slower). `panic` stays the default: wasm32-unknown-unknown aborts anyway.
+[profile.release]
+lto = "fat"
+codegen-units = 1

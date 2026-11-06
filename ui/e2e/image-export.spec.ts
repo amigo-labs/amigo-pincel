@@ -128,6 +128,8 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   await resize.getByLabel('Maintain aspect ratio').uncheck();
   await resize.getByLabel('Width').fill('20000');
   await resize.getByLabel('Height').fill('50');
+  // The readout already shows the reduced size (image-resize-autocrop AC-08).
+  await expect(resize.getByTestId('size-result')).toHaveText('16384 × 50 px');
   await resize.getByRole('button', { name: 'Resize' }).click();
   await expect(page.getByText('16384 × 50 px · sRGB')).toBeVisible({ timeout: 60_000 });
 
@@ -140,6 +142,7 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   await scale.getByLabel('Width').fill('16384');
   await scale.getByLabel('Height').fill('8192');
   await scale.getByLabel('Resampling').selectOption('nearest');
+  await expect(scale.getByTestId('size-result')).toHaveText('11585 × 5792 px');
   await scale.getByRole('button', { name: 'Scale' }).click();
   await expect(page.getByText('11585 × 5792 px · sRGB')).toBeVisible({ timeout: 60_000 });
 });

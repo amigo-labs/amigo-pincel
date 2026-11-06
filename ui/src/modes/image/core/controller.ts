@@ -25,7 +25,6 @@ import {
   type Rgba,
   type DrawShapeCommand,
   type ShapeKind,
-  type DrawTextCommand,
   type Vectorizer,
 } from './wasm';
 import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
@@ -49,6 +48,8 @@ import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
 import { encodeInBackground, type EffectJob } from '../jobs';
 import { gestureControl } from '../tools/gesture-control';
+import { sameHistory } from '../../../lib/history/names';
+import { t } from '../../../lib/i18n/index.svelte';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -114,7 +115,7 @@ export function colorWithOpacity(hex: string, alpha: number): Rgba {
 }
 
 /** Pen input and the brush dynamics it drives (spec §17.4). */
-function penFields(
+export function penFields(
   pressure: number[],
   azimuth: Array<number | null>,
 ): {
@@ -142,12 +143,21 @@ export function syncInfo(): void {
     return;
   }
   const info = core.documentInfo(editor.handle);
+  // A document command or an active-layer change is a commit trigger the
+  // core runs on its own: it closes an empty text box at once, before a
+  // Text press that follows the commit opens the next one
+  // (docs/specs/image-live-text.md AC-01, AC-11).
+  if (info.undo_depth !== editor.undoDepth || info.active_layer !== editor.activeLayer) {
+    gestureControl.closeTextBox();
+  }
   editor.width = info.width;
   editor.height = info.height;
   editor.activeLayer = info.active_layer;
   editor.canUndo = info.can_undo;
   editor.canRedo = info.can_redo;
   editor.undoDepth = info.undo_depth;
+  const history = core.history(editor.handle);
+  if (!sameHistory(history, editor.history)) editor.history = history;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
   live.object = core.liveObject(editor.handle);
@@ -532,15 +542,17 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
 }
 
 // The default font is fetched once and registered with the core (ADR-012,
-// Option B). `draw_text` references it by id. The promise is cached so
-// concurrent text commits await a single load/registration.
+// Option B). Live text and `draw_text` reference it by id. The promise is
+// cached so concurrent presses await a single load/registration.
 let fontLoad: Promise<number> | null = null;
+let fontId: number | null = null;
 
 /** Loads and registers the bundled default font, returning its core id.
  *
- * The successful promise is cached so repeat commits reuse one registration; a
- * failed load resets the cache so a later attempt can retry (offline/404). */
-async function ensureFont(): Promise<number> {
+ * The successful promise is cached so repeat presses reuse one registration;
+ * a failed load resets the cache so the next press retries (offline/404,
+ * docs/specs/image-live-text.md AC-19). */
+export async function ensureFont(): Promise<number> {
   if (!fontLoad) {
     fontLoad = (async () => {
       await initCore();
@@ -549,50 +561,25 @@ async function ensureFont(): Promise<number> {
         throw new Error(`font fetch failed: ${res.status}`);
       }
       const bytes = new Uint8Array(await res.arrayBuffer());
-      return core.registerFont(bytes);
-    })().catch((err) => {
-      fontLoad = null; // allow a later commit to retry
+      fontId = core.registerFont(bytes);
+      return fontId;
+    })().catch((err: unknown) => {
+      fontLoad = null; // allow a later press to retry
       throw err;
     });
   }
   return fontLoad;
 }
 
-/** Rasterizes `text` at a canvas-space point with the active text style.
- *
- * Empty/whitespace text is a no-op. The font is loaded lazily on first use; if
- * it cannot be loaded the commit is silently skipped rather than rejecting. */
-export async function renderText(x: number, y: number, text: string): Promise<void> {
-  if (editor.handle === null || text.trim().length === 0) {
-    return;
-  }
-  let fontId: number;
-  try {
-    fontId = await ensureFont();
-  } catch {
-    return; // font unavailable — skip the commit
-  }
-  if (editor.handle === null) {
-    return; // document closed while the font was loading
-  }
-  const cmd: DrawTextCommand = {
-    type: 'draw_text',
-    layer: editor.activeLayer,
-    font_id: fontId,
-    text,
-    x,
-    y,
-    size: tool.fontSize,
-    color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
-    bold: tool.textBold,
-    italic: tool.textItalic,
-    anti_alias: tool.textAntiAlias,
-    align: tool.textAlign,
-  };
-  const before = editor.undoDepth;
-  core.applyCommand(editor.handle, cmd);
-  syncInfo();
-  notePainted(before, [usedColor(false)]);
+/** The registered font's id once `ensureFont` has loaded it, else `null`. */
+export function loadedFontId(): number | null {
+  return fontId;
+}
+
+/** The foreground color as RGBA bytes, recorded as painted with when the
+ *  document gained a step since `depthBefore` (color-picker AC-24). */
+export function noteTextPainted(depthBefore: number): void {
+  notePainted(depthBefore, [usedColor(false)]);
 }
 
 /** Marks the document as having unsaved changes (e.g. after recovering an
@@ -613,6 +600,7 @@ export function projectBytes(fast = false): Uint8Array | null {
 export async function newDocument(width: number, height: number): Promise<ImageTab> {
   await initCore();
   const tab = openTab(core.createDocument(width, height), blankFile());
+  tab.doc.origin = 'new';
   syncInfo();
   markSaved();
   return tab;
@@ -629,7 +617,10 @@ export async function openBytes(
   bytes: Uint8Array,
   name: string,
   mime: string,
-  target: Pick<SaveTarget, 'handle' | 'path'> & { format?: DocFormat | null } = {
+  target: Pick<SaveTarget, 'handle' | 'path'> & {
+    format?: DocFormat | null;
+    origin?: 'paste';
+  } = {
     handle: null,
     path: null,
   },
@@ -652,6 +643,7 @@ export async function openBytes(
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
   const tab = openTab(handle, openedFile(name, format, target));
+  tab.doc.origin = target.origin ?? 'open';
   syncInfo();
   markSaved();
   editor.notice = notice;
@@ -811,6 +803,23 @@ export function deleteSelection(): void {
   syncInfo();
 }
 
+/** Fills the selected pixels of the active layer with the foreground color
+ *  (Edit ▸ Fill Selection); the whole layer without a selection. The core
+ *  adds no undo step when nothing changes (image-edit-extras AC-06). */
+export function fillSelection(): void {
+  if (editor.handle === null) {
+    return;
+  }
+  const before = editor.undoDepth;
+  core.applyCommand(editor.handle, {
+    type: 'fill_selection',
+    layer: editor.activeLayer,
+    color: activeColor(false),
+  });
+  syncInfo();
+  notePainted(before, [usedColor(false)]);
+}
+
 /** Translates the active layer's contents by `(dx, dy)` pixels. */
 export function moveLayer(dx: number, dy: number): void {
   if (editor.handle === null || (dx === 0 && dy === 0)) {
@@ -937,13 +946,35 @@ export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
  *  that drag (docs/specs/image-live-objects-ui.md AC-11). */
 export function undo(): void {
   if (gestureControl.cancelLiveDrag()) return;
+  gestureControl.historyMoved();
   if (editor.handle !== null && core.undo(editor.handle)) {
     syncInfo();
   }
 }
 
+/** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History
+ *  panel (history-panel AC-05): one core call, one redraw (AC-13). A failed
+ *  step stops the jump and shows a notice (AC-12). */
+export function jumpHistory(delta: number): void {
+  if (editor.handle === null || delta === 0) return;
+  // What Undo / Redo do first: drop a live-object handle drag, and reset a
+  // live text's caret, selection and typing burst (image-live-text AC-13;
+  // history-panel AC-11).
+  if (gestureControl.cancelLiveDrag()) return;
+  gestureControl.historyMoved();
+  try {
+    core.jumpHistory(editor.handle, delta);
+  } catch (err) {
+    editor.notice = t('historyPanel.jumpFailed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  syncInfo();
+}
+
 /** Redoes the last undone command. */
 export function redo(): void {
+  gestureControl.historyMoved();
   if (editor.handle !== null && core.redo(editor.handle)) {
     syncInfo();
   }
