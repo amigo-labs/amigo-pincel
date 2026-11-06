@@ -332,7 +332,6 @@ test('Cancel and Save as .ora… in the combined prompt remember no quality (AC-
   await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('90');
 });
 
-
 test('Save As offers every writable format and writes the chosen one', async ({ page }) => {
   await openFile(page, 'screenshot.png', 'png');
   await menu(page, 'File', 'Save As…');
@@ -452,6 +451,11 @@ test('the Save As merge checkbox keeps its state and hides for .ora (AC-16)', as
   await expect(mergeBox(page)).toBeChecked();
   await format.selectOption('jpeg');
   await expect(mergeBox(page)).toBeChecked();
+  await expect(saveButton).toBeEnabled();
+  // Away from JPEG the quality disappears; at .ora the checkbox too.
+  await format.selectOption('ora');
+  await expect(dialog.getByLabel('Quality')).toHaveCount(0);
+  await expect(mergeBox(page)).toHaveCount(0);
   await expect(saveButton).toBeEnabled();
 
   // Cancel writes and remembers nothing.
