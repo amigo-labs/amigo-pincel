@@ -74,6 +74,8 @@ history_kinds! {
     MoveSelectionMask => "move_selection_mask",
     /// Edit ▸ Erase Selection.
     DeleteSelection => "delete_selection",
+    /// Edit ▸ Fill Selection.
+    FillSelection => "fill_selection",
     /// Edit ▸ Paste.
     Paste => "paste",
     /// A selection set without a selection tool.

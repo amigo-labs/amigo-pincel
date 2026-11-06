@@ -482,6 +482,14 @@ mod tests {
         ] {
             assert_mode_line(section, prefix, tools);
         }
+        // image-edit-extras AC-13: select.fill, its mode, the whole layer
+        // without a selection.
+        let fill = guide_bullets(section, "select.fill");
+        assert!(
+            fill.iter().any(|b| b.contains("Image documents only")
+                && b.contains("Without a selection it fills the whole layer")),
+            "{fill:?}"
+        );
         // select.delete names what it does in each mode.
         let delete = guide_bullets(section, "select.delete");
         assert!(

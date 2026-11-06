@@ -44,7 +44,7 @@ pub use tools::{
     EraserMode, Eyedropper, Fill, FillOptions, Gradient, GradientChannel, GradientKind, Move,
     PenSamples, Pencil, PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape,
     ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextLayout, TextStyle,
-    copy_selection, delete_selection,
+    copy_selection, delete_selection, fill_selection,
 };
 pub use transform::{
     Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,

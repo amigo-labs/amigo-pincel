@@ -35,6 +35,7 @@ export const historyEn = {
   'history.text': 'Text',
   'history.move_selection': 'Move Selected Pixels',
   'history.delete_selection': 'Delete Selection',
+  'history.fill_selection': 'Fill Selection',
   'history.cut': 'Cut',
   'history.paste': 'Paste',
   'history.draw_pixels': 'Draw Pixels',

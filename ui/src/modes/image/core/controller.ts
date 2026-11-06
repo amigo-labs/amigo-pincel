@@ -803,6 +803,23 @@ export function deleteSelection(): void {
   syncInfo();
 }
 
+/** Fills the selected pixels of the active layer with the foreground color
+ *  (Edit ▸ Fill Selection); the whole layer without a selection. The core
+ *  adds no undo step when nothing changes (image-edit-extras AC-06). */
+export function fillSelection(): void {
+  if (editor.handle === null) {
+    return;
+  }
+  const before = editor.undoDepth;
+  core.applyCommand(editor.handle, {
+    type: 'fill_selection',
+    layer: editor.activeLayer,
+    color: activeColor(false),
+  });
+  syncInfo();
+  notePainted(before, [usedColor(false)]);
+}
+
 /** Translates the active layer's contents by `(dx, dy)` pixels. */
 export function moveLayer(dx: number, dy: number): void {
   if (editor.handle === null || (dx === 0 && dy === 0)) {

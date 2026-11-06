@@ -22,6 +22,7 @@ mod pixel_paint;
 mod preview;
 mod rotate_zoom;
 mod select;
+mod select_fill;
 mod structure;
 mod tags_palette;
 mod transform;

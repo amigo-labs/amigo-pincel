@@ -318,6 +318,7 @@ export const de: Record<MessageKey, string> = {
   'offer.open': 'Öffnen',
   'offer.ignore': 'Ignorieren',
   'menu.deleteSelection': 'Auswahl löschen',
+  'menu.fillSelection': 'Auswahl füllen',
   'menu.swapColors': 'Farben tauschen',
   'menu.defaultColors': 'Standardfarben',
   'menu.expand': 'Erweitern…',

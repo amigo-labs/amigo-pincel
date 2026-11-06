@@ -34,6 +34,7 @@ export const historyDe: Record<keyof typeof historyEn, string> = {
   'history.text': 'Text',
   'history.move_selection': 'Auswahlinhalt verschieben',
   'history.delete_selection': 'Auswahl löschen',
+  'history.fill_selection': 'Auswahl füllen',
   'history.cut': 'Ausschneiden',
   'history.paste': 'Einfügen',
   'history.draw_pixels': 'Pixel zeichnen',

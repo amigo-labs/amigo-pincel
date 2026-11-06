@@ -91,20 +91,20 @@ Decision Log 2026-11-05 "MCP tool parity" requires an MCP tool for every documen
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `Edit ▸ Fill Selection sits below Delete Selection with its key, in English and German (AC-01)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-02 | `fill_selection_full_coverage_takes_the_color_and_leaves_unselected_pixels`, `fill_selection_full_coverage_over_transparent_takes_the_exact_color` (`crates/pincel-image-core/src/tools/fill_selection.rs`); `Fill Selection paints the selected pixels exactly with the foreground color (AC-02)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-03 | `fill_selection_partial_coverage_interpolates_opaque_channels`, `fill_selection_partial_coverage_moves_alpha_and_keeps_color_between`, `fill_selection_transparent_color_scales_alpha_like_delete` (`crates/pincel-image-core/src/tools/fill_selection.rs`) | built  |        |
+| AC-04 | `fill_selection_without_selection_fills_the_whole_layer_and_undoes` (`crates/pincel-image-core/src/tools/fill_selection.rs`); `Backspace without a selection fills the whole layer (AC-04, AC-14)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-05 | `fill_selection_is_one_undo_step_that_undoes_and_redoes_and_keeps_the_selection` (`crates/pincel-image-core/tests/fill_selection.rs`); `Fill Selection is one undo step that keeps the selection; Redo repeats it (AC-05)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-06 | `fill_selection_that_changes_nothing_returns_none` (`crates/pincel-image-core/src/tools/fill_selection.rs`); `fill_selection_that_changes_nothing_adds_no_undo_step` (`crates/pincel-image-core/tests/fill_selection.rs`); `a Fill Selection that changes nothing adds no undo step and no unsaved changes (AC-06)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-07 | `fill_selection_with_empty_selection_returns_none` (`crates/pincel-image-core/src/tools/fill_selection.rs`); `fill_selection_with_a_selection_that_covers_nothing_changes_nothing` (`crates/pincel-image-core/tests/fill_selection.rs`) | built  |        |
+| AC-08 | `fill_selection_on_a_locked_layer_is_refused` (`crates/pincel-image-core/tests/fill_selection.rs`); `locked_group_refuses_edits_on_its_descendants`, `pixel_edits_on_a_group_are_refused` (`crates/pincel-image-core/src/command/spec.rs`); `Fill Selection on a locked layer or a group shows the locked notice and changes nothing (AC-08)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
+| AC-09 | `fill_selection_changes_only_the_target_layer_also_when_hidden_and_translucent` (`crates/pincel-image-core/tests/fill_selection.rs`) | built  |        |
+| AC-10 | `select_fill_is_listed_with_doc_layer_and_color_and_no_frame` (`crates/pincel-agent/src/tests/select_fill.rs`); `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-11 | `select_fill_matches_the_editor_with_a_feathered_selection`, `select_fill_defaults_to_black_on_the_active_layer_and_fills_it_whole_without_a_selection`, `select_fill_that_changes_nothing_reports_unchanged_and_adds_no_step` (`crates/pincel-agent/src/tests/select_fill.rs`) | built  |        |
+| AC-12 | `select_fill_refuses_pixel_documents_bad_layers_colors_and_frames` (`crates/pincel-agent/src/tests/select_fill.rs`); `validate_missing_and_unknown_arguments_are_named` (`crates/pincel-agent/src/schema.rs`) | built  |        |
+| AC-13 | `guide_names_the_modes_of_the_selection_and_transform_tools` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-14 | `Backspace without a selection fills the whole layer (AC-04, AC-14)`, `Delete runs Delete Selection; in Pixel mode Backspace does nothing (AC-14)`, `on macOS › ⌥Backspace fills; Backspace and Delete delete in both modes (AC-14)` (`ui/e2e/image-fill-selection.spec.ts`) | built  |        |
 
 ## Decisions
 
@@ -112,3 +112,10 @@ Decision Log 2026-11-05 "MCP tool parity" requires an MCP tool for every documen
 - 2026-11-05: Default key (owner's choice): Backspace runs Fill Selection on Windows / Linux; on macOS Backspace stays Delete Selection and Fill Selection gets Option+Backspace, because that gives paint.net parity where paint.net users are without taking the only delete key from Mac laptops (Photoshop's Mac fill key). Pixel mode does not bind Fill Selection (AC-14).
 - 2026-11-05: MCP name (owner's choice): `select.fill`, not `draw.fill_selection`, because it pairs with `select.delete` from `mcp-parity-selection-transform` and takes the same arguments.
 - 2026-11-05 (clarification pass): Fill Selection interpolates toward the foreground by coverage, alpha included, because then a transparent fill equals Delete Selection with no hard step at the feather edge and the rule matches Overwrite in `image-edit-extras-tool-options.md`. `select.fill` takes no `frame` (Image only) and reports `changed` like `select.delete`, because one result shape for the pair keeps clients simple. A stored keymap override keeps its chord over the new default, because user choices are never silently replaced.
+- 2026-11-06 (build): Partial coverage mixes the color weighted by alpha (premultiplied) while alpha is a plain lerp, because a straight per-channel lerp would darken a fill over transparent pixels and change the color of a transparent fill, which the edge case wants equal to Delete Selection; for opaque over opaque both are the same (AC-03).
+- 2026-11-06 (build): `fill_selection` in `pincel-image-core` returns no command when no pixel would change, because then the editor, `apply_command` and `select.fill` share the no-op rule of AC-06 / AC-07 / AC-11 without a dry run.
+- 2026-11-06 (build): Fill Selection records the foreground in the recent colors (`notePainted`) like the painting tools, because it paints with that color.
+- 2026-11-06 (build): The schema's unknown-argument error now quotes the value (``unknown argument `frame` (got 7; …)``), because AC-12 asks a `frame` refusal to name the argument and its value and `select.fill`'s closed schema refuses it before the tool runs.
+- 2026-11-06 (build): On macOS, ⌥⌫ inside the live text field is not a key the field owns, so it runs Fill Selection like any other passed-on chord (`image-live-text` AC-23); left as is because the field's key set belongs to that spec.
+- 2026-11-06 (build): `command/spec.rs`, `ImageEditor.svelte` and `controller.ts` were over 800 lines before this spec; the additions are kept to a few lines each and the new logic lives in new files (`tools/fill_selection.rs`, `tests/select_fill.rs`) rather than splitting those files here.
+- 2026-11-06 (build), red runs: the core tests failed against a stub returning `None` (6 of 9); the three `None` tests failed once the no-change / empty-selection guards and the layer lookup were broken. The `tests/fill_selection.rs` tests (written after the command existed) failed with the spec arm on layer 0, without `FillSelection` in `edited_layer` and without the no-change guard (5 of 5). The `select_fill` tests failed before the tool existed (4 of 4); the no-change and refusal tests failed with `changed` forced true and the value dropped from the unknown-argument error; the guide test failed with the old `guide.md`. All 8 e2e tests failed against a build without the UI change.
