@@ -392,7 +392,9 @@ pub(crate) fn gradient(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
 /// `draw.text` on a Pixel document.
 pub(crate) fn text(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let color = {
-        let (_, doc) = ctx.ws.doc(args)?;
+        let (id, doc) = ctx.ws.doc(args)?;
+        // The Pixel editor's Text dialog has no underline or strikethrough.
+        refuse_image_args(&id, args, &["underline", "strikethrough"])?;
         color_or_black(doc, args, "color")?
     };
     let (x, y) = (int_coord(args, "x")?, int_coord(args, "y")?);
