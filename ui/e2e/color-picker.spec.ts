@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, pixelCanvas } from './helpers';
+import { createDocument, imageCanvas, pixelCanvas, storedPref } from './helpers';
 
 // The own color picker (color-picker spec): a popover from the foreground
 // and background swatches with an S/V area, hue and alpha sliders, a hex
@@ -279,6 +279,68 @@ test('a drag on the hue or alpha slider updates the color live, also with a pen 
   await cdpDrag(page, 'pen', await across(alpha, 0.3), await across(alpha, 1.2));
   await expect(panelAlpha).toHaveValue('255');
 });
+
+for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
+  test(`${mode}: a drag stores the last color once, when it ends (one commit per interaction)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    const key = mode === 'pixel' ? 'lastColor' : 'lastColor:image';
+    const stored = () => storedPref(page, key);
+    const picker = await openPicker(page);
+    const hex = picker.getByRole('textbox', { name: 'Hex color' });
+    await commitHex(picker, '#ff0000');
+    await expect.poll(stored).toBe('#ff0000ff');
+
+    // A held S/V drag: the tools follow it, the pref keeps the old color.
+    const box = await picker.getByRole('slider', { name: 'Saturation and value' }).boundingBox();
+    if (!box) throw new Error('not visible');
+    await page.mouse.move(box.x + box.width - 2, box.y + 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+    await expect(page.getByLabel('Foreground color hex value')).not.toHaveValue('#ff0000');
+    expect(await stored()).toBe('#ff0000ff');
+    // Released outside the popover: the drag ends, the popover stays.
+    await page.mouse.move(box.x + box.width + 60, box.y + box.height / 2, { steps: 2 });
+    expect(await stored()).toBe('#ff0000ff');
+    await page.mouse.up();
+    await expect(picker).toBeVisible();
+    const afterArea = `${await hex.inputValue()}ff`;
+    expect(afterArea).not.toBe('#ff0000ff');
+    await expect.poll(stored).toBe(afterArea);
+
+    // The hue slider: the same, the release (`change`) commits.
+    const hue = picker.getByRole('slider', { name: 'Hue', exact: true });
+    await page.mouse.move(...(await across(hue, 0.02)));
+    await page.mouse.down();
+    await page.mouse.move(...(await across(hue, 0.6)), { steps: 4 });
+    await expect(hex).not.toHaveValue(afterArea.slice(0, 7));
+    expect(await stored()).toBe(afterArea);
+    await page.mouse.up();
+    const afterHue = `${await hex.inputValue()}ff`;
+    await expect.poll(stored).toBe(afterHue);
+
+    // An arrow key is a whole interaction of its own.
+    await picker.getByRole('slider', { name: 'Saturation and value' }).press('Shift+ArrowDown');
+    await expect(hex).not.toHaveValue(afterHue.slice(0, 7));
+    await expect.poll(stored).toBe(`${await hex.inputValue()}ff`);
+    await page.keyboard.press('Escape');
+
+    // The panel's alpha slider: held, then released.
+    const panelAlpha = page.getByRole('slider', { name: 'Foreground alpha' });
+    const before = await stored();
+    await page.mouse.move(...(await across(panelAlpha, 0.98)));
+    await page.mouse.down();
+    await page.mouse.move(...(await across(panelAlpha, 0.4)), { steps: 4 });
+    await expect.poll(async () => Number(await panelAlpha.inputValue())).toBeLessThan(200);
+    expect(await stored()).toBe(before);
+    await page.mouse.up();
+    const a = Number(await panelAlpha.inputValue())
+      .toString(16)
+      .padStart(2, '0');
+    await expect.poll(stored).toBe(`${String(before).slice(0, 7)}${a}`);
+  });
+}
 
 test.describe('touch', () => {
   test.use({ hasTouch: true });

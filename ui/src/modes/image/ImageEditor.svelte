@@ -1,6 +1,11 @@
 <script lang="ts">
   import { hexToRgb, toHex } from '../../lib/color';
-  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
+  import {
+    colorDraft,
+    loadColorPref,
+    loadRecent,
+    saveColorPref,
+  } from '../../lib/colors/recent.svelte';
   import { onMount, untrack } from 'svelte';
   import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
@@ -731,12 +736,14 @@
   const BG_PREF = 'lastBgColor:image';
   // The last foreground / background colors and the recent colors, per
   // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
-  // so a slow store cannot overwrite them with the defaults.
+  // so a slow store cannot overwrite them with the defaults, and happens
+  // once per picker interaction: a drag's live colors wait for its end.
   let colorPrefsLoaded = $state(false);
   $effect(() => {
     const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
     const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
-    if (!colorPrefsLoaded) return;
+    const draft = colorDraft.image;
+    if (!colorPrefsLoaded || draft) return;
     saveColorPref(FG_PREF, fg);
     saveColorPref(BG_PREF, bg);
   });

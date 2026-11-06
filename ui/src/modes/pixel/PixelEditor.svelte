@@ -76,7 +76,7 @@
   import { syncRecentMenu } from '../../lib/menu';
   import { listRecents } from '../../lib/idb/recent-files';
   import { hexToRgb, packColor, readColor, toHex, unpackColor } from '../../lib/color';
-  import { loadRecent, recentColors } from '../../lib/colors/recent.svelte';
+  import { colorDraft, loadRecent, recentColors } from '../../lib/colors/recent.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import {
     closeShortcuts,
@@ -903,11 +903,13 @@
   });
 
   // Persist the foreground / background colors once the initial load
-  // settled.
+  // settled, and once per picker interaction: a drag's live colors wait
+  // for its end (color-picker spec).
   $effect(() => {
     const fg = toHex({ ...hexToRgb(colors.color), a: colors.alpha }, true);
     const bg = toHex({ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }, true);
-    if (!live.colorPrefLoaded || !idbAvailable) return;
+    const draft = colorDraft.pixel;
+    if (!live.colorPrefLoaded || !idbAvailable || draft) return;
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
     });
@@ -972,6 +974,7 @@
       onSwap={swapColors}
       onReset={resetColors}
       recent={recentColors.pixel}
+      onDraft={(d) => (colorDraft.pixel = d)}
     />
   </Panel>
 {/snippet}
