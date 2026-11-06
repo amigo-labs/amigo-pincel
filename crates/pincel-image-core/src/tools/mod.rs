@@ -313,11 +313,19 @@ impl Brush {
         let cy0 = (center.y - radius).floor() as i32;
         let cx1 = (center.x + radius).ceil() as i32;
         let cy1 = (center.y + radius).ceil() as i32;
+        // A dab narrower than a pixel diagonal can fall between pixel
+        // centers and miss every one; it still paints the pixel it lies in.
+        let own = (radius < std::f32::consts::FRAC_1_SQRT_2)
+            .then(|| (center.x.floor() as i32, center.y.floor() as i32));
         for cy in cy0..=cy1 {
             for cx in cx0..=cx1 {
                 let dx = cx as f32 + 0.5 - center.x;
                 let dy = cy as f32 + 0.5 - center.y;
-                let cov = self.coverage(dx, dy, radius, rot);
+                let cov = if own == Some((cx, cy)) {
+                    self.coverage(0.0, 0.0, radius, rot)
+                } else {
+                    self.coverage(dx, dy, radius, rot)
+                };
                 if cov <= 0.0 {
                     continue;
                 }
@@ -629,6 +637,36 @@ mod tests {
             .apply(&mut light)
             .unwrap();
         assert!(painted(&light) * 4 < painted(&full));
+    }
+
+    #[test]
+    fn stroke_of_one_pixel_brush_on_grid_lines_paints() {
+        // Every dab sits on a pixel corner, half a pixel diagonally from the
+        // nearest pixel center: still a visible 1 px line.
+        let mut doc = Document::new(20, 20).unwrap();
+        black_pencil(1)
+            .stroke(0, &[Point::new(4.0, 10.0), Point::new(16.0, 10.0)], &doc)
+            .unwrap()
+            .apply(&mut doc)
+            .unwrap();
+        assert!(painted(&doc) >= 12, "painted {}", painted(&doc));
+    }
+
+    #[test]
+    fn stroke_with_lightest_pressure_on_a_pixel_edge_paints() {
+        let mut doc = Document::new(48, 48).unwrap();
+        let pts = [Point::new(8.0, 24.0), Point::new(40.0, 24.0)];
+        Pencil::new(
+            Brush::new(8, Color::BLACK, 1.0).with_dynamics(PressureDynamics {
+                size: true,
+                opacity: false,
+            }),
+        )
+        .stroke_with_pressure(0, &pts, &[0.1, 0.1], &doc)
+        .unwrap()
+        .apply(&mut doc)
+        .unwrap();
+        assert!(painted(&doc) >= 32, "painted {}", painted(&doc));
     }
 
     #[test]
