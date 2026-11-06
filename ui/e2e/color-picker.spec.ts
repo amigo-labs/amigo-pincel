@@ -40,6 +40,54 @@ async function commitHex(picker: Locator, text: string): Promise<void> {
   await hex.press('Enter');
 }
 
+/** A point `f` (0–1, may lie outside) across `el`, vertically centred. */
+async function across(el: Locator, f: number): Promise<[number, number]> {
+  const b = await el.boundingBox();
+  if (!b) throw new Error('not visible');
+  return [b.x + b.width * f, b.y + b.height / 2];
+}
+
+/** A pen or touch drag from `from` to `to` through real CDP input. */
+async function cdpDrag(
+  page: Page,
+  kind: 'pen' | 'touch',
+  from: [number, number],
+  to: [number, number],
+): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const steps = [0.25, 0.5, 0.75, 1].map(
+    (f) => [from[0] + (to[0] - from[0]) * f, from[1] + (to[1] - from[1]) * f] as const,
+  );
+  if (kind === 'touch') {
+    const at = (x: number, y: number) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(...from) });
+    for (const [x, y] of steps) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x, y) });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    const pen = { button: 'left', clickCount: 1, pointerType: 'pen', force: 0.5 } as const;
+    await cdp.send('Input.dispatchMouseEvent', {
+      ...pen,
+      type: 'mousePressed',
+      x: from[0],
+      y: from[1],
+      buttons: 1,
+    });
+    for (const [x, y] of steps) {
+      await cdp.send('Input.dispatchMouseEvent', { ...pen, type: 'mouseMoved', x, y, buttons: 1 });
+    }
+    await cdp.send('Input.dispatchMouseEvent', {
+      ...pen,
+      type: 'mouseReleased',
+      x: to[0],
+      y: to[1],
+      buttons: 0,
+    });
+  }
+  await cdp.detach();
+}
+
 for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
   test(`${mode}: the swatches open the own picker, never a native dialog (AC-01, AC-02, AC-03)`, async ({
     page,
@@ -167,6 +215,40 @@ test('a drag in the S/V area updates the color live, with mouse, pen and touch (
   await cdp.detach();
 });
 
+test('a drag on the hue or alpha slider updates the color live, also with a pen (AC-08, AC-09)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  const picker = await openPicker(page);
+  await commitHex(picker, '#ff0000');
+  const panelHex = page.getByLabel('Foreground color hex value');
+  const panelAlpha = page.getByRole('slider', { name: 'Foreground alpha' });
+  const hue = picker.getByRole('slider', { name: 'Hue', exact: true });
+  const alpha = picker.getByRole('slider', { name: 'Alpha', exact: true });
+
+  // Mouse: the panel follows each slider before the release.
+  await page.mouse.move(...(await across(hue, 0.01)));
+  await page.mouse.down();
+  await page.mouse.move(...(await across(hue, 0.5)), { steps: 4 });
+  await expect(panelHex).not.toHaveValue('#ff0000');
+  expect(Number(await hue.inputValue())).toBeGreaterThan(90);
+  await page.mouse.up();
+  await page.mouse.move(...(await across(alpha, 0.99)));
+  await page.mouse.down();
+  await page.mouse.move(...(await across(alpha, 0.3)), { steps: 4 });
+  await expect.poll(async () => Number(await panelAlpha.inputValue())).toBeLessThan(200);
+  await page.mouse.up();
+  await expect(
+    picker.getByRole('group', { name: 'Recent colors' }).getByRole('button'),
+  ).toHaveCount(0);
+
+  // Pen: back to pure red and full alpha, past the slider ends.
+  await cdpDrag(page, 'pen', await across(hue, 0.5), await across(hue, -0.2));
+  await expect(panelHex).toHaveValue('#ff0000');
+  await cdpDrag(page, 'pen', await across(alpha, 0.3), await across(alpha, 1.2));
+  await expect(panelAlpha).toHaveValue('255');
+});
+
 test.describe('touch', () => {
   test.use({ hasTouch: true });
 
@@ -192,6 +274,19 @@ test.describe('touch', () => {
     await cdp.detach();
     // The left edge has no saturation: white.
     expect(await rgba(picker)).toEqual([255, 255, 255, 255]);
+  });
+
+  test('a touch drag on the hue and alpha sliders moves them (AC-09)', async ({ page }) => {
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    const picker = await openPicker(page);
+    await commitHex(picker, '#ff0000');
+    const hue = picker.getByRole('slider', { name: 'Hue', exact: true });
+    const alpha = picker.getByRole('slider', { name: 'Alpha', exact: true });
+    await cdpDrag(page, 'touch', await across(hue, 0.02), await across(hue, 0.5));
+    expect(Number(await hue.inputValue())).toBeGreaterThan(90);
+    expect(await rgba(picker)).not.toEqual([255, 0, 0, 255]);
+    await cdpDrag(page, 'touch', await across(alpha, 0.98), await across(alpha, -0.2));
+    expect((await rgba(picker))[3]).toBe(0);
   });
 });
 
