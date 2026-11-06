@@ -170,7 +170,7 @@ fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp), or erase to transparency with `tool: \"eraser\"`; color default #000000; every call is one undo step. Image documents (the Brush): size 1–500 px (default 8), hardness and opacity in % (default 100), `shape` hard_round (default) / soft_round / flat. Pixel documents (the Pencil): integer points, size 1–8 (default 1), `shape` square (default) / round, `pixel_perfect`, `ink: \"shading\"` with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 / -1, symmetry `mirror` x / y / xy with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy.",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
     schema: || {
         edit_schema(
             json!({
@@ -401,7 +401,7 @@ fn color_prop_image(description: &str) -> Value {
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. Image documents: `shape` rect, rounded (corner_radius, default 16), ellipse (inscribed in the box) and line take the corners / endpoints (x0, y0) and (x1, y1); polygon takes the center (cx, cy), radius, sides 3–100 (default 5) and rotation in degrees; stroke_width 1–500 (default 3), dash solid / dashed / dotted, anti_alias (default true). Pixel documents: rect, rounded (corner_radius 0–256, default 4), ellipse and polygon (sides 3–64, default 6, inscribed in the box, first vertex up) over the integer corners (x0, y0)–(x1, y1); stroke_width 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted, `anti_alias` (default true). Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
@@ -503,7 +503,7 @@ pub(crate) const SHAPE: Tool = Tool {
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` (default left). color default #000000, bold, italic. Image documents: underline, strikethrough (default false); size 1–999 px (default 48), anti_alias default true. Pixel documents: integer x, y, size 1–2000 (default 12), anti_alias default false; the text is clipped to the selection.",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true). Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
@@ -572,7 +572,7 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
 
 pub(crate) const GRADIENT: Tool = Tool {
     name: "draw.gradient",
-    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. Image documents: kind linear (default) / reflected / radial / conical / diamond; channel color (default) or transparency (fades existing alpha); opacity in %. Pixel documents (RGBA only): integer corners, kind linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
+    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. Image documents: `kind` linear (default) / reflected / radial / conical / diamond; `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100). Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
     schema: || {
         edit_schema(
             json!({

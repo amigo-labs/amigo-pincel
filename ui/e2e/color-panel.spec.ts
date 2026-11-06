@@ -111,6 +111,43 @@ test('a left click sets the foreground, a right click the background, without a 
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await recentRow(page).getByRole('button', { name: '#11223380' }).click({ button: 'right' });
   expect(await rgbaOf(page, 'bg')).toEqual([17, 34, 51, 128]);
+  await setColor(page, 'fg', '#ffffffff');
+  await recentRow(page).getByRole('button', { name: '#11223380' }).click();
+  expect(await rgbaOf(page, 'fg')).toEqual([17, 34, 51, 128]);
+});
+
+/** Records whether each `contextmenu` event was cancelled (no menu opens). */
+async function logContextMenus(page: Page): Promise<() => Promise<boolean[]>> {
+  await page.evaluate(() => {
+    const w = window as unknown as { ctxLog: boolean[] };
+    w.ctxLog = [];
+    window.addEventListener('contextmenu', (e) => w.ctxLog.push(e.defaultPrevented));
+  });
+  return () => page.evaluate(() => (window as unknown as { ctxLog: boolean[] }).ctxLog);
+}
+
+test('a pen long press sets the background color (AC-26)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  const log = await logContextMenus(page);
+  const b = await palette(page).getByRole('button', { name: '#00ff00' }).boundingBox();
+  if (!b) throw new Error('not visible');
+  const pen = {
+    x: b.x + b.width / 2,
+    y: b.y + b.height / 2,
+    button: 'left',
+    clickCount: 1,
+    pointerType: 'pen',
+    force: 0.5,
+  } as const;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchMouseEvent', { ...pen, type: 'mousePressed', buttons: 1 });
+  await page.waitForTimeout(700);
+  await cdp.send('Input.dispatchMouseEvent', { ...pen, type: 'mouseReleased', buttons: 0 });
+  await cdp.detach();
+  expect(await rgbaOf(page, 'bg')).toEqual([0, 255, 0, 255]);
+  // No click on the release: the foreground stayed.
+  expect(await rgbaOf(page, 'fg')).toEqual([0, 0, 0, 255]);
+  expect((await log()).every(Boolean)).toBe(true);
 });
 
 test.describe('touch', () => {
@@ -118,6 +155,7 @@ test.describe('touch', () => {
 
   test('a long press sets the background color (AC-26)', async ({ page }) => {
     await createDocument(page, 'image', { width: 32, height: 32 });
+    const log = await logContextMenus(page);
     const target = palette(page).getByRole('button', { name: '#00ff00' });
     const b = await target.boundingBox();
     if (!b) throw new Error('not visible');
@@ -133,8 +171,9 @@ test.describe('touch', () => {
     await touch('touchEnd', []);
     await cdp.detach();
     expect(await rgbaOf(page, 'bg')).toEqual([0, 255, 0, 255]);
-    // The foreground stayed.
+    // The foreground stayed, and no context menu opened.
     expect(await rgbaOf(page, 'fg')).toEqual([0, 0, 0, 255]);
+    expect((await log()).every(Boolean)).toBe(true);
   });
 });
 

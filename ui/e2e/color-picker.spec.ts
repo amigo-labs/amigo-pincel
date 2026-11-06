@@ -40,6 +40,54 @@ async function commitHex(picker: Locator, text: string): Promise<void> {
   await hex.press('Enter');
 }
 
+/** A point `f` (0–1, may lie outside) across `el`, vertically centred. */
+async function across(el: Locator, f: number): Promise<[number, number]> {
+  const b = await el.boundingBox();
+  if (!b) throw new Error('not visible');
+  return [b.x + b.width * f, b.y + b.height / 2];
+}
+
+/** A pen or touch drag from `from` to `to` through real CDP input. */
+async function cdpDrag(
+  page: Page,
+  kind: 'pen' | 'touch',
+  from: [number, number],
+  to: [number, number],
+): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const steps = [0.25, 0.5, 0.75, 1].map(
+    (f) => [from[0] + (to[0] - from[0]) * f, from[1] + (to[1] - from[1]) * f] as const,
+  );
+  if (kind === 'touch') {
+    const at = (x: number, y: number) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(...from) });
+    for (const [x, y] of steps) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x, y) });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  } else {
+    const pen = { button: 'left', clickCount: 1, pointerType: 'pen', force: 0.5 } as const;
+    await cdp.send('Input.dispatchMouseEvent', {
+      ...pen,
+      type: 'mousePressed',
+      x: from[0],
+      y: from[1],
+      buttons: 1,
+    });
+    for (const [x, y] of steps) {
+      await cdp.send('Input.dispatchMouseEvent', { ...pen, type: 'mouseMoved', x, y, buttons: 1 });
+    }
+    await cdp.send('Input.dispatchMouseEvent', {
+      ...pen,
+      type: 'mouseReleased',
+      x: to[0],
+      y: to[1],
+      buttons: 0,
+    });
+  }
+  await cdp.detach();
+}
+
 for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
   test(`${mode}: the swatches open the own picker, never a native dialog (AC-01, AC-02, AC-03)`, async ({
     page,
@@ -47,13 +95,27 @@ for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
     await createDocument(page, mode, { width: 16, height: 16 });
     await expect(page.locator('input[type="color"]')).toHaveCount(0);
 
-    const picker = await openPicker(page, 'fg');
-    // Next to the swatch.
-    const s = await swatch(page, 'fg').boundingBox();
-    const p = await picker.boundingBox();
-    if (!s || !p) throw new Error('not visible');
-    expect(Math.abs(p.y - s.y)).toBeLessThan(80);
-    expect(p.x >= s.x + s.width || p.x + p.width <= s.x).toBe(true);
+    // Each swatch opens it next to itself, inside the window (AC-20: the
+    // swatches sit at the window's right edge).
+    const win = page.viewportSize();
+    if (!win) throw new Error('no viewport');
+    for (const which of ['bg', 'fg'] as const) {
+      const opened = await openPicker(page, which);
+      const s = await swatch(page, which).boundingBox();
+      const p = await opened.boundingBox();
+      if (!s || !p) throw new Error('not visible');
+      expect(Math.abs(p.y - s.y), which).toBeLessThan(80);
+      expect(p.x >= s.x + s.width || p.x + p.width <= s.x, which).toBe(true);
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.y).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.width).toBeLessThanOrEqual(win.width);
+      expect(p.y + p.height).toBeLessThanOrEqual(win.height);
+      if (which === 'bg') {
+        await page.keyboard.press('Escape');
+        await expect(opened).toHaveCount(0);
+      }
+    }
+    const picker = pickerOf(page, 'fg');
     // Every control with its name.
     await expect(picker.getByRole('slider', { name: 'Saturation and value' })).toBeVisible();
     await expect(picker.getByRole('slider', { name: 'Hue', exact: true })).toBeVisible();
@@ -77,6 +139,8 @@ for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
     await page.keyboard.press('Escape');
     const again = await openPicker(page, 'fg');
     expect(await rgba(again)).toEqual([17, 34, 51, 128]);
+    await page.keyboard.press('Escape');
+    expect(await rgba(await openPicker(page, 'bg'))).toEqual([0, 0, 255, 255]);
   });
 }
 
@@ -104,15 +168,30 @@ test('hex forms, invalid text and the alpha rule (AC-04, AC-05, AC-06, AC-23)', 
 test('R / G / B / A fields clamp to 0–255 (AC-07)', async ({ page }) => {
   await createDocument(page, 'image', { width: 16, height: 16 });
   const picker = await openPicker(page);
-  const red = picker.getByRole('spinbutton', { name: 'Red', exact: true });
-  await red.fill('300');
-  await red.press('Enter');
-  await expect(red).toHaveValue('255');
-  const alpha = picker.getByRole('spinbutton', { name: 'Alpha value', exact: true });
-  await alpha.fill('-4');
-  await alpha.press('Enter');
-  await expect(alpha).toHaveValue('0');
-  expect(await rgba(picker)).toEqual([255, 0, 0, 0]);
+  const field = (name: string) => picker.getByRole('spinbutton', { name, exact: true });
+  for (const [name, typed, shown] of [
+    ['Red', '300', '255'],
+    ['Green', '-1', '0'],
+    ['Blue', '256', '255'],
+    ['Alpha value', '-4', '0'],
+  ] as const) {
+    await field(name).fill(typed);
+    await field(name).press('Enter');
+    await expect(field(name), name).toHaveValue(shown);
+  }
+  expect(await rgba(picker)).toEqual([255, 0, 255, 0]);
+  await commitHex(picker, '#80808080');
+  for (const [name, typed, shown] of [
+    ['Red', '-9', '0'],
+    ['Green', '999', '255'],
+    ['Blue', '-300', '0'],
+    ['Alpha value', '300', '255'],
+  ] as const) {
+    await field(name).fill(typed);
+    await field(name).press('Enter');
+    await expect(field(name), name).toHaveValue(shown);
+  }
+  expect(await rgba(picker)).toEqual([0, 255, 0, 255]);
 });
 
 test('a drag in the S/V area updates the color live, with mouse, pen and touch (AC-08, AC-09)', async ({
@@ -167,6 +246,41 @@ test('a drag in the S/V area updates the color live, with mouse, pen and touch (
   await cdp.detach();
 });
 
+test('a drag on the hue or alpha slider updates the color live, also with a pen (AC-08, AC-09)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  const picker = await openPicker(page);
+  await commitHex(picker, '#ff0000');
+  const panelHex = page.getByLabel('Foreground color hex value');
+  const panelAlpha = page.getByRole('slider', { name: 'Foreground alpha' });
+  const hue = picker.getByRole('slider', { name: 'Hue', exact: true });
+  const alpha = picker.getByRole('slider', { name: 'Alpha', exact: true });
+
+  // Mouse: the panel follows each slider before the release.
+  await page.mouse.move(...(await across(hue, 0.01)));
+  await page.mouse.down();
+  await page.mouse.move(...(await across(hue, 0.5)), { steps: 4 });
+  await expect(panelHex).not.toHaveValue('#ff0000');
+  expect(Number(await hue.inputValue())).toBeGreaterThan(90);
+  await page.mouse.up();
+  await page.mouse.move(...(await across(alpha, 0.99)));
+  await page.mouse.down();
+  await page.mouse.move(...(await across(alpha, 0.3)), { steps: 4 });
+  await expect.poll(async () => Number(await panelAlpha.inputValue())).toBeLessThan(200);
+  await page.mouse.up();
+  await expect(
+    picker.getByRole('group', { name: 'Recent colors' }).getByRole('button'),
+  ).toHaveCount(0);
+
+  // Pen: back to pure red and full alpha, past the slider ends.
+  await cdpDrag(page, 'pen', await across(hue, 0.5), await across(hue, -0.2));
+  console.log('DEBUG pen hue', await hue.inputValue());
+  await expect(panelHex).toHaveValue('#ff0000');
+  await cdpDrag(page, 'pen', await across(alpha, 0.3), await across(alpha, 1.2));
+  await expect(panelAlpha).toHaveValue('255');
+});
+
 test.describe('touch', () => {
   test.use({ hasTouch: true });
 
@@ -193,6 +307,19 @@ test.describe('touch', () => {
     // The left edge has no saturation: white.
     expect(await rgba(picker)).toEqual([255, 255, 255, 255]);
   });
+
+  test('a touch drag on the hue and alpha sliders moves them (AC-09)', async ({ page }) => {
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    const picker = await openPicker(page);
+    await commitHex(picker, '#ff0000');
+    const hue = picker.getByRole('slider', { name: 'Hue', exact: true });
+    const alpha = picker.getByRole('slider', { name: 'Alpha', exact: true });
+    await cdpDrag(page, 'touch', await across(hue, 0.02), await across(hue, 0.5));
+    expect(Number(await hue.inputValue())).toBeGreaterThan(90);
+    expect(await rgba(picker)).not.toEqual([255, 0, 0, 255]);
+    await cdpDrag(page, 'touch', await across(alpha, 0.98), await across(alpha, -0.2));
+    expect((await rgba(picker))[3]).toBe(0);
+  });
 });
 
 test('arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-10, AC-11)', async ({
@@ -213,9 +340,18 @@ test('arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-
   await area.focus();
   const valueOf = async () =>
     Number(/value (\d+)/.exec((await area.getAttribute('aria-valuetext')) ?? '')?.[1]);
+  const satOf = async () =>
+    Number(/Saturation (\d+)/.exec((await area.getAttribute('aria-valuetext')) ?? '')?.[1]);
   const v0 = await valueOf();
+  const s0 = await satOf();
   await page.keyboard.press('ArrowUp');
   expect(await valueOf()).toBe(Math.min(100, v0 + 1));
+  await page.keyboard.press('Shift+ArrowDown');
+  expect(await valueOf()).toBe(Math.min(100, v0 + 1) - 10);
+  await page.keyboard.press('ArrowLeft');
+  expect(await satOf()).toBe(s0 - 1);
+  await page.keyboard.press('Shift+ArrowRight');
+  expect(await satOf()).toBe(s0 + 9);
   // Down to black and back: the hue stays.
   for (let i = 0; i < 12; i += 1) await page.keyboard.press('Shift+ArrowDown');
   expect(await rgba(picker)).toEqual([0, 0, 0, 255]);
@@ -225,6 +361,18 @@ test('arrow keys step the sliders, Shift by 10; black and grey keep the hue (AC-
   // Grey (no saturation) and back: the hue stays too.
   for (let i = 0; i < 12; i += 1) await page.keyboard.press('Shift+ArrowLeft');
   await expect(hue).toHaveValue('191');
+
+  // The alpha slider: one step, ten with Shift.
+  const alpha = picker.getByRole('slider', { name: 'Alpha', exact: true });
+  await alpha.focus();
+  await expect(alpha).toHaveValue('255');
+  await page.keyboard.press('ArrowLeft');
+  await expect(alpha).toHaveValue('254');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await expect(alpha).toHaveValue('244');
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(alpha).toHaveValue('254');
+  expect((await rgba(picker))[3]).toBe(254);
 });
 
 test('Escape discards typed text; an outside click commits it (AC-18)', async ({ page }) => {
@@ -248,6 +396,18 @@ test('Escape discards typed text; an outside click commits it (AC-18)', async ({
   await page.mouse.click(5, 300);
   await expect(picker).toHaveCount(0);
   await expect(page.getByLabel('Foreground color hex value')).toHaveValue('#00ff00');
+
+  // A number field: Escape discards, an outside click commits.
+  picker = await openPicker(page);
+  await picker.getByRole('spinbutton', { name: 'Red', exact: true }).fill('255');
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel('Foreground color hex value')).toHaveValue('#00ff00');
+  picker = await openPicker(page);
+  await picker.getByRole('spinbutton', { name: 'Blue', exact: true }).fill('255');
+  await page.mouse.click(5, 300);
+  await expect(picker).toHaveCount(0);
+  await expect(page.getByLabel('Foreground color hex value')).toHaveValue('#00ffff');
 });
 
 for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {

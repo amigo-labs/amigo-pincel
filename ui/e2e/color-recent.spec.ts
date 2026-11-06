@@ -5,9 +5,13 @@ import {
   gotoStart,
   imageCanvas,
   pixelCanvas,
+  menu,
   setColor,
   storedPref,
+  waitForEditor,
 } from './helpers';
+import { effectPanel } from './effect-panel-helpers';
+import { closeWindow, destroyed, installTauriMock, launchDesktop } from './tauri-mock';
 
 // Recent colors (color-picker AC-12 – AC-15, AC-24, AC-30): a color joins
 // its mode's recent row when a tool paints with it, most recent first,
@@ -29,6 +33,16 @@ async function recent(page: Page): Promise<string[]> {
   await page.keyboard.press('Escape');
   await expect(picker).toHaveCount(0);
   return names;
+}
+
+/** Image mode's Colors panel recent row, as accessible names (hex). */
+function panelRecent(page: Page): Promise<string[]> {
+  return page
+    .getByRole('region', { name: 'Colors' })
+    .getByRole('group', { name: 'Recent colors' })
+    .last()
+    .getByRole('button')
+    .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label') ?? ''));
 }
 
 /** R / G / B / A of a swatch, read from its picker. */
@@ -163,6 +177,94 @@ test('image: a live line adds the foreground, a live gradient both its colors (A
   expect(await recent(page)).toEqual(['#00ff00', '#0000ff', '#ff0000']);
 });
 
+test('pixel: a line adds the color it draws with, a gradient both its colors (AC-24)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  const canvas = pixelCanvas(page);
+  await setColor(page, 'fg', '#ff0000ff');
+  await setColor(page, 'bg', '#ffff00ff');
+  await page.keyboard.press('l');
+  await stroke(page, canvas, 0.2);
+  expect(await recent(page)).toEqual(['#ff0000']);
+  // The right button draws the line in the background color.
+  await stroke(page, canvas, 0.35, 'right');
+  expect(await recent(page)).toEqual(['#ffff00', '#ff0000']);
+
+  // Gradient (G twice): foreground at the press, background at the release.
+  await setColor(page, 'fg', '#00ff00ff');
+  await setColor(page, 'bg', '#0000ffff');
+  await page.keyboard.press('g');
+  await page.keyboard.press('g');
+  await expect(page.getByLabel('Gradient kind')).toBeVisible();
+  await stroke(page, canvas, 0.6);
+  expect(await recent(page)).toEqual(['#00ff00', '#0000ff', '#ffff00', '#ff0000']);
+});
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: a locked layer, the marquee, strokes outside it and adjustments add nothing (AC-24)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 32, height: 32 });
+    const canvas = canvasOf(page, mode);
+    const layers = page.getByRole('list', { name: 'Layer list' });
+    await setColor(page, 'fg', '#ff0000ff');
+    await page.keyboard.press('b');
+
+    // A locked layer changes no pixel.
+    await layers.getByRole('button', { name: /^Lock / }).first().click();
+    await stroke(page, canvas, 0.5);
+    await layers.getByRole('button', { name: /^Unlock / }).first().click();
+    expect(await recent(page)).toEqual([]);
+
+    // The marquee adds nothing, nor does a stroke outside its selection.
+    await page.keyboard.press('m');
+    await drag(page, canvas, [0.05, 0.05], [0.3, 0.3]);
+    await page.screenshot({ path: `test-results/dbg-${mode}-sel.png` });
+    console.log('DEBUG undo before', await page.getByRole('button', { name: 'Undo', exact: true }).getAttribute('title'));
+    await page.keyboard.press('b');
+    await stroke(page, canvas, 0.8);
+    console.log('DEBUG undo after', await page.getByRole('button', { name: 'Undo', exact: true }).getAttribute('title'));
+    await page.screenshot({ path: `test-results/dbg-${mode}-after.png` });
+    expect(await recent(page)).toEqual([]);
+
+    // An adjustment changes pixels but paints with no chosen color.
+    await setColor(page, 'fg', '#00ff00ff');
+    await page.keyboard.press('Control+a');
+    await stroke(page, canvas, 0.8);
+    expect(await recent(page)).toEqual(['#00ff00']);
+    const undo = page.getByRole('button', { name: 'Undo', exact: true });
+    await menu(page, 'Adjustments', 'Invert Colors');
+    await effectPanel(page, 'Invert Colors').getByRole('button', { name: 'OK' }).click();
+    await expect(undo).toBeEnabled();
+    expect(await recent(page)).toEqual(['#00ff00']);
+  });
+}
+
+test('the 13th color drops the oldest; the same RGB with another alpha is another color (AC-12)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 16, height: 16 });
+  const names = () => panelRecent(page);
+  const canvas = imageCanvas(page);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  await page.keyboard.press('b');
+  const colors = Array.from(
+    { length: 13 },
+    (_, i) => `#0000${(i * 16).toString(16).padStart(2, '0')}`,
+  );
+  for (const c of colors) {
+    await setColor(page, 'fg', `${c}ff`);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  }
+  await expect.poll(names).toEqual(colors.slice(1).reverse());
+  // Same RGB, alpha 128: a new entry, the opaque one stays.
+  await setColor(page, 'fg', `${colors[12]}80`);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect.poll(names).toEqual([`${colors[12]}80`, ...colors.slice(2).reverse()]);
+});
+
 test('a recent color sets the edited color, alpha included (AC-13)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await setColor(page, 'fg', '#11223380');
@@ -177,6 +279,19 @@ test('a recent color sets the edited color, alpha included (AC-13)', async ({ pa
     .click();
   await page.keyboard.press('Escape');
   expect(await rgbaOf(page, 'bg')).toEqual([17, 34, 51, 128]);
+
+  // The foreground picker sets the foreground, not the background.
+  await setColor(page, 'fg', '#000000ff');
+  await setColor(page, 'bg', '#ffffffff');
+  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Foreground color picker' })
+    .getByRole('group', { name: 'Recent colors' })
+    .getByRole('button', { name: '#11223380' })
+    .click();
+  await page.keyboard.press('Escape');
+  expect(await rgbaOf(page, 'fg')).toEqual([17, 34, 51, 128]);
+  expect(await rgbaOf(page, 'bg')).toEqual([255, 255, 255, 255]);
 });
 
 test('each mode keeps its own recent colors (AC-14)', async ({ page }) => {
@@ -213,8 +328,50 @@ test('recent colors and the last colors survive a reload, per mode (AC-15)', asy
   expect(await rgbaOf(page, 'bg')).toEqual([0x99, 0x88, 0x77, 0x66]);
   await createDocument(page, 'image', { width: 16, height: 16 });
   expect(await recent(page)).toEqual(['#010203', '#aabbcc40']);
+  // Image mode's Colors panel shows the same row, without the picker.
+  await expect.poll(() => panelRecent(page)).toEqual(['#010203', '#aabbcc40']);
   expect(await rgbaOf(page, 'fg')).toEqual([1, 2, 3, 255]);
   expect(await rgbaOf(page, 'bg')).toEqual([0x55, 0x44, 0x33, 0x22]);
+});
+
+test.describe('desktop', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('dialog', (d) => void d.accept());
+    await installTauriMock(page);
+  });
+
+  test('recent colors and the last colors survive quitting the app (AC-15)', async ({ page }) => {
+    await launchDesktop(page);
+    await page.getByRole('button', { name: 'New image' }).click();
+    const card = page.getByRole('form', { name: 'New image' });
+    for (const label of ['Width', 'Height']) await card.getByLabel(label).fill('16');
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+    await setColor(page, 'fg', '#aabbcc40');
+    await page.keyboard.press('b');
+    await stroke(page, imageCanvas(page), 0.5);
+    await setColor(page, 'bg', '#55443322');
+    await expect.poll(() => storedPref(page, 'lastBgColor:image')).toBe('#55443322');
+    await expect.poll(() => storedPref(page, 'recentColors:image')).toEqual(['#aabbcc40']);
+
+    // Quit (the window's close button), then start the app again.
+    await closeWindow(page);
+    await page
+      .getByRole('alertdialog', { name: 'Unsaved changes' })
+      .getByRole('button', { name: "Don't Save" })
+      .click();
+    await expect.poll(() => destroyed(page)).toBe(1);
+    await launchDesktop(page);
+    await page.getByRole('button', { name: 'New image' }).click();
+    await page
+      .getByRole('form', { name: 'New image' })
+      .getByRole('button', { name: 'Create' })
+      .click();
+    await waitForEditor(page, 'image');
+    await expect.poll(() => panelRecent(page)).toEqual(['#aabbcc40']);
+    expect(await rgbaOf(page, 'fg')).toEqual([0xaa, 0xbb, 0xcc, 0x40]);
+    expect(await rgbaOf(page, 'bg')).toEqual([0x55, 0x44, 0x33, 0x22]);
+  });
 });
 
 test('unreadable stored colors fall back silently (AC-30)', async ({ page }) => {
@@ -236,6 +393,9 @@ test('unreadable stored colors fall back silently (AC-30)', async ({ page }) => 
       ['recentColors:pixel', 'not a list'],
       ['lastColor:image', 42],
       ['lastBgColor:image', '#12'],
+      // Pixel mode: a readable foreground stays, the background falls back.
+      ['lastColor', '#11223380'],
+      ['lastBgColor', ['#ff0000']],
     ] as const,
   );
   await createDocument(page, 'image', { width: 16, height: 16 });
@@ -245,4 +405,7 @@ test('unreadable stored colors fall back silently (AC-30)', async ({ page }) => 
   await expect(page.getByRole('alert')).toHaveCount(0);
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   expect(await recent(page)).toEqual([]);
+  expect(await rgbaOf(page, 'fg')).toEqual([17, 34, 51, 128]);
+  expect(await rgbaOf(page, 'bg')).toEqual([255, 255, 255, 255]);
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });

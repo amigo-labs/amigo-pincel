@@ -442,8 +442,9 @@ impl Pencil {
 
     /// Rasterizes a stroke over `points` into a [`SetPixels`] command.
     ///
-    /// Returns `None` if the stroke does not touch the canvas or `points` is
-    /// empty. A single point paints one dab; multiple points paint connected
+    /// Returns `None` if the stroke does not touch the canvas, `points` is
+    /// empty, or it changes no pixel (outside the selection, or the same
+    /// opaque color again), so such a stroke adds no undo step. A single point paints one dab; multiple points paint connected
     /// segments. Painting uses straight-alpha source-over within the stroke's
     /// bounding region; the command captures the prior pixels for undo.
     pub fn stroke(
@@ -488,7 +489,14 @@ impl Pencil {
             .rasterize(layer_index, points, pen, doc, ca, |p| {
                 src_over(color, p.eff, p.dst)
             })?;
-        Some(SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
+        let before = doc
+            .layers
+            .get(layer_index)?
+            .pixels
+            .copy_region(region)
+            .ok()?;
+        (after != before)
+            .then(|| SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
     }
 }
 
@@ -682,6 +690,20 @@ mod tests {
             doc.layers[0].pixels.get_pixel(16, 10),
             Some(Color::TRANSPARENT)
         );
+    }
+
+    #[test]
+    fn stroke_that_changes_no_pixel_returns_none() {
+        // Outside the selection: no command, so no empty undo step.
+        let mut doc = Document::new(20, 20).unwrap();
+        doc.selection = Some(SelectionMask::rectangle(20, 20, Rect::new(0, 0, 10, 20)));
+        let dab = [Point::new(16.0, 10.0)];
+        assert!(black_pencil(6).stroke(0, &dab, &doc).is_none());
+        // Opaque black over opaque black changes nothing either.
+        doc.selection = None;
+        let mut first = black_pencil(6).stroke(0, &dab, &doc).unwrap();
+        first.apply(&mut doc).unwrap();
+        assert!(black_pencil(6).stroke(0, &dab, &doc).is_none());
     }
 
     #[test]
