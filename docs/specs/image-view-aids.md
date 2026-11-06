@@ -126,31 +126,31 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-02 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit"; `ui/e2e/view-units.spec.ts` "AC-02: ticks sit where their image coordinate lies" | built | |
-| AC-03 | `ui/e2e/view-units.spec.ts` "AC-03: labels step by 1, 2 or 5 × 10ⁿ…"; `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-04 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-05 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-06 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: from 400 % inside the image only" | built | |
-| AC-07 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: from 400 % inside the image only" | built | |
-| AC-08 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: from 400 % inside the image only" | built | |
-| AC-09 |      | open   |        |
-| AC-10 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-11 | `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" | built | |
-| AC-12 | `ui/e2e/view-units.spec.ts` "AC-12: Pixels are whole…"; `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" | built | |
-| AC-13 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-14 | `ui/e2e/image-view-aids.spec.ts` "view state persists per user and is no edit" (byte-identical files by construction: the view state never reaches the core) | built | |
-| AC-15 | `ui/e2e/image-view-aids.spec.ts` "view state persists per user and is no edit" | built | |
-| AC-16 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: from 400 % inside the image only" | built | |
-| AC-17 | `ui/e2e/image-view-aids.spec.ts` "web: Ctrl+Alt+R has no default…", "desktop › Ctrl+Alt+R toggles the rulers and rotates nothing" | built | |
-| AC-18 | `ui/e2e/image-view-aids.spec.ts` "web: Ctrl+Alt+R has no default and the shortcut list is clean", "desktop › Ctrl+Alt+R toggles the rulers and rotates nothing" | built | |
-| AC-19 | `ui/e2e/image-view-aids.spec.ts` "view state persists per user and is no edit" | built | |
-| AC-20 | `ui/e2e/view-units.spec.ts` "AC-20: a missing, malformed or unknown pref falls back to the defaults"; `ui/e2e/image-view-aids.spec.ts` "a malformed pref or a failing store keeps the editor working" | built | |
-| AC-21 | `ui/e2e/view-units.spec.ts` "AC-21: a broken resolution counts as 96 DPI" | built | |
-| AC-22 |      | dropped |        |
-| AC-23 | `crates/pincel-image-wasm/src/lib.rs` `document_dpi_reports_the_stored_resolution`; `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" (96 DPI) | built | |
-| AC-24 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates, markers and Fit" | built | |
-| AC-25 | `ui/e2e/image-view-aids.spec.ts` "a malformed pref or a failing store keeps the editor working" | built | |
+| AC-01 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates and Fit" | built | 1d08087 |
+| AC-02 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates and Fit"; `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language"; `ui/e2e/view-units.spec.ts` "AC-02: ticks sit where their image coordinate lies" | built | 1d08087 |
+| AC-03 | `ui/e2e/image-view-aids.spec.ts` "ruler labels never overlap from the minimum to the maximum zoom, in German too"; `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates and Fit"; `ui/e2e/view-units.spec.ts` "AC-03: labels step by 1, 2 or 5 × 10ⁿ…" | built | 1d08087 |
+| AC-04 | `ui/e2e/image-view-aids-pointer.spec.ts` "a hovering mouse: …", "a pressed mouse follows the drag…", "a pen: hover shows…", "touch › a touch shows while down…" | built | a846c8f |
+| AC-05 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates and Fit" | built | 1d08087 |
+| AC-06 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image only" | built | 1d08087 |
+| AC-07 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image only" | built | 1d08087 |
+| AC-08 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image only" | built | 1d08087 |
+| AC-09 |  | open |  |
+| AC-10 | `ui/e2e/image-view-aids-pointer.spec.ts` "a hovering mouse: position and markers inside, beside and past the image, none outside" | built | a846c8f |
+| AC-11 | `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" | built | 1d08087 |
+| AC-12 | `ui/e2e/view-units.spec.ts` "AC-12: Pixels are whole…"; `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" | built | 1d08087 |
+| AC-13 | `ui/e2e/image-view-aids.spec.ts` "rulers: toggle, labels at their coordinates and Fit" | built | 1d08087 |
+| AC-14 | `ui/e2e/image-view-aids-state.spec.ts` "view state persists per user, applies to every Image tab and is no edit"; `ui/e2e/image-view-aids-state.spec.ts` "Pixel mode keeps its grids when an Image tab toggles its own"; `ui/e2e/image-view-aids-state.spec.ts` "opened and saved files › a document saved with every aid on is byte-identical to one saved with all off" | built | 1d08087 |
+| AC-15 | `ui/e2e/image-view-aids-state.spec.ts` "view state persists per user, applies to every Image tab and is no edit" | built | 1d08087 |
+| AC-16 | `ui/e2e/image-view-aids.spec.ts` "pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image only" | built | 1d08087 |
+| AC-17 | `ui/e2e/image-view-aids.spec.ts` "web: Ctrl+Alt+R has no default…", "desktop › Ctrl+Alt+R toggles the rulers by the physical R key and rotates nothing" | built | 1d08087 |
+| AC-18 | `ui/e2e/image-view-aids.spec.ts` "web: Ctrl+Alt+R has no default and the shortcut list is clean", "desktop › Ctrl+Alt+R toggles the rulers by the physical R key and rotates nothing" | built | 1d08087 |
+| AC-19 | `ui/e2e/image-view-aids-state.spec.ts` "a tab switch moves the rulers and the pixel grid to that tab’s view", "another resolution › the rulers and the status bar take the resolution again on every tab switch and document change"; `ui/e2e/image-view-aids-state.spec.ts` "view state persists per user, applies to every Image tab and is no edit" | built | 1d08087 |
+| AC-20 | `ui/e2e/view-units.spec.ts` "AC-20: a missing, malformed or unknown pref falls back to the defaults"; `ui/e2e/image-view-aids-state.spec.ts` "a malformed pref or a failing store keeps the editor working" | built | 1d08087 |
+| AC-21 | `ui/e2e/view-units.spec.ts` "AC-21: a broken resolution counts as 96 DPI" | built | 1d08087 |
+| AC-22 |  | dropped |  |
+| AC-23 | `crates/pincel-image-wasm/src/lib.rs` `document_dpi_reports_the_stored_resolution`; `ui/e2e/image-view-aids-state.spec.ts` "opened and saved files › an opened PNG counts 96 DPI whatever resolution the file declares", "another resolution › the rulers and the status bar take the resolution again on every tab switch and document change"; `ui/e2e/image-view-aids.spec.ts` "units switch the rulers and the status bar, in either language" (96 DPI) | built | 1d08087 |
+| AC-24 | `ui/e2e/image-view-aids-pointer.spec.ts` "a hovering mouse: …", "a pressed mouse follows the drag…", "a pen: hover shows…", "touch › a touch shows while down…" | built | a846c8f |
+| AC-25 | `ui/e2e/image-view-aids-state.spec.ts` "a malformed pref or a failing store keeps the editor working", "without IndexedDB › the defaults apply and the editor works" | built | 1d08087 |
 
 ## Decisions
 
@@ -169,3 +169,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names.
 - 2026-11-06 (spec-build): Ruler labels lie at least 60 CSS px apart (not just 40), so the longest label (`-1234.56`) never reaches the next one (AC-03).
 - 2026-11-06 (spec-build): The rulers live in a wrapper around the canvas (`ImageViewport.svelte`), which also tracks the pointer; the canvas itself gained only the pixel-grid layer below the marching ants.
 - 2026-11-06 (spec-build): AC-09 (manual) is not checked; it needs a human look at the pixel grid on real displays.
+- 2026-11-06 (rework after `/spec-check`): A pressed mouse that left the canvas area kept the pointer position and the markers — the tool's pointer capture keeps its moves coming and holds back `pointerleave`. Fixed in `ImageViewport.svelte`: a tracked move outside the area's rectangle hides both (AC-24, regression `image-view-aids-pointer.spec.ts`).
+- 2026-11-06 (rework): AC-23's "taken again on every tab switch and every document change" is proved in e2e without a product seam: the spec wraps the image core's `document_dpi` export when the page instantiates the wasm module (test-only `addInitScript`) and reports a chosen resolution per document handle. A tab switch is itself a document change (`activateTab` bumps `editor.revision`), so a test cannot tell the two triggers apart; it proves both by reading after a switch and after a stroke. The clause stays as written.
+- 2026-11-06 (rework): Exactly 400 % is reached through Fit in a window sized so the canvas area is 4 × the image height + 32 px (Fit's padding); 399 % one pixel less. `+` (×1.25) never lands on 400 %.
+- 2026-11-06 (rework): Label overlap (AC-03) depends on rendered text width, so the e2e zoom sweep (2 % → 6400 %, German, cm / in / px, a 20000 px image for the widest labels) proves it; the Node test only pins the 40 px minimum and the 1 / 2 / 5 × 10ⁿ steps.
+- 2026-11-06 (rework, red runs): each new test failed against a temporary break and passed after reverting it — label text doubled (AC-02), `RULER_MIN_SPACING` 30 and a 30 px label font (AC-03), no re-fit on resize (AC-05), a no-op Pixel Grid menu entry (AC-06), threshold 4.01 and 3.98 (AC-07, AC-08), grid lines across the whole canvas (AC-07), status clamped to the image (AC-10), Pixels always checked and inch ticks at 1.1 × dpi (AC-11), an Image toggle writing the `pixelGrid` pref and a save whose bytes depend on the grid (AC-14), physical-key matching dropped (AC-17), the grid threshold ignored (AC-19), the resolution read once / not on a revision / fixed at 300 (AC-19, AC-23), touch lift, last contact and pen leave not hiding (AC-24), the stored pref ignored on load and the read unguarded (AC-25).
