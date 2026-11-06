@@ -3,7 +3,7 @@
 //! `export_open`, `export_anim` and `export_svg`.
 
 use pincel_image_core::codec::{
-    decode, to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
+    decode, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
 use pincel_image_core::{ImageBuffer, compose};
 use serde_json::json;
@@ -77,6 +77,7 @@ fn doc_save_without_path_writes_back_the_opened_format() {
             "draw.fill",
             json!({ "x": 0, "y": 0, "color": "#ff0000", "tolerance": 0 }),
         );
+        assert_eq!(s.ok("doc.info", json!({}))["dirty"], true);
         let out = s.ok("doc.save", json!({}));
         assert_eq!(out["path"], name);
         let img = composite(&s, &id);
@@ -308,11 +309,29 @@ fn export_bmp_and_tiff_write_the_composite_and_leave_the_document() {
     let img = composite(&s, &id);
     assert_eq!(s.host.files["o.bmp"], to_bmp_bytes(&img).expect("bmp"));
     assert_eq!(s.host.files["o.tif"], to_tiff_bytes(&img).expect("tif"));
-    assert_eq!(
-        decode(&s.host.files["o.tif"]).expect("tif").data(),
-        img.data()
-    );
+    for path in ["o.tif", "o.bmp"] {
+        assert_eq!(
+            decode(&s.host.files[path]).expect("decode").data(),
+            img.data(),
+            "{path}"
+        );
+    }
     assert_eq!(s.ok("doc.info", json!({})), info);
+    assert_eq!(info["dirty"], true);
+    assert_eq!(
+        s.image(&id).source,
+        Some(("a.png".to_owned(), "PNG")),
+        "the document's file and format stay"
+    );
+    assert_eq!(s.image(&id).path, None);
+    s.host.files.clear();
+    s.ok("doc.save", json!({ "flatten": true }));
+    assert_eq!(
+        s.host.files.keys().collect::<Vec<_>>(),
+        ["a.png"],
+        "a later save still writes the opened file"
+    );
+    assert_eq!(s.host.files["a.png"], to_png_bytes(&img, 6).expect("png"));
 
     let mut s = S::new();
     let id = s.new_doc(4, 4);
@@ -323,4 +342,186 @@ fn export_bmp_and_tiff_write_the_composite_and_leave_the_document() {
         assert_eq!(s.state(&id), before);
     }
     assert!(s.host.files.is_empty());
+}
+
+/// The bytes `doc.save` must write for `format`, from the editor's codecs.
+fn encoded(s: &S, id: &str, format: &str, quality: u8) -> Vec<u8> {
+    let img = composite(s, id);
+    match format {
+        "PNG" => to_png_bytes(&img, 6),
+        "JPEG" => to_jpeg_bytes(&img, quality),
+        "WebP" => to_webp_bytes(&img),
+        "BMP" => to_bmp_bytes(&img),
+        "TIFF" => to_tiff_bytes(&img),
+        _ => return to_ora_bytes(s.image(id).document(), 6).expect("ora"),
+    }
+    .expect("encode")
+}
+
+#[test]
+fn doc_save_writes_each_format_and_makes_the_path_the_documents_file() {
+    // AC-17: the editor's bytes per extension (any case), the dirty state
+    // cleared, and a later save without `path` writing that file in that
+    // format.
+    let mut s = S::new();
+    let id = s.new_image(6, 4);
+    for (i, (path, format)) in [
+        ("p.PNG", "PNG"),
+        ("q.Jpeg", "JPEG"),
+        ("q2.JPG", "JPEG"),
+        ("r.WEBP", "WebP"),
+        ("s.Bmp", "BMP"),
+        ("t.TIFF", "TIFF"),
+        ("t2.Tif", "TIFF"),
+        ("u.ORA", "ORA"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let color = format!("#{:02x}3366", i * 30);
+        s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": color }));
+        assert_eq!(s.ok("doc.info", json!({}))["dirty"], true);
+        let out = s.ok("doc.save", json!({ "path": path }));
+        assert_eq!(out["format"], format, "{path}");
+        assert_eq!(s.host.files[path], encoded(&s, &id, format, 90), "{path}");
+        assert_eq!(s.ok("doc.info", json!({}))["dirty"], false, "{path}");
+        // The next save without `path` writes the same file and format.
+        s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#ffffff" }));
+        s.host.files.clear();
+        s.ok("doc.save", json!({}));
+        assert_eq!(
+            s.host.files.keys().collect::<Vec<_>>(),
+            [path],
+            "{path}: the document's file"
+        );
+        assert_eq!(s.host.files[path], encoded(&s, &id, format, 90), "{path}");
+    }
+}
+
+#[test]
+fn doc_save_writes_back_the_detected_format_whatever_the_extension() {
+    // AC-14 edge case: PNG bytes in `photo.jpg` are written back as PNG.
+    let mut s = S::new();
+    let id = opened(
+        &mut s,
+        "photo.jpg",
+        to_png_bytes(&pattern(), 6).expect("png"),
+    );
+    s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#ff0000" }));
+    let out = s.ok("doc.save", json!({}));
+    assert_eq!(out["format"], "PNG");
+    assert_eq!(s.host.files["photo.jpg"], encoded(&s, &id, "PNG", 90));
+}
+
+#[test]
+fn a_lossy_flatten_names_each_cause_and_flatten_writes_the_visible_composite() {
+    // AC-15: every hidden layer, every layer below 100 % and every
+    // non-Normal blend is named; a single layer is lossy as well.
+    let mut s = S::new();
+    let id = opened(&mut s, "a.png", to_png_bytes(&pattern(), 6).expect("png"));
+    for (name, args) in [
+        ("A", json!({ "opacity": 128 })),
+        ("B", json!({ "opacity": 64, "blend": "screen" })),
+        ("C", json!({ "blend": "multiply" })),
+        ("H1", json!({})),
+        ("H2", json!({})),
+    ] {
+        let mut args = args;
+        args["name"] = json!(name);
+        let layer = s.ok("layer.add", args)["layer"].clone();
+        s.ok(
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 1, "y0": 1, "x1": 3, "y1": 2, "fill": "#00ff00" }),
+        );
+        if name.starts_with('H') {
+            s.ok("layer.set", json!({ "layer": layer, "visible": false }));
+        }
+    }
+    let before = s.host.files["a.png"].clone();
+    let e = s.err("doc.save", json!({}));
+    for cause in [
+        "6 layers",
+        "hidden layer \"H1\"",
+        "hidden layer \"H2\"",
+        "\"A\" at 50 % opacity",
+        "\"B\" at 25 % opacity",
+        "\"B\" with blend mode Screen",
+        "\"C\" with blend mode Multiply",
+    ] {
+        assert!(e.contains(cause), "{cause}: {e}");
+    }
+    assert_eq!(s.host.files["a.png"], before, "nothing is written");
+
+    // AC-16: `flatten: true` writes the visible composite (the hidden
+    // layers' content stays out) and keeps every layer.
+    let with_hidden = {
+        let mut layers = s.image(&id).document().layers().to_vec();
+        for l in &mut layers {
+            l.visible = true;
+        }
+        compose(&layers)
+    };
+    assert_ne!(with_hidden.data(), composite(&s, &id).data());
+    s.ok("doc.save", json!({ "flatten": true }));
+    assert_eq!(s.host.files["a.png"], encoded(&s, &id, "PNG", 90));
+    assert_eq!(s.image(&id).document().layer_count(), 6);
+
+    for (args, cause) in [
+        (json!({ "visible": false }), "hidden layer \"Background\""),
+        (
+            json!({ "opacity": 200 }),
+            "layer \"Background\" at 78 % opacity",
+        ),
+        (
+            json!({ "blend": "screen" }),
+            "layer \"Background\" with blend mode Screen",
+        ),
+    ] {
+        let mut s = S::new();
+        opened(&mut s, "b.png", to_png_bytes(&pattern(), 6).expect("png"));
+        let mut set = args.clone();
+        set["layer"] = s.ok("layer.list", json!({}))["layers"][0]["id"].clone();
+        s.ok("layer.set", set);
+        let e = s.err("doc.save", json!({}));
+        assert!(
+            e.contains(&format!("would flatten the document ({cause});"))
+                && e.contains("flatten: true"),
+            "one layer: {e}"
+        );
+    }
+}
+
+#[test]
+fn flatten_true_without_loss_writes_the_same_file() {
+    // Edge case: `flatten: true` on a one-layer, opaque, Normal document.
+    let mut s = S::new();
+    opened(&mut s, "a.png", to_png_bytes(&pattern(), 6).expect("png"));
+    s.ok("doc.save", json!({}));
+    let plain = s.host.files["a.png"].clone();
+    s.ok("doc.save", json!({ "flatten": true }));
+    assert_eq!(s.host.files["a.png"], plain);
+}
+
+#[test]
+fn jpeg_quality_applies_to_jpeg_only_and_per_document() {
+    // AC-18: `quality` on a PNG target is ignored and not remembered; the
+    // last JPEG quality carries to another JPEG path; a new document
+    // starts at 90.
+    let mut s = S::new();
+    let id = s.new_image(6, 4);
+    s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#336699" }));
+    s.ok("doc.save", json!({ "path": "a.png", "quality": 10 }));
+    assert_eq!(s.host.files["a.png"], encoded(&s, &id, "PNG", 90));
+    s.ok("doc.save", json!({ "path": "a.jpg" }));
+    assert_eq!(s.host.files["a.jpg"], encoded(&s, &id, "JPEG", 90));
+    s.ok("doc.save", json!({ "path": "b.jpg", "quality": 30 }));
+    s.ok("doc.save", json!({ "path": "c.png" }));
+    s.ok("doc.save", json!({ "path": "d.jpg" }));
+    assert_eq!(s.host.files["d.jpg"], encoded(&s, &id, "JPEG", 30));
+    assert_ne!(s.host.files["d.jpg"], encoded(&s, &id, "JPEG", 90));
+
+    let other = s.new_image(6, 4);
+    s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#336699" }));
+    s.ok("doc.save", json!({ "path": "e.jpg" }));
+    assert_eq!(s.host.files["e.jpg"], encoded(&s, &other, "JPEG", 90));
 }
