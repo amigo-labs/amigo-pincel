@@ -63,6 +63,19 @@ strength: number, points: Array<[number, number]>,
 /**
  * Pen input, as for `PencilStroke`.
  */
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "clone_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
+/**
+ * Source position minus destination position, in whole pixels.
+ */
+offset: [number, number], 
+/**
+ * Where the copied pixels come from: `current_layer` (default) or
+ * `all_layers`.
+ */
+sample: string, points: Array<[number, number]>, 
+/**
+ * Pen input, as for `PencilStroke`.
+ */
 pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "eraser_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, mode: string, background: [number, number, number, number], points: Array<[number, number]>, 
 /**
  * Pen pressure per point, as for `PencilStroke`.

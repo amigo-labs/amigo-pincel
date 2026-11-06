@@ -179,6 +179,7 @@ export type ToolKind =
   | 'gradient'
   | 'recolor'
   | 'smudge'
+  | 'clone'
   | 'line'
   | 'rectangle'
   | 'rounded_rect'
@@ -289,6 +290,10 @@ export const tool = $state({
   recolorTolerance: 32,
   /** Smudge: how far a color is dragged, 1–100 (%). */
   smudgeStrength: 60,
+  /** Clone Stamp: copy from the active layer or the visible composite. */
+  cloneSample: 'current_layer' as SampleSource,
+  /** Clone Stamp: the next press on the canvas sets the source point. */
+  cloneSetSource: false,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */

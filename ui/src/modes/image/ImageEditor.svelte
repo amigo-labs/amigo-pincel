@@ -475,6 +475,11 @@
         tools: [{ id: 'smudge', label: t('tool.smudge'), icon: 'smudge' }],
       },
       {
+        id: 'clone',
+        label: t('tool.clone'),
+        tools: [{ id: 'clone', label: t('tool.clone'), icon: 'clone-stamp' }],
+      },
+      {
         id: 'fill',
         label: t('tool.fill'),
         tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],

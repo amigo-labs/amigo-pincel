@@ -277,6 +277,7 @@ export const TOOL_GROUP_KEYS: Record<string, string> = {
   eyedropper: 'i',
   recolor: 'r',
   smudge: 's',
+  clone: 'c',
   line: 'l',
   shapes: 'u',
   text: 't',

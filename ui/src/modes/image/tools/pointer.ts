@@ -43,6 +43,8 @@ import { gestureControl } from './gesture-control';
 import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
 import { constrainShape, rectFromCorners, snappedCorners } from './drag-geometry';
+import { cloneStroke } from '../core/clone-stroke';
+import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** A live text's box corner moved by the drag `start` → `p`, rounded to
  *  whole document pixels (docs/specs/image-live-text.md AC-07). */
@@ -96,7 +98,7 @@ function azimuthOf(e: PointerEvent): number | null {
 }
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
-const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge', 'clone']);
 
 /** The three drag-to-move tools: the layer, the selected pixels, the
  *  outline alone. `move_mask` writes no pixels, so it stays out of
@@ -111,6 +113,7 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'gradient',
   'recolor',
   'smudge',
+  'clone',
   'move',
   'move_selection',
   'text',
@@ -214,6 +217,7 @@ export function attachTools(
       paintStroke(b.points, strokeId, useBackground, b.pressure, b.azimuth);
     else if (gestureKind === 'recolor') recolorStroke(b.points, strokeId, b.pressure, b.azimuth);
     else if (gestureKind === 'smudge') smudgeStroke(b.points, strokeId, b.pressure, b.azimuth);
+    else if (gestureKind === 'clone') cloneStroke(b.points, strokeId, b.pressure, b.azimuth);
     else eraseStroke(b.points, strokeId, b.pressure, b.azimuth);
   }, redraw);
 
@@ -383,6 +387,9 @@ export function attachTools(
     if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
       return;
     }
+    // Ctrl / ⌘ or Set source sets the Clone Stamp's source, even on a
+    // locked layer (docs/specs/clone-stamp.md AC-03, AC-04, AC-14).
+    if (tool.kind === 'clone' && pressCloneSource(e, point)) return;
 
     // Pixel-writing tools refuse a locked layer, a layer in a locked group
     // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
@@ -395,6 +402,7 @@ export function attachTools(
       }
     }
     editor.notice = null;
+    if (tool.kind === 'clone' && !beginCloneStroke(point)) return;
 
     if (tool.kind === 'magic_wand') {
       wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
@@ -496,6 +504,10 @@ export function attachTools(
       case 'smudge':
         // A single dab only picks colour up; the stroke starts on the move.
         smudgeStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        break;
+      case 'clone':
+        cloneStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        brushFrames.present();
         break;
       case 'fill':
         fillAt(point[0], point[1], useBackground);
@@ -752,8 +764,10 @@ export function attachTools(
   stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
   gestureControl.cancelLiveDrag = cancelLiveDrag;
+  const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 
   return () => {
+    detachCloneHover();
     brushFrames.dispose();
     gestureControl.cancel = () => false;
     gestureControl.cancelLiveDrag = () => false;

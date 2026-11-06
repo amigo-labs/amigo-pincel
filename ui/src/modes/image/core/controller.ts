@@ -113,7 +113,7 @@ export function colorWithOpacity(hex: string, alpha: number): Rgba {
 }
 
 /** Pen input and the brush dynamics it drives (spec §17.4). */
-function penFields(
+export function penFields(
   pressure: number[],
   azimuth: Array<number | null>,
 ): {
