@@ -71,6 +71,8 @@
   import PngExportDialog from './components/PngExportDialog.svelte';
   import { loadExportScale } from './export-scale';
   import ResizeDialog from './components/ResizeDialog.svelte';
+  import RotateDialog from './components/RotateDialog.svelte';
+  import { applyRotate, cancelRotate, openRotate, previewRotate } from './rotate-ops';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
   import { syncRecentMenu } from '../../lib/menu';
@@ -405,6 +407,7 @@
       growSelection: (mode) => (dialogs.selectionRadius = mode),
       transformCanvas: (op) => imageAction(`canvas:${op}`),
       transformLayer: (op) => imageAction(`layer:${op}`),
+      rotateLayer: openRotate,
       resizeCanvas: () => imageAction('canvas:resize'),
       scaleImage: () => imageAction('canvas:scale'),
       crop: () => imageAction('canvas:crop'),
@@ -467,6 +470,7 @@
       dialogs.effect ||
       toolState.textAnchor ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -674,6 +678,7 @@
     return Boolean(
       dialogs.effect ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -694,6 +699,7 @@
     const blocked = Boolean(
       dialogs.effect ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -1634,6 +1640,15 @@
     onExpand={() => answerPaste('expand')}
     onKeep={() => answerPaste('keep')}
     onCancel={() => answerPaste(null)}
+  />
+{/if}
+
+{#if dialogs.rotate && ed.doc}
+  <RotateDialog
+    input={dialogs.rotate}
+    onPreview={previewRotate}
+    onApply={applyRotate}
+    onCancel={cancelRotate}
   />
 {/if}
 

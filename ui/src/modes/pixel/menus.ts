@@ -78,6 +78,8 @@ export interface PixelMenuContext {
   growSelection(mode: 'expand' | 'contract'): void;
   transformCanvas(op: TransformOp): void;
   transformLayer(op: TransformOp): void;
+  /** Layer ▸ Rotate… (rotsprite). */
+  rotateLayer(): void;
   resizeCanvas(): void;
   scaleImage(): void;
   crop(): void;
@@ -248,6 +250,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.flatten'), disabled: noDoc || c.layerCount < 2, run: c.flatten },
         { kind: 'separator' },
         ...transforms(c.transformLayer, noDoc, true),
+        { label: t('pxRotate.menu'), disabled: noDoc, run: c.rotateLayer },
       ],
     },
     {
