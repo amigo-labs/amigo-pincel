@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: Image
@@ -40,17 +40,17 @@ This spec makes Save behave like paint.net: open `screenshot.png`, edit it, pres
 - [x] AC-04 (event): When the user chooses *Save as .ora…*, then the `.ora` Save As flow runs and the layers are saved in an OpenRaster file.
 - [x] AC-05 (event): When the user chooses *Cancel* in the flatten prompt, then nothing is written and the document stays marked unsaved.
 - [x] AC-06 (option): Where "Don't ask again for this document" was checked in the flatten prompt, later Saves of that document in the same session flatten without asking.
-- [ ] AC-07 (event): When the user saves a document opened from a JPEG for the first time, then its JPEG quality is asked once — inside the flatten prompt when that prompt appears (AC-17), otherwise in a JPEG quality dialog; later Saves of the same document reuse that quality without asking.
+- [x] AC-07 (event): When the user saves a document opened from a JPEG for the first time, then its JPEG quality is asked once — inside the flatten prompt when that prompt appears (AC-17), otherwise in a JPEG quality dialog; later Saves of the same document reuse that quality without asking.
 - [x] AC-08 (event): When the user saves a document opened from a WebP, then it is written lossless without a quality dialog.
 - [x] AC-09 (error): If the document's original format has no encoder in Pincel, then Save opens Save As with the format choice and shows a notice saying the original format cannot be written.
-- [ ] AC-10 (event): When the user chooses Save As…, then a single Save As dialog offers every format Pincel can write, with `.ora` preselected when the document has more than one layer; after the user confirms it, no further Pincel dialog appears before the save picker, native save dialog or download.
+- [x] AC-10 (event): When the user chooses Save As…, then a single Save As dialog offers every format Pincel can write, with `.ora` preselected when the document has more than one layer; after the user confirms it, no further Pincel dialog appears before the save picker, native save dialog or download.
 - [x] AC-11 (always): The editor's title and dirty marker show the opened file's real name and extension (e.g. `screenshot.png`), not an `.ora` name.
 - [x] AC-12 (always): Documents created with New, and documents opened from `.ora`, save exactly as before (to `.ora`).
 - [x] AC-13 (always): Autosave and crash recovery keep storing OpenRaster snapshots, so recovery restores every layer even after a flattening Save; a flattening Save does not drop the document's autosave snapshot (unlike §10.3's rule for full saves).
 - [x] AC-14 (event): When the user saves a document opened from a GIF, then Save As opens with a notice that GIF is not written back.
-- [ ] AC-15 (state): While JPEG is the selected format in the Save As dialog, the dialog shows the JPEG quality, which accepts 1–100 like the JPEG quality dialog and is prefilled with the document's remembered quality or else 90 (the JPEG quality dialog's default); the quality is remembered for later Saves of the document only once the file was written.
-- [ ] AC-16 (state): While the format selected in the Save As dialog cannot keep what flattening would lose (more than one layer, a hidden layer, a layer's opacity or blend mode), the dialog shows an unchecked "Merge layers in the file" checkbox (the Save As counterpart of the flatten prompt's *Flatten*) and its Save button stays disabled until the checkbox is checked; the checkbox keeps its state while the dialog stays open, whatever format is selected in between; the saved file is the flattened composite and the open document keeps its layers. Where "Don't ask again for this document" was set (AC-06), the checkbox is not shown and Save is enabled.
-- [ ] AC-17 (event): When a Save (not Save As) needs both the flatten prompt (AC-02) and the JPEG quality (the format is JPEG and the document has no remembered quality, AC-07), then the flatten prompt shows the JPEG quality as well and no second dialog follows; *Save as .ora…* in that prompt goes straight to the save picker for the `.ora` file (as AC-04) and does not remember the quality; *Cancel* writes and remembers nothing.
+- [x] AC-15 (state): While JPEG is the selected format in the Save As dialog, the dialog shows the JPEG quality, which accepts 1–100 like the JPEG quality dialog and is prefilled with the document's remembered quality or else 90 (the JPEG quality dialog's default); the quality is remembered for later Saves of the document only once the file was written.
+- [x] AC-16 (state): While the format selected in the Save As dialog cannot keep what flattening would lose (more than one layer, a hidden layer, a layer's opacity or blend mode), the dialog shows an unchecked "Merge layers in the file" checkbox (the Save As counterpart of the flatten prompt's *Flatten*) and its Save button stays disabled until the checkbox is checked; the checkbox keeps its state while the dialog stays open, whatever format is selected in between; the saved file is the flattened composite and the open document keeps its layers. Where "Don't ask again for this document" was set (AC-06), the checkbox is not shown and Save is enabled.
+- [x] AC-17 (event): When a Save (not Save As) needs both the flatten prompt (AC-02) and the JPEG quality (the format is JPEG and the document has no remembered quality, AC-07), then the flatten prompt shows the JPEG quality as well and no second dialog follows; *Save as .ora…* in that prompt goes straight to the save picker for the `.ora` file (as AC-04) and does not remember the quality; *Cancel* writes and remembers nothing.
 
 ## Technical notes
 
@@ -111,11 +111,12 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 
 ## Summary
 
-> Completed: 2026-10-30 (before the 2026-11-06 revision)
+> Completed: 2026-11-06 (first completed 2026-10-30, re-accepted after the 2026-11-06 revision)
 
 - Image-mode Save writes an opened PNG, JPEG, WebP (lossless), BMP or TIFF back in its own format under its own name, through its FSA handle / Tauri path when there is one
 - Layered documents (more layers, a hidden layer, opacity or blend mode) ask "Flatten image?"; Flatten writes the composite and keeps the layers in the editor, with a per-document "Don't ask again"
-- JPEG asks its quality once per document; Save As offers every writable format; GIF goes to Save As with a notice
+- JPEG asks its quality once per document; for a layered JPEG the flatten prompt asks it too, so Save shows at most one dialog before the file is written; GIF goes to Save As with a notice
+- One Save As dialog asks the format (every writable format, `.ora` preselected for more than one layer), the JPEG quality (remembered only after a write) and an explicit "Merge layers in the file" confirmation that enables Save when the format would lose layers
 - New TIFF encoder (`encode_tiff`) and wasm `export_bmp` / `export_tiff`
 - Autosave keeps a current layered OpenRaster snapshot after a flattening Save, with the document's detected format, so recovery restores every layer and saves back correctly
 
@@ -129,17 +130,17 @@ Hints from the legacy plan (2026-10-28); paths verified 2026-10-29, line numbers
 | AC-04 | `ui/e2e/save-original.spec.ts` "Save as .ora… in the flatten prompt saves the layers as OpenRaster" | verified | d88e864 |
 | AC-05 | `ui/e2e/save-original.spec.ts` "Cancel in the flatten prompt writes nothing and keeps the document unsaved" | verified | d88e864 |
 | AC-06 | `ui/e2e/save-original.spec.ts` "\"Don't ask again\" flattens later Saves of the document without asking" | verified | d88e864 |
-| AC-07 | `ui/e2e/save-original.spec.ts` "JPEG asks its quality once per document" (no flatten prompt: quality dialog), "a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-17)" | built | |
+| AC-07 | `ui/e2e/save-original.spec.ts` "JPEG asks its quality once per document" (no flatten prompt: quality dialog), "a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-17)" | verified | dd810e9 |
 | AC-08 | `ui/e2e/save-original.spec.ts` "Save writes an opened webp back under its own name and format" | verified | 9ba032c |
 | AC-09 | `ui/e2e/save-original.spec.ts` "Save of a GIF opens Save As with a notice that GIF is not written back" (GIF is the only decodable format without an encoder) | verified | 1558134 |
-| AC-10 | `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one", "Save As preselects .ora for a layered document", "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)" | built | |
+| AC-10 | `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one", "Save As preselects .ora for a layered document", "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)" | verified | dd810e9 |
 | AC-11 | `ui/e2e/save-original.spec.ts` "Save writes an opened {png,jpeg,webp,bmp,tiff} back under its own name and format" (title before / after Save) | verified | 9ba032c |
 | AC-12 | `ui/e2e/save-original.spec.ts` "a document opened from .ora still saves as OpenRaster"; `ui/e2e/ora.spec.ts` "image mode: Save writes an OpenRaster file that reopens with its layers" | verified | 9ba032c |
 | AC-13 | `ui/e2e/save-original.spec.ts` "a flattening Save keeps an autosave snapshot that recovers every layer", "the kept snapshot follows undo and redo back to the saved state", "a recovered document keeps saving in its detected format, not its extension"; `ui/e2e/recovery.spec.ts` "image: an autosaved edit is offered and recovered after a reload" | verified | d88e864 |
 | AC-14 | `ui/e2e/save-original.spec.ts` "Save of a GIF opens Save As with a notice that GIF is not written back" | verified | 1558134 |
-| AC-15 | `ui/e2e/save-original.spec.ts` "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)", "Save As remembers the JPEG quality only once the file is written (AC-15)", "Save As needs no merge confirmation when flattening loses nothing (AC-16)" | built | |
-| AC-16 | `ui/e2e/save-original.spec.ts` "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)", "the Save As merge checkbox keeps its state and hides for .ora (AC-16)", "Save As needs no merge confirmation when flattening loses nothing (AC-16)", "\"Don't ask again\" hides the Save As merge checkbox (AC-16)" | built | |
-| AC-17 | `ui/e2e/save-original.spec.ts` "a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-17)", "Cancel and Save as .ora… in the combined prompt remember no quality (AC-17)" | built | |
+| AC-15 | `ui/e2e/save-original.spec.ts` "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)", "Save As remembers the JPEG quality only once the file is written (AC-15)", "Save As needs no merge confirmation when flattening loses nothing (AC-16)" | verified | dd810e9 |
+| AC-16 | `ui/e2e/save-original.spec.ts` "Save As asks format, JPEG quality and merging in one dialog, then only the file (AC-10, AC-15, AC-16)", "the Save As merge checkbox keeps its state and hides for .ora (AC-16)", "Save As needs no merge confirmation when flattening loses nothing (AC-16)", "\"Don't ask again\" hides the Save As merge checkbox (AC-16)" | verified | dd810e9 |
+| AC-17 | `ui/e2e/save-original.spec.ts` "a layered JPEG Save asks flattening and quality in one prompt (AC-07, AC-17)", "Cancel and Save as .ora… in the combined prompt remember no quality (AC-17)" | verified | dd810e9 |
 
 ## Decisions
 
