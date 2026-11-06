@@ -36,6 +36,8 @@ mod remove_layer;
 mod remove_slice;
 mod reorder_layer;
 mod replace_cel_pixels;
+mod rotate_cel;
+mod rotsprite;
 mod scale_image;
 mod set_frame_duration;
 mod set_grid;
@@ -92,6 +94,8 @@ pub use remove_layer::RemoveLayer;
 pub use remove_slice::RemoveSlice;
 pub use reorder_layer::ReorderLayer;
 pub use replace_cel_pixels::ReplaceCelPixels;
+pub use rotate_cel::RotateCel;
+pub use rotsprite::{ROTSPRITE_MAX_SIDE, RotateMethod};
 pub use scale_image::ScaleImage;
 pub use set_frame_duration::SetFrameDuration;
 pub use set_grid::SetGrid;
@@ -198,6 +202,7 @@ pub enum AnyCommand {
     MergeDown(MergeDown),
     FlattenImage(FlattenImage),
     TransformCel(TransformCel),
+    RotateCel(RotateCel),
     TransformCanvas(TransformCanvas),
     ReframeCanvas(ReframeCanvas),
     ScaleImage(ScaleImage),
@@ -263,6 +268,7 @@ impl AnyCommand {
             Self::ReframeCanvas(c) => c.apply(doc, cels),
             Self::TransformCanvas(c) => c.apply(doc, cels),
             Self::TransformCel(c) => c.apply(doc, cels),
+            Self::RotateCel(c) => c.apply(doc, cels),
             Self::SetLayerOpacity(c) => c.apply(doc, cels),
             Self::SetLayerBlendMode(c) => c.apply(doc, cels),
             Self::MergeDown(c) => c.apply(doc, cels),
@@ -324,6 +330,7 @@ impl AnyCommand {
             Self::ReframeCanvas(c) => c.revert(doc, cels),
             Self::TransformCanvas(c) => c.revert(doc, cels),
             Self::TransformCel(c) => c.revert(doc, cels),
+            Self::RotateCel(c) => c.revert(doc, cels),
             Self::SetLayerOpacity(c) => c.revert(doc, cels),
             Self::SetLayerBlendMode(c) => c.revert(doc, cels),
             Self::MergeDown(c) => c.revert(doc, cels),
@@ -431,6 +438,7 @@ impl AnyCommand {
             Self::ReframeCanvas(c) => c.dirty_region(),
             Self::TransformCanvas(c) => c.dirty_region(),
             Self::TransformCel(c) => c.dirty_region(),
+            Self::RotateCel(c) => c.dirty_region(),
             Self::SetLayerOpacity(c) => c.dirty_region(),
             Self::SetLayerBlendMode(c) => c.dirty_region(),
             Self::MergeDown(c) => c.dirty_region(),
@@ -748,6 +756,12 @@ impl From<SetLayerOpacity> for AnyCommand {
 impl From<TransformCel> for AnyCommand {
     fn from(c: TransformCel) -> Self {
         Self::TransformCel(c)
+    }
+}
+
+impl From<RotateCel> for AnyCommand {
+    fn from(c: RotateCel) -> Self {
+        Self::RotateCel(c)
     }
 }
 
