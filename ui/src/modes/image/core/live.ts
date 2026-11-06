@@ -106,6 +106,7 @@ export function liveToolOf(): ToolKind | null {
   const obj = live.object;
   if (obj === null) return null;
   if (obj.type === 'gradient') return 'gradient';
+  if (obj.type === 'text') return 'text';
   switch (obj.shape) {
     case 'line':
       return 'line';
