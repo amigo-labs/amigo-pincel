@@ -181,7 +181,7 @@ Today `Doc::paint_target` refuses an explicit tilemap layer with "is not an imag
 | AC-27 | `read_pixels_of_a_tilemap_layer_shows_its_tiles` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
 | AC-28 | `grid_set_is_reported_and_saved` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
 | AC-29 | `grid_set_out_of_range_leaves_the_grid` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
-| AC-30 | `doc_info_reports_slice_and_tileset_counts_and_grid`, `grid_set_is_reported_and_saved` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-30 | `doc_info_reports_slice_and_tileset_counts_and_grid`, `grid_set_is_reported_and_saved`, `an_opened_files_zero_size_header_grid_is_reported_and_replaceable` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
 | AC-31 | `asset_edits_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
 | AC-32 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
 | AC-33 | `tilemap_get_refuses_other_layers_and_large_grids` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
@@ -203,3 +203,4 @@ Today `Doc::paint_target` refuses an explicit tilemap layer with "is not an imag
 - 2026-11-05: Tool areas `slice.*`, `tileset.*`, `tile.*`, `tilemap.*` and `grid.*` — each names the object the verb acts on, as `layer.*` and `tag.*` do.
 - 2026-11-05 (spec-build): A tilemap layer added by `layer.add` becomes the agent's active layer, while `doc.info`'s `active_layer` keeps reporting the paint target (the editor's paint-target rule, AC-34), so drawing tools still land on an image layer.
 - 2026-11-05 (spec-build): `tile.set_pixels` and `tilemap.place` batches are checked entry by entry before anything runs and committed as one `CommandBatch` through the dry-run rule of `mcp-parity-structure`, so an unchanged batch records no step (AC-31).
+- 2026-11-06 (spec-build): `an_opened_files_zero_size_header_grid_is_reported_and_replaceable` (AC-30, an opened file's header grid of width 0) was green at once, because the behavior existed; it went red against a temporary break (`Doc::info` replacing a zero-size grid with the 16×16 default: "left: {…width: 16…} right: {…width: 0…}"), which was reverted.

@@ -617,6 +617,27 @@ fn grid_set_is_reported_and_saved() {
 }
 
 #[test]
+fn an_opened_files_zero_size_header_grid_is_reported_and_replaceable() {
+    let mut s = S::new();
+    let id = s.new_doc(8, 8);
+    let (mut sprite, cels) = s.state(&id);
+    sprite.metadata.grid = Some(pincel_core::Rect::new(1, -2, 0, 5));
+    let mut bytes = Vec::new();
+    pincel_core::write_aseprite(&sprite, &cels, &mut bytes).expect("write");
+    let header = read_aseprite(&bytes).expect("read").sprite.metadata.grid;
+    assert_eq!(header, Some(pincel_core::Rect::new(1, -2, 0, 5)));
+    s.host.files.insert("zero.aseprite".into(), bytes);
+    s.ok("doc.open", json!({ "path": "zero.aseprite" }));
+    let stored = json!({ "x": 1, "y": -2, "width": 0, "height": 5 });
+    assert_eq!(s.ok("doc.info", json!({}))["grid"], stored);
+    let list = s.ok("doc.list", json!({}))["documents"].clone();
+    assert_eq!(list[1]["grid"], stored);
+    let grid = json!({ "x": 0, "y": 0, "width": 4, "height": 4 });
+    assert_eq!(s.ok("grid.set", grid.clone())["changed"], true);
+    assert_eq!(s.ok("doc.info", json!({}))["grid"], grid);
+}
+
+#[test]
 fn grid_set_out_of_range_leaves_the_grid() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
