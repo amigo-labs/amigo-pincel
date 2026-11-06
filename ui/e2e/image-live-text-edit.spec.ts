@@ -3,6 +3,7 @@ import { createDocument, imageCanvas, menu, setColor } from './helpers';
 import {
   H,
   W,
+  canvasShot,
   caret,
   chooseText,
   docRect,
@@ -126,6 +127,30 @@ test('options and the color apply to the live text, one step each', async ({ pag
 
   // begin, burst, bold, underline, align, size, color, "p".
   expect(await undoAll(page)).toBe(8);
+});
+
+test('italic, strikethrough and anti-alias redraw the live text, one step each', async ({
+  page,
+}) => {
+  await typeAt(page, [20, 20], 'Hello');
+  let shot = await canvasShot(page);
+  for (const [name, on] of [
+    ['Italic', true],
+    ['Strikethrough', true],
+    ['Anti-alias', false],
+  ] as const) {
+    const box = page.getByRole('checkbox', { name, exact: true });
+    if (on) await box.check();
+    else await box.uncheck();
+    await expect(textBox(page), name).toBeVisible();
+    await expect(liveInput(page), name).toBeFocused();
+    await expect
+      .poll(async () => (await canvasShot(page)).equals(shot), { message: name })
+      .toBe(false);
+    shot = await canvasShot(page);
+  }
+  // begin, burst, italic, strikethrough, anti-alias.
+  expect(await undoAll(page)).toBe(5);
 });
 
 test('panning, zooming and the options bar leave the text open', async ({ page }) => {

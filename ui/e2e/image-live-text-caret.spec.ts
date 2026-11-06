@@ -77,6 +77,23 @@ test('arrows, Home and End move the caret; Shift extends the selection', async (
   await expectText(page, 'xCD');
 });
 
+test('Backspace and Delete remove the selected characters', async ({ page }) => {
+  await typeAt(page, [20, 20], 'ABCDE');
+  // "AB" selected: Backspace removes both, not the character before.
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Backspace');
+  await expect(selectionMarks(page)).toHaveCount(0);
+  await expectText(page, 'CDE');
+  // "DE" selected backwards from the end: Delete removes both.
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Delete');
+  await expectText(page, 'C');
+});
+
 test('Ctrl+A selects the characters, not the canvas', async ({ page }) => {
   await typeAt(page, [20, 20], 'AB');
   await page.keyboard.press('Enter');
@@ -163,6 +180,38 @@ test('a press inside the box places the caret; a drag selects', async ({ page })
   await expect(liveInput(page)).toBeFocused();
   await page.keyboard.type('z');
   await expectText(page, 'HzH');
+});
+
+test('the hit area reaches 4 CSS px around the box', async ({ page }) => {
+  await typeAt(page, [40, 40], 'HHHH');
+  const b = await textBox(page).boundingBox();
+  if (!b) throw new Error('no box');
+  // The drawn border sits 1 CSS px outside the box.
+  const left = b.x + 1;
+  const midY = b.y + b.height / 2;
+  const before = await docRect(page, textBox(page));
+  // 3 CSS px left of the box: the caret goes to the start, nothing commits.
+  await page.mouse.click(left - 3, midY);
+  await expect(textBox(page)).toHaveCount(1);
+  await expect(liveInput(page)).toBeFocused();
+  const same = await docRect(page, textBox(page));
+  expect(same.x0).toBeCloseTo(before.x0, 1);
+  expect(same.y0).toBeCloseTo(before.y0, 1);
+  await page.keyboard.type('z');
+  await expectText(page, 'zHHHH');
+  // 3 CSS px above the box, too.
+  await page.mouse.click(left + 2, b.y + 1 - 3);
+  await expect(textBox(page)).toHaveCount(1);
+  expect((await docRect(page, textBox(page))).x0).toBeCloseTo(before.x0, 1);
+
+  // 12 CSS px left of it: the press commits and opens a new box there.
+  await page.mouse.click(left - 12, midY);
+  await expect(textBox(page)).toHaveCount(1);
+  const fresh = await docRect(page, textBox(page));
+  expect(fresh.x0).toBeLessThan(before.x0 - 1);
+  await page.keyboard.press('Escape');
+  await expect(textBox(page)).toHaveCount(0);
+  expect(await ink(page)).not.toBeNull();
 });
 
 test('Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste plain text', async ({ page }) => {

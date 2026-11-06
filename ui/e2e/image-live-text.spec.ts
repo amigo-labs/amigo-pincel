@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, imageCanvas, menu } from './helpers';
+import { createDocument, drag, imageCanvas, menu } from './helpers';
 import {
   H,
   W,
@@ -32,9 +32,7 @@ test.beforeEach(async ({ page }) => {
   await setFontSize(page, 24);
 });
 
-test('a Text press opens an empty box; the first character begins the text', async ({
-  page,
-}) => {
+test('a Text press opens an empty box; the first character begins the text', async ({ page }) => {
   const z = await zoomOf(page);
   const [px, py] = await at(page, [40, 30]);
   await page.mouse.click(px, py);
@@ -55,7 +53,15 @@ test('a Text press opens an empty box; the first character begins the text', asy
   await expect(textBox(page)).toHaveCount(0);
   await expect(undoButton(page)).toBeDisabled();
 
-  // Right alignment: the box still opens with its top-left at the press.
+  // Center and Right alignment: the box still opens with its top-left at
+  // the press.
+  await page.getByRole('combobox', { name: 'Align' }).selectOption('center');
+  await page.mouse.click(px, py);
+  const center = await textBox(page).boundingBox();
+  expect(Math.abs((center?.x ?? 0) - px)).toBeLessThanOrEqual(z + 1);
+  expect(Math.abs((center?.y ?? 0) - py)).toBeLessThanOrEqual(z + 1);
+  await page.keyboard.press('Escape');
+  await expect(textBox(page)).toHaveCount(0);
   await page.getByRole('combobox', { name: 'Align' }).selectOption('right');
   await page.mouse.click(px, py);
   const right = await textBox(page).boundingBox();
@@ -93,7 +99,10 @@ test('an empty box: a paste begins the text; Undo and the commit triggers just c
     ['Finish', () => page.getByRole('button', { name: 'Finish', exact: true }).click()],
     ['Edit ▸ Copy', () => menu(page, 'Edit', 'Copy')],
     ['Layer ▸ New Layer', () => menu(page, 'Layer', 'New Layer')],
-    ['an active-layer change', () => page.getByRole('button', { name: 'Layer 1', exact: true }).click()],
+    [
+      'an active-layer change',
+      () => page.getByRole('button', { name: 'Layer 1', exact: true }).click(),
+    ],
   ];
   for (const [name, run] of triggers) {
     await clickAt(page, [20, 20]);
@@ -137,24 +146,22 @@ test('typing draws the text into the layer as the commit leaves it', async ({ pa
   expect((await canvasShot(page)).equals(live)).toBe(true);
 });
 
-test('typing draws the text into the layer as the commit leaves it', async ({ page }) => {
-  await typeAt(page, [20, 20], 'Hellx');
+test('every edit redraws the text over the layer as it was before', async ({ page }) => {
+  // Paint under the text's place first.
+  await page.getByRole('button', { name: 'Brush', exact: true }).click();
+  await drag(page, imageCanvas(page), [10 / W, 32 / H], [120 / W, 32 / H]);
+  await chooseText(page);
+  await typeAt(page, [20, 20], 'Hellxxx');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
   await page.keyboard.press('Backspace');
   await page.keyboard.type('o');
-  await expect(textBox(page)).toBeVisible();
-  const live = await canvasShot(page);
-  expect(await ink(page)).not.toBeNull();
-
-  await page.keyboard.press('Control+Enter');
+  const edited = await canvasShot(page);
+  // The same text over the same stroke, typed in one go.
+  await page.keyboard.press('Escape');
   await expect(textBox(page)).toHaveCount(0);
-  expect((await canvasShot(page)).equals(live)).toBe(true);
-  // The commit is one undo step.
-  expect(await undoAll(page)).toBe(1);
-  expect(await ink(page)).toBeNull();
-
-  // The same text typed in one go paints the same pixels.
   await typeAt(page, [20, 20], 'Hello');
-  expect((await canvasShot(page)).equals(live)).toBe(true);
+  expect((await canvasShot(page)).equals(edited)).toBe(true);
 });
 
 test('a typing burst is one step; a caret jump starts the next', async ({ page }) => {
@@ -179,9 +186,7 @@ test('a typing burst is one step; a caret jump starts the next', async ({ page }
   await expect(undoButton(page)).toBeDisabled();
 });
 
-test('Enter breaks the line; the box keeps its top-left and fits the lines', async ({
-  page,
-}) => {
+test('Enter breaks the line; the box keeps its top-left and fits the lines', async ({ page }) => {
   await typeAt(page, [20, 20], 'H');
   const one = await docRect(page, textBox(page));
   await page.keyboard.type('HHH');
@@ -235,9 +240,7 @@ for (const align of ['left', 'center', 'right'] as const) {
   });
 }
 
-test('Ctrl+Enter, Finish, another tool and a press outside commit the text', async ({
-  page,
-}) => {
+test('Ctrl+Enter, Finish, another tool and a press outside commit the text', async ({ page }) => {
   await typeAt(page, [20, 20], 'Hi');
   await page.keyboard.press('Control+Enter');
   await expect(textBox(page)).toHaveCount(0);
@@ -267,9 +270,7 @@ test('Ctrl+Enter, Finish, another tool and a press outside commit the text', asy
   expect(await undoAll(page)).toBe(4);
 });
 
-test('a document command or an active-layer change commits the text first', async ({
-  page,
-}) => {
+test('a document command or an active-layer change commits the text first', async ({ page }) => {
   await typeAt(page, [20, 20], 'Hi');
   await menu(page, 'Layer', 'New Layer');
   await expect(textBox(page)).toHaveCount(0);
@@ -288,9 +289,7 @@ test('a document command or an active-layer change commits the text first', asyn
   expect(await undoAll(page)).toBe(5);
 });
 
-test('a text of only whitespace or wholly off the canvas leaves no step', async ({
-  page,
-}) => {
+test('a text of only whitespace or wholly off the canvas leaves no step', async ({ page }) => {
   await typeAt(page, [20, 20], '   ');
   await page.keyboard.press('Enter');
   await page.keyboard.type(' ');
@@ -333,9 +332,10 @@ test('Escape cancels the live text and keeps the step before it', async ({ page 
   expect(await undoAll(page)).toBe(1);
 });
 
-test('in the text, tool keys and Space type; Tab stays; Undo undoes a step', async ({
+test('in the text, tool keys and Space type; Tab stays; Undo and Redo keys step', async ({
   page,
 }) => {
+  const canvas = await imageCanvas(page).boundingBox();
   await typeAt(page, [20, 20], 'b');
   await page.keyboard.type(' v1');
   await expect(textBox(page)).toBeVisible();
@@ -343,14 +343,32 @@ test('in the text, tool keys and Space type; Tab stays; Undo undoes a step', asy
     'aria-pressed',
     'true',
   );
-  const typed = await ink(page);
   // Space typed and did not pan: the view stayed where it was.
+  expect(await imageCanvas(page).boundingBox()).toEqual(canvas);
+  const typed = await canvasShot(page);
+  // Tab keeps the focus and types nothing.
   await page.keyboard.press('Tab');
   await expect(liveInput(page)).toBeFocused();
+  expect((await canvasShot(page)).equals(typed)).toBe(true);
   // Ctrl+Z undoes the burst " v1": the text stays open with "b".
   await page.keyboard.press('Control+z');
   await expect(textBox(page)).toBeVisible();
-  const back = await ink(page);
-  expect((back?.x1 ?? 0) - (back?.x0 ?? 0)).toBeLessThan((typed?.x1 ?? 0) - (typed?.x0 ?? 0));
+  expect((await canvasShot(page)).equals(typed)).toBe(false);
+  // Ctrl+Y and Ctrl+Shift+Z redo it.
+  await page.keyboard.press('Control+y');
+  await expect.poll(async () => (await canvasShot(page)).equals(typed)).toBe(true);
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+Shift+z');
+  await expect.poll(async () => (await canvasShot(page)).equals(typed)).toBe(true);
+  await expect(textBox(page)).toBeVisible();
+  await expect(liveInput(page)).toBeFocused();
+  // The text is "b v1" with its space: typed afresh it paints the same.
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('b v1');
+  expect((await canvasShot(page)).equals(typed)).toBe(true);
+  // ... and not "bv1": the Space key typed a space.
+  await page.keyboard.press('Control+a');
+  await page.keyboard.type('bv1');
+  expect((await canvasShot(page)).equals(typed)).toBe(false);
   await expect(imageCanvas(page)).toHaveAttribute('data-ready', 'true');
 });
