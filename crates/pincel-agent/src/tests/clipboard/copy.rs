@@ -54,15 +54,18 @@ fn export_selection_writes_the_editors_copy() {
         json!({ "x": 0, "y": 0, "width": 6, "height": 5, "feather": 1 }),
     );
     let (region, pixels) = copy_selection(s.image(&id).document(), false).expect("copy");
-    let out = s.ok("export.selection", json!({ "path": "c.png" }));
+    // A PNG whatever the path's extension, as in Pixel mode above.
+    let out = s.ok("export.selection", json!({ "path": "c.jpg" }));
     assert_eq!(
         out["area"],
         json!({ "x": region.x, "y": region.y, "w": region.w, "h": region.h })
     );
-    assert_eq!(
-        decode(&s.host.files["c.png"]).expect("png").data(),
-        pixels.data()
+    let written = &s.host.files["c.jpg"];
+    assert!(
+        written.starts_with(b"\x89PNG\r\n\x1a\n"),
+        "export.selection wrote no PNG to c.jpg"
     );
+    assert_eq!(decode(written).expect("png").data(), pixels.data());
     // Without a selection: the whole canvas.
     s.ok("select.clear", json!({}));
     let out = s.ok("export.selection", json!({ "path": "all.png" }));
