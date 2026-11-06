@@ -61,7 +61,10 @@ impl Bus {
     }
 
     /// Apply `cmd` and push it onto the undo stack. The redo stack is cleared
-    /// because executing a fresh command branches history.
+    /// because executing a fresh command branches history. A paint command
+    /// that wrote no pixel (a fill into its own color, a shape, text or
+    /// gradient that missed the cel) leaves both stacks as they were: an
+    /// undo step that changes nothing would mark the document dirty.
     pub fn execute(
         &mut self,
         mut cmd: AnyCommand,
@@ -70,6 +73,9 @@ impl Bus {
     ) -> Result<(), CommandError> {
         cmd.apply(doc, cels)?;
         self.last_dirty = cmd.dirty_region();
+        if cmd.wrote_no_pixel() {
+            return Ok(());
+        }
         self.redo.clear();
 
         if self.cap == 0 {

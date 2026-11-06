@@ -38,6 +38,7 @@ export function effectMenus(
     {
       id: 'effects',
       label: t('menu.effects'),
+      liveWithEffect: true,
       items: EFFECT_SUBMENUS.map((g) => ({ g, entries: items(g) }))
         .filter(({ entries }) => entries.length > 0)
         .map(({ g, entries }) => ({
@@ -50,6 +51,7 @@ export function effectMenus(
     {
       id: 'adjustments',
       label: t('menu.adjustments'),
+      liveWithEffect: true,
       items: items('adjust'),
     },
   ];

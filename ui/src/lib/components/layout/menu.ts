@@ -36,6 +36,9 @@ export interface MenuDef {
   id: string;
   label: string;
   items: MenuItem[];
+  /** Stays usable while an effect is open (effect-panel AC-03, AC-05);
+   *  every other menu is dimmed and inert then. */
+  liveWithEffect?: boolean;
 }
 
 /** `items` with separators at the edges or doubled up removed, so a menu

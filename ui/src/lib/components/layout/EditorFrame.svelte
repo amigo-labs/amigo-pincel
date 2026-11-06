@@ -239,32 +239,37 @@
 {/snippet}
 
 <div class="flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
-  <!-- Top bar -->
+  <!-- Top bar. While an effect is open it is dimmed and inert except the
+       Effects and Adjustments menus, which MenuBar lifts above the shade
+       (AC-03, AC-05). -->
   <header
-    class="flex h-11 shrink-0 items-center gap-1 border-b border-pc-border bg-pc-panel pr-2 pl-1 sm:pl-3"
+    class="relative flex h-11 shrink-0 items-center gap-1 border-b border-pc-border bg-pc-panel pr-2 pl-1 sm:pl-3"
+    data-dimmed={dim}
   >
     {#if size === 'narrow'}
-      <MenuBar {menus} compact />
+      <MenuBar {menus} compact restricted={effectOpen} />
     {:else if size === 'wide'}
-      <span class="mr-1 text-sm font-semibold tracking-wide">Pincel</span>
+      <span class="mr-1 text-sm font-semibold tracking-wide" inert={effectOpen}>Pincel</span>
     {/if}
     <span
       class="mr-1 rounded bg-pc-accent/15 px-1.5 text-[11px] leading-5 font-semibold text-pc-accent-text capitalize"
+      inert={effectOpen}
     >
       {t(`mode.${mode}`)}
     </span>
     {#if size !== 'narrow'}
-      <MenuBar {menus} />
+      <MenuBar {menus} restricted={effectOpen} />
     {/if}
     <span class="min-w-0 flex-1"></span>
     <span
       class="min-w-0 shrink truncate text-xs text-pc-muted"
       class:max-w-40={size !== 'wide'}
       title={dirty ? t('frame.unsaved', { title }) : title}
+      inert={effectOpen}
     >
       {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
     </span>
-    <span class="ml-1 flex items-center">
+    <span class="ml-1 flex items-center" inert={effectOpen}>
       {@render quick?.()}
       <IconButton
         icon={size === 'narrow' ? 'layers' : 'sidebar'}

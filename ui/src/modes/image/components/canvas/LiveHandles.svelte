@@ -9,7 +9,7 @@
   /** Edge of a handle square, CSS px. */
   const SIZE = 9;
 
-  const obj = $derived(live.object);
+  const obj = $derived(live.object?.type === 'text' ? null : live.object);
   const toScreen = (p: [number, number]): [number, number] => [
     view.panX + p[0] * view.zoom,
     view.panY + p[1] * view.zoom,

@@ -10,47 +10,65 @@ Each document has a mode, and the mode follows the file, as in the editor:
 
 | Mode | For | Created by | Saved as |
 | ---- | --- | ---------- | -------- |
-| Pixel | Sprites, tiles, animation with frames, tags and a palette (up to 4096 px per side) | `doc.new` with `mode: "pixel"`, `doc.open` of `.aseprite` | `.aseprite` (`doc.save`), PNG (`export.png`), sprite sheets (`export.sheet`) |
-| Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers), `export.png`, `export.jpeg`, `export.webp` |
+| Pixel | Sprites, tiles, animation with frames, tags and a palette (up to 4096 px per side) | `doc.new` with `mode: "pixel"`, `doc.open` of `.aseprite` / `.ase`, or of a PNG with `mode: "pixel"` | `.aseprite` (`doc.save`), PNG (`export.png`), sprite sheets (`export.sheet`), APNG / GIF animations (`export.apng`, `export.gif`), SVG (`export.svg`) |
+| Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers); PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered); `export.png`, `export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`, `export.svg` |
 
 Shared tools work on both: `doc.*`, `layer.*` (except the two below),
 `select.*` (except `select.feather`), `draw.stroke`, `draw.shape`,
 `draw.text`, `draw.gradient`, `draw.fill`, `effect.apply`,
 `adjust.apply`, `canvas.resize`, `image.scale`, `image.crop_to_selection`,
-`image.flip`, `image.rotate` and `export.png`. Pixel-only: `frame.*`,
-`tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
-`draw.ellipse`, `draw.clear`, `export.sheet`. Image-only:
-`layer.merge_visible`, `layer.merge_group`, `select.feather`,
-`draw.recolor`, `draw.smudge`, `export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
+`image.flip`, `image.rotate`, `export.png` and `export.svg`. Pixel-only:
+`frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
+`draw.ellipse`, `draw.clear`, `export.sheet`, `export.apng`,
+`export.gif`. Image-only: `layer.merge_visible`, `layer.merge_group`,
+`select.feather`, `draw.recolor`, `draw.smudge`, `image.auto_crop`,
+`export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`. A tool of the other mode fails and says so,
 and so does an argument only the other mode's editor offers.
 
 ## Drawing in each mode
 
-- `draw.stroke`: Pixel documents (the Pencil) take integer points, `size`
-  1–8 (default 1), `shape` `square` (default) or `round`, `pixel_perfect`,
-  `ink: "shading"` with `ramp_from` / `ramp_to` (default the whole
-  palette) and `step` 1 / -1, `mirror` `x` / `y` / `xy` with `axis_x2` /
-  `axis_y2` in half pixels (default the centre) and `wrap` `x` / `y` /
-  `xy` (tiled mode). Image documents (the Brush) take `size` 1–500
-  (default 8), `hardness`, `opacity` and `shape` `hard_round` (default),
-  `soft_round` or `flat`. Both: `tool: "eraser"`, color default `#000000`.
-- `draw.shape`: Pixel documents draw `rect`, `rounded` (`corner_radius`
-  0–256, default 4), `ellipse` and `polygon` (`sides` 3–64, default 6)
-  over integer corners with `stroke_width` 1–64 (default 1); lines are
-  `draw.line`. Image documents add `line`, polygons by `cx` / `cy` /
-  `radius` / `rotation`, `dash`, `anti_alias` (default true) and
-  `stroke_width` 1–500 (default 3).
-- `draw.text`: Pixel `size` 1–2000 (default 12), `anti_alias` default
-  false; Image `size` 1–999 (default 48), `anti_alias` default true.
-- `draw.gradient`: Pixel documents (RGBA only) take `kind` `linear` /
-  `radial` and `dither` 0, 2, 4 (default) or 8; Image documents take five
-  kinds, `channel` and `opacity`.
+- `draw.stroke`: paints through `points` (`[[x, y], …]`, one point is one
+  stamp) with `tool` `brush` (default) or `eraser`. Pixel documents (the
+  Pencil) take integer points, `size`
+  1–8 (default 1), `shape` `square` (default) or `round`, `pixel_perfect`
+  (default false), `ink: "shading"` (default `simple`) with `ramp_from` /
+  `ramp_to` (default the whole palette) and `step` 1 (default) / -1,
+  `mirror` `x` / `y` / `xy` (default none) with `axis_x2` / `axis_y2` in
+  half pixels (default the centre) and `wrap` `x` / `y` / `xy` (tiled
+  mode, default none). Image documents (the Brush) take `size` 1–500
+  (default 8), `hardness` and `opacity` in % (default 100) and `shape`
+  `hard_round` (default), `soft_round` or `flat`. Both: `tool: "eraser"`,
+  `color` default `#000000`.
+- `draw.shape`: give `stroke` (the outline color), `fill` or both. Pixel
+  documents draw `rect`, `rounded` (`corner_radius`
+  0–256, default 4), `ellipse` and `polygon` (`sides` 3–64, default 6,
+  inscribed in the box, first vertex up) over integer corners `x0`, `y0`,
+  `x1`, `y1` with `stroke_width` 1–64 (default 1); lines are
+  `draw.line`. Image documents add `line`, take `corner_radius` at least 0
+  (default 16), polygons by `cx` / `cy` / `radius` / `rotation` (default
+  0) with `sides` 3–100 (default 5), `dash` `solid` (default) / `dashed` /
+  `dotted`, `anti_alias` (default true) and `stroke_width` 1–500 (default
+  3).
+- `draw.text`: `text` at `x`, `y` (the top of the first line), `color`
+  default `#000000`, `bold` and `italic` (default false), `align` `left`
+  (default), `center` or `right`.
+  Pixel `size` 1–2000 (default 12), integer `x` / `y`, `anti_alias` default
+  false; Image `size` 1–999 (default 48), `anti_alias` default true,
+  `underline` and `strikethrough` (default false).
+- `draw.gradient`: from `x0`, `y0` to `x1`, `y1`, `from` color to `to`
+  color. Pixel documents (RGBA only) take integer corners, `kind` `linear`
+  (default) / `radial` and `dither` 0, 2, 4 (default) or 8; Image
+  documents take `kind` `linear` (default), `reflected`, `radial`,
+  `conical` or `diamond`, `channel` `color` (default) or `transparency`
+  and `opacity` in % (default 100).
 - The selection: in Pixel documents `draw.gradient`, `draw.text` and
   `draw.fill` stay inside it, while `draw.stroke`, `draw.shape`,
   `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse` and `draw.clear`
   ignore it, as in the Pixel editor. Pixel `draw.fill` clips to the
   selection although the Pixel editor's Bucket does not. In Image
-  documents every drawing tool stays inside the selection.
+  documents every drawing tool stays inside the selection (`draw.stroke`,
+  `draw.shape`, `draw.text`, `draw.fill`, `draw.gradient`, `draw.recolor`,
+  `draw.smudge`) and blends its feathered edges by coverage.
 - Image documents only: `draw.recolor` (the Recolor tool: `from`, the
   replacement `color`, `tolerance` default 32) and `draw.smudge`
   (`strength` 1–100, default 60) take the brush arguments of
@@ -77,7 +95,8 @@ and so does an argument only the other mode's editor offers.
 - Defaults follow each editor: `select.wand` `tolerance` 0 in Pixel
   documents and 32 in Image documents; `canvas.resize` `anchor` `center`
   (Pixel) or `top_left` (Image); `image.scale` `interpolation` `nearest`
-  (Pixel) or `bilinear` (Image). Pixel `select.invert` without a selection
+  (Pixel) or `bilinear` (Image); Image documents also take `supersampling`
+  (an area average when shrinking, bicubic when an edge grows). Pixel `select.invert` without a selection
   selects everything; Image selects nothing.
 - `select.delete` is the editor's Delete: it clears the selected pixels of
   the target layer. Without a selection, Image documents clear the whole
@@ -112,7 +131,8 @@ These tools work on Pixel documents only: `slice.list`, `slice.add`,
 - `doc.open` reads `.aseprite` / `.ase` as Pixel documents and `.ora`,
   Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF and TIFF as Image documents;
   a PSD result lists `notices` of what was left out. A PNG opens as a
-  Pixel document only with `mode: "pixel"`.
+  Pixel document only with `mode: "pixel"`; `mode: "image"` or no `mode`
+  lets the file decide, and a `mode` the file cannot open in fails.
 - `doc.save` of an Image document writes the format of the path's
   extension (`.ora`, `.png`, `.jpg`, `.webp`, `.bmp`, `.tif`; `quality`
   for JPEG) and, without `path`, writes an opened flat image back in its
@@ -121,7 +141,8 @@ These tools work on Pixel documents only: `slice.list`, `slice.add`,
 - `export.svg` (both modes) traces the image: `mode` `pixel_exact`
   (default on Pixel documents), `colors` (default on Image documents) or
   `mono`, with `colors`, `threshold`, `invert`, `fill`, `despeckle`,
-  `min_area`, `alpha_max`, `opt_curve` and `opt_tolerance`.
+  `min_area`, `alpha_max`, `opt_curve` and `opt_tolerance`, at `frame`
+  (default the active frame; Image documents have only frame 0).
 - Pixel documents only: `export.apng` and `export.gif` (animations, with
   `tag`, `scale`, `loops`; GIF reports `warnings`). Image documents only:
   `export.bmp` and `export.tiff`.
@@ -226,10 +247,12 @@ The loop is plan → draw → preview → export, in both modes.
   makes the new layer active, and `layer.list` shows the ids to pass as
   `layer`.
 - Locked layers refuse edits; unlock with `layer.set` and `locked: false`.
-- A selection limits `draw.fill`, `adjust.apply`, `effect.apply` (and in
-  Image mode `draw.gradient`); clear it with `select.clear` when you are
-  done.
-- `image.crop_to_selection` needs a selection.
+- A selection limits `draw.fill`, `draw.gradient`, `draw.text`,
+  `adjust.apply` and `effect.apply` (in Image mode every drawing tool, see
+  Drawing in each mode); clear it with `select.clear` when you are done.
+- `image.crop_to_selection` needs a selection. `image.auto_crop` (Image)
+  trims a border matching the composite's top-left pixel and returns
+  `{ "cropped": false }` when there is nothing to trim.
 - An Image document opened from PNG, JPEG or another flat format has no
   `.ora` file: `doc.save` needs a `.ora` path, or use `export.png`.
 - Effects and adjustments take named parameters within the ranges listed in

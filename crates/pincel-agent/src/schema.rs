@@ -38,6 +38,20 @@ fn child(path: &str, key: &str) -> String {
     }
 }
 
+/// The schema's description as a suffix for an error message, so a
+/// missing or mistyped argument says what it takes (e.g. the accepted
+/// color forms); empty without a description.
+fn described(schema: &Value) -> String {
+    describe(schema.as_object())
+}
+
+fn describe(schema: Option<&Map<String, Value>>) -> String {
+    schema
+        .and_then(|s| s.get("description"))
+        .and_then(Value::as_str)
+        .map_or_else(String::new, |d| format!(" — {d}"))
+}
+
 fn type_matches(ty: &str, value: &Value) -> bool {
     match ty {
         "object" => value.is_object(),
@@ -96,9 +110,10 @@ fn check(schema: &Value, value: &Value, path: &str) -> Result<(), String> {
             .map(|o| o.as_str().map_or_else(|| o.to_string(), str::to_owned))
             .collect();
         return Err(format!(
-            "{} must be one of: {} (got {value})",
+            "{} must be one of: {} (got {value}){}",
             label(path),
-            names.join(", ")
+            names.join(", "),
+            describe(Some(schema))
         ));
     }
     if let Some(n) = value.as_f64() {
@@ -153,7 +168,11 @@ fn check_object(
     if let Some(required) = schema.get("required").and_then(Value::as_array) {
         for key in required.iter().filter_map(Value::as_str) {
             if !obj.contains_key(key) {
-                return Err(format!("missing required argument `{}`", child(path, key)));
+                return Err(format!(
+                    "missing required argument `{}`{}",
+                    child(path, key),
+                    props.get(key).map_or_else(String::new, described)
+                ));
             }
         }
     }
@@ -226,6 +245,25 @@ mod tests {
             validate(&schema(), &json!({ "width": 1, "bogus": 1 }))
                 .unwrap_err()
                 .starts_with("unknown argument `bogus`")
+        );
+    }
+
+    #[test]
+    fn validate_missing_or_unlisted_value_appends_the_description() {
+        let described = object(
+            json!({
+                "from": { "type": "string", "description": "The color: \"#RRGGBB\"" },
+                "tool": { "type": "string", "enum": ["brush"], "description": "brush; recolor is draw.recolor" },
+            }),
+            &["from"],
+        );
+        assert_eq!(
+            validate(&described, &json!({})).unwrap_err(),
+            "missing required argument `from` — The color: \"#RRGGBB\""
+        );
+        assert_eq!(
+            validate(&described, &json!({ "from": "x", "tool": "recolor" })).unwrap_err(),
+            "tool must be one of: brush (got \"recolor\") — brush; recolor is draw.recolor"
         );
     }
 

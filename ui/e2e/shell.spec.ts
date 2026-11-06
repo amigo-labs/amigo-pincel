@@ -31,7 +31,7 @@ const canvasOf = (page: Page, mode: Mode) =>
 
 /** The document size as the mode's status bar shows it. */
 const sizeText = (mode: Mode, w: number, h: number) =>
-  mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`;
+  mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`;
 
 /** The editor top bar (mode badge, menus, document name). */
 const topBar = (page: Page) => page.getByRole('banner');

@@ -29,7 +29,7 @@ pub use move_tool::Move;
 pub use recolor::{Recolor, RecolorOrigins};
 pub use shapes::{DashPattern, Shape, ShapeMode, ShapeStyle, Shapes};
 pub use smudge::{Smudge, SmudgeCarry};
-pub use text::{Text, TextAlign, TextStyle};
+pub use text::{LineLayout, Text, TextAlign, TextLayout, TextStyle};
 
 use crate::color::Color;
 use crate::command::SetPixels;
@@ -224,7 +224,8 @@ impl Brush {
     /// the pen pressure at `points[i]`, applied per [`Brush::dynamics`];
     /// `pen.azimuth[i]` turns the flat nib when [`Brush::follow_tilt`] is on.
     /// Returns the painted region and its new pixels, or `None` if the stroke
-    /// misses the canvas, the layer is invalid, or `strength <= 0`.
+    /// misses the canvas, the layer is invalid, `strength <= 0`, or no dab
+    /// reaches a pixel (all of them outside the selection).
     pub(crate) fn rasterize<F>(
         &self,
         layer_index: usize,
@@ -254,6 +255,13 @@ impl Brush {
             p: pen.pressure.get(i).copied().unwrap_or(1.0).clamp(0.0, 1.0),
             angle: self.dab_angle(pen.azimuth.get(i).copied()),
         };
+        // Whether any dab reached a pixel: a stroke that reaches none is no
+        // change at all and must not become an (empty) undo step.
+        let mut touched = false;
+        let mut op = |p: DabPixel| {
+            touched = true;
+            op(p)
+        };
         if points.len() == 1 {
             self.stamp(&mut after, points[0], at(0), &ctx, &mut op);
         } else {
@@ -262,7 +270,7 @@ impl Brush {
                 self.stamp_segment(&mut after, a, b, &ctx, &mut op);
             }
         }
-        Some((region, after))
+        touched.then_some((region, after))
     }
 
     /// Bounding region of the stroke, clamped to the canvas. `None` if off-canvas.
@@ -305,11 +313,19 @@ impl Brush {
         let cy0 = (center.y - radius).floor() as i32;
         let cx1 = (center.x + radius).ceil() as i32;
         let cy1 = (center.y + radius).ceil() as i32;
+        // A dab narrower than a pixel diagonal can fall between pixel
+        // centers and miss every one; it still paints the pixel it lies in.
+        let own = (radius < std::f32::consts::FRAC_1_SQRT_2)
+            .then(|| (center.x.floor() as i32, center.y.floor() as i32));
         for cy in cy0..=cy1 {
             for cx in cx0..=cx1 {
                 let dx = cx as f32 + 0.5 - center.x;
                 let dy = cy as f32 + 0.5 - center.y;
-                let cov = self.coverage(dx, dy, radius, rot);
+                let cov = if own == Some((cx, cy)) {
+                    self.coverage(0.0, 0.0, radius, rot)
+                } else {
+                    self.coverage(dx, dy, radius, rot)
+                };
                 if cov <= 0.0 {
                     continue;
                 }
@@ -442,8 +458,9 @@ impl Pencil {
 
     /// Rasterizes a stroke over `points` into a [`SetPixels`] command.
     ///
-    /// Returns `None` if the stroke does not touch the canvas or `points` is
-    /// empty. A single point paints one dab; multiple points paint connected
+    /// Returns `None` if the stroke does not touch the canvas or the
+    /// selection, or `points` is empty, so such a stroke adds no undo step.
+    /// A single point paints one dab; multiple points paint connected
     /// segments. Painting uses straight-alpha source-over within the stroke's
     /// bounding region; the command captures the prior pixels for undo.
     pub fn stroke(
@@ -623,6 +640,36 @@ mod tests {
     }
 
     #[test]
+    fn stroke_of_one_pixel_brush_on_grid_lines_paints() {
+        // Every dab sits on a pixel corner, half a pixel diagonally from the
+        // nearest pixel center: still a visible 1 px line.
+        let mut doc = Document::new(20, 20).unwrap();
+        black_pencil(1)
+            .stroke(0, &[Point::new(4.0, 10.0), Point::new(16.0, 10.0)], &doc)
+            .unwrap()
+            .apply(&mut doc)
+            .unwrap();
+        assert!(painted(&doc) >= 12, "painted {}", painted(&doc));
+    }
+
+    #[test]
+    fn stroke_with_lightest_pressure_on_a_pixel_edge_paints() {
+        let mut doc = Document::new(48, 48).unwrap();
+        let pts = [Point::new(8.0, 24.0), Point::new(40.0, 24.0)];
+        Pencil::new(
+            Brush::new(8, Color::BLACK, 1.0).with_dynamics(PressureDynamics {
+                size: true,
+                opacity: false,
+            }),
+        )
+        .stroke_with_pressure(0, &pts, &[0.1, 0.1], &doc)
+        .unwrap()
+        .apply(&mut doc)
+        .unwrap();
+        assert!(painted(&doc) >= 32, "painted {}", painted(&doc));
+    }
+
+    #[test]
     fn stroke_with_pressure_opacity_lowers_alpha_only_when_enabled() {
         let pt = [Point::new(12.0, 12.0)];
         let alpha = |pencil: Pencil| {
@@ -682,6 +729,20 @@ mod tests {
             doc.layers[0].pixels.get_pixel(16, 10),
             Some(Color::TRANSPARENT)
         );
+    }
+
+    #[test]
+    fn stroke_outside_selection_returns_none() {
+        // No command, so the stroke adds no empty undo step.
+        let mut doc = Document::new(20, 20).unwrap();
+        doc.selection = Some(SelectionMask::rectangle(20, 20, Rect::new(0, 0, 10, 20)));
+        let line = [Point::new(14.0, 4.0), Point::new(16.0, 16.0)];
+        assert!(black_pencil(6).stroke(0, &line, &doc).is_none());
+        let eraser = Eraser::new(Brush::new(6, Color::BLACK, 1.0), EraserMode::ToTransparent);
+        assert!(eraser.stroke(0, &line, &doc).is_none());
+        // The same stroke inside the selection paints.
+        doc.selection = None;
+        assert!(black_pencil(6).stroke(0, &line, &doc).is_some());
     }
 
     #[test]

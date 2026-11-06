@@ -106,23 +106,44 @@ export const ui = $state({
  *  dialog that answers it calls `resolve`. */
 export type SavePrompt =
   | { kind: 'jpeg'; resolve: (quality: number | null) => void }
-  | { kind: 'flatten'; resolve: (choice: FlattenChoice | null) => void }
   | {
-      /** Save As: pick the format to write. */
+      kind: 'flatten';
+      /** The format is JPEG and the document has no remembered quality:
+       *  the prompt asks it too (AC-17). */
+      askQuality: boolean;
+      resolve: (choice: FlattenChoice | null) => void;
+    }
+  | {
+      /** Save As: the format, its JPEG quality and the merge confirmation
+       *  in one dialog (AC-10, AC-15, AC-16). */
       kind: 'format';
       preselect: DocSaveFormat;
       /** The document's own format when it cannot be written back (e.g.
        *  `GIF`): the dialog says so. */
       unwritable: string | null;
-      resolve: (format: DocSaveFormat | null) => void;
+      /** The JPEG quality the dialog starts with. */
+      quality: number;
+      /** A format other than `.ora` loses layers, visibility, opacity or
+       *  blend modes and must be confirmed. */
+      confirmMerge: boolean;
+      resolve: (choice: SaveAsChoice | null) => void;
     };
 
 /** The answer to "Flatten image?": write the flattened composite, or save
  *  the layers as `.ora` instead; `dontAsk` remembers Flatten for the
- *  document. `null` (Cancel) writes nothing. */
+ *  document; `quality` is the JPEG quality when the prompt asked it.
+ *  `null` (Cancel) writes nothing. */
 export interface FlattenChoice {
   action: 'flatten' | 'ora';
   dontAsk: boolean;
+  quality?: number;
+}
+
+/** The answer to the Save As dialog: the format, and the JPEG quality
+ *  (used only for JPEG). */
+export interface SaveAsChoice {
+  format: DocSaveFormat;
+  quality: number;
 }
 
 /** The Save flow's open prompt, `null` while none is shown. */
@@ -132,30 +153,8 @@ export const savePrompt = $state({ value: null as SavePrompt | null });
 const sharedView = $state({});
 export const view = tabStore(sharedView, VIEW_KEYS, () => tabs.active?.view ?? idleView);
 
-/** Largest canvas edge the UI lets the user create / resize / scale to.
- * The renderer only ever draws the visible rect into a viewport-sized
- * canvas, so browser canvas limits no longer cap the document; memory
- * does. The core accepts 32767 per edge, but each layer is width × height
- * × 4 bytes of wasm memory (4 GiB address space in total), so the edge is
- * capped at 16384 and the area at `MAX_CANVAS_AREA`. */
-export const MAX_CANVAS_DIM = 16384;
-
-/** Largest canvas area (64 M px = 256 MiB per layer): room for a few
- *  layers, their undo snapshots and the composite inside wasm32 memory. */
-export const MAX_CANVAS_AREA = 8192 * 8192;
-
-/** Clamp a requested canvas size to the edge and area limits, scaling
- *  both edges down together when only the area is too large. */
-export function clampCanvasSize(width: number, height: number): [number, number] {
-  let w = Math.max(1, Math.min(MAX_CANVAS_DIM, Math.round(width)));
-  let h = Math.max(1, Math.min(MAX_CANVAS_DIM, Math.round(height)));
-  if (w * h > MAX_CANVAS_AREA) {
-    const k = Math.sqrt(MAX_CANVAS_AREA / (w * h));
-    w = Math.max(1, Math.floor(w * k));
-    h = Math.max(1, Math.floor(h * k));
-  }
-  return [w, h];
-}
+// Canvas limits live in a rune-free module so node-side specs can test them.
+export { MAX_CANVAS_AREA, MAX_CANVAS_DIM, clampCanvasSize } from '../canvas-limits';
 
 /** Zoom limits (spec §6.4: fit to 6400 %-ish). */
 export const MIN_ZOOM = 0.02;

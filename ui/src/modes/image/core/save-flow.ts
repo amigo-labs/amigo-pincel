@@ -1,13 +1,16 @@
 // Image-mode Save / Save As (docs/specs/save-original-format.md): picks the
 // format (Save As, or a format without an encoder, asks), asks what the
 // format needs (flatten, JPEG quality once per document), then writes
-// through `document-file`. Prompts are answered by
-// `SaveDialogs`.
+// through `document-file`. At most one prompt precedes the save picker:
+// Save As asks format, quality and the merge confirmation together, and
+// Save asks flatten and quality together (AC-10, AC-17). Prompts are
+// answered by `SaveDialogs`.
 import {
   savePrompt,
   tabs,
   type FlattenChoice,
   type ImageTab,
+  type SaveAsChoice,
   type SavePrompt,
 } from '../stores/editor.svelte';
 import {
@@ -52,42 +55,53 @@ export async function saveDocument(
 ): Promise<SaveResult | null> {
   if (tab === null || tab.doc.handle === null) return null;
   const own = saveFormat(tab);
-  let format: DocSaveFormat;
-  if (forceAs || own === null) {
-    // Save As, or a format Pincel cannot write back (GIF, PSD): pick the
-    // format. A layered document, and any opened PSD, defaults to `.ora`,
-    // which keeps its layers (docs/specs/psd-import.md AC-12).
-    const layered = tab.doc.layers.length > 1 || fileFormat(tab) === 'psd';
-    const picked = await ask<DocSaveFormat | null>((resolve) => ({
-      kind: 'format',
-      preselect: layered ? 'ora' : (own ?? 'png'),
-      unwritable: own === null ? formatLabel(tab) : null,
+  if (forceAs || own === null) return saveAs(tab, own);
+  const format = own;
+  const flattened = format !== 'ora' && flatteningLoses(tab);
+  let quality = format === 'jpeg' ? (rememberedJpegQuality(tab) ?? undefined) : undefined;
+  const askQuality = format === 'jpeg' && quality === undefined;
+  if (flattened && !flattensWithoutAsking(tab)) {
+    const choice = await ask<FlattenChoice | null>((resolve) => ({
+      kind: 'flatten',
+      askQuality,
       resolve,
     }));
-    if (picked === null) return null;
-    format = picked;
-    forceAs = true;
-  } else {
-    format = own;
-  }
-  const flattened = format !== 'ora' && flatteningLoses(tab);
-  if (flattened && !flattensWithoutAsking(tab)) {
-    const choice = await ask<FlattenChoice | null>((resolve) => ({ kind: 'flatten', resolve }));
     if (choice === null) return null;
     if (choice.action === 'ora') {
       const target = await writeDocument(tab, 'ora', { forceAs: true });
       return target === null ? null : { target, flattened: false };
     }
     if (choice.dontAsk) flattenWithoutAsking(tab);
+    quality = choice.quality ?? quality;
   }
-  let quality: number | undefined;
-  if (format === 'jpeg') {
-    const q =
-      rememberedJpegQuality(tab) ??
-      (await ask<number | null>((resolve) => ({ kind: 'jpeg', resolve })));
+  if (format === 'jpeg' && quality === undefined) {
+    const q = await ask<number | null>((resolve) => ({ kind: 'jpeg', resolve }));
     if (q === null) return null;
     quality = q;
   }
   const target = await writeDocument(tab, format, { forceAs, quality });
   return target === null ? null : { target, flattened };
+}
+
+/** Save As, or Save of a format Pincel cannot write back (GIF, PSD): one
+ *  dialog picks the format, its JPEG quality and confirms merging, then
+ *  only the save picker follows (AC-10, AC-15, AC-16). A layered document,
+ *  and any opened PSD, defaults to `.ora`, which keeps its layers
+ *  (docs/specs/psd-import.md AC-12). */
+async function saveAs(tab: ImageTab, own: DocSaveFormat | null): Promise<SaveResult | null> {
+  const layered = tab.doc.layers.length > 1 || fileFormat(tab) === 'psd';
+  const loses = flatteningLoses(tab);
+  const choice = await ask<SaveAsChoice | null>((resolve) => ({
+    kind: 'format',
+    preselect: layered ? 'ora' : (own ?? 'png'),
+    unwritable: own === null ? formatLabel(tab) : null,
+    quality: rememberedJpegQuality(tab) ?? 90,
+    confirmMerge: loses && !flattensWithoutAsking(tab),
+    resolve,
+  }));
+  if (choice === null) return null;
+  const { format } = choice;
+  const quality = format === 'jpeg' ? choice.quality : undefined;
+  const target = await writeDocument(tab, format, { forceAs: true, quality });
+  return target === null ? null : { target, flattened: format !== 'ora' && loses };
 }

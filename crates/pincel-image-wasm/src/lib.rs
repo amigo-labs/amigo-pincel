@@ -7,7 +7,9 @@
 use pincel_effects::EffectSpec;
 use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::to_png_bytes;
-use pincel_image_core::command::live_spec::live_object_spec;
+use pincel_image_core::command::live_spec::{
+    TextLayoutRequest, live_object_spec, text_layout as layout_text,
+};
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
@@ -396,6 +398,24 @@ pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
     with_bus(handle, |bus| bus.set_active_layer(index).map_err(to_js))
 }
 
+/// Lays out a text with the registered font `font_id` as a live text with
+/// these settings is drawn (docs/specs/image-live-text.md AC-22): `request`
+/// is a JSON `TextLayoutRequest`; returns a `TextLayout` object (line boxes,
+/// caret x per character boundary).
+#[wasm_bindgen]
+pub fn text_layout(font_id: u32, request: &str) -> Result<JsValue, JsError> {
+    let req: TextLayoutRequest =
+        serde_json::from_str(request).map_err(|e| JsError::new(&e.to_string()))?;
+    let layout = FONTS.with(|fonts| {
+        let fonts = fonts.borrow();
+        let bytes = fonts
+            .get(font_id as usize)
+            .ok_or_else(|| JsError::new("unknown font id"))?;
+        layout_text(&req, bytes).ok_or_else(|| JsError::new("the font could not be read"))
+    })?;
+    serde_wasm_bindgen::to_value(&layout).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// The live object (docs/specs/image-live-objects.md) as a
 /// `LiveObjectSpec` JS object, or `null` when nothing is live.
 #[wasm_bindgen]
@@ -676,6 +696,14 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     })
 }
 
+/// The document's stored resolution in pixels per inch (`DocumentMetadata::dpi`),
+/// read-only (docs/specs/image-view-aids.md AC-23; reused by
+/// docs/specs/image-resize-autocrop.md AC-01).
+#[wasm_bindgen]
+pub fn document_dpi(handle: u32) -> Result<f32, JsError> {
+    with_bus(handle, |bus| Ok(bus.document.metadata.dpi))
+}
+
 /// Returns a 32×32 RGBA8 thumbnail of the layer with `layer_id` as a
 /// `Uint8ClampedArray`, ready to wrap in an `ImageData` (spec §5.3, §17).
 #[wasm_bindgen]
@@ -750,7 +778,8 @@ fn job_js(e: JobError) -> JsError {
 #[cfg(test)]
 mod ts_bindings {
     use super::CommandSpec;
-    use pincel_image_core::command::live_spec::LiveObjectSpec;
+    use pincel_image_core::TextLayout;
+    use pincel_image_core::command::live_spec::{LiveObjectSpec, TextLayoutRequest};
     use ts_rs::{Config, TS};
 
     /// Regenerates the TypeScript mirror of `CommandSpec` (Fineliner
@@ -766,6 +795,8 @@ mod ts_bindings {
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
         LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
+        TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
+        TextLayout::export_all(&cfg).expect("export TextLayout bindings");
     }
 }
 
@@ -1395,6 +1426,23 @@ mod export_tests {
             let back = decode(bytes).expect("decode");
             assert_eq!((back.width(), back.height()), (5, 3));
         }
+    }
+}
+
+#[cfg(test)]
+mod document_dpi_tests {
+    use super::*;
+
+    #[test]
+    fn document_dpi_reports_the_stored_resolution() {
+        let handle = create_document(4, 4).expect("doc");
+        assert_eq!(document_dpi(handle).expect("dpi"), 96.0);
+        let mut doc = Document::new(4, 4).expect("doc");
+        doc.metadata.dpi = 300.0;
+        let other = insert(CommandBus::new(doc));
+        assert_eq!(document_dpi(other).expect("dpi"), 300.0);
+        close_document(handle);
+        close_document(other);
     }
 }
 

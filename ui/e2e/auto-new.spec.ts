@@ -14,11 +14,11 @@ test('a ticked New card opens its document on the next launch', async ({ page })
   await card.getByLabel('Open like this on startup').check();
   await card.getByRole('button', { name: 'Create' }).click();
   await waitForEditor(page, 'image');
-  await expect(page.getByText('320 × 200 · sRGB')).toBeVisible();
+  await expect(page.getByText('320 × 200 px · sRGB')).toBeVisible();
 
   await page.reload();
   await waitForEditor(page, 'image');
-  await expect(page.getByText('320 × 200 · sRGB')).toBeVisible();
+  await expect(page.getByText('320 × 200 px · sRGB')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toHaveCount(0);
 
   await menu(page, 'File', 'New…');
@@ -65,5 +65,5 @@ test('a cleared size field stores the default size, never an invalid one', async
     .toEqual({ mode: 'image', width: 800, height: 600 });
   await page.reload();
   await waitForEditor(page, 'image');
-  await expect(page.getByText('800 × 600 · sRGB')).toBeVisible();
+  await expect(page.getByText('800 × 600 px · sRGB')).toBeVisible();
 });

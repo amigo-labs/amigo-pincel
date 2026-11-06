@@ -81,6 +81,42 @@
     if (e.pointerId === dragPointer) dragPointer = null;
   }
 
+  // Hue / alpha sliders under a pen: Chromium's native range input takes
+  // the press but ignores the pen's drag after it, so a pen drag is
+  // tracked here with capture (AC-09). Mouse and touch keep the native
+  // drag.
+  let trackPointer: number | null = null;
+
+  function fromTrack(e: PointerEvent, max: number, set: (v: number) => void): void {
+    const el = e.currentTarget as HTMLInputElement;
+    const r = el.getBoundingClientRect();
+    // The thumb's centre stops half a thumb short of either end.
+    const inset = Math.min(r.width / 2, r.height / 2 + 1);
+    const f = (e.clientX - r.left - inset) / Math.max(1, r.width - 2 * inset);
+    set(Math.round(Math.min(1, Math.max(0, f)) * max));
+  }
+
+  function onTrackDown(e: PointerEvent, max: number, set: (v: number) => void): void {
+    if (e.pointerType !== 'pen' || trackPointer !== null) return;
+    e.preventDefault();
+    const el = e.currentTarget as HTMLInputElement;
+    el.focus();
+    el.setPointerCapture(e.pointerId);
+    trackPointer = e.pointerId;
+    fromTrack(e, max, set);
+  }
+
+  function onTrackMove(e: PointerEvent, max: number, set: (v: number) => void): void {
+    if (e.pointerId === trackPointer) fromTrack(e, max, set);
+  }
+
+  function onTrackUp(e: PointerEvent): void {
+    if (e.pointerId === trackPointer) trackPointer = null;
+  }
+
+  const setHue = (h: number) => setHsv(h, hsv.s, hsv.v);
+  const setAlpha = (a: number) => setRgba({ ...value, a });
+
   // Arrow keys: one step, ten with Shift (AC-10; saturation / value in %).
   function onAreaKey(e: KeyboardEvent): void {
     const step = (e.shiftKey ? 10 : 1) / 100;
@@ -178,8 +214,13 @@
     max="360"
     step="1"
     value={Math.round(hsv.h)}
-    oninput={(e) => setHsv(e.currentTarget.valueAsNumber, hsv.s, hsv.v)}
-    onkeydown={(e) => shiftStep(e, Math.round(hsv.h), 360, (h) => setHsv(h, hsv.s, hsv.v))}
+    oninput={(e) => setHue(e.currentTarget.valueAsNumber)}
+    onpointerdown={(e) => onTrackDown(e, 360, setHue)}
+    onpointermove={(e) => onTrackMove(e, 360, setHue)}
+    onpointerup={onTrackUp}
+    onpointercancel={onTrackUp}
+    onlostpointercapture={onTrackUp}
+    onkeydown={(e) => shiftStep(e, Math.round(hsv.h), 360, setHue)}
     class="track hue"
     aria-label={t('color.hue')}
   />
@@ -189,8 +230,13 @@
     max="255"
     step="1"
     value={value.a}
-    oninput={(e) => setRgba({ ...value, a: e.currentTarget.valueAsNumber })}
-    onkeydown={(e) => shiftStep(e, value.a, 255, (a) => setRgba({ ...value, a }))}
+    oninput={(e) => setAlpha(e.currentTarget.valueAsNumber)}
+    onpointerdown={(e) => onTrackDown(e, 255, setAlpha)}
+    onpointermove={(e) => onTrackMove(e, 255, setAlpha)}
+    onpointerup={onTrackUp}
+    onpointercancel={onTrackUp}
+    onlostpointercapture={onTrackUp}
+    onkeydown={(e) => shiftStep(e, value.a, 255, setAlpha)}
     class="track alpha"
     style:--rgb={rgb}
     aria-label={t('color.alphaSlider')}

@@ -124,28 +124,28 @@ The document model already carries a resolution, `DocumentMetadata.dpi` (default
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-01 | `ui/e2e/size-input.spec.ts` "AC-01: every opening starts…"; `ui/e2e/image-resize-autocrop.spec.ts` "both dialogs open fresh with the size input" | built | |
+| AC-02 | `ui/e2e/size-input.spec.ts` "AC-02: a percentage scales both edges…"; `ui/e2e/image-resize-autocrop.spec.ts` "a percentage and a print size apply exactly" | built | |
+| AC-03 | `ui/e2e/size-input.spec.ts` "AC-03: absolute sizes in each unit"; `ui/e2e/image-resize-autocrop.spec.ts` "a percentage and a print size apply exactly" | built | |
+| AC-04 | `ui/e2e/size-input.spec.ts` "AC-04: a unit change shows the size in the new unit and keeps it"; `ui/e2e/image-resize-autocrop.spec.ts` "both dialogs open fresh…" (mode switch keeps values) | built | |
+| AC-05 | `ui/e2e/size-input.spec.ts` "AC-05: the resolution moves only print sizes"; `ui/e2e/image-resize-autocrop.spec.ts` "a percentage and a print size apply exactly" | built | |
+| AC-06 | `ui/e2e/size-input.spec.ts` "AC-06: the aspect lock follows the document ratio…"; `ui/e2e/image-resize-autocrop.spec.ts` "German shows a decimal comma…" | built | |
+| AC-07 | `ui/e2e/size-input.spec.ts` "AC-07: invalid used fields block, unused ones do not"; `ui/e2e/image-resize-autocrop.spec.ts` "an invalid used field blocks Apply and Enter" | built | |
+| AC-08 | `ui/e2e/size-input.spec.ts` "AC-08: a size beyond the limits is reduced…"; `ui/e2e/image-export.spec.ts` "Resize Canvas and Scale Image reduce an oversized request to the limits" | built | |
+| AC-09 | `ui/e2e/image-resize-autocrop.spec.ts` "both dialogs open fresh with the size input" | built | |
+| AC-10 | `crates/pincel-image-core/src/transform/mod.rs` `scale_supersampling_integer_factor_is_block_mean`, `scale_supersampling_three_to_two_weighs_partial_pixels_by_area`, `scale_supersampling_weights_color_by_alpha`, `scale_supersampling_fully_transparent_area_is_transparent_black`, `scale_supersampling_matches_exact_area_mean` (proptest) | built | |
+| AC-11 | `crates/pincel-image-core/src/transform/mod.rs` `scale_supersampling_growing_an_edge_equals_bicubic` | built | |
+| AC-12 | `crates/pincel-image-core/src/command/auto_crop.rs` `scale_image_supersampling_is_one_undo_step`, `scale_image_spec_parses_supersampling`; `ui/e2e/image-resize-autocrop.spec.ts` "a percentage and a print size apply exactly" | built | |
+| AC-13 | `crates/pincel-image-core/src/command/auto_crop.rs` `auto_crop_rect_trims_a_uniform_border`, `auto_crop_rect_trims_only_the_free_edges`, `auto_crop_rect_matches_transparent_pixels_of_any_rgb`, `auto_crop_rect_reads_the_visible_composite`, `auto_crop_crops_every_layer_and_undo_restores`; `ui/e2e/image-resize-autocrop.spec.ts` "Auto Crop trims the border in one undo step" | built | |
+| AC-14 | `crates/pincel-image-core/src/command/auto_crop.rs` `auto_crop_crops_every_layer_and_undo_restores`; `ui/e2e/image-resize-autocrop.spec.ts` "Auto Crop trims the border in one undo step" | built | |
+| AC-15 | `crates/pincel-image-core/src/command/auto_crop.rs` `auto_crop_rect_uniform_or_framed_is_none`, `auto_crop_with_nothing_to_crop_adds_no_undo_step`; `ui/e2e/image-resize-autocrop.spec.ts` "Auto Crop trims the border in one undo step" | built | |
+| AC-16 | `ui/e2e/image-resize-autocrop.spec.ts` "Auto Crop trims the border in one undo step" (runs with a selection) | built | |
+| AC-17 | `crates/pincel-agent/src/tests/auto_crop.rs` `image_scale_supersampling_equals_the_editor`; default bilinear: `crates/pincel-agent/src/tests/transform.rs` `resize_and_scale_defaults_follow_each_editor` | built | |
+| AC-18 | `crates/pincel-agent/src/tests/auto_crop.rs` `image_auto_crop_equals_the_editor_in_one_undo_step` | built | |
+| AC-19 | `crates/pincel-agent/src/tests/auto_crop.rs` `image_auto_crop_with_nothing_to_crop_changes_nothing`, `image_auto_crop_on_a_pixel_document_names_its_mode` | built | |
+| AC-20 | `crates/pincel-agent/src/tests/auto_crop.rs` `auto_crop_and_supersampling_are_listed_and_documented`; `crates/pincel-agent/src/tests/doc.rs` `tool_schemas_are_valid` | built | |
+| AC-21 | `pnpm check` (`de.ts` is typed against `en.ts`); `ui/e2e/image-resize-autocrop.spec.ts` "German shows a decimal comma and accepts a point" | built | |
+| AC-22 | `ui/e2e/size-input.spec.ts` "AC-22: decimals follow the language, both separators are accepted"; `ui/e2e/image-resize-autocrop.spec.ts` "German shows a decimal comma and accepts a point" | built | |
 
 ## Decisions
 
@@ -162,3 +162,9 @@ The document model already carries a resolution, `DocumentMetadata.dpi` (default
 - 2026-11-05 (clarification): Auto Crop's composite is the one the canvas shows (groups, opacity, blend modes) — because the crop should match what the user sees.
 - 2026-11-05 (clarification): Size fields use the UI language's decimal separator and accept both — because German users type a comma, and pasted values often use a point.
 - 2026-11-05: Menu labels stay "Resize Canvas…" / "Scale Image…" — because they are shared with Pixel mode and referenced by tests and other specs (Out of scope).
+- 2026-11-06 (spec-build): A unit change keeps the unrounded value behind the two-decimal text, so a px → in → px round trip stays within 1 px at any resolution (AC-04); the text is what the user sees and edits.
+- 2026-11-06 (spec-build): Auto Crop's "nothing to crop" check runs before the command reaches the bus (`CommandSpec::AutoCrop` dispatch, `auto_crop_rect`), so it adds no undo step; the UI shows the notice when the canvas size did not change, which a real crop always changes.
+- 2026-11-06 (spec-build): The canvas limits (`MAX_CANVAS_DIM`, `MAX_CANVAS_AREA`, `clampCanvasSize`) moved to the rune-free `ui/src/modes/image/canvas-limits.ts` (re-exported by the editor store) so the node-side size-input spec can import them.
+- 2026-11-06 (spec-build): The read-only wasm getter `document_dpi` (planned by `image-view-aids`) is added in this spec's series, because AC-01 needs it first; `image-view-aids` reuses it.
+- 2026-11-06 (spec-build): `Modal` gained `applyDisabled`, which disables Apply and makes Enter apply nothing (AC-07).
+- 2026-11-06 (spec-build): The size-input arithmetic module and its node-side spec were written together, so that spec had no separate red run; the dialog e2e spec was red before the dialogs changed.

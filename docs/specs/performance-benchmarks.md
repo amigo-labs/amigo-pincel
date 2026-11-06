@@ -141,10 +141,12 @@ Measured 2026-10-29 on the reference machine (the owner accepted this developer 
 | `image-recompose-4k` | 16.7 ms / 16.8 ms | 317 ms | — | recompose-p50 261 ms, recompose-p95 318 ms |
 | `image-gaussian-4k` | 16.7 ms / 16.8 ms | 1817 ms | — | proxy 1836 ms, full 1444 ms |
 | `image-autosave-export-4k` | 16.7 ms / 33.3 ms | 2066 ms | — | — |
-| `image-memory-4k` | 16.7 ms / 700 ms | 2050 ms | — | wasm-memory-mb 2318 MiB |
+| `image-memory-4k` | 16.7 ms / 16.8 ms | 300 ms | — | wasm-memory-mb 1001 MiB (2026-11-06) |
 | `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 22.9 ms / 31.2 ms | — |
 | `image-open-4k-png` | 16.7 ms / 33.3 ms | 9050 ms | — | first-paint 9240 ms |
 | `cold-start` | 16.7 ms / 16.8 ms | 33.4 ms | — | cold 706 ms, warm 426 ms |
+
+`image-memory-4k` re-measured 2026-11-06 on the same machine with the release wasm (performance-image-undo-memory AC-03; budget 1024 MB met, recorded in `budgets-met.json`).
 
 ## Evidence
 

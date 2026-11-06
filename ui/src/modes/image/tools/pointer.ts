@@ -301,6 +301,12 @@ export function attachTools(
   const pressLive = (e: PointerEvent, point: Pt): boolean => {
     const obj = live.object;
     if (obj === null) return false;
+    if (obj.type === 'text') {
+      if (e.button !== 0) return true;
+      commitLive();
+      redraw();
+      return false;
+    }
     // The right button does nothing while an object is live.
     if (e.button !== 0) return true;
     const hit = hitLive(obj, point, view.zoom, e.pointerType !== 'mouse');
@@ -387,6 +393,9 @@ export function attachTools(
 
     // Text places a cursor for the entry overlay; it has no drag gesture here.
     if (tool.kind === 'text') {
+      // Keep the press from moving focus: the entry box focuses itself, and
+      // the mousedown's default focus change would blur (and commit) it at once.
+      e.preventDefault();
       onPlaceText?.(point[0], point[1], e);
       return;
     }
@@ -507,7 +516,7 @@ export function attachTools(
     if (!active) {
       const obj = live.object;
       live.cursor =
-        obj === null
+        obj === null || obj.type === 'text'
           ? null
           : cursorOf(hitLive(obj, toCanvasPoint(canvas, e), view.zoom, e.pointerType !== 'mouse'));
     }

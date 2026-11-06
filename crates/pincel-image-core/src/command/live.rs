@@ -10,6 +10,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use super::live_text::LiveText;
 use super::{Command, CommandBus, Damage, SetPixels};
 use crate::document::{Document, ImageBuffer};
 use crate::error::DocumentError;
@@ -78,6 +79,8 @@ pub enum LiveParams {
     Shape(LiveShape),
     /// A gradient.
     Gradient(LiveGradient),
+    /// A text (docs/specs/image-live-text.md).
+    Text(LiveText),
 }
 
 /// A live object as the core reports it.
@@ -122,30 +125,72 @@ pub struct LiveEdit {
     pub gradient_to: Option<crate::Color>,
     /// New gradient opacity.
     pub gradient_opacity: Option<f32>,
+    /// New text content.
+    pub text: Option<String>,
+    /// New text size in px.
+    pub text_size: Option<f32>,
+    /// New text color.
+    pub text_color: Option<crate::Color>,
+    /// New faux-bold flag.
+    pub bold: Option<bool>,
+    /// New faux-italic flag.
+    pub italic: Option<bool>,
+    /// New underline flag.
+    pub underline: Option<bool>,
+    /// New strikethrough flag.
+    pub strikethrough: Option<bool>,
+    /// New text alignment.
+    pub align: Option<crate::TextAlign>,
 }
 
 /// Parameter groups whose consecutive edits merge into one step (AC-03).
 mod group {
-    pub const GEOMETRY: u16 = 1;
-    pub const SHAPE: u16 = 1 << 1;
-    pub const MODE: u16 = 1 << 2;
-    pub const STROKE_WIDTH: u16 = 1 << 3;
-    pub const DASH: u16 = 1 << 4;
-    pub const ANTI_ALIAS: u16 = 1 << 5;
-    pub const CORNER_RADIUS: u16 = 1 << 6;
-    pub const SIDES: u16 = 1 << 7;
-    pub const COLORS: u16 = 1 << 8;
-    pub const GRADIENT_KIND: u16 = 1 << 9;
-    pub const GRADIENT_CHANNEL: u16 = 1 << 10;
-    pub const GRADIENT_COLORS: u16 = 1 << 11;
-    pub const GRADIENT_OPACITY: u16 = 1 << 12;
+    pub const GEOMETRY: u32 = 1;
+    pub const SHAPE: u32 = 1 << 1;
+    pub const MODE: u32 = 1 << 2;
+    pub const STROKE_WIDTH: u32 = 1 << 3;
+    pub const DASH: u32 = 1 << 4;
+    pub const ANTI_ALIAS: u32 = 1 << 5;
+    pub const CORNER_RADIUS: u32 = 1 << 6;
+    pub const SIDES: u32 = 1 << 7;
+    pub const COLORS: u32 = 1 << 8;
+    pub const GRADIENT_KIND: u32 = 1 << 9;
+    pub const GRADIENT_CHANNEL: u32 = 1 << 10;
+    pub const GRADIENT_COLORS: u32 = 1 << 11;
+    pub const GRADIENT_OPACITY: u32 = 1 << 12;
+    pub const TEXT: u32 = 1 << 13;
+    pub const TEXT_SIZE: u32 = 1 << 14;
+    pub const TEXT_COLOR: u32 = 1 << 15;
+    pub const BOLD: u32 = 1 << 16;
+    pub const ITALIC: u32 = 1 << 17;
+    pub const UNDERLINE: u32 = 1 << 18;
+    pub const STRIKETHROUGH: u32 = 1 << 19;
+    pub const ALIGN: u32 = 1 << 20;
+
+    /// What a Line or box shape accepts.
+    pub const SHAPE_FIELDS: u32 =
+        GEOMETRY | SHAPE | MODE | STROKE_WIDTH | DASH | ANTI_ALIAS | CORNER_RADIUS | SIDES | COLORS;
+    /// What a gradient accepts.
+    pub const GRADIENT_FIELDS: u32 =
+        GEOMETRY | GRADIENT_KIND | GRADIENT_CHANNEL | GRADIENT_COLORS | GRADIENT_OPACITY;
+    /// What a text accepts.
+    pub const TEXT_FIELDS: u32 = GEOMETRY
+        | ANTI_ALIAS
+        | TEXT
+        | TEXT_SIZE
+        | TEXT_COLOR
+        | BOLD
+        | ITALIC
+        | UNDERLINE
+        | STRIKETHROUGH
+        | ALIGN;
 }
 
 impl LiveEdit {
     /// The parameter groups this edit touches.
-    fn groups(&self) -> u16 {
+    fn groups(&self) -> u32 {
         let mut g = 0;
-        let mut add = |set: bool, bit: u16| {
+        let mut add = |set: bool, bit: u32| {
             if set {
                 g |= bit;
             }
@@ -169,29 +214,15 @@ impl LiveEdit {
             group::GRADIENT_COLORS,
         );
         add(self.gradient_opacity.is_some(), group::GRADIENT_OPACITY);
+        add(self.text.is_some(), group::TEXT);
+        add(self.text_size.is_some(), group::TEXT_SIZE);
+        add(self.text_color.is_some(), group::TEXT_COLOR);
+        add(self.bold.is_some(), group::BOLD);
+        add(self.italic.is_some(), group::ITALIC);
+        add(self.underline.is_some(), group::UNDERLINE);
+        add(self.strikethrough.is_some(), group::STRIKETHROUGH);
+        add(self.align.is_some(), group::ALIGN);
         g
-    }
-
-    fn touches_shape_fields(&self) -> bool {
-        self.groups()
-            & (group::SHAPE
-                | group::MODE
-                | group::STROKE_WIDTH
-                | group::DASH
-                | group::ANTI_ALIAS
-                | group::CORNER_RADIUS
-                | group::SIDES
-                | group::COLORS)
-            != 0
-    }
-
-    fn touches_gradient_fields(&self) -> bool {
-        self.groups()
-            & (group::GRADIENT_KIND
-                | group::GRADIENT_CHANNEL
-                | group::GRADIENT_COLORS
-                | group::GRADIENT_OPACITY)
-            != 0
     }
 }
 
@@ -201,6 +232,10 @@ impl LiveParams {
         match self {
             LiveParams::Shape(s) => [s.a, s.b],
             LiveParams::Gradient(g) => [g.a, g.b],
+            LiveParams::Text(t) => {
+                let at = Point::new(t.left, t.top);
+                [at, at]
+            }
         }
     }
 
@@ -209,6 +244,7 @@ impl LiveParams {
         match self {
             LiveParams::Shape(s) => s.shape().label(),
             LiveParams::Gradient(_) => "Gradient",
+            LiveParams::Text(_) => "Text",
         }
     }
 
@@ -221,6 +257,7 @@ impl LiveParams {
                 kind: LiveShapeKind::Box(_),
                 ..
             }) => a.x == b.x || a.y == b.y,
+            LiveParams::Text(t) => t.text.is_empty(),
             _ => a == b,
         }
     }
@@ -235,6 +272,9 @@ impl LiveParams {
             }
             LiveParams::Gradient(g) => {
                 g.gradient.opacity = g.gradient.opacity.clamp(0.0, 1.0);
+            }
+            LiveParams::Text(t) => {
+                t.style.size = t.style.size.clamp(1.0, 2000.0);
             }
         }
         self
@@ -253,12 +293,17 @@ impl LiveParams {
 
     /// These parameters with `edit` applied.
     fn edited(&self, edit: &LiveEdit) -> Result<LiveParams, DocumentError> {
+        let accepted = match self {
+            LiveParams::Shape(_) => group::SHAPE_FIELDS,
+            LiveParams::Gradient(_) => group::GRADIENT_FIELDS,
+            LiveParams::Text(_) => group::TEXT_FIELDS,
+        };
+        if edit.groups() & !accepted != 0 {
+            return Err(DocumentError::LiveEditMismatch);
+        }
         let mut out = self.clone();
         match &mut out {
             LiveParams::Shape(s) => {
-                if edit.touches_gradient_fields() {
-                    return Err(DocumentError::LiveEditMismatch);
-                }
                 if let Some(kind) = edit.shape {
                     match (s.kind, kind) {
                         (LiveShapeKind::Line, LiveShapeKind::Line)
@@ -281,9 +326,6 @@ impl LiveParams {
                 s.sides = edit.sides.unwrap_or(s.sides);
             }
             LiveParams::Gradient(g) => {
-                if edit.touches_shape_fields() {
-                    return Err(DocumentError::LiveEditMismatch);
-                }
                 if let Some([a, b]) = edit.points {
                     g.a = a;
                     g.b = b;
@@ -294,6 +336,24 @@ impl LiveParams {
                 gr.from = edit.gradient_from.unwrap_or(gr.from);
                 gr.to = edit.gradient_to.unwrap_or(gr.to);
                 gr.opacity = edit.gradient_opacity.unwrap_or(gr.opacity);
+            }
+            LiveParams::Text(t) => {
+                if let Some([at, _]) = edit.points {
+                    t.left = at.x;
+                    t.top = at.y;
+                }
+                if let Some(text) = &edit.text {
+                    t.text.clone_from(text);
+                }
+                let st = &mut t.style;
+                st.size = edit.text_size.unwrap_or(st.size);
+                st.color = edit.text_color.unwrap_or(st.color);
+                st.bold = edit.bold.unwrap_or(st.bold);
+                st.italic = edit.italic.unwrap_or(st.italic);
+                st.underline = edit.underline.unwrap_or(st.underline);
+                st.strikethrough = edit.strikethrough.unwrap_or(st.strikethrough);
+                st.align = edit.align.unwrap_or(st.align);
+                st.anti_alias = edit.anti_alias.unwrap_or(st.anti_alias);
             }
         }
         Ok(out.clamped())
@@ -308,6 +368,7 @@ impl LiveParams {
         match self {
             LiveParams::Shape(s) => Shapes::new(s.shape(), s.style).draw(layer, doc),
             LiveParams::Gradient(g) => g.gradient.draw(layer, g.a, g.b, doc),
+            LiveParams::Text(t) => t.draw(layer, doc),
         }
     }
 }
@@ -465,7 +526,7 @@ pub(crate) enum MergeKey {
     /// The edits of one handle or body drag.
     Gesture(u64),
     /// Consecutive edits of one parameter group.
-    Group(u16),
+    Group(u32),
 }
 
 impl CommandBus {

@@ -20,6 +20,7 @@
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
+  import PixelGrid from './PixelGrid.svelte';
   import LiveHandles from './LiveHandles.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
@@ -524,6 +525,7 @@
     {/if}
   </div>
 
+  <PixelGrid />
   <CanvasOverlay />
   <LiveHandles />
 

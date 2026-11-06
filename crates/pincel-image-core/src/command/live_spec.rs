@@ -3,11 +3,13 @@
 //! handles. The commands that begin, edit, commit and cancel one are
 //! [`CommandSpec`](super::spec::CommandSpec) variants.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::{BoxShape, CommandBus, LiveParams, LiveShapeKind};
 use crate::color::Color;
-use crate::tools::{DashPattern, GradientChannel, GradientKind, ShapeMode};
+use crate::tools::{
+    DashPattern, GradientChannel, GradientKind, ShapeMode, TextAlign, TextLayout, TextStyle,
+};
 
 /// The live object as the editor sees it; field names and string values
 /// match `begin_live_shape` / `begin_live_gradient`.
@@ -31,6 +33,23 @@ pub enum LiveObjectSpec {
         fill_color: [u8; 4],
         anti_alias: bool,
         dash: String,
+    },
+    /// A live text: `x`, `y` are the top-left of its box.
+    Text {
+        /// The layer it is drawn into.
+        layer: usize,
+        text: String,
+        font_id: u32,
+        x: f32,
+        y: f32,
+        size: f32,
+        color: [u8; 4],
+        bold: bool,
+        italic: bool,
+        anti_alias: bool,
+        align: String,
+        underline: bool,
+        strikethrough: bool,
     },
     /// A live gradient.
     Gradient {
@@ -64,6 +83,26 @@ pub fn live_object_spec(bus: &CommandBus) -> Option<LiveObjectSpec> {
             anti_alias: s.style.anti_alias,
             dash: dash_str(s.style.dash).to_string(),
         },
+        LiveParams::Text(t) => LiveObjectSpec::Text {
+            layer: live.layer,
+            text: t.text,
+            font_id: t.font.id,
+            x: t.left,
+            y: t.top,
+            size: t.style.size,
+            color: bytes(t.style.color),
+            bold: t.style.bold,
+            italic: t.style.italic,
+            anti_alias: t.style.anti_alias,
+            align: match t.style.align {
+                TextAlign::Left => "left",
+                TextAlign::Center => "center",
+                TextAlign::Right => "right",
+            }
+            .to_string(),
+            underline: t.style.underline,
+            strikethrough: t.style.strikethrough,
+        },
         LiveParams::Gradient(g) => LiveObjectSpec::Gradient {
             layer: live.layer,
             kind: gradient_kind_str(g.gradient.kind).to_string(),
@@ -74,6 +113,45 @@ pub fn live_object_spec(bus: &CommandBus) -> Option<LiveObjectSpec> {
             opacity: g.gradient.opacity,
         },
     })
+}
+
+/// The text and settings a text-layout query lays out
+/// (docs/specs/image-live-text.md AC-22): the box's top-left and what
+/// changes the glyph positions.
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct TextLayoutRequest {
+    pub text: String,
+    /// Left edge of the text box.
+    pub x: f32,
+    /// Top of the text box.
+    pub y: f32,
+    pub size: f32,
+    #[serde(default)]
+    pub bold: bool,
+    #[serde(default)]
+    pub italic: bool,
+    /// `left`, `center` or `right`.
+    #[serde(default)]
+    pub align: String,
+}
+
+/// Lays out `req` with `font` exactly as a live text with these settings is
+/// drawn: line boxes and the caret x of every character boundary. `None`
+/// when the font fails to parse.
+pub fn text_layout(req: &TextLayoutRequest, font: &[u8]) -> Option<TextLayout> {
+    let style = TextStyle {
+        size: req.size,
+        bold: req.bold,
+        italic: req.italic,
+        align: match req.align.as_str() {
+            "center" => TextAlign::Center,
+            "right" => TextAlign::Right,
+            _ => TextAlign::Left,
+        },
+        ..TextStyle::default()
+    };
+    super::text_box(&req.text, req.x, req.y, &style, font).map(|(_, layout)| layout)
 }
 
 /// Maps a wire shape name to a live shape kind; `None` for an unknown one.

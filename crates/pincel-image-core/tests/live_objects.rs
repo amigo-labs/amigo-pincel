@@ -110,6 +110,7 @@ fn immediate(doc: &Document, layer: usize, params: &LiveParams) -> ImageBuffer {
             Shapes::new(shape, s.style).draw(layer, doc)
         }
         LiveParams::Gradient(g) => g.gradient.draw(layer, g.a, g.b, doc),
+        LiveParams::Text(_) => unreachable!("tests/live_text.rs covers text"),
     };
     let mut bus = CommandBus::new(doc.clone());
     if let Some(cmd) = cmd {

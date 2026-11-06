@@ -116,6 +116,8 @@ const EXPECTED_TOOLS: &[&str] = &[
     "tilemap.get",
     "tilemap.place",
     "grid.set",
+    // image-resize-autocrop
+    "image.auto_crop",
 ];
 
 /// One valid example call per tool.
@@ -258,6 +260,12 @@ fn tool_schemas_are_valid() {
     for name in EXPECTED_TOOLS {
         assert!(names.contains(name), "missing tool {name}");
     }
+    // No tool beyond the expected ones, each listed once (a spec that adds
+    // a tool name adds it here; mcp-parity-drawing AC-01).
+    for name in &names {
+        assert!(EXPECTED_TOOLS.contains(name), "unexpected tool {name}");
+    }
+    assert_eq!(names.len(), EXPECTED_TOOLS.len(), "a tool is listed twice");
     // Renamed to select.rect / select.clear without aliases
     // (mcp-parity-selection-transform AC-01).
     for gone in ["selection.set_rect", "selection.clear"] {

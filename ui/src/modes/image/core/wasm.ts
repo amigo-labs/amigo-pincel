@@ -34,8 +34,10 @@ import initWasm, {
   export_bmp,
   export_tiff,
   get_document_info,
+  document_dpi,
   get_selection_mask,
   live_object,
+  text_layout,
   register_font,
   vectorizer,
   type Vectorizer,
@@ -43,8 +45,10 @@ import initWasm, {
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../../../lib/diagnostics';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
+import type { TextLayout } from './generated/TextLayout';
+import type { TextLayoutRequest } from './generated/TextLayoutRequest';
 
-export type { LiveObjectSpec };
+export type { LiveObjectSpec, TextLayout, TextLayoutRequest };
 
 export type { Vectorizer };
 
@@ -337,7 +341,7 @@ export type SelectionCommand =
   | { type: 'feather_selection'; radius: number };
 
 /** Resampling quality for Scale Image (spec §10.5). */
-export type Interpolation = 'nearest' | 'bilinear' | 'bicubic';
+export type Interpolation = 'supersampling' | 'nearest' | 'bilinear' | 'bicubic';
 
 /** The 9-grid anchor for Resize Canvas (spec §10.4). */
 export type ResizeAnchor =
@@ -359,7 +363,8 @@ export type TransformCommand =
   | { type: 'rotate_canvas'; rotation: 'cw90' | 'ccw90' | 'rotate_180' }
   | { type: 'scale_image'; width: number; height: number; interpolation: Interpolation }
   | { type: 'resize_canvas'; width: number; height: number; anchor: ResizeAnchor }
-  | { type: 'crop_to_selection' };
+  | { type: 'crop_to_selection' }
+  | { type: 'auto_crop' };
 
 /** Geometric shape kinds the Shapes tool can draw (spec §9.2 Shapes). */
 export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' | 'polygon';
@@ -410,6 +415,8 @@ export interface DrawTextCommand {
   italic: boolean;
   anti_alias: boolean;
   align: TextAlign;
+  underline?: boolean;
+  strikethrough?: boolean;
 }
 
 /** Two canvas points: endpoints, box corners or a gradient's drag. */
@@ -466,12 +473,40 @@ export interface EditLiveCommand {
   from?: Rgba;
   to?: Rgba;
   opacity?: number;
+  text?: string;
+  size?: number;
+  color?: Rgba;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  align?: TextAlign;
+}
+
+/** Begins a live text whose box has its top-left at `(x, y)`
+ *  (docs/specs/image-live-text.md). */
+export interface BeginLiveTextCommand {
+  type: 'begin_live_text';
+  layer: number;
+  font_id: number;
+  text: string;
+  x: number;
+  y: number;
+  size?: number;
+  color?: Rgba;
+  bold?: boolean;
+  italic?: boolean;
+  anti_alias?: boolean;
+  align?: TextAlign;
+  underline?: boolean;
+  strikethrough?: boolean;
 }
 
 /** Begin, edit, commit or cancel the live object. */
 export type LiveCommand =
   | BeginLiveShapeCommand
   | BeginLiveGradientCommand
+  | BeginLiveTextCommand
   | EditLiveCommand
   | { type: 'commit_live' }
   | { type: 'cancel_live' }
@@ -661,6 +696,12 @@ export const core = {
   exportBmp: (handle: number): Uint8Array => export_bmp(handle),
   exportTiff: (handle: number): Uint8Array => export_tiff(handle),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
+  /** Line boxes and caret positions of a text as a live text draws it
+   *  with font `fontId` (docs/specs/image-live-text.md AC-22). */
+  textLayout: (fontId: number, request: TextLayoutRequest): TextLayout =>
+    text_layout(fontId, JSON.stringify(request)) as TextLayout,
+  /** The document's stored resolution in pixels per inch (docs/specs/image-view-aids.md AC-23). */
+  documentDpi: (handle: number): number => document_dpi(handle),
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,

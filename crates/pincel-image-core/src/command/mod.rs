@@ -4,11 +4,13 @@
 //! undone and redone. The [`CommandBus`] applies a command and records it on the
 //! [`UndoStack`].
 
+mod auto_crop;
 mod batch;
 mod damage;
 mod layers;
 mod live;
 pub mod live_spec;
+mod live_text;
 mod merge;
 mod paste;
 mod pixels;
@@ -20,12 +22,14 @@ pub mod spec;
 mod tiles;
 mod transform;
 
+pub use auto_crop::{AutoCrop, auto_crop_rect};
 pub(crate) use batch::Batch;
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
 pub use live::{
     BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
 };
+pub use live_text::{LiveFont, LiveText, text_box};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::SetPixels;

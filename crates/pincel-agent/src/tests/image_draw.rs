@@ -106,7 +106,7 @@ fn draw_stroke_matches_brush_and_eraser() {
     );
     s.ok(
         "draw.stroke",
-        json!({ "points": [[5, 5]], "color": "#000000" }),
+        json!({ "points": [[5, 5]], "color": "#ff0000" }),
     );
     assert_eq!(s.image(&id).bus.history.undo_depth(), depth + 2);
     one_undo_step(
@@ -118,6 +118,49 @@ fn draw_stroke_matches_brush_and_eraser() {
 }
 
 #[test]
+fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
+    // mcp-parity-drawing AC-21, mcp-parity-drawing-image AC-13: a call
+    // that changes no pixel reports `changed: false` and records nothing.
+    let mut s = S::new();
+    let id = s.new_image(16, 16);
+    s.ok(
+        "draw.stroke",
+        json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+    );
+    for (name, args) in [
+        // Erasing where nothing is painted.
+        (
+            "draw.stroke",
+            json!({ "tool": "eraser", "points": [[1, 1], [3, 1]] }),
+        ),
+        // The same opaque dab again.
+        (
+            "draw.stroke",
+            json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 40, "y0": 40, "x1": 50, "y1": 50, "fill": "#ff0000" }),
+        ),
+        ("draw.text", json!({ "text": "A", "x": 500, "y": 500 })),
+        ("draw.text", json!({ "text": "", "x": 2, "y": 2 })),
+        // Smudging an empty area.
+        ("draw.smudge", json!({ "points": [[1, 1], [5, 1]] })),
+    ] {
+        let before = state(&s, &id);
+        let depth = s.image(&id).bus.history.undo_depth();
+        let out = s.ok(name, args.clone());
+        assert_eq!(out["changed"], json!(false), "{name} {args}");
+        assert_eq!(
+            s.image(&id).bus.history.undo_depth(),
+            depth,
+            "{name} {args}"
+        );
+        assert_eq!(state(&s, &id), before, "{name} {args}");
+    }
+}
+
+#[test]
 fn draw_stroke_with_empty_points_fails_naming_points() {
     let mut s = S::new();
     let id = s.new_image(8, 8);
@@ -125,6 +168,57 @@ fn draw_stroke_with_empty_points_fails_naming_points() {
     let e = s.err("draw.stroke", json!({ "points": [], "color": "#000000" }));
     assert!(e.contains("points"), "{e}");
     assert_eq!(state(&s, &id), before);
+}
+
+/// Calls without size, shape, opacity, hardness, color or anti-aliasing
+/// paint with the Image editor's starting options (`tool` in
+/// `ui/src/modes/image/stores/editor.svelte.ts`: brush 8 px `hard_round`
+/// at 100 % opacity and hardness, angle 45, black; text 48 px
+/// anti-aliased, left; shapes 3 px, corner radius 16, 5 sides,
+/// anti-aliased, solid) — mcp-parity-drawing AC-19.
+#[test]
+fn image_drawing_defaults_are_the_image_editors_starting_options() {
+    let cases = [
+        (
+            "draw.stroke",
+            json!({ "points": [[3, 4], [16, 9]] }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "tool": "eraser", "points": [[3, 4], [16, 9]] }),
+            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "Ag", "x": 2, "y": 0 }),
+            json!({ "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag", "x": 2, "y": 0, "size": 48, "color": [0, 0, 0, 255], "bold": false, "italic": false, "anti_alias": true, "align": "left" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rounded", "x0": 1, "y0": 1, "x1": 50, "y1": 40, "stroke": "#ff0000" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rounded_rectangle", "points": [[1, 1], [50, 40]], "corner_radius": 16, "mode": "outline", "stroke_width": 3, "stroke_color": [255, 0, 0, 255], "anti_alias": true, "dash": "solid" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "polygon", "cx": 30, "cy": 25, "radius": 20, "stroke": "#ff0000" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "polygon", "center": [30, 25], "radius": 20, "sides": 5, "rotation": 0.0, "mode": "outline", "stroke_width": 3, "stroke_color": [255, 0, 0, 255], "anti_alias": true, "dash": "solid" }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 2, "y0": 2, "x1": 60, "y1": 50, "from": "#ff0000", "to": "#0000ff80" }),
+            json!({ "type": "draw_gradient", "layer": 0, "kind": "linear", "channel": "color", "x0": 2, "y0": 2, "x1": 60, "y1": 50, "from": [255, 0, 0, 255], "to": [0, 0, 255, 128], "opacity": 1.0 }),
+        ),
+    ];
+    for (tool, args, cmd) in cases {
+        let mut s = S::new();
+        let id = painted(&mut s, 64, 56);
+        let want = editor(&s, &id, vec![cmd]);
+        let before = agent_pixels(&s, &id, 0);
+        s.ok(tool, args.clone());
+        assert_ne!(agent_pixels(&s, &id, 0), before, "{tool} {args} painted");
+        assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0), "{tool} {args}");
+    }
 }
 
 #[test]
@@ -194,6 +288,40 @@ fn draw_text_matches_the_text_tool() {
     let got = agent_pixels(&s, &id, 0);
     assert_eq!(got, pixels(&want, 0));
     assert!(got.chunks(4).any(|p| p[3] > 0), "text was drawn");
+}
+
+#[test]
+fn draw_text_underline_and_strikethrough_match_the_text_tool() {
+    let mut s = S::new();
+    let id = s.new_image(160, 60);
+    let want = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false,
+            "underline": true, "strikethrough": true
+        })],
+    );
+    let plain = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false
+        })],
+    );
+    s.ok(
+        "draw.text",
+        json!({ "text": "Ag\nline", "x": 150, "y": 4, "size": 20, "align": "right",
+                "anti_alias": false, "underline": true, "strikethrough": true }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+    assert_ne!(
+        pixels(&plain, 0),
+        pixels(&want, 0),
+        "the strokes were drawn"
+    );
 }
 
 #[test]

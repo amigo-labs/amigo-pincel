@@ -21,6 +21,7 @@ Documents live in the webview's wasm (pincel.md §9.3, ADR-001), not in the Taur
 
 - A setting "Allow AI agents to control Pincel", off by default, persisted in the IndexedDB prefs, in a dialog opened from View ▸ AI agents… (next to Language and Touch Gestures) that also shows the copyable client command, the token and a "Regenerate token" button
 - An MCP endpoint (Streamable HTTP) on 127.0.0.1 with a random bearer token while the setting is on, and the client command / config to copy
+- Internal sessions for the in-app chat (`ai-chat-panel`): one token per chat, independent of the setting (revision 2026-11-06)
 - Forwarding tool calls to the mounted editor (Pixel or Image) and returning results
 - The same tools and schemas as the headless server, acting on the open document; each call one undo step
 - `doc.open`, `doc.new` and `doc.save` through the shell's existing flows (unsaved-changes prompt, Save, Save As); saving to a new path asks the user
@@ -34,32 +35,34 @@ Documents live in the webview's wasm (pincel.md §9.3, ADR-001), not in the Taur
 - Live mode in the PWA — because a browser page cannot host a server; browser proposals for exposing page tools to agents ("WebMCP") are a later option
 - Hosted or remote MCP — because the endpoint is local-only by design
 - File-system access beyond the shell's open / new / save flows — because saving stays under the user's control (plan)
-- Generative image models — because the agent draws with Pincel's tools
+- Generative image models in this spec — because `comfyui-generate` adds them as desktop host tools (`gen.*`) on this endpoint
 - The `pincel-mcp --attach` stdio bridge (a stdio client for stdio-only MCP clients, reading port and token from a file in the app's config dir) — follow-up spec, because Claude Code speaks HTTP natively and the bridge needs a token-file contract of its own; v1 documents `claude mcp add --transport http pincel http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): On a fresh install, the desktop app runs no MCP endpoint until the user turns on "Allow AI agents to control Pincel".
+- [ ] AC-01 (always): On a fresh install, the desktop app runs no MCP endpoint until the user turns on "Allow AI agents to control Pincel" or sends the first message of a chat in the Assistant panel (AC-22).
 - [ ] AC-02 (event): When the user turns the setting on in the dialog opened from View ▸ AI agents…, then the app listens for MCP Streamable HTTP on 127.0.0.1 only, with a newly generated random 256-bit bearer token, and the dialog shows the token and the exact client command (`claude mcp add --transport http pincel http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"`, address, port and token filled in) to copy.
-- [ ] AC-03 (state): While the setting is on, it stays on across app restarts and the endpoint keeps the same bearer token (persisted in the app config dir) and port; while it is off, no endpoint listens.
+- [ ] AC-03 (state): While the setting is on, it stays on across app restarts and the endpoint keeps the same bearer token (persisted in the app config dir) and port; while it is off and no chat holds a token (AC-22), no endpoint listens.
 - [ ] AC-04 (event): When the user turns the setting off, then the endpoint stops, connected clients are disconnected, and later requests are refused.
 - [ ] AC-05 (error): If a request carries no bearer token or a wrong one, then it is refused with an authorization error and no tool runs.
-- [ ] AC-06 (event): When a connected client calls `tools/list`, then it receives the same tool names and input schemas as the headless server.
-- [ ] AC-07 (event): When a client calls a mutating tool, then the change appears on the document open on screen as after any editor command, and the editor's Undo reverts exactly that one call.
+- [ ] AC-06 (event): When an external client calls `tools/list`, then it receives the same tool names and input schemas as the headless server, plus the desktop host tools other specs add (`gen.*`, `comfyui-generate`), listed whether or not those can run; a chat's internal session receives the list `ai-chat-panel` AC-17 and AC-26 define.
+- [ ] AC-07 (event): When an external client calls a mutating tool, then the change appears on the document open on screen as after any editor command, and the editor's Undo reverts exactly that one call; a chat's calls form one step per answer instead (`ai-chat-panel` AC-08).
 - [ ] AC-08 (event): When two tool calls are in flight at once, then each client receives the result of its own call.
 - [ ] AC-09 (error): If a document tool is called while no document is open, then the call fails with `isError: true` saying that no document is open.
 - [ ] AC-10 (event): When a client calls `doc.save` without `path` on a document that has a file, then the document is saved through the editor's normal Save; with a new `path`, the normal Save As dialog asks the user first.
 - [ ] AC-11 (error): If the user cancels the Save As dialog opened by `doc.save`, then the call fails with `isError: true` saying the user cancelled, and nothing is written.
-- [ ] AC-12 (state): While at least one client session is open, the status bar shows "AI connected" with a disconnect button; clicking it ends the open sessions and the indicator disappears. A session opens with a successful `initialize` (session id issued) and ends when the client sends DELETE for it, the user disconnects, or 10 minutes pass without a request in that session.
+- [ ] AC-12 (state): While at least one external client session is open, the status bar shows "AI connected" with a disconnect button; clicking it ends the open sessions and the indicator disappears. A session opens with a successful `initialize` (session id issued) and ends when the client sends DELETE for it, the user disconnects, or 10 minutes pass without a request in that session.
 - [ ] AC-13 (option): Where the app runs in a browser (PWA), the setting and the indicator are not shown.
 - [ ] AC-14 (always): The setting, its help text, the indicator and the disconnect button are translated in English and German.
-- [ ] AC-15 (event): When a client calls `doc.open` or `doc.new` while the open document has unsaved changes, then the shell's usual unsaved-changes prompt is shown; if the user cancels it, the call fails with `isError: true` and "user cancelled", and the open document is unchanged.
-- [ ] AC-16 (event): When a client calls `export.png`, `export.jpeg`, `export.webp` or `export.sheet` with a `path`, then the normal export / save dialog opens with the file name from `path` filled in, and the file is written only where the user confirms; if the user cancels, the call fails with `isError: true` and "user cancelled", and nothing is written.
+- [ ] AC-15 (event): When a client calls `doc.open` or `doc.new`, then the document opens in a new tab like the user's Open / New (no other tab is replaced); when it calls `doc.close` on a tab with unsaved changes, the usual unsaved-changes prompt is shown, and if the user cancels it, the call fails with `isError: true` and "user cancelled" and the tab stays open. A call without a `doc` argument acts on the active tab.
+- [ ] AC-16 (event): When a client calls a tool that writes a file (every `export.*`, `palette.export`) with a `path`, then the normal export / save dialog opens with the file name from `path` filled in, and the file is written only where the user confirms; a tool that reads a file (`layer.import`, `palette.import`) opens the normal open dialog instead; if the user cancels, the call fails with `isError: true` and "user cancelled", and nothing is written or read.
 - [ ] AC-17 (state): While the user is drawing a stroke (pointer down), an incoming tool call waits and runs after pointerup, and its result is returned then.
 - [ ] AC-18 (error): If a tool call arrives while a modal dialog is open, then it fails at once with `isError: true` and "editor busy: a dialog is open", and the document is unchanged.
-- [ ] AC-19 (error): If a tool call has no result 30 s after it arrived, then it fails with `isError: true` saying it timed out.
+- [ ] AC-19 (error): If a tool call has no result 30 s after it arrived (5 minutes for `gen.*`), not counting time a dialog opened by that call waits for the user, then it fails with `isError: true` saying it timed out.
 - [ ] AC-20 (event): When the user clicks "Regenerate token" in the AI agents dialog, then a new random token replaces the old one, the dialog shows the new token and command, and requests with the old token are refused as in AC-05; disconnecting alone never changes the token.
 - [ ] AC-21 (error): If the default port is in use when the endpoint starts, then the app binds a free port assigned by the OS, persists it for later starts, and the AI agents dialog shows "Port changed — update your client config" with the updated command.
+- [ ] AC-22 (event): When a chat in the Assistant panel sends its first message, then the endpoint (started if needed, on the same port rules) accepts a token issued for that chat, whether the setting is on or off; the token stops working when the chat ends (New chat, tab closed, CLI or model changed, app quit); while the setting is off, every other token is refused; turning the setting on or off does not affect chat tokens; chat sessions do not show the "AI connected" indicator and are not ended by its disconnect button.
+- [ ] AC-23 (error): If an external client calls a tool while a chat answer runs, then the call fails at once with `isError: true` and "editor busy: the assistant is working", and the document is unchanged.
 
 ## Technical notes
 
@@ -84,13 +87,16 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | Client connects while the start screen is shown | `tools/list` works; document tools fail as in AC-09 |
 | Tool call arrives during a pointer stroke by the user | Waits and runs after pointerup (AC-17) |
 | Tool call arrives while an effect dialog is open | Fails at once: "editor busy: a dialog is open" (AC-18) |
-| `doc.new` while the open document is dirty and the user cancels the prompt | Fails with "user cancelled"; document unchanged (AC-15) |
+| `doc.close` on a dirty tab and the user cancels the prompt | Fails with "user cancelled"; the tab stays open (AC-15) |
 | Client stops sending requests without DELETE | Its session ends after 10 minutes idle; the indicator hides when no session is left (AC-12) |
 | App restarts with the setting on | Same token and port; the client config keeps working (AC-03) |
 | User undoes an agent's change, then the agent calls `doc.redo` | Redo re-applies it, as the editor's Redo would |
 | The user switches the setting off mid-call | The call's result may still arrive or fail; later requests are refused (AC-04) |
 | Port already in use | An OS-assigned port is bound and persisted; the dialog shows "Port changed — update your client config" (AC-21) |
 | Request from another host on the LAN | Not reachable; the endpoint binds 127.0.0.1 only |
+| Setting off, chat running, external client tries the chat's port | Refused unless it presents the chat's token (AC-22) |
+| A call times out while its work already runs in the editor | The work completes and stays a normal undo step (in a chat: part of the answer's step); the client got the timeout |
+| App crashes while a chat holds a token | Tokens live in memory only; after a restart no old token works |
 
 ## Open questions
 
@@ -121,6 +127,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
 | AC-21 |      | open   |        |
+| AC-22 |      | open   |        |
+| AC-23 |      | open   |        |
 
 ## Decisions
 
@@ -138,3 +146,5 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: The token is generated when the setting is turned on and persisted across restarts in the app config dir; disconnect only ends the session, and a separate "Regenerate token" button rotates it (AC-03, AC-20) — a token that rotates on every start would break the user's client config at each launch (owner accepted the recommendation).
 - 2026-10-29: A client counts as connected from a successful `initialize` (session id issued) until DELETE, user disconnect or 10 minutes without a request; the indicator shows while at least one session is open (AC-12) — Streamable HTTP defines sessions by `Mcp-Session-Id`, and the idle timeout clears clients that died (owner accepted the recommendation).
 - 2026-10-29: The endpoint uses a fixed default port (39217); if it is taken, an OS-assigned port is bound, persisted and announced in the AI agents dialog with the updated command (AC-21) — the endpoint keeps working and the user gets the exact fix (owner accepted the recommendation).
+- 2026-11-06: Revision for the in-app chat: internal sessions with a per-process token, independent of the setting (AC-22; AC-01 and AC-03 amended); `tools/list` adds desktop host tools such as `gen.*` (AC-06); `gen.*` calls time out after 5 minutes (AC-19); generative models leave this spec's out-of-scope list for `comfyui-generate` — the owner wants a chat and image generation in the app (Decision Log 2026-11-06, specs `ai-chat-panel`, `comfyui-generate`).
+- 2026-11-06 (clarification pass): AC-15 follows the mixed document tabs (Decision Log 2026-11-04): opening never replaces a document, so the unsaved-changes prompt guards `doc.close` instead of `doc.open` / `doc.new`. Chat tokens are per chat, not per process, because one chat runs one CLI process per answer and keeps one MCP config; they live in memory only. Chat sessions do not show the indicator, which warns about control from outside the app, and the setting does not govern them. External calls during a chat answer are refused so the answer stays one undo step (owner). File-reading and file-writing tools added by the parity specs go through the open / save dialogs like `doc.save`; time spent in a dialog opened by the call does not count towards the timeout. `gen.*` gets 5 minutes because a first generation loads the model and takes minutes on mid-range GPUs.

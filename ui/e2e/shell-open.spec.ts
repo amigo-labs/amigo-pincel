@@ -41,7 +41,7 @@ const RASTER_SIZE: Record<RasterKind, [number, number]> = {
 
 /** The shown editor's status-bar document size of `mode`. */
 function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]): Locator {
-  return shownEditor(page).getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} · sRGB`, {
+  return shownEditor(page).getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, {
     exact: true,
   });
 }

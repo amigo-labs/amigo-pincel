@@ -137,7 +137,7 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-10 | `crates/pincel-image-core/src/tools/text.rs` `underline_runs_below_the_baseline_to_the_last_ink`, `strikethrough_crosses_the_lowercase_letters`, `a_whitespace_only_text_gets_no_decoration`, `decorations_combine_with_bold_italic_and_alignment` | built |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
@@ -147,9 +147,9 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-20 | `crates/pincel-agent/src/tests/image_draw.rs` `draw_text_underline_and_strikethrough_match_the_text_tool`; `crates/pincel-image-core/tests/live_text.rs` `begin_live_text_draws_draw_text_at_the_box_anchor` | built |        |
 | AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-22 | `crates/pincel-image-core/src/tools/text.rs` `layout_carets_split_a_line_without_changing_its_pixels`, `layout_reports_aligned_lines_inside_one_box`; `crates/pincel-image-core/tests/live_text.rs` `text_layout_query_matches_the_drawn_box` | built |        |
 | AC-23 |      | open   |        |
 | AC-24 |      | open   |        |
 
@@ -168,3 +168,7 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 - 2026-11-05: Focus leaving the text box no longer commits — because otherwise no option or color change could reach the live text (today's `blur` commit); the commit triggers are listed in AC-11.
 - 2026-11-05: The font load is retried on the next press, not automatically — because that is today's `ensureFont` behavior (a failed load resets the cache) and an automatic retry while offline would fail silently again; the notice tells the user why nothing opened.
 - 2026-11-05: Underline and strikethrough are additive `#[serde(default)]` fields on the existing `draw_text` command and MCP tool — because existing commands and agent calls stay valid, and the MCP tool parity decision requires the agent tool to offer what the editor offers.
+- 2026-11-06 (spec-build) — Underline and strikethrough use Liberation Sans's Arial-compatible metrics from the Technical notes (underline top 0.106 em below the baseline, 0.073 em thick; strikethrough centred 0.259 em above it, 0.049 em thick), at least 1 px and thickened by the faux-bold smear; they stay straight under faux italic. `ab_glyph`'s public API exposes no underline / strikeout metrics without reaching into `owned_ttf_parser`, and the bundled face is the only one until `system-fonts`.
+- 2026-11-06 (spec-build) — Core and wire API (new public items): `TextStyle::{underline, strikethrough}`, `Text::layout_lines` → `TextLayout` / `LineLayout` (line top, baseline, left, width, caret x per boundary, ink end), `command::text_box`, `LiveText` / `LiveFont` (a live object kind; fonts compare by id), `LiveEdit` text fields, `CommandSpec::BeginLiveText` and the text fields of `edit_live`, `LiveObjectSpec::Text`, `live_spec::{TextLayoutRequest, text_layout}`, and `pincel-image-wasm` `text_layout(font_id, request)`, with generated `TextLayout.ts` / `LineLayout.ts` / `TextLayoutRequest.ts`.
+- 2026-11-06 (spec-build) — The live text's points are its box top-left twice, so the generic reach check (image-live-objects AC-10) and a `points` edit (the move handle) work unchanged; an empty text is degenerate (nothing begun), an emptied one stays live (image-live-objects AC-16).
+- 2026-11-06 (spec-build) — Red runs: the text-style and layout tests failed to compile without `underline` / `strikethrough` / `layout_lines` (7 errors); `tests/live_text.rs` failed to compile without the text kind (6 errors); the agent test failed to compile until `draw.text` forwarded the two new fields.

@@ -21,13 +21,16 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { installLiveSync } from './core/live-sync.svelte';
   import {
     addGroup,
     addLayer,
     applyEffectRegion,
     clearEffectPreview,
+    autoCrop,
     cropToSelection,
     deleteLayer,
+    documentDpi,
     duplicateLayer,
     flattenImage,
     flipCanvas,
@@ -77,7 +80,9 @@
   } from './core/tab-session';
   import SaveDialogs from './components/dialogs/SaveDialogs.svelte';
   import { gestureControl } from './tools/pointer';
-  import MainCanvas from './components/canvas/MainCanvas.svelte';
+  import ImageViewport from './components/canvas/ImageViewport.svelte';
+  import { loadViewAids, setViewAids, viewAids } from './stores/view-aids.svelte';
+  import { formatPixels, type ViewUnit } from './view-units';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
@@ -143,7 +148,7 @@
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { languageMenu } from '../../lib/i18n/locale';
   import { reduceMotionMenuItem } from '../../lib/motion.svelte';
-  import { t } from '../../lib/i18n/index.svelte';
+  import { locale, t, type MessageKey } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
@@ -218,6 +223,8 @@
   function runCopy(kind: 'copy' | 'merged' | 'cut'): void {
     const handle = editor.handle;
     if (handle === null) return;
+    // Copy reads the final pixels: commit a live object first (AC-09).
+    commitLive();
     let copied: { png: Uint8Array; x: number; y: number } | null;
     try {
       copied = copyImage(kind);
@@ -368,8 +375,14 @@
     void beginPaste(pasteEventImage(e), handle);
   }
 
+  /** Image ▸ Auto Crop; a notice when nothing is cropped (image-resize-autocrop AC-15). */
+  function runAutoCrop(): void {
+    editor.notice = autoCrop() ? null : t('image.nothingToCrop');
+  }
+
   function openSvgExport(): void {
     if (editor.handle === null) return;
+    commitLive();
     closeSvgExport();
     svgOpen = true;
   }
@@ -380,6 +393,7 @@
   }
 
   function runExport(format: ExportFormat, quality?: number): void {
+    commitLive();
     // JPEG is lossy: ask for the quality first (spec §13.2).
     if (format === 'jpeg' && quality === undefined) {
       jpegDialogOpen = true;
@@ -532,9 +546,33 @@
     'rotateCw',
     'rotateCcw',
     'toggleUi',
+    'togglePixelGrid',
+    'toggleRulers',
     'commandPalette',
     ...OPACITY_ACTIONS,
   ];
+
+  // View ▸ Units and the status bar (docs/specs/image-view-aids.md AC-11, AC-12).
+  const UNIT_ITEMS: readonly (readonly [ViewUnit, MessageKey])[] = [
+    ['px', 'menu.unitPixels'],
+    ['in', 'menu.unitInches'],
+    ['cm', 'menu.unitCentimeters'],
+  ];
+  const UNIT_SUFFIX: Record<ViewUnit, MessageKey> = {
+    px: 'units.px',
+    in: 'units.in',
+    cm: 'units.cm',
+  };
+  // The active document's resolution, read again on every tab switch and
+  // document change (AC-19, AC-23).
+  const statusDpi = $derived.by(() => {
+    void editor.handle;
+    void editor.revision;
+    return documentDpi();
+  });
+  function unitValue(p: number): string {
+    return formatPixels(p, viewAids.units, statusDpi, locale());
+  }
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
   function openOverview(): void {
@@ -702,6 +740,7 @@
 
   onMount(() => {
     void loadRecent('image');
+    void loadViewAids();
     void Promise.all([loadColorPref(FG_PREF), loadColorPref(BG_PREF)]).then(([fg, bg]) => {
       if (fg) [tool.foreground, tool.foregroundAlpha] = [toHex(fg), fg.a];
       if (bg) [tool.background, tool.backgroundAlpha] = [toHex(bg), bg.a];
@@ -769,8 +808,14 @@
   // this too. Leaving for another mode's tab drops a gesture in flight.
   $effect.pre(() => {
     ui.active = active;
-    if (!active) gestureControl.cancel();
+    if (!active) {
+      gestureControl.cancel();
+      untrack(commitLive);
+    }
   });
+
+  // Option and color changes reach the live object (AC-06, AC-07).
+  installLiveSync();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).
@@ -929,6 +974,12 @@
       case 'toggleUi':
         toggleUi();
         return true;
+      case 'togglePixelGrid':
+        setViewAids({ showPixelGrid: !viewAids.showPixelGrid });
+        return true;
+      case 'toggleRulers':
+        setViewAids({ showRulers: !viewAids.showRulers });
+        return true;
       case 'commandPalette':
         // Ctrl+K: the command palette over these menus and tools.
         openPalette({
@@ -1005,6 +1056,8 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
+    // The effect previews and applies to the committed pixels (AC-09).
+    commitLive();
     if (effectOpen) {
       endEffectRun();
       clearEffectPreview();
@@ -1263,6 +1316,7 @@
         },
         { label: t('menu.scaleImage'), disabled: !hasDoc, run: () => (transformDialog = 'scale') },
         { label: t('menu.crop'), disabled: !editor.hasSelection, run: cropToSelection },
+        { label: t('menu.autoCrop'), disabled: !hasDoc, run: runAutoCrop },
       ],
     },
     {
@@ -1365,6 +1419,28 @@
           run: () => viewCommands.actual(),
         },
         { kind: 'separator' },
+        {
+          label: t('menu.rulers'),
+          shortcut: hint('toggleRulers'),
+          checked: viewAids.showRulers,
+          run: () => setViewAids({ showRulers: !viewAids.showRulers }),
+        },
+        {
+          label: t('menu.pixelGrid'),
+          shortcut: hint('togglePixelGrid'),
+          checked: viewAids.showPixelGrid,
+          run: () => setViewAids({ showPixelGrid: !viewAids.showPixelGrid }),
+        },
+        {
+          kind: 'submenu',
+          label: t('menu.units'),
+          items: UNIT_ITEMS.map(([units, label]) => ({
+            label: t(label),
+            checked: viewAids.units === units,
+            run: () => setViewAids({ units }),
+          })),
+        },
+        { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
         { kind: 'separator' },
@@ -1444,12 +1520,28 @@
     <ToolOptions />
   {/snippet}
   {#snippet viewport()}
-    <MainCanvas />
+    <ImageViewport />
   {/snippet}
   {#snippet statusbar()}
     <span>{toolLabel}</span>
     <span>·</span>
-    <span>{editor.width} × {editor.height} · sRGB</span>
+    {#if viewAids.pointer}
+      <span data-testid="status-pointer"
+        >{t('status.position', {
+          x: unitValue(Math.floor(viewAids.pointer.x)),
+          y: unitValue(Math.floor(viewAids.pointer.y)),
+          unit: t(UNIT_SUFFIX[viewAids.units]),
+        })}</span
+      >
+      <span>·</span>
+    {/if}
+    <span
+      >{t('status.size', {
+        width: unitValue(editor.width),
+        height: unitValue(editor.height),
+        unit: t(UNIT_SUFFIX[viewAids.units]),
+      })} · sRGB</span
+    >
     <span
       class="min-w-0 flex-1 truncate text-center"
       class:text-amber-400={loadError !== null || editor.notice !== null}
@@ -1484,6 +1576,7 @@
 
 {#if transformDialog === 'resize'}
   <ResizeDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, anchor) => {
       resizeCanvas(w, h, anchor);
       transformDialog = null;
@@ -1492,6 +1585,7 @@
   />
 {:else if transformDialog === 'scale'}
   <ScaleDialog
+    doc={{ width: editor.width, height: editor.height, dpi: documentDpi() }}
     onApply={(w, h, interp) => {
       scaleImage(w, h, interp);
       transformDialog = null;
