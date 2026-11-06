@@ -29,70 +29,21 @@ import {
 } from '../stores/editor.svelte';
 import type { PointPair, SelectionMode, ShapeKind } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
-import { cursorOf, dragPoints, hitLive, type LiveHit, type Pt } from './live-handles';
+import { cursorOf, dragPoints, hitLive, wholeMove, type LiveHit, type Pt } from './live-handles';
 import { editRefused } from '../core/layer-tree';
 import {
   caretToPoint,
   hitText,
   pressText,
   requestTextFocus,
+  textBoxOpen,
 } from '../core/live-text.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
-import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
+import { shiftHeld } from '../../../lib/shell/modifiers.svelte';
 import { gestureControl } from './gesture-control';
 import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
-
-/** A live text's box corner moved by the drag `start` → `p`, rounded to
- *  whole document pixels (docs/specs/image-live-text.md AC-07). */
-function wholeMove(from: PointPair, start: Pt, p: Pt): PointPair {
-  const dx = Math.round(p[0] - start[0]);
-  const dy = Math.round(p[1] - start[1]);
-  const [a] = from;
-  return [
-    [a[0] + dx, a[1] + dy],
-    [a[0] + dx, a[1] + dy],
-  ];
-}
-
-/** Converts a pointer event into document-pixel coordinates. `surface` is
- *  the element that covers the document on screen (any size / transform). */
-function toCanvasPoint(surface: HTMLElement, e: PointerEvent): [number, number] {
-  const rect = surface.getBoundingClientRect();
-  const scaleX = editor.width / rect.width;
-  const scaleY = editor.height / rect.height;
-  return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
-}
-
-/** Selection combine mode from the keyboard or on-screen modifiers (spec §8.2). */
-function selectionModeOf(e: PointerEvent): SelectionMode {
-  const shift = shiftHeld(e);
-  const alt = altHeld(e);
-  if (shift && alt) return 'intersect';
-  if (shift) return 'add';
-  if (alt) return 'subtract';
-  return 'replace';
-}
-
-/** Pen pressure in `[0, 1]`; mouse and touch paint at full pressure. */
-function pressureOf(e: PointerEvent): number {
-  return e.pointerType === 'pen' ? Math.min(1, Math.max(0, e.pressure)) : 1;
-}
-
-/** Pen azimuth in radians (0 = +x, clockwise), or `null` when the input
- *  is not a pen or the pen stands upright / reports no tilt. Uses the
- *  Pointer Events 3 angles where the browser has them, else derives the
- *  azimuth from `tiltX` / `tiltY`. */
-function azimuthOf(e: PointerEvent): number | null {
-  if (e.pointerType !== 'pen') return null;
-  const angles = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
-  if (typeof angles.altitudeAngle === 'number' && typeof angles.azimuthAngle === 'number') {
-    return angles.altitudeAngle < Math.PI / 2 - 1e-3 ? angles.azimuthAngle : null;
-  }
-  if (e.tiltX === 0 && e.tiltY === 0) return null;
-  const rad = Math.PI / 180;
-  return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
-}
+import { azimuthOf, pressureOf, selectionModeOf, toCanvasPoint, touchHold } from './pointer-input';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
 const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
@@ -285,6 +236,8 @@ export function attachTools(
   // A press-and-drag placing the caret and selecting characters in the live
   // text (image-live-text AC-06): the pointer that owns it.
   let textSelect: number | null = null;
+  // A touch press held back while a live object is open (pointer-input.ts).
+  const held = touchHold((down) => press(down));
 
   /** Sends the drag's latest points, at most once per frame. */
   const flushLive = (): void => {
@@ -405,9 +358,22 @@ export function attachTools(
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
-    if (active || liveDrag !== null || textSelect !== null) {
+    if (active || liveDrag !== null || textSelect !== null || held.held) {
       return;
     }
+    // A touch press waits until no pinch can follow (pointer-input.ts).
+    if (e.pointerType === 'touch' && e.button === 0 && (live.object !== null || textBoxOpen())) {
+      held.hold(e);
+      stage.setPointerCapture(e.pointerId);
+      // The editor frame moved the focus to the stage; give it back.
+      if (textBoxOpen()) requestTextFocus();
+      return;
+    }
+    press(e);
+  };
+
+  /** Runs a press: the live object's hit test first, then the tool. */
+  const press = (e: PointerEvent): void => {
     if (pressLive(e, toCanvasPoint(canvas, e))) {
       return;
     }
@@ -564,6 +530,7 @@ export function attachTools(
   };
 
   const onMove = (e: PointerEvent): void => {
+    if (held.moved(e)) return;
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
@@ -663,6 +630,7 @@ export function attachTools(
   };
 
   const onUp = (e: PointerEvent): void => {
+    held.lifted(e);
     if (liveDrag !== null && e.pointerId === liveDrag.pointer) {
       cancelAnimationFrame(liveDrag.frame);
       flushLive();
@@ -743,6 +711,7 @@ export function attachTools(
    * pixels already applied stay — as a single undoable stroke (stroke_id).
    */
   const abort = (): boolean => {
+    if (held.drop()) return true;
     if (cancelLiveDrag()) return true;
     if (textSelect !== null) {
       endTextSelect();
@@ -768,6 +737,7 @@ export function attachTools(
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
   // the in-flight gesture — unless the cancel is for a bystander pointer.
   const onCancel = (e: PointerEvent): void => {
+    if (held.drop()) return;
     if (textSelect !== null) {
       if (e.pointerId === textSelect) endTextSelect();
       return;
