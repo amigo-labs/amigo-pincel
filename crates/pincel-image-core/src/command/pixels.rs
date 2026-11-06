@@ -1,5 +1,6 @@
 //! The `SetPixels` command — the basis of every drawing tool (spec §7.3).
 
+use super::HistoryKind;
 use super::tiles::LayerTiles;
 use super::{Command, Damage};
 use crate::document::{Document, ImageBuffer};
@@ -29,7 +30,7 @@ pub struct SetPixels {
     saved: Vec<(usize, LayerTiles)>,
     /// Every region written, for [`Command::damage`].
     regions: Vec<Rect>,
-    label: String,
+    kind: HistoryKind,
     stroke_id: Option<u64>,
 }
 
@@ -41,14 +42,15 @@ impl SetPixels {
             prior: Vec::new(),
             saved: Vec::new(),
             regions: vec![region],
-            label: "Edit Pixels".to_string(),
+            kind: HistoryKind::DrawPixels,
             stroke_id: None,
         }
     }
 
-    /// Sets the history label (e.g. "Pencil Stroke").
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
-        self.label = label.into();
+    /// Sets the history kind (default [`HistoryKind::DrawPixels`]), e.g.
+    /// [`HistoryKind::Brush`] for a brush stroke.
+    pub fn with_kind(mut self, kind: HistoryKind) -> Self {
+        self.kind = kind;
         self
     }
 
@@ -95,7 +97,7 @@ impl SetPixels {
         layer_index: usize,
         region: Rect,
         before: ImageBuffer,
-        label: impl Into<String>,
+        kind: HistoryKind,
     ) -> Self {
         // The document holds the new pixels already; only the first undo
         // needs `before`, and saves the tiles it replaces for redo.
@@ -104,7 +106,7 @@ impl SetPixels {
             prior: vec![(layer_index, region, before)],
             saved: Vec::new(),
             regions: vec![region],
-            label: label.into(),
+            kind,
             stroke_id: None,
         }
     }
@@ -176,8 +178,8 @@ impl Command for SetPixels {
         self.swap(doc)
     }
 
-    fn label(&self) -> &str {
-        &self.label
+    fn kind(&self) -> HistoryKind {
+        self.kind
     }
 
     fn merge_with(&mut self, newer: &dyn Command) -> bool {

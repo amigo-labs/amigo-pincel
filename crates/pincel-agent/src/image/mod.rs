@@ -12,7 +12,7 @@ use std::any::Any;
 use std::fmt;
 
 use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
-use pincel_image_core::command::{Command, CommandBus, DEFAULT_UNDO_CAPACITY};
+use pincel_image_core::command::{Command, CommandBus, DEFAULT_UNDO_CAPACITY, HistoryKind};
 use pincel_image_core::{Document, DocumentError};
 use serde_json::{Value, json};
 
@@ -77,16 +77,20 @@ pub(crate) fn color_arg(args: &Args, key: &str) -> Result<[u8; 4], AgentError> {
     }
 }
 
-/// Several core commands applied and undone as one history entry.
-pub(crate) struct Batch(pub Vec<Box<dyn Command>>);
+/// Several core commands applied and undone as one history entry of the
+/// history kind `kind`.
+pub(crate) struct Batch {
+    pub cmds: Vec<Box<dyn Command>>,
+    pub kind: HistoryKind,
+}
 
 impl Command for Batch {
     fn apply(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        for i in 0..self.0.len() {
-            if let Err(e) = self.0[i].apply(doc) {
+        for i in 0..self.cmds.len() {
+            if let Err(e) = self.cmds[i].apply(doc) {
                 // Roll back what already ran so a failed call changes
                 // nothing; the original error is the one worth reporting.
-                for done in self.0[..i].iter_mut().rev() {
+                for done in self.cmds[..i].iter_mut().rev() {
                     done.revert(doc)?;
                 }
                 return Err(e);
@@ -96,18 +100,18 @@ impl Command for Batch {
     }
 
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError> {
-        for cmd in self.0.iter_mut().rev() {
+        for cmd in self.cmds.iter_mut().rev() {
             cmd.revert(doc)?;
         }
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Agent Edit"
+    fn kind(&self) -> HistoryKind {
+        self.kind
     }
 
     fn undo_bytes(&self) -> usize {
-        self.0.iter().map(|c| c.undo_bytes()).sum()
+        self.cmds.iter().map(|c| c.undo_bytes()).sum()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -326,11 +330,34 @@ impl ImageDoc {
     }
 
     /// Apply core commands as one undo step.
-    pub fn apply(&mut self, mut cmds: Vec<Box<dyn Command>>) -> Result<bool, AgentError> {
-        let cmd = match cmds.len() {
-            0 => return Ok(false),
-            1 => cmds.remove(0),
-            _ => Box::new(Batch(cmds)),
+    pub fn apply(&mut self, cmds: Vec<Box<dyn Command>>) -> Result<bool, AgentError> {
+        self.apply_kind(None, cmds)
+    }
+
+    /// [`ImageDoc::apply`] with the history kind of the editor action the
+    /// tool mirrors (docs/specs/history-panel.md AC-15).
+    pub fn apply_as(
+        &mut self,
+        kind: HistoryKind,
+        cmds: Vec<Box<dyn Command>>,
+    ) -> Result<bool, AgentError> {
+        self.apply_kind(Some(kind), cmds)
+    }
+
+    /// Several commands become one [`Batch`] of the first command's kind
+    /// unless `kind` names one.
+    fn apply_kind(
+        &mut self,
+        kind: Option<HistoryKind>,
+        mut cmds: Vec<Box<dyn Command>>,
+    ) -> Result<bool, AgentError> {
+        let cmd = match (cmds.len(), kind) {
+            (0, _) => return Ok(false),
+            (1, None) => cmds.remove(0),
+            (_, kind) => {
+                let kind = kind.unwrap_or_else(|| cmds[0].kind());
+                Box::new(Batch { cmds, kind })
+            }
         };
         let before = self.bus.history.undo_depth();
         self.bus.apply(cmd).map_err(core_err)?;
@@ -347,7 +374,10 @@ impl ImageDoc {
         build: impl Fn() -> Vec<Box<dyn Command>>,
     ) -> Result<bool, AgentError> {
         let mut copy = self.bus.document.clone();
-        let mut cmd = Batch(build());
+        let mut cmd = Batch {
+            cmds: build(),
+            kind: HistoryKind::DrawPixels,
+        };
         cmd.apply(&mut copy).map_err(core_err)?;
         let mut before = self.bus.document.clone();
         before

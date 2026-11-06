@@ -28,6 +28,10 @@ import initWasm, {
   get_layer_thumbnail,
   undo,
   redo,
+  undo_kinds,
+  redo_kinds,
+  history_dropped,
+  jump_history,
   export_png,
   export_jpeg,
   export_webp,
@@ -690,6 +694,16 @@ export const core = {
     get_layer_thumbnail(handle, layerId) as Uint8ClampedArray<ArrayBuffer>,
   undo: (handle: number): boolean => undo(handle),
   redo: (handle: number): boolean => redo(handle),
+  /** Kind ids of the undo steps (oldest first) and the redo steps (next
+   *  redo first), and whether a step was dropped (history-panel AC-02). */
+  history: (handle: number): { undo: string[]; redo: string[]; dropped: boolean } => ({
+    undo: undo_kinds(handle),
+    redo: redo_kinds(handle),
+    dropped: history_dropped(handle),
+  }),
+  /** Undoes (`delta < 0`) or redoes `|delta|` steps in one call; throws
+   *  when a step fails, after the steps before it (history-panel AC-12). */
+  jumpHistory: (handle: number, delta: number): number => jump_history(handle, delta),
   exportPng: (handle: number, compression: number): Uint8Array => export_png(handle, compression),
   exportJpeg: (handle: number, quality: number): Uint8Array => export_jpeg(handle, quality),
   exportWebp: (handle: number): Uint8Array => export_webp(handle),

@@ -10,6 +10,7 @@
 //! high one drags a color a long way.
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
@@ -132,7 +133,7 @@ impl Smudge {
                     *slot = Some(mix(sample, p.dst, 1.0 - keep));
                     out
                 })?;
-        Some(SetPixels::new(layer_index, region, after).with_label("Smudge"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Smudge))
     }
 }
 

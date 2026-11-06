@@ -5,8 +5,9 @@
 //! docs/specs/mcp-parity-selection-transform-content.md.
 
 use pincel_core::{
-    AnyCommand, Bus, ClearRegion, ColorMode, CopySource, Layer, LayerId, MoveSelectionContent,
-    PasteLayer, PastedImage, PutCel, Rect, copy_pixels, encode_png, import_png,
+    AnyCommand, Bus, ClearRegion, ColorMode, CopySource, HistoryKind, Layer, LayerId,
+    MoveSelectionContent, PasteLayer, PastedImage, PutCel, Rect, copy_pixels, encode_png,
+    import_png,
 };
 use pincel_image_core::codec::{decode, to_png_bytes};
 use pincel_image_core::command::PasteLayer as ImagePaste;
@@ -115,7 +116,7 @@ fn select_move_content(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Age
         .get(layer, frame)
         .is_none()
         .then(|| doc.cel_or_empty(layer, frame));
-    let changed = doc.commit_if_changed(|| {
+    let changed = doc.commit_if_changed_as(HistoryKind::MoveSelection, || {
         let mut cmds: Vec<pincel_core::AnyCommand> = empty
             .iter()
             .map(|c| PutCel::new(c.clone()).into())
@@ -353,7 +354,9 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         Some(CutTarget::Pixel(layer, frame)) => {
             let (_, doc) = ctx.ws.doc_mut(args)?;
             let masked = doc.sprite.has_selection();
-            doc.commit_if_changed(|| vec![pixel_cut(layer, frame, copied.area, masked)])?
+            doc.commit_if_changed_as(HistoryKind::Cut, || {
+                vec![pixel_cut(layer, frame, copied.area, masked)]
+            })?
         }
         Some(CutTarget::Image(layer)) => {
             let (_, doc) = ctx.ws.image_mut(args)?;

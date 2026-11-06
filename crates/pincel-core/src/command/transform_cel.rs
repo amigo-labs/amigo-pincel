@@ -13,6 +13,7 @@ use crate::geometry::Rect;
 use super::Command;
 use super::dirty::DirtyRegion;
 use super::error::CommandError;
+use super::history::HistoryKind;
 use super::transform_support::{Orientation, cel_to_canvas, raster_to_cel, rgba_buffer};
 
 /// Reorient the pixels of the cel at `(layer, frame)`.
@@ -41,6 +42,17 @@ impl TransformCel {
     pub fn within(mut self, rect: Rect) -> Self {
         self.region = Some(rect);
         self
+    }
+
+    /// The history kind of this layer flip or rotation.
+    pub(crate) fn history_kind(&self) -> HistoryKind {
+        match self.op {
+            Orientation::FlipHorizontal => HistoryKind::FlipLayerHorizontal,
+            Orientation::FlipVertical => HistoryKind::FlipLayerVertical,
+            Orientation::Rotate90Cw => HistoryKind::RotateLayer90Cw,
+            Orientation::Rotate90Ccw => HistoryKind::RotateLayer90Ccw,
+            Orientation::Rotate180 => HistoryKind::RotateLayer180,
+        }
     }
 }
 

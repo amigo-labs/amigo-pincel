@@ -357,6 +357,9 @@ export interface OpenedFile {
   /** Absolute on-disk path. Set by the Tauri branch; `null` everywhere
    *  else. Lets a later save write through the Rust FS commands. */
   path: string | null;
+  /** `paste` for an image made by Paste as New Image (its History panel
+   *  start entry, docs/specs/history-panel.md AC-03); absent for a file. */
+  origin?: 'paste';
 }
 
 export interface SaveTarget {

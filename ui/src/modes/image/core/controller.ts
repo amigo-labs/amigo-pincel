@@ -48,6 +48,8 @@ import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
 import { encodeInBackground, type EffectJob } from '../jobs';
 import { gestureControl } from '../tools/gesture-control';
+import { sameHistory } from '../../../lib/history/names';
+import { t } from '../../../lib/i18n/index.svelte';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -154,6 +156,8 @@ export function syncInfo(): void {
   editor.canUndo = info.can_undo;
   editor.canRedo = info.can_redo;
   editor.undoDepth = info.undo_depth;
+  const history = core.history(editor.handle);
+  if (!sameHistory(history, editor.history)) editor.history = history;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
   live.object = core.liveObject(editor.handle);
@@ -596,6 +600,7 @@ export function projectBytes(fast = false): Uint8Array | null {
 export async function newDocument(width: number, height: number): Promise<ImageTab> {
   await initCore();
   const tab = openTab(core.createDocument(width, height), blankFile());
+  tab.doc.origin = 'new';
   syncInfo();
   markSaved();
   return tab;
@@ -612,7 +617,10 @@ export async function openBytes(
   bytes: Uint8Array,
   name: string,
   mime: string,
-  target: Pick<SaveTarget, 'handle' | 'path'> & { format?: DocFormat | null } = {
+  target: Pick<SaveTarget, 'handle' | 'path'> & {
+    format?: DocFormat | null;
+    origin?: 'paste';
+  } = {
     handle: null,
     path: null,
   },
@@ -635,6 +643,7 @@ export async function openBytes(
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
   const tab = openTab(handle, openedFile(name, format, target));
+  tab.doc.origin = target.origin ?? 'open';
   syncInfo();
   markSaved();
   editor.notice = notice;
@@ -924,6 +933,21 @@ export function undo(): void {
   if (editor.handle !== null && core.undo(editor.handle)) {
     syncInfo();
   }
+}
+
+/** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History
+ *  panel (history-panel AC-05): one core call, one redraw (AC-13). A failed
+ *  step stops the jump and shows a notice (AC-12). */
+export function jumpHistory(delta: number): void {
+  if (editor.handle === null || delta === 0) return;
+  try {
+    core.jumpHistory(editor.handle, delta);
+  } catch (err) {
+    editor.notice = t('historyPanel.jumpFailed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+  syncInfo();
 }
 
 /** Redoes the last undone command. */

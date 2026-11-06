@@ -69,14 +69,14 @@ fn apply_rotate_zoom_on_a_transparent_layer_adds_no_undo_step() {
 }
 
 #[test]
-fn rotate_zoom_step_is_labelled_rotate_zoom() {
+fn rotate_zoom_step_is_of_the_rotate_zoom_kind() {
     use pincel_image_core::command::Command;
-    let spec = EffectSpec::from_params("rotate_zoom", &[33.0, 10.0, -5.0, 1.3, 2.0]).expect("spec");
     let step = effect_step(
         0,
         Rect::new(0, 0, 1, 1),
         ImageBuffer::new_transparent(1, 1),
-        &spec,
-    );
-    assert_eq!(step.label(), "Rotate / Zoom");
+        "rotate_zoom",
+    )
+    .expect("known effect");
+    assert_eq!(step.kind().id(), "effect.rotate_zoom");
 }

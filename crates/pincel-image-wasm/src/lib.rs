@@ -13,7 +13,7 @@ use pincel_image_core::command::live_spec::{
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
-use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
+use pincel_image_core::command::{CommandBus, HistoryKind, PasteLayer, SetPixels};
 use pincel_image_core::jobs::{self, EncodeFormat, JobError, decode_region, encode_region};
 use pincel_image_core::{
     BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod history;
 mod vectorize;
 
 #[cfg(test)]
@@ -448,18 +449,19 @@ pub fn apply_effect(
             return Err(JsError::new(LOCKED));
         }
         let region = effect_region(&bus.document, layer, &spec)?;
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, &spec, region)
     })
 }
 
-/// Commits an effect's region as one undoable `SetPixels` labelled like
-/// the effect; `false` (no undo step) for `None`, and for a Rotate / Zoom
-/// region the layer already holds
+/// Commits the region of the effect `name` as one undoable `SetPixels` of
+/// that effect's history kind; `false` (no undo step) for `None`, and for a
+/// Rotate / Zoom region the layer already holds
 /// (docs/specs/image-transform-handles-rotate-zoom.md AC-05). Every other
 /// effect stays one step per Apply, changed or not (effect-panel AC-04).
 fn commit_region(
     bus: &mut CommandBus,
     layer: usize,
+    name: &str,
     spec: &EffectSpec,
     region: Option<(Rect, ImageBuffer)>,
 ) -> Result<bool, JsError> {
@@ -476,15 +478,22 @@ fn commit_region(
     if unchanged {
         return Ok(false);
     }
-    bus.apply(Box::new(effect_step(layer, region, after, spec)))
+    bus.apply(Box::new(effect_step(layer, region, after, name)?))
         .map_err(to_js)?;
     Ok(true)
 }
 
-/// The undo step of an effect's region: a `SetPixels` labelled with the
-/// effect's history name (`EffectSpec::label`, e.g. "Rotate / Zoom").
-fn effect_step(layer: usize, region: Rect, after: ImageBuffer, spec: &EffectSpec) -> SetPixels {
-    SetPixels::new(layer, region, after).with_label(spec.label())
+/// The undo step of an effect's region: a `SetPixels` of the history kind
+/// of the effect `name` (e.g. `effect.rotate_zoom`).
+fn effect_step(
+    layer: usize,
+    region: Rect,
+    after: ImageBuffer,
+    name: &str,
+) -> Result<SetPixels, JsError> {
+    let kind = HistoryKind::effect(name)
+        .ok_or_else(|| JsError::new(&format!("unknown effect `{name}`")))?;
+    Ok(SetPixels::new(layer, region, after).with_kind(kind))
 }
 
 /// Runs effect `name` / `params` on the layer at `layer` the way
@@ -519,13 +528,14 @@ pub fn apply_effect_region(
     params: &[f64],
     region: &[u8],
 ) -> Result<bool, JsError> {
+    // Validates the effect name and parameters before touching the document.
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     let region = decode_region(region).map_err(job_js)?;
     with_bus(handle, |bus| {
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, &spec, region)
     })
 }
 

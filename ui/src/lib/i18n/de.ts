@@ -2,8 +2,11 @@
 // Schlüssel ist ein Fehler in `pnpm check`.
 
 import type { MessageKey } from './en';
+import { historyDe } from './history-de';
 
 export const de: Record<MessageKey, string> = {
+  ...historyDe,
+
   // Shell
   'shell.unsavedChanges': 'Ungespeicherte Änderungen',
   'shell.saveChangesTo': 'Änderungen an „{name}“ speichern?',

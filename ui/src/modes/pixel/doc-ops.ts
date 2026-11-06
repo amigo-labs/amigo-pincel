@@ -227,6 +227,24 @@ export function undo() {
   }
 }
 
+/** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History
+ *  panel (history-panel AC-05): one core call and one recompose (AC-13). A
+ *  failed redo stops there and reports in the status bar (AC-12). */
+export function jumpHistory(delta: number) {
+  if (!ed.doc || delta === 0) return;
+  try {
+    ed.doc.jumpHistory(delta);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ed.status = t('historyPanel.jumpFailed', { error: msg });
+  }
+  live.needsRecompose = true;
+  syncMeta();
+  ed.docRev += 1;
+  reconcileActiveSlice();
+  reconcileActiveLayerAndStamp();
+}
+
 export function redo() {
   if (!ed.doc) return;
   try {

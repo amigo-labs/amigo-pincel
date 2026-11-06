@@ -8,6 +8,7 @@
 //! must re-read `width` / `height` afterwards. They also clear the
 //! selection, so a `selection-changed` event accompanies `dirty-canvas`.
 
+use pincel_core::HistoryKind;
 use pincel_core::{
     Anchor, Interpolation, Orientation, Rect, ReframeCanvas, ScaleImage, TransformCanvas,
     TransformCel,
@@ -81,7 +82,16 @@ impl Document {
         if rect.is_empty() {
             return Ok(false);
         }
-        self.run_sealed(ReframeCanvas::new(rect).into(), "failed to crop")?;
+        self.bus.seal();
+        self.bus
+            .execute_as(
+                HistoryKind::CropToSelection,
+                ReframeCanvas::new(rect).into(),
+                &mut self.sprite,
+                &mut self.cels,
+            )
+            .map_err(|e| format!("failed to crop: {e}"))?;
+        self.bus.seal();
         self.push_canvas_changed();
         Ok(true)
     }

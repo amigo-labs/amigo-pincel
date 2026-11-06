@@ -17,6 +17,7 @@ use crate::selection::SelectionMask;
 use super::Command;
 use super::dirty::DirtyRegion;
 use super::error::CommandError;
+use super::history::HistoryKind;
 
 /// Geometry of a [`DrawShape`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -97,6 +98,16 @@ pub struct DrawShape {
 }
 
 impl DrawShape {
+    /// The history kind: the shape tool that drew it.
+    pub(crate) fn history_kind(&self) -> HistoryKind {
+        match self.kind {
+            ShapeKind::Rectangle => HistoryKind::Rectangle,
+            ShapeKind::RoundedRectangle { .. } => HistoryKind::RoundedRectangle,
+            ShapeKind::Ellipse => HistoryKind::Ellipse,
+            ShapeKind::Polygon { .. } => HistoryKind::Polygon,
+        }
+    }
+
     /// Shape spanning the inclusive corners `start` and `end` on the cel at
     /// `(layer, frame)`.
     pub fn new(

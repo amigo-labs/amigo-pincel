@@ -25,6 +25,7 @@ mod effects;
 mod events;
 mod gradient;
 mod grid;
+mod history;
 mod import;
 mod layer_ops;
 mod rotate;
@@ -45,6 +46,7 @@ pub use text::register_font;
 pub use vectorize::{VectorizeResult, Vectorizer};
 
 use events::EventQueue;
+use pincel_core::HistoryKind;
 use pincel_core::{
     AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTile, AddTilemapLayer, AddTileset,
     AsepriteReadOutput, AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode,
@@ -641,8 +643,13 @@ impl Document {
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
+        let kind = if tool_id == "eraser" {
+            HistoryKind::Eraser
+        } else {
+            HistoryKind::Pencil
+        };
         self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .execute_as(kind, cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply {tool_id}: {e}"))?;
         self.events
             .push(Event::dirty_rect(layer.0, frame.0, x, y, 1, 1));

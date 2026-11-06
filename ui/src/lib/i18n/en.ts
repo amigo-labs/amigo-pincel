@@ -1,7 +1,11 @@
 // English UI strings — the source of every message key (spec §9.5).
 // Keys are `area.name`; `{name}` marks an interpolated parameter.
 
+import { historyEn } from './history-en';
+
 export const en = {
+  ...historyEn,
+
   // Shell
   'shell.unsavedChanges': 'Unsaved changes',
   'shell.saveChangesTo': 'Save changes to "{name}"?',

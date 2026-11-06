@@ -13,6 +13,7 @@ import {
   paintOverlays as paintOverlayLayer,
 } from './overlay-painter';
 import { motion } from '../../lib/motion.svelte';
+import { syncHistory } from './history';
 import { colors, ed, live, preview, probe, toolState, view } from './stores/editor.svelte';
 import { constrainEndpoint } from './tools';
 import { clampAxes } from './symmetry';
@@ -48,6 +49,7 @@ export function syncMeta() {
   if (!ed.doc) return;
   ed.undoDepth = ed.doc.undoDepth;
   ed.redoDepth = ed.doc.redoDepth;
+  syncHistory();
   ed.canvasW = ed.doc.width;
   ed.canvasH = ed.doc.height;
   clampAxes(ed.canvasW, ed.canvasH);

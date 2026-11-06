@@ -20,6 +20,7 @@ mod duplicate_layer;
 mod error;
 mod fill_region;
 mod flatten_image;
+mod history;
 mod merge_down;
 mod move_layer;
 mod move_layer_to;
@@ -74,6 +75,7 @@ pub use duplicate_layer::DuplicateLayer;
 pub use error::CommandError;
 pub use fill_region::FillRegion;
 pub use flatten_image::FlattenImage;
+pub use history::HistoryKind;
 pub use merge_down::MergeDown;
 pub use move_layer::{MoveDirection, MoveLayer};
 pub use move_layer_to::{LayerPlacement, MoveLayerTo};
@@ -386,6 +388,73 @@ impl AnyCommand {
                 | Self::DrawText(_)
                 | Self::DrawDitherGradient(_)
         ) && self.dirty_region().is_none()
+    }
+
+    /// The history kind this command reports when the caller names none
+    /// ([`Bus::execute`]): the action the command type stands for. Commands
+    /// several actions share — whole-cel writes, batches, region clears —
+    /// report their most common maker; hosts name the others through
+    /// [`Bus::execute_as`] (`docs/specs/history-panel.md` AC-15). Read it
+    /// before `apply`: an [`AddLayer`] hands its layer over on apply.
+    pub fn kind(&self) -> HistoryKind {
+        use HistoryKind as K;
+        match self {
+            Self::SetPixel(_) => K::Pencil,
+            Self::PencilStroke(c) => c.history_kind(),
+            Self::DrawLine(_) => K::Line,
+            Self::DrawRectangle(_) => K::Rectangle,
+            Self::DrawEllipse(_) => K::Ellipse,
+            Self::FillRegion(_) => K::Fill,
+            Self::DrawDitherGradient(_) => K::Gradient,
+            Self::ClearRegion(_) => K::DeleteSelection,
+            Self::MoveSelectionContent(_) => K::MoveSelection,
+            Self::MoveLayer(_) | Self::ReorderLayer(_) | Self::MoveLayerTo(_) => K::MoveLayer,
+            Self::SetLayerEditable(_) => K::LayerLock,
+            Self::SetLayerName(_) => K::RenameLayer,
+            Self::SetLayerVisible(_) => K::LayerVisibility,
+            Self::AddLayer(c) => c.history_kind(),
+            Self::RemoveLayer(_) => K::DeleteLayer,
+            Self::AddFrame(_) => K::AddFrame,
+            Self::SetFrameDuration(_) => K::FrameDuration,
+            Self::SetGrid(_) => K::Grid,
+            Self::RemoveFrame(_) => K::DeleteFrame,
+            Self::AddTag(_) => K::AddTag,
+            Self::RemoveTag(_) => K::DeleteTag,
+            Self::SetTagRange(_) => K::TagRange,
+            Self::SetTagName(_) => K::RenameTag,
+            Self::SetTagDirection(_) => K::TagDirection,
+            Self::SetPaletteColor(_) => K::PaletteColor,
+            Self::AddPaletteEntry(_) => K::AddPaletteEntry,
+            Self::RemovePaletteEntry(_) => K::DeletePaletteEntry,
+            Self::MovePaletteEntry(_) => K::MovePaletteEntry,
+            Self::ReplacePalette(_) => K::LoadPalette,
+            Self::AddTileset(_) => K::AddTileset,
+            Self::AddTile(_) => K::AddTile,
+            Self::AddTilemapLayer(_) => K::AddTilemapLayer,
+            Self::PlaceTile(_) => K::PlaceTile,
+            Self::SetTilePixel(_) => K::TilePixel,
+            Self::AddSlice(_) => K::AddSlice,
+            Self::RemoveSlice(_) => K::DeleteSlice,
+            Self::SetSliceKey(_) => K::SliceKey,
+            Self::ReplaceCelPixels(_)
+            | Self::PutCel(_)
+            | Self::PatchCel(_)
+            | Self::AddEmptyCel(_) => K::DrawPixels,
+            Self::DuplicateLayer(_) => K::DuplicateLayer,
+            Self::SetLayerOpacity(_) => K::LayerOpacity,
+            Self::SetLayerBlendMode(_) => K::LayerBlendMode,
+            Self::MergeDown(_) => K::MergeDown,
+            Self::FlattenImage(_) => K::FlattenImage,
+            Self::TransformCel(c) => c.history_kind(),
+            Self::TransformCanvas(c) => c.history_kind(),
+            Self::ReframeCanvas(_) => K::ResizeCanvas,
+            Self::ScaleImage(_) => K::ScaleImage,
+            Self::RotateCel(_) => K::RotateLayer,
+            Self::DrawShape(c) => c.history_kind(),
+            Self::DrawText(_) => K::Text,
+            Self::Batch(c) => c.first_kind().unwrap_or(K::DrawPixels),
+            Self::PasteLayer(_) => K::Paste,
+        }
     }
 
     /// Forward [`Command::dirty_region`] through the enum dispatch so the

@@ -7,6 +7,9 @@
  */
 export const gestureControl = {
   cancel: (): boolean => false,
+  /** `true` while a pointer gesture is in flight (the History panel ignores
+   *  jumps then, docs/specs/history-panel.md AC-11). */
+  inProgress: (): boolean => false,
   /** Drops a live-object handle drag in progress (Undo during the drag,
    *  docs/specs/image-live-objects-ui.md AC-11); `false` when none is. */
   cancelLiveDrag: (): boolean => false,

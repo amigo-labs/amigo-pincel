@@ -6,6 +6,7 @@
 //! existing selection via [`crate::selection::apply_mode`], or applying a
 //! modifier such as Invert / Expand — and hand the final mask to this command.
 
+use super::HistoryKind;
 use super::snapshot::mask_bytes;
 use super::{Command, Damage, SetPixels};
 use crate::document::Document;
@@ -21,7 +22,7 @@ pub struct SetSelection {
     before: Option<SelectionMask>,
     /// Whether `before` has been captured yet.
     captured: bool,
-    label: &'static str,
+    kind: HistoryKind,
 }
 
 impl SetSelection {
@@ -31,7 +32,7 @@ impl SetSelection {
             after: Some(mask),
             before: None,
             captured: false,
-            label: "Selection",
+            kind: HistoryKind::Select,
         }
     }
 
@@ -41,13 +42,13 @@ impl SetSelection {
             after: None,
             before: None,
             captured: false,
-            label: "Deselect",
+            kind: HistoryKind::Deselect,
         }
     }
 
-    /// Sets the history label (e.g. "Invert Selection").
-    pub fn with_label(mut self, label: &'static str) -> Self {
-        self.label = label;
+    /// Sets the history kind (e.g. [`HistoryKind::InvertSelection`]).
+    pub fn with_kind(mut self, kind: HistoryKind) -> Self {
+        self.kind = kind;
         self
     }
 }
@@ -67,8 +68,8 @@ impl Command for SetSelection {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        self.label
+    fn kind(&self) -> HistoryKind {
+        self.kind
     }
 
     fn undo_bytes(&self) -> usize {
@@ -138,8 +139,8 @@ impl Command for MoveSelection {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Move Selection"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MoveSelectionMask
     }
 
     fn undo_bytes(&self) -> usize {

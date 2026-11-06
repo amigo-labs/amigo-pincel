@@ -1,5 +1,6 @@
 //! The `PasteLayer` command: a clipboard image as a new layer (spec §5.4).
 
+use super::HistoryKind;
 use super::snapshot::{DocSnapshot, restore, snapshot};
 use super::{Command, ResizeCanvas};
 use crate::document::{Document, ImageBuffer, Layer, MAX_LAYERS};
@@ -152,8 +153,8 @@ impl Command for PasteLayer {
         layer + pixels + snap
     }
 
-    fn label(&self) -> &str {
-        "Paste"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::Paste
     }
 
     fn as_any(&self) -> &dyn Any {

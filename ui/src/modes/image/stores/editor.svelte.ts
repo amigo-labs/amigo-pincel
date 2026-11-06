@@ -2,6 +2,7 @@
 // The document and view stores are per tab (docs/specs/document-tabs.md):
 // their per-document keys forward to the active tab (`lib/shell/tab-store`).
 import { tabStore } from '../../../lib/shell/tab-store';
+import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../../lib/history/names';
 import type {
   BrushShape,
   DashPattern,
@@ -32,6 +33,10 @@ export function docInit() {
     /** `undoDepth` at the last save / open: the document is dirty while
      *  the two differ. */
     savedUndoDepth: 0,
+    /** The undo history the History panel lists (history-panel AC-02). */
+    history: EMPTY_HISTORY as HistorySnapshot,
+    /** How the document began: names the start entry (history-panel AC-03). */
+    origin: 'start' as HistoryOrigin,
     /** Layers ordered bottom (index 0) to top, mirrored from the core. */
     layers: [] as LayerInfo[],
     /** Whether a selection is currently active (mirrored from the core). */

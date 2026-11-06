@@ -5,6 +5,7 @@
 //! [`PatchCel`] (dirty-rect deltas, pincel.md §6.3), so a call is one exact
 //! undo step, memory stays bounded and a failure changes nothing.
 
+use pincel_core::HistoryKind;
 use pincel_core::{
     AddEmptyCel, AnyCommand, Cel, CelData, CelMap, ClearRegion, Command, DrawEllipse, DrawLine,
     DrawRectangle, FillRegion, PatchCel, PutCel, Rgba, SetPixel, Sprite,
@@ -23,6 +24,7 @@ use crate::{AgentError, Ctx, Tool, ToolOutput};
 pub(super) fn paint(
     ctx: &mut Ctx<'_>,
     args: &Args,
+    kind: HistoryKind,
     edit: impl FnOnce(&Doc, &mut Cel) -> Result<(), AgentError>,
 ) -> Result<ToolOutput, AgentError> {
     let (id, doc) = ctx.ws.doc_mut(args)?;
@@ -34,7 +36,7 @@ pub(super) fn paint(
     if grew(&original, &cel) {
         // A stroke beyond a smaller cel grows it, as in the editor: commit
         // the whole new cel.
-        doc.commit(vec![PutCel::new(cel).into()])?;
+        doc.commit_as(kind, vec![PutCel::new(cel).into()])?;
         return Ok(ToolOutput::json(json!({
             "doc": id,
             "layer": layer.0,
@@ -50,7 +52,7 @@ pub(super) fn paint(
             cmds.push(AddEmptyCel::new(layer, frame, patch.cel_size, original.position).into());
         }
         cmds.push(PatchCel::new(layer, frame, patch.origin, patch.size, patch.pixels).into());
-        doc.commit(cmds)?;
+        doc.commit_as(kind, cmds)?;
     }
     Ok(ToolOutput::json(json!({
         "doc": id,
@@ -243,7 +245,7 @@ pub(super) const PIXELS: Tool = Tool {
         )
     },
     run: |ctx, args| {
-        paint(ctx, args, |doc, cel| {
+        paint(ctx, args, HistoryKind::DrawPixels, |doc, cel| {
             let items = args
                 .get("pixels")
                 .and_then(Value::as_array)
@@ -278,7 +280,7 @@ pub(super) const LINE: Tool = Tool {
     schema: || shape_schema(false),
     run: |ctx, args| {
         refuse_on_image(ctx, args, "line")?;
-        paint(ctx, args, |doc, cel| {
+        paint(ctx, args, HistoryKind::Line, |doc, cel| {
             let ((x0, y0), (x1, y1)) = corners(args)?;
             let color = color_arg(doc, args)?;
             run_core(
@@ -296,7 +298,7 @@ pub(super) const RECT: Tool = Tool {
     schema: || shape_schema(true),
     run: |ctx, args| {
         refuse_on_image(ctx, args, "rect")?;
-        paint(ctx, args, |doc, cel| {
+        paint(ctx, args, HistoryKind::Rectangle, |doc, cel| {
             let (a, b) = corners(args)?;
             let color = color_arg(doc, args)?;
             let filled = args.bool("filled").unwrap_or(false);
@@ -315,7 +317,7 @@ pub(super) const ELLIPSE: Tool = Tool {
     schema: || shape_schema(true),
     run: |ctx, args| {
         refuse_on_image(ctx, args, "ellipse")?;
-        paint(ctx, args, |doc, cel| {
+        paint(ctx, args, HistoryKind::Ellipse, |doc, cel| {
             let (a, b) = corners(args)?;
             let color = color_arg(doc, args)?;
             let filled = args.bool("filled").unwrap_or(false);
@@ -357,7 +359,7 @@ pub(super) const FILL: Tool = Tool {
                 )));
             }
         }
-        paint(ctx, args, |doc, cel| {
+        paint(ctx, args, HistoryKind::Fill, |doc, cel| {
             let (x, y) = (args.req_i32("x")?, args.req_i32("y")?);
             check_in_canvas(doc, x, y, "seed")?;
             let color = color_arg(doc, args)?;
@@ -412,18 +414,23 @@ pub(super) const CLEAR: Tool = Tool {
         )
     },
     run: |ctx, args| {
-        paint(ctx, args, |doc, cel| match args.get("region") {
-            Some(v) => {
-                let r = parse_region(v)?;
-                run_core(&doc.sprite, cel, ClearRegion::new(cel.layer, cel.frame, r))
-            }
-            None => {
-                if let CelData::Image(buf) = &mut cel.data {
-                    buf.data.fill(0);
+        paint(
+            ctx,
+            args,
+            HistoryKind::DeleteSelection,
+            |doc, cel| match args.get("region") {
+                Some(v) => {
+                    let r = parse_region(v)?;
+                    run_core(&doc.sprite, cel, ClearRegion::new(cel.layer, cel.frame, r))
                 }
-                Ok(())
-            }
-        })
+                None => {
+                    if let CelData::Image(buf) = &mut cel.data {
+                        buf.data.fill(0);
+                    }
+                    Ok(())
+                }
+            },
+        )
     },
 };
 
@@ -461,7 +468,9 @@ pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput,
     let wire = wire_params(effect, params, false)?;
     let spec =
         EffectSpec::from_params(effect, &wire).map_err(|e| AgentError::tool(e.to_string()))?;
-    paint(ctx, args, |doc, cel| {
+    let history_kind = HistoryKind::effect(effect)
+        .ok_or_else(|| AgentError::tool(format!("unknown effect `{effect}`")))?;
+    paint(ctx, args, history_kind, |doc, cel| {
         let original = cel.clone();
         let CelData::Image(buf) = &mut cel.data else {
             return Err(AgentError::tool("effects need an image cel"));

@@ -10,10 +10,10 @@ use serde::Deserialize;
 
 use super::{
     AddGroup, AddLayer, Anchor, AutoCrop, Batch, CanvasRotation, CommandBus, CropToSelection,
-    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
-    MoveLayer, MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
-    RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
-    SetSelection, TransformLayer, auto_crop_rect,
+    DuplicateLayer, FlattenImage, FlipCanvas, HistoryKind, LayerTransform, MergeDown, MergeGroup,
+    MergeVisible, MoveLayer, MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas,
+    RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity,
+    SetLayerVisible, SetSelection, TransformLayer, auto_crop_rect,
 };
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
@@ -857,12 +857,12 @@ fn group_edits(
 fn apply_group_edits(
     bus: &mut CommandBus,
     cmds: Vec<Box<dyn super::Command>>,
-    label: &str,
+    kind: HistoryKind,
 ) -> Result<(), DocumentError> {
     if cmds.is_empty() {
         return Ok(());
     }
-    bus.apply(Box::new(Batch::new(cmds, label)))
+    bus.apply(Box::new(Batch::new(cmds, kind)))
 }
 
 /// Applies `spec` to `bus` exactly as the editor does: one tool or command,
@@ -1080,7 +1080,7 @@ pub fn run_command(
                 Move.translate(i, dx, dy, doc)
                     .map(|c| Box::new(c) as Box<dyn super::Command>)
             }) {
-                return apply_group_edits(bus, cmds, "Move Layer");
+                return apply_group_edits(bus, cmds, HistoryKind::TranslateLayer);
             }
             match Move.translate(layer, dx, dy, &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
@@ -1158,7 +1158,12 @@ pub fn run_command(
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let mut shape = SelectionMask::rectangle(cw, ch, Rect::new(x, y, w, h));
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Rectangle Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectRectangle,
+            )
         }
         CommandSpec::SelectEllipse {
             x,
@@ -1171,7 +1176,12 @@ pub fn run_command(
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let mut shape = SelectionMask::ellipse(cw, ch, Rect::new(x, y, w, h));
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Ellipse Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectEllipse,
+            )
         }
         CommandSpec::SelectPolygon {
             points,
@@ -1182,7 +1192,12 @@ pub fn run_command(
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let mut shape = SelectionMask::polygon(cw, ch, &pts);
             shape.feather(feather);
-            apply_selection(bus, shape, parse_selection_mode(&mode), "Lasso Select")
+            apply_selection(
+                bus,
+                shape,
+                parse_selection_mode(&mode),
+                HistoryKind::SelectLasso,
+            )
         }
         CommandSpec::SelectWand {
             layer,
@@ -1201,16 +1216,20 @@ pub fn run_command(
                 contiguous,
                 parse_sample(&sample),
             ) {
-                Some(shape) => {
-                    apply_selection(bus, shape, parse_selection_mode(&mode), "Magic Wand")
-                }
+                Some(shape) => apply_selection(
+                    bus,
+                    shape,
+                    parse_selection_mode(&mode),
+                    HistoryKind::SelectMagicWand,
+                ),
                 None => Ok(()), // off-canvas seed — no-op
             }
         }
         CommandSpec::SelectAll => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             bus.apply(Box::new(
-                SetSelection::replace(SelectionMask::new_full(cw, ch)).with_label("Select All"),
+                SetSelection::replace(SelectionMask::new_full(cw, ch))
+                    .with_kind(HistoryKind::SelectAll),
             ))
         }
         CommandSpec::Deselect => bus.apply(Box::new(SetSelection::clear())),
@@ -1224,17 +1243,17 @@ pub fn run_command(
                 .unwrap_or_else(|| SelectionMask::new_full(cw, ch));
             mask.invert();
             bus.apply(Box::new(
-                SetSelection::replace(mask).with_label("Invert Selection"),
+                SetSelection::replace(mask).with_kind(HistoryKind::InvertSelection),
             ))
         }
         CommandSpec::ExpandSelection { radius } => {
-            modify_selection(bus, "Expand Selection", |m| m.expand(radius))
+            modify_selection(bus, HistoryKind::ExpandSelection, |m| m.expand(radius))
         }
         CommandSpec::ContractSelection { radius } => {
-            modify_selection(bus, "Contract Selection", |m| m.contract(radius))
+            modify_selection(bus, HistoryKind::ContractSelection, |m| m.contract(radius))
         }
         CommandSpec::FeatherSelection { radius } => {
-            modify_selection(bus, "Feather Selection", |m| m.feather(radius))
+            modify_selection(bus, HistoryKind::FeatherSelection, |m| m.feather(radius))
         }
         CommandSpec::TransformLayer { layer, op } => {
             let op = match op.as_str() {
@@ -1245,7 +1264,8 @@ pub fn run_command(
             if let Some(cmds) = group_edits(&bus.document, layer, |i| {
                 Some(Box::new(TransformLayer::new(i, op)))
             }) {
-                return apply_group_edits(bus, cmds, "Transform Layer");
+                let kind = super::Command::kind(&TransformLayer::new(layer, op));
+                return apply_group_edits(bus, cmds, kind);
             }
             bus.apply(Box::new(TransformLayer::new(layer, op)))
         }
@@ -1253,7 +1273,8 @@ pub fn run_command(
             if let Some(cmds) = group_edits(&bus.document, layer, |i| {
                 Some(Box::new(RotateLayer90::new(i, ccw)))
             }) {
-                return apply_group_edits(bus, cmds, "Rotate Layer");
+                let kind = super::Command::kind(&RotateLayer90::new(layer, ccw));
+                return apply_group_edits(bus, cmds, kind);
             }
             bus.apply(Box::new(RotateLayer90::new(layer, ccw)))
         }
@@ -1576,29 +1597,29 @@ fn rgba(c: [u8; 4]) -> Color {
 }
 
 /// Combines `shape` with the current selection per `mode` and applies it as an
-/// undoable [`SetSelection`] labeled `label`.
+/// undoable [`SetSelection`] of history kind `kind`.
 fn apply_selection(
     bus: &mut CommandBus,
     shape: SelectionMask,
     mode: SelectionMode,
-    label: &'static str,
+    kind: HistoryKind,
 ) -> Result<(), DocumentError> {
     let after = apply_mode(bus.document.selection.as_ref(), shape, mode);
-    bus.apply(Box::new(SetSelection::replace(after).with_label(label)))
+    bus.apply(Box::new(SetSelection::replace(after).with_kind(kind)))
 }
 
 /// Applies an in-place modifier (`expand`/`contract`/`feather`) to the current
 /// selection. A no-op when nothing is selected (the whole canvas is implied).
 fn modify_selection(
     bus: &mut CommandBus,
-    label: &'static str,
+    kind: HistoryKind,
     f: impl FnOnce(&mut SelectionMask),
 ) -> Result<(), DocumentError> {
     let Some(mut mask) = bus.document.selection.clone() else {
         return Ok(());
     };
     f(&mut mask);
-    bus.apply(Box::new(SetSelection::replace(mask).with_label(label)))
+    bus.apply(Box::new(SetSelection::replace(mask).with_kind(kind)))
 }
 
 /// `true` when pixel edits on the layer at `index` are refused: it exists
