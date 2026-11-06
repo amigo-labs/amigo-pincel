@@ -3,7 +3,15 @@
 // undo steps (docs/specs/image-live-objects.md). The handles come from the
 // core's report (`live.object`), refreshed by every `syncInfo`.
 import { core, type EditLiveCommand, type LiveCommand, type ShapeKind } from './wasm';
-import { activeColor, colorWithOpacity, opacity01, syncInfo } from './controller';
+import {
+  activeColor,
+  colorWithOpacity,
+  gradientColors,
+  notePainted,
+  opacity01,
+  shapeColors,
+  syncInfo,
+} from './controller';
 import { editor, live, tool, type ToolKind } from '../stores/editor.svelte';
 
 /** Sends a live command; `false` when the core refused it (no object live
@@ -21,8 +29,11 @@ function send(cmd: LiveCommand): boolean {
 }
 
 /** Begins a live Line or box shape between `a` and `b` with the current
- *  options and colors (outline = foreground, fill = background). */
+ *  options and colors (outline = foreground, fill = background). The drag
+ *  that creates it counts as painting with the colors it uses (color-picker
+ *  AC-24, Decisions 2026-11-06). */
 export function beginShape(a: [number, number], b: [number, number], shape: ShapeKind): void {
+  const before = editor.undoDepth;
   send({
     type: 'begin_live_shape',
     layer: editor.activeLayer,
@@ -37,11 +48,14 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     anti_alias: tool.shapeAntiAlias,
     dash: tool.shapeDash,
   });
+  notePainted(before, shapeColors(shape));
 }
 
 /** Begins a live gradient along `a` → `b` (start = foreground, end =
- *  background, as `drawGradient` paints it). */
+ *  background, as `drawGradient` paints it); like a shape, it counts as
+ *  painted with on creation. */
 export function beginGradient(a: [number, number], b: [number, number]): void {
+  const before = editor.undoDepth;
   send({
     type: 'begin_live_gradient',
     layer: editor.activeLayer,
@@ -55,6 +69,7 @@ export function beginGradient(a: [number, number], b: [number, number]): void {
     to: activeColor(true),
     opacity: opacity01(),
   });
+  notePainted(before, gradientColors());
 }
 
 /** Edits the live object; `false` when the core refused (AC-19). */

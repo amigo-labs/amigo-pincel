@@ -121,6 +121,26 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+test('image: a live line adds the foreground, a live gradient both its colors (AC-24)', async ({
+  page,
+}) => {
+  // Line and Gradient drags create live objects (image-live-objects-ui); the
+  // drag that creates one counts as painting (color-picker Decisions 2026-11-06).
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  await setColor(page, 'fg', '#ff0000ff');
+  await setColor(page, 'bg', '#0000ffff');
+  await page.keyboard.press('l');
+  await drag(page, imageCanvas(page), [0.2, 0.3], [0.8, 0.3]);
+  expect(await recent(page)).toEqual(['#ff0000']);
+
+  // Commit first, or the new foreground would edit the live line.
+  await page.keyboard.press('Enter');
+  await setColor(page, 'fg', '#00ff00ff');
+  await page.keyboard.press('n');
+  await drag(page, imageCanvas(page), [0.2, 0.6], [0.8, 0.6]);
+  expect(await recent(page)).toEqual(['#00ff00', '#0000ff', '#ff0000']);
+});
+
 test('a recent color sets the edited color, alpha included (AC-13)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await setColor(page, 'fg', '#11223380');

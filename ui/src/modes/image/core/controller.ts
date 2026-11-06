@@ -85,8 +85,24 @@ function usedColor(useBackground: boolean): Rgba8 {
 /** Records `used` (foreground first) as painted with when the document
  *  gained an undo step since `depthBefore` (color-picker AC-24). A merged
  *  stroke adds its step once, so it is recorded once. */
-function notePainted(depthBefore: number, used: readonly Rgba8[]): void {
+export function notePainted(depthBefore: number, used: readonly Rgba8[]): void {
   if (editor.undoDepth > depthBefore) noteUsed('image', used);
+}
+
+/** The colors a Line or box shape paints with under the current options: a
+ *  line strokes only; a shape strokes with the foreground and fills with the
+ *  background, as its mode says (color-picker AC-24). */
+export function shapeColors(shape: ShapeKind): Rgba8[] {
+  const mode = shape === 'line' ? 'outline' : tool.shapeMode;
+  if (mode === 'outline') return [usedColor(false)];
+  if (mode === 'fill') return [usedColor(true)];
+  return [usedColor(false), usedColor(true)];
+}
+
+/** The colors a gradient paints with: from and to in the Color channel,
+ *  none in Transparency mode, which fades what is there (AC-24). */
+export function gradientColors(): Rgba8[] {
+  return tool.gradientChannel === 'color' ? [usedColor(false), usedColor(true)] : [];
 }
 
 /** A color with the tool opacity baked into its alpha: round(alpha ×
@@ -491,16 +507,7 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
   const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
-  // A line strokes only; a shape strokes with the foreground and fills
-  // with the background, as its mode says.
-  const mode = shape === 'line' ? 'outline' : tool.shapeMode;
-  const used =
-    mode === 'outline'
-      ? [usedColor(false)]
-      : mode === 'fill'
-        ? [usedColor(true)]
-        : [usedColor(false), usedColor(true)];
-  notePainted(before, used);
+  notePainted(before, shapeColors(shape));
 }
 
 // The default font is fetched once and registered with the core (ADR-012,
@@ -840,8 +847,7 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
   const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);
   syncInfo();
-  // Transparency mode fades what is there and paints no color.
-  if (tool.gradientChannel === 'color') notePainted(before, [usedColor(false), usedColor(true)]);
+  notePainted(before, gradientColors());
 }
 
 /** Move Selection: drags the outline only. */
