@@ -155,12 +155,16 @@ fn tile_read_pixels_refuses_outside_or_large_regions() {
         json!({ "name": "big", "tile_width": 80, "tile_height": 8 }),
     );
     let e = s.err("tile.read_pixels", json!({ "tileset": 0, "tile": 0 }));
-    assert!(e.contains("64×64") && e.contains("region"), "{e}");
+    assert!(e.contains("64×64") && e.contains("`region`"), "{e}");
     let e = s.err(
         "tile.read_pixels",
         json!({ "tileset": 0, "tile": 0, "region": { "x": 78, "y": 0, "width": 4, "height": 1 } }),
     );
-    assert!(e.contains("80×8"), "{e}");
+    // The tile size, and a `region` inside it suggested.
+    assert!(
+        e.contains("80×8") && e.contains("`region`") && e.contains("0–79 × 0–7"),
+        "{e}"
+    );
     // Too high is refused as too wide is; a region larger than 64×64
     // inside a big tile too; a 128×128 tile needs `region`.
     s.ok(
@@ -191,7 +195,10 @@ fn tile_read_pixels_refuses_outside_or_large_regions() {
         "tile.read_pixels",
         json!({ "tileset": 1, "tile": 0, "region": { "x": 0, "y": 60, "width": 8, "height": 6 } }),
     );
-    assert!(e.contains("8×65"), "{e}");
+    assert!(
+        e.contains("8×65") && e.contains("`region`") && e.contains("0–7 × 0–64"),
+        "{e}"
+    );
 }
 
 #[test]
