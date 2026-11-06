@@ -11,6 +11,15 @@ import {
   settledShot,
 } from './history-helpers';
 import { dropFiles, expectActive, fileOf, type Mode } from './tab-helpers';
+import {
+  caret,
+  chooseText,
+  docRect,
+  selectionMarks,
+  setFontSize,
+  textBox,
+  typeAt,
+} from './text-helpers';
 
 // docs/specs/history-panel.md: Image mode, and the start entry of both
 // modes. The panel itself is covered in `history-panel.spec.ts`.
@@ -78,6 +87,31 @@ test('Image: a click mid-stroke is ignored (AC-11)', async ({ page }) => {
   await page.waitForTimeout(200);
   await expectRows(page, ['New', 'Brush', 'Brush']);
   await expectCurrent(page, 2);
+});
+
+test('Image: a jump in a live text puts the caret where Undo does (AC-11)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 200, height: 120 });
+  await openHistory(page);
+  await chooseText(page);
+  await setFontSize(page, 24);
+  await typeAt(page, [20, 20], 'Hello');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.keyboard.press('Shift+ArrowLeft');
+  await page.getByRole('checkbox', { name: 'Bold' }).check();
+  await expect(selectionMarks(page)).toHaveCount(1);
+  const rows = await historyRows(page).count();
+  // The row before the Bold step: what Ctrl+Z does from here — the text
+  // stays open, the selection goes and the caret moves to the end
+  // (image-live-text AC-13).
+  await historyRows(page)
+    .nth(rows - 2)
+    .click();
+  await expectCurrent(page, rows - 2);
+  await expect(textBox(page)).toBeVisible();
+  await expect(selectionMarks(page)).toHaveCount(0);
+  const box = await docRect(page, textBox(page));
+  const end = await docRect(page, caret(page));
+  expect(Math.abs((end.x0 + end.x1) / 2 - box.x1)).toBeLessThanOrEqual(1.5);
 });
 
 test('Image: each document tab keeps its own history (AC-09)', async ({ page }) => {

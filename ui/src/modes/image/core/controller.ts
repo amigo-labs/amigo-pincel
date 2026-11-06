@@ -940,6 +940,11 @@ export function undo(): void {
  *  step stops the jump and shows a notice (AC-12). */
 export function jumpHistory(delta: number): void {
   if (editor.handle === null || delta === 0) return;
+  // What Undo / Redo do first: drop a live-object handle drag, and reset a
+  // live text's caret, selection and typing burst (image-live-text AC-13;
+  // history-panel AC-11).
+  if (gestureControl.cancelLiveDrag()) return;
+  gestureControl.historyMoved();
   try {
     core.jumpHistory(editor.handle, delta);
   } catch (err) {
