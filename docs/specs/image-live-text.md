@@ -144,9 +144,9 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 | AC-14 | `ui/e2e/image-live-text-caret.spec.ts` `Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste plain text` | built |        |
 | AC-15 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
 | AC-16 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-17 | `ui/e2e/image-live-text-errors.spec.ts` `with a selection the live text is drawn only inside it`; feathered coverage comes from the core text draw (`Text::render`), shared with `draw_text` | built |        |
+| AC-18 | `ui/e2e/image-live-text-errors.spec.ts` `a locked layer or a group refuses the Text tool with the notice`; a layer in a locked group goes through the same `editRefused` check (`ui/e2e/image-layer-groups.spec.ts`) | built |        |
+| AC-19 | `ui/e2e/image-live-text-errors.spec.ts` `a font that does not load opens no box; the next press retries`, `while the font loads a second press moves the box; another tool drops it`, `choosing another tool while the font loads opens no box` | built |        |
 | AC-20 | `crates/pincel-agent/src/tests/image_draw.rs` `draw_text_underline_and_strikethrough_match_the_text_tool`; `crates/pincel-image-core/tests/live_text.rs` `begin_live_text_draws_draw_text_at_the_box_anchor` | built |        |
 | AC-21 | `ui/e2e/image-live-text.spec.ts` `Escape cancels the live text and keeps the step before it` | built |        |
 | AC-22 | `crates/pincel-image-core/src/tools/text.rs` `layout_carets_split_a_line_without_changing_its_pixels`, `layout_reports_aligned_lines_inside_one_box`; `crates/pincel-image-core/tests/live_text.rs` `text_layout_query_matches_the_drawn_box` | built |        |
@@ -180,4 +180,5 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 - 2026-11-06 (spec-build) — Red run (block 1, `ui/e2e/image-live-text.spec.ts`): all 12 tests failed against the textarea entry ("element(s) not found" for the live text field and box).
 - 2026-11-06 (spec-build) — Block 2 (AC-04 – AC-06, AC-14, AC-23): the caret, selection and clipboard code shipped with block 1, so `ui/e2e/image-live-text-caret.spec.ts` was green on its first run. Its red run is a mutation run instead: with caret x taken from the column instead of the layout, Up / Down keeping the caret and the hit test always at column 0, 7 of its 9 tests failed (every caret-position variant, the arrow-key test and the press / drag test).
 - 2026-11-06 (spec-build) — Block 3 (AC-07, AC-08, AC-12, AC-13, AC-24) also shipped with block 1; `ui/e2e/image-live-text-edit.spec.ts` was written after it. Its red run is a mutation run: with unrounded handle moves, option edits not forwarded and no focus request when the core reports a new live text, 4 of its 5 tests failed.
+- 2026-11-06 (spec-build) — Block 4 (AC-17 – AC-19): selection clipping is the core text draw and the locked / group refusal is the pointer code's `editRefused` check, both older than this spec, so their tests were green on the first run. The font-load tests got a mutation red run: without the notice, without moving the pending box and without dropping it on a tool change, 3 of the 5 tests failed.
 - 2026-11-06 (spec-build) — The AC-24 MCP route is the same as any other command from outside the text: the core commits first and the next `syncInfo` reports no live text, so the box closes. The e2e test drives it with the layers panel's Add layer button; there is no MCP client in the browser build.
