@@ -6,7 +6,7 @@
   import SwatchGrid from '../../../../lib/components/color/SwatchGrid.svelte';
   import Panel from '../../../../lib/components/layout/Panel.svelte';
   import { DEFAULT_PALETTE, hexToRgb, toHex, type Rgba8 } from '../../../../lib/color';
-  import { recentColors } from '../../../../lib/colors/recent.svelte';
+  import { colorDraft, recentColors } from '../../../../lib/colors/recent.svelte';
   import { t } from '../../../../lib/i18n/index.svelte';
   import { tool, swapColors, resetColors } from '../../stores/editor.svelte';
 
@@ -33,6 +33,7 @@
       onSwap={swapColors}
       onReset={resetColors}
       recent={recentColors.image}
+      onDraft={(d) => (colorDraft.image = d)}
     />
     <SwatchGrid label={t('color.recent')} colors={recentColors.image} onPick={pick} />
     <SwatchGrid label={t('color.palette')} colors={DEFAULT_PALETTE} onPick={pick} />

@@ -71,12 +71,14 @@
   import PngExportDialog from './components/PngExportDialog.svelte';
   import { loadExportScale } from './export-scale';
   import ResizeDialog from './components/ResizeDialog.svelte';
+  import RotateDialog from './components/RotateDialog.svelte';
+  import { applyRotate, cancelRotate, openRotate, previewRotate } from './rotate-ops';
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
   import { syncRecentMenu } from '../../lib/menu';
   import { listRecents } from '../../lib/idb/recent-files';
   import { hexToRgb, packColor, readColor, toHex, unpackColor } from '../../lib/color';
-  import { loadRecent, recentColors } from '../../lib/colors/recent.svelte';
+  import { colorDraft, loadRecent, recentColors } from '../../lib/colors/recent.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import {
     closeShortcuts,
@@ -405,6 +407,7 @@
       growSelection: (mode) => (dialogs.selectionRadius = mode),
       transformCanvas: (op) => imageAction(`canvas:${op}`),
       transformLayer: (op) => imageAction(`layer:${op}`),
+      rotateLayer: openRotate,
       resizeCanvas: () => imageAction('canvas:resize'),
       scaleImage: () => imageAction('canvas:scale'),
       crop: () => imageAction('canvas:crop'),
@@ -467,6 +470,7 @@
       dialogs.effect ||
       toolState.textAnchor ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -674,6 +678,7 @@
     return Boolean(
       dialogs.effect ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -694,6 +699,7 @@
     const blocked = Boolean(
       dialogs.effect ||
       dialogs.resize ||
+      dialogs.rotate ||
       dialogs.sheet ||
       dialogs.png ||
       dialogs.grid ||
@@ -903,11 +909,13 @@
   });
 
   // Persist the foreground / background colors once the initial load
-  // settled.
+  // settled, and once per picker interaction: a drag's live colors wait
+  // for its end (color-picker spec).
   $effect(() => {
     const fg = toHex({ ...hexToRgb(colors.color), a: colors.alpha }, true);
     const bg = toHex({ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }, true);
-    if (!live.colorPrefLoaded || !idbAvailable) return;
+    const draft = colorDraft.pixel;
+    if (!live.colorPrefLoaded || !idbAvailable || draft) return;
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
     });
@@ -972,6 +980,7 @@
       onSwap={swapColors}
       onReset={resetColors}
       recent={recentColors.pixel}
+      onDraft={(d) => (colorDraft.pixel = d)}
     />
   </Panel>
 {/snippet}
@@ -1634,6 +1643,15 @@
     onExpand={() => answerPaste('expand')}
     onKeep={() => answerPaste('keep')}
     onCancel={() => answerPaste(null)}
+  />
+{/if}
+
+{#if dialogs.rotate && ed.doc}
+  <RotateDialog
+    input={dialogs.rotate}
+    onPreview={previewRotate}
+    onApply={applyRotate}
+    onCancel={cancelRotate}
   />
 {/if}
 

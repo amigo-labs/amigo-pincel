@@ -315,6 +315,10 @@ export const tool = $state({
   textAntiAlias: true,
   /** Text: per-line horizontal alignment. */
   textAlign: 'left' as TextAlign,
+  /** Text: a stroke below the baseline (docs/specs/image-live-text.md AC-10). */
+  textUnderline: false,
+  /** Text: a stroke through the lowercase letters (AC-10). */
+  textStrikethrough: false,
 });
 
 /** Swaps foreground and background colors (spec §4.2, `X`). */

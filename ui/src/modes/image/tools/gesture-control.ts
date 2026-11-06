@@ -13,4 +13,11 @@ export const gestureControl = {
   /** Commits the active document's live object, if any (tab switch, save;
    *  docs/specs/image-live-objects-ui.md AC-09, AC-15). Set by `core/live`. */
   commitLive: (): void => {},
+  /** Undo or Redo is about to run: the live text puts its caret at the end
+   *  and closes an empty box (docs/specs/image-live-text.md AC-01, AC-13).
+   *  Set by `core/live-text`. */
+  historyMoved: (): void => {},
+  /** A commit trigger runs: the live text closes an empty or loading box
+   *  (docs/specs/image-live-text.md AC-01). Set by `core/live-text`. */
+  closeTextBox: (): void => {},
 };

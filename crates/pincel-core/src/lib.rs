@@ -30,12 +30,13 @@ pub use command::{
     DrawRectangle, DrawShape, DrawText, DuplicateLayer, FillRegion, FlattenImage, GradientKind,
     Ink, Interpolation, LayerPlacement, MAX_BRUSH_SIZE, MIN_BRUSH_SIZE, MergeDown, Mirror,
     MoveDirection, MoveLayer, MoveLayerTo, MovePaletteEntry, MoveSelectionContent, Orientation,
-    PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel, ReframeCanvas,
-    RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice, RemoveTag, ReorderLayer,
-    ReplaceCelPixels, ReplacePalette, ScaleImage, SetFrameDuration, SetGrid, SetLayerBlendMode,
-    SetLayerEditable, SetLayerName, SetLayerOpacity, SetLayerVisible, SetPaletteColor, SetPixel,
-    SetSliceKey, SetTagDirection, SetTagName, SetTagRange, SetTilePixel, ShapeKind, ShapeMode,
-    ShapeStyle, TextAlign, TextStyle, TransformCanvas, TransformCel, Wrap,
+    PasteLayer, PastedImage, PatchCel, PencilStroke, PixelBrush, PlaceTile, PutCel,
+    ROTSPRITE_MAX_SIDE, ReframeCanvas, RemoveFrame, RemoveLayer, RemovePaletteEntry, RemoveSlice,
+    RemoveTag, ReorderLayer, ReplaceCelPixels, ReplacePalette, RotateCel, RotateMethod, ScaleImage,
+    SetFrameDuration, SetGrid, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity,
+    SetLayerVisible, SetPaletteColor, SetPixel, SetSliceKey, SetTagDirection, SetTagName,
+    SetTagRange, SetTilePixel, ShapeKind, ShapeMode, ShapeStyle, TextAlign, TextStyle,
+    TransformCanvas, TransformCel, Wrap,
 };
 
 pub use document::{

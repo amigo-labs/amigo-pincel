@@ -11,6 +11,7 @@ import {
   waitForEditor,
 } from './helpers';
 import { effectPanel } from './effect-panel-helpers';
+import { liveInput, textBox, undoButton } from './text-helpers';
 import { dropFiles, tabNames } from './tab-helpers';
 import { closeWindow, destroyed, installTauriMock, launchDesktop } from './tauri-mock';
 
@@ -159,6 +160,87 @@ test('pixel: a right-button filled and outlined shape adds the foreground first 
   expect(await recent(page)).toEqual(['#ff0000', '#0000ff']);
 });
 
+/** Picks the Shapes variant `name` (U selects the Shapes group). */
+async function shapeVariant(page: Page, name: string): Promise<void> {
+  await page.keyboard.press('u');
+  await page
+    .getByRole('radiogroup', { name: 'Shapes variant' })
+    .getByRole('radio', { name, exact: true })
+    .click();
+}
+
+/** A shape drag from (0.2, y) to (0.8, y + 0.2) with `button`. */
+async function shapeDrag(page: Page, canvas: Locator, y: number, button: 'left' | 'right') {
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * y);
+  await page.mouse.down({ button });
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * (y + 0.2), { steps: 4 });
+  await page.mouse.up({ button });
+}
+
+// Every step paints with a fresh foreground / background pair, so a shape
+// that added both colors, or the other one, shows in the row.
+test('image: an outlined shape adds only the foreground, a filled one only the background (AC-24)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  const canvas = imageCanvas(page);
+  const shapeMode = page.getByRole('combobox', { name: 'Mode', exact: true });
+  await setColor(page, 'fg', '#ff0000ff');
+  await setColor(page, 'bg', '#0000ffff');
+  await shapeVariant(page, 'Rectangle');
+  await shapeMode.selectOption('outline');
+  await shapeDrag(page, canvas, 0.1, 'left');
+  expect(await recent(page)).toEqual(['#ff0000']);
+
+  // Commit the live shape, or the next colors and mode would edit it.
+  await page.keyboard.press('Enter');
+  await setColor(page, 'fg', '#00ff00ff');
+  await setColor(page, 'bg', '#ffff00ff');
+  await shapeMode.selectOption('fill');
+  await shapeDrag(page, canvas, 0.5, 'left');
+  expect(await recent(page)).toEqual(['#ffff00', '#ff0000']);
+});
+
+test('pixel: a shape adds the colors its mode and button paint with, a filled tool its own (AC-24)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  const canvas = pixelCanvas(page);
+  const shapeMode = page.getByLabel('Shape mode');
+  const row: string[] = [];
+  /** One shape with a fresh color pair; `adds` is the one it must add. */
+  const step = async (
+    fg: string,
+    bg: string,
+    button: 'left' | 'right',
+    adds: string,
+    y: number,
+  ): Promise<void> => {
+    await setColor(page, 'fg', `${fg}ff`);
+    await setColor(page, 'bg', `${bg}ff`);
+    await shapeDrag(page, canvas, y, button);
+    row.unshift(adds);
+    expect(await recent(page)).toEqual(row);
+  };
+
+  await shapeVariant(page, 'Rectangle');
+  await shapeMode.selectOption('outline');
+  await step('#ff0000', '#0000ff', 'left', '#ff0000', 0.05);
+  // The right button outlines with the background.
+  await step('#00ff00', '#ffff00', 'right', '#ffff00', 0.15);
+  await shapeMode.selectOption('fill');
+  await step('#00ffff', '#ff00ff', 'left', '#ff00ff', 0.25);
+  // The right button fills with the foreground.
+  await step('#880000', '#008800', 'right', '#880000', 0.35);
+  // The filled tools paint with the button's color alone.
+  await shapeVariant(page, 'Filled Rectangle');
+  await step('#000088', '#888800', 'left', '#000088', 0.45);
+  await shapeVariant(page, 'Filled Ellipse');
+  await step('#448844', '#884488', 'left', '#448844', 0.55);
+});
+
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: placed text adds the foreground (AC-24)`, async ({ page }) => {
     await createDocument(page, mode, { width: 48, height: 48 });
@@ -174,8 +256,12 @@ for (const mode of ['pixel', 'image'] as const) {
       await dialog.getByRole('button', { name: 'Place' }).click();
       await expect(dialog).toBeHidden();
     } else {
+      // The live text (image-live-text): type into it, Ctrl+Enter places it.
+      await expect(liveInput(page)).toBeFocused();
       await page.keyboard.type('Hi');
-      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+Enter');
+      await expect(textBox(page)).toHaveCount(0);
+      await expect(undoButton(page)).toBeEnabled();
     }
     await expect.poll(() => recent(page)).toEqual(['#ff0000']);
   });

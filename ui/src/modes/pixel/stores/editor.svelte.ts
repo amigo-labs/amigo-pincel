@@ -20,6 +20,7 @@ import type { CanvasRenderer, RenderBackend } from '../../../lib/render/types';
 import { PinchTracker } from '../../../lib/view/pinch';
 import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
+import type { RotateDialogState } from '../rotate-ops';
 import type { BrushShape } from '../brush';
 import type { Direction, Tool } from '../tools';
 import type { PasteDialogState } from '../clipboard-ops';
@@ -245,6 +246,8 @@ function dialogsInit() {
     editingTile: null as TileRef | null,
     /** Edit ▸ Paste of an image larger than the canvas (spec §5.4). */
     paste: null as PasteDialogState | null,
+    /** Layer ▸ Rotate… is open (rotsprite). */
+    rotate: null as RotateDialogState | null,
   };
 }
 

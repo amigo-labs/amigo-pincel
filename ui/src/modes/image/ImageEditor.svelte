@@ -1,6 +1,11 @@
 <script lang="ts">
   import { hexToRgb, toHex } from '../../lib/color';
-  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
+  import {
+    colorDraft,
+    loadColorPref,
+    loadRecent,
+    saveColorPref,
+  } from '../../lib/colors/recent.svelte';
   import { onMount, untrack } from 'svelte';
   import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
@@ -22,6 +27,7 @@
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import { installLiveSync } from './core/live-sync.svelte';
+  import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
     addGroup,
     addLayer,
@@ -730,12 +736,14 @@
   const BG_PREF = 'lastBgColor:image';
   // The last foreground / background colors and the recent colors, per
   // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
-  // so a slow store cannot overwrite them with the defaults.
+  // so a slow store cannot overwrite them with the defaults, and happens
+  // once per picker interaction: a drag's live colors wait for its end.
   let colorPrefsLoaded = $state(false);
   $effect(() => {
     const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
     const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
-    if (!colorPrefsLoaded) return;
+    const draft = colorDraft.image;
+    if (!colorPrefsLoaded || draft) return;
     saveColorPref(FG_PREF, fg);
     saveColorPref(BG_PREF, bg);
   });
@@ -818,6 +826,8 @@
 
   // Option and color changes reach the live object (AC-06, AC-07).
   installLiveSync();
+  // The live text's box follows the core (docs/specs/image-live-text.md).
+  installLiveText();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).
@@ -852,12 +862,15 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
+    // The live text's field passes on only the chords it does not own
+    // (docs/specs/image-live-text.md AC-23): they run as on the canvas.
+    const inLiveText = e.target instanceof HTMLElement && e.target.dataset.liveText !== undefined;
     if (
       !active ||
       e.defaultPrevented ||
       ui.modalOpen ||
       helpDialogOpen() ||
-      isTypingTarget(e.target)
+      (isTypingTarget(e.target) && !inLiveText)
     ) {
       return;
     }
@@ -884,7 +897,9 @@
     // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && !closeTextBox() && editor.hasSelection) {
+        deselect();
+      }
       return;
     }
     const group = toolGroupForKey(e);

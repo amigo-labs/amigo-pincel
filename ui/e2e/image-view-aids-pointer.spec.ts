@@ -331,6 +331,42 @@ test.describe('touch', () => {
     await cdp.detach();
   });
 
+  test('lifting the first of two contacts hides position and markers (AC-24)', async ({ page }) => {
+    await rulersOn(page);
+    const cdp = await page.context().newCDPSession(page);
+    // Fixed ids per contact. A `touchEnd` that lists points releases just
+    // those; a `touchMove` that omits one does not release it.
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: [Pt, number][]) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: points.map(([[x, y], id]) => ({ x, y, id })),
+      });
+    const a = await at(page, 50.5, 50.5);
+    const b = await at(page, 150.5, 80.5);
+    await send('touchStart', [[a, 1]]);
+    await expectShown(page, '50, 50 px', a[0], a[1]);
+    await send('touchStart', [
+      [a, 1],
+      [b, 2],
+    ]);
+    await expect(pointerStatus(page)).toHaveText('50, 50 px');
+    // A lifts, B stays down: the followed contact is gone.
+    await send('touchEnd', [[a, 1]]);
+    await expectHidden(page);
+    // B does not take over.
+    await send('touchMove', [[[b[0] - 30, b[1]], 2]]);
+    await expectHidden(page);
+    await send('touchEnd', []);
+    await expectHidden(page);
+    // The next touch is followed again.
+    const c = await at(page, 40.5, 30.5);
+    await send('touchStart', [[c, 3]]);
+    await expect(pointerStatus(page)).toHaveText('40, 30 px');
+    await send('touchEnd', []);
+    await expectHidden(page);
+    await cdp.detach();
+  });
+
   test('rulers off: a touch shows the position while down, no marker (AC-10, AC-24)', async ({
     page,
   }) => {

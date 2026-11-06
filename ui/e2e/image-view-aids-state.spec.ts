@@ -389,6 +389,55 @@ test('a malformed pref or a failing store keeps the editor working (AC-20, AC-25
   expect(await checked(page, 'Pixels', 'Units')).toBe(true);
 });
 
+test('a toggle made before the stored state loaded wins and is stored with it (AC-14)', async ({
+  page,
+}) => {
+  // The editor's first read of `imageView` is held back until the test
+  // releases it, then answers with a stored state (grid on, centimeters).
+  await page.addInitScript(() => {
+    const get = IDBObjectStore.prototype.get;
+    let held = false;
+    IDBObjectStore.prototype.get = function (
+      this: IDBObjectStore,
+      query: IDBValidKey | IDBKeyRange,
+    ): IDBRequest {
+      const req = get.call(this, query);
+      if (query !== 'imageView' || held) return req;
+      held = true;
+      const late = {
+        onsuccess: null as ((e: Event) => void) | null,
+        onerror: null as ((e: Event) => void) | null,
+        error: null,
+        result: {
+          key: 'imageView',
+          value: { showRulers: false, showPixelGrid: true, units: 'cm' },
+        },
+      };
+      req.onsuccess = () => {
+        Object.assign(window, { releaseViewPref: () => late.onsuccess?.(new Event('success')) });
+      };
+      return late as unknown as IDBRequest;
+    };
+  });
+  await createDocument(page, 'image', { width: 20, height: 10 });
+  await page.waitForFunction(() => 'releaseViewPref' in window);
+  // Rulers on while the stored state is still on its way.
+  await check(page, 'View', 'Rulers');
+  await expect(page.getByTestId('ruler-h')).toBeVisible();
+  await page.evaluate(() =>
+    (window as unknown as { releaseViewPref: () => void }).releaseViewPref(),
+  );
+
+  // The toggle stays; what it did not touch comes from the store.
+  await expect(page.getByText('0.53 × 0.26 cm · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByTestId('ruler-h')).toBeVisible();
+  expect(await checked(page, 'Pixel Grid')).toBe(true);
+  expect(await checked(page, 'Centimeters', 'Units')).toBe(true);
+  await expect
+    .poll(() => storedPref(page, 'imageView'))
+    .toEqual({ showRulers: true, showPixelGrid: true, units: 'cm' });
+});
+
 test.describe('without IndexedDB', () => {
   test('the defaults apply and the editor works (AC-25)', async ({ page }) => {
     // A stored state the next launch cannot read.
