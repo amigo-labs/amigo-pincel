@@ -6,8 +6,9 @@ mod moves;
 mod paste;
 
 use pincel_core::{
-    AnyCommand, Bus, CelData, CelMap, ColorMode, CopySource, FrameIndex, Layer, LayerId,
-    MoveSelectionContent, PasteLayer, PastedImage, Sprite, copy_pixels, import_png,
+    AnyCommand, Bus, CelData, CelMap, ClearRegion, ColorMode, CopySource, FrameIndex, Layer,
+    LayerId, MoveSelectionContent, PasteLayer, PastedImage, PixelBuffer, Rect, Sprite, copy_pixels,
+    import_png,
 };
 use pincel_image_core::Document;
 use pincel_image_core::codec::{decode, to_bmp_bytes, to_jpeg_bytes, to_png_bytes};
@@ -203,4 +204,51 @@ fn clipboard_tools_naming_a_missing_layer_or_frame_or_a_fractional_offset_fail()
         }
         assert_eq!(s.image(&id).document(), &before, "{tool} {args}");
     }
+}
+
+#[test]
+fn a_refused_cut_fails_with_the_commands_reason_and_writes_nothing() {
+    // An indexed sprite, as `doc.open` reads one: Copy works, but the
+    // Cut's `ClearRegion` refuses an indexed cel (AC-21).
+    let mut s = S::new();
+    let id = s.new_doc(4, 4);
+    {
+        let d = s.ws.get_mut(&id).expect("doc");
+        let mode = ColorMode::Indexed {
+            transparent_index: 0,
+        };
+        d.sprite.color_mode = mode;
+        let mut buf = PixelBuffer::empty(4, 4, mode);
+        buf.data[0] = 1;
+        d.cels
+            .get_mut(LayerId::new(0), FrameIndex::new(0))
+            .expect("cel")
+            .data = CelData::Image(buf);
+    }
+    let copied = s.ok("export.selection", json!({ "path": "copy.png" }));
+    assert_eq!(copied["area"], json!({ "x": 0, "y": 0, "w": 4, "h": 4 }));
+    let refusal = {
+        let (mut sprite, mut cels) = s.state(&id);
+        Bus::new()
+            .execute(
+                ClearRegion::new(LayerId::new(0), FrameIndex::new(0), Rect::new(0, 0, 4, 4)).into(),
+                &mut sprite,
+                &mut cels,
+            )
+            .expect_err("the editor's Cut refuses")
+            .to_string()
+    };
+    let before = s.state(&id);
+    let depth = undo_depth(&mut s);
+    let e = s.err(
+        "export.selection",
+        json!({ "path": "cut.png", "cut": true }),
+    );
+    assert!(e.contains(&refusal), "{e} carries {refusal}");
+    assert_eq!(s.state(&id), before);
+    assert_eq!(undo_depth(&mut s), depth);
+    assert!(
+        !s.host.files.contains_key("cut.png"),
+        "a refused cut writes nothing"
+    );
 }

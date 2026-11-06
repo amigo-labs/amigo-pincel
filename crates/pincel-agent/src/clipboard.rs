@@ -5,8 +5,8 @@
 //! docs/specs/mcp-parity-selection-transform-content.md.
 
 use pincel_core::{
-    ClearRegion, ColorMode, CopySource, Layer, LayerId, MoveSelectionContent, PasteLayer,
-    PastedImage, PutCel, Rect, copy_pixels, encode_png, import_png,
+    AnyCommand, Bus, ClearRegion, ColorMode, CopySource, Layer, LayerId, MoveSelectionContent,
+    PasteLayer, PastedImage, PutCel, Rect, copy_pixels, encode_png, import_png,
 };
 use pincel_image_core::codec::{decode, to_png_bytes};
 use pincel_image_core::command::PasteLayer as ImagePaste;
@@ -332,6 +332,15 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
     } else {
         pixel_copy(ctx, args, merged, cut)?
     };
+    // A cut the core refuses fails before anything is written (AC-21).
+    if let Some(CutTarget::Pixel(layer, frame)) = cut_target {
+        let (_, doc) = ctx.ws.doc(args)?;
+        let (mut sprite, mut cels) = (doc.sprite.clone(), doc.cels.clone());
+        let cmd = pixel_cut(layer, frame, copied.area, doc.sprite.has_selection());
+        Bus::new()
+            .execute(cmd, &mut sprite, &mut cels)
+            .map_err(|e| AgentError::tool(e.to_string()))?;
+    }
     // The file first: a refused write leaves the document unchanged (AC-19).
     ctx.host
         .check_write(&path)
@@ -343,15 +352,8 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         None => false,
         Some(CutTarget::Pixel(layer, frame)) => {
             let (_, doc) = ctx.ws.doc_mut(args)?;
-            let rect = copied.area;
             let masked = doc.sprite.has_selection();
-            doc.commit_if_changed(|| {
-                let mut cmd = ClearRegion::new(layer, frame, rect);
-                if masked {
-                    cmd = cmd.masked();
-                }
-                vec![cmd.into()]
-            })?
+            doc.commit_if_changed(|| vec![pixel_cut(layer, frame, copied.area, masked)])?
         }
         Some(CutTarget::Image(layer)) => {
             let (_, doc) = ctx.ws.image_mut(args)?;
@@ -367,6 +369,18 @@ fn export_selection(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentE
         "cut": cut,
         "changed": changed,
     })))
+}
+
+/// The Pixel editor's Cut of `rect`: `ClearRegion`, masked by the
+/// selection's shape when there is one.
+fn pixel_cut(
+    layer: LayerId,
+    frame: pincel_core::FrameIndex,
+    rect: Rect,
+    masked: bool,
+) -> AnyCommand {
+    let cmd = ClearRegion::new(layer, frame, rect);
+    if masked { cmd.masked() } else { cmd }.into()
 }
 
 /// The layer (and frame) a `cut` clears once the file is written.
