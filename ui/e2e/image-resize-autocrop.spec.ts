@@ -171,6 +171,29 @@ test('an invalid used field blocks Apply and Enter (AC-07)', async ({ page }) =>
   await dialog.getByLabel('Width').fill('12.5');
   await expect(dialog.getByLabel('Width')).toHaveAttribute('aria-invalid', 'true');
   await expect(apply).toBeDisabled();
+  await dialog.getByLabel('Width').fill('20');
+  await expect(apply).toBeEnabled();
+  // The resolution counts in inches (and centimeters): above 10000 or zero
+  // blocks; in pixels it blocks nothing.
+  const resolution = dialog.getByLabel('Resolution');
+  await dialog.getByLabel('Unit').selectOption('in');
+  for (const bad of ['10001', '0']) {
+    await resolution.fill(bad);
+    await expect(resolution).toHaveAttribute('aria-invalid', 'true');
+    await expect(dialog.getByTestId('size-result')).toHaveText('—');
+    await expect(apply).toBeDisabled();
+    await resolution.press('Enter');
+    await expect(dialog).toBeVisible();
+  }
+  // In pixels the zero resolution stays, unmarked, and blocks nothing once
+  // the edges (left in inches by the switch) are whole pixels again.
+  await dialog.getByLabel('Unit').selectOption('px');
+  await dialog.getByLabel('Width').fill('20');
+  await dialog.getByLabel('Height').fill('15');
+  await expect(resolution).toHaveValue('0');
+  await expect(resolution).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.getByTestId('size-result')).toHaveText('20 × 15 px');
+  await expect(apply).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(status(page, 40, 30)).toBeVisible();
 });
