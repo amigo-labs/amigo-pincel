@@ -27,6 +27,7 @@ mod gradient;
 mod grid;
 mod import;
 mod layer_ops;
+mod rotate;
 mod selection_ops;
 mod shapes;
 mod stroke;
