@@ -298,20 +298,34 @@ fn the_nib_angle_reaches_every_image_stroke() {
             assert_eq!(layers(&probe, &pid), want, "{tool} angle {angle:?}");
         }
     }
-    // A round tip ignores the angle.
-    let mut a = S::new();
-    let ia = painted(&mut a);
-    a.ok(
-        "draw.stroke",
-        json!({ "points": [[2, 8], [20, 3]], "angle": 10 }),
-    );
-    let mut b = S::new();
-    let ib = painted(&mut b);
-    b.ok(
-        "draw.stroke",
-        json!({ "points": [[2, 8], [20, 3]], "angle": 170 }),
-    );
-    assert_eq!(layers(&a, &ia)[0].pixels, layers(&b, &ib)[0].pixels);
+    // A round tip ignores the angle: its pixels equal the stroke without
+    // `angle`, for every Image stroke tool and the eraser.
+    for (tool, extra) in [
+        ("draw.stroke", json!({})),
+        (
+            "draw.stroke",
+            json!({ "tool": "eraser", "eraser_mode": "to_transparent" }),
+        ),
+        ("draw.recolor", json!({ "from": "#ff0000" })),
+        ("draw.smudge", json!({})),
+    ] {
+        let run = |angle: Option<f64>| {
+            let mut s = S::new();
+            let id = painted(&mut s);
+            let mut args = json!({ "points": [[2, 8], [20, 3]] });
+            for (k, v) in extra.as_object().expect("obj") {
+                args[k] = v.clone();
+            }
+            if let Some(a) = angle {
+                args["angle"] = json!(a);
+            }
+            s.ok(tool, args);
+            layers(&s, &id)[0].pixels.clone()
+        };
+        let plain = run(None);
+        assert_eq!(run(Some(10.0)), plain, "{tool} {extra} angle 10");
+        assert_eq!(run(Some(170.0)), plain, "{tool} {extra} angle 170");
+    }
 }
 
 #[test]
@@ -334,6 +348,10 @@ fn draw_fill_sample_all_layers_equals_the_editors_bucket() {
         json!({ "x": 6, "y": 6, "color": "#00ff00", "sample": "current_layer" }),
     );
     assert_eq!(layers(&s, &id), want);
+    s.ok("doc.undo", json!({}));
+    // Without `sample` the fill samples the current layer, as before.
+    s.ok("draw.fill", json!({ "x": 6, "y": 6, "color": "#00ff00" }));
+    assert_eq!(layers(&s, &id), want, "no sample");
     s.ok("doc.undo", json!({}));
     // With the lower layer hidden, as the editor's Bucket samples it.
     s.ok("layer.set", json!({ "layer": 0, "visible": false }));
