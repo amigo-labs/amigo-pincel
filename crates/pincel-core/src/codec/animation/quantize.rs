@@ -30,7 +30,9 @@ pub(super) fn median_cut(colors: &HashMap<[u8; 3], u32>, max: usize) -> Vec<[u8;
             break;
         };
         let mut split = boxes.swap_remove(index);
-        split.sort_unstable_by_key(|(c, _)| c[channel]);
+        // Ties on the channel are ordered by the whole colour, so the cut
+        // (and the palette) never depends on the hash map's order.
+        split.sort_unstable_by_key(|&(c, _)| (c[channel], c));
         let total: u64 = split.iter().map(|&(_, n)| u64::from(n)).sum();
         let mut seen = 0u64;
         let mut cut = split.len() / 2;
@@ -127,6 +129,16 @@ mod tests {
         let mut palette = median_cut(&colors, 255);
         palette.sort_unstable();
         assert_eq!(palette, [[0, 0, 255], [1, 2, 3], [200, 0, 0]]);
+    }
+
+    #[test]
+    fn median_cut_same_colors_give_the_same_palette_whatever_the_hash_order() {
+        // Each `HashMap` iterates in its own random order; the palette (and
+        // so the GIF bytes) must not depend on it.
+        let first = median_cut(&gradient(1000), 255);
+        for _ in 0..8 {
+            assert_eq!(median_cut(&gradient(1000), 255), first);
+        }
     }
 
     #[test]
