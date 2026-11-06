@@ -106,7 +106,7 @@ fn draw_stroke_matches_brush_and_eraser() {
     );
     s.ok(
         "draw.stroke",
-        json!({ "points": [[5, 5]], "color": "#000000" }),
+        json!({ "points": [[5, 5]], "color": "#ff0000" }),
     );
     assert_eq!(s.image(&id).bus.history.undo_depth(), depth + 2);
     one_undo_step(
@@ -115,6 +115,49 @@ fn draw_stroke_matches_brush_and_eraser() {
         "draw.stroke",
         json!({ "points": [[3, 3], [9, 3]], "color": "#00ff00" }),
     );
+}
+
+#[test]
+fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
+    // mcp-parity-drawing AC-21, mcp-parity-drawing-image AC-13: a call
+    // that changes no pixel reports `changed: false` and records nothing.
+    let mut s = S::new();
+    let id = s.new_image(16, 16);
+    s.ok(
+        "draw.stroke",
+        json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+    );
+    for (name, args) in [
+        // Erasing where nothing is painted.
+        (
+            "draw.stroke",
+            json!({ "tool": "eraser", "points": [[1, 1], [3, 1]] }),
+        ),
+        // The same opaque dab again.
+        (
+            "draw.stroke",
+            json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 40, "y0": 40, "x1": 50, "y1": 50, "fill": "#ff0000" }),
+        ),
+        ("draw.text", json!({ "text": "A", "x": 500, "y": 500 })),
+        ("draw.text", json!({ "text": "", "x": 2, "y": 2 })),
+        // Smudging an empty area.
+        ("draw.smudge", json!({ "points": [[1, 1], [5, 1]] })),
+    ] {
+        let before = state(&s, &id);
+        let depth = s.image(&id).bus.history.undo_depth();
+        let out = s.ok(name, args.clone());
+        assert_eq!(out["changed"], json!(false), "{name} {args}");
+        assert_eq!(
+            s.image(&id).bus.history.undo_depth(),
+            depth,
+            "{name} {args}"
+        );
+        assert_eq!(state(&s, &id), before, "{name} {args}");
+    }
 }
 
 #[test]

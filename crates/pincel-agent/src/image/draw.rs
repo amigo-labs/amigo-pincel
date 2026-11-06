@@ -8,7 +8,7 @@ use pincel_image_core::command::spec::CommandSpec;
 use pincel_image_core::{DEFAULT_BRUSH_ANGLE, ImageBuffer, masked_region};
 use serde_json::{Map, Value, json};
 
-use super::{ImageDoc, color_arg, core_err};
+use super::{color_arg, core_err};
 use crate::args::Args;
 use crate::pixel::effects::{ADJUSTMENTS, catalog_summary, is_adjustment, wire_params};
 use crate::pixel::{layer_prop, tool_schema};
@@ -105,24 +105,8 @@ fn shared_color(description: &str) -> Value {
     crate::args::color_schema(description)
 }
 
-/// Run `build(doc, layer)`'s command on the target layer as one undo step.
-fn edit(
-    ctx: &mut Ctx<'_>,
-    args: &Args,
-    build: impl FnOnce(&mut ImageDoc, usize) -> Result<CommandSpec, AgentError>,
-) -> Result<ToolOutput, AgentError> {
-    let (id, doc) = ctx.ws.image_mut(args)?;
-    let layer = doc.target(args)?;
-    let spec = build(doc, layer)?;
-    let changed = doc.run(spec)?;
-    Ok(ToolOutput::json(json!({
-        "doc": id,
-        "layer": doc.layer_id(layer),
-        "changed": changed,
-    })))
-}
-
-/// Like [`edit`], but a call that changes no pixel records no undo step:
+/// Run the command `build` makes on the target layer; a call that
+/// changes no pixel records no undo step:
 /// `build` runs twice (a dry run on a copy decides), with the same stroke
 /// id (mcp-parity-drawing-image AC-13).
 fn edit_checked(
@@ -228,12 +212,11 @@ pub(crate) const STROKE: Tool = Tool {
                 "argument `shape`: {s:?} works on Pixel documents only; document `{id}` is an Image document (hard_round, soft_round, flat)"
             )));
         }
-        edit(ctx, args, |doc, layer| {
+        edit_checked(ctx, args, |layer, stroke_id| {
             let points = points_arg(args)?;
             let size = image_ranged(args, "size", 1.0, Some(500.0), BRUSH_SIZE as f64)? as u32;
             let (opacity, hardness) = (percent(args, "opacity"), percent(args, "hardness"));
             let shape = str_or(args, "shape", "hard_round").to_owned();
-            let stroke_id = doc.next_stroke();
             Ok(if args.str("tool") == Some("eraser") {
                 CommandSpec::EraserStroke {
                     layer,
@@ -433,7 +416,7 @@ pub(crate) const SHAPE: Tool = Tool {
         if !ctx.ws.is_image(args)? {
             return crate::pixel::paint::shape(ctx, args);
         }
-        edit(ctx, args, |_, layer| {
+        edit_checked(ctx, args, |layer, _| {
             let kind = args.req_str("shape")?;
             let stroke = args
                 .get("stroke")
@@ -531,7 +514,7 @@ pub(crate) const TEXT: Tool = Tool {
             return crate::pixel::paint::text(ctx, args);
         }
         let size = image_ranged(args, "size", 1.0, Some(999.0), TEXT_SIZE)?;
-        edit(ctx, args, |_, layer| {
+        edit_checked(ctx, args, |layer, _| {
             let color = match args.get("color") {
                 Some(_) => color_arg(args, "color")?,
                 None => [0, 0, 0, 255],
@@ -557,7 +540,7 @@ pub(crate) const TEXT: Tool = Tool {
 
 /// `draw.fill` on an Image document: the editor's Bucket tool.
 pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
-    edit(ctx, args, |_, layer| {
+    edit_checked(ctx, args, |layer, _| {
         let tolerance = args.i64("tolerance").map_or(TOLERANCE, |t| t as u64);
         Ok(CommandSpec::FillBucket {
             layer,
@@ -599,7 +582,7 @@ pub(crate) const GRADIENT: Tool = Tool {
             return crate::pixel::paint::gradient(ctx, args);
         }
         refuse_pixel_args(ctx, args, &["dither"])?;
-        edit(ctx, args, |_, layer| {
+        edit_checked(ctx, args, |layer, _| {
             Ok(CommandSpec::DrawGradient {
                 layer,
                 kind: str_or(args, "kind", "linear").to_owned(),
