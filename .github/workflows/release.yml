@@ -206,18 +206,30 @@ jobs:
           RUNNER_OS_NAME: ${{ runner.os }}
         run: |
           set -euo pipefail
+          # SHA-256 of each pinned archive (matches the release's .sha256
+          # files): this job holds the signing secrets, so nothing unverified
+          # runs in it. A new BINARYEN_VERSION needs new hashes.
           case "$RUNNER_OS_NAME" in
-            Linux) asset=x86_64-linux ;;
-            macOS) asset=arm64-macos ;;
-            Windows) asset=x86_64-windows ;;
+            Linux) asset=x86_64-linux; sha=2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489 ;;
+            macOS) asset=arm64-macos; sha=ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8 ;;
+            Windows) asset=x86_64-windows; sha=17a2cbeac6b5693c5fbafab3838d3c65fd9c1eb38b05f5baec6c657e8c84995b ;;
             *) echo "no binaryen build for $RUNNER_OS_NAME"; exit 1 ;;
           esac
           tmp="$RUNNER_TEMP"
           if command -v cygpath >/dev/null 2>&1; then tmp="$(cygpath -u "$tmp")"; fi
           dir="$tmp/binaryen-$BINARYEN_VERSION"
+          archive="$tmp/binaryen-$BINARYEN_VERSION.tar.gz"
           mkdir -p "$dir"
-          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-$asset.tar.gz" |
-            tar -xzf - -C "$dir" --strip-components=1
+          curl -fsSL -o "$archive" "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-$asset.tar.gz"
+          if command -v sha256sum >/dev/null 2>&1; then
+            actual="$(sha256sum "$archive" | cut -d' ' -f1)"
+          else
+            actual="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+          fi
+          if [ "$actual" != "$sha" ]; then
+            echo "binaryen archive checksum mismatch: $actual"; exit 1
+          fi
+          tar -xzf "$archive" -C "$dir" --strip-components=1
           export PATH="$dir/bin:$PATH"
           wasm-opt --version
           for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
