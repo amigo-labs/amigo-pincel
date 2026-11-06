@@ -19,6 +19,7 @@ import { brightness, canvasOf, centre, fill } from './effect-panel-helpers';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
+const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 const invertPanel = (page: Page) => page.getByRole('dialog', { name: 'Invert Colors' });
 
 async function openInvert(page: Page): Promise<Locator> {
@@ -45,6 +46,18 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(layers.getByRole('listitem')).toHaveCount(2);
     await fill(page, mode);
     const filled = await centre(page, mode);
+    // A layer added and undone: Redo is enabled too.
+    await page.getByRole('button', { name: 'Add layer' }).click();
+    await expect(layers.getByRole('listitem')).toHaveCount(3);
+    await page.keyboard.press('Control+z');
+    await expect(layers.getByRole('listitem')).toHaveCount(2);
+    // The undo may move the active layer: make the filled top layer active.
+    const top = layers.getByRole('listitem').first().locator('button[aria-pressed]:not(.row-icon)');
+    await top.click();
+    await expect(top).toHaveAttribute('aria-pressed', 'true');
+    const redoButton = page.getByRole('button', { name: 'Redo', exact: true });
+    await expect(undoButton(page)).toBeEnabled();
+    await expect(redoButton).toBeEnabled();
     const lower = layers
       .getByRole('listitem')
       .nth(1)
@@ -60,8 +73,21 @@ for (const mode of ['pixel', 'image'] as const) {
       sidebar: page.getByRole('complementary', { name: 'Panels' }),
       status: page.getByRole('contentinfo'),
     };
+    // In the top bar only the Effects and Adjustments menus stay live.
+    const topMenu = (name: string) =>
+      page.getByRole('menubar').getByRole('menuitem', { name, exact: true });
+    const topBar = {
+      file: topMenu('File'),
+      edit: topMenu('Edit'),
+      view: topMenu('View'),
+      undo: undoButton(page),
+      redo: redoButton,
+    };
+    const liveMenus = { effects: topMenu('Effects'), adjustments: topMenu('Adjustments') };
     const lit: Record<string, number> = {};
-    for (const [name, region] of Object.entries(regions)) lit[name] = await brightness(page, region);
+    for (const [name, region] of Object.entries({ ...regions, ...topBar, ...liveMenus })) {
+      lit[name] = await brightness(page, region);
+    }
     // A strip of stage left of the canvas, clear of the panel.
     const area = await page.getByRole('main').boundingBox();
     const canvasBox = await canvasOf(page, mode).boundingBox();
@@ -79,10 +105,35 @@ for (const mode of ['pixel', 'image'] as const) {
     const preview = await centre(page, mode);
 
     // Around the canvas area: dimmed; the canvas area itself is not.
-    for (const [name, region] of Object.entries(regions)) {
+    for (const [name, region] of Object.entries({ ...regions, ...topBar })) {
       expect(await brightness(page, region), name).toBeLessThan((lit[name] ?? 0) * 0.8);
     }
+    for (const [name, trigger] of Object.entries(liveMenus)) {
+      expect(await brightness(page, trigger), name).toBeGreaterThan((lit[name] ?? 0) * 0.9);
+    }
     expect((await page.screenshot({ clip: stageClip })).equals(stage)).toBe(true);
+
+    // The rest of the top bar: no focus, no clicks.
+    for (const control of Object.values(topBar)) {
+      await control.focus();
+      await expect(control).not.toBeFocused();
+    }
+    for (const name of ['File', 'Edit', 'View']) {
+      await topMenu(name).click({ force: true });
+      await expect(page.getByRole('menu', { name, exact: true })).toHaveCount(0);
+    }
+    await topBar.undo.click({ force: true });
+    await topBar.redo.click({ force: true });
+    await expect(layers.getByRole('listitem')).toHaveCount(2);
+    // The Effects and Adjustments menus still open (AC-05); closing them
+    // leaves the effect open.
+    for (const name of ['Effects', 'Adjustments']) {
+      await topMenu(name).click();
+      await expect(page.getByRole('menu', { name, exact: true })).toBeVisible();
+      await topMenu(name).click();
+      await expect(page.getByRole('menu', { name, exact: true })).toHaveCount(0);
+    }
+    await expect(invertPanel(page)).toBeVisible();
 
     // Tool rail, options bar and tab bar take no focus.
     for (const control of [
