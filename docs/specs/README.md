@@ -50,7 +50,6 @@ Owner feedback of 2026-11-05 on the running editor. Touches the options bar and 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | C4 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
-| C5 | [color-picker](color-picker.md) | both | L | — | |
 | C6 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
 
 ### D — Image tools
@@ -141,6 +140,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
+- [color-picker](color-picker.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
