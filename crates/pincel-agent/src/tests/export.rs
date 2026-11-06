@@ -338,8 +338,20 @@ fn doc_open_mode_pixel_opens_a_png_as_the_pixel_editor_does() {
     assert_eq!(d.sprite.palette, pincel_core::Palette::db32());
     assert_eq!(s.cel_rgba(&id, 0, 0), pattern().data().to_vec());
     let e = s.err("doc.save", json!({}));
-    assert!(e.contains("path"), "{e}");
+    assert!(
+        e.contains("pass a `path`") && e.contains("\"shot.aseprite\""),
+        "{e}"
+    );
     assert_eq!(s.host.files["shot.png"], png, "the PNG is never written");
+    // In a subdirectory the suggestion keeps the directory.
+    s.host.files.insert("art/hero.v2.png".into(), png.clone());
+    s.ok(
+        "doc.open",
+        json!({ "path": "art/hero.v2.png", "mode": "pixel" }),
+    );
+    let e = s.err("doc.save", json!({}));
+    assert!(e.contains("\"art/hero.v2.aseprite\""), "{e}");
+    assert_eq!(s.host.files.len(), 2, "nothing is written");
 }
 
 #[test]
