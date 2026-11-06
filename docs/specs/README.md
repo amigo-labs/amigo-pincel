@@ -91,6 +91,7 @@ Independent of every other group.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
+| F0 | [save-original-format](save-original-format.md) | Image | S | — | Revision 2026-11-06: one Save As dialog (format, JPEG quality, flatten checkbox); before image-formats-more, which extends the same format list |
 | F1 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
 | F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
@@ -183,7 +184,6 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [pixel-pressure](pixel-pressure.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
-- [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
