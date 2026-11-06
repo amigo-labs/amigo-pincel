@@ -48,10 +48,12 @@ pnpm build
 # (docs/specs/performance-build-simd.md AC-03).
 cd "$root/ui"
 pnpm wasm:build:release
+# Both modules ship with wasm SIMD (docs/specs/performance-build-simd.md AC-02).
+node "$root/scripts/check-wasm-simd.mjs" ../crates/pincel-wasm/pkg ../crates/pincel-image-wasm/pkg
 if command -v wasm-opt >/dev/null 2>&1; then
   for wasm in ../crates/pincel-wasm/pkg/pincel_wasm_bg.wasm \
     ../crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
-    wasm-opt -O3 -o "$wasm" "$wasm"
+    wasm-opt -O3 --enable-simd -o "$wasm" "$wasm"
   done
 fi
 pnpm install --frozen-lockfile

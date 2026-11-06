@@ -31,7 +31,9 @@
     "eslint.config.js",
     "playwright.config.ts",
     "playwright.perf.config.ts",
+    "playwright.simd.config.ts",
     "e2e/**/*.ts",
-    "e2e-perf/**/*.ts"
+    "e2e-perf/**/*.ts",
+    "e2e-simd/**/*.ts"
   ]
 }
