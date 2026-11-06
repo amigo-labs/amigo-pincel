@@ -40,6 +40,7 @@ use crate::photo::{
 };
 use crate::render::{Clouds, JuliaFractal, MandelbrotFractal, RenderBlend, Turbulence};
 use crate::sharpen::{Sharpen, UnsharpMask};
+use crate::transform::{Quality, RotateZoom};
 use wire::{b, clamped, color, edge, expect_len, f, option, u};
 
 mod wire;
@@ -274,6 +275,11 @@ pub enum EffectSpec {
     /// invert]` (`1..=10`, `1..=100`, wrapped into `0..360`, `1..=5`,
     /// `0` / `1`).
     MandelbrotFractal(MandelbrotFractal),
+    /// `rotate_zoom` (Layer ▸ Rotate / Zoom): `[angle_degrees, pan_x,
+    /// pan_y, zoom, quality]` (`-180..=180`, pans in percent of the canvas
+    /// `-100..=100`, `0.1..=10`, `quality` `0` = nearest, `1` = bilinear,
+    /// `2` = bicubic).
+    RotateZoom(RotateZoom),
 }
 
 /// Wire names accepted by [`EffectSpec::from_params`], in menu order.
@@ -335,6 +341,7 @@ pub const EFFECT_NAMES: &[&str] = &[
     "turbulence",
     "julia_fractal",
     "mandelbrot_fractal",
+    "rotate_zoom",
 ];
 
 impl EffectSpec {
@@ -748,6 +755,11 @@ impl EffectSpec {
                     b(p[4]),
                 ))
             }
+            "rotate_zoom" => {
+                expect_len(name, p, 5)?;
+                let quality = Quality::from_index(option(p[4], 2));
+                Self::RotateZoom(RotateZoom::new(p[0], p[1], p[2], p[3], quality))
+            }
             other => return Err(EffectError::UnknownEffect(other.to_owned())),
         };
         Ok(spec)
@@ -915,6 +927,7 @@ impl EffectSpec {
             Self::Turbulence(e) => e.apply(src),
             Self::JuliaFractal(e) => e.apply(src),
             Self::MandelbrotFractal(e) => e.apply(src),
+            Self::RotateZoom(e) => e.apply(src),
         }
     }
 
@@ -978,6 +991,7 @@ impl EffectSpec {
             Self::Turbulence(_) => "Turbulence",
             Self::JuliaFractal(_) => "Julia Fractal",
             Self::MandelbrotFractal(_) => "Mandelbrot Fractal",
+            Self::RotateZoom(_) => "Rotate / Zoom",
         }
     }
 }

@@ -50,6 +50,7 @@ pub mod object;
 pub mod photo;
 pub mod render;
 pub mod sharpen;
+pub mod transform;
 
 pub use effect::Effect;
 pub use error::EffectError;

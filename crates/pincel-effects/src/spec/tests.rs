@@ -65,6 +65,7 @@ fn from_params_every_name_parses_with_its_documented_arity() {
         ("turbulence", &[200.0, 5.0, 1.0, 255.0, 4294967295.0, 0.0]),
         ("julia_fractal", &[4.0, 1.0, 0.0, 2.0]),
         ("mandelbrot_fractal", &[1.0, 10.0, 0.0, 2.0, 0.0]),
+        ("rotate_zoom", &[30.0, 10.0, -10.0, 1.5, 2.0]),
     ];
     for (name, params) in cases {
         let spec = EffectSpec::from_params(name, params).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -149,4 +150,31 @@ fn radial_blur_center_is_a_fraction_of_the_image() {
     let out = spec.run(&src);
     assert_eq!(px(&out, 4, 4), px(&src, 4, 4), "centre pixel must stay");
     assert_ne!(px(&out, 0, 4), px(&src, 0, 4), "edge pixel must spin");
+}
+
+/// image-transform-handles-rotate-zoom: the wire slots, the clamped ranges,
+/// the quality index and the history name.
+#[test]
+fn from_params_rotate_zoom_reads_angle_pans_zoom_and_quality() {
+    use crate::transform::{Quality, RotateZoom};
+    let spec = EffectSpec::from_params("rotate_zoom", &[90.0, 12.5, -25.0, 2.0, 0.0]).unwrap();
+    assert_eq!(
+        spec,
+        EffectSpec::RotateZoom(RotateZoom::new(90.0, 12.5, -25.0, 2.0, Quality::Nearest))
+    );
+    assert_eq!(spec.label(), "Rotate / Zoom");
+    let wide = EffectSpec::from_params("rotate_zoom", &[999.0, 500.0, -500.0, 0.0, 7.0]).unwrap();
+    assert_eq!(
+        wide,
+        EffectSpec::RotateZoom(RotateZoom::new(180.0, 100.0, -100.0, 0.1, Quality::Bicubic))
+    );
+    let bilinear = EffectSpec::from_params("rotate_zoom", &[0.0, 0.0, 0.0, 1.0, 1.0]).unwrap();
+    assert!(matches!(bilinear, EffectSpec::RotateZoom(r) if r.quality == Quality::Bilinear));
+    assert!(EffectSpec::from_params("rotate_zoom", &[0.0, 0.0, 0.0, 1.0]).is_err());
+    // A quarter turn of the checkerboard about the middle pixel keeps it.
+    let src = checker9();
+    let out = EffectSpec::from_params("rotate_zoom", &[90.0, 0.0, 0.0, 1.0, 0.0])
+        .unwrap()
+        .run(&src);
+    assert_eq!(out, src);
 }
