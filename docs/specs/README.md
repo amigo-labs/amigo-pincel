@@ -41,7 +41,6 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | B3 | [image-live-text](image-live-text.md) | Image | L | image-live-objects | Text stays editable until commit; underline / strikethrough |
 | B4 | [image-shapes-curves](image-shapes-curves.md) | Image | L | image-live-objects | Line / Curve with control points, arrow heads, dash-dot |
 | B5 | [image-shapes-curves-shapes](image-shapes-curves-shapes.md) | Image | L | image-live-objects-ui, image-shapes-curves | Six new shapes: triangle, diamond, star, block arrow, heart, callout |
-| B6 | [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md) | Image | M | — | Layer ▸ Rotate / Zoom as an Image-only effect; builds the resampler |
 | B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
 
 ### C — Editor feedback
@@ -157,6 +156,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
 - [image-resize-autocrop](image-resize-autocrop.md)
+- [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)

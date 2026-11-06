@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: M
 mode: Image
@@ -35,17 +35,17 @@ This spec adds Layer ▸ Rotate / Zoom… with angle, pan, zoom and a resampling
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses Layer ▸ Rotate / Zoom… with a document open, then the effect dialog opens with Angle (−180° to 180°, step 0.1°, default 0°), Pan X / Pan Y (the shift of the layer's center from the canvas center, in percent of the canvas width / height, −100 % to 100 %, step 0.1 %, default 0 %), Zoom (0.1× to 10×, default 1×) and Quality (Nearest / Bilinear / Bicubic, default Bilinear); without a document the item is disabled.
-- [ ] AC-02 (state): While the dialog is open, the canvas shows the active layer rotated, panned and zoomed with the current values, and the document and its undo history are unchanged; Cancel or Escape closes the dialog with no change and no undo step.
-- [ ] AC-03 (event): When the user clicks Apply, then the active layer shows the previewed result, the history gains exactly one step labelled `Rotate / Zoom` (kind `rotate_zoom`), and one Undo restores every pixel of the layer; its visible English / German name in the History panel comes with `history-panel` AC-04.
-- [ ] AC-04 (always): The layer's content turns about the canvas center by the angle, positive clockwise on screen, is scaled by the zoom about that center and then shifted by the pan (Pan X × canvas width / 100 px to the right, Pan Y × canvas height / 100 px down, sub-pixel shifts allowed); the canvas center is the point (width / 2, height / 2) between pixel edges, so on an odd size it is the center of the middle pixel; pixels that land outside the canvas are dropped and canvas pixels no source pixel reaches become transparent.
-- [ ] AC-05 (always): Angle 0°, pan 0 % / 0 % and zoom 1× leave every pixel unchanged, on even and odd canvas sizes alike, with every quality, and Apply with these values adds no undo step.
-- [ ] AC-06 (option): Where the quality is Nearest, every result pixel has a color (alpha included) that occurs in the source layer or is fully transparent, and an angle of 90° on a square canvas equals Layer ▸ Rotate 90° CW pixel for pixel.
-- [ ] AC-07 (state): While a selection exists, only selected pixels change, feathered edges blend the result with the original by their coverage, as every effect does, and pixels outside the selection keep their values; the source of the rotation is the whole layer, not only the selected part.
-- [ ] AC-08 (error): If the active layer is locked (itself or through its group) or is a group, then the item shows the locked-layer notice layer edits show (`layers.locked`) and opens no dialog, and nothing changes.
-- [ ] AC-09 (error): If an angle (−180° to 180°), pan (−100 % to 100 %) or zoom (0.1× to 10×) outside its range is typed, then the value becomes the nearest bound; a non-numeric entry keeps the previous value.
-- [ ] AC-10 (always): The MCP tool `effect.apply` with the Rotate / Zoom effect and the same parameters produces the same pixels as Apply in the editor.
-- [ ] AC-11 (always): Where the quality is Nearest, an angle of 180° equals Image ▸ Rotate 180° pixel for pixel on canvases of odd and even width and height, and a pan of exactly one pixel (100 / width %) at angle 0° and zoom 1× shifts every pixel by one to the right, with the vacated column transparent.
+- [x] AC-01 (event): When the user chooses Layer ▸ Rotate / Zoom… with a document open, then the effect dialog opens with Angle (−180° to 180°, step 0.1°, default 0°), Pan X / Pan Y (the shift of the layer's center from the canvas center, in percent of the canvas width / height, −100 % to 100 %, step 0.1 %, default 0 %), Zoom (0.1× to 10×, default 1×) and Quality (Nearest / Bilinear / Bicubic, default Bilinear); without a document the item is disabled.
+- [x] AC-02 (state): While the dialog is open, the canvas shows the active layer rotated, panned and zoomed with the current values, and the document and its undo history are unchanged; Cancel or Escape closes the dialog with no change and no undo step.
+- [x] AC-03 (event): When the user clicks Apply, then the active layer shows the previewed result, the history gains exactly one step labelled `Rotate / Zoom` (kind `rotate_zoom`), and one Undo restores every pixel of the layer; its visible English / German name in the History panel comes with `history-panel` AC-04.
+- [x] AC-04 (always): The layer's content turns about the canvas center by the angle, positive clockwise on screen, is scaled by the zoom about that center and then shifted by the pan (Pan X × canvas width / 100 px to the right, Pan Y × canvas height / 100 px down, sub-pixel shifts allowed); the canvas center is the point (width / 2, height / 2) between pixel edges, so on an odd size it is the center of the middle pixel; pixels that land outside the canvas are dropped and canvas pixels no source pixel reaches become transparent.
+- [x] AC-05 (always): Angle 0°, pan 0 % / 0 % and zoom 1× leave every pixel unchanged, on even and odd canvas sizes alike, with every quality, and Apply with these values adds no undo step.
+- [x] AC-06 (option): Where the quality is Nearest, every result pixel has a color (alpha included) that occurs in the source layer or is fully transparent, and an angle of 90° on a square canvas equals Layer ▸ Rotate 90° CW pixel for pixel.
+- [x] AC-07 (state): While a selection exists, only selected pixels change, feathered edges blend the result with the original by their coverage, as every effect does, and pixels outside the selection keep their values; the source of the rotation is the whole layer, not only the selected part.
+- [x] AC-08 (error): If the active layer is locked (itself or through its group) or is a group, then the item shows the locked-layer notice layer edits show (`layers.locked`) and opens no dialog, and nothing changes.
+- [x] AC-09 (error): If an angle (−180° to 180°), pan (−100 % to 100 %) or zoom (0.1× to 10×) outside its range is typed, then the value becomes the nearest bound; a non-numeric entry keeps the previous value.
+- [x] AC-10 (always): The MCP tool `effect.apply` with the Rotate / Zoom effect and the same parameters produces the same pixels as Apply in the editor.
+- [x] AC-11 (always): Where the quality is Nearest, an angle of 180° equals Image ▸ Rotate 180° pixel for pixel on canvases of odd and even width and height, and a pan of exactly one pixel (100 / width %) at angle 0° and zoom 1× shifts every pixel by one to the right, with the vacated column transparent.
 
 ## Technical notes
 
@@ -87,17 +87,27 @@ This spec adds Layer ▸ Rotate / Zoom… with angle, pan, zoom and a resampling
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `Layer ▸ Rotate / Zoom… opens the dialog with its controls and defaults (AC-01)`, `without a document the item cannot be chosen (AC-01)`, `German › the item, the dialog and its controls are German (AC-01, AC-03)` — `ui/e2e/image-rotate-zoom.spec.ts`; `rotate_zoom: wire vectors equal the previous catalog's` — `ui/e2e/effect-catalog.spec.ts` | built  |        |
-| AC-02 | `the preview turns the layer; Cancel and Escape leave document and history (AC-02)` — `ui/e2e/image-rotate-zoom.spec.ts` | built  |        |
-| AC-03 | `Apply keeps the preview as one undo step; Nearest 90° equals Rotate 90° CW (AC-03, AC-06)`, `German › …(AC-01, AC-03)` — `ui/e2e/image-rotate-zoom.spec.ts`; `apply_rotate_zoom_is_one_undo_step_that_undo_reverts`, `rotate_zoom_step_is_labelled_rotate_zoom` (the pushed step's label) — `crates/pincel-image-wasm/src/rotate_zoom_tests.rs`; `from_params_rotate_zoom_reads_angle_pans_zoom_and_quality` (history label) — `crates/pincel-effects/src/spec/tests.rs` | built  |        |
-| AC-04 | `rotate_zoom_quarter_turn_is_clockwise_about_the_centre`, `rotate_zoom_arbitrary_angle_turns_clockwise_about_the_centre` (30°, 45°, 7×7 and 8×8), `rotate_zoom_zoom_scales_about_the_canvas_centre`, `rotate_zoom_pan_shifts_after_rotation_and_zoom`, `rotate_zoom_pan_by_a_full_side_empties_the_canvas`, `rotate_zoom_sub_pixel_pan_interpolates_and_reads_transparent_outside`, `rotate_zoom_half_turn_either_way_is_the_same` — `crates/pincel-effects/src/transform/tests.rs` | built  |        |
-| AC-05 | `rotate_zoom_identity_leaves_every_pixel_unchanged`, `resample_identity_map_copies_every_pixel_exactly` — `crates/pincel-effects/src/transform/tests.rs`; `apply_rotate_zoom_identity_adds_no_undo_step`, `apply_rotate_zoom_on_a_transparent_layer_adds_no_undo_step` — `crates/pincel-image-wasm/src/rotate_zoom_tests.rs`; `the identity changes no pixel and adds no undo step (AC-05)` — `ui/e2e/image-rotate-zoom.spec.ts` | built  |        |
-| AC-06 | `rotate_zoom_nearest_keeps_source_colours` — `crates/pincel-effects/src/transform/tests.rs`; `rotate_zoom_nearest_quarter_turn_equals_rotate_layer_90_cw` — `crates/pincel-image-core/tests/rotate_zoom.rs`; `Apply keeps the preview … (AC-03, AC-06)` — `ui/e2e/image-rotate-zoom.spec.ts` | built  |        |
-| AC-07 | `rotate_zoom_in_a_feathered_selection_blends_by_coverage_and_reads_the_whole_layer` — `crates/pincel-image-core/tests/rotate_zoom.rs` | built  |        |
-| AC-08 | `a locked layer or a group refuses with the locked-layer notice (AC-08)` — `ui/e2e/image-rotate-zoom.spec.ts` | built  |        |
-| AC-09 | `typed values outside a range become the nearest bound; text keeps the value (AC-09)` — `ui/e2e/image-rotate-zoom.spec.ts`; `rotate_zoom_new_clamps_and_reads_non_finite_as_zero` — `crates/pincel-effects/src/transform/tests.rs` | built  |        |
-| AC-10 | `effect_apply_rotate_zoom_matches_the_editor` — `crates/pincel-agent/src/tests/rotate_zoom.rs`; `rotate_zoom: wire vectors equal the previous catalog's` (UI wire order) — `ui/e2e/effect-catalog.spec.ts` | built  |        |
-| AC-11 | `rotate_zoom_nearest_half_turn_equals_rotate_canvas_180`, `rotate_zoom_nearest_one_pixel_pan_shifts_every_pixel_right` — `crates/pincel-image-core/tests/rotate_zoom.rs`; `typed values … (AC-09)` (180° equals Image ▸ Rotate 180°) — `ui/e2e/image-rotate-zoom.spec.ts` | built  |        |
+| AC-01 | `Layer ▸ Rotate / Zoom… opens the dialog with its controls and defaults (AC-01)`, `without a document the item cannot be chosen (AC-01)`, `German › the item, the dialog and its controls are German (AC-01, AC-03)` — `ui/e2e/image-rotate-zoom.spec.ts`; `rotate_zoom: wire vectors equal the previous catalog's` — `ui/e2e/effect-catalog.spec.ts` | verified | ea45578d |
+| AC-02 | `the preview turns the layer; Cancel and Escape leave document and history (AC-02)` — `ui/e2e/image-rotate-zoom.spec.ts` | verified | ea45578d |
+| AC-03 | `Apply keeps the preview as one undo step; Nearest 90° equals Rotate 90° CW (AC-03, AC-06)`, `German › …(AC-01, AC-03)` — `ui/e2e/image-rotate-zoom.spec.ts`; `apply_rotate_zoom_is_one_undo_step_that_undo_reverts`, `rotate_zoom_step_is_labelled_rotate_zoom` (the pushed step's label) — `crates/pincel-image-wasm/src/rotate_zoom_tests.rs`; `from_params_rotate_zoom_reads_angle_pans_zoom_and_quality` (history label) — `crates/pincel-effects/src/spec/tests.rs` | verified | f11480f2 |
+| AC-04 | `rotate_zoom_quarter_turn_is_clockwise_about_the_centre`, `rotate_zoom_arbitrary_angle_turns_clockwise_about_the_centre` (30°, 45°, 7×7 and 8×8), `rotate_zoom_zoom_scales_about_the_canvas_centre`, `rotate_zoom_pan_shifts_after_rotation_and_zoom`, `rotate_zoom_pan_by_a_full_side_empties_the_canvas`, `rotate_zoom_sub_pixel_pan_interpolates_and_reads_transparent_outside`, `rotate_zoom_half_turn_either_way_is_the_same` — `crates/pincel-effects/src/transform/tests.rs` | verified | d9c949d0 |
+| AC-05 | `rotate_zoom_identity_leaves_every_pixel_unchanged`, `resample_identity_map_copies_every_pixel_exactly` — `crates/pincel-effects/src/transform/tests.rs`; `apply_rotate_zoom_identity_adds_no_undo_step`, `apply_rotate_zoom_on_a_transparent_layer_adds_no_undo_step` — `crates/pincel-image-wasm/src/rotate_zoom_tests.rs`; `the identity changes no pixel and adds no undo step (AC-05)` — `ui/e2e/image-rotate-zoom.spec.ts` | verified | d9c949d0 |
+| AC-06 | `rotate_zoom_nearest_keeps_source_colours` — `crates/pincel-effects/src/transform/tests.rs`; `rotate_zoom_nearest_quarter_turn_equals_rotate_layer_90_cw` — `crates/pincel-image-core/tests/rotate_zoom.rs`; `Apply keeps the preview … (AC-03, AC-06)` — `ui/e2e/image-rotate-zoom.spec.ts` | verified | d9c949d0 |
+| AC-07 | `rotate_zoom_in_a_feathered_selection_blends_by_coverage_and_reads_the_whole_layer` — `crates/pincel-image-core/tests/rotate_zoom.rs` | verified | 48155c01 |
+| AC-08 | `a locked layer or a group refuses with the locked-layer notice (AC-08)` — `ui/e2e/image-rotate-zoom.spec.ts` | verified | ea45578d |
+| AC-09 | `typed values outside a range become the nearest bound; text keeps the value (AC-09)` — `ui/e2e/image-rotate-zoom.spec.ts`; `rotate_zoom_new_clamps_and_reads_non_finite_as_zero` — `crates/pincel-effects/src/transform/tests.rs` | verified | ea45578d |
+| AC-10 | `effect_apply_rotate_zoom_matches_the_editor` — `crates/pincel-agent/src/tests/rotate_zoom.rs`; `rotate_zoom: wire vectors equal the previous catalog's` (UI wire order) — `ui/e2e/effect-catalog.spec.ts` | verified | 2230ca27 |
+| AC-11 | `rotate_zoom_nearest_half_turn_equals_rotate_canvas_180`, `rotate_zoom_nearest_one_pixel_pan_shifts_every_pixel_right` — `crates/pincel-image-core/tests/rotate_zoom.rs`; `typed values … (AC-09)` (180° equals Image ▸ Rotate 180°) — `ui/e2e/image-rotate-zoom.spec.ts` | verified | 48155c01 |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- `pincel-effects::transform`: an affine resampler (`Affine`, `Quality`, `resample`) for any source and target size, transparent outside the source, with Nearest, Bilinear and Bicubic (Catmull-Rom) taps, ready for `image-transform-handles`
+- `rotate_zoom` effect (`EffectSpec::RotateZoom`, wire `[angle, pan_x, pan_y, zoom, quality]`): turn clockwise about the canvas centre, zoom about it, then pan in percent of the canvas; exact at multiples of 90°
+- Image mode Layer ▸ Rotate / Zoom… through the effect panel: live preview, selection confinement, one undo step labelled "Rotate / Zoom", no step when no pixel changes, the `layers.locked` refusal for locked layers and groups, en + de strings
+- The shared effect panel clamps typed numbers to their range on commit and restores the value on a non-numeric entry
+- MCP `effect.apply` with `rotate_zoom` gives the editor's pixels
 
 ## Decisions
 
