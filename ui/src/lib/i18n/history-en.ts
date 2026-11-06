@@ -94,6 +94,7 @@ export const historyEn = {
   'history.brush': 'Brush',
   'history.recolor': 'Recolor',
   'history.smudge': 'Smudge',
+  'history.clone_stamp': 'Clone Stamp',
   'history.translate_layer': 'Move Layer',
   'history.move_selection_mask': 'Move Selection',
   'history.select': 'Select',

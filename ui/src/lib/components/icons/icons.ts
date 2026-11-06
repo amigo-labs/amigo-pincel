@@ -78,6 +78,12 @@ export const ICONS = {
     { d: 'M17.5 9a3.5 3.5 0 1 1 0 7c-4 0-8.5-1.2-14.5-3.5C9 10.2 13.5 9 17.5 9z', fill: true },
     { d: 'M4 7.5h6M6 18h5' },
   ],
+  // A rubber stamp over its print: the Clone Stamp.
+  'clone-stamp': [
+    { d: 'M10 3h4v6h-4z' },
+    { d: 'M6 9h12v4H6z', fill: true },
+    { d: 'M4 17h16M7 21h10' },
+  ],
   // A box split by a ramp from empty to full: the blend between two colors.
   gradient: [
     { d: 'M3 5h18v14H3z' },

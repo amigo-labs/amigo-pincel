@@ -16,6 +16,7 @@ import {
 } from '../stores/editor.svelte';
 import type { DocumentFile } from './document-file';
 import { gestureControl } from '../tools/gesture-control';
+import { dropCloneSource } from '../tools/clone-source.svelte';
 
 let nextId = 1;
 
@@ -30,6 +31,7 @@ function release(tab: ImageTab): void {
   const at = allocated.indexOf(tab);
   if (at < 0) return;
   allocated.splice(at, 1);
+  dropCloneSource(tab.id);
   if (tab.doc.handle !== null) core.closeDocument(tab.doc.handle);
   tab.doc.handle = null;
 }

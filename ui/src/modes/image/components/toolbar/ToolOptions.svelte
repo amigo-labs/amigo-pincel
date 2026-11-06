@@ -10,6 +10,7 @@
     'eraser',
     'recolor',
     'smudge',
+    'clone',
   ]);
   import {
     deselect,
@@ -20,6 +21,7 @@
   } from '../../core/controller';
   import { t } from '../../../../lib/i18n/index.svelte';
   import { commitText, textBoxOpen } from '../../core/live-text.svelte';
+  import CloneOptions from './CloneOptions.svelte';
 
   // Hardness only matters for soft/flat tips.
   const showHardness = $derived(tool.shape !== 'hard_round');
@@ -112,6 +114,8 @@
         <input type="range" min="1" max="100" bind:value={tool.smudgeStrength} class="w-24" />
         <span class="w-10 tabular-nums text-pc-text">{tool.smudgeStrength}%</span>
       </label>
+    {:else if tool.kind === 'clone'}
+      <CloneOptions />
     {/if}
   {:else if tool.kind === 'fill'}
     <label class="flex items-center gap-2">

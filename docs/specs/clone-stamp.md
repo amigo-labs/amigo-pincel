@@ -118,26 +118,26 @@ Existing parts to reuse (grep for the names, line numbers drift):
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `the Clone Stamp is a rail tool with key C in Image mode only (AC-01)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-02 | `the options bar shares the Brush tip and adds Sample and Set source (AC-02)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-03 | `Ctrl+click sets the source; strokes copy at the fixed offset …` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-04 | `Set source makes the next press set the source and switches off (AC-04)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-05 | `clone_composites_each_source_pixel_through_the_dabs` (crates/pincel-image-core/src/tools/clone_stamp.rs); `Ctrl+click sets the source; strokes copy at the fixed offset …` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-06 | `a_uniform_source_paints_like_the_brush_in_that_color`, `a_hard_full_opacity_tip_copies_the_source_exactly` (crates/pincel-image-core/src/tools/clone_stamp.rs) | built |        |
+| AC-07 | `Ctrl+click sets the source; strokes copy at the fixed offset …` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-08 | `a_stroke_reads_the_source_as_it_was_at_the_press`, `a_split_stroke_matches_the_same_segments_in_one_command`, `a_split_stroke_that_forgets_its_snapshot_differs` (crates/pincel-image-core/src/tools/clone_stamp.rs); `clone_stroke_split_across_commands_equals_one_command`, `clone_stroke_with_a_new_id_reads_the_canvas_afresh` (crates/pincel-image-core/src/command/clone_spec.rs) | built |        |
+| AC-09 | `all_layers_copies_the_visible_composite_into_the_target_layer` (crates/pincel-image-core/src/tools/clone_stamp.rs); `clone_stroke_defaults_to_the_current_layer` (crates/pincel-image-core/src/command/clone_spec.rs); `Sample All Layers copies the visible composite into the active layer (AC-09)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-10 | `the_selection_bounds_the_writes_and_feathers_like_the_brush` (crates/pincel-image-core/src/tools/clone_stamp.rs) | built |        |
+| AC-11 | `a_source_outside_the_canvas_leaves_the_pixel_unchanged`, `transparent_or_identical_sources_change_nothing` (crates/pincel-image-core/src/tools/clone_stamp.rs) | built |        |
+| AC-12 | `clone_stroke_segments_merge_into_one_undo_step` (crates/pincel-image-core/src/command/clone_spec.rs); `clone_is_undoable_byte_for_byte` (crates/pincel-image-core/src/tools/clone_stamp.rs); `Ctrl+click sets the source; strokes copy at the fixed offset …` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-13 | `a stroke without a source paints nothing and says how to set one (AC-13)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-14 | `a locked layer refuses the stroke with the Brush notice; the source can still be set (AC-14)` (ui/e2e/image-clone-stamp.spec.ts); `clone_stroke_on_a_locked_layer_is_refused` (crates/pincel-image-core/src/command/clone_spec.rs) | built |        |
+| AC-15 | `the crosshair marks the source at a constant size, then follows the pointer (AC-15)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-16 | `each tab keeps its own source through tool, layer and tab switches (AC-16)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-17 | `Ctrl+press or Set source beside the canvas changes nothing (AC-17)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-18 | `in German the tool, its options and its notice are translated (AC-18)` (ui/e2e/image-clone-stamp.spec.ts) | built |        |
+| AC-19 | `draw_clone_is_listed_for_image_documents`, `draw_clone_equals_the_editors_clone_stamp`, `draw_clone_samples_the_layer_or_the_visible_composite`, `draw_clone_is_one_undo_step_per_changing_call` (crates/pincel-agent/src/tests/image_clone.rs) | built |        |
+| AC-20 | `draw_clone_refuses_bad_arguments_and_targets` (crates/pincel-agent/src/tests/image_clone.rs) | built |        |
 
 ## Decisions
 
@@ -154,3 +154,12 @@ Existing parts to reuse (grep for the names, line numbers drift):
 - 2026-11-05 (clarification pass): `draw.clone` takes `angle`, `layer` and the no-op rule of `mcp-parity-drawing-image` AC-13, and `source` as two integers — because `mcp-parity-drawing-image` gives every stroke tool `draw.stroke`'s brush arguments and undo rule, and an integer pixel leaves no doubt which pixel is copied.
 - 2026-11-05 (clarification pass): The crosshair's look is a design default in Technical notes, not an AC — because its exact size and colors are visual design, while its presence, position and constant on-screen size (AC-15) are what can be tested.
 - 2026-11-05: `draw.clone`'s `sample` takes `current_layer` / `all_layers` — because the other Image tools that sample (`draw.fill`, `select.wand`) use these values, and the MCP tool parity rule (Decision Log 2026-11-05) gives one capability one name across tools.
+- 2026-11-06 (spec-build): The core takes the offset, not the source point (`clone_stroke.offset`), and the UI fixes it at the first stroke's press — because the offset is the per-tab tool state of AC-07, and `draw.clone` derives the same offset from `source` and the first point.
+- 2026-11-06 (spec-build): A stroke command that changes no pixel returns no command (no undo step) — because AC-19 asks it of `draw.clone`, and an empty step from the editor would be an undo that does nothing.
+- 2026-11-06 (spec-build): The stroke-start snapshot is the whole source image (the layer, or the composite for *All Layers*), taken by the stroke's first command and kept in `StrokeScratch` — because the Smudge / Recolor per-drag memory already lives there and a lazy per-tile snapshot is an optimisation the ACs do not need.
+- 2026-11-06 (spec-build): The source point lives in a per-tab-id map (`ui/src/modes/image/tools/clone-source.svelte.ts`), dropped when the tab's document is released — because it is tool state, not part of `docInit` mirrored from the core.
+- 2026-11-06 (spec-build): The crosshair is an SVG element in the viewport (`CloneCrosshair.svelte`), not drawn on `CanvasOverlay` — because a DOM element keeps its 16 CSS px at every zoom by construction and the e2e test can check its box without screenshots.
+- 2026-11-06 (spec-build): The status notice of AC-13 names the platform key in each language (Ctrl / Strg, ⌘) — because German keyboards label Ctrl "Strg", as the other German hints do.
+- 2026-11-06 (spec-build): `pointer.ts` was over 800 lines before the tool; its drag-geometry helpers moved to `tools/drag-geometry.ts` (separate refactor commit) so the file stays under the limit.
+- 2026-11-06 (spec-build): Closing a tab drops its source (AC-16) by tab id; tab ids never repeat within a page load, so no later document can see it. The e2e test checks the per-tab separation and the source surviving another tab's close; the drop itself is not observable from the UI.
+- 2026-11-06 (spec-build) red runs: core — coverage ignored (src_over at alpha 1) failed AC-05/06/10 tests; snapshot retaken per command failed both split tests; All Layers read as the layer failed the AC-09 test; wrapped source coordinates failed AC-11 tests; always returning a command failed the no-change tests; spec — fresh snapshot per command failed the split test, no snapshot clear on a new stroke id failed the new-id test, no `stroke_id` merge failed the one-step test. Agent — `round` instead of `floor` for the first point, no canvas check on `source`, `sample` ignored each failed its test. UI — offset re-fixed every stroke failed AC-07; Set source not switched off failed AC-04; no notice failed AC-13; source press after the lock check, and the missing-source check before it, each failed AC-14; a crosshair scaled with the zoom and one that ignored the pointer each failed AC-15; one source for all tabs failed AC-16; the source press before the on-canvas check failed AC-17; `sample` not sent failed the AC-09 e2e test; *Sample* bound to the Paint Bucket's failed AC-02; an English German tool name failed AC-18; no `C` key failed AC-01.

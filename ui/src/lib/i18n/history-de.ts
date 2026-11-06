@@ -93,6 +93,7 @@ export const historyDe: Record<keyof typeof historyEn, string> = {
   'history.brush': 'Pinsel',
   'history.recolor': 'Umfärben',
   'history.smudge': 'Wischfinger',
+  'history.clone_stamp': 'Kopierstempel',
   'history.translate_layer': 'Ebene verschieben',
   'history.move_selection_mask': 'Auswahl verschieben',
   'history.select': 'Auswählen',

@@ -118,6 +118,8 @@ const EXPECTED_TOOLS: &[&str] = &[
     "grid.set",
     // image-resize-autocrop
     "image.auto_crop",
+    // clone-stamp
+    "draw.clone",
 ];
 
 /// One valid example call per tool.
@@ -194,6 +196,9 @@ fn example(name: &str) -> Value {
         "tilemap.place" => json!({ "layer": 1, "cells": [{ "col": 0, "row": 1, "tile": 1 }] }),
         "grid.set" => json!({ "x": -4, "y": 0, "width": 8, "height": 16 }),
         "draw.smudge" => json!({ "points": [[1, 2], [3, 4]], "strength": 40, "shape": "flat" }),
+        "draw.clone" => {
+            json!({ "points": [[5, 2], [7, 4]], "source": [1, 2], "sample": "all_layers", "size": 3 })
+        }
         "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
         "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),

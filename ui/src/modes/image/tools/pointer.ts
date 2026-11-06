@@ -27,7 +27,7 @@ import {
   view,
   type ToolKind,
 } from '../stores/editor.svelte';
-import type { PointPair, SelectionMode, ShapeKind } from '../core/wasm';
+import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
 import { cursorOf, dragPoints, hitLive, wholeMove, type LiveHit, type Pt } from './live-handles';
 import { editRefused } from '../core/layer-tree';
@@ -44,9 +44,12 @@ import { gestureControl } from './gesture-control';
 import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
 import { azimuthOf, pressureOf, selectionModeOf, toCanvasPoint, touchHold } from './pointer-input';
+import { constrainShape, rectFromCorners, snappedCorners } from './drag-geometry';
+import { cloneStroke } from '../core/clone-stroke';
+import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
-const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge', 'clone']);
 
 /** The three drag-to-move tools: the layer, the selected pixels, the
  *  outline alone. `move_mask` writes no pixels, so it stays out of
@@ -61,6 +64,7 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'gradient',
   'recolor',
   'smudge',
+  'clone',
   'move',
   'move_selection',
   'text',
@@ -117,59 +121,6 @@ function onControl(e: PointerEvent): boolean {
 }
 
 /**
- * Normalizes two corners into a positive-size rect, each corner snapped to
- * the nearest pixel grid line on its own (rounding the size instead would
- * drop the column under a far edge).
- *
- * Shift is reserved for the selection combine mode (add), so rectangle/ellipse
- * do not also constrain to a square on Shift — that would conflict with the
- * documented modifier mapping (spec §8.2 vs §9.3).
- */
-function rectFromCorners(
-  a: [number, number],
-  b: [number, number],
-): { x: number; y: number; w: number; h: number } {
-  const x0 = Math.round(Math.min(a[0], b[0]));
-  const y0 = Math.round(Math.min(a[1], b[1]));
-  const x1 = Math.round(Math.max(a[0], b[0]));
-  const y1 = Math.round(Math.max(a[1], b[1]));
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-
-/** The rubber band of a rect/ellipse drag: the snapped rect it will commit. */
-function snappedCorners(a: [number, number], b: [number, number]): [number, number][] {
-  const r = rectFromCorners(a, b);
-  return [
-    [r.x, r.y],
-    [r.x + r.w, r.y + r.h],
-  ];
-}
-
-/**
- * Applies the Shapes-tool Shift constraint to the drag endpoint (spec §9.2):
- * a square box for area shapes, a 45°-snapped segment for a line.
- */
-function constrainShape(
-  a: [number, number],
-  p: [number, number],
-  kind: ShapeKind,
-  shift: boolean,
-): [number, number] {
-  if (!shift) {
-    return p;
-  }
-  const dx = p[0] - a[0];
-  const dy = p[1] - a[1];
-  if (kind === 'line') {
-    const angle = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI) / 4;
-    const len = Math.hypot(dx, dy);
-    return [a[0] + Math.cos(angle) * len, a[1] + Math.sin(angle) * len];
-  }
-  const side = Math.max(Math.abs(dx), Math.abs(dy));
-  return [a[0] + Math.sign(dx || 1) * side, a[1] + Math.sign(dy || 1) * side];
-}
-
-/**
  * Attaches the active tool's pointer behavior to a canvas. Returns a teardown.
  * `canvas` covers the document and maps pointer coordinates; `stage`, the
  * viewport around it, takes the events, so a selection gesture can start
@@ -217,6 +168,7 @@ export function attachTools(
       paintStroke(b.points, strokeId, useBackground, b.pressure, b.azimuth);
     else if (gestureKind === 'recolor') recolorStroke(b.points, strokeId, b.pressure, b.azimuth);
     else if (gestureKind === 'smudge') smudgeStroke(b.points, strokeId, b.pressure, b.azimuth);
+    else if (gestureKind === 'clone') cloneStroke(b.points, strokeId, b.pressure, b.azimuth);
     else eraseStroke(b.points, strokeId, b.pressure, b.azimuth);
   }, redraw);
 
@@ -401,6 +353,9 @@ export function attachTools(
     if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
       return;
     }
+    // Ctrl / ⌘ or Set source sets the Clone Stamp's source, even on a
+    // locked layer (docs/specs/clone-stamp.md AC-03, AC-04, AC-14).
+    if (tool.kind === 'clone' && pressCloneSource(e, point)) return;
 
     // Pixel-writing tools refuse a locked layer, a layer in a locked group
     // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
@@ -413,6 +368,7 @@ export function attachTools(
       }
     }
     editor.notice = null;
+    if (tool.kind === 'clone' && !beginCloneStroke(point)) return;
 
     if (tool.kind === 'magic_wand') {
       wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
@@ -514,6 +470,10 @@ export function attachTools(
       case 'smudge':
         // A single dab only picks colour up; the stroke starts on the move.
         smudgeStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        break;
+      case 'clone':
+        cloneStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        brushFrames.present();
         break;
       case 'fill':
         fillAt(point[0], point[1], useBackground);
@@ -775,8 +735,10 @@ export function attachTools(
   gestureControl.cancel = abort;
   gestureControl.cancelLiveDrag = cancelLiveDrag;
   gestureControl.inProgress = () => active;
+  const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 
   return () => {
+    detachCloneHover();
     brushFrames.dispose();
     gestureControl.cancel = () => false;
     gestureControl.cancelLiveDrag = () => false;

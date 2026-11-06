@@ -206,6 +206,7 @@ const TOOL_GROUP_LABEL: Record<string, MessageKey> = {
   eyedropper: 'tool.eyedropper',
   recolor: 'tool.recolor',
   smudge: 'tool.smudge',
+  clone: 'tool.clone',
   line: 'tool.line',
   shapes: 'tool.shapes',
   text: 'tool.text',

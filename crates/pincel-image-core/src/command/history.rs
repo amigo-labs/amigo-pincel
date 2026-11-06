@@ -46,6 +46,8 @@ history_kinds! {
     Recolor => "recolor",
     /// Smudge stroke.
     Smudge => "smudge",
+    /// Clone Stamp stroke.
+    CloneStamp => "clone_stamp",
     /// Paint bucket.
     Fill => "fill",
     /// Gradient tool.

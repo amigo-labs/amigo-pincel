@@ -243,6 +243,28 @@ export interface SmudgeStrokeCommand {
   stroke_id: number;
 }
 
+/** A Clone Stamp stroke: copies the pixels `offset` away through the tip
+ *  (docs/specs/clone-stamp.md). */
+export interface CloneStrokeCommand {
+  type: 'clone_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  /** Source position minus destination position, in whole pixels. */
+  offset: [number, number];
+  sample: SampleSource;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
 /** The five ramps a gradient drag can describe. */
 export type GradientKind =
   'linear' | 'reflected' | 'radial' | 'conical' | 'diamond' | 'spiral_cw' | 'spiral_ccw';
@@ -523,6 +545,7 @@ export type ToolCommand =
   | EraserStrokeCommand
   | RecolorStrokeCommand
   | SmudgeStrokeCommand
+  | CloneStrokeCommand
   | FillBucketCommand
   | TranslateLayerCommand
   | TranslateSelectionCommand

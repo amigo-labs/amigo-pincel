@@ -21,8 +21,9 @@ Shared tools work on both: `doc.*`, `layer.*` (except the two below),
 `frame.*`, `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
 `draw.ellipse`, `draw.clear`, `export.sheet`, `export.apng`,
 `export.gif`. Image-only: `layer.merge_visible`, `layer.merge_group`,
-`select.feather`, `draw.recolor`, `draw.smudge`, `image.auto_crop`,
-`export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`. A tool of the other mode fails and says so,
+`select.feather`, `draw.recolor`, `draw.smudge`, `draw.clone`,
+`image.auto_crop`, `export.jpeg`, `export.webp`, `export.bmp`,
+`export.tiff`. A tool of the other mode fails and says so,
 and so does an argument only the other mode's editor offers.
 
 ## Drawing in each mode
@@ -69,7 +70,7 @@ and so does an argument only the other mode's editor offers.
   selection although the Pixel editor's Bucket does not. In Image
   documents every drawing tool stays inside the selection (`draw.stroke`,
   `draw.shape`, `draw.text`, `draw.fill`, `draw.gradient`, `draw.recolor`,
-  `draw.smudge`) and blends its feathered edges by coverage.
+  `draw.smudge`, `draw.clone`) and blends its feathered edges by coverage.
 - Image documents only: `draw.recolor` (the Recolor tool: `from`, the
   replacement `color`, `tolerance` default 32) and `draw.smudge`
   (`strength` 1–100, default 60) take the brush arguments of
@@ -77,6 +78,14 @@ and so does an argument only the other mode's editor offers.
   (default) or `to_background` with `background` (default `#FFFFFF`);
   Image strokes take the flat-nib `angle` 0–180 (default 45); Image
   `draw.fill` takes `sample` `current_layer` (default) or `all_layers`.
+- `draw.clone` (Image documents, the Clone Stamp): copies the integer pixel
+  `source` (`[x, y]`, inside the canvas) to the pixel under the first of
+  `points`, and every other pixel the brush covers from the same offset,
+  composited by the brush coverage. `sample` `current_layer` (default)
+  copies from the target layer, `all_layers` from the visible composite,
+  both as they were before the call; pixels whose source lies outside the
+  canvas stay. It takes the brush arguments of `draw.stroke` and no
+  `color`.
 - Effect defaults follow the document's mode, as each editor's effect
   dialog does: `pincel://effects` lists `defaults` per mode where they
   differ (e.g. `pixelate` and `drop_shadow`).
