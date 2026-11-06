@@ -253,6 +253,55 @@ test('pixel grid: View ▸ Pixel Grid, drawn from exactly 400 % inside the image
   expectSameShots(await besideImage(page, cell), besideHighOn);
 });
 
+test('pixel grid: its backing store follows a device-pixel-ratio change without a resize (AC-09)', async ({
+  page,
+}) => {
+  // CDP's ratio emulation fires no media-query `change` event, which a real
+  // move between monitors does: keep every query list the page creates and
+  // fire `change` on those that stopped matching, as the browser would.
+  // Only resolution queries: other lists see no change.
+  await page.addInitScript(() => {
+    const lists: MediaQueryList[] = [];
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = (query: string): MediaQueryList => {
+      const list = original(query);
+      if (query.includes('resolution')) lists.push(list);
+      return list;
+    };
+    Object.assign(window, {
+      ratioChanged: (): void => {
+        for (const l of lists.splice(0)) {
+          if (!l.matches) l.dispatchEvent(new Event('change'));
+        }
+      },
+    });
+  });
+  await createDocument(page, 'image', { width: 40, height: 30 });
+  await page.keyboard.press('ControlOrMeta+Shift+Quote');
+  await zoomTo(page, 400);
+  const grid = page.getByTestId('pixel-grid');
+  /** Device pixels per CSS pixel the grid canvas is backed by. */
+  const backing = (): Promise<number> =>
+    grid.evaluate((c: HTMLCanvasElement) => c.width / c.clientWidth);
+  await expect.poll(backing).toBeCloseTo(1, 2);
+  // A move to a monitor with another ratio: same CSS size, new ratio.
+  const vp = page.viewportSize();
+  if (!vp) throw new Error('no viewport');
+  const cdp = await page.context().newCDPSession(page);
+  for (const ratio of [2, 1.5, 1]) {
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: vp.width,
+      height: vp.height,
+      deviceScaleFactor: ratio,
+      mobile: false,
+    });
+    await expect.poll(() => page.evaluate(() => window.devicePixelRatio)).toBe(ratio);
+    await page.evaluate(() => (window as unknown as { ratioChanged: () => void }).ratioChanged());
+    await expect.poll(backing).toBeCloseTo(ratio, 2);
+  }
+  await cdp.detach();
+});
+
 test('units switch the rulers and the status bar, in either language (AC-11, AC-12)', async ({
   page,
 }) => {
