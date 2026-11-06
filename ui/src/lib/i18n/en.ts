@@ -698,7 +698,10 @@ export const en = {
   'opt.left': 'Left',
   'opt.center': 'Center',
   'opt.right': 'Right',
-  'opt.textHint': 'Click to place · Esc or Ctrl+Enter to commit',
+  'opt.textHint': 'Click to place · Ctrl+Enter to finish · Esc to cancel',
+  'opt.underline': 'Underline',
+  'opt.strikethrough': 'Strikethrough',
+  'opt.finish': 'Finish',
   'opt.expand': 'Expand',
   'opt.invert': 'Invert',
   'opt.contract': 'Contract',
@@ -990,6 +993,8 @@ export const en = {
   'resize.resampling': 'Resampling',
   'resize.nearestShort': 'Nearest',
   'img.empty': 'Open an image or create a new document to start.',
+  'img.liveText': 'Live text',
+  'img.fontFailed': 'The text font could not be loaded',
 
   // Panels
   'panel.colors': 'Colors',

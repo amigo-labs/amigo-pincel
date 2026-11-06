@@ -128,27 +128,27 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
+| AC-01 | `ui/e2e/image-live-text.spec.ts` `a Text press opens an empty box; the first character begins the text` | built |        |
+| AC-02 | `ui/e2e/image-live-text.spec.ts` `typing draws the text into the layer as the commit leaves it` | built |        |
+| AC-03 | `ui/e2e/image-live-text.spec.ts` `typing draws the text into the layer as the commit leaves it`, `a typing burst is one step; a caret jump starts the next`, `Enter breaks the line; the box keeps its top-left and fits the lines` | built |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-09 | `ui/e2e/image-live-text.spec.ts` `Enter breaks the line; the box keeps its top-left and fits the lines`, `left-aligned lines line up inside the box`, `center-aligned lines line up inside the box`, `right-aligned lines line up inside the box` | built |        |
 | AC-10 | `crates/pincel-image-core/src/tools/text.rs` `underline_runs_below_the_baseline_to_the_last_ink`, `strikethrough_crosses_the_lowercase_letters`, `a_whitespace_only_text_gets_no_decoration`, `decorations_combine_with_bold_italic_and_alignment` | built |        |
-| AC-11 |      | open   |        |
+| AC-11 | `ui/e2e/image-live-text.spec.ts` `Ctrl+Enter, Finish, another tool and a press outside commit the text`, `a document command or an active-layer change commits the text first`; save, export, copy, tab switch and close commit through the shared live-object hooks (`ui/e2e/image-live-commit.spec.ts`) | built |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-15 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
+| AC-16 | `ui/e2e/image-live-text.spec.ts` `a text of only whitespace or wholly off the canvas leaves no step` | built |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 | AC-20 | `crates/pincel-agent/src/tests/image_draw.rs` `draw_text_underline_and_strikethrough_match_the_text_tool`; `crates/pincel-image-core/tests/live_text.rs` `begin_live_text_draws_draw_text_at_the_box_anchor` | built |        |
-| AC-21 |      | open   |        |
+| AC-21 | `ui/e2e/image-live-text.spec.ts` `Escape cancels the live text and keeps the step before it` | built |        |
 | AC-22 | `crates/pincel-image-core/src/tools/text.rs` `layout_carets_split_a_line_without_changing_its_pixels`, `layout_reports_aligned_lines_inside_one_box`; `crates/pincel-image-core/tests/live_text.rs` `text_layout_query_matches_the_drawn_box` | built |        |
 | AC-23 |      | open   |        |
 | AC-24 |      | open   |        |
@@ -172,3 +172,9 @@ This spec turns the text entry into a **live text**, a live object in the sense 
 - 2026-11-06 (spec-build) — Core and wire API (new public items): `TextStyle::{underline, strikethrough}`, `Text::layout_lines` → `TextLayout` / `LineLayout` (line top, baseline, left, width, caret x per boundary, ink end), `command::text_box`, `LiveText` / `LiveFont` (a live object kind; fonts compare by id), `LiveEdit` text fields, `CommandSpec::BeginLiveText` and the text fields of `edit_live`, `LiveObjectSpec::Text`, `live_spec::{TextLayoutRequest, text_layout}`, and `pincel-image-wasm` `text_layout(font_id, request)`, with generated `TextLayout.ts` / `LineLayout.ts` / `TextLayoutRequest.ts`.
 - 2026-11-06 (spec-build) — The live text's points are its box top-left twice, so the generic reach check (image-live-objects AC-10) and a `points` edit (the move handle) work unchanged; an empty text is degenerate (nothing begun), an emptied one stays live (image-live-objects AC-16).
 - 2026-11-06 (spec-build) — Red runs: the text-style and layout tests failed to compile without `underline` / `strikethrough` / `layout_lines` (7 errors); `tests/live_text.rs` failed to compile without the text kind (6 errors); the agent test failed to compile until `draw.text` forwarded the two new fields.
+- 2026-11-06 (spec-build) — The box's top-left is the pressed document pixel (the press point floored), so the text sits on the pixel grid and a handle drag (whole pixels, AC-07) keeps it there.
+- 2026-11-06 (spec-build) — Keyboard input goes to a hidden, focused `<textarea>` (`data-live-text`, labelled "Live text") that is emptied after every input event: typed and IME-composed characters arrive as input, the text itself lives in the core. Its keydown handler owns the text keys of AC-23 and stops them; chords it does not own bubble to the editor's shortcut handler, which no longer ignores this one field.
+- 2026-11-06 (spec-build) — Ctrl+C / Ctrl+X in the text write the selected characters with `navigator.clipboard.writeText` from the keydown (user activation, as the canvas copy does); Ctrl+V lets the browser's `paste` event bring the clipboard's `text/plain`.
+- 2026-11-06 (spec-build) — The first character's begin step stays its own step and the characters typed after it form the burst step (AC-01 makes the begin one undo step); a burst's gesture ids start at 2^30, clear of the pointer code's stroke and drag ids.
+- 2026-11-06 (spec-build) — Focus returns to the live text after an option change once no pointer is down and no other text field (hex field, rename field) holds the focus, so a slider drag or a hex entry is not interrupted; a select or checkbox gives the focus back at once.
+- 2026-11-06 (spec-build) — Red run (block 1, `ui/e2e/image-live-text.spec.ts`): all 12 tests failed against the textarea entry ("element(s) not found" for the live text field and box).

@@ -25,7 +25,6 @@ import {
   type Rgba,
   type DrawShapeCommand,
   type ShapeKind,
-  type DrawTextCommand,
   type Vectorizer,
 } from './wasm';
 import type { SvgTrace } from '../../../lib/components/SvgExportDialog.svelte';
@@ -518,15 +517,17 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
 }
 
 // The default font is fetched once and registered with the core (ADR-012,
-// Option B). `draw_text` references it by id. The promise is cached so
-// concurrent text commits await a single load/registration.
+// Option B). Live text and `draw_text` reference it by id. The promise is
+// cached so concurrent presses await a single load/registration.
 let fontLoad: Promise<number> | null = null;
+let fontId: number | null = null;
 
 /** Loads and registers the bundled default font, returning its core id.
  *
- * The successful promise is cached so repeat commits reuse one registration; a
- * failed load resets the cache so a later attempt can retry (offline/404). */
-async function ensureFont(): Promise<number> {
+ * The successful promise is cached so repeat presses reuse one registration;
+ * a failed load resets the cache so the next press retries (offline/404,
+ * docs/specs/image-live-text.md AC-19). */
+export async function ensureFont(): Promise<number> {
   if (!fontLoad) {
     fontLoad = (async () => {
       await initCore();
@@ -535,50 +536,25 @@ async function ensureFont(): Promise<number> {
         throw new Error(`font fetch failed: ${res.status}`);
       }
       const bytes = new Uint8Array(await res.arrayBuffer());
-      return core.registerFont(bytes);
-    })().catch((err) => {
-      fontLoad = null; // allow a later commit to retry
+      fontId = core.registerFont(bytes);
+      return fontId;
+    })().catch((err: unknown) => {
+      fontLoad = null; // allow a later press to retry
       throw err;
     });
   }
   return fontLoad;
 }
 
-/** Rasterizes `text` at a canvas-space point with the active text style.
- *
- * Empty/whitespace text is a no-op. The font is loaded lazily on first use; if
- * it cannot be loaded the commit is silently skipped rather than rejecting. */
-export async function renderText(x: number, y: number, text: string): Promise<void> {
-  if (editor.handle === null || text.trim().length === 0) {
-    return;
-  }
-  let fontId: number;
-  try {
-    fontId = await ensureFont();
-  } catch {
-    return; // font unavailable — skip the commit
-  }
-  if (editor.handle === null) {
-    return; // document closed while the font was loading
-  }
-  const cmd: DrawTextCommand = {
-    type: 'draw_text',
-    layer: editor.activeLayer,
-    font_id: fontId,
-    text,
-    x,
-    y,
-    size: tool.fontSize,
-    color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
-    bold: tool.textBold,
-    italic: tool.textItalic,
-    anti_alias: tool.textAntiAlias,
-    align: tool.textAlign,
-  };
-  const before = editor.undoDepth;
-  core.applyCommand(editor.handle, cmd);
-  syncInfo();
-  notePainted(before, [usedColor(false)]);
+/** The registered font's id once `ensureFont` has loaded it, else `null`. */
+export function loadedFontId(): number | null {
+  return fontId;
+}
+
+/** The foreground color as RGBA bytes, recorded as painted with when the
+ *  document gained a step since `depthBefore` (color-picker AC-24). */
+export function noteTextPainted(depthBefore: number): void {
+  notePainted(depthBefore, [usedColor(false)]);
 }
 
 /** Marks the document as having unsaved changes (e.g. after recovering an
@@ -923,6 +899,7 @@ export function readComposite(): Uint8ClampedArray<ArrayBuffer> | null {
  *  that drag (docs/specs/image-live-objects-ui.md AC-11). */
 export function undo(): void {
   if (gestureControl.cancelLiveDrag()) return;
+  gestureControl.historyMoved();
   if (editor.handle !== null && core.undo(editor.handle)) {
     syncInfo();
   }
@@ -930,6 +907,7 @@ export function undo(): void {
 
 /** Redoes the last undone command. */
 export function redo(): void {
+  gestureControl.historyMoved();
   if (editor.handle !== null && core.redo(editor.handle)) {
     syncInfo();
   }

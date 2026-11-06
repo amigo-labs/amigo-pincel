@@ -8,6 +8,7 @@ import {
   colorWithOpacity,
   gradientColors,
   notePainted,
+  noteTextPainted,
   opacity01,
   shapeColors,
   syncInfo,
@@ -71,6 +72,31 @@ export function beginGradient(a: [number, number], b: [number, number]): void {
     opacity: opacity01(),
   });
   notePainted(before, gradientColors());
+}
+
+/** Begins a live text `text` whose box has its top-left at `at`, with the
+ *  Text tool's options and the foreground color (docs/specs/image-live-text.md
+ *  AC-01). `true` when a live text began. */
+export function beginText(at: [number, number], text: string, fontId: number): boolean {
+  const before = editor.undoDepth;
+  const ok = send({
+    type: 'begin_live_text',
+    layer: editor.activeLayer,
+    font_id: fontId,
+    text,
+    x: at[0],
+    y: at[1],
+    size: tool.fontSize,
+    color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
+    bold: tool.textBold,
+    italic: tool.textItalic,
+    anti_alias: tool.textAntiAlias,
+    align: tool.textAlign,
+    underline: tool.textUnderline,
+    strikethrough: tool.textStrikethrough,
+  });
+  noteTextPainted(before);
+  return ok && live.object?.type === 'text';
 }
 
 /** Edits the live object; `false` when the core refused (AC-19). */

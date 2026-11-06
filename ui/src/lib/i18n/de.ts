@@ -702,7 +702,10 @@ export const de: Record<MessageKey, string> = {
   'opt.left': 'Links',
   'opt.center': 'Zentriert',
   'opt.right': 'Rechts',
-  'opt.textHint': 'Klicken zum Platzieren · Esc oder Strg+Enter übernimmt',
+  'opt.textHint': 'Klicken zum Platzieren · Strg+Enter übernimmt · Esc verwirft',
+  'opt.underline': 'Unterstrichen',
+  'opt.strikethrough': 'Durchgestrichen',
+  'opt.finish': 'Fertig',
   'opt.expand': 'Erweitern',
   'opt.invert': 'Umkehren',
   'opt.contract': 'Verkleinern',
@@ -998,6 +1001,8 @@ export const de: Record<MessageKey, string> = {
   'resize.resampling': 'Neuberechnung',
   'resize.nearestShort': 'Nächster Nachbar',
   'img.empty': 'Öffne ein Bild oder lege ein neues Dokument an.',
+  'img.liveText': 'Live-Text',
+  'img.fontFailed': 'Die Schrift für Text konnte nicht geladen werden',
 
   // Panels
   'panel.colors': 'Farben',

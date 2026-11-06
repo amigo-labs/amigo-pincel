@@ -8,6 +8,7 @@ import { live, tool } from '../stores/editor.svelte';
 import type { LiveObjectSpec } from './wasm';
 import { activeColor, colorWithOpacity, opacity01 } from './controller';
 import { editLive } from './live';
+import { endBurst, requestTextFocus } from './live-text.svelte';
 
 /** Runs `apply` with the live object whenever `read` changes value. */
 function onChange<T>(read: () => T, apply: (obj: LiveObjectSpec, value: T) => void): void {
@@ -58,5 +59,24 @@ export function installLiveSync(): void {
         editLive({ from: activeColor(false), to: activeColor(true) });
       }
     },
+  );
+  // The live text: each option is one group; the edit ends a typing burst
+  // and focus goes back to the text (docs/specs/image-live-text.md AC-08).
+  const text = (obj: LiveObjectSpec, fields: Parameters<typeof editLive>[0]) => {
+    if (obj.type !== 'text') return;
+    endBurst();
+    editLive(fields);
+    requestTextFocus();
+  };
+  onChange(() => tool.fontSize, (obj, size) => text(obj, { size }));
+  onChange(() => tool.textBold, (obj, bold) => text(obj, { bold }));
+  onChange(() => tool.textItalic, (obj, italic) => text(obj, { italic }));
+  onChange(() => tool.textUnderline, (obj, underline) => text(obj, { underline }));
+  onChange(() => tool.textStrikethrough, (obj, strikethrough) => text(obj, { strikethrough }));
+  onChange(() => tool.textAlign, (obj, align) => text(obj, { align }));
+  onChange(() => tool.textAntiAlias, (obj, aa) => text(obj, { anti_alias: aa }));
+  onChange(
+    () => `${tool.foreground}|${tool.foregroundAlpha}`,
+    (obj) => text(obj, { color: colorWithOpacity(tool.foreground, tool.foregroundAlpha) }),
   );
 }
