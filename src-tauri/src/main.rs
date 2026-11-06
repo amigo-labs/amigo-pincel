@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 #[cfg(target_os = "linux")]
 mod linux_install;
+mod open_files;
 mod updater;
 mod webview_data;
 
@@ -484,7 +485,7 @@ fn main() {
                 let _ = window.set_focus();
             }
             if let Some(path) = first_file_arg(&argv) {
-                let _ = app.emit("open-file", path);
+                open_files::deliver(app, path);
             }
         }))
         // After single-instance, so a second launch exits before it runs.
@@ -493,18 +494,21 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::UpdaterState::default())
+        .manage(open_files::OpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             write_file_bytes,
             set_recent_menu,
             set_menu_language,
             set_menu_accelerators,
+            open_files::take_open_files,
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_auto
         ])
-        .on_page_load(|webview, payload| {
-            if payload.event() == PageLoadEvent::Finished {
+        .on_page_load(|webview, payload| match payload.event() {
+            PageLoadEvent::Started => open_files::reset(webview.app_handle()),
+            PageLoadEvent::Finished => {
                 let _ = webview.window().show();
             }
         })
@@ -521,17 +525,11 @@ fn main() {
                 show_main_window(&deadline);
             });
             // First-launch CLI arg (file-association on Windows /
-            // Linux, also macOS when launched from a shell).
+            // Linux, also macOS when launched from a shell). The page is
+            // not loaded yet: the path waits until the renderer asks.
             let argv: Vec<String> = std::env::args().collect();
             if let Some(path) = first_file_arg(&argv) {
-                let app_handle = app.handle().clone();
-                // Defer until the renderer is listening. A short
-                // setTimeout-equivalent on the Rust side: spawn a task
-                // that waits for the webview to fire `tauri://load`
-                // before we emit. For simplicity we emit immediately
-                // and rely on the renderer's `listen` arming before
-                // first paint.
-                let _ = app_handle.emit("open-file", path);
+                open_files::deliver(handle, path);
             }
             Ok(())
         })
@@ -564,7 +562,7 @@ fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
         for url in urls {
             if let Ok(path) = url.to_file_path() {
                 if let Some(s) = path.to_str() {
-                    let _ = app.emit("open-file", s.to_string());
+                    open_files::deliver(app, s.to_string());
                 }
             }
         }

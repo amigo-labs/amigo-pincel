@@ -78,6 +78,7 @@
     pickAndOpen,
     sameFile,
     sniffFormat,
+    takeLaunchFiles,
     type OpenedFile,
   } from './lib/fs';
   import type { AutosaveSnapshotMeta } from './lib/idb/autosave';
@@ -614,8 +615,30 @@
     void loadDropChoice();
     const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
-    void loadAutoNew()
-      .then((params) => {
+    let unlistenOpenFile: UnlistenFn | null = null;
+    // Files the OS hands over: each as an `open-file` event once the
+    // listener is armed; those from before (a cold start by double-click)
+    // wait on the Rust side until asked for (desktop-app AC-04).
+    const launchOpened: Promise<void> = tauriHost
+      ? listen<string>('open-file', (e) => {
+          if (typeof e.payload === 'string') openByPath(e.payload);
+        })
+          .then((fn) => {
+            if (cancelled) {
+              fn();
+              return;
+            }
+            unlistenOpenFile = fn;
+            return takeLaunchFiles().then((paths) => {
+              if (!cancelled) for (const path of paths) openByPath(path);
+            });
+          })
+          .catch((err: unknown) => {
+            console.error('open-file listen failed', err);
+          })
+      : Promise.resolve();
+    void Promise.all([loadAutoNew(), launchOpened])
+      .then(([params]) => {
         // An OS-handed file that arrived meanwhile wins over the empty document.
         if (!cancelled && params && session.tabs.length === 0 && editors.pending === 0) {
           createNew(params);
@@ -623,7 +646,6 @@
       })
       .finally(() => (booting = false));
     let unlistenMenu: UnlistenFn | null = null;
-    let unlistenOpenFile: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
     if (tauriHost) {
@@ -676,18 +698,6 @@
         })
         .catch((err: unknown) => {
           console.error('wireNativeMenu failed', err);
-        });
-      listen<string>('open-file', (e) => {
-        if (typeof e.payload === 'string') {
-          openByPath(e.payload);
-        }
-      })
-        .then((fn) => {
-          if (cancelled) fn();
-          else unlistenOpenFile = fn;
-        })
-        .catch((err: unknown) => {
-          console.error('open-file listen failed', err);
         });
       // First-launch file-association advisory. Best-effort: a missing
       // IDB or a getPref failure silently skips the dialog.
