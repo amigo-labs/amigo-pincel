@@ -51,7 +51,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | Scenario | Budget | Today | Owning spec |
 | -------- | ------ | ----- | ----------- |
-| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom | ≤ 16 ms (60 fps) | far over | `performance-image-cache` |
+| Brush dab → pixels on screen, Image, 3840×2160, 10 layers, any zoom (since 2026-11-06: pointer event received → draw call, pincel.md §4.5) | ≤ 16 ms (60 fps) | far over | `performance-image-cache` |
 | Pan / zoom, Image 4K 10 layers | 60 fps, no recompose while panning | to measure | `performance-image-cache` |
 | Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | ≈ 4 s native, extrapolated | `performance-image-kernel` (≥ 10×), `performance-build-simd` |
 | Pixel: pencil drag on 256×256 at zoom 32 | 60 fps (M12 target), dab latency ≤ 8 ms | per-pixel wasm calls | `performance-input-path` |
