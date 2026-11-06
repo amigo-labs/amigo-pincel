@@ -121,6 +121,28 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: placed text adds the foreground (AC-24)`, async ({ page }) => {
+    await createDocument(page, mode, { width: 48, height: 48 });
+    await setColor(page, 'fg', '#ff0000ff');
+    await setColor(page, 'bg', '#0000ffff');
+    await page.keyboard.press('t');
+    const box = await canvasOf(page, mode).boundingBox();
+    if (!box) throw new Error('canvas is not visible');
+    await page.mouse.click(box.x + box.width * 0.1, box.y + box.height * 0.2);
+    if (mode === 'pixel') {
+      const dialog = page.getByRole('dialog', { name: 'Text' });
+      await dialog.getByLabel('Text content').fill('Hi');
+      await dialog.getByRole('button', { name: 'Place' }).click();
+      await expect(dialog).toBeHidden();
+    } else {
+      await page.keyboard.type('Hi');
+      await page.keyboard.press('Escape');
+    }
+    await expect.poll(() => recent(page)).toEqual(['#ff0000']);
+  });
+}
+
 test('image: a live line adds the foreground, a live gradient both its colors (AC-24)', async ({
   page,
 }) => {
