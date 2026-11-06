@@ -720,11 +720,13 @@ export function attachTools(
   stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
   gestureControl.cancelLiveDrag = cancelLiveDrag;
+  gestureControl.inProgress = () => active;
 
   return () => {
     brushFrames.dispose();
     gestureControl.cancel = () => false;
     gestureControl.cancelLiveDrag = () => false;
+    gestureControl.inProgress = () => false;
     endLiveDrag();
     stage.removeEventListener('pointerdown', onDown);
     stage.removeEventListener('pointermove', onMove);

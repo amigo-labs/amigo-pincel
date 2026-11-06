@@ -54,6 +54,7 @@
     markUnsaved,
     undo,
     redo,
+    jumpHistory,
     selectAll,
     deselect,
     deleteSelection,
@@ -105,6 +106,7 @@
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
+  import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
@@ -723,6 +725,7 @@
       format: parseDocFormat(meta.format) ?? docFormat(formatFromName(meta.name)) ?? 'ora',
     });
     markUnsaved();
+    tab.doc.origin = 'recovered';
     attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
@@ -1479,6 +1482,14 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
+{#snippet historyBody()}
+  <HistoryPanel
+    history={editor.history}
+    origin={editor.origin}
+    busy={() => gestureControl.inProgress()}
+    onJump={jumpHistory}
+  />
+{/snippet}
 
 <EditorFrame
   mode="image"
@@ -1490,6 +1501,13 @@
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
+    {
+      id: 'history',
+      title: t('historyPanel.title'),
+      icon: 'history',
+      body: historyBody,
+      defaultCollapsed: true,
+    },
   ]}
 >
   {#snippet quick()}
