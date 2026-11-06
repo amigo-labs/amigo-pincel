@@ -2,6 +2,7 @@
 //! AC-01 … AC-22).
 
 mod copy;
+mod copy_shape;
 mod moves;
 mod paste;
 

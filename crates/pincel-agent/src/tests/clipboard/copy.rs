@@ -398,6 +398,13 @@ fn export_selection_clips_to_the_canvas_and_cuts_the_selection_shape() {
     assert_eq!(px(&cel, 6, 1, 1), [0, 0, 0, 0], "cut");
     assert_eq!(px(&cel, 6, 2, 2), [0, 0, 0, 0], "cut");
     assert_eq!(px(&cel, 6, 2, 1), [0, 255, 0, 255], "outside the shape");
+    // The file holds the copied shape only (AC-14).
+    let png = decode(&s.host.files["c.png"]).expect("png");
+    assert_eq!(
+        png.data(),
+        [[255, 0, 0, 255], [0; 4], [0; 4], [0, 0, 255, 128]].concat(),
+        "the cut's file"
+    );
 
     // AC-16: a cut of another layer and frame than the active ones.
     let mut s = S::new();
