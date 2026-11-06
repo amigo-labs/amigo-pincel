@@ -76,11 +76,31 @@ fn tileset_add_with_bad_arguments_adds_nothing() {
             json!({ "name": "t", "tile_width": 4, "tile_height": 4097 }),
             "tile_height",
         ),
+        (
+            json!({ "name": " 	 ", "tile_width": 4, "tile_height": 4 }),
+            "name",
+        ),
+        (
+            json!({ "name": "t", "tile_width": 4097, "tile_height": 4 }),
+            "tile_width",
+        ),
+        (
+            json!({ "name": "t", "tile_width": 4, "tile_height": 0 }),
+            "tile_height",
+        ),
     ] {
         let before = s.state(&id);
         let e = s.err("tileset.add", args.clone());
         assert!(e.contains(arg), "{args}: {e}");
         assert_eq!(s.state(&id), before);
+        assert_eq!(s.ok("tileset.list", json!({}))["tilesets"], json!([]));
+    }
+    // The bounds themselves are accepted.
+    for (w, h) in [(1, 4096), (4096, 1)] {
+        s.ok(
+            "tileset.add",
+            json!({ "name": "edge", "tile_width": w, "tile_height": h }),
+        );
     }
 }
 
