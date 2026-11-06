@@ -103,6 +103,11 @@ mod tests {
         ] {
             run(&mut bus, segment(points, 7), &mut scratch);
         }
+        // AC-18: the step is named after the tool, not "Draw Pixels".
+        assert_eq!(
+            bus.history.undo_kinds().last().map(|k| k.id().into_owned()),
+            Some("clone_stamp".to_owned())
+        );
         assert_eq!(bus.history.undo_depth(), 1);
         let after = bus.document.layers[0].pixels.clone();
         assert_ne!(after, before);
