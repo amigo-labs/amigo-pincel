@@ -655,3 +655,43 @@ fn tilemap_place_checks_cells_against_the_cels_own_grid() {
         json!(["0 0 0 0 0", "0 0 0 0 0", "0 0 0 0 1"])
     );
 }
+
+#[test]
+fn read_pixels_of_a_tilemap_layer_without_a_grid_is_transparent() {
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    for frame in [0, 1] {
+        s.ok(
+            "tilemap.place",
+            json!({ "layer": 1, "frame": frame, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
+        );
+    }
+    s.ok("frame.add", json!({}));
+    assert!(
+        s.doc(&id)
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(2))
+            .is_none(),
+        "frame 2 has no grid"
+    );
+    let read = |s: &mut S, frame: u32| {
+        s.ok(
+            "doc.read_pixels",
+            json!({ "layer": 1, "frame": frame, "region": { "x": 0, "y": 0, "width": 8, "height": 4 } }),
+        )["rows"]
+            .clone()
+    };
+    let clear = ["#00000000"; 8].join(" ");
+    assert_eq!(read(&mut s, 2), json!(vec![clear; 4]));
+    // The cel's own opacity is ignored too: the layer at full opacity.
+    s.ws.get_mut(&id)
+        .expect("doc")
+        .cels
+        .get_mut(LayerId::new(1), FrameIndex::new(1))
+        .expect("tilemap cel")
+        .opacity = 100;
+    let row = [vec!["#FF0000FF"; 4], vec!["#00000000"; 4]]
+        .concat()
+        .join(" ");
+    assert_eq!(read(&mut s, 1), json!(vec![row; 4]));
+}
