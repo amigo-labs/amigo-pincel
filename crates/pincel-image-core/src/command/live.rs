@@ -443,6 +443,17 @@ impl Command for LiveStep {
         rect_damage(self.before.as_ref().and_then(|d| d.rect), self.after.rect)
     }
 
+    /// The pre-object layer is held once per live object, by its begin step
+    /// (the edits share it), so the byte cap of
+    /// docs/specs/performance-image-undo-memory.md sees it.
+    fn undo_bytes(&self) -> usize {
+        if self.before.is_none() {
+            self.base.data().len()
+        } else {
+            0
+        }
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
