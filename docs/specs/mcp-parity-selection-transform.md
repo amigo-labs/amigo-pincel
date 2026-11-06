@@ -147,7 +147,7 @@ The Pixel combine rule (`combine_selection`) and the wand sample buffers live in
 
 The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_center` → `top`, `center_left` → `left`, `center_right` → `right`, `bottom_center` → `bottom`). `image.rotate` 90 / 180 / 270 maps onto `rotate_90_cw` / `rotate_180` / `rotate_90_ccw`. `layer.rotate` 270 maps onto Pixel `rotate_90_ccw` and Image `RotateLayer90 { ccw: true }`.
 
-`SelectionMask::{expand, contract}` in `pincel-core` test a square window per pixel, so the cost is O(w·h·r²). A 4096×4096 Pixel document at radius 250 would take too long for an agent call. See Assumptions.
+`SelectionMask::{expand, contract}` in `pincel-core` dilate / erode by a square in two separable passes, O(w·h) whatever the radius (since 2026-11-06; before, a window scan per pixel cost O(w·h·r²)). See Decisions.
 
 ## Edge cases
 
@@ -176,15 +176,13 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 | `select.wand` keeps the Image tool's `sample` values (`current_layer`, `all_layers`) for both modes and maps them onto the Pixel editor's `layer` / `composite` | One tool, one vocabulary; existing Image clients keep working | Low |
 | `select.polygon` takes integer points on Pixel documents and accepts fractional points on Image documents | Pixel sprite coordinates are integers in the Pixel core; the Image core takes `f32` points | Low |
 | Fewer than three polygon points and an off-canvas wand seed are errors, not the editor's silent no-op or clear | The editor reaches these states only through stray pointer gestures; for an agent they are mistakes it should see | Low |
-| `radius` for expand, contract and feather is 1–250 px in both modes | 250 is the Image editor's feather slider maximum, and no editor offers a larger radius | Medium: a 4096×4096 Pixel document at a large radius is slow (Technical notes); if `/spec-build` measures more than a few seconds, the Pixel morph needs a faster core algorithm, which is core work beyond this spec |
+| `radius` for expand, contract and feather is 1–250 px in both modes | 250 is the Image editor's feather slider maximum, and no editor offers a larger radius | Low: measured 2026-11-06, a 4096×4096 Pixel document at radius 250 expands or contracts in about 0.2 s (release) after the separable rewrite (Decisions) |
 | Selection changes in Pixel documents set no dirty flag | The selection is not part of the Pixel file and not an undo step (`mcp-headless-pixel` build decision 2026-10-29) | Low |
 | The error cases listed here are all the tools must check; where the core command does not check one (lock checks live in `pincel-wasm`), the tool checks it | As in `mcp-parity-structure` | Medium |
 
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
-
-- Risk from Assumptions, not measured: `select.expand` / `select.contract` on a large Pixel document at a large radius run the O(w·h·r²) `SelectionMask::{expand, contract}`; a 4096×4096 document at radius 250 was not timed.
 
 ## Evidence
 
@@ -248,4 +246,5 @@ The tool's `canvas.resize` anchor names map onto the Pixel `Anchor` names (`top_
 - 2026-11-05 (spec-build): Pixel canvas sizes are checked as integers (1–4096) by the tool, not by the schema's `minimum`, so every out-of-range value gets AC-29's message "width must be 1–4096"; Image sizes keep `mcp-headless-image`'s messages.
 - 2026-11-05: Owner decision on AC-06 (open question of the 2026-11-05 spec-build): the tools follow each editor. Pixel documents keep "no selection afterwards" for `subtract` / `intersect` without a selection; Image documents follow `pincel-image-core` `apply_mode`, where no selection counts as everything selected (`subtract` selects the canvas minus the shape, `intersect` the shape); `add` selects the shape in both. AC-06 reworded per mode (owner-approved reword); neither core's rule changes.
 - 2026-11-06 (spec-build): The Image half of AC-06 (`image_subtract_or_intersect_without_selection_follows_the_editor`) was green at once, because the tools already predict with the Image core's `apply_mode`; no red run was possible. Counter-check: with `apply_mode` temporarily starting Subtract / Intersect from an empty mask instead of a full one, the test failed at `subtract` (bounds `null` instead of the whole canvas); reverted.
+- 2026-11-06 (spec-build): The Assumptions risk was measured with a release-build timing probe on a 4096×4096 Pixel mask with a centred 2048×2048 rectangle at radius 250. The window scan of `SelectionMask::{expand, contract}` did not finish within 120 s; at 512×512 its `expand` alone took 29.6 s (256×256: 5.4 s), so 4096×4096 (64 times the pixels) extrapolates to about half an hour. Fixed at the cause in `pincel-core`: the square is separable, so `morph` now runs a row pass over prefix counts and a column pass with running column sums, O(w·h) whatever the radius — 0.20 s for `expand` and 0.19 s for `contract` at 4096×4096, radius 250 (release). `expand_and_contract_equal_the_window_scan` pins the output to the old window scan (kept in the test module as the oracle) over 540 cases: four fixed masks (empty, full, one pixel, an ellipse) and five noise densities on six canvases from 1×1 to 24×17, at ten radii from 0 to beyond the canvas. It was green on the old code by construction (the oracle is that code); counter-check: dropping the top-edge clip from the new contract made it fail (`contract 13x9 r1`); reverted. No public API changed. The only difference from the old code is a radius above `i32::MAX`, where the old cast wrapped negative; the tools limit the radius to 1–250.
 - 2026-11-05 (spec-build): New public `pincel-core` API: `Sprite::combine_selection`, `selection::{layer_canvas, composite_canvas}` (Decision Log row 2026-11-05 in `pincel.md` §15).
