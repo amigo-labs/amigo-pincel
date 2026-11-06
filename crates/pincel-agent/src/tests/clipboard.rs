@@ -247,6 +247,10 @@ fn moves_are_one_undo_step_restoring_pixels_and_selection() {
     let out = s.ok("select.move_content", json!({ "dx": 1, "dy": 0 }));
     assert_eq!(out["changed"], true);
     assert_eq!(undo_depth(&mut s), depth + 1);
+    assert_eq!(
+        s.ok("doc.info", json!({}))["selection"],
+        json!({ "x": 4, "y": 3, "w": 1, "h": 1 })
+    );
 
     let mut s = S::new();
     let id = image_doc(&mut s);
@@ -282,6 +286,23 @@ fn moves_are_one_undo_step_restoring_pixels_and_selection() {
         "transparent layer"
     );
     assert_eq!(undo_depth(&mut s), depth);
+    // Image: transparent selected pixels still move the selection, one
+    // step that undo takes back.
+    s.ok(
+        "select.rect",
+        json!({ "x": 6, "y": 0, "width": 2, "height": 1 }),
+    );
+    let before = s.image(&id).document().clone();
+    let depth = undo_depth(&mut s);
+    let out = s.ok("select.move_content", json!({ "dx": -1, "dy": 0 }));
+    assert_eq!(out["changed"], true);
+    assert_eq!(undo_depth(&mut s), depth + 1);
+    assert_eq!(
+        s.ok("doc.info", json!({}))["selection"],
+        json!({ "x": 5, "y": 0, "w": 2, "h": 1 })
+    );
+    s.ok("doc.undo", json!({}));
+    assert_eq!(s.image(&id).document(), &before);
 }
 
 #[test]
@@ -693,10 +714,21 @@ fn layer_import_failures_state_the_reason_and_change_nothing() {
     s.host
         .files
         .insert("junk.png".into(), b"not an image".to_vec());
-    for (path, needle) in [("missing.png", "missing.png"), ("junk.png", "junk.png")] {
+    for (path, needles) in [
+        (
+            "missing.png",
+            &["cannot read `missing.png`", "no such file"][..],
+        ),
+        (
+            "junk.png",
+            &["cannot paste `junk.png`", "PNG files only"][..],
+        ),
+    ] {
         let before = s.state(&id);
         let e = s.err("layer.import", json!({ "path": path }));
-        assert!(e.contains(needle), "{e}");
+        for needle in needles {
+            assert!(e.contains(needle), "{path}: {needle} in {e}");
+        }
         assert_eq!(s.state(&id), before);
     }
     s.host
@@ -717,7 +749,16 @@ fn layer_import_failures_state_the_reason_and_change_nothing() {
         .insert("junk.png".into(), b"not an image".to_vec());
     let before = s.image(&id).document().clone();
     let e = s.err("layer.import", json!({ "path": "junk.png" }));
-    assert!(e.contains("junk.png"), "{e}");
+    assert!(
+        e.contains("cannot paste `junk.png`") && e.contains("PNG, JPEG, WebP, BMP, GIF or TIFF"),
+        "{e}"
+    );
+    assert_eq!(s.image(&id).document(), &before);
+    let e = s.err("layer.import", json!({ "path": "missing.png" }));
+    assert!(
+        e.contains("cannot read `missing.png`") && e.contains("no such file"),
+        "{e}"
+    );
     assert_eq!(s.image(&id).document(), &before);
 }
 
@@ -751,7 +792,7 @@ fn layer_import_with_expand_beyond_the_limit_fails_naming_it() {
         "layer.import",
         json!({ "path": "a.png", "x": 9000, "y": 9000, "expand": true }),
     );
-    assert!(e.contains("64 Mpx"), "{e}");
+    assert!(e.contains("9001×9001") && e.contains("64 Mpx"), "{e}");
     assert_eq!(s.image(&id).document(), &before);
 }
 
@@ -1267,6 +1308,83 @@ fn layer_import_of_an_image_doc_open_refuses_fails_like_doc_open() {
         "{e}"
     );
     assert_eq!(s.image(&id).document(), &before);
+}
+
+#[test]
+fn export_selection_clips_to_the_canvas_and_cuts_the_selection_shape() {
+    // AC-14: the area is the selection's bounds clipped to the canvas, or
+    // the whole canvas without a selection.
+    let mut s = S::new();
+    pixel_doc(&mut s);
+    let out = s.ok("export.selection", json!({ "path": "all.png" }));
+    assert_eq!(out["area"], json!({ "x": 0, "y": 0, "w": 6, "h": 5 }));
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 3, "height": 2 }),
+    );
+    s.ok("select.move_content", json!({ "dx": 4, "dy": 0 }));
+    let out = s.ok("export.selection", json!({ "path": "edge.png" }));
+    assert_eq!(out["area"], json!({ "x": 5, "y": 1, "w": 1, "h": 2 }));
+    let png = decode(&s.host.files["edge.png"]).expect("png");
+    assert_eq!((png.width(), png.height()), (1, 2));
+
+    // AC-16: a cut clears only the selection's shape.
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 2, "height": 2 }),
+    );
+    s.ok(
+        "select.rect",
+        json!({ "x": 2, "y": 1, "width": 1, "height": 1, "mode": "subtract" }),
+    );
+    s.ok("export.selection", json!({ "path": "c.png", "cut": true }));
+    let cel = s.cel_rgba(&id, 0, 0);
+    assert_eq!(px(&cel, 6, 1, 1), [0, 0, 0, 0], "cut");
+    assert_eq!(px(&cel, 6, 2, 2), [0, 0, 0, 0], "cut");
+    assert_eq!(px(&cel, 6, 2, 1), [0, 255, 0, 255], "outside the shape");
+
+    // AC-16: a cut of another layer and frame than the active ones.
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    s.ok("layer.add", json!({}));
+    s.ok("frame.add", json!({}));
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 2, "height": 1 }),
+    );
+    let depth = undo_depth(&mut s);
+    s.ok(
+        "export.selection",
+        json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
+    );
+    assert_eq!(undo_depth(&mut s), depth + 1);
+    let cel = s.cel_rgba(&id, 0, 0);
+    assert_eq!(px(&cel, 6, 1, 1), [0, 0, 0, 0]);
+    assert_eq!(px(&cel, 6, 2, 1), [0, 0, 0, 0]);
+    assert_eq!(
+        px(&cel, 6, 5, 4),
+        [255, 255, 255, 255],
+        "outside the selection"
+    );
+    let png = decode(&s.host.files["c.png"]).expect("png");
+    assert_eq!(png.data()[..4], [255, 0, 0, 255]);
+
+    // Image: a cut of a layer other than the active one.
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    s.ok("layer.add", json!({}));
+    s.ok(
+        "select.rect",
+        json!({ "x": 1, "y": 1, "width": 2, "height": 2 }),
+    );
+    let want = image_editor(&s, &id, CommandSpec::DeleteSelection { layer: 0 });
+    s.ok(
+        "export.selection",
+        json!({ "path": "i.png", "cut": true, "layer": 0 }),
+    );
+    assert_eq!(s.image(&id).document().layers(), want.layers());
 }
 
 #[test]
