@@ -72,6 +72,8 @@ test('the dialog previews live; Cancel leaves the document and history alone (AC
   await methodSelect(page).selectOption('nearest');
   await expect.poll(async () => (await shot(page, canvas)).equals(atRotsprite45)).toBe(false);
 
+  // Cancel after moving the slider (Edge cases).
+  await angleSlider(page).fill('60');
   await dialog(page).getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog(page)).toBeHidden();
   await expect.poll(async () => (await shot(page, canvas)).equals(original)).toBe(true);
