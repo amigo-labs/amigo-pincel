@@ -445,6 +445,19 @@ const PINS: Record<string, Pin> = {
       ['invert', 1, [1, 10, 0, 2, 1]],
     ],
   },
+  // image-transform-handles-rotate-zoom (no previous catalog): angle, pans
+  // in percent, zoom, quality index (0 = Nearest, 1 = Bilinear) — the
+  // order `effect.apply` reads (AC-10).
+  rotate_zoom: {
+    defaults: [0, 0, 0, 1, 1],
+    changes: [
+      ['angle', -90, [-90, 0, 0, 1, 1]],
+      ['pan_x', 12.5, [0, 12.5, 0, 1, 1]],
+      ['pan_y', -50, [0, 0, -50, 1, 1]],
+      ['zoom', 2.5, [0, 0, 0, 2.5, 1]],
+      ['quality', 0, [0, 0, 0, 1, 0]],
+    ],
+  },
 };
 
 test('every catalog entry has pinned vectors of the previous catalog', () => {

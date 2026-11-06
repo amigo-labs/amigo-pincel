@@ -111,7 +111,7 @@
   import { tidy, type MenuDef } from '../../lib/components/layout/menu';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
   import { effectMenus } from '../../lib/effects/menu';
-  import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
+  import { effectById, forMode, rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import { effectRun, type EffectRun } from './jobs';
   import {
@@ -1071,6 +1071,13 @@
     });
   }
 
+  /** Layer ▸ Rotate / Zoom… (image-transform-handles-rotate-zoom): the
+   *  effect panel, unless the active layer refuses pixel edits (AC-08). */
+  function openRotateZoom(): void {
+    const def = effectById('rotate_zoom');
+    if (def) layerEdit(false, () => openEffect(forMode(def, 'image')));
+  }
+
   function closeEffect(): void {
     endEffectRun();
     clearEffectPreview();
@@ -1141,7 +1148,9 @@
       return;
     }
     effectSucceeded();
-    if (!changed) editor.notice = t('fx.selectionEmpty', { effect: label });
+    // An empty region is an empty selection; a region that changes no
+    // pixel adds no step and needs no notice.
+    if (!changed && region.length === 0) editor.notice = t('fx.selectionEmpty', { effect: label });
     endEffectRun();
     effectOpen = null;
   }
@@ -1389,6 +1398,7 @@
           disabled: !hasDoc,
           run: () => layerEdit(true, () => transformLayer('rotate_180')),
         },
+        { label: t('menu.rotateZoom'), disabled: !hasDoc, run: openRotateZoom },
       ],
     },
     ...effectMenus(openEffect, !hasDoc, 'image'),

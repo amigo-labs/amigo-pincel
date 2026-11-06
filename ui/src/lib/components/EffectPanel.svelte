@@ -77,6 +77,7 @@
     };
   });
 
+  type NumberDef = Extract<ParamDef, { kind: 'number' }>;
   type PointDef = Extract<ParamDef, { kind: 'point' }>;
   type PairDef = Extract<ParamDef, { kind: 'pair' }>;
   type SeedDef = Extract<ParamDef, { kind: 'seed' }>;
@@ -103,6 +104,22 @@
 
   // Closing the dialog (OK, Cancel, Escape) ends picking with it.
   $effect(() => stopPicking);
+
+  // A typed number (image-transform-handles-rotate-zoom AC-09): within the
+  // range it applies while typing; on commit (Enter, leaving the field) a
+  // value outside the range becomes the nearest bound and a non-numeric
+  // entry gives way to the previous value.
+  function typeNumber(p: NumberDef, field: HTMLInputElement, commit: boolean): void {
+    const v = field.valueAsNumber;
+    if (!Number.isFinite(v)) {
+      if (commit) field.value = String(values[p.key] ?? p.default);
+      return;
+    }
+    const bounded = Math.min(p.max, Math.max(p.min, v));
+    if (!commit && bounded !== v) return;
+    values[p.key] = bounded;
+    if (commit) field.value = String(bounded);
+  }
 
   // Linked pairs (effect-catalog-v2 AC-13): `session.lastEdited` keeps the
   // side edited last, so re-linking takes its value.
@@ -250,7 +267,9 @@
               min={p.min}
               max={p.max}
               step={p.step}
-              bind:value={values[p.key]}
+              value={values[p.key]}
+              oninput={(e) => typeNumber(p, e.currentTarget, false)}
+              onchange={(e) => typeNumber(p, e.currentTarget, true)}
               class="opt-field col-start-2 row-start-1 w-16 text-right tabular-nums"
               aria-label={t('effectDlg.value', { label: fxText(p.label) })}
             />
