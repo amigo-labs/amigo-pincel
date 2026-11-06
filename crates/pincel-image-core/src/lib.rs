@@ -15,6 +15,7 @@ pub mod command;
 pub mod document;
 pub mod error;
 pub mod geometry;
+pub mod jobs;
 pub mod render;
 pub mod selection;
 pub mod tools;
