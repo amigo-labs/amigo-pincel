@@ -136,6 +136,8 @@ Hints, verified 2026-10-29; paths and line numbers drift.
 
 ## Decisions
 
+- 2026-11-06 — effect-panel AC-03 (owner option c) makes the Edit menu inert while an effect is open, so the AC-03 e2e can no longer read the document under the preview through Edit ▸ Copy. It now runs against the mocked Tauri bridge and compares a native-menu save taken under each preview with one taken before (byte-equal: the document is unchanged). Counter-checked: a save after applying Invert Colors with OK differs, so the comparison sees a real change.
+
 - 2026-11-03 — The open question about Image mode's locked layer was settled as a bug, not a wording change: an effect refused there threw out of the dialog's Apply, left the dialog open and reported nothing. Apply now closes the dialog, clears the preview and shows "<Effect> failed: …" as Pixel mode does; AC-12's e2e test checks both modes and was red for Image mode before.
 
 - 2026-11-03: Test gaps closed for behavior that already existed; each new test was shown to fail on a deliberate, reverted break: AC-01 (menu entries never disabled), AC-02 (Gaussian Radius default 3; Reset keeping the values), AC-05 (Escape applying instead of cancelling), AC-08 (scope line always "whole layer"), AC-09 (notices replaced by "<Effect> applied"; Image core ignoring the selection), AC-11 (Pixel failure status replaced; `applyEffect` swallowing errors), AC-12 (Pixel core targeting a locked layer; Image core without its lock check), AC-03 Image core (preview without the effect). AC-03's e2e and AC-18 were red on the unchanged code (the two bugs below).

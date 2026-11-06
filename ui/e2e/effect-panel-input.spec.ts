@@ -1,70 +1,32 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   copiedImage,
   clearClipboard,
   createDocument,
   drag,
-  gotoStart,
-  imageCanvas,
   menu,
-  pixelCanvas,
   pixelOf,
   waitForEditor,
 } from './helpers';
-import { brightness } from './effect-panel-helpers';
+import { brightness, canvasOf, centre, fill } from './effect-panel-helpers';
 
 // What the editor does while an effect panel is open (effect-panel AC-03,
-// AC-16, AC-17): the regions around the canvas area are dimmed and inert
-// and the canvas only zooms and pans;
-// a failing effect keeps the panel; the preview never reaches the document.
-
-type Mode = 'pixel' | 'image';
+// AC-16, AC-17): the regions around the canvas area and the top bar, all
+// but the Effects and Adjustments menus, are dimmed and inert and the
+// canvas only zooms and pans; a failing effect keeps the panel; an autosave
+// never holds the preview. Saving, closing and opening while an effect is
+// open go through the desktop app's native menu: effect-panel-desktop.spec.ts.
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-// Save falls back to a download, Open to a file input.
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const w = window as { showSaveFilePicker?: unknown; showOpenFilePicker?: unknown };
-    delete w.showSaveFilePicker;
-    delete w.showOpenFilePicker;
-  });
-});
-
-const canvasOf = (page: Page, mode: Mode) =>
-  mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 const invertPanel = (page: Page) => page.getByRole('dialog', { name: 'Invert Colors' });
-
-/** A 6 × 6 px screenshot around the canvas centre. */
-async function centre(page: Page, mode: Mode): Promise<Buffer> {
-  const box = await canvasOf(page, mode).boundingBox();
-  if (!box) throw new Error('canvas is not visible');
-  return page.screenshot({
-    clip: { x: box.x + box.width / 2 - 3, y: box.y + box.height / 2 - 3, width: 6, height: 6 },
-  });
-}
-
-/** Fills the active layer with the foreground colour (opaque black). */
-async function fill(page: Page, mode: Mode): Promise<void> {
-  await page.keyboard.press('g');
-  const box = await canvasOf(page, mode).boundingBox();
-  if (!box) throw new Error('canvas is not visible');
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-}
 
 async function openInvert(page: Page): Promise<Locator> {
   await menu(page, 'Adjustments', 'Invert Colors');
   const panel = invertPanel(page);
   await expect(panel).toBeVisible();
   return panel;
-}
-
-/** Runs `action` and returns the bytes of the download it triggers. */
-async function download(page: Page, action: () => Promise<void>): Promise<Uint8Array> {
-  const [d] = await Promise.all([page.waitForEvent('download'), action()]);
-  return new Uint8Array(await readFile(await d.path()));
 }
 
 for (const mode of ['pixel', 'image'] as const) {
@@ -84,6 +46,18 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(layers.getByRole('listitem')).toHaveCount(2);
     await fill(page, mode);
     const filled = await centre(page, mode);
+    // A layer added and undone: Redo is enabled too.
+    await page.getByRole('button', { name: 'Add layer' }).click();
+    await expect(layers.getByRole('listitem')).toHaveCount(3);
+    await page.keyboard.press('Control+z');
+    await expect(layers.getByRole('listitem')).toHaveCount(2);
+    // The undo may move the active layer: make the filled top layer active.
+    const top = layers.getByRole('listitem').first().locator('button[aria-pressed]:not(.row-icon)');
+    await top.click();
+    await expect(top).toHaveAttribute('aria-pressed', 'true');
+    const redoButton = page.getByRole('button', { name: 'Redo', exact: true });
+    await expect(undoButton(page)).toBeEnabled();
+    await expect(redoButton).toBeEnabled();
     const lower = layers
       .getByRole('listitem')
       .nth(1)
@@ -99,8 +73,21 @@ for (const mode of ['pixel', 'image'] as const) {
       sidebar: page.getByRole('complementary', { name: 'Panels' }),
       status: page.getByRole('contentinfo'),
     };
+    // In the top bar only the Effects and Adjustments menus stay live.
+    const topMenu = (name: string) =>
+      page.getByRole('menubar').getByRole('menuitem', { name, exact: true });
+    const topBar = {
+      file: topMenu('File'),
+      edit: topMenu('Edit'),
+      view: topMenu('View'),
+      undo: undoButton(page),
+      redo: redoButton,
+    };
+    const liveMenus = { effects: topMenu('Effects'), adjustments: topMenu('Adjustments') };
     const lit: Record<string, number> = {};
-    for (const [name, region] of Object.entries(regions)) lit[name] = await brightness(page, region);
+    for (const [name, region] of Object.entries({ ...regions, ...topBar, ...liveMenus })) {
+      lit[name] = await brightness(page, region);
+    }
     // A strip of stage left of the canvas, clear of the panel.
     const area = await page.getByRole('main').boundingBox();
     const canvasBox = await canvasOf(page, mode).boundingBox();
@@ -118,10 +105,35 @@ for (const mode of ['pixel', 'image'] as const) {
     const preview = await centre(page, mode);
 
     // Around the canvas area: dimmed; the canvas area itself is not.
-    for (const [name, region] of Object.entries(regions)) {
+    for (const [name, region] of Object.entries({ ...regions, ...topBar })) {
       expect(await brightness(page, region), name).toBeLessThan((lit[name] ?? 0) * 0.8);
     }
+    for (const [name, trigger] of Object.entries(liveMenus)) {
+      expect(await brightness(page, trigger), name).toBeGreaterThan((lit[name] ?? 0) * 0.9);
+    }
     expect((await page.screenshot({ clip: stageClip })).equals(stage)).toBe(true);
+
+    // The rest of the top bar: no focus, no clicks.
+    for (const control of Object.values(topBar)) {
+      await control.focus();
+      await expect(control).not.toBeFocused();
+    }
+    for (const name of ['File', 'Edit', 'View']) {
+      await topMenu(name).click({ force: true });
+      await expect(page.getByRole('menu', { name, exact: true })).toHaveCount(0);
+    }
+    await topBar.undo.click({ force: true });
+    await topBar.redo.click({ force: true });
+    await expect(layers.getByRole('listitem')).toHaveCount(2);
+    // The Effects and Adjustments menus still open (AC-05); closing them
+    // leaves the effect open.
+    for (const name of ['Effects', 'Adjustments']) {
+      await topMenu(name).click();
+      await expect(page.getByRole('menu', { name, exact: true })).toBeVisible();
+      await topMenu(name).click();
+      await expect(page.getByRole('menu', { name, exact: true })).toHaveCount(0);
+    }
+    await expect(invertPanel(page)).toBeVisible();
 
     // Tool rail, options bar and tab bar take no focus.
     for (const control of [
@@ -234,93 +246,6 @@ for (const mode of ['pixel', 'image'] as const) {
     }
   });
 
-  test(`${mode}: a save while an effect is open writes the document without the preview (AC-17)`, async ({
-    page,
-  }) => {
-    if (mode === 'pixel') {
-      await createDocument(page, 'pixel', { width: 16, height: 16 });
-    } else {
-      // An opened PNG saves back as PNG, byte-stable across saves.
-      await gotoStart(page);
-      const png = await page.evaluate(async () => {
-        const canvas = new OffscreenCanvas(16, 16);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('no 2d context');
-        ctx.fillStyle = '#336699';
-        ctx.fillRect(0, 0, 16, 16);
-        const blob = await canvas.convertToBlob({ type: 'image/png' });
-        return Array.from(new Uint8Array(await blob.arrayBuffer()));
-      });
-      const [chooser] = await Promise.all([
-        page.waitForEvent('filechooser'),
-        page.getByRole('button', { name: 'Open…' }).click(),
-      ]);
-      await chooser.setFiles({ name: 'tile.png', mimeType: 'image/png', buffer: Buffer.from(png) });
-      await waitForEditor(page, 'image');
-    }
-    // Without File System Access, Pixel mode names its Save a download.
-    const saveLabel = mode === 'pixel' ? 'Save (download)' : 'Save';
-    await fill(page, mode);
-    const filled = await centre(page, mode);
-
-    await openInvert(page);
-    await expect.poll(async () => (await centre(page, mode)).equals(filled)).toBe(false);
-    const withPreview = await download(page, () => menu(page, 'File', saveLabel));
-    await expect(invertPanel(page)).toBeVisible();
-    await invertPanel(page).getByRole('button', { name: 'Cancel' }).click();
-    const without = await download(page, () => menu(page, 'File', saveLabel));
-    expect(withPreview.length).toBeGreaterThan(0);
-    expect(Buffer.from(withPreview).equals(Buffer.from(without))).toBe(true);
-  });
-
-  test(`${mode}: the unsaved-changes prompt cancels the open effect first (AC-17)`, async ({
-    page,
-  }) => {
-    await createDocument(page, mode, { width: 16, height: 16 });
-    await fill(page, mode);
-    const filled = await centre(page, mode);
-    await openInvert(page);
-    await expect.poll(async () => (await centre(page, mode)).equals(filled)).toBe(false);
-
-    // Since document-tabs only closing a tab (or the app) asks.
-    await menu(page, 'File', 'Close');
-    const prompt = page.getByRole('alertdialog');
-    await expect(prompt).toBeVisible();
-    await expect(invertPanel(page)).toHaveCount(0);
-    await prompt.getByRole('button', { name: 'Cancel' }).click();
-    await expect(prompt).toHaveCount(0);
-    await expect.poll(async () => (await centre(page, mode)).equals(filled)).toBe(true);
-    await expect(invertPanel(page)).toHaveCount(0);
-  });
-}
-
-test('pixel: opening a file while an effect is open cancels the effect (AC-17)', async ({
-  page,
-}) => {
-  await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await openInvert(page);
-  const png = await page.evaluate(async () => {
-    const canvas = new OffscreenCanvas(8, 8);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no 2d context');
-    ctx.fillStyle = '#ff0000';
-    ctx.fillRect(0, 0, 8, 8);
-    const blob = await canvas.convertToBlob({ type: 'image/png' });
-    return Array.from(new Uint8Array(await blob.arrayBuffer()));
-  });
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    menu(page, 'File', 'Open…'),
-  ]);
-  // The file opens in a new tab (document-tabs); the effect ends with the
-  // tab it was open on.
-  await chooser.setFiles({ name: 'red.png', mimeType: 'image/png', buffer: Buffer.from(png) });
-  await expect(page.getByText(/opened red\.png/)).toBeVisible();
-  await expect(invertPanel(page)).toHaveCount(0);
-  await expect(undoButton(page)).toBeDisabled();
-});
-
-for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: an autosave while an effect is open stores the document without the preview (AC-17)`, async ({
     page,
   }) => {
