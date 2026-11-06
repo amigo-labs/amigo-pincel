@@ -103,7 +103,31 @@ fn naming_a_missing_asset_fails_with_argument_and_value() {
             json!({ "kind": "tilemap", "tileset": 9 }),
             "tileset",
         ),
+        (
+            "slice.set_key",
+            json!({ "slice": 0, "frame": 9, "pivot": { "x": 0, "y": 0 } }),
+            "frame",
+        ),
+        ("tilemap.get", json!({ "layer": 1, "frame": 9 }), "frame"),
+        ("tilemap.place", json!({ "layer": 9, "cells": [] }), "layer"),
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 9, "pixels": [] }),
+            "tile",
+        ),
+        (
+            "tile.read_pixels",
+            json!({ "tileset": 9, "tile": 0 }),
+            "tileset",
+        ),
     ] {
+        if tool == "slice.set_key"
+            && s.ok("slice.list", json!({}))["slices"]
+                .as_array()
+                .is_none_or(|a| a.is_empty())
+        {
+            s.ok("slice.add", json!({ "name": "a" }));
+        }
         let before = s.state(&id);
         let e = s.err(tool, args.clone());
         assert!(e.contains(arg) && e.contains('9'), "{tool} {args}: {e}");
@@ -408,14 +432,76 @@ fn layer_add_tilemap_binds_the_tileset_with_an_empty_grid() {
         };
         assert_eq!((*grid_w, *grid_h), (5, 3));
     }
-    // Placement and a given name, as other layers.
+    // Every cell of the new grid is empty.
+    for f in 0..2 {
+        let cel = d
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(f))
+            .expect("seeded cel");
+        let pincel_core::CelData::Tilemap { tiles, .. } = &cel.data else {
+            panic!("tilemap cel");
+        };
+        assert!(tiles.iter().all(|t| *t == pincel_core::TileRef::EMPTY));
+    }
+    // Placement and a given name, as other layers; the result carries the
+    // new layer's id and the new layer becomes active.
     let out = s.ok(
         "layer.add",
         json!({ "kind": "tilemap", "tileset": 0, "name": "Back", "target": 0, "place": "below" }),
     );
+    assert_eq!(out["layer"], 2);
     let list = out["layers"].clone();
     assert_eq!(list[0]["name"], "Back");
+    assert_eq!(list[0]["id"], 2);
     assert_eq!(list[0]["tileset"], 0);
+    assert_eq!(s.doc(&id).active_layer, Some(LayerId::new(2)));
+    // Inside a group, by `parent`.
+    let group = s.ok("layer.add", json!({ "kind": "group" }))["layer"].clone();
+    let out = s.ok(
+        "layer.add",
+        json!({ "kind": "tilemap", "tileset": 0, "parent": group }),
+    );
+    let new = out["layer"].clone();
+    let entry = out["layers"]
+        .as_array()
+        .expect("layers")
+        .iter()
+        .find(|l| l["id"] == new)
+        .cloned()
+        .expect("listed");
+    assert_eq!(entry["parent"], group);
+    assert_eq!(entry["kind"], "tilemap");
+}
+
+#[test]
+fn tilemap_grid_rounds_up_to_cover_the_canvas() {
+    for ((w, h), (tw, th), grid) in [((10, 7), (4, 4), (3, 2)), ((10, 7), (16, 16), (1, 1))] {
+        let mut s = S::new();
+        let id = s.new_doc(w, h);
+        s.ok(
+            "tileset.add",
+            json!({ "name": "t", "tile_width": tw, "tile_height": th }),
+        );
+        let out = s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
+        assert_eq!(out["layer"], 1);
+        let cel = s
+            .doc(&id)
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(0))
+            .expect("seeded cel");
+        let pincel_core::CelData::Tilemap { grid_w, grid_h, .. } = &cel.data else {
+            panic!("tilemap cel");
+        };
+        assert_eq!((*grid_w, *grid_h), grid, "{w}x{h} in {tw}x{th} tiles");
+        let got = s.ok("tilemap.get", json!({ "layer": 1 }));
+        assert_eq!(got["grid_width"], json!(grid.0));
+        assert_eq!(got["grid_height"], json!(grid.1));
+        // The last, partly covered cell takes a tile.
+        s.ok(
+            "tilemap.place",
+            json!({ "layer": 1, "cells": [{ "col": grid.0 - 1, "row": grid.1 - 1, "tile": 0 }] }),
+        );
+    }
 }
 
 #[test]
@@ -542,11 +628,47 @@ fn tilemap_place_respects_locks_while_tile_edits_do_not() {
     );
     assert!(e.contains("locked"), "{e}");
     assert_eq!(s.state(&id), before);
-    s.ok(
+    let out = s.ok(
         "tile.set_pixels",
         json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 0, "y": 0, "color": "#00ff00" }] }),
     );
-    s.ok("tile.add", json!({ "tileset": 0 }));
+    assert_eq!(out["changed"], true);
+    let out = s.ok("tile.add", json!({ "tileset": 0 }));
+    assert_eq!(out["tile"], 2);
+    assert_eq!(
+        s.ok("tileset.list", json!({}))["tilesets"][0]["tile_count"],
+        3
+    );
+}
+
+#[test]
+fn tilemap_place_in_a_locked_group_fails_naming_the_layer() {
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    let group = s.ok("layer.add", json!({ "kind": "group" }))["layer"].clone();
+    let layer = s.ok(
+        "layer.add",
+        json!({ "kind": "tilemap", "tileset": 0, "parent": group }),
+    )["layer"]
+        .clone();
+    s.ok("layer.set", json!({ "layer": group, "locked": true }));
+    let before = s.state(&id);
+    let e = s.err(
+        "tilemap.place",
+        json!({ "layer": layer, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
+    );
+    assert!(
+        e.contains(&format!("layer {layer} (\"ground Layer\") is locked")),
+        "{e}"
+    );
+    assert_eq!(s.state(&id), before);
+    // The Tile editor works whatever the lock state of the layers.
+    let out = s.ok(
+        "tile.set_pixels",
+        json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 1, "y": 1, "color": "#0000ff" }] }),
+    );
+    assert_eq!(out["changed"], true);
+    assert_eq!(s.ok("tile.add", json!({ "tileset": 0 }))["tile"], 2);
 }
 
 #[test]
@@ -559,6 +681,35 @@ fn drawing_on_a_tilemap_layer_points_to_the_tile_tools() {
             json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }], "layer": 1 }),
         ),
         ("draw.stroke", json!({ "points": [[0, 0]], "layer": 1 })),
+        (
+            "draw.line",
+            json!({ "x0": 0, "y0": 0, "x1": 5, "y1": 3, "color": "#00ff00", "layer": 1 }),
+        ),
+        (
+            "draw.rect",
+            json!({ "x0": 0, "y0": 0, "x1": 5, "y1": 3, "color": "#00ff00", "filled": true, "layer": 1 }),
+        ),
+        (
+            "draw.ellipse",
+            json!({ "x0": 0, "y0": 0, "x1": 5, "y1": 3, "color": "#00ff00", "filled": true, "layer": 1 }),
+        ),
+        (
+            "draw.fill",
+            json!({ "x": 1, "y": 1, "color": "#0000ff", "layer": 1 }),
+        ),
+        ("draw.clear", json!({ "layer": 1 })),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "layer": 1 }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "A", "x": 0, "y": 0, "layer": 1 }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "layer": 1 }),
+        ),
         ("effect.apply", json!({ "id": "invert", "layer": 1 })),
     ] {
         let before = s.state(&id);
@@ -590,6 +741,69 @@ fn read_pixels_of_a_tilemap_layer_shows_its_tiles() {
         json!({ "region": { "x": 3, "y": 0, "width": 3, "height": 1 }, "layer": 1 }),
     );
     assert_eq!(out["rows"], json!(["#00000000 #FF0000FF #FF0000FF"]));
+}
+
+#[test]
+fn read_pixels_of_a_tilemap_layer_honors_tile_flags() {
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    s.ok("tile.add", json!({ "tileset": 0 }));
+    s.ok(
+        "tile.set_pixels",
+        json!({ "tileset": 0, "tile": 2, "pixels": [{ "x": 1, "y": 0, "color": "#ff0000" }] }),
+    );
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [
+            { "col": 0, "row": 0, "tile": 2 },
+            { "col": 1, "row": 0, "tile": 2 },
+            { "col": 2, "row": 0, "tile": 2 },
+        ] }),
+    );
+    let frame = s.doc(&id).active_frame;
+    {
+        let doc = s.ws.get_mut(&id).expect("doc");
+        let cel = doc
+            .cels
+            .get_mut(LayerId::new(1), frame)
+            .expect("tilemap cel");
+        let pincel_core::CelData::Tilemap { tiles, .. } = &mut cel.data else {
+            panic!("tilemap cel");
+        };
+        tiles[0].flip_x = true;
+        tiles[1].flip_y = true;
+        tiles[2].rotate_90 = true;
+    }
+    let out = s.ok(
+        "doc.read_pixels",
+        json!({ "layer": 1, "region": { "x": 0, "y": 0, "width": 12, "height": 4 } }),
+    );
+    let red = [(2, 0), (5, 3), (11, 1)];
+    let want: Vec<String> = (0..4)
+        .map(|y| {
+            (0..12)
+                .map(|x| {
+                    if red.contains(&(x, y)) {
+                        "#FF0000FF"
+                    } else {
+                        "#00000000"
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect();
+    assert_eq!(out["rows"], json!(want));
+    // tilemap.get reports each flag.
+    let got = s.ok("tilemap.get", json!({ "layer": 1 }));
+    assert_eq!(
+        got["oriented"],
+        json!([
+            { "col": 0, "row": 0, "flip_x": true, "flip_y": false, "rotate_90": false },
+            { "col": 1, "row": 0, "flip_x": false, "flip_y": true, "rotate_90": false },
+            { "col": 2, "row": 0, "flip_x": false, "flip_y": false, "rotate_90": true },
+        ])
+    );
 }
 
 #[test]
@@ -641,21 +855,47 @@ fn an_opened_files_zero_size_header_grid_is_reported_and_replaceable() {
 fn grid_set_out_of_range_leaves_the_grid() {
     let mut s = S::new();
     let id = s.new_doc(8, 8);
-    for (args, arg) in [
-        (json!({ "x": 0, "y": 0, "width": 0, "height": 4 }), "width"),
+    // The argument and its range, from the schema check.
+    for (args, message) in [
+        (
+            json!({ "x": 0, "y": 0, "width": 0, "height": 4 }),
+            "width must be 1–65535",
+        ),
         (
             json!({ "x": 0, "y": 0, "width": 4, "height": 65536 }),
-            "height",
+            "height must be 1–65535",
         ),
-        (json!({ "x": 40000, "y": 0, "width": 4, "height": 4 }), "x"),
-        (json!({ "x": 0, "y": -40000, "width": 4, "height": 4 }), "y"),
-        (json!({ "x": 0, "y": 0, "width": 4 }), "height"),
+        (
+            json!({ "x": 40000, "y": 0, "width": 4, "height": 4 }),
+            "x must be -32768–32767",
+        ),
+        (
+            json!({ "x": 0, "y": -40000, "width": 4, "height": 4 }),
+            "y must be -32768–32767",
+        ),
     ] {
         let before = s.state(&id);
-        let e = s.err("grid.set", args.clone());
-        assert!(e.contains(arg), "{args}: {e}");
+        let e = s.call("grid.set", args.clone()).unwrap_err();
+        assert_eq!(
+            e,
+            crate::AgentError::InvalidArgs {
+                tool: "grid.set".to_owned(),
+                message: message.to_owned(),
+            },
+            "{args}"
+        );
         assert_eq!(s.state(&id), before);
     }
+    // A missing argument is a schema mismatch.
+    let before = s.state(&id);
+    let e = s
+        .call("grid.set", json!({ "x": 0, "y": 0, "width": 4 }))
+        .unwrap_err();
+    assert!(
+        matches!(&e, crate::AgentError::InvalidArgs { message, .. } if message.starts_with("missing required argument `height`")),
+        "{e:?}"
+    );
+    assert_eq!(s.state(&id), before);
 }
 
 #[test]
@@ -746,6 +986,27 @@ fn tilemap_get_refuses_other_layers_and_large_grids() {
     s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
     let e = s.err("tilemap.get", json!({ "layer": 1 }));
     assert!(e.contains("150×4") && e.contains("64×64"), "{e}");
+    // Too high is refused as too wide is; 64 × 64 itself is not.
+    for ((w, h), refused) in [((8, 300), Some("4×150")), ((64, 64), None)] {
+        let mut s = S::new();
+        s.new_doc(w, h);
+        let tile = if refused.is_some() { 2 } else { 1 };
+        s.ok(
+            "tileset.add",
+            json!({ "name": "t", "tile_width": tile, "tile_height": tile }),
+        );
+        s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
+        match refused {
+            Some(size) => {
+                let e = s.err("tilemap.get", json!({ "layer": 1 }));
+                assert!(e.contains(size) && e.contains("64×64"), "{e}");
+            }
+            None => {
+                let got = s.ok("tilemap.get", json!({ "layer": 1 }));
+                assert_eq!(got["grid_height"], 64);
+            }
+        }
+    }
 }
 
 #[test]
@@ -757,18 +1018,46 @@ fn a_tilemap_active_layer_leaves_drawing_on_the_lowest_image_layer() {
         json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }),
     );
     assert_eq!(out["layer"], 0);
+    // effect.apply without `layer` acts on the same layer and names it;
+    // the tilemap cel stays as it was.
+    let tilemap = s
+        .doc(&id)
+        .cels
+        .get(LayerId::new(1), FrameIndex::new(1))
+        .cloned();
+    let out = s.ok("effect.apply", json!({ "id": "invert" }));
+    assert_eq!(out["layer"], 0);
+    assert_eq!(out["changed"], true);
+    let read = s.ok(
+        "doc.read_pixels",
+        json!({ "layer": 0, "region": { "x": 0, "y": 0, "width": 1, "height": 1 } }),
+    );
+    assert_eq!(read["rows"], json!(["#00FFFFFF"]));
+    assert_eq!(
+        s.doc(&id)
+            .cels
+            .get(LayerId::new(1), FrameIndex::new(1))
+            .cloned(),
+        tilemap
+    );
     let mut t = S::new();
-    t.new_doc(8, 8);
+    let tid = t.new_doc(8, 8);
     t.ok(
         "tileset.add",
         json!({ "name": "t", "tile_width": 4, "tile_height": 4 }),
     );
     t.ok("layer.add", json!({ "kind": "tilemap", "tileset": 0 }));
     t.ok("layer.remove", json!({ "layer": 0 }));
-    let e = t.err(
-        "draw.pixels",
-        json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }),
-    );
-    assert!(e.contains("no image layer"), "{e}");
-    let _ = id;
+    for (tool, args) in [
+        (
+            "draw.pixels",
+            json!({ "pixels": [{ "x": 0, "y": 0, "color": "#ff0000" }] }),
+        ),
+        ("effect.apply", json!({ "id": "invert" })),
+    ] {
+        let before = t.state(&tid);
+        let e = t.err(tool, args);
+        assert!(e.contains("no image layer"), "{tool}: {e}");
+        assert_eq!(t.state(&tid), before, "{tool}");
+    }
 }
