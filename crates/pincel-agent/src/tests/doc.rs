@@ -116,6 +116,8 @@ const EXPECTED_TOOLS: &[&str] = &[
     "tilemap.get",
     "tilemap.place",
     "grid.set",
+    // image-resize-autocrop
+    "image.auto_crop",
 ];
 
 /// One valid example call per tool.

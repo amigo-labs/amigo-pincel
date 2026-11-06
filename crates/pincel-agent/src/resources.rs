@@ -13,7 +13,7 @@ const PALETTE_PREFIX: &str = "pincel://palettes/";
 const GUIDE_URI: &str = "pincel://guide";
 const EFFECTS_URI: &str = "pincel://effects";
 /// The usage guide for agents, both modes (AC-17).
-const GUIDE: &str = include_str!("guide.md");
+pub(crate) const GUIDE: &str = include_str!("guide.md");
 
 /// The MCP description of one resource.
 #[derive(Debug, Clone, PartialEq, Eq)]

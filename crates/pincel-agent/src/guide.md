@@ -21,7 +21,7 @@ Shared tools work on both: `doc.*`, `layer.*` (except the two below),
 `tag.*`, `palette.*`, `draw.pixels`, `draw.line`, `draw.rect`,
 `draw.ellipse`, `draw.clear`, `export.sheet`. Image-only:
 `layer.merge_visible`, `layer.merge_group`, `select.feather`,
-`draw.recolor`, `draw.smudge`, `export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
+`draw.recolor`, `draw.smudge`, `image.auto_crop`, `export.jpeg`, `export.webp`. A tool of the other mode fails and says so,
 and so does an argument only the other mode's editor offers.
 
 ## Drawing in each mode
@@ -77,7 +77,8 @@ and so does an argument only the other mode's editor offers.
 - Defaults follow each editor: `select.wand` `tolerance` 0 in Pixel
   documents and 32 in Image documents; `canvas.resize` `anchor` `center`
   (Pixel) or `top_left` (Image); `image.scale` `interpolation` `nearest`
-  (Pixel) or `bilinear` (Image). Pixel `select.invert` without a selection
+  (Pixel) or `bilinear` (Image); Image documents also take `supersampling`
+  (an area average when shrinking, bicubic when an edge grows). Pixel `select.invert` without a selection
   selects everything; Image selects nothing.
 - `select.delete` is the editor's Delete: it clears the selected pixels of
   the target layer. Without a selection, Image documents clear the whole
@@ -229,7 +230,9 @@ The loop is plan → draw → preview → export, in both modes.
 - A selection limits `draw.fill`, `adjust.apply`, `effect.apply` (and in
   Image mode `draw.gradient`); clear it with `select.clear` when you are
   done.
-- `image.crop_to_selection` needs a selection.
+- `image.crop_to_selection` needs a selection. `image.auto_crop` (Image)
+  trims a border matching the composite's top-left pixel and returns
+  `{ "cropped": false }` when there is nothing to trim.
 - An Image document opened from PNG, JPEG or another flat format has no
   `.ora` file: `doc.save` needs a `.ora` path, or use `export.png`.
 - Effects and adjustments take named parameters within the ranges listed in
