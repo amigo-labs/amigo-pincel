@@ -9,8 +9,9 @@ import {
   menu,
   pixelCanvas,
   pixelOf,
-  waitForEditor,
+  setColor,
   type ClipImage,
+  waitForEditor,
 } from './helpers';
 
 // Effects and adjustments in both modes (docs/specs/effects-adjustments.md):
@@ -30,7 +31,7 @@ const canvasOf = (page: Page, mode: Mode): Locator =>
 
 /** Fills the (empty) active layer with opaque red: Bucket at the top-left. */
 async function fillRed(page: Page, mode: Mode): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press('g');
   await canvasOf(page, mode).click({ position: { x: 4, y: 4 } });
 }

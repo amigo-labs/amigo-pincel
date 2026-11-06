@@ -1,13 +1,26 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createDocument, menu } from './helpers';
+import {
+  boxOf,
+  brightness,
+  dragBy,
+  effectPanel,
+  inside,
+  liesInside,
+  phoneMenu,
+  storedLayout,
+  titleBar,
+  widthOf,
+  type Mode,
+} from './effect-panel-helpers';
 
-// Docked effect panel (effect-panel spec): an effect's controls live in the
-// right sidebar — drawer on tablets, an extra bottom-sheet tab on phones —
-// instead of a floating box over the canvas.
-
-type Mode = 'pixel' | 'image';
+// The effect panel (effect-panel spec, revision 2026-11-05): a small dialog
+// over the canvas area that the title bar drags, docked to the bottom edge
+// on phones; the sidebar, drawer and bottom sheet keep what they showed.
 
 const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Panels' });
+const canvasArea = (page: Page) => page.getByRole('main');
+const toolRail = (page: Page) => page.getByRole('toolbar', { name: 'Tools' });
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 
 /** The effect each mode opens in these tests, with its menu path. */
@@ -15,10 +28,6 @@ const EFFECT = {
   pixel: { path: ['Adjustments', 'Levels…'], title: 'Levels', first: 'Channel' },
   image: { path: ['Effects', 'Blurs', 'Gaussian Blur…'], title: 'Gaussian Blur', first: 'Radius' },
 } as const;
-
-function effectPanel(page: Page, title: string): Locator {
-  return page.getByRole('dialog', { name: title });
-}
 
 async function openEffect(page: Page, mode: Mode): Promise<Locator> {
   const [top, ...rest] = EFFECT[mode].path;
@@ -28,63 +37,31 @@ async function openEffect(page: Page, mode: Mode): Promise<Locator> {
   return panel;
 }
 
-/** Runs a menu path from the phone ☰ sheet: top-level menus are headings
- *  there, submenus expand inline. */
-async function phoneMenu(page: Page, _top: string, ...path: string[]): Promise<void> {
-  // "Menu" / German "Menü".
-  await page.getByRole('button', { name: /^Men[uü]$/ }).click();
-  const sheet = page.getByRole('menu', { name: /^Men[uü]$/ });
-  for (const label of path) {
-    await sheet
-      .getByRole('menuitem', { name: label, exact: true })
-      .or(sheet.getByRole('menuitemcheckbox', { name: label, exact: true }))
-      .click();
-  }
-}
-
-/** The stored `layout:<mode>` pref, read straight from IndexedDB. */
-function storedLayout(page: Page, mode: Mode): Promise<unknown> {
-  return page.evaluate(
-    (key) =>
-      new Promise<unknown>((resolve) => {
-        const open = indexedDB.open('pincel');
-        open.onsuccess = () => {
-          const get = open.result.transaction('prefs').objectStore('prefs').get(key);
-          get.onsuccess = () => resolve((get.result as { value?: unknown } | undefined)?.value);
-          get.onerror = () => resolve(null);
-        };
-        open.onerror = () => resolve(null);
-      }),
-    `layout:${mode}`,
-  );
-}
-
 for (const mode of ['pixel', 'image'] as const) {
-  test(`${mode}: the effect panel is the topmost sidebar panel, clear of the canvas (AC-01)`, async ({
+  test(`${mode}: the effect panel is a small dialog over the canvas area (AC-01)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 32, height: 32 });
     const panel = await openEffect(page, mode);
-    // Docked in the sidebar, with the usual controls plus a close button.
-    await expect(sidebar(page).getByRole('dialog', { name: EFFECT[mode].title })).toBeVisible();
     await expect(panel.getByRole('heading', { name: EFFECT[mode].title })).toBeVisible();
     await expect(panel.getByLabel(EFFECT[mode].first, { exact: true }).first()).toBeVisible();
     await expect(panel.getByRole('checkbox', { name: 'Preview' })).toBeChecked();
-    for (const name of ['Reset', 'Cancel', 'OK', 'Close']) {
+    for (const name of ['Reset', 'Cancel', 'OK']) {
       await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
     }
-    // Topmost: above every other sidebar panel.
-    const panelBox = await panel.boundingBox();
-    const regions = sidebar(page).getByRole('region');
-    expect(await regions.count()).toBeGreaterThan(0);
-    for (const region of await regions.all()) {
-      const box = await region.boundingBox();
-      if (box && panelBox) expect(box.y).toBeGreaterThan(panelBox.y);
-    }
-    // Nothing of it over the canvas area.
-    const area = await page.getByRole('main').boundingBox();
-    if (!area || !panelBox) throw new Error('layout not visible');
-    expect(panelBox.x).toBeGreaterThanOrEqual(area.x + area.width);
+    // The close button sits in the title bar.
+    await expect(titleBar(panel).getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+
+    // 280–360 px wide, wholly over the canvas area.
+    const box = await boxOf(panel);
+    expect(box.width).toBeGreaterThanOrEqual(280);
+    expect(box.width).toBeLessThanOrEqual(360);
+    expect(inside(box, await boxOf(canvasArea(page)))).toBe(true);
+
+    // The sidebar keeps its panels and holds no effect.
+    await expect(sidebar(page).getByRole('region', { name: 'Colors' })).toBeVisible();
+    await expect(sidebar(page).getByRole('region', { name: 'Layers' })).toBeVisible();
+    await expect(sidebar(page).getByRole('dialog')).toHaveCount(0);
   });
 
   test(`${mode}: OK applies and Cancel, × and Escape leave the document alone (AC-04)`, async ({
@@ -93,21 +70,30 @@ for (const mode of ['pixel', 'image'] as const) {
     await createDocument(page, mode, { width: 32, height: 32 });
     const colors = sidebar(page).getByRole('region', { name: 'Colors' });
     await expect(colors).toBeVisible();
+    const lit = await brightness(page, toolRail(page));
+    // Dimmed while the panel is open, lit again once it is gone.
+    const dimmed = () => expect.poll(() => brightness(page, toolRail(page))).toBeLessThan(lit * 0.8);
+    const undimmed = () =>
+      expect.poll(() => brightness(page, toolRail(page))).toBeGreaterThan(lit * 0.95);
 
     for (const close of ['Cancel', 'Close', 'Escape'] as const) {
       const panel = await openEffect(page, mode);
+      await dimmed();
       if (close === 'Escape') await page.keyboard.press('Escape');
       else await panel.getByRole('button', { name: close, exact: true }).click();
       await expect(panel).toHaveCount(0);
       await expect(undoButton(page)).toBeDisabled();
       await expect(colors).toBeVisible();
+      await undimmed();
     }
 
     let panel = await openEffect(page, mode);
+    await dimmed();
     await panel.getByRole('button', { name: 'OK', exact: true }).click();
     await expect(panel).toHaveCount(0);
     await expect(undoButton(page)).toBeEnabled();
     await expect(colors).toBeVisible();
+    await undimmed();
 
     // Enter outside a multi-line field is OK.
     await undoButton(page).click();
@@ -215,53 +201,52 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
-test('a hidden sidebar shows for the effect only; the stored visibility stays (AC-02)', async ({
+
+test('the sidebar keeps its visibility, stored too, while an effect is open (AC-02)', async ({
   page,
 }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  const toggle = page.getByRole('button', { name: 'Toggle panels' });
-  await toggle.click();
+  await page.getByRole('button', { name: 'Toggle panels' }).click();
   await expect(sidebar(page)).toHaveCount(0);
   await expect
     .poll(async () => (await storedLayout(page, 'image')) as object)
-    .toMatchObject({
-      sidebar: false,
-    });
+    .toMatchObject({ sidebar: false });
 
   for (const end of ['OK', 'Cancel'] as const) {
     const panel = await openEffect(page, 'image');
-    await expect(sidebar(page).getByRole('dialog', { name: 'Gaussian Blur' })).toBeVisible();
+    await expect(sidebar(page)).toHaveCount(0);
     await panel.getByRole('button', { name: end, exact: true }).click();
+    await expect(panel).toHaveCount(0);
     await expect(sidebar(page)).toHaveCount(0);
   }
   expect(await storedLayout(page, 'image')).toMatchObject({ sidebar: false });
-
-  await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.waitForTimeout(300);
-  await expect(sidebar(page)).toHaveCount(0);
 });
 
 test.describe('tablet', () => {
   test.use({ viewport: { width: 820, height: 1180 } });
 
-  test('the drawer opens with the effect panel on top and closes again (AC-12)', async ({
+  test('the panel floats over the canvas area and the drawer stays as it was (AC-12, AC-02)', async ({
     page,
   }) => {
     await createDocument(page, 'image', { width: 32, height: 32 });
     await expect(sidebar(page)).toHaveCount(0);
     let panel = await openEffect(page, 'image');
-    await expect(sidebar(page).getByRole('dialog', { name: 'Gaussian Blur' })).toBeVisible();
-    const panelBox = await panel.boundingBox();
-    const layersBox = await sidebar(page).getByRole('region', { name: 'Layers' }).boundingBox();
-    if (!panelBox || !layersBox) throw new Error('drawer not visible');
-    expect(layersBox.y).toBeGreaterThan(panelBox.y);
+    const box = await boxOf(panel);
+    expect(box.width).toBeGreaterThanOrEqual(280);
+    expect(box.width).toBeLessThanOrEqual(360);
+    expect(inside(box, await boxOf(canvasArea(page)))).toBe(true);
+    // A closed drawer stays closed.
+    await expect(sidebar(page)).toHaveCount(0);
     await panel.getByRole('button', { name: 'OK' }).click();
+    await expect(panel).toHaveCount(0);
     await expect(sidebar(page)).toHaveCount(0);
 
-    // An open drawer stays open after the effect.
+    // An open drawer stays open, with its panels, during and after.
     await page.getByRole('button', { name: 'Toggle panels' }).click();
     await expect(sidebar(page)).toBeVisible();
     panel = await openEffect(page, 'image');
+    await expect(sidebar(page).getByRole('region', { name: 'Layers' })).toBeVisible();
+    await expect(sidebar(page).getByRole('dialog')).toHaveCount(0);
     await panel.getByRole('button', { name: 'Cancel' }).click();
     await expect(panel).toHaveCount(0);
     await expect(sidebar(page).getByRole('region', { name: 'Layers' })).toBeVisible();
@@ -269,93 +254,123 @@ test.describe('tablet', () => {
 });
 
 test.describe('phone', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+  test.use({ viewport: { width: 390, height: 600 } });
 
-  test('the bottom sheet gets a selected tab for the effect (AC-13)', async ({ page }) => {
+  test('the panel is docked to the bottom across the window, over the sheet (AC-13, AC-02)', async ({
+    page,
+  }) => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     const sheet = page.getByRole('dialog', { name: 'Panels' });
-    await expect(sheet).toHaveCount(0);
-
-    await phoneMenu(page, 'Adjustments', 'Invert Colors');
-    await expect(sheet.getByRole('tab', { name: 'Invert Colors' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    const panel = sheet.getByRole('dialog', { name: 'Invert Colors' });
-    await expect(panel).toBeVisible();
-    await panel.getByRole('button', { name: 'Cancel' }).click();
-    await expect(sheet).toHaveCount(0);
-
-    // Opened on the Layers tab: the sheet returns to it.
     await page.getByRole('button', { name: 'Panels' }).click();
     await sheet.getByRole('tab', { name: 'Layers' }).click();
-    await phoneMenu(page, 'Adjustments', 'Invert Colors');
-    await expect(sheet.getByRole('tab', { name: 'Invert Colors' })).toHaveAttribute(
+    const tabs = await sheet.getByRole('tab').count();
+    const sheetBox = await boxOf(sheet);
+
+    await phoneMenu(page, 'Levels…');
+    const panel = effectPanel(page, 'Levels');
+    await expect(panel).toBeVisible();
+    // The sheet keeps its tabs and its selection, under the panel.
+    await expect(sheet.getByRole('tab', { name: 'Layers' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
-    await sheet
-      .getByRole('dialog', { name: 'Invert Colors' })
-      .getByRole('button', { name: 'OK' })
-      .click();
-    await expect(sheet.getByRole('tab', { name: 'Invert Colors' })).toHaveCount(0);
+    await expect(sheet.getByRole('tab')).toHaveCount(tabs);
+    const box = await boxOf(panel);
+    expect(Math.round(box.x)).toBe(0);
+    expect(Math.round(box.width)).toBe(390);
+    expect(Math.round(box.y + box.height)).toBe(600);
+    const over = await panel.evaluate(
+      (el, [x, y]) => el.contains(document.elementFromPoint(x, y)),
+      [sheetBox.x + sheetBox.width / 2, sheetBox.y + sheetBox.height - 10] as const,
+    );
+    expect(over).toBe(true);
+
+    // At most half the window: the controls scroll, OK stays in view.
+    expect(box.height).toBeLessThanOrEqual(301);
+    const scrolls = await panel.evaluate((el) =>
+      Array.from(el.querySelectorAll<HTMLElement>('*')).some(
+        (n) => n.scrollHeight > n.clientHeight + 1 && getComputedStyle(n).overflowY === 'auto',
+      ),
+    );
+    expect(scrolls).toBe(true);
+    await expect(panel.getByRole('button', { name: 'OK' })).toBeInViewport();
+
+    // It cannot be dragged.
+    await dragBy(page, titleBar(panel), 0, -200);
+    expect(await boxOf(panel)).toEqual(box);
+
+    await panel.getByRole('button', { name: 'Cancel' }).click();
+    await expect(panel).toHaveCount(0);
     await expect(sheet.getByRole('tab', { name: 'Layers' })).toHaveAttribute(
       'aria-selected',
       'true',
     );
   });
+
+  test('a closed bottom sheet stays closed (AC-02)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const sheet = page.getByRole('dialog', { name: 'Panels' });
+    await phoneMenu(page, 'Invert Colors');
+    const panel = effectPanel(page, 'Invert Colors');
+    await expect(panel).toBeVisible();
+    await expect(sheet).toHaveCount(0);
+    await panel.getByRole('button', { name: 'OK' }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(sheet).toHaveCount(0);
+  });
 });
 
-test('resizing across layouts keeps the effect and its values (AC-14)', async ({ page }) => {
+test('resizing across 640 px keeps the effect, its values and the panel inside (AC-14)', async ({
+  page,
+}) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('button', { name: 'Toggle panels' }).click();
-  await expect(sidebar(page)).toHaveCount(0);
   const panel = await openEffect(page, 'image');
   await panel.getByLabel('Radius value', { exact: true }).fill('7');
+  // To the bottom-left corner of the canvas area.
+  await dragBy(page, titleBar(panel), -2000, 2000);
+  const area = await boxOf(canvasArea(page));
+  const box = await boxOf(panel);
+  expect(Math.round(box.x)).toBe(Math.round(area.x));
+  expect(Math.round(box.y + box.height)).toBe(Math.round(area.y + area.height));
 
-  // Tablet: the drawer carries the panel.
-  await page.setViewportSize({ width: 820, height: 1000 });
-  await expect(sidebar(page).getByRole('dialog', { name: 'Gaussian Blur' })).toBeVisible();
-  await expect(panel.getByLabel('Radius value', { exact: true })).toHaveValue('7');
+  // Tablet with a smaller canvas area: the panel moves back inside it.
+  await page.setViewportSize({ width: 700, height: 500 });
+  await expect.poll(() => liesInside(panel, canvasArea(page))).toBe(true);
 
-  // Phone: an extra sheet tab carries it.
+  // Phone: docked to the bottom across the window, values kept. The frame
+  // re-mounts the panel in the other layout, so its box is read only
+  // through polls that outlast the swap (`widthOf`, `liesInside`).
   await page.setViewportSize({ width: 390, height: 844 });
-  const sheet = page.getByRole('dialog', { name: 'Panels' });
-  await expect(sheet.getByRole('tab', { name: 'Gaussian Blur' })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await expect
+    .poll(async () => {
+      const width = await widthOf(panel);
+      return width === null ? null : Math.round(width);
+    })
+    .toBe(390);
   await expect(panel.getByLabel('Radius value', { exact: true })).toHaveValue('7');
 
-  // Ending it leaves each layout as it was before: sheet closed, drawer
-  // closed, sidebar hidden.
-  await panel.getByRole('button', { name: 'Cancel' }).click();
-  await expect(sheet).toHaveCount(0);
-  await expect(undoButton(page)).toBeDisabled();
-  await page.setViewportSize({ width: 820, height: 1000 });
-  await expect(sidebar(page)).toHaveCount(0);
+  // Back to a wide window: floating again, inside the canvas area.
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect(sidebar(page)).toHaveCount(0);
+  await expect.poll(() => widthOf(panel)).toBeLessThanOrEqual(360);
+  await expect.poll(() => liesInside(panel, canvasArea(page))).toBe(true);
+  await expect(panel.getByLabel('Radius value', { exact: true })).toHaveValue('7');
+
+  await panel.getByRole('button', { name: 'Cancel' }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(undoButton(page)).toBeDisabled();
 });
 
-test.describe('German UI', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
-
-  test('close button, splitter and sheet tab are German (AC-15)', async ({ page }) => {
-    await createDocument(page, 'image', { width: 32, height: 32 });
-    await phoneMenu(page, 'View', 'Language', 'Deutsch');
-    await phoneMenu(page, 'Korrekturen', 'Farben umkehren');
-    const sheet = page.getByRole('dialog', { name: 'Bedienfelder' });
-    await expect(sheet.getByRole('tab', { name: 'Farben umkehren' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    const panel = sheet.getByRole('dialog', { name: 'Farben umkehren' });
-    await expect(panel.getByRole('button', { name: 'Schließen', exact: true })).toBeVisible();
-    await panel.getByRole('button', { name: 'Schließen', exact: true }).click();
-    await expect(sheet).toHaveCount(0);
-
-    await page.setViewportSize({ width: 1280, height: 720 });
-    await expect(page.getByRole('separator', { name: 'Breite der Seitenleiste' })).toBeVisible();
-  });
+test('close button, title bar and splitter are German (AC-15)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Language' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await menu(page, 'Korrekturen', 'Farben umkehren');
+  const panel = effectPanel(page, 'Farben umkehren');
+  await expect(panel).toBeVisible();
+  await expect(titleBar(panel, 'Dialog verschieben')).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Schließen', exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Schließen', exact: true }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByRole('separator', { name: 'Breite der Seitenleiste' })).toBeVisible();
 });

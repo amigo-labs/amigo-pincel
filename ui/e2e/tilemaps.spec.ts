@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, pixelCanvas } from './helpers';
+import { colorOf, createDocument, pixelCanvas, setColor } from './helpers';
 
 // Pixel-mode tilesets and tilemap layers (docs/specs/tilemaps.md): the
 // Tilesets panel, the Tile Stamp tool and the Tile editor. Composed pixels
@@ -46,7 +46,6 @@ const stampTool = (page: Page) =>
   page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Tile Stamp' });
 const activeTool = (page: Page) =>
   page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
-const fg = (page: Page) => page.getByLabel('Foreground color', { exact: true });
 const alpha = (page: Page) => page.getByLabel('Foreground alpha');
 
 /** The form fields of the Add tileset form. */
@@ -131,7 +130,7 @@ function canvasBytes(canvas: Locator): Promise<{ w: number; h: number; data: num
 async function sample(ed: Editor, px: number, py: number): Promise<string> {
   await ed.page.keyboard.press('i');
   await ed.page.mouse.click(...ed.at(px, py));
-  return `${await fg(ed.page).inputValue()}/${await alpha(ed.page).inputValue()}`;
+  return `${await colorOf(ed.page, 'fg')}/${await alpha(ed.page).inputValue()}`;
 }
 
 const RED = '#ff0000/255';
@@ -139,7 +138,7 @@ const CLEAR = '#000000/0';
 
 /** Opens the Tile editor on tile `id` of `name` and paints pixel (x, y) red. */
 async function paintTilePixel(page: Page, name: string, id: number, x: number, y: number) {
-  await fg(page).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await alpha(page).fill('255');
   await tileButton(page, name, id).dblclick();
   const editor = page.getByRole('dialog', { name: 'Tile editor' });
@@ -407,7 +406,7 @@ test('the Tile editor paints the pixels of one tile, one undo step each (AC-16, 
   await addTileset(page, 'Ground', 4, 3);
   await plusTile(page, 'Ground').click();
   await history(page, 2);
-  await fg(page).fill('#00ff00');
+  await setColor(page, 'fg', '#00ff00');
   await alpha(page).fill('255');
 
   await tileButton(page, 'Ground', 1).dblclick();
@@ -444,7 +443,7 @@ test('the Tile editor paints the pixels of one tile, one undo step each (AC-16, 
 
   // AC-17: undo restores a painted pixel's previous colour — here a red
   // pixel painted over green, then a red pixel over transparent.
-  await fg(page).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await page.mouse.click(...at(1, 0));
   await page.mouse.click(...at(3, 0));
   await expect.poll(() => canvasPixel(canvas, 3, 0)).toEqual([255, 0, 0, 255]);

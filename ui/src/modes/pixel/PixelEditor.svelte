@@ -75,7 +75,8 @@
   import { getPref, setPref } from '../../lib/idb/prefs';
   import { syncRecentMenu } from '../../lib/menu';
   import { listRecents } from '../../lib/idb/recent-files';
-  import { packColor, unpackColor } from '../../lib/color';
+  import { hexToRgb, packColor, readColor, toHex, unpackColor } from '../../lib/color';
+  import { loadRecent, recentColors } from '../../lib/colors/recent.svelte';
   import { t } from '../../lib/i18n/index.svelte';
   import {
     closeShortcuts,
@@ -170,15 +171,7 @@
   } from './pointer';
   import { createRenderer, syncMeta, syncSelection, tick, toggleProbe } from './render';
   import { applyTextParams, cancelText, previewTextParams } from './text-tool';
-  import {
-    MAX_ZOOM,
-    MIN_ZOOM,
-    onWheel,
-    resetView,
-    zoomActual,
-    zoomIn,
-    zoomOut,
-  } from './view-ops';
+  import { MAX_ZOOM, MIN_ZOOM, onWheel, resetView, zoomActual, zoomIn, zoomOut } from './view-ops';
   import {
     MAX_DOC_SIZE,
     colors,
@@ -349,7 +342,8 @@
       menus: () => menus,
       groups: () => railGroups,
       selectTool: (id) => {
-        if (groupOf(railGroups, id as typeof toolState.tool)) toolState.tool = id as typeof toolState.tool;
+        if (groupOf(railGroups, id as typeof toolState.tool))
+          toolState.tool = id as typeof toolState.tool;
       },
       frames: {
         count: () => ed.frameCount,
@@ -807,16 +801,20 @@
     // stands when the pref is missing or IDB is unavailable). The
     // persist effect below only starts writing once this load settled,
     // so a slow IDB can't overwrite the stored value with the default.
+    void loadRecent('pixel');
     if (idbAvailable) {
       getPref(COLOR_PREF)
         .then((v) => {
           if (cancelled) return;
-          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) colors.color = v;
+          // `#rrggbb[aa]`; a value from before alpha loads opaque (AC-15).
+          const c = readColor(v);
+          if (c) [colors.color, colors.alpha] = [toHex(c), c.a];
           return getPref(BG_COLOR_PREF);
         })
         .then((v) => {
           if (cancelled) return;
-          if (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v)) colors.bgColor = v;
+          const c = readColor(v);
+          if (c) [colors.bgColor, colors.bgAlpha] = [toHex(c), c.a];
           live.colorPrefLoaded = true;
         })
         .catch(() => {
@@ -907,8 +905,8 @@
   // Persist the foreground / background colors once the initial load
   // settled.
   $effect(() => {
-    const fg = colors.color;
-    const bg = colors.bgColor;
+    const fg = toHex({ ...hexToRgb(colors.color), a: colors.alpha }, true);
+    const bg = toHex({ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }, true);
     if (!live.colorPrefLoaded || !idbAvailable) return;
     Promise.all([setPref(COLOR_PREF, fg), setPref(BG_COLOR_PREF, bg)]).catch((err: unknown) => {
       console.error('setPref colors failed', err);
@@ -941,7 +939,6 @@
     view.spaceDown = false;
   });
 
-
   // Push the current recents list to the Rust-side `Open Recent`
   // submenu so the native menu stays in sync with the in-memory list.
   // Only entries with a path can be re-opened by the menu (FSA handles
@@ -962,14 +959,19 @@
 {#snippet colorsBody()}
   <Panel>
     <ColorPair
-      fg={colors.color}
-      bg={colors.bgColor}
-      onFg={(hex) => (colors.color = hex)}
-      onBg={(hex) => (colors.bgColor = hex)}
+      fg={{ ...hexToRgb(colors.color), a: colors.alpha }}
+      bg={{ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }}
+      onFg={(c) => {
+        colors.color = toHex(c);
+        colors.alpha = c.a;
+      }}
+      onBg={(c) => {
+        colors.bgColor = toHex(c);
+        colors.bgAlpha = c.a;
+      }}
       onSwap={swapColors}
       onReset={resetColors}
-      alpha={colors.alpha}
-      onAlpha={(a) => (colors.alpha = a)}
+      recent={recentColors.pixel}
     />
   </Panel>
 {/snippet}
@@ -1291,7 +1293,11 @@
     {:else if toolState.tool === 'gradient'}
       <label class="opt">
         {t('opt.kind')}
-        <select bind:value={toolState.gradientKind} class="opt-field" aria-label={t('px.gradientKind')}>
+        <select
+          bind:value={toolState.gradientKind}
+          class="opt-field"
+          aria-label={t('px.gradientKind')}
+        >
           <option value="linear">{t('opt.gradientLinear')}</option>
           <option value="radial">{t('opt.gradientRadial')}</option>
         </select>
@@ -1705,8 +1711,6 @@
     onCancel={cancelText}
   />
 {/if}
-
-
 
 <style>
   .canvas-pixelated {

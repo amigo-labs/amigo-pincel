@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas } from './helpers';
+import { createDocument, drag, menu, pixelCanvas, setColor } from './helpers';
 
 // Pixel-mode canvas updates and the overlay layer
 // (docs/specs/pixel-compose.md AC-27, AC-28). Pixels are compared through
@@ -51,7 +51,7 @@ test('pixel mode: the canvas follows paint, undo / redo, frames and layer visibi
   const blank = await shot(page);
 
   await page.getByTitle('Pencil (B)').click();
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await pixelCanvas(page).click();
   await expectCanvas(page, blank, false);
   const painted = await shot(page);

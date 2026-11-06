@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument } from './helpers';
+import { colorOf, createDocument } from './helpers';
 
 test('palette: DB32 by default, add / recolor / move / delete with undo', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
@@ -37,8 +37,6 @@ function paletteUi(page: Page) {
     swatches: panel.getByRole('group', { name: 'Palette colors' }).getByRole('button'),
     editor: panel.getByLabel('Palette entry editor'),
     add: panel.getByRole('button', { name: 'Add current color to palette' }),
-    fg: page.getByLabel('Foreground color', { exact: true }),
-    bg: page.getByLabel('Background color', { exact: true }),
     hex: page.getByLabel('Foreground color hex value'),
     alpha,
     alphaShown: page.locator('label', { has: alpha }),
@@ -71,15 +69,15 @@ test('clicking a swatch picks the foreground and opens the entry editor', async 
   await ui.add.click();
   await ui.hex.blur();
   await page.keyboard.press('d');
-  await expect(ui.fg).toHaveValue('#000000');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
 
   await ui.swatches.nth(1).click();
-  await expect(ui.fg).toHaveValue('#222034');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#222034');
   await expect(ui.alpha).toHaveValue('255');
   await expect(ui.editor.getByText('#1', { exact: true })).toBeVisible();
 
   await ui.swatches.nth(32).click();
-  await expect(ui.fg).toHaveValue('#123456');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#123456');
   await expect(ui.alpha).toHaveValue('128');
   await expect(ui.alphaShown).toContainText('128');
   await expect(ui.editor.getByText('#32', { exact: true })).toBeVisible();
@@ -93,8 +91,8 @@ test('right-clicking a swatch picks the background without a context menu', asyn
   await ui.add.click();
   await ui.hex.blur();
   await page.keyboard.press('d');
-  await expect(ui.fg).toHaveValue('#000000');
-  await expect(ui.bg).toHaveValue('#ffffff');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#ffffff');
   // Record whether the browser's context menu would open (not prevented).
   await page.evaluate(() => {
     const w = window as { menuPrevented?: boolean[] };
@@ -103,14 +101,14 @@ test('right-clicking a swatch picks the background without a context menu', asyn
   });
 
   await ui.swatches.nth(32).click({ button: 'right' });
-  await expect(ui.bg).toHaveValue('#123456');
-  await expect(ui.fg).toHaveValue('#000000');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#123456');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
   expect(
     await page.evaluate(() => (window as { menuPrevented?: boolean[] }).menuPrevented),
   ).toEqual([true]);
   // X brings the background (color and alpha) to the foreground controls.
   await page.keyboard.press('x');
-  await expect(ui.fg).toHaveValue('#123456');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#123456');
   await expect(ui.alpha).toHaveValue('128');
 });
 

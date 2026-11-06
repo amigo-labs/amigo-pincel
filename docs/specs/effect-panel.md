@@ -107,14 +107,16 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-03 vs AC-05 (spec-build 2026-11-05): AC-03 makes the menu bar dimmed and inert while an effect is open, but AC-05 (verified) needs the user to choose another Effects / Adjustments entry while one is open, and the web menu bar is the only way to do that — shortcuts stay blocked, and the desktop app's native menu has no Effects / Adjustments entries. The AC-17 tests also save, open and close through the menu bar while an effect is open. Built for now: every region outside the canvas area *except the top bar* (menu bar, mode badge, undo / redo, the panels toggle, which stays disabled as before) is dimmed and inert, so AC-05 keeps working; AC-03 stays `open`. Options: (a) drop AC-05, make the top bar inert too (AC-17 then only reachable through the desktop app's native menu and window close); (b) amend AC-03 to keep the top bar live; (c) keep only the Effects and Adjustments menus live and dim the rest of the top bar.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |  | open |  |
-| AC-02 |  | open |  |
-| AC-03 |  | open |  |
-| AC-04 |  | open |  |
+| AC-01 | `pixel: …` / `image: the effect panel is a small dialog over the canvas area (AC-01)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-02 | `the sidebar keeps its visibility, stored too, while an effect is open (AC-02)`, `tablet › the panel floats over the canvas area and the drawer stays as it was (AC-12, AC-02)`, `phone › the panel is docked to the bottom across the window, over the sheet (AC-13, AC-02)`, `phone › a closed bottom sheet stays closed (AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-03 | `pixel: …` / `image: other panels are inert and the canvas only zooms and pans (AC-03)` — `ui/e2e/effect-panel-input.spec.ts`; `pixel: …` / `image: a two-finger pinch zooms while an effect is open and paints nothing (AC-03)` — `ui/e2e/effect-panel-touch.spec.ts` (all but the menu bar, see Open questions) | open |  |
+| AC-04 | `pixel: …` / `image: OK applies and Cancel, × and Escape leave the document alone (AC-04)`, `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | built |  |
 | AC-05 | `pixel: …` / `image: choosing an effect while one is open restarts at the defaults (AC-05)` — `ui/e2e/effect-panel.spec.ts`; `pixel: …` / `image: keys on the menu or a panel button do what that control does (AC-04, AC-05)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
 | AC-06 | `pixel: …` / `image: focus goes to the first control, or OK, and back to the canvas area (AC-06)` — `ui/e2e/effect-panel.spec.ts` | verified | c2536b6 |
 | AC-07 | `dragging the splitter resizes the sidebar within its limits (AC-07)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
@@ -122,16 +124,16 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 | AC-09 | `the splitter is a focusable separator the arrow keys move (AC-09)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
 | AC-10 | `the width survives a reload, per mode (AC-10)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
 | AC-11 | `a missing, broken or out-of-range stored width falls back silently (AC-11)` — `ui/e2e/sidebar-splitter.spec.ts` | verified | 852277d |
-| AC-12 |  | open |  |
-| AC-13 |  | open |  |
-| AC-14 |  | open |  |
-| AC-15 |  | open |  |
+| AC-12 | `tablet › the panel floats over the canvas area and the drawer stays as it was (AC-12, AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-13 | `phone › the panel is docked to the bottom across the window, over the sheet (AC-13, AC-02)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-14 | `resizing across 640 px keeps the effect, its values and the panel inside (AC-14)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-15 | `close button, title bar and splitter are German (AC-15)` — `ui/e2e/effect-panel.spec.ts` | built |  |
 | AC-16 | `pixel: …` / `image: a failing effect keeps the panel and its values (AC-16)` (OK) — `ui/e2e/effect-panel-input.spec.ts`; `pixel: a failing preview keeps the panel open with its values (AC-16)`, `image mode › a failing preview keeps the panel open with its values (AC-16)` — `ui/e2e/effect-panel-failure.spec.ts` | verified | a7bcb71 |
 | AC-17 | `pixel: …` / `image: a save while an effect is open writes the document without the preview (AC-17)`; `pixel: …` / `image: the unsaved-changes prompt cancels the open effect first (AC-17)`; `pixel: opening a file while an effect is open cancels the effect (AC-17)`; `pixel: …` / `image: an autosave while an effect is open stores the document without the preview (AC-17)` — `ui/e2e/effect-panel-input.spec.ts` | verified | a7bcb71 |
-| AC-18 |  | open |  |
-| AC-19 |  | open |  |
-| AC-20 |  | open |  |
-| AC-21 |  | open |  |
+| AC-18 | `the title bar drags the panel; the position is kept per mode (AC-18)`, `a pen drag and a release outside the window keep the last position (AC-18)`, `touch › a touch drag moves the panel; a cancelled one stays where it got (AC-18)` — `ui/e2e/effect-panel-move.spec.ts` | built |  |
+| AC-19 | `a broken or out-of-area stored position falls back silently (AC-19)` — `ui/e2e/effect-panel-move.spec.ts`; `resizing across 640 px keeps the effect, its values and the panel inside (AC-14)` — `ui/e2e/effect-panel.spec.ts` | built |  |
+| AC-20 | `the arrow keys move the focused title bar by 16 px (AC-20)` — `ui/e2e/effect-panel-move.spec.ts` | built |  |
+| AC-21 | `the panel is a modal dialog whose Tab order wraps (AC-21)` — `ui/e2e/effect-panel-move.spec.ts` | built |  |
 
 ## Summary
 
@@ -144,6 +146,15 @@ Hints, not contracts — paths drift; grep for the names (verified 2026-11-04).
 
 ## Decisions
 
+- 2026-11-05 (spec-build): The frame hosts the panel: floating in the canvas area (`<main>`) at ≥ 640 px, 320 px wide (`w-80`), as high as its content up to the canvas area's height; below 640 px fixed to the window's bottom edge across its width, at most `50vh` tall. The frame passes `floating` and the title-bar wiring to `EffectPanel` through an `EffectHost` context (`layout/effect-host.ts`), as `PanelHost` does for panels.
+- 2026-11-05 (spec-build): The position is `FrameLayout.effectPos` (`{x, y}`: the panel's top-right corner from the canvas area's top-right corner, `x` to the left, `y` down) in the `layout:<mode>` pref; `effectPanelPos()` (`layout/panels.svelte.ts`) clamps it to the measured canvas area and panel size. A drag or arrow key stores the clamped position it shows.
+- 2026-11-05 (spec-build): The title bar is a `role="group"` named "Move dialog" around the heading and ×; the dialog keeps its name from the heading. It is made focusable and wired by a Svelte attachment (`mover`), for the same reason as the splitter: Svelte's a11y check flags `tabindex` and key handlers on a `group` in markup. A press on a button inside it starts no drag; one pointer drags at a time.
+- 2026-11-05 (spec-build): Dimming is `inert` plus `data-dimmed` on each region outside the canvas area, which `app.css` shades with a 50 % black `::after`; each region got a positioned wrapper, and the sidebar's scrolling moved to an inner element so the shade covers the whole column. The panel sits at `z-index` 35: above the drawer and the bottom sheet (30), below the menu backdrop (40) and the menus (50), so a menu opened over the panel still takes the click.
+- 2026-11-05 (spec-build): Tab and Shift+Tab are handled in the capture phase on the window while the panel is open (AC-21): within the panel they move to the next / previous visible stop and wrap; from outside it (the canvas area after a zoom click) they go to the first / last stop. A press inside the panel no longer moves focus to the canvas area.
+- 2026-11-05 (spec-build): The sidebar, drawer and bottom sheet now show only their own state, so the 2026-11-04 sheet tab for the effect and the disabled sheet tabs are gone (AC-02, AC-13). The AC-03 e2e test arms the Eraser before the effect opens, since the tool rail is inert while it is open.
+- 2026-11-05 (spec-build): The floating panel can overlap the canvas, and canvas screenshots include overlays (AGENTS.md Gotchas); `effect-params.spec.ts` masks the panel (`mask: [dialog]`) in its canvas screenshots, so a changed field in the panel does not count as a changed preview.
+- 2026-11-05 (spec-build): Red runs: AC-01, AC-02, AC-04, AC-12 – AC-14 and AC-18 – AC-21 failed against the docked panel for the expected reasons (no title bar, panel in the sidebar, no dimming, `aria-modal="false"`). The first AC-15 red run stopped at the language menu (a test-path error); after fixing the path, its red run used a temporary break (the German title-bar string set to English), reverted afterwards.
+- 2026-11-05 (spec-build): AC-05's and AC-04's keyboard test keep driving the menu bar while an effect is open; that works because the top bar stays live for now (see Open questions).
 - 2026-11-05: Revision. The effect UI becomes a small dialog over the canvas that can be dragged by its title bar and is docked to the bottom on phones; while it is open the rest of the UI is dimmed, the canvas is not, and zoom / pan keep working; the splitter stays. Changed: AC-01 – AC-04, AC-12 – AC-15; new: AC-18 – AC-20. Requested by the owner because the inert tools beside a docked panel looked usable; the dialog plus dimming shows the modal state, and dragging answers the old complaint that the box covered the preview. Status back to `todo`.
 - 2026-11-04: The owner chose "docked side panel" over a draggable / resizable floating window. Written without a further dialogue while the owner's goal "all planned specs implemented" was active; thresholds and the inert-panels rule are recorded as assumptions.
 - 2026-11-04: Clarification pass settled without a dialogue: bottom-docked panels are inert too; a close button (×) is new; focus goes to the canvas area on close; re-choosing the same effect restarts it; stored widths outside the limits clamp without being overwritten; effect failures keep the panel open (AC-16); the preview never reaches the document (AC-17). The inert-panels rule stays an assumption the owner can revisit.

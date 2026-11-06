@@ -6,6 +6,7 @@ import { loadDefaultFont } from '../../lib/text/font';
 import type { TextParams } from './components/TextDialog.svelte';
 import { paintOverlays, recompose, syncMeta } from './render';
 import { colors, ed, live, toolState } from './stores/editor.svelte';
+import { notePainted } from './recent-colors';
 
 export async function openTextAt(point: { x: number; y: number }) {
   if (!ed.doc) return;
@@ -58,6 +59,7 @@ export function applyTextParams(p: TextParams) {
   if (!ed.doc || !toolState.textAnchor || live.textFontId === null) return;
   const anchor = toolState.textAnchor;
   toolState.textAnchor = null;
+  const before = ed.doc.undoDepth;
   try {
     const placed = ed.doc.drawText(
       live.textFontId,
@@ -72,6 +74,7 @@ export function applyTextParams(p: TextParams) {
       p.align,
     );
     if (placed) {
+      notePainted(before, [packColor(colors.color, colors.alpha)]);
       live.needsRecompose = true;
       syncMeta();
       ed.docRev += 1;
