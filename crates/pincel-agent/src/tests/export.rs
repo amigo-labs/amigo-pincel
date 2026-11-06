@@ -525,3 +525,60 @@ fn jpeg_quality_applies_to_jpeg_only_and_per_document() {
     s.ok("doc.save", json!({ "path": "e.jpg" }));
     assert_eq!(s.host.files["e.jpg"], encoded(&s, &other, "JPEG", 90));
 }
+
+#[test]
+fn doc_save_with_a_flat_path_refuses_a_lossy_flatten_and_flatten_writes_it() {
+    // AC-17 with AC-15 / AC-16: a `path` to a flat format follows the
+    // flatten rules as a save back to the opened file does.
+    for (path, format) in [("x.png", "PNG"), ("y.jpg", "JPEG"), ("z.TIFF", "TIFF")] {
+        let mut s = S::new();
+        let id = s.new_image(6, 4);
+        s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#336699" }));
+        for (name, args) in [
+            ("Top", json!({ "opacity": 128, "blend": "multiply" })),
+            ("H", json!({})),
+        ] {
+            let mut args = args;
+            args["name"] = json!(name);
+            let layer = s.ok("layer.add", args)["layer"].clone();
+            s.ok(
+                "draw.shape",
+                json!({ "shape": "rect", "x0": 1, "y0": 1, "x1": 3, "y1": 2, "fill": "#ff8800" }),
+            );
+            if name == "H" {
+                s.ok("layer.set", json!({ "layer": layer, "visible": false }));
+            }
+        }
+        let e = s.err("doc.save", json!({ "path": path }));
+        for cause in [
+            "3 layers",
+            "hidden layer \"H\"",
+            "\"Top\" at 50 % opacity",
+            "\"Top\" with blend mode Multiply",
+            "`flatten: true`",
+            "`.ora` path",
+        ] {
+            assert!(e.contains(cause), "{path}: {cause} in {e}");
+        }
+        assert!(s.host.files.is_empty(), "{path}: nothing is written");
+        assert_eq!(s.ok("doc.info", json!({}))["dirty"], true, "{path}");
+
+        let out = s.ok("doc.save", json!({ "path": path, "flatten": true }));
+        assert_eq!(out["format"], format, "{path}");
+        let flat = compose(s.image(&id).document().layers());
+        let want = match format {
+            "PNG" => to_png_bytes(&flat, 6),
+            "JPEG" => to_jpeg_bytes(&flat, 90),
+            _ => to_tiff_bytes(&flat),
+        }
+        .expect("encode");
+        assert_eq!(s.host.files[path], want, "{path}");
+        assert_eq!(s.image(&id).document().layer_count(), 3, "{path}");
+        assert_eq!(s.ok("doc.info", json!({}))["dirty"], false, "{path}");
+        // `path` is now the document's file: a later save goes there.
+        s.host.files.clear();
+        s.ok("doc.save", json!({ "flatten": true }));
+        assert_eq!(s.host.files.keys().collect::<Vec<_>>(), [path], "{path}");
+        assert_eq!(s.host.files[path], want, "{path}");
+    }
+}
