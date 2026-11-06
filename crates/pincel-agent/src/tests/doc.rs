@@ -118,6 +118,8 @@ const EXPECTED_TOOLS: &[&str] = &[
     "grid.set",
     // image-resize-autocrop
     "image.auto_crop",
+    // image-edit-extras
+    "select.fill",
 ];
 
 /// One valid example call per tool.
@@ -170,6 +172,7 @@ fn example(name: &str) -> Value {
         "select.expand" | "select.contract" | "select.feather" => json!({ "radius": 2 }),
         "select.get" => json!({ "region": region }),
         "select.delete" => json!({ "layer": 0, "frame": 0 }),
+        "select.fill" => json!({ "layer": 0, "color": "#ff000080" }),
         "layer.flip" => json!({ "direction": "horizontal", "layer": 0, "frame": 0 }),
         "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
         "layer.translate" | "select.move_content" => json!({ "dx": 2, "dy": -1, "layer": 0 }),

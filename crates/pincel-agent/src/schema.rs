@@ -208,7 +208,7 @@ fn check_object(
             None if closed => {
                 let known: Vec<&str> = props.keys().map(String::as_str).collect();
                 return Err(format!(
-                    "unknown argument `{}` (accepted: {})",
+                    "unknown argument `{}` (got {v}; accepted: {})",
                     child(path, key),
                     known.join(", ")
                 ));
@@ -277,7 +277,7 @@ mod tests {
         assert!(
             validate(&schema(), &json!({ "width": 1, "bogus": 1 }))
                 .unwrap_err()
-                .starts_with("unknown argument `bogus`")
+                .starts_with("unknown argument `bogus` (got 1;")
         );
     }
 

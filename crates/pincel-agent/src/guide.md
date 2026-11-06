@@ -101,6 +101,10 @@ and so does an argument only the other mode's editor offers.
 - `select.delete` is the editor's Delete: it clears the selected pixels of
   the target layer. Without a selection, Image documents clear the whole
   layer and Pixel documents change nothing.
+- `select.fill` is the editor's Edit ▸ Fill Selection, Image documents
+  only: it fills the selected pixels of the target layer with `color`
+  (default `#000000`), a feathered pixel moving toward it by its
+  coverage. Without a selection it fills the whole layer.
 - Transforms, both modes: `canvas.resize`, `image.scale`,
   `image.crop_to_selection`, `image.flip`, `image.rotate` (the whole
   image), `layer.flip` and `layer.rotate` (one layer). With a selection,
