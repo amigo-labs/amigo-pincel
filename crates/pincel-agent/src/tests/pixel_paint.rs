@@ -95,6 +95,110 @@ fn drawing_tools_describe_both_modes() {
     }
 }
 
+/// The bullet of the guide's "Drawing in each mode" section that starts
+/// with `start`, with its line breaks folded into single spaces.
+fn drawing_bullet(start: &str) -> String {
+    let guide = crate::read_resource("pincel://guide").expect("guide");
+    let section = "## Drawing in each mode";
+    let body = &guide[guide.find(section).expect(section) + section.len()..];
+    let body = &body[..body
+        .find(
+            "
+## ",
+        )
+        .unwrap_or(body.len())];
+    body.split(
+        "
+- ",
+    )
+    .map(|b| b.split_whitespace().collect::<Vec<_>>().join(" "))
+    .find(|b| b.trim_start_matches("- ").starts_with(start))
+    .unwrap_or_else(|| panic!("no bullet starts with {start}"))
+}
+
+#[test]
+fn guide_lists_each_modes_drawing_arguments_defaults_and_selection_rule() {
+    for (start, facts) in [
+        (
+            "`draw.stroke`:",
+            &[
+                "integer points",
+                "`size` 1–8 (default 1)",
+                "`shape` `square` (default) or `round`",
+                "`pixel_perfect` (default false)",
+                "`ink: \"shading\"` (default `simple`)",
+                "`ramp_from` / `ramp_to` (default the whole palette)",
+                "`step` 1 (default) / -1",
+                "`mirror` `x` / `y` / `xy`",
+                "`axis_x2` / `axis_y2` in half pixels (default the centre)",
+                "`wrap` `x` / `y` / `xy`",
+                "`size` 1–500 (default 8)",
+                "`hardness` and `opacity` in % (default 100)",
+                "`shape` `hard_round` (default), `soft_round` or `flat`",
+                "`tool: \"eraser\"`",
+                "`color` default `#000000`",
+            ][..],
+        ),
+        (
+            "`draw.shape`:",
+            &[
+                "`stroke`",
+                "`fill`",
+                "`rect`, `rounded` (`corner_radius` 0–256, default 4), `ellipse` and `polygon` (`sides` 3–64, default 6",
+                "integer corners",
+                "`stroke_width` 1–64 (default 1)",
+                "`line`",
+                "`corner_radius` at least 0 (default 16)",
+                "`cx` / `cy` / `radius` / `rotation` (default 0)",
+                "`sides` 3–100 (default 5)",
+                "`dash` `solid` (default)",
+                "`anti_alias` (default true)",
+                "`stroke_width` 1–500 (default 3)",
+            ][..],
+        ),
+        (
+            "`draw.text`:",
+            &[
+                "`color` default `#000000`",
+                "`bold` and `italic` (default false)",
+                "`align` `left` (default)",
+                "Pixel `size` 1–2000 (default 12)",
+                "integer `x` / `y`",
+                "`anti_alias` default false",
+                "Image `size` 1–999 (default 48)",
+                "`anti_alias` default true",
+                "`underline` and `strikethrough` (default false)",
+            ][..],
+        ),
+        (
+            "`draw.gradient`:",
+            &[
+                "RGBA only",
+                "integer corners",
+                "`kind` `linear` (default) / `radial`",
+                "`dither` 0, 2, 4 (default) or 8",
+                "`kind` `linear` (default), `reflected`, `radial`, `conical` or `diamond`",
+                "`channel` `color` (default) or `transparency`",
+                "`opacity` in % (default 100)",
+            ][..],
+        ),
+        (
+            "The selection:",
+            &[
+                "in Pixel documents `draw.gradient`, `draw.text` and `draw.fill` stay inside it",
+                "while `draw.stroke`, `draw.shape`, `draw.pixels`, `draw.line`, `draw.rect`, `draw.ellipse` and `draw.clear` ignore it",
+                "Pixel `draw.fill` clips to the selection although the Pixel editor's Bucket does not",
+                "In Image documents every drawing tool stays inside the selection (`draw.stroke`, `draw.shape`, `draw.text`, `draw.fill`, `draw.gradient`, `draw.recolor`, `draw.smudge`)",
+            ][..],
+        ),
+    ] {
+        let bullet = drawing_bullet(start);
+        for fact in facts {
+            assert!(bullet.contains(fact), "{start} misses {fact}: {bullet}");
+        }
+    }
+}
+
 #[test]
 fn pixel_stroke_equals_the_editors_pencil() {
     let mut s = S::new();
@@ -647,6 +751,85 @@ fn image_selection_clips_every_drawing_tool() {
     }
 }
 
+/// Layer 0 of a fresh 16×8 Image document after `tool` runs with the
+/// rectangle x 4–9 selected and feathered by 2 px, or (`hard`) with every
+/// pixel that feathered selection touches fully selected. Returns the
+/// feathered coverage per pixel and the layer's RGBA.
+fn image_drawn_in_selection(tool: &str, args: &Value, hard: bool) -> (Vec<u8>, Vec<u8>) {
+    let mut s = S::new();
+    let id = s.new_image(16, 8);
+    s.ok(
+        "select.rect",
+        json!({ "x": 4, "y": 0, "width": 6, "height": 8, "feather": 2 }),
+    );
+    let soft = s
+        .image(&id)
+        .document()
+        .selection
+        .clone()
+        .expect("selection");
+    let cov = soft.data().to_vec();
+    if hard {
+        let b = soft.bounding_box().expect("bounds");
+        s.ok(
+            "select.rect",
+            json!({ "x": b.x, "y": b.y, "width": b.w, "height": b.h }),
+        );
+        let mask = s.image(&id).document().selection.clone().expect("mask");
+        let full: Vec<u8> = cov.iter().map(|&c| if c > 0 { 255 } else { 0 }).collect();
+        assert_eq!(mask.data(), full.as_slice(), "hard mask");
+    }
+    s.ok(tool, args.clone());
+    let layer = s.image(&id).document().layers()[0].pixels.data().to_vec();
+    (cov, layer)
+}
+
+#[test]
+fn image_feathered_selection_blends_every_drawing_tool_by_coverage() {
+    for (tool, args) in [
+        (
+            "draw.stroke",
+            json!({ "points": [[0, 4], [15, 4]], "size": 6 }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 15, "y1": 7, "fill": "#ff0000" }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "WWWW", "x": 0, "y": 0, "size": 8 }),
+        ),
+        ("draw.fill", json!({ "x": 0, "y": 0, "color": "#00ff00" })),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 15, "y1": 0, "from": "#ff0000", "to": "#0000ff" }),
+        ),
+    ] {
+        let (cov, soft) = image_drawn_in_selection(tool, &args, false);
+        let (_, hard) = image_drawn_in_selection(tool, &args, true);
+        assert!(cov.iter().any(|&c| c > 0 && c < 255), "feathered edge");
+        let mut blended = false;
+        for (i, &c) in cov.iter().enumerate() {
+            let (px_soft, px_hard) = (&soft[i * 4..i * 4 + 4], &hard[i * 4..i * 4 + 4]);
+            match c {
+                0 => assert_eq!(px_soft[3], 0, "{tool} painted outside at {i}"),
+                255 => assert_eq!(px_soft, px_hard, "{tool} fully selected pixel {i}"),
+                _ => {
+                    assert!(
+                        px_soft[3] <= px_hard[3],
+                        "{tool} pixel {i} above its coverage"
+                    );
+                    blended |= px_soft[3] > 0 && px_soft[3] < px_hard[3];
+                }
+            }
+        }
+        assert!(
+            blended,
+            "{tool}: no feathered pixel was blended by its coverage"
+        );
+    }
+}
+
 #[test]
 fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
     let mut s = S::new();
@@ -665,6 +848,36 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
         (
             "draw.stroke",
             json!({ "points": [[1, 1]], "shape": "soft_round" }),
+            "shape",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "shape": "hard_round" }),
+            "shape",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "shape": "flat" }),
+            "shape",
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "cx": 2 }),
+            "cx",
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "cy": 2 }),
+            "cy",
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "polygon", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000", "radius": 2 }),
+            "radius",
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "line", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "stroke": "#000000" }),
             "shape",
         ),
         (
@@ -691,6 +904,21 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
             "draw.gradient",
             json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "kind": "conical" }),
             "kind",
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "kind": "reflected" }),
+            "kind",
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "kind": "diamond" }),
+            "kind",
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff", "channel": "transparency" }),
+            "channel",
         ),
     ] {
         let before = s.state(&id);
@@ -752,6 +980,11 @@ fn arguments_of_the_other_modes_editor_fail_naming_argument_and_mode() {
         (
             "draw.stroke",
             json!({ "points": [[1, 1]], "shape": "square" }),
+            "shape",
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[1, 1]], "shape": "round" }),
             "shape",
         ),
         (
@@ -1030,6 +1263,75 @@ fn drawing_on_locked_group_or_tilemap_layers_fails_with_the_reason() {
         let e = s.err(tool, a);
         assert!(e.contains("is a group"), "{tool}: {e}");
         assert_eq!(s.image(&id).document(), &before);
+    }
+}
+
+/// The four drawing calls of this spec, without a target layer.
+fn drawing_calls() -> [(&'static str, Value); 4] {
+    [
+        ("draw.stroke", json!({ "points": [[1, 1], [3, 2]] })),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 0, "y0": 0, "x1": 3, "y1": 3, "fill": "#000000" }),
+        ),
+        ("draw.text", json!({ "text": "A", "x": 0, "y": 0 })),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 3, "y1": 0, "from": "#000000", "to": "#ffffff" }),
+        ),
+    ]
+}
+
+/// A locked group `Box` holding the image layer `Inner`; returns the ids
+/// of the group and of `Inner`.
+fn locked_group(s: &mut S) -> (u64, u64) {
+    let group = s.ok("layer.add", json!({ "kind": "group", "name": "Box" }))["layer"]
+        .as_u64()
+        .expect("group id");
+    let inner = s.ok("layer.add", json!({ "name": "Inner", "parent": group }))["layer"]
+        .as_u64()
+        .expect("layer id");
+    s.ok("layer.set", json!({ "layer": group, "locked": true }));
+    (group, inner)
+}
+
+#[test]
+fn drawing_in_a_locked_group_or_on_a_locked_layer_names_the_layer() {
+    let mut s = S::new();
+    let id = s.new_doc(8, 8);
+    let (_, inner) = locked_group(&mut s);
+    for (tool, args) in drawing_calls() {
+        let mut a = args.clone();
+        a["layer"] = json!(inner);
+        let before = s.state(&id);
+        let e = s.err(tool, a);
+        assert!(
+            e.contains(&format!("layer {inner} (\"Inner\") is locked")),
+            "Pixel {tool}: {e}"
+        );
+        assert_eq!(s.state(&id), before);
+    }
+
+    let mut s = S::new();
+    let id = s.new_image(8, 8);
+    s.ok(
+        "layer.set",
+        json!({ "layer": 0, "name": "Base", "locked": true }),
+    );
+    let (group, inner) = locked_group(&mut s);
+    for (tool, args) in drawing_calls() {
+        for (layer, reason) in [
+            (0, "layer 0 (\"Base\") is locked".to_owned()),
+            (inner, format!("layer {inner} (\"Inner\") is locked")),
+            (group, format!("layer {group} (\"Box\") is a group")),
+        ] {
+            let mut a = args.clone();
+            a["layer"] = json!(layer);
+            let before = s.image(&id).document().clone();
+            let e = s.err(tool, a);
+            assert!(e.contains(&reason), "Image {tool} on {layer}: {e}");
+            assert_eq!(s.image(&id).document(), &before);
+        }
     }
 }
 

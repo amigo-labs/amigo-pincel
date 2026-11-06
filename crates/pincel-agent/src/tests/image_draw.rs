@@ -127,6 +127,52 @@ fn draw_stroke_with_empty_points_fails_naming_points() {
     assert_eq!(state(&s, &id), before);
 }
 
+/// Calls without size, shape, opacity, hardness, color or anti-aliasing
+/// paint with the Image editor's starting options (`tool` in
+/// `ui/src/modes/image/stores/editor.svelte.ts`: brush 8 px `hard_round`
+/// at 100 % opacity and hardness, angle 45, black; text 48 px
+/// anti-aliased, left; shapes 3 px, corner radius 16, 5 sides,
+/// anti-aliased, solid) — mcp-parity-drawing AC-19.
+#[test]
+fn image_drawing_defaults_are_the_image_editors_starting_options() {
+    let cases = [
+        (
+            "draw.stroke",
+            json!({ "points": [[3, 4], [16, 9]] }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "tool": "eraser", "points": [[3, 4], [16, 9]] }),
+            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "Ag", "x": 2, "y": 0 }),
+            json!({ "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag", "x": 2, "y": 0, "size": 48, "color": [0, 0, 0, 255], "bold": false, "italic": false, "anti_alias": true, "align": "left" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rounded", "x0": 1, "y0": 1, "x1": 50, "y1": 40, "stroke": "#ff0000" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rounded_rectangle", "points": [[1, 1], [50, 40]], "corner_radius": 16, "mode": "outline", "stroke_width": 3, "stroke_color": [255, 0, 0, 255], "anti_alias": true, "dash": "solid" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "polygon", "cx": 30, "cy": 25, "radius": 20, "stroke": "#ff0000" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "polygon", "center": [30, 25], "radius": 20, "sides": 5, "rotation": 0.0, "mode": "outline", "stroke_width": 3, "stroke_color": [255, 0, 0, 255], "anti_alias": true, "dash": "solid" }),
+        ),
+    ];
+    for (tool, args, cmd) in cases {
+        let mut s = S::new();
+        let id = painted(&mut s, 64, 56);
+        let want = editor(&s, &id, vec![cmd]);
+        let before = agent_pixels(&s, &id, 0);
+        s.ok(tool, args.clone());
+        assert_ne!(agent_pixels(&s, &id, 0), before, "{tool} {args} painted");
+        assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0), "{tool} {args}");
+    }
+}
+
 #[test]
 fn draw_shape_matches_the_shape_tools() {
     let cases = [
