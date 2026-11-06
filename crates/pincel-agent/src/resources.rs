@@ -354,6 +354,58 @@ mod tests {
         }
     }
 
+    /// The bullet of the guide's `section` that first names `tool` in
+    /// backticks, with its line breaks folded into single spaces.
+    fn guide_bullet(section: &str, tool: &str) -> String {
+        let guide = read_resource("pincel://guide").expect("guide");
+        let start = guide.find(section).expect(section) + section.len();
+        let body = &guide[start..];
+        let body = &body[..body.find("\n## ").unwrap_or(body.len())];
+        body.split("\n- ")
+            .map(|b| b.split_whitespace().collect::<Vec<_>>().join(" "))
+            .find(|b| b.contains(&format!("`{tool}`")))
+            .unwrap_or_else(|| panic!("no bullet of {section} names {tool}"))
+    }
+
+    #[test]
+    fn guide_names_the_modes_of_the_structure_tools() {
+        // mcp-parity-structure AC-26: each tool sits on the line of its modes.
+        let section = "## Document structure";
+        for (prefix, tools) in [
+            (
+                "Layers, both modes:",
+                &[
+                    "layer.add",
+                    "layer.duplicate",
+                    "layer.move",
+                    "layer.merge_down",
+                    "layer.flatten",
+                ][..],
+            ),
+            (
+                "Layers, Image documents only:",
+                &["layer.merge_visible", "layer.merge_group"][..],
+            ),
+            ("Tags, Pixel documents only:", &["tag.set"][..]),
+            (
+                "Palette, Pixel documents only:",
+                &[
+                    "palette.set_entry",
+                    "palette.add_entry",
+                    "palette.remove_entry",
+                    "palette.move_entry",
+                    "palette.import",
+                    "palette.export",
+                ][..],
+            ),
+        ] {
+            for tool in tools {
+                let bullet = guide_bullet(section, tool);
+                assert!(bullet.starts_with(prefix), "{tool}: {bullet}");
+            }
+        }
+    }
+
     #[test]
     fn effects_resource_lists_exactly_the_catalog_with_ranges() {
         let text = read_resource("pincel://effects").expect("effects");
