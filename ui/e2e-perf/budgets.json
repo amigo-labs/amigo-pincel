@@ -3,8 +3,8 @@
   "tolerance": 0.1,
   "budgets": [
     {
-      "metric": "browser/image-brush-4k/dab-latency-p95",
-      "scenario": "Brush dab -> pixels on screen, Image 3840x2160, 10 layers",
+      "metric": "browser/image-brush-4k/dab-draw-latency-p95",
+      "scenario": "Brush dab, Image 3840x2160, 10 layers, dab latency (pointer event received -> draw call)",
       "max": 16,
       "unit": "ms",
       "owner": "performance-image-cache"
