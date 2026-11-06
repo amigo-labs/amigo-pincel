@@ -91,7 +91,7 @@ Pixel tools in `pincel-agent` run the editor's core command on a scratch copy of
 
 `draw.stroke`, `draw.shape`, `draw.text` and `draw.gradient` sit in the Image-only `TOOLS` list today (`crates/pincel-agent/src/image/mod.rs`) and call `ctx.ws.image_mut`; they become shared tools that branch on `ctx.ws.is_image`, like `draw.fill` and `effect.apply`. `draw.text` on Pixel documents uses the font `pincel-agent` already embeds.
 
-Per-mode bounds: the input schema allows the union of both modes' ranges (text `size` 1–2000, `sides` 3–100, `stroke_width` 1–500, coordinates as numbers), and the tool checks the range of the document's mode and integer coordinates itself, with the AC-24 / AC-09 message. Arguments of a variant the call does not use are in the same closed schema and are ignored (Decisions).
+Per-mode bounds: the input schema states no bounds for arguments whose range differs per mode (brush and text `size`, `sides`, `stroke_width`, `corner_radius`; their descriptions name both ranges) and takes coordinates as numbers, and the tool checks the range of the document's mode and integer coordinates itself, with the AC-24 / AC-09 message (Decisions 2026-11-06). Arguments of a variant the call does not use are in the same closed schema and are ignored (Decisions).
 
 ## Edge cases
 
