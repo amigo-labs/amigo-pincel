@@ -55,6 +55,7 @@ export type ShortcutAction =
   | 'zoomActual'
   | 'toggleGrid'
   | 'togglePixelGrid'
+  | 'toggleRulers'
   | 'swapColors'
   | 'resetColors'
   | 'brushSmaller'
@@ -210,6 +211,9 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
     { key: "'", mod: true, shift: true },
     { key: '"', mod: true },
   ],
+  // Image mode's rulers (docs/specs/image-view-aids.md AC-17): desktop only,
+  // as the rotations; Ctrl+Alt+R is AltGr+R on Windows, hence the physical key.
+  toggleRulers: DESKTOP ? [{ key: 'r', code: 'KeyR', mod: true, alt: true }] : [],
   swapColors: [{ key: 'x' }],
   resetColors: [{ key: 'd' }],
   brushSmaller: [{ key: '[' }],
