@@ -97,7 +97,7 @@ fn grid_set_out_of_range_leaves_the_grid() {
 #[test]
 fn doc_info_reports_slice_and_tileset_counts_and_grid() {
     let mut s = S::new();
-    tiled(&mut s);
+    let pid = tiled(&mut s);
     s.ok("slice.add", json!({ "name": "a" }));
     let info = s.ok("doc.info", json!({}));
     assert_eq!(
@@ -109,6 +109,40 @@ fn doc_info_reports_slice_and_tileset_counts_and_grid() {
     for key in ["slices", "tilesets", "grid"] {
         assert!(info.get(key).is_none(), "{key}");
     }
+    // doc.list reports the same per document: the Pixel one with its
+    // counts and grid, the Image one with none of these fields.
     let list = s.ok("doc.list", json!({}))["documents"].clone();
-    assert_eq!(list[0]["grid"]["width"], 16);
+    assert_eq!(
+        (
+            list[0]["slices"].clone(),
+            list[0]["tilesets"].clone(),
+            list[0]["grid"].clone()
+        ),
+        (
+            json!(1),
+            json!(1),
+            json!({ "x": 0, "y": 0, "width": 16, "height": 16 })
+        )
+    );
+    for key in ["slices", "tilesets", "grid"] {
+        assert!(list[1].get(key).is_none(), "Image entry: {key}");
+    }
+    // The counts follow edits, in doc.info and doc.list alike.
+    s.ok("slice.add", json!({ "doc": pid, "name": "b" }));
+    for name in ["c", "d"] {
+        s.ok(
+            "tileset.add",
+            json!({ "doc": pid, "name": name, "tile_width": 2, "tile_height": 2 }),
+        );
+    }
+    let info = s.ok("doc.info", json!({ "doc": pid }));
+    assert_eq!(
+        (info["slices"].clone(), info["tilesets"].clone()),
+        (json!(2), json!(3))
+    );
+    let list = s.ok("doc.list", json!({}))["documents"].clone();
+    assert_eq!(
+        (list[0]["slices"].clone(), list[0]["tilesets"].clone()),
+        (json!(2), json!(3))
+    );
 }

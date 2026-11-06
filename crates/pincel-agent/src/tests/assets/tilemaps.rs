@@ -106,6 +106,8 @@ fn layer_add_tileset_and_kind_tilemap_go_together() {
     let id = tiled(&mut s);
     for (args, arg) in [
         (json!({ "tileset": 0 }), "tileset"),
+        (json!({ "kind": "image", "tileset": 0 }), "tileset"),
+        (json!({ "kind": "group", "tileset": 0 }), "tileset"),
         (json!({ "kind": "tilemap" }), "tileset"),
     ] {
         let before = s.state(&id);
@@ -186,15 +188,15 @@ fn tilemap_place_bad_entries_name_position_field_and_limit() {
         (json!({ "layer": 0, "cells": [] }), "image layer"),
         (
             json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 5, "row": 0, "tile": 1 }] }),
-            "cells[1].col 5",
+            "cells[1].col 5 lies outside the 5×3 grid",
         ),
         (
             json!({ "layer": 1, "cells": [{ "col": 0, "row": 3, "tile": 1 }] }),
-            "5×3",
+            "cells[0].row 3 lies outside the 5×3 grid",
         ),
         (
-            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 2 }] }),
-            "2 tiles",
+            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }, { "col": 0, "row": 0, "tile": 2 }] }),
+            "cells[1].tile 2 is not in tileset 0 (2 tiles)",
         ),
         (
             json!({ "layer": 1, "cells": [{ "col": 0, "tile": 1 }] }),
@@ -491,4 +493,165 @@ fn a_tilemap_active_layer_leaves_drawing_on_the_lowest_image_layer() {
         assert!(e.contains("no image layer"), "{tool}: {e}");
         assert_eq!(t.state(&tid), before, "{tool}");
     }
+}
+
+#[test]
+fn layer_list_reports_each_layers_tileset() {
+    let mut s = S::new();
+    tiled(&mut s);
+    s.ok(
+        "tileset.add",
+        json!({ "name": "wall", "tile_width": 2, "tile_height": 2 }),
+    );
+    let wall = s.ok("layer.add", json!({ "kind": "tilemap", "tileset": 1 }))["layer"].clone();
+    let group = s.ok("layer.add", json!({ "kind": "group" }))["layer"].clone();
+    let list = s.ok("layer.list", json!({}))["layers"].clone();
+    let layers = list.as_array().expect("layers");
+    assert_eq!(layers.len(), 4);
+    for l in layers {
+        assert!(
+            l.as_object().is_some_and(|o| o.contains_key("tileset")),
+            "every layer reports `tileset`: {l}"
+        );
+        let want = match l["id"].as_u64() {
+            Some(1) => json!(0),
+            _ if l["id"] == wall => json!(1),
+            _ => Value::Null,
+        };
+        assert_eq!(l["tileset"], want, "{l}");
+    }
+    let kinds: Vec<(Value, Value)> = layers
+        .iter()
+        .map(|l| (l["id"].clone(), l["kind"].clone()))
+        .collect();
+    assert!(kinds.contains(&(group, json!("group"))), "{kinds:?}");
+    assert!(kinds.contains(&(json!(0), json!("image"))), "{kinds:?}");
+}
+
+#[test]
+fn tilemap_place_equals_the_editors_tile_stamp_and_a_later_entry_wins() {
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    s.ok("tile.add", json!({ "tileset": 0 }));
+    let frame = s.doc(&id).active_frame;
+    let want = {
+        let (mut sprite, mut cels) = s.state(&id);
+        let place = |c: u32, r: u32, t: u32| -> pincel_core::AnyCommand {
+            pincel_core::PlaceTile::new(
+                LayerId::new(1),
+                frame,
+                c,
+                r,
+                pincel_core::TileRef {
+                    tile_id: t,
+                    ..pincel_core::TileRef::EMPTY
+                },
+            )
+            .into()
+        };
+        pincel_core::Bus::new()
+            .execute(
+                pincel_core::CommandBatch::new(vec![
+                    place(1, 1, 1),
+                    place(3, 2, 2),
+                    place(1, 1, 2),
+                ])
+                .into(),
+                &mut sprite,
+                &mut cels,
+            )
+            .expect("editor");
+        (sprite, cels)
+    };
+    let depth = undo_depth(&mut s);
+    let out = s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [
+            { "col": 1, "row": 1, "tile": 1 },
+            { "col": 3, "row": 2, "tile": 2 },
+            { "col": 1, "row": 1, "tile": 2 },
+        ] }),
+    );
+    assert_eq!(out["changed"], true);
+    assert_eq!(undo_depth(&mut s), depth + 1);
+    assert_eq!(s.state(&id), want);
+    assert_eq!(
+        s.ok("tilemap.get", json!({ "layer": 1 }))["rows"],
+        json!(["0 0 0 0 0", "0 2 0 0 0", "0 0 0 2 0"]),
+        "the later entry for cell (1, 1) wins"
+    );
+    // Placing a tile and clearing the cell again in one batch leaves the
+    // document as it was: no undo step.
+    let before = s.state(&id);
+    let out = s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "cells": [
+            { "col": 0, "row": 0, "tile": 1 },
+            { "col": 0, "row": 0, "tile": 0 },
+        ] }),
+    );
+    assert_eq!(out["changed"], false);
+    assert_eq!(undo_depth(&mut s), depth + 1);
+    assert_eq!(s.state(&id), before);
+}
+
+#[test]
+fn tilemap_place_checks_cells_against_the_cels_own_grid() {
+    // An opened file's cel may have another grid than a new layer gets.
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    {
+        let d = s.ws.get_mut(&id).expect("doc");
+        let cel = d
+            .cels
+            .get_mut(LayerId::new(1), FrameIndex::new(0))
+            .expect("cel");
+        cel.data = pincel_core::CelData::Tilemap {
+            grid_w: 2,
+            grid_h: 2,
+            tiles: vec![pincel_core::TileRef::EMPTY; 4],
+        };
+        d.cels.remove(LayerId::new(1), FrameIndex::new(1));
+    }
+    for (frame, cell, needle) in [
+        (
+            0,
+            json!({ "col": 2, "row": 0, "tile": 1 }),
+            "cells[0].col 2 lies outside the 2×2 grid",
+        ),
+        (
+            0,
+            json!({ "col": 0, "row": 2, "tile": 1 }),
+            "cells[0].row 2 lies outside the 2×2 grid",
+        ),
+        (
+            1,
+            json!({ "col": 5, "row": 0, "tile": 1 }),
+            "cells[0].col 5 lies outside the 5×3 grid",
+        ),
+    ] {
+        let before = s.state(&id);
+        let e = s.err(
+            "tilemap.place",
+            json!({ "layer": 1, "frame": frame, "cells": [cell] }),
+        );
+        assert!(e.contains(needle), "{e}");
+        assert_eq!(s.state(&id), before);
+    }
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "frame": 0, "cells": [{ "col": 1, "row": 1, "tile": 1 }] }),
+    );
+    assert_eq!(
+        s.ok("tilemap.get", json!({ "layer": 1, "frame": 0 }))["rows"],
+        json!(["0 0", "0 1"])
+    );
+    s.ok(
+        "tilemap.place",
+        json!({ "layer": 1, "frame": 1, "cells": [{ "col": 4, "row": 2, "tile": 1 }] }),
+    );
+    assert_eq!(
+        s.ok("tilemap.get", json!({ "layer": 1, "frame": 1 }))["rows"],
+        json!(["0 0 0 0 0", "0 0 0 0 0", "0 0 0 0 1"])
+    );
 }

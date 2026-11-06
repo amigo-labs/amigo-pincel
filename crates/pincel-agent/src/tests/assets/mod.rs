@@ -143,7 +143,7 @@ fn naming_a_missing_asset_fails_with_argument_and_value() {
 #[test]
 fn asset_edits_record_one_undo_step_and_none_without_a_change() {
     let mut s = S::new();
-    tiled(&mut s);
+    let id = tiled(&mut s);
     for (tool, args) in [
         ("slice.add", json!({ "name": "a" })),
         (
@@ -170,18 +170,49 @@ fn asset_edits_record_one_undo_step_and_none_without_a_change() {
         ("slice.remove", json!({ "slice": 0 })),
     ] {
         let depth = undo_depth(&mut s);
+        let before = s.state(&id);
         s.ok(tool, args.clone());
         assert_eq!(undo_depth(&mut s), depth + 1, "{tool}");
+        // One step: one doc.undo takes the whole call back, one redo
+        // brings it back.
+        let after = s.state(&id);
+        s.ok("doc.undo", json!({}));
+        assert_eq!(s.state(&id), before, "{tool}: undone");
+        s.ok("doc.redo", json!({}));
+        assert_eq!(s.state(&id), after, "{tool}: redone");
     }
+    let active = s.ok("doc.info", json!({}))["active_frame"].clone();
+    s.ok("frame.add", json!({}));
+    let slice = s.ok("slice.add", json!({ "name": "k" }))["slice"].clone();
+    s.ok(
+        "slice.set_key",
+        json!({ "slice": slice, "pivot": { "x": 1, "y": 1 } }),
+    );
     for (tool, args) in [
         (
             "tile.set_pixels",
             json!({ "tileset": 0, "tile": 1, "pixels": [] }),
         ),
+        // Tile 1 is red already.
+        (
+            "tile.set_pixels",
+            json!({ "tileset": 0, "tile": 1, "pixels": [{ "x": 2, "y": 2, "color": "#ff0000" }] }),
+        ),
+        // The key frame 0 has already (set up below the first loop).
+        (
+            "slice.set_key",
+            json!({ "slice": slice, "pivot": { "x": 1, "y": 1 } }),
+        ),
+        // Tile 0 on a frame without a grid (frame 2, added after the
+        // layer).
+        (
+            "tilemap.place",
+            json!({ "layer": 1, "frame": 2, "cells": [{ "col": 0, "row": 0, "tile": 0 }] }),
+        ),
         ("tilemap.place", json!({ "layer": 1, "cells": [] })),
         (
             "tilemap.place",
-            json!({ "layer": 1, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
+            json!({ "layer": 1, "frame": active, "cells": [{ "col": 0, "row": 0, "tile": 1 }] }),
         ),
         (
             "grid.set",
@@ -189,7 +220,102 @@ fn asset_edits_record_one_undo_step_and_none_without_a_change() {
         ),
     ] {
         let depth = undo_depth(&mut s);
-        s.ok(tool, args.clone());
+        let before = s.state(&id);
+        let out = s.ok(tool, args.clone());
         assert_eq!(undo_depth(&mut s), depth, "{tool} {args}");
+        assert_eq!(s.state(&id), before, "{tool} {args}");
+        if let Some(changed) = out.get("changed") {
+            assert_eq!(changed, &json!(false), "{tool} {args}");
+        }
+    }
+}
+
+#[test]
+fn malformed_batch_entries_name_their_position_and_field() {
+    let mut s = S::new();
+    let id = tiled(&mut s);
+    let ok = json!({ "x": 0, "y": 0, "color": "#00ff00" });
+    let cell = json!({ "col": 0, "row": 0, "tile": 1 });
+    for (tool, entries, needle) in [
+        (
+            "tile.set_pixels",
+            json!([ok, { "y": 0, "color": "#ff0000" }]),
+            "pixels[1].x",
+        ),
+        (
+            "tile.set_pixels",
+            json!([ok, { "x": 0, "color": "#ff0000" }]),
+            "pixels[1].y",
+        ),
+        (
+            "tile.set_pixels",
+            json!([ok, { "x": 0, "y": 0 }]),
+            "pixels[1].color",
+        ),
+        (
+            "tile.set_pixels",
+            json!([{ "x": 1.5, "y": 0, "color": "#ff0000" }]),
+            "pixels[0].x",
+        ),
+        (
+            "tile.set_pixels",
+            json!([{ "x": 0, "y": "1", "color": "#ff0000" }]),
+            "pixels[0].y",
+        ),
+        (
+            "tile.set_pixels",
+            json!([{ "x": 0, "y": -2, "color": "#ff0000" }]),
+            "pixels[0].y",
+        ),
+        (
+            "tilemap.place",
+            json!([cell, { "row": 0, "tile": 1 }]),
+            "cells[1].col",
+        ),
+        (
+            "tilemap.place",
+            json!([cell, { "col": 0, "tile": 1 }]),
+            "cells[1].row",
+        ),
+        (
+            "tilemap.place",
+            json!([cell, { "col": 0, "row": 0 }]),
+            "cells[1].tile",
+        ),
+        (
+            "tilemap.place",
+            json!([{ "col": -1, "row": 0, "tile": 1 }]),
+            "cells[0].col",
+        ),
+        (
+            "tilemap.place",
+            json!([{ "col": 0, "row": 0.5, "tile": 1 }]),
+            "cells[0].row",
+        ),
+        (
+            "tilemap.place",
+            json!([{ "col": 0, "row": 0, "tile": "1" }]),
+            "cells[0].tile",
+        ),
+        (
+            "tilemap.place",
+            json!([{ "col": 0, "row": 0, "tile": 1.25 }]),
+            "cells[0].tile",
+        ),
+    ] {
+        let args = if tool == "tile.set_pixels" {
+            json!({ "tileset": 0, "tile": 1, "pixels": entries })
+        } else {
+            json!({ "layer": 1, "cells": entries })
+        };
+        let before = s.state(&id);
+        // A schema mismatch (mcp-headless-pixel AC-37), not a range error.
+        match s.call(tool, args.clone()) {
+            Err(crate::AgentError::InvalidArgs { message, .. }) => {
+                assert!(message.contains(needle), "{args}: {message}");
+            }
+            other => panic!("{args}: expected a schema mismatch, got {other:?}"),
+        }
+        assert_eq!(s.state(&id), before, "{args}");
     }
 }
