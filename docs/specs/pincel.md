@@ -455,6 +455,7 @@ Image mode is the paint.net-style editor (§1.1). Its tools live in `crates/pinc
 | Eraser | `E` | To transparent, or to the background color |
 | Recolor | `R` | A brush that writes only where it finds the background color, within a tolerance, and paints the foreground there |
 | Smudge | `S` | Carries the color under the tip along the stroke. Strength governs how far: 0 changes nothing, 1 drags one color the whole way |
+| Clone Stamp | `C` | Ctrl / ⌘+click (or *Set source*) sets a source; strokes copy the pixels at the offset fixed by the first stroke, from the layer or the composite as they were at the press (feature spec `clone-stamp.md`) |
 | Paint Bucket | `G` | Flood fill, contiguous or global, with a tolerance, sampling the layer or the composite |
 | Gradient | `N` | Linear / reflected / radial / conical / diamond ramp along the drag, in the Color or Transparency channel |
 | Eyedropper | `I` | Samples 1 / 3 / 5 / 11 / 31 px from the layer or the composite |
@@ -466,7 +467,7 @@ All selection modes combine with Shift (add), Alt (subtract) and both (intersect
 
 **Copy, Cut and Paste** (both modes, Decision Log 2026-10-29; feature spec `copy-cut-paste.md`). Edit ▸ Copy (Ctrl+C / ⌘C) puts the active layer's pixels inside the selection's bounding box on the system clipboard as PNG — the whole layer without a selection; pixels outside the selection are transparent, feathered edges scale alpha by coverage. Copy Merged takes the same region from the composite of the visible layers; Cut (Ctrl+X / ⌘X) copies and then clears the pixels in one undo step. In Pixel mode an image layer copies its own cel on the current frame (indexed cels through the palette), a group or tilemap its rendered pixels; Cut on a group or tilemap is refused. Pincel also keeps the last copy in-app (pixels, canvas origin, source document), used when the system write failed or the clipboard holds no image. Edit ▸ Paste (Ctrl+V / ⌘V) puts the clipboard image on a new layer above the active one in one undo step: Pincel's own copy pasted into the document it came from lands where it was copied from; anything else at the canvas position at the top-left of the visible viewport, clamped to non-negative coordinates and, on an axis where it fits, shifted to lie fully inside. When the image is wider or taller than the canvas, a dialog asks first, like paint.net: *Expand canvas* grows the canvas to cover it at its position (anchored top-left, within the mode's size limits), *Keep canvas size* crops it to the canvas, *Cancel* drops it. Pasting into an indexed Pixel sprite is refused with a notice (indexed painting is Phase 2). File ▸ Import PNG as layer is the same single-step paste, on top of the stack at the origin.
 
-Not implemented: a clone stamp, bézier curves, and custom or textured brushes. Selection arithmetic beyond the four modes (saving a selection, transforming one) is Phase 2 (§13).
+Not implemented: bézier curves, and custom or textured brushes. Selection arithmetic beyond the four modes (saving a selection, transforming one) is Phase 2 (§13).
 
 ---
 
