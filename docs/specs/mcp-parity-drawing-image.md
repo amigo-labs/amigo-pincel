@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: M
 mode: Image
@@ -41,23 +41,23 @@ Decision Log 2026-11-05 "MCP tool parity" applies: one tool name per capability.
 
 ## Acceptance criteria
 
-- [ ] AC-15 (always): `tools/list` contains `draw.recolor` and `draw.smudge`, each meeting `mcp-headless-pixel` AC-02, and `draw.stroke` accepts only `brush` and `eraser` as `tool`.
-- [ ] AC-01 (event): When the client calls `draw.recolor` on an Image document with `points`, `from` (the color to replace), `color` (the replacement, default `#000000`), `tolerance` 0–255 (default 32) and the brush arguments of `draw.stroke` (`size`, `hardness`, `opacity`, `shape`, `angle`), then the target layer has the same pixels as after the editor's Recolor tool along the same points with `from` as background, `color` as foreground, that tolerance and that brush.
-- [ ] AC-02 (error): If `draw.recolor` has no `from`, or `from` or `color` is malformed or a palette index (`{ "index": n }`; Image documents have no palette), then the call fails with `isError: true` naming the argument and the accepted forms `#RRGGBB` / `#RRGGBBAA`, and the document is unchanged.
-- [ ] AC-03 (event): When the client calls `draw.smudge` on an Image document with `points`, `strength` 1–100 % (default 60) and the brush arguments of `draw.stroke` (without `color`), then the target layer has the same pixels as after the editor's Smudge tool along the same points with that strength and brush.
-- [ ] AC-04 (option): Where an Image `draw.stroke` with `tool: "eraser"` gets `eraser_mode: "to_background"` and `background` (default `#FFFFFF`), the target layer has the same pixels as after the editor's Eraser in To Background mode with that background color; with `eraser_mode: "to_transparent"` or without `eraser_mode`, the same pixels as the eraser of `mcp-headless-image` AC-06.
-- [ ] AC-05 (option): Where an Image `draw.stroke`, `draw.recolor` or `draw.smudge` gets `angle` 0–180 (degrees, default 45), the target layer has the same pixels as after the editor's stroke of that tool with the Angle option at that value; with a round tip the angle changes nothing, as in the editor.
-- [ ] AC-06 (option): Where `draw.fill` on an Image document gets `sample: "all_layers"`, the target layer has the same pixels as after the editor's Bucket with Sample set to all layers from the same seed and options; with `sample: "current_layer"` or without `sample`, the same pixels as before this spec.
-- [ ] AC-07 (error): If `tolerance`, `strength` or `angle` lies outside its range, `eraser_mode` or `sample` has an unknown value, or `background` is malformed, then the call fails with `isError: true` naming the argument and its allowed range or values, and the document is unchanged.
-- [ ] AC-08 (error): If `draw.recolor` or `draw.smudge` is called on a Pixel document, or `draw.stroke` with `eraser_mode`, `background` or `angle`, or `draw.fill` with `sample`, then the call fails with `isError: true` — for the two new tools with the mode error of `mcp-headless-image` AC-05, otherwise naming the argument and the document's mode — and the document is unchanged. This AC owns only the arguments this spec adds; the other-mode arguments of `draw.stroke`, `draw.shape`, `draw.text` and `draw.gradient` are listed in `mcp-parity-drawing` AC-18.
-- [ ] AC-17 (state): While an Image document has a selection, `draw.recolor` and `draw.smudge` change no pixel outside it and blend feathered edges by coverage, as the editor's Recolor and Smudge tools do.
-- [ ] AC-16 (error): If `draw.recolor` or `draw.smudge` gets an empty `points` list, or a target that is locked, inside a locked group or a group, then the call fails with `isError: true` naming `points` or the layer, as `draw.stroke` does, and the document is unchanged.
-- [ ] AC-09 (event): When `effect.apply` is called on an Image document with an effect id and without some parameters, then the omitted parameters take the defaults of the Image editor's effect dialog: `pixelate` samples the average color of each cell, `drop_shadow` has blur radius 4; the target layer equals the Image editor's result for these values.
-- [ ] AC-10 (event): When `effect.apply` is called on a Pixel document with omitted parameters, then the Pixel editor's defaults apply as before this spec: `pixelate` samples the centre pixel, `drop_shadow` has blur radius 0.
-- [ ] AC-11 (always): For every effect and adjustment of the catalog and every parameter that is not a colour parameter, the default `effect.apply` and `adjust.apply` use for a document equals the catalog default of that effect for the document's mode (the entry's default with that mode's `modeDefaults` applied), which is the value the editor's effect dialog of that mode opens with every time.
-- [ ] AC-12 (always): In `pincel://effects`, a parameter whose default differs between the modes carries `"defaults": { "pixel": …, "image": … }` and no `"default"`, and every other parameter keeps its single `"default"` as today.
-- [ ] AC-13 (always): A successful `draw.recolor`, `draw.smudge` or `draw.stroke` call that changes the document is exactly one undo step and never merges with another call, as in `mcp-headless-pixel` AC-09; a call that changes no pixel (a recolor that finds no pixel within tolerance) adds no undo step.
-- [ ] AC-14 (always): The `pincel://guide` resource names `draw.recolor` and `draw.smudge` with their arguments, `draw.stroke`'s `eraser_mode` and `background`, `angle`, `draw.fill` `sample`, and that effect defaults follow the document's mode.
+- [x] AC-15 (always): `tools/list` contains `draw.recolor` and `draw.smudge`, each meeting `mcp-headless-pixel` AC-02, and `draw.stroke` accepts only `brush` and `eraser` as `tool`.
+- [x] AC-01 (event): When the client calls `draw.recolor` on an Image document with `points`, `from` (the color to replace), `color` (the replacement, default `#000000`), `tolerance` 0–255 (default 32) and the brush arguments of `draw.stroke` (`size`, `hardness`, `opacity`, `shape`, `angle`), then the target layer has the same pixels as after the editor's Recolor tool along the same points with `from` as background, `color` as foreground, that tolerance and that brush.
+- [x] AC-02 (error): If `draw.recolor` has no `from`, or `from` or `color` is malformed or a palette index (`{ "index": n }`; Image documents have no palette), then the call fails with `isError: true` naming the argument and the accepted forms `#RRGGBB` / `#RRGGBBAA`, and the document is unchanged.
+- [x] AC-03 (event): When the client calls `draw.smudge` on an Image document with `points`, `strength` 1–100 % (default 60) and the brush arguments of `draw.stroke` (without `color`), then the target layer has the same pixels as after the editor's Smudge tool along the same points with that strength and brush.
+- [x] AC-04 (option): Where an Image `draw.stroke` with `tool: "eraser"` gets `eraser_mode: "to_background"` and `background` (default `#FFFFFF`), the target layer has the same pixels as after the editor's Eraser in To Background mode with that background color; with `eraser_mode: "to_transparent"` or without `eraser_mode`, the same pixels as the eraser of `mcp-headless-image` AC-06.
+- [x] AC-05 (option): Where an Image `draw.stroke`, `draw.recolor` or `draw.smudge` gets `angle` 0–180 (degrees, default 45), the target layer has the same pixels as after the editor's stroke of that tool with the Angle option at that value; with a round tip the angle changes nothing, as in the editor.
+- [x] AC-06 (option): Where `draw.fill` on an Image document gets `sample: "all_layers"`, the target layer has the same pixels as after the editor's Bucket with Sample set to all layers from the same seed and options; with `sample: "current_layer"` or without `sample`, the same pixels as before this spec.
+- [x] AC-07 (error): If `tolerance`, `strength` or `angle` lies outside its range, `eraser_mode` or `sample` has an unknown value, or `background` is malformed, then the call fails with `isError: true` naming the argument and its allowed range or values, and the document is unchanged.
+- [x] AC-08 (error): If `draw.recolor` or `draw.smudge` is called on a Pixel document, or `draw.stroke` with `eraser_mode`, `background` or `angle`, or `draw.fill` with `sample`, then the call fails with `isError: true` — for the two new tools with the mode error of `mcp-headless-image` AC-05, otherwise naming the argument and the document's mode — and the document is unchanged. This AC owns only the arguments this spec adds; the other-mode arguments of `draw.stroke`, `draw.shape`, `draw.text` and `draw.gradient` are listed in `mcp-parity-drawing` AC-18.
+- [x] AC-17 (state): While an Image document has a selection, `draw.recolor` and `draw.smudge` change no pixel outside it and blend feathered edges by coverage, as the editor's Recolor and Smudge tools do.
+- [x] AC-16 (error): If `draw.recolor` or `draw.smudge` gets an empty `points` list, or a target that is locked, inside a locked group or a group, then the call fails with `isError: true` naming `points` or the layer, as `draw.stroke` does, and the document is unchanged.
+- [x] AC-09 (event): When `effect.apply` is called on an Image document with an effect id and without some parameters, then the omitted parameters take the defaults of the Image editor's effect dialog: `pixelate` samples the average color of each cell, `drop_shadow` has blur radius 4; the target layer equals the Image editor's result for these values.
+- [x] AC-10 (event): When `effect.apply` is called on a Pixel document with omitted parameters, then the Pixel editor's defaults apply as before this spec: `pixelate` samples the centre pixel, `drop_shadow` has blur radius 0.
+- [x] AC-11 (always): For every effect and adjustment of the catalog and every parameter that is not a colour parameter, the default `effect.apply` and `adjust.apply` use for a document equals the catalog default of that effect for the document's mode (the entry's default with that mode's `modeDefaults` applied), which is the value the editor's effect dialog of that mode opens with every time.
+- [x] AC-12 (always): In `pincel://effects`, a parameter whose default differs between the modes carries `"defaults": { "pixel": …, "image": … }` and no `"default"`, and every other parameter keeps its single `"default"` as today.
+- [x] AC-13 (always): A successful `draw.recolor`, `draw.smudge` or `draw.stroke` call that changes the document is exactly one undo step and never merges with another call, as in `mcp-headless-pixel` AC-09; a call that changes no pixel (a recolor that finds no pixel within tolerance) adds no undo step.
+- [x] AC-14 (always): The `pincel://guide` resource names `draw.recolor` and `draw.smudge` with their arguments, `draw.stroke`'s `eraser_mode` and `background`, `angle`, `draw.fill` `sample`, and that effect defaults follow the document's mode.
 
 ## Technical notes
 
@@ -101,6 +101,15 @@ The effect parameter table is `EFFECTS` in `crates/pincel-agent/src/pixel/effect
 | `draw.stroke` ignores `eraser_mode` and `background` with `tool: "brush"`; `draw.recolor` and `draw.smudge` have no arguments they ignore | `draw.stroke`'s closed schema holds both variants' arguments; the same rule as `mcp-parity-drawing` (Decisions): unused options of a variant are ignored, unknown arguments fail the schema, wrong-mode options fail with the mode | Low |
 | Only `pixelate` and `drop_shadow` have mode-specific defaults today | The only `modeDefaults` entries in `catalog.ts` on 2026-11-05 | Low: AC-11's check catches later ones |
 
+## Summary
+
+> Completed: 2026-11-06
+
+- New Image-only MCP tools `draw.recolor` (`from`, `color`, `tolerance`) and `draw.smudge` (`strength`) with `draw.stroke`'s brush arguments, built on the editor's `RecolorStroke` / `SmudgeStroke` commands; `draw.stroke`'s `tool` takes only `brush` / `eraser` and points to the new tools.
+- `draw.stroke`'s Image eraser takes `eraser_mode` `to_transparent` / `to_background` with `background`, every Image stroke the flat-nib `angle`, and Image `draw.fill` `sample` `current_layer` / `all_layers`; Pixel documents refuse these with the mode.
+- `effect.apply` / `adjust.apply` use the defaults of the document's mode (fixes Pixelate and Drop Shadow on Image documents); `pincel://effects` lists `defaults` per mode where they differ, and `effect-defaults.json` plus `ui/e2e/effect-defaults.spec.ts` pin the agent's table to the editor catalog.
+- Every Image drawing call decides "changed" by a dry run, so a call that changes no pixel records no undo step; missing and unlisted arguments name their accepted forms.
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -109,23 +118,23 @@ The effect parameter table is `EFFECTS` in `crates/pincel-agent/src/pixel/effect
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `draw_recolor_equals_the_editors_recolor_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`), `draw_recolor_without_tolerance_replaces_colors_within_32` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | built  |        |
-| AC-02 | `draw_recolor_with_a_bad_color_fails_naming_it` (`crates/pincel-agent/src/tests/image_brushes.rs`), `validate_missing_or_unlisted_value_appends_the_description` (`crates/pincel-agent/src/schema.rs`) | built  |        |
-| AC-03 | `draw_smudge_equals_the_editors_smudge_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`), `draw_smudge_passes_hardness_to_a_soft_tip` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | built  |        |
-| AC-04 | `eraser_to_background_equals_the_editors_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-05 | `the_nib_angle_reaches_every_image_stroke` (`crates/pincel-agent/src/tests/image_brushes.rs`), `the_eraser_turns_a_flat_tip_by_angle` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | built  |        |
-| AC-06 | `draw_fill_sample_all_layers_equals_the_editors_bucket` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-07 | `out_of_range_or_unknown_brush_values_fail_naming_the_argument` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-08 | `image_only_brushes_and_options_fail_on_pixel_documents` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-09 | `image_effect_defaults_follow_the_image_editor` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-10 | `pixel_effect_defaults_stay_the_pixel_editors` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-11 | `effect_defaults_file_is_current` (`crates/pincel-agent/src/pixel/effects.rs`) + `agent effect defaults equal the editor catalog in each mode` (`ui/e2e/effect-defaults.spec.ts`) | built  |        |
-| AC-12 | `effects_resource_lists_per_mode_defaults` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-13 | `image_brush_calls_are_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/image_brushes.rs`), `image_drawing_calls_that_change_nothing_add_no_undo_step` (`crates/pincel-agent/src/tests/image_draw.rs`), `recolor_smudge_and_eraser_undo_and_redo_exactly_one_call` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | built  |        |
-| AC-14 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
-| AC-15 | `recolor_and_smudge_are_listed_and_stroke_takes_brush_or_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`), `validate_missing_or_unlisted_value_appends_the_description` (`crates/pincel-agent/src/schema.rs`) | built  |        |
-| AC-16 | `recolor_and_smudge_refuse_empty_points_locked_and_group_targets` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
-| AC-17 | `recolor_and_smudge_stay_inside_the_selection`, `recolor_and_smudge_blend_feathered_selection_edges_by_coverage` (`crates/pincel-agent/src/tests/image_brushes.rs`) | built  |        |
+| AC-01 | `draw_recolor_equals_the_editors_recolor_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`), `draw_recolor_without_tolerance_replaces_colors_within_32` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | verified | 374e2b5 |
+| AC-02 | `draw_recolor_with_a_bad_color_fails_naming_it` (`crates/pincel-agent/src/tests/image_brushes.rs`), `validate_missing_or_unlisted_value_appends_the_description` (`crates/pincel-agent/src/schema.rs`) | verified | 374e2b5 |
+| AC-03 | `draw_smudge_equals_the_editors_smudge_tool` (`crates/pincel-agent/src/tests/image_brushes.rs`), `draw_smudge_passes_hardness_to_a_soft_tip` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | verified | 374e2b5 |
+| AC-04 | `eraser_to_background_equals_the_editors_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`), `image_drawing_defaults_are_the_image_editors_starting_options` (`crates/pincel-agent/src/tests/image_draw.rs`; eraser without `eraser_mode`) | verified | 374e2b5 |
+| AC-05 | `the_nib_angle_reaches_every_image_stroke` (`crates/pincel-agent/src/tests/image_brushes.rs`), `the_eraser_turns_a_flat_tip_by_angle` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | verified | 374e2b5 |
+| AC-06 | `draw_fill_sample_all_layers_equals_the_editors_bucket` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-07 | `out_of_range_or_unknown_brush_values_fail_naming_the_argument` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-08 | `image_only_brushes_and_options_fail_on_pixel_documents` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-09 | `image_effect_defaults_follow_the_image_editor` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-10 | `pixel_effect_defaults_stay_the_pixel_editors` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-11 | `effect_defaults_file_is_current` (`crates/pincel-agent/src/pixel/effects.rs`) + `agent effect defaults equal the editor catalog in each mode` (`ui/e2e/effect-defaults.spec.ts`) | verified | 374e2b5 |
+| AC-12 | `effects_resource_lists_per_mode_defaults` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-13 | `image_brush_calls_are_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/image_brushes.rs`), `image_drawing_calls_that_change_nothing_add_no_undo_step` (`crates/pincel-agent/src/tests/image_draw.rs`), `recolor_smudge_and_eraser_undo_and_redo_exactly_one_call` (`crates/pincel-agent/src/tests/image_brush_parity.rs`) | verified | 374e2b5 |
+| AC-14 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | verified | 374e2b5 |
+| AC-15 | `recolor_and_smudge_are_listed_and_stroke_takes_brush_or_eraser` (`crates/pincel-agent/src/tests/image_brushes.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`), `validate_missing_or_unlisted_value_appends_the_description` (`crates/pincel-agent/src/schema.rs`) | verified | 374e2b5 |
+| AC-16 | `recolor_and_smudge_refuse_empty_points_locked_and_group_targets` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
+| AC-17 | `recolor_and_smudge_stay_inside_the_selection`, `recolor_and_smudge_blend_feathered_selection_edges_by_coverage` (`crates/pincel-agent/src/tests/image_brushes.rs`) | verified | 374e2b5 |
 
 ## Decisions
 
