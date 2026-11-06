@@ -265,7 +265,7 @@ export interface CloneStrokeCommand {
   stroke_id: number;
 }
 
-/** The five ramps a gradient drag can describe. */
+/** The seven ramps a gradient drag can describe. */
 export type GradientKind =
   'linear' | 'reflected' | 'radial' | 'conical' | 'diamond' | 'spiral_cw' | 'spiral_ccw';
 
