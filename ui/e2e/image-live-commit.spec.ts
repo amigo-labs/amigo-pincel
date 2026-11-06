@@ -7,6 +7,7 @@ import {
   fakeFsFile,
   imageCanvas,
   menu,
+  setColor,
 } from './helpers';
 import { dropFiles, fileOf, prompt, tab, tabBar } from './tab-helpers';
 
@@ -52,8 +53,8 @@ async function shown(page: Page, [fx, fy]: [number, number]): Promise<string> {
 
 /** A live red rectangle over the canvas fractions 0.2 to 0.4. */
 async function liveRedBox(page: Page): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill('#000000');
-  await page.getByLabel('Background color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#000000');
+  await setColor(page, 'bg', '#ff0000');
   await page.keyboard.press('u');
   await page
     .getByRole('radiogroup', { name: 'Shapes variant' })

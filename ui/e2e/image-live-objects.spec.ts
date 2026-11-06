@@ -255,7 +255,7 @@ test('Shift squares a corner drag and snaps a line end to 45 degrees', async ({ 
   await page.keyboard.press('Enter');
 
   await page.keyboard.press('l');
-  await page.getByLabel('Foreground color', { exact: true }).fill('#0000ff');
+  await setColor(page, 'fg', '#0000ff');
   await drag(page, imageCanvas(page), [0.1, 0.9], [0.3, 0.9]);
   await mouseDrag(page, await handleAt(page, 'end1'), await at(page, [0.62, 0.55]), true);
   // Ten degrees off the diagonal snaps onto it: (0.1, 0.9) to about (0.6, 0.4).
@@ -276,7 +276,7 @@ test('the body moves a box, the grip moves a line, the stroke does nothing', asy
   await page.keyboard.press('Enter');
 
   await page.keyboard.press('l');
-  await page.getByLabel('Foreground color', { exact: true }).fill('#0000ff');
+  await setColor(page, 'fg', '#0000ff');
   await drag(page, imageCanvas(page), [0.1, 0.8], [0.5, 0.8]);
   const grip = await handleAt(page, 'grip');
   await mouseDrag(page, grip, [grip[0], grip[1] - 100]);
@@ -433,10 +433,9 @@ test('toolbar options change the live object, one step per option', async ({ pag
 test('color changes and swaps recolor the live object', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   await liveRedBox(page);
-  const background = page.getByLabel('Background color', { exact: true });
-  await background.fill('#00ff00');
+  await setColor(page, 'bg', '#00ff00');
   await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#00ff00');
-  await background.fill('#0000ff');
+  await setColor(page, 'bg', '#0000ff');
   await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#0000ff');
   await expect(handles(page)).toHaveCount(8);
   await undoButton(page).click(); // both color changes are one step
@@ -454,7 +453,7 @@ test('color changes and swaps recolor the live object', async ({ page }) => {
   await page.getByLabel('Channel').selectOption('transparency');
   await drag(page, imageCanvas(page), [0.1, 0.5], [0.5, 0.5]);
   await expect(handles(page)).toHaveCount(2);
-  await background.fill('#123456');
+  await setColor(page, 'bg', '#123456');
   await undoButton(page).click();
   await expect(handles(page)).toHaveCount(0);
   await expect(undoButton(page)).toBeDisabled();

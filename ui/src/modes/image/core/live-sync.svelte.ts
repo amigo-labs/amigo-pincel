@@ -36,11 +36,12 @@ export function installLiveSync(): void {
   // Outline = foreground, fill = background, both at the tool opacity: one
   // colors group, so a swap or an opacity drag is one step.
   onChange(
-    () => `${tool.foreground}|${tool.background}|${tool.opacity}`,
+    () =>
+      `${tool.foreground}|${tool.foregroundAlpha}|${tool.background}|${tool.backgroundAlpha}|${tool.opacity}`,
     (obj) =>
       shape({
-        stroke_color: colorWithOpacity(tool.foreground),
-        fill_color: colorWithOpacity(tool.background),
+        stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
+        fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
       })(obj),
   );
   const gradient = (obj: LiveObjectSpec, fields: Parameters<typeof editLive>[0]) => {
@@ -51,7 +52,7 @@ export function installLiveSync(): void {
   onChange(() => tool.opacity, (obj) => gradient(obj, { opacity: opacity01() }));
   // A Transparency gradient ignores the colors: no step (AC-07).
   onChange(
-    () => `${tool.foreground}|${tool.background}`,
+    () => `${tool.foreground}|${tool.foregroundAlpha}|${tool.background}|${tool.backgroundAlpha}`,
     (obj) => {
       if (obj.type === 'gradient' && obj.channel !== 'transparency') {
         editLive({ from: activeColor(false), to: activeColor(true) });
