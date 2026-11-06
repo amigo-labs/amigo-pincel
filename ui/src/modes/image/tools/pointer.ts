@@ -393,6 +393,9 @@ export function attachTools(
 
     // Text places a cursor for the entry overlay; it has no drag gesture here.
     if (tool.kind === 'text') {
+      // Keep the press from moving focus: the entry box focuses itself, and
+      // the mousedown's default focus change would blur (and commit) it at once.
+      e.preventDefault();
       onPlaceText?.(point[0], point[1], e);
       return;
     }
