@@ -354,17 +354,29 @@ mod tests {
         }
     }
 
-    /// The bullet of the guide's `section` that first names `tool` in
-    /// backticks, with its line breaks folded into single spaces.
-    fn guide_bullet(section: &str, tool: &str) -> String {
+    /// The bullets of the guide's `section` that name `tool` in backticks,
+    /// with their line breaks folded into single spaces.
+    fn guide_bullets(section: &str, tool: &str) -> Vec<String> {
         let guide = read_resource("pincel://guide").expect("guide");
         let start = guide.find(section).expect(section) + section.len();
         let body = &guide[start..];
         let body = &body[..body.find("\n## ").unwrap_or(body.len())];
         body.split("\n- ")
             .map(|b| b.split_whitespace().collect::<Vec<_>>().join(" "))
-            .find(|b| b.contains(&format!("`{tool}`")))
-            .unwrap_or_else(|| panic!("no bullet of {section} names {tool}"))
+            .filter(|b| b.contains(&format!("`{tool}`")))
+            .collect()
+    }
+
+    /// Asserts that a bullet of `section` starting with `prefix` (the mode
+    /// line) names each of `tools`.
+    fn assert_mode_line(section: &str, prefix: &str, tools: &[&str]) {
+        for tool in tools {
+            let bullets = guide_bullets(section, tool);
+            assert!(
+                bullets.iter().any(|b| b.starts_with(prefix)),
+                "{tool} is not on the line {prefix:?}: {bullets:?}"
+            );
+        }
     }
 
     #[test]
@@ -399,11 +411,56 @@ mod tests {
                 ][..],
             ),
         ] {
-            for tool in tools {
-                let bullet = guide_bullet(section, tool);
-                assert!(bullet.starts_with(prefix), "{tool}: {bullet}");
-            }
+            assert_mode_line(section, prefix, tools);
         }
+    }
+
+    #[test]
+    fn guide_names_the_modes_of_the_selection_and_transform_tools() {
+        // mcp-parity-selection-transform AC-37: each tool sits on the line
+        // of its modes.
+        let section = "## Selections and transforms";
+        for (prefix, tools) in [
+            (
+                "Selecting, both modes:",
+                &[
+                    "select.rect",
+                    "select.ellipse",
+                    "select.polygon",
+                    "select.wand",
+                    "select.all",
+                    "select.clear",
+                    "select.invert",
+                    "select.expand",
+                    "select.contract",
+                    "select.get",
+                ][..],
+            ),
+            ("Image documents only: `feather`", &["select.feather"][..]),
+            (
+                "Transforms, both modes:",
+                &[
+                    "canvas.resize",
+                    "image.scale",
+                    "image.crop_to_selection",
+                    "image.flip",
+                    "image.rotate",
+                    "layer.flip",
+                    "layer.rotate",
+                ][..],
+            ),
+        ] {
+            assert_mode_line(section, prefix, tools);
+        }
+        // select.delete names what it does in each mode.
+        let delete = guide_bullets(section, "select.delete");
+        assert!(
+            delete
+                .iter()
+                .any(|b| b.contains("Image documents clear the whole layer")
+                    && b.contains("Pixel documents change nothing")),
+            "{delete:?}"
+        );
     }
 
     #[test]

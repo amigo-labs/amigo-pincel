@@ -474,23 +474,71 @@ fn layer_transforms_refuse_locked_group_and_tilemap_targets() {
         assert!(e.contains("locked") && e.contains("layer 0"), "{e}");
         assert_eq!(s.image(&id).document(), &before);
     }
+    // A layer inside a locked group (Image).
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    for (tool, args) in [
+        ("layer.flip", json!({ "direction": "vertical", "layer": 0 })),
+        ("layer.rotate", json!({ "angle": 180, "layer": 0 })),
+    ] {
+        let before = s.image(&id).document().clone();
+        let e = s.err(tool, args);
+        assert!(e.contains("locked") && e.contains("layer 0"), "{tool}: {e}");
+        assert_eq!(s.image(&id).document(), &before);
+    }
+}
+
+#[test]
+fn layer_transforms_refuse_a_layer_inside_a_locked_pixel_group() {
+    let mut s = S::new();
+    let id = pixel_doc(&mut s);
+    s.ok("layer.add", json!({ "kind": "group" }));
+    s.ok(
+        "layer.move",
+        json!({ "layer": 0, "target": 1, "place": "into" }),
+    );
+    s.ok("layer.set", json!({ "layer": 1, "locked": true }));
+    for (tool, args) in [
+        (
+            "layer.flip",
+            json!({ "direction": "horizontal", "layer": 0 }),
+        ),
+        ("layer.rotate", json!({ "angle": 90, "layer": 0 })),
+    ] {
+        let before = s.state(&id);
+        let e = s.err(tool, args);
+        assert!(e.contains("locked") && e.contains("layer 0"), "{tool}: {e}");
+        assert_eq!(s.state(&id), before);
+    }
 }
 
 #[test]
 fn layer_transforms_naming_a_missing_layer_or_frame_fail() {
     let mut s = S::new();
-    pixel_doc(&mut s);
-    let e = s.err(
-        "layer.flip",
-        json!({ "direction": "horizontal", "layer": 9 }),
-    );
-    assert!(e.contains("`layer`") && e.contains('9'), "{e}");
-    let e = s.err("layer.rotate", json!({ "angle": 90, "frame": 9 }));
-    assert!(e.contains("frame 9"), "{e}");
+    let id = pixel_doc(&mut s);
+    for (tool, args, needle) in [
+        (
+            "layer.flip",
+            json!({ "direction": "horizontal", "layer": 9 }),
+            "`layer`",
+        ),
+        (
+            "layer.rotate",
+            json!({ "angle": 90, "frame": 9 }),
+            "frame 9",
+        ),
+    ] {
+        let before = s.state(&id);
+        let e = s.err(tool, args);
+        assert!(e.contains(needle) && e.contains('9'), "{tool}: {e}");
+        assert_eq!(s.state(&id), before, "{tool}");
+    }
     let mut s = S::new();
-    image_doc(&mut s);
+    let id = image_doc(&mut s);
+    let before = s.image(&id).document().clone();
     let e = s.err("layer.rotate", json!({ "angle": 90, "layer": 9 }));
     assert!(e.contains("`layer`") && e.contains('9'), "{e}");
+    assert_eq!(s.image(&id).document(), &before);
 }
 
 #[test]
@@ -587,30 +635,64 @@ fn bad_transform_arguments_fail_naming_the_argument() {
         } else {
             pixel_doc(&mut s);
         }
-        for (tool, args, arg) in [
+        let max = if image { "1–16384" } else { "1–4096" };
+        // (tool, arguments, the argument named, its allowed values or range)
+        for (tool, args, arg, allowed) in [
             (
                 "image.flip",
                 json!({ "direction": "diagonal" }),
                 "direction",
+                "horizontal, vertical",
             ),
-            ("layer.flip", json!({ "direction": "up" }), "direction"),
-            ("image.rotate", json!({ "angle": 45 }), "angle"),
-            ("layer.rotate", json!({ "angle": 360 }), "angle"),
+            (
+                "layer.flip",
+                json!({ "direction": "up" }),
+                "direction",
+                "horizontal, vertical",
+            ),
+            (
+                "image.rotate",
+                json!({ "angle": 45 }),
+                "angle",
+                "90, 180, 270",
+            ),
+            (
+                "layer.rotate",
+                json!({ "angle": 360 }),
+                "angle",
+                "90, 180, 270",
+            ),
             (
                 "canvas.resize",
                 json!({ "width": 4, "height": 4, "anchor": "middle" }),
                 "anchor",
+                "top_left, top_center, top_right, center_left, center, center_right, bottom_left, bottom_center, bottom_right",
             ),
             (
                 "image.scale",
                 json!({ "width": 4, "height": 4, "interpolation": "lanczos" }),
                 "interpolation",
+                "nearest, bilinear, bicubic",
             ),
-            ("canvas.resize", json!({ "width": 0, "height": 4 }), "width"),
+            (
+                "canvas.resize",
+                json!({ "width": 0, "height": 4 }),
+                "width",
+                max,
+            ),
+            (
+                "image.scale",
+                json!({ "width": 4, "height": 0 }),
+                "height",
+                max,
+            ),
         ] {
             let before = s.ok("doc.info", json!({}));
             let e = s.err(tool, args.clone());
-            assert!(e.contains(arg), "image={image} {tool} {args}: {e}");
+            assert!(
+                e.contains(arg) && e.contains(allowed),
+                "image={image} {tool} {args}: {e}"
+            );
             assert_eq!(s.ok("doc.info", json!({})), before);
         }
     }
