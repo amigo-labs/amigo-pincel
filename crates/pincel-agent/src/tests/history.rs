@@ -128,6 +128,11 @@ fn image_calls_name_their_step_after_the_editor_action() {
             "brush",
         ),
         (
+            "draw.clone",
+            json!({ "points": [[13, 2], [14, 2]], "source": [5, 5] }),
+            "clone_stamp",
+        ),
+        (
             "draw.stroke",
             json!({ "points": [[1, 1], [9, 9]], "tool": "eraser" }),
             "eraser",

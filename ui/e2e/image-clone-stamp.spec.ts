@@ -45,12 +45,18 @@ async function scale(page: Page): Promise<number> {
   return box.width / N;
 }
 
-/** Presses at the centre of pixel `(px, py)`, with Ctrl when `ctrl`. */
-async function press(page: Page, px: number, py: number, ctrl = false): Promise<void> {
+/** Presses at the centre of pixel `(px, py)`, with Ctrl when `ctrl`, ⌘ when `'Meta'`. */
+async function press(
+  page: Page,
+  px: number,
+  py: number,
+  ctrl: boolean | 'Meta' = false,
+): Promise<void> {
   const [x, y] = await screen(page, px + 0.5, py + 0.5);
-  if (ctrl) await page.keyboard.down('Control');
+  const key = ctrl === 'Meta' ? 'Meta' : 'Control';
+  if (ctrl) await page.keyboard.down(key);
   await page.mouse.click(x, y);
-  if (ctrl) await page.keyboard.up('Control');
+  if (ctrl) await page.keyboard.up(key);
 }
 
 /** Drags from pixel `a` to pixel `b` (centres). */
@@ -467,4 +473,35 @@ test('in German the tool, its options and its notice are translated (AC-18)', as
   await expect(page.getByText('Aufnehmen von')).toBeVisible();
   await stroke(page, [10, 10], [12, 10]);
   await expect(page.getByText('Erst mit Strg+Klick eine Quelle festlegen')).toBeVisible();
+});
+
+test.describe('on macOS', () => {
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  });
+
+  test('⌘+click sets the source, Ctrl+click does not, and the hint names ⌘ (AC-03, AC-13)', async ({
+    page,
+  }) => {
+    const MAC_HINT = '⌘+click to set a source first';
+    await paintedDocument(page);
+    const steps = await undoDepth(page);
+
+    // Ctrl+click is the secondary click on macOS: no source.
+    await press(page, 8, 16, true);
+    await expect(page.getByText(MAC_HINT)).toBeVisible();
+    await expect(crosshair(page)).toHaveCount(0);
+    // A stroke without a source names ⌘, not Ctrl.
+    await stroke(page, [20, 16], [26, 16]);
+    await expect(page.getByText(MAC_HINT)).toBeVisible();
+    await expect(page.getByText(NO_SOURCE)).toHaveCount(0);
+    expect(await undoDepth(page)).toBe(steps);
+
+    // ⌘+click sets it, without an undo step.
+    await press(page, 8, 16, 'Meta');
+    await expectCrosshairAt(page, 8.5, 16.5);
+    await expect(page.getByText(MAC_HINT)).toHaveCount(0);
+    expect(await undoDepth(page)).toBe(steps);
+  });
 });
