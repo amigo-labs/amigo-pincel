@@ -38,7 +38,7 @@ test('image mode: Save writes an OpenRaster file that reopens with its layers', 
   ]);
   await chooser.setFiles({ name: 'image.ora', mimeType: 'image/openraster', buffer: bytes });
   await waitForEditor(page, 'image');
-  await expect(page.getByText('40 × 30 · sRGB')).toBeVisible();
+  await expect(page.getByText('40 × 30 px · sRGB')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(2);
 });
 

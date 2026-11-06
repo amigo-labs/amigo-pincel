@@ -17,7 +17,7 @@ import {
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} · sRGB`);
+const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px · sRGB`);
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });

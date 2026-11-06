@@ -4,6 +4,7 @@
 //! undone and redone. The [`CommandBus`] applies a command and records it on the
 //! [`UndoStack`].
 
+mod auto_crop;
 mod batch;
 mod damage;
 mod layers;
@@ -21,6 +22,7 @@ pub mod spec;
 mod tiles;
 mod transform;
 
+pub use auto_crop::{AutoCrop, auto_crop_rect};
 pub(crate) use batch::Batch;
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};

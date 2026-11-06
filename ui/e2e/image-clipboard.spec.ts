@@ -269,7 +269,7 @@ test('image: another image lands at the viewport top-left; Cancel on a larger on
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
   await expect(layerRows(page)).toHaveCount(2);
-  await expect(page.getByText('200 × 150 · sRGB')).toBeVisible();
+  await expect(page.getByText('200 × 150 px · sRGB')).toBeVisible();
 });
 
 test('image: Ctrl+C / X / V in a text field act on the field only', async ({ page }) => {

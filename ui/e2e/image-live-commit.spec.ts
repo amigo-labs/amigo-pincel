@@ -191,6 +191,8 @@ test('closing a tab with a live object asks; Save commits and saves it', async (
   await expect(prompt(page)).toContainText('image.ora');
   await prompt(page).getByRole('button', { name: 'Save', exact: true }).click();
   await expect(prompt(page)).toHaveCount(0);
+  // The save encodes in the job worker; the tab closes once it is written.
+  await expect(tab(page, 'image.ora')).toHaveCount(0);
 
   // The file has the object: open it again.
   const bytes = await fakeFsFile(page, 'kept.ora');

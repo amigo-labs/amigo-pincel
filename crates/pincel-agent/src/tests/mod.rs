@@ -2,6 +2,7 @@
 //! session internals for exact-state assertions.
 
 mod assets;
+mod auto_crop;
 mod clipboard;
 mod doc;
 mod draw;

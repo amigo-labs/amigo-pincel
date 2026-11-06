@@ -109,7 +109,7 @@ test('switching to a tab of the other mode shows that editor, its menus, panels 
   await badge('Image');
   await expect(page).toHaveTitle('● image.ora – Pincel');
   await expect(page.getByRole('region', { name: 'Timeline' })).toHaveCount(0);
-  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 · sRGB');
+  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 px · sRGB');
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   await expect(editorOf(page, 'pixel')).toHaveAttribute('inert', '');
 

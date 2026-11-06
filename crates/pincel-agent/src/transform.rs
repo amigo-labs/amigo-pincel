@@ -7,6 +7,7 @@ use pincel_core::{
     Anchor, AnyCommand, Interpolation, LayerKind, Orientation, Rect, ReframeCanvas, ScaleImage,
     TransformCanvas, TransformCel,
 };
+use pincel_image_core::auto_crop_rect;
 use pincel_image_core::command::spec::CommandSpec;
 use serde_json::{Value, json};
 
@@ -17,7 +18,16 @@ use crate::workspace::Doc;
 use crate::{AgentError, Ctx, Tool, ToolOutput};
 
 /// Every transform tool, in `tools/list` order.
-pub(crate) static TOOLS: &[Tool] = &[RESIZE, SCALE, CROP, FLIP, ROTATE, LAYER_FLIP, LAYER_ROTATE];
+pub(crate) static TOOLS: &[Tool] = &[
+    RESIZE,
+    SCALE,
+    CROP,
+    AUTO_CROP,
+    FLIP,
+    ROTATE,
+    LAYER_FLIP,
+    LAYER_ROTATE,
+];
 
 /// The anchors `canvas.resize` takes, with the Pixel core's name for each.
 const ANCHORS: [(&str, &str); 9] = [
@@ -156,10 +166,10 @@ pub(crate) const RESIZE: Tool = Tool {
 
 pub(crate) const SCALE: Tool = Tool {
     name: "image.scale",
-    description: "Resample the whole image to width × height like the editor's Scale Image / Image Size (`interpolation` nearest, bilinear or bicubic; default nearest in Pixel documents, bilinear in Image documents).",
+    description: "Resample the whole image to width × height like the editor's Scale Image / Image Size (`interpolation` nearest, bilinear or bicubic, and in Image documents supersampling — an area average when shrinking, bicubic when an edge grows; default nearest in Pixel documents, bilinear in Image documents).",
     schema: || {
         size_schema(json!({
-            "interpolation": { "type": "string", "enum": ["nearest", "bilinear", "bicubic"], "description": "Resampling; default nearest (Pixel) / bilinear (Image)" },
+            "interpolation": { "type": "string", "enum": ["nearest", "bilinear", "bicubic", "supersampling"], "description": "Resampling; default nearest (Pixel) / bilinear (Image); supersampling in Image documents only" },
         }))
     },
     run: |ctx, args| {
@@ -218,6 +228,25 @@ pub(crate) const CROP: Tool = Tool {
             .filter(|r| !r.is_empty())
             .ok_or_else(|| no_selection(&id))?;
         pixel_canvas(&id, doc, || ReframeCanvas::new(rect).into())
+    },
+};
+
+pub(crate) const AUTO_CROP: Tool = Tool {
+    name: "image.auto_crop",
+    description: "Image documents only: crop the canvas to the content inside a uniform border, like the editor's Image ▸ Auto Crop. The border color is the top-left pixel of the visible composite; pixels match when all channels are equal or both are fully transparent. Returns `cropped` and, when cropped, the new size and the kept `rect` in the old canvas's pixels. Nothing to crop is not an error.",
+    schema: || tool_schema(json!({}), &[]),
+    run: |ctx, args| {
+        let (_, doc) = ctx.ws.image_mut(args)?;
+        let Some(rect) = auto_crop_rect(doc.document()) else {
+            return Ok(ToolOutput::json(json!({ "cropped": false })));
+        };
+        doc.run_if_changed(|| CommandSpec::AutoCrop)?;
+        Ok(ToolOutput::json(json!({
+            "cropped": true,
+            "width": doc.width(),
+            "height": doc.height(),
+            "rect": { "x": rect.x, "y": rect.y, "w": rect.w, "h": rect.h },
+        })))
     },
 };
 

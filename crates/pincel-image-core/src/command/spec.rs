@@ -9,11 +9,11 @@
 use serde::Deserialize;
 
 use super::{
-    AddGroup, AddLayer, Anchor, Batch, CanvasRotation, CommandBus, CropToSelection, DuplicateLayer,
-    FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible, MoveLayer,
-    MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
+    AddGroup, AddLayer, Anchor, AutoCrop, Batch, CanvasRotation, CommandBus, CropToSelection,
+    DuplicateLayer, FlattenImage, FlipCanvas, LayerTransform, MergeDown, MergeGroup, MergeVisible,
+    MoveLayer, MoveLayerTo, MoveSelection, RemoveLayer, RenameLayer, ResizeCanvas, RotateCanvas,
     RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity, SetLayerVisible,
-    SetSelection, TransformLayer,
+    SetSelection, TransformLayer, auto_crop_rect,
 };
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
@@ -229,6 +229,7 @@ fn parse_interpolation(s: &str) -> Interpolation {
     match s {
         "nearest" => Interpolation::Nearest,
         "bicubic" => Interpolation::Bicubic,
+        "supersampling" => Interpolation::Supersampling,
         _ => Interpolation::Bilinear,
     }
 }
@@ -532,6 +533,9 @@ pub enum CommandSpec {
     },
     /// Crop the canvas to the current selection's bounding box (spec §10.6).
     CropToSelection,
+    /// Crop the canvas to the content inside a uniform border; adds no undo
+    /// step when there is nothing to crop (docs/specs/image-resize-autocrop.md).
+    AutoCrop,
     /// Rasterize a shape onto `layer` (spec §9.2 Shapes).
     ///
     /// `shape` selects the geometry: `line`/`rectangle`/`rounded_rectangle`/
@@ -1279,6 +1283,10 @@ pub fn run_command(
             ResizeCanvas::new(width, height).with_anchor(parse_anchor(&anchor)),
         )),
         CommandSpec::CropToSelection => bus.apply(Box::new(CropToSelection::new())),
+        CommandSpec::AutoCrop => match auto_crop_rect(&bus.document) {
+            Some(_) => bus.apply(Box::new(AutoCrop::new())),
+            None => Ok(()),
+        },
         CommandSpec::DrawShape {
             layer,
             shape,

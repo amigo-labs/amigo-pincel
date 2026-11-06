@@ -762,6 +762,14 @@ pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     })
 }
 
+/// The document's stored resolution in pixels per inch (`DocumentMetadata::dpi`),
+/// read-only (docs/specs/image-view-aids.md AC-23; reused by
+/// docs/specs/image-resize-autocrop.md AC-01).
+#[wasm_bindgen]
+pub fn document_dpi(handle: u32) -> Result<f32, JsError> {
+    with_bus(handle, |bus| Ok(bus.document.metadata.dpi))
+}
+
 /// Returns a 32×32 RGBA8 thumbnail of the layer with `layer_id` as a
 /// `Uint8ClampedArray`, ready to wrap in an `ImageData` (spec §5.3, §17).
 #[wasm_bindgen]
@@ -1479,6 +1487,23 @@ mod export_tests {
             let back = decode(bytes).expect("decode");
             assert_eq!((back.width(), back.height()), (5, 3));
         }
+    }
+}
+
+#[cfg(test)]
+mod document_dpi_tests {
+    use super::*;
+
+    #[test]
+    fn document_dpi_reports_the_stored_resolution() {
+        let handle = create_document(4, 4).expect("doc");
+        assert_eq!(document_dpi(handle).expect("dpi"), 96.0);
+        let mut doc = Document::new(4, 4).expect("doc");
+        doc.metadata.dpi = 300.0;
+        let other = insert(CommandBus::new(doc));
+        assert_eq!(document_dpi(other).expect("dpi"), 300.0);
+        close_document(handle);
+        close_document(other);
     }
 }
 

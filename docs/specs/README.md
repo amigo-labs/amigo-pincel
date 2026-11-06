@@ -35,7 +35,7 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 | A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
 | A6 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
 | A7 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
-| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri |
+| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
 
 ### B — Image live objects
 
@@ -135,6 +135,19 @@ No shared files with the groups above; pick by priority.
 | H15 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | H16 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 
+### I — AI assistant and image generation
+
+Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist), and image generation with ComfyUI. Desktop only. The chat line needs `mcp-live-desktop` (A8); the ComfyUI line starts independently. Decision Log 2026-11-06.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| I1 | [ai-chat-panel](ai-chat-panel.md) | both | L | mcp-live-desktop | Assistant panel, Claude Code CLI over the live endpoint, one undo step per answer |
+| I2 | [ai-chat-clis](ai-chat-clis.md) | both | M | ai-chat-panel | Codex CLI, Gemini CLI, opencode (local models) |
+| I3 | [comfyui-connect](comfyui-connect.md) | shell | M | — | Find / start / connect a ComfyUI server, model list |
+| I4 | [comfyui-install](comfyui-install.md) | shell | L | comfyui-connect | One-click managed install (uv, PyTorch for NVIDIA / Apple Silicon, model catalog) |
+| I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
+| I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
@@ -209,6 +222,10 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | ICO export, rulers / guides (Image), settings dialog, light theme | Small, as needed |
 | Adobe .ase / .aco swatches | After palette-formats |
 | WebMCP (agents in the PWA) | Watch browser proposals; see mcp-live-desktop |
+| AI image generation: outpainting, upscaling, control layers (ControlNet), live painting | After comfyui-generate (owner, 2026-11-06); krita-ai-diffusion shows the scope |
+| ComfyUI custom workflows | Import API-format workflows with marked placeholders; after comfyui-generate |
+| ComfyUI managed install for AMD (ROCm), Intel (XPU), CPU | After comfyui-install; v1 is NVIDIA and Apple Silicon |
+| Agent vision tools: object detection, segmentation, style transfer | Need local vision models (e.g. SAM); the PixelAssist prompt names them as unavailable |
 | Shared shell package (`@amigo-labs/canvas-shell`) | Extract `fs` / `idb` / PWA / Tauri wrapper for other amigo-labs tools; cut: what knows the document model stays in the app |
 | Aseprite round-trip gaps | Layer flags Background / Reference / Collapsed / LockMovement, cel `z_index`, user data on layers / cels / sprite / tags, slice note text and properties |
 | Mid-list AddFrame / duplicate frame | Append-only today; needs a FrameIndex remap of cels, tags, slices |

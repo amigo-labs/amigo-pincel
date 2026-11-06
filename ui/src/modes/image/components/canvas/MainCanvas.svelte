@@ -20,6 +20,7 @@
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
+  import PixelGrid from './PixelGrid.svelte';
   import LiveHandles from './LiveHandles.svelte';
   import TextBox from './TextBox.svelte';
 
@@ -470,6 +471,7 @@
     ></div>
   </div>
 
+  <PixelGrid />
   <CanvasOverlay />
   <LiveHandles />
   <TextBox />

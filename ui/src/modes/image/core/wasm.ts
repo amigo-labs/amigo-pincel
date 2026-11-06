@@ -34,6 +34,7 @@ import initWasm, {
   export_bmp,
   export_tiff,
   get_document_info,
+  document_dpi,
   get_selection_mask,
   live_object,
   text_layout,
@@ -340,7 +341,7 @@ export type SelectionCommand =
   | { type: 'feather_selection'; radius: number };
 
 /** Resampling quality for Scale Image (spec §10.5). */
-export type Interpolation = 'nearest' | 'bilinear' | 'bicubic';
+export type Interpolation = 'supersampling' | 'nearest' | 'bilinear' | 'bicubic';
 
 /** The 9-grid anchor for Resize Canvas (spec §10.4). */
 export type ResizeAnchor =
@@ -362,7 +363,8 @@ export type TransformCommand =
   | { type: 'rotate_canvas'; rotation: 'cw90' | 'ccw90' | 'rotate_180' }
   | { type: 'scale_image'; width: number; height: number; interpolation: Interpolation }
   | { type: 'resize_canvas'; width: number; height: number; anchor: ResizeAnchor }
-  | { type: 'crop_to_selection' };
+  | { type: 'crop_to_selection' }
+  | { type: 'auto_crop' };
 
 /** Geometric shape kinds the Shapes tool can draw (spec §9.2 Shapes). */
 export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' | 'polygon';
@@ -698,6 +700,8 @@ export const core = {
    *  with font `fontId` (docs/specs/image-live-text.md AC-22). */
   textLayout: (fontId: number, request: TextLayoutRequest): TextLayout =>
     text_layout(fontId, JSON.stringify(request)) as TextLayout,
+  /** The document's stored resolution in pixels per inch (docs/specs/image-view-aids.md AC-23). */
+  documentDpi: (handle: number): number => document_dpi(handle),
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,
