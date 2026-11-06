@@ -250,6 +250,16 @@ fn doc_save_of_a_psd_source_or_layered_document_suggests_ora_first() {
         "{e}"
     );
     assert!(suggests_ora_first(&e), "a PSD source, even one layer: {e}");
+    // The same with a path of an extension doc.save does not write.
+    for path in ["x.gif", "x.psd", "x.xyz"] {
+        let e = s.err("doc.save", json!({ "path": path }));
+        assert!(
+            e.contains(&format!("cannot write `{path}`"))
+                && e.contains(".ora, .png, .jpg / .jpeg, .webp, .bmp, .tif / .tiff"),
+            "{e}"
+        );
+        assert!(suggests_ora_first(&e), "a PSD source, {path}: {e}");
+    }
 
     let gif = {
         let img = image::RgbaImage::from_raw(6, 4, pattern().data().to_vec()).expect("img");
@@ -262,9 +272,16 @@ fn doc_save_of_a_psd_source_or_layered_document_suggests_ora_first() {
     opened(&mut s, "a.gif", gif);
     let e = s.err("doc.save", json!({}));
     assert!(!suggests_ora_first(&e), "one layer from a GIF: {e}");
+    let e = s.err("doc.save", json!({ "path": "x.gif" }));
+    assert!(
+        !suggests_ora_first(&e) && e.contains("cannot write `x.gif`"),
+        "one layer from a GIF, a path: {e}"
+    );
     s.ok("layer.add", json!({}));
     let e = s.err("doc.save", json!({}));
     assert!(suggests_ora_first(&e), "more than one layer: {e}");
+    let e = s.err("doc.save", json!({ "path": "x.gif" }));
+    assert!(suggests_ora_first(&e), "more than one layer, a path: {e}");
     assert_eq!(s.host.files.len(), 2, "nothing is written");
 }
 

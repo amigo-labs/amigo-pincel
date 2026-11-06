@@ -328,10 +328,18 @@ pub(crate) fn save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
     let (path, format) = match (args.str("path"), &doc.path, &doc.source) {
         (Some(p), _, _) => {
             let format = save_format(p).ok_or_else(|| {
-                let hint = if layered { " (a .ora path keeps the layers)" } else { "" };
-                AgentError::tool(format!(
-                    "doc.save cannot write `{p}`: Image documents are saved as {SAVE_EXTENSIONS}{hint}"
-                ))
+                // A PSD source or several layers: `.ora` first, as the
+                // editor's Save As preselects it (AC-19).
+                let psd = matches!(&doc.source, Some((_, "PSD")));
+                AgentError::tool(if psd || layered {
+                    format!(
+                        "doc.save cannot write `{p}`: pass a `.ora` path (keeps the layers) or a path ending in {SAVE_EXTENSIONS}"
+                    )
+                } else {
+                    format!(
+                        "doc.save cannot write `{p}`: Image documents are saved as {SAVE_EXTENSIONS}"
+                    )
+                })
             })?;
             (p.to_owned(), format)
         }
