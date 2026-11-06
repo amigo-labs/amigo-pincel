@@ -13,7 +13,7 @@ use pincel_image_core::command::live_spec::{
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
-use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
+use pincel_image_core::command::{CommandBus, HistoryKind, PasteLayer, SetPixels};
 use pincel_image_core::jobs::{self, EncodeFormat, JobError, decode_region, encode_region};
 use pincel_image_core::{
     BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod history;
 mod vectorize;
 
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
@@ -444,22 +445,24 @@ pub fn apply_effect(
             return Err(JsError::new(LOCKED));
         }
         let region = effect_region(&bus.document, layer, &spec)?;
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, region)
     })
 }
 
-/// Commits an effect's region as one undoable `SetPixels` labelled like
-/// the effect; `false` (no undo step) for `None`.
+/// Commits the region of the effect `name` as one undoable `SetPixels` of
+/// that effect's history kind; `false` (no undo step) for `None`.
 fn commit_region(
     bus: &mut CommandBus,
     layer: usize,
-    spec: &EffectSpec,
+    name: &str,
     region: Option<(Rect, ImageBuffer)>,
 ) -> Result<bool, JsError> {
     let Some((region, after)) = region else {
         return Ok(false);
     };
-    let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
+    let kind = HistoryKind::effect(name)
+        .ok_or_else(|| JsError::new(&format!("unknown effect `{name}`")))?;
+    let cmd = SetPixels::new(layer, region, after).with_kind(kind);
     bus.apply(Box::new(cmd)).map_err(to_js)?;
     Ok(true)
 }
@@ -496,13 +499,14 @@ pub fn apply_effect_region(
     params: &[f64],
     region: &[u8],
 ) -> Result<bool, JsError> {
-    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    // Validates the effect name and parameters before touching the document.
+    EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     let region = decode_region(region).map_err(job_js)?;
     with_bus(handle, |bus| {
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, region)
     })
 }
 
