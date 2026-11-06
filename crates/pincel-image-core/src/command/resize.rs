@@ -1,6 +1,7 @@
 //! The `ResizeCanvas` command (spec §7.3, §10.4).
 
 use super::Command;
+use super::HistoryKind;
 use super::snapshot::mask_bytes;
 use crate::document::{CanvasSize, Document, ImageBuffer};
 use crate::error::DocumentError;
@@ -143,8 +144,8 @@ impl Command for ResizeCanvas {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Resize Canvas"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::ResizeCanvas
     }
 
     fn undo_bytes(&self) -> usize {

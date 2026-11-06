@@ -32,6 +32,7 @@ pub use smudge::{Smudge, SmudgeCarry};
 pub use text::{LineLayout, Text, TextAlign, TextLayout, TextStyle};
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::{Document, ImageBuffer};
 use crate::geometry::{Point, Rect};
@@ -505,7 +506,7 @@ impl Pencil {
             .rasterize(layer_index, points, pen, doc, ca, |p| {
                 src_over(color, p.eff, p.dst)
             })?;
-        Some(SetPixels::new(layer_index, region, after).with_label("Pencil Stroke"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Brush))
     }
 }
 

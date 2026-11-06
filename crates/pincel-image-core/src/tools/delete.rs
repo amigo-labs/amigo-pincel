@@ -6,6 +6,7 @@
 //! coverage reduces alpha proportionally instead of cutting a hard edge.
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::{Document, ImageBuffer};
 use crate::geometry::Rect;
@@ -49,7 +50,7 @@ pub fn delete_selection(layer_index: usize, doc: &Document) -> Option<SetPixels>
     };
 
     let region = Rect::new(0, 0, w, h);
-    Some(SetPixels::new(layer_index, region, after).with_label("Delete Selection"))
+    Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::DeleteSelection))
 }
 
 #[cfg(test)]

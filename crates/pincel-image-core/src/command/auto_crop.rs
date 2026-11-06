@@ -2,6 +2,7 @@
 //! (docs/specs/image-resize-autocrop.md AC-13 – AC-16).
 
 use super::Command;
+use super::HistoryKind;
 use super::snapshot::{DocSnapshot, restore, snapshot};
 use crate::color::Color;
 use crate::document::{CanvasSize, Document, ImageBuffer};
@@ -83,8 +84,8 @@ impl Command for AutoCrop {
         }
     }
 
-    fn label(&self) -> &str {
-        "Auto Crop"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::AutoCrop
     }
 
     fn undo_bytes(&self) -> usize {

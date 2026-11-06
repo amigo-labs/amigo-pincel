@@ -9,6 +9,7 @@
 
 use super::src_over;
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::{Point, Rect};
@@ -205,7 +206,7 @@ impl Text {
             }
         }
 
-        Some(SetPixels::new(layer_index, region, after).with_label("Text"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Text))
     }
 
     /// The line boxes and caret positions of this text with `font_bytes`;

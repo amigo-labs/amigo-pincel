@@ -11,6 +11,7 @@
 //! index, restoring them verbatim (spec §7.1).
 
 use super::Command;
+use super::HistoryKind;
 use super::snapshot::{DocSnapshot, restore, snapshot, take_snapshot};
 use super::tiles::LayerTiles;
 use crate::color::{BlendMode, Color};
@@ -126,8 +127,8 @@ impl Command for MergeDown {
             .map_or(0, |u| u.upper.pixels.data().len() + u.lower.bytes())
     }
 
-    fn label(&self) -> &str {
-        "Merge Down"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MergeDown
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -196,8 +197,8 @@ impl Command for MergeGroup {
         restore(doc, snap)
     }
 
-    fn label(&self) -> &str {
-        "Merge Group"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MergeGroup
     }
 
     fn undo_bytes(&self) -> usize {
@@ -289,8 +290,8 @@ impl Command for MergeVisible {
         }
     }
 
-    fn label(&self) -> &str {
-        "Merge Visible"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::MergeVisible
     }
 
     fn undo_bytes(&self) -> usize {
@@ -342,8 +343,8 @@ impl Command for FlattenImage {
         restore(doc, snap)
     }
 
-    fn label(&self) -> &str {
-        "Flatten Image"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::FlattenImage
     }
 
     fn undo_bytes(&self) -> usize {

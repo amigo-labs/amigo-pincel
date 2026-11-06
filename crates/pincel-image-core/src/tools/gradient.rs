@@ -14,6 +14,7 @@ use std::f32::consts::TAU;
 use pincel_effects::gradient::GradientLine;
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
@@ -116,7 +117,7 @@ impl Gradient {
         }
 
         let (region, cropped) = masked_region(src, &after, doc.selection.as_ref())?;
-        Some(SetPixels::new(layer_index, region, cropped).with_label("Gradient"))
+        Some(SetPixels::new(layer_index, region, cropped).with_kind(HistoryKind::Gradient))
     }
 
     /// `t` in `[0, 1]` for the pixel offset `(px, py)` from the drag's start.
