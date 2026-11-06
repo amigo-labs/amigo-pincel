@@ -277,10 +277,20 @@ test('"Don\'t ask again" flattens later Saves of the document without asking', a
 
 const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
 
+/** File ▸ Save As…, repeated until the dialog shows: a Save still finishing
+ *  (autosave snapshot, recents) ignores a new one, and the save a test just
+ *  waited for may be in that tail. */
+async function openSaveAs(page: Page): Promise<void> {
+  await expect(async () => {
+    await menu(page, 'File', 'Save As…');
+    await expect(saveAsDialog(page)).toBeVisible({ timeout: 1000 });
+  }).toPass();
+}
+
 /** The document's remembered JPEG quality, read from Save As ▸ JPEG
  *  (the dialog is cancelled again). */
 async function expectRememberedQuality(page: Page, value: string): Promise<void> {
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('jpeg');
   await expect(dialog.getByLabel('Quality')).toHaveValue(value);
@@ -341,14 +351,14 @@ test('Cancel and Save as .ora… in the combined prompt remember no quality (AC-
   expect(ora.name).toBe('photo.ora');
   expect(formatOf(ora.bytes)).toBe('ora');
 
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
   await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('90');
 });
 
 test('Save As offers every writable format and writes the chosen one', async ({ page }) => {
   await openFile(page, 'screenshot.png', 'png');
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   const format = dialog.getByLabel('Format');
   await expect(format.locator('option')).toHaveText([
@@ -370,7 +380,7 @@ test('Save As offers every writable format and writes the chosen one', async ({ 
 
 test('Save As preselects .ora for a layered document', async ({ page }) => {
   await openLayered(page);
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   await expect(dialog.getByLabel('Format')).toHaveValue('ora');
   const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
@@ -392,7 +402,7 @@ test('Save As asks format, JPEG quality and merging in one dialog, then only the
   page,
 }) => {
   await openLayered(page);
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   const saveButton = dialog.getByRole('button', { name: 'Save' });
   await dialog.getByLabel('Format').selectOption('jpeg');
@@ -413,7 +423,7 @@ test('Save As asks format, JPEG quality and merging in one dialog, then only the
   await expect(page.getByTitle('screenshot.jpg', { exact: true })).toBeVisible();
 
   // The quality saved with is remembered for the document.
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
   await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('40');
 });
@@ -421,17 +431,19 @@ test('Save As asks format, JPEG quality and merging in one dialog, then only the
 test('Save As remembers the JPEG quality only once the file is written (AC-15)', async ({ page }) => {
   await openFile(page, 'screenshot.png', 'png');
   await paint(page);
-  // A save picker the user cancels.
+  // A save picker the user cancels after a while: the Save is still running
+  // when the test opens Save As again.
   await page.evaluate(() => {
     (window as unknown as { showSaveFilePicker: () => Promise<never> }).showSaveFilePicker =
       async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         throw new DOMException('The user aborted a request.', 'AbortError');
       };
   });
   let downloads = 0;
   page.on('download', () => (downloads += 1));
 
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('jpeg');
   const quality = dialog.getByLabel('Quality');
@@ -443,14 +455,14 @@ test('Save As remembers the JPEG quality only once the file is written (AC-15)',
   await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
   expect(downloads).toBe(0);
 
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
   await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('90');
 });
 
 test('the Save As merge checkbox keeps its state and hides for .ora (AC-16)', async ({ page }) => {
   await openLayered(page);
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   const format = dialog.getByLabel('Format');
   const saveButton = dialog.getByRole('button', { name: 'Save' });
@@ -485,7 +497,7 @@ test('Save As needs no merge confirmation when flattening loses nothing (AC-16)'
   page,
 }) => {
   await openFile(page, 'screenshot.png', 'png');
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('jpeg');
   await expect(dialog.getByLabel('Quality')).toBeVisible();
@@ -502,7 +514,7 @@ test('"Don\'t ask again" hides the Save As merge checkbox (AC-16)', async ({ pag
   await prompt.getByLabel("Don't ask again for this document").check();
   await download(page, () => prompt.getByRole('button', { name: 'Flatten' }).click());
 
-  await menu(page, 'File', 'Save As…');
+  await openSaveAs(page);
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('png');
   await expect(mergeBox(page)).toHaveCount(0);
