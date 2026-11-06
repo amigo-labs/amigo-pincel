@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu } from './helpers';
+import { createDocument, drag, imageCanvas, menu, setColor } from './helpers';
 
 // Heavy jobs off the main thread (docs/specs/performance-background-jobs.md):
 // Image-mode exports and saves encode in the job worker.
@@ -20,13 +20,15 @@ async function download(page: Page, action: () => Promise<void>): Promise<Buffer
   return readFile(await d.path());
 }
 
-/** A two-layer document with strokes on both layers. */
+/** A two-layer document with strokes on both layers. The colours are set
+ *  explicitly: the last colours persist across reloads. */
 async function paintedDocument(page: Page): Promise<void> {
   await createDocument(page, 'image', { width: 160, height: 90 });
+  await setColor(page, 'fg', '#000000');
   await page.keyboard.press('b');
   await drag(page, imageCanvas(page), [0.1, 0.2], [0.9, 0.7]);
   await menu(page, 'Layer', 'New Layer');
-  await page.getByLabel('Foreground color', { exact: true }).fill('#33cc55');
+  await setColor(page, 'fg', '#33cc55');
   await drag(page, imageCanvas(page), [0.2, 0.8], [0.7, 0.1]);
 }
 
@@ -81,7 +83,7 @@ test('a stroke made while an export encodes stays in the document and out of the
     page.waitForEvent('download'),
     (async () => {
       await menu(page, 'File', 'Export', 'PNG');
-      await page.getByLabel('Foreground color', { exact: true }).fill('#ff00ff');
+      await setColor(page, 'fg', '#ff00ff');
       await drag(page, imageCanvas(page), [0.05, 0.95], [0.95, 0.05]);
     })(),
   ]);
@@ -119,7 +121,7 @@ test('a recovered worker autosave is the document as the autosave started (AC-02
   const atStart = await download(page, () => menu(page, 'File', 'Export', 'PNG'));
   await page.clock.fastForward(31_000);
   // Painted while the autosave encodes: not part of the snapshot.
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff00ff');
+  await setColor(page, 'fg', '#ff00ff');
   await drag(page, imageCanvas(page), [0.05, 0.95], [0.95, 0.05]);
   await expect.poll(() => snapshotWrites(page)).toBe(1);
   await page.waitForTimeout(300);
