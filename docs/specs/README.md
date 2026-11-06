@@ -57,9 +57,6 @@ Owner feedback of 2026-11-05 on the running editor. Touches the options bar and 
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| C1 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
-| C2 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
-| C3 | [pixel-selection-move](pixel-selection-move.md) | Pixel | S | — | Revision 2026-11-05: Magic Wand settings update the last click |
 | C4 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
 | C5 | [color-picker](color-picker.md) | both | L | — | |
 | C6 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
@@ -157,12 +154,14 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
+- [effect-panel](effect-panel.md)
 - [effects-adjustments](effects-adjustments.md)
 - [effects-artistic-photo](effects-artistic-photo.md)
 - [effects-blurs](effects-blurs.md)
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
+- [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
@@ -181,6 +180,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [pixel-palette](pixel-palette.md)
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-pressure](pixel-pressure.md)
+- [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
 - [save-original-format](save-original-format.md)
