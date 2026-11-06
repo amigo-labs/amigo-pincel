@@ -140,13 +140,13 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-11 | `ui/e2e/shortcuts-coverage.spec.ts` "Alt+] / Alt+[ step through the palette, [ / ] still size the brush" | verified | 85f381e |
 | AC-12 | `ui/e2e/shortcuts-coverage.spec.ts` "the menus show the new shortcuts" (pixel, image); `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not" (Export ▸ Sprite Sheet…) | verified | 85f381e |
 | AC-13 | `ui/e2e/shortcuts-coverage.spec.ts` "no two shortcuts share a chord, none is browser-reserved" (pixel, image) | verified | 85f381e |
-| AC-14 |  | open |  |
+| AC-14 | `ui/e2e/new-document-key.spec.ts` › "in a browser tab › Ctrl+N has no binding, no menu hint and no overview row; no default chord is browser-reserved (AC-14, AC-20)", "in an installed app window › Ctrl+N opens the New dialog … it is the only reserved chord (AC-14, AC-20)"; `ui/e2e/shortcuts-coverage.spec.ts` › "{pixel,image} mode: no two shortcuts share a chord, none is browser-reserved (AC-13, AC-14)" | built | |
 | AC-15 | `ui/e2e/shortcuts-coverage.spec.ts` "a focused text field gets the keys" (pixel, image) | verified | 85f381e |
 | AC-16 | `ui/e2e/shortcuts-coverage.spec.ts` "a layer key whose menu item is disabled does nothing" (pixel, image) | verified | 85f381e |
 | AC-17 | `ui/e2e/shortcuts-coverage.spec.ts` "Tab on the canvas stage and View ▸ Toggle UI hide the tool rail, options and panels" (pixel, image) | verified | 85f381e |
 | AC-18 | `ui/e2e/shortcuts-coverage.spec.ts` "a reload shows the full UI again" | verified | 85f381e |
 | AC-19 | `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E opens the sprite sheet export, Ctrl+Shift+E does not"; `ui/e2e/shortcuts-coverage.spec.ts` "Ctrl+Alt+E does nothing" (image); native macOS accelerator in `src-tauri/src/main.rs` (CI only) | verified | 85c6702 |
-| AC-20 |  | open |  |
+| AC-20 | `ui/e2e/new-document-key.spec.ts` › "in an installed app window › Ctrl+N opens the New dialog on the start screen and in both editors, with hint and overview row …", "in an installed app window › a focused text field keeps Ctrl+N (AC-20, edge case)", "in the Windows desktop app › Ctrl+N opens the New dialog on the start screen and in both editors (AC-20)", "in a browser tab › Ctrl+N has no binding, no menu hint and no overview row …" | built | |
 | AC-21 |  | open |  |
 
 ## Summary
@@ -181,3 +181,5 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-04 (build): A layer key whose menu item is disabled is still consumed (no browser default) — the key belongs to the editor even when its command can't run.
 - 2026-11-04 (build): View ▸ Toggle UI has no check mark, and the hidden state lasts until a reload, across the documents of the session — the item names a toggle, and AC-18 only asks for a reset on reload.
 - 2026-11-04 (build): The AC-13 / AC-14 test was already green before the build (the old keymap had no conflict) — it guards the new chords; the red run covered every other block.
+- 2026-11-05 (spec-build): Ctrl/⌘+N is the action `newDocument`, bound by `NEW_DOCUMENT_KEY` (`ui/src/lib/shell/shortcuts.ts`): the desktop app, or an installed window (`isInstalledWindow()` in `lib/platform`: display mode `standalone` or `window-controls-overlay`). In a browser tab its chord list is empty, so File ▸ New shows no hint and the editors leave `newDocument` out of their overview actions. The chord carries `menu: true`: on macOS the native File ▸ New owns ⌘N and fires `menu:new` as before. The shell handles the key on the start screen (`requestNew('pixel')`, as `menu:new` does without a tab); the editors call `onRequestNew`.
+- 2026-11-05 (spec-build): e2e fakes the installed window by overriding `matchMedia('(display-mode: standalone)')` in an init script; Playwright cannot emulate the display mode. Red runs: without the change the installed-window and desktop tests failed; with the key bound everywhere the browser-tab test failed.

@@ -121,23 +121,23 @@ Hints, not contracts, verified 2026-11-05; grep for the names, line numbers drif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `crates/pincel-image-core/tests/live_objects.rs` `begin_live_draws_the_immediate_draw_and_adds_one_step`, `begin_live_off_canvas_is_live_without_changing_pixels` | built |        |
+| AC-02 | `crates/pincel-image-core/tests/live_objects.rs` `edit_live_redraws_on_the_pre_object_pixels`, `edit_live_transparency_gradient_fades_the_pre_object_pixels_once` | built |        |
+| AC-03 | `crates/pincel-image-core/tests/live_objects.rs` `edit_live_of_one_gesture_is_one_step`, `edit_live_gesture_ends_at_undo_and_at_other_edits`, `edit_live_consecutive_edits_of_one_group_merge` | built |        |
+| AC-04 | `crates/pincel-image-core/tests/live_objects.rs` `undo_and_redo_walk_the_live_steps` | built |        |
+| AC-05 | `crates/pincel-image-core/tests/live_objects.rs` `commit_live_folds_the_steps_into_one` | built |        |
+| AC-06 | `crates/pincel-image-core/tests/live_objects.rs` `cancel_live_restores_the_pre_object_state` | built |        |
+| AC-07 | `crates/pincel-image-core/tests/live_objects.rs` `edit_live_converts_between_box_shapes_only`; `crates/pincel-image-core/src/command/live_spec.rs` `live_object_spec_reports_the_wire_parameters_of_a_live_shape` | built |        |
+| AC-08 | `crates/pincel-image-core/tests/live_objects.rs` `other_document_changes_commit_the_live_object_first`, `set_active_layer_commits_only_on_a_change`, `undo_and_redo_never_commit`; `crates/pincel-image-wasm/src/lib.rs` `live_tests::paths_beside_apply_command_commit_the_live_object_first` | built |        |
+| AC-09 | `crates/pincel-image-core/tests/live_objects.rs` `begin_live_is_refused_on_locked_group_and_missing_layers`, `begin_live_with_degenerate_geometry_begins_nothing`; `live_spec.rs` `begin_live_on_a_locked_layer_is_refused_like_a_draw` | built |        |
+| AC-10 | `crates/pincel-image-core/tests/live_objects.rs` `live_object_moved_off_canvas_and_back_is_drawn_whole`, `edit_live_beyond_the_reach_is_refused` | built |        |
+| AC-11 | `crates/pincel-image-core/tests/live_objects.rs` `live_object_is_clipped_by_a_feathered_selection` | built |        |
+| AC-12 | `crates/pincel-image-core/tests/live_objects.rs` `commit_live_that_changes_no_pixel_leaves_no_step` | built |        |
+| AC-13 | `crates/pincel-image-core/tests/live_objects.rs` `save_and_composite_while_live_neither_commit_nor_touch_history`; `crates/pincel-image-wasm/src/lib.rs` `live_tests::save_and_export_while_live_do_not_commit` | built |        |
+| AC-14 | `crates/pincel-image-core/tests/live_objects.rs` `capacity_drops_steps_below_the_object_first` | built |        |
+| AC-15 | `crates/pincel-image-core/tests/live_objects.rs` `render_cache_matches_a_fresh_compose_after_every_live_operation` | built |        |
+| AC-16 | `crates/pincel-image-core/tests/live_objects.rs` `live_operations_without_a_live_object_are_refused`, `edit_live_clamps_like_the_draw_command`, `edit_live_to_degenerate_geometry_stays_live_and_draws_nothing` | built |        |
+| AC-17 | `crates/pincel-image-core/benches/compose.rs` `image_live/ellipse_move_1024_4k_5layers` (median 200 ms native, 2026-11-05), `image_live/gradient_end_move_2k_5layers` (median 767 ms) | built |        |
 
 ## Decisions
 
@@ -150,3 +150,10 @@ Hints, not contracts, verified 2026-11-05; grep for the names, line numbers drif
 - 2026-11-05 (clarification) — Merging of consecutive option edits works on parameter groups, and the tool opacity of shapes and Line falls into the colors group (AC-03), because the opacity travels in the stroke and fill alpha the draw command takes; a color change right after an opacity change merges with it and still undoes to the state before both.
 - 2026-11-05 (clarification) — Geometry is bounded at 32 768 px outside the canvas (AC-10), because a bound far beyond any viewport keeps `f32` canvas coordinates exact without reshaping the object.
 - 2026-11-05 (clarification) — The core never commits on save, export, copy or autosave by itself (AC-13); the editor decides (`image-live-objects-ui` AC-09), because only the editor knows whether a call is the user's Save or the autosave timer. Cut changes the document and commits in the core (AC-08).
+- 2026-11-05 (spec-build) — Wire API: `CommandSpec` variants `begin_live_shape`, `begin_live_gradient`, `edit_live` (optional fields plus a `gesture` id), `commit_live`, `cancel_live`, and `live_object(handle)` in `pincel-image-wasm` returning a ts-rs-generated `LiveObjectSpec` or `null`, because the command spec already carries every draw command and its TypeScript mirror keeps the UI in sync. Core API (new public items): `CommandBus::{begin_live, edit_live, commit_live, cancel_live, live_object, set_active_layer}`, `LiveParams` / `LiveShape` / `LiveShapeKind` / `BoxShape` / `LiveGradient` / `LiveEdit` / `LiveObject`, `command::live_spec`, `DocumentError::{LayerLocked, NoLiveObject, LiveEditMismatch, LiveGeometryOutOfRange}`.
+- 2026-11-05 (spec-build) — The object is live exactly while the top undo steps are its steps (`LiveStep`); each step keeps a shared snapshot of the layer from before the object and redraws from it in both directions, because that makes undo, redo, merge and the capacity fold stateless and keeps one copy of the pre-object pixels per object.
+- 2026-11-05 (spec-build) — A begin on a missing layer is refused with `LayerIndexOutOfBounds`, and a begin on a locked layer or a group with `LayerLocked` ("layer is locked") also in the core, not only in the wasm `refused` check, so every host (editor, MCP) gets the same refusal (AC-09).
+- 2026-11-05 (spec-build) — An edit whose result equals the current parameters adds no step, because a step that changes nothing would make Undo look broken (same reason as `image-live-objects-ui` AC-07).
+- 2026-11-05 (spec-build) — Degenerate begin commits the previously live object (it is a begin attempt) and then begins nothing, because AC-09 asks that afterwards no object is live.
+- 2026-11-05 (spec-build) — Test order: the core module was written before its tests in this block. The red runs were (1) the tests against the core without the live API (105 compile errors: no `begin_live` / `edit_live` / … ), and (2) deliberate temporary breaks, each reverted: no commit in `CommandBus::apply` (AC-08 red), no capacity fold (AC-14 red), no restore of the pre-object pixels / no merge / no clamp (AC-02, AC-03, AC-04, AC-10, AC-11, AC-16 red), commit and cancel keeping steps and pixels / no reach, lock or degenerate check (AC-06, AC-09, AC-10, AC-12 red), no damage of live steps (AC-15 red), the wasm `set_active_layer` bypassing the bus (wasm AC-08 test red).
+- 2026-11-05 (spec-build) — AC-17's medians are far above the proposed 8 ms / 16 ms budgets; not profiled further — the region compose of five layers in linear light is the likely main cost, judging by the `image_compose` medians. No budget row was added; the compose cost belongs to the performance specs.

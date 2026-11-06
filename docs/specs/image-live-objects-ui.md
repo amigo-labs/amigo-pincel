@@ -117,7 +117,7 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `ui/e2e/image-live-objects.spec.ts` `a shape, line or gradient drag leaves the object live with handles` | built |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
@@ -126,14 +126,14 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 | AC-07 |      | open   |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-10 | `ui/e2e/image-live-objects.spec.ts` `another tool, a new drag or a press beside the object commits it` | built |        |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-12 | `ui/e2e/image-live-objects.spec.ts` `Undo and Redo walk the live object with its handles` | built |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-16 | `ui/e2e/image-live-objects.spec.ts` `a refused or degenerate drag leaves nothing live` | built |        |
+| AC-17 | `ui/e2e/image-live-objects.spec.ts` `Escape cancels the live object and the document is clean again` | built |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 
@@ -147,3 +147,7 @@ Hints, not contracts; verified 2026-11-05, line numbers drift.
 - 2026-11-05 (clarification) — Undo during a handle or body drag only cancels that drag (AC-11), because undoing a step under a drag in progress would leave the drag editing an object state that no longer exists.
 - 2026-11-05 (clarification) — A color change has no effect on a live Transparency-channel Gradient and adds no step (AC-07), because a step that changes nothing visible would make Undo look broken.
 - 2026-11-05 (clarification) — A refused edit after an outside commit is dropped silently (AC-19), because the outcome (the object was committed) is what the user sees anyway, and an error notice would blame them for an agent's action.
+- 2026-11-05 (spec-build) — Handles are DOM elements (`components/canvas/LiveHandles.svelte`, `data-live-handle`) positioned in viewport space over the canvas and the stage, with hit-testing in the pure module `tools/live-handles.ts`, because DOM handles keep their screen size without a redraw loop and let e2e specs count and locate them without reading canvas pixels.
+- 2026-11-05 (spec-build) — Enter commits before the shared keymap is consulted, because the keymap maps a plain Enter to Pixel mode's Play (`togglePlay`), which Image mode does not serve.
+- 2026-11-05 (spec-build) — Escape and Undo during a handle drag drop the drag through a new core command `cancel_live_gesture` (`CommandBus::cancel_live_gesture`), because Undo would leave the dropped drag as a redo step, which AC-11 rules out.
+- 2026-11-05 (spec-build) — Progress (paused by the coordinator after the first block): built AC-01, AC-10, AC-12, AC-16, AC-17; the pointer code for handle / body / grip drags, cursors, Escape / Undo during a drag, the box-shape conversion on a tool change and the tool-change commit are in place but not yet covered by tests, so AC-02 – AC-09, AC-11, AC-13 stay `open`. Red run of this block: all five specs of `image-live-objects.spec.ts` failed against the editor before the change (no handles, the drag committed at once).

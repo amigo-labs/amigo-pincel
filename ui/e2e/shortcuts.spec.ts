@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument } from './helpers';
+import { colorOf, createDocument } from './helpers';
 
 /** The tool-rail button that is currently pressed. */
 function activeTool(page: Page) {
@@ -25,10 +25,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(activeTool(page)).toHaveAttribute('aria-label', 'Eyedropper');
 
     // D resets to black / white, X swaps them.
-    const fg = page.getByLabel('Foreground color', { exact: true });
     await page.keyboard.press('d');
-    await expect(fg).toHaveValue('#000000');
+    await expect.poll(() => colorOf(page, 'fg')).toBe('#000000');
     await page.keyboard.press('x');
-    await expect(fg).toHaveValue('#ffffff');
+    await expect.poll(() => colorOf(page, 'fg')).toBe('#ffffff');
   });
 }

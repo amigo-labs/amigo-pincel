@@ -635,7 +635,7 @@ Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists 
 
 **Layers panel.** Both modes render the same panel (`ui/src/lib/components/layers/`): each row has a drag grip (pointer events, so it works with touch and pen; arrow keys on a focused grip), visibility, lock, a thumbnail, the name and a rename button; the active layer's opacity and blend mode sit below the list. Pixel mode lists layers as a tree — a group's header above its indented children — tags tilemap / group rows, and lets a drag cross groups: the outer quarters of a row drop above / below it, a group's middle drops into it (Alt+← / → on a grip: out of / into a group); Layer ▸ New Group adds an empty group. A locked layer — or one inside a locked group — refuses pixel edits with a status-bar notice. Layer ▸ Rename… opens the same rename dialog in both modes.
 
-**Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background.
+**Colors.** Both modes have a foreground and a background color. The left button paints with the foreground, the right button with the background (pencil, fill, line, shapes; the eyedropper samples into whichever button it was pressed with); filled shapes use the other color for their interior. `X` swaps, `D` resets to black / white; right-clicking a palette swatch sets the background. A click on a swatch opens Pincel's own color picker in a popover (S/V area, hue and alpha sliders, `#RRGGBB[AA]` hex, R / G / B / A fields, the mode's recent colors), the same in both modes and on every OS; both colors carry alpha in both modes (`color-picker`).
 
 The layout above is the Pixel-mode editor. It is mounted by a thin shell (`ui/src/App.svelte`) that also owns the start screen (New pixel sprite / New image / Open / Recents — the two New cards open in place as an accordion with the canvas size and Create, no dialog on top), the New-document dialog with a mode choice (File ▸ New… from an editor), an "Open like this on startup" checkbox on each New card and in the New dialog (at most one mode at a time: the next launch skips the start screen and opens an empty document of that mode and size), a New image size taken from the image on the clipboard when there is one (like paint.net), file-type detection on open, and the Tauri menu bridge. Image mode mounts its own editor (`ui/src/modes/image/`) in the same slot; only one editor is mounted at a time, so the two keyboard maps never overlap.
 
@@ -998,6 +998,7 @@ Out of scope indefinitely. Local-first by design.
 | 2026-11-05 | Image mode gains a Clone Stamp (key C): Ctrl / ⌘+click or a Set-source toggle sets the source; aligned offset; each stroke samples the source as it was at the press, from the current layer or the composite; the source is per-tab tool state; MCP `draw.clone`. Reverses 2026-10-27 "clone stamp stays out". | paint.net parity; the stroke-start snapshot makes the result independent of pointer-event batching. |
 | 2026-11-05 | Palette exchange codecs (`.gpl`, `.hex`, `.pal`, PNG) move from `pincel-core` into a new platform-free crate `pincel-palette` used by both cores; Image mode's Colors-panel palette is app state in IndexedDB, not document state. | Image mode loads and saves palettes like paint.net; one copy of the codecs keeps both modes reading a file the same way. |
 | 2026-11-05 | Text tools use installed fonts: the PWA through Local Font Access (`queryLocalFonts`) or font files the user adds (kept in IndexedDB), the desktop app and `pincel-mcp` through `fontdb` (new dependency, MIT / Apache, pure Rust); the cores keep taking font bytes plus a face index (`registerFont(bytes, faceIndex?)`). | The cores stay platform-free; text stays pixels, so documents carry no font reference (`system-fonts`). |
+| 2026-11-05 | `pincel-core` gains `Sprite::combine_selection` (the Pixel editor's replace / add / subtract / intersect rule) and `selection::{layer_canvas, composite_canvas}` (the Magic Wand's sample buffers), moved out of `pincel-wasm`, which keeps thin wrappers. | `pincel-agent` runs natively and must reach the same selection behaviour as the editor (`mcp-parity-selection-transform`); this follows the phase-0 precedent of `Sprite::paint_target_layer` (2026-10-29). |
 | 2026-11-05 | Fill Selection's default key: Backspace on Windows / Linux, Option+Backspace on macOS, where Backspace stays Delete Selection; MCP `select.fill`. | paint.net parity without taking the Mac's only delete key. |
 | 2026-11-05 | Image rulers, pixel grid (zoom ≥ 400 %) and units are view state drawn over the canvas: no undo step, nothing in files, no MCP tool; stored per user in IndexedDB; units use the document's DPI (default 96) through a read-only wasm getter; rulers toggle with Ctrl+Alt+R in the desktop app only. | View decoration is not document state; Ctrl+R is Rotate on desktop and reload in the browser. |
 | 2026-11-05 | Image mode opens TGA, DDS (BC1–3) and ICO and writes TGA and ICO through the `image` 0.25 features `tga`, `dds`, `ico`; JPEG XL through `jxl-oxide` (decode) and `zune-jpegxl` (lossless encode); AVIF decode through `rav1d` + `avif-parse` only if a spike builds it for wasm within the +2.0 MB budget of the Image wasm module, otherwise AVIF stays unsupported; no AVIF encode. All dependencies approved by the owner. | paint.net parity with pure-Rust, wasm-safe codecs and a bounded bundle size (`image-formats-more`, `-modern`). |
@@ -1136,16 +1137,27 @@ Legend: ✓ yes · ✗ no · ~ partial (see note) · ? unverified. An entry mark
 
 | Tool | Layers / groups / blend | Timeline / onion / tags | Tilemap | Slices / 9-patch | Indexed | `.aseprite` R/W | Pixel-perfect | Adjustments / filters | Magic wand | Text | Pen pressure | PSD |
 |------|---|---|---|---|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native | ✗ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ~ (read, 8-bit RGB) |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ | ✓ | ✓ / ✓ + pivot | ~ read / write, painting Phase 2 | ✓ native (RGBA) | ✓ | ✓ (shared `pincel-effects`) | ✓ | ✓ | ✓ | ~ (read, 8-bit RGB, Image mode) |
 | Aseprite | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (tag groups) | ✓ | ✓ / ✓ + pivot | ✓ | ✓ native | ✓ | ~ hue/sat, brightness, curves\* | ✓\* | ✓ | ✓ | ✗ (extensions may add it) |
 | LibreSprite | ✓ / ✗ / ?\* | ✓ / ✓ / ✓\* | ✗\* | ✗\* | ✓\* | ~ old format, groups flattened | ✓\* | ~\* | ✓\* | ✓ | ✓ | ✗\* |
-| Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ? | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
-| Piskel | ✓ / ✗\* / ✗\* | ✓ / ✓ / ✗\* | ✗ | ✗ | ✗\* | ✗\* | ? | ✗ | ✓\* | ✗ | ? | ✗\* |
+| Pixelorama | ✓ / ✓ / ✓ | ✓ / ✓ / ✓ (+ keyframes) | ✓ rect / iso / hex, autotile | ✗ (re-checked 2026-11-05) | ✓ | ✓ import / ✓ export (1.2.2) | ✓ | ~ curves, HSV, gradient map, layer effects | ✓\* | ✓ | ✓ | ✓ import |
+| Piskel | ✓ / ✗\* / ✗\* | ✓ / ✓ / ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓\* | ✗ | ✗ | ✗ |
 | Pro Motion NG | ✓ / ✓ / ? | ✓ / ✓ / ? | ✓ | ? | ✓ | ? | ✓ | ? | ? | ✓ bitmap fonts | ✓ | ? |
 | Pixaki 4 | ✓ / ✓ / ✓ | ✓ / ✓ / ? | ? | ? | ? | ✓ (Pro) | ✓ | ? | ~ colour select | ? | ? | ✓ layered (Pro) |
 | Resprite | ✓ / ? / ✓ + clipping masks, layer styles | ✓ / ✓ / ? | ✓ (Tiled `.tmx` / `.tsx`) | ? | ? | ✓ / ✓ | ✓ | ~ HSV, brightness / contrast, sharpen | ? | ✓ TTF / OTF + pixel fonts | ✓ | ✓ / ✓ |
 
 Lospec and Pyxel Edit are left out of the feature table: neither publishes a feature list that could be checked, and Lospec is discontinued.
+
+**Re-checked 2026-11-05 for the website's comparison tables** (`website-comparison`), against the tools' source code (shallow clones of `piskelapp/piskel` master, `Orama-Interactive/Pixelorama` master at v1.2.5-dev, `PintaProject/Pinta` master at 3.2) and the vendor docs below. Two columns §18.2 does not carry:
+
+| Tool | Animated export | Custom brushes | Scripting | Embeddable |
+|------|-----------------|----------------|-----------|------------|
+| **Pincel** | ✓ GIF / APNG (Pixel mode) | ✗ (Phase 2) | ✗ | ✓ npm |
+| Aseprite | ~ GIF (and PNG sequences); no APNG (aseprite.org/docs/exporting) | ✓ | ✓ Lua | ~ CLI batch |
+| Pixelorama | ✓ GIF, APNG, video (README; `src/Autoload/Export.gd`) | ✓ image brushes (`src/Autoload/Import.gd`) | ✓ extensions | ~ CLI export only |
+| Piskel | ~ GIF only (`GifExportController.js`; no APNG exporter) | ✗ (pen sizes only; no brush code) | ✗ (none in `src/js`) | ✗ (no embedding API documented) |
+
+Piskel's master has no pixel-perfect mode, no pen pressure, no animation tags, no indexed mode and no `.aseprite` reader or writer (none in `src/js`); its last commit is 2026-11-04. Pixelorama has a pixel-perfect option and pen pressure (`src/Tools/BaseDraw.gd`), `.aseprite` import and export (`AsepriteParser.gd`, `AsepriteExporter.gd`) and PSD import (`PhotoshopParser.gd`), but no user slices.
 
 ### 18.3 Image editors — platforms and business
 
@@ -1164,10 +1176,10 @@ Lospec and Pyxel Edit are left out of the feature table: neither publishes a fea
 
 | Tool | Layers / groups / blend | Adjustments / filters | Magic wand | Text | Pen pressure | PSD | Animation | Pixel-art features |
 |------|---|---|---|---|---|---|---|---|
-| **Pincel** | ✓ / ✗ (Pixel mode has groups) / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ~ (read, 8-bit RGB) | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
-| Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓\* | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ | ~ third-party plugin\* | ✗ | ✗ |
-| Pinta | ✓ / ✗\* / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ? | ? | ✗ | ✗ |
-| Photopea | ✓ / ✓\* / ✓\* | ✓ | ✓\* | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
+| **Pincel** | ✓ / ✓ / ✓ | ✓ | ✓ | ✓ | ✓ size, opacity, tilt | ~ (read, 8-bit RGB) | ✓ in Pixel mode | ✓ Pixel mode (tilemaps, slices, palettes, `.aseprite`) |
+| Paint.NET | ✓ / ✗ (folders planned for 6.0, 2027) / ✓ 14 modes | ✓ levels, curves, hue/sat | ✓ | ✓ simple | ✓ (5.0) | ~ third-party plugin (PSD plugin 2.5.0, 2016) | ✗ | ✗ |
+| Pinta | ✓ / ✗ / ✓ | ✓ levels, curves, effects | ✓ | ✓ | ✗ (brush has a pressure TODO only) | ✗ (ORA, JPEG, TGA, Netpbm, GdkPixbuf formats) | ✗ | ✗ |
+| Photopea | ✓ / ✓ folders / ✓ | ✓ | ✓ | ✓ | ✓ | ✓ core feature | ~ frames via layer names, no onion skin | ✗ |
 | Pixlr E | ✓ / ✓ / ✓ | ✓ levels, curves, hue/sat | ✓ | ✓ | ✓ | ~ simple PSDs only | ✗ | ✗ |
 | miniPaint | ✓ / ✗\* / ✓ | ~ basic adjustments + effects | ✓ | ✓ | ? | ? | ~ animated GIF export | ✗ |
 | Krita | ✓ / ✓ / ✓ | ✓ | ✓\* | ✓ | ✓ | ✓\* | ✓ timeline, onion skin | ~ no indexed mode |
@@ -1194,25 +1206,25 @@ Embedding through npm is a third differentiator (§17.5). Photopea's iframe API 
 
 **Gaps the comparison exposes** (candidates for later phases, not commitments; each has a feature spec under `docs/specs/`, indexed in `docs/specs/README.md` together with a backlog of smaller gaps):
 
-- **Pixel-perfect pencil stroke.** Aseprite, LibreSprite, Pixelorama, Pixaki, Resprite and Pro Motion all have it; Pincel doesn't.
+- **Pixel-perfect pencil stroke.** Shipped (`pixel-pencil`, 2026-11).
 - **Indexed painting, autotiling, scripting.** Already listed in §13.
 - **PSD import.** Pixelorama, Resprite, Pixaki and Photopea have it; Pincel opens 8-bit RGB PSD files in Image mode (read only, feature spec `psd-import.md`) but not Krita files.
-- **Layer groups in Image mode.** Pixel mode already has them.
+- **Layer groups in Image mode.** Shipped (`image-layer-groups`, 2026-11).
 
 ### 18.6 Sources
 
 - aseprite.org (release notes, docs, buy, FAQ) and github.com/aseprite/aseprite/releases
 - github.com/Orama-Interactive/Pixelorama (README, releases) and pixelorama.org
 - github.com/LibreSprite/LibreSprite/releases and libresprite.github.io
-- github.com/piskelapp/piskel
+- github.com/piskelapp/piskel (source, master 2026-11-04)
 - github.com/lospec/pixel-editor
 - cosmigo.com and the Pro Motion NG Steam page
 - pyxeledit.com
 - pixaki.com and its App Store listing
 - resprite.fengeon.com (docs, release notes) and the Resprite Steam page
-- paint.net (features, roadmap, blog)
-- github.com/PintaProject/Pinta and pinta-project.com
-- photopea.com/learn and photopea.com/api
+- paint.net (features, roadmap, blog, doc/latest/BlendModes.html) and the Paint.NET forum's "Photoshop PSD file plugin" thread
+- github.com/PintaProject/Pinta (source, master 3.2) and pinta-project.com
+- photopea.com/learn (layers, advanced-selecting, introduction on offline use) and photopea.com/api
 - pixlr.com (pricing, editor, desktop)
 - github.com/viliusle/miniPaint
 - krita.org (download, release notes)

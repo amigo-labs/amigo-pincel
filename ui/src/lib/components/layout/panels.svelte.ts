@@ -52,6 +52,41 @@ export interface FrameLayout {
    *  default. Kept as stored even when the window clamps it (effect-panel
    *  AC-11) — `sidebarWidth()` gives the width actually shown. */
   sidebarWidth?: number;
+  /** Effect panel position as the user last put it; `undefined` = default.
+   *  Kept as stored even when the canvas area clamps it (effect-panel
+   *  AC-19) — `effectPanelPos()` gives the position actually shown. */
+  effectPos?: EffectPos;
+}
+
+/** Offset of the effect panel's top-right corner from the canvas area's
+ *  top-right corner, in px: `x` to the left, `y` down (effect-panel AC-18). */
+export interface EffectPos {
+  x: number;
+  y: number;
+}
+
+/** Default effect panel offset: 16 px inside the canvas area's top-right corner. */
+export const EFFECT_PANEL_MARGIN = 16;
+
+/** Width and height in px. */
+export interface Size {
+  width: number;
+  height: number;
+}
+
+/** The position to show for a stored `pos`: the default when missing,
+ *  else the nearest one that keeps a `panel`-sized box wholly inside
+ *  `area` (effect-panel AC-19). */
+export function effectPanelPos(pos: EffectPos | undefined, area: Size, panel: Size): EffectPos {
+  const p = pos ?? { x: EFFECT_PANEL_MARGIN, y: EFFECT_PANEL_MARGIN };
+  const clamp = (v: number, max: number) => Math.round(Math.min(Math.max(0, max), Math.max(0, v)));
+  return { x: clamp(p.x, area.width - panel.width), y: clamp(p.y, area.height - panel.height) };
+}
+
+function isEffectPos(v: unknown): v is EffectPos {
+  if (typeof v !== 'object' || v === null) return false;
+  const { x, y } = v as Record<string, unknown>;
+  return typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y);
 }
 
 /** Default docked sidebar width in px (effect-panel AC-08). */
@@ -88,6 +123,7 @@ export async function loadLayout(mode: string): Promise<FrameLayout> {
       collapsed: typeof v.collapsed === 'object' && v.collapsed ? { ...v.collapsed } : {},
       sidebar: v.sidebar !== false,
       ...(typeof width === 'number' && Number.isFinite(width) ? { sidebarWidth: width } : {}),
+      ...(isEffectPos(v.effectPos) ? { effectPos: { x: v.effectPos.x, y: v.effectPos.y } } : {}),
     };
   } catch {
     // IndexedDB unavailable (private mode): run on defaults.

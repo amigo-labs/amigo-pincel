@@ -102,7 +102,7 @@ impl DashPattern {
 }
 
 /// Stroke + fill styling for a [`Shape`] (spec §9.2 Shapes "Options").
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShapeStyle {
     /// Outline / Fill / Fill + Outline.
     pub mode: ShapeMode,
@@ -259,7 +259,7 @@ impl Shape {
     }
 
     /// Undo label for this shape's command.
-    fn label(&self) -> &'static str {
+    pub(crate) fn label(&self) -> &'static str {
         match self {
             Shape::Line { .. } => "Draw Line",
             Shape::Rectangle { .. } => "Draw Rectangle",

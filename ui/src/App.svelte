@@ -385,7 +385,15 @@
   }
 
   function onShellKeydown(e: KeyboardEvent) {
-    if (actionFor(e) !== 'pasteNewImage' || !startScreenIdle(e.target)) return;
+    const action = actionFor(e);
+    if (action === null || !startScreenIdle(e.target)) return;
+    // Ctrl/⌘+N where the page gets it (power-user-shortcuts-coverage AC-20).
+    if (action === 'newDocument') {
+      e.preventDefault();
+      requestNew('pixel');
+      return;
+    }
+    if (action !== 'pasteNewImage') return;
     e.preventDefault();
     void clipboardImage().then(openPasted);
   }

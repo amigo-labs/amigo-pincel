@@ -124,5 +124,7 @@ This spec records the behavior as built. Already decided in §3.7: a new documen
 
 ## Decisions
 
+- 2026-11-05 (color-picker spec-build): AC-23's "alphas start at 255" is superseded by `color-picker` AC-15, which restores both colors with their alpha; `color-pair.spec.ts` now checks the alphas survive the reload.
+
 - 2026-11-03: The open ACs (02, 04–07, 10, 15, 18, 20–23) describe behaviour that already existed, so their new tests were green at once. Each was shown to fail against a temporary, reverted break: `+` not selecting the new entry (AC-02), the 256 cap dropped from the add button (AC-04), `onPick` / `onPickBg` forcing alpha 255 and the swatch's `contextmenu` `preventDefault` removed (AC-05, AC-06), the active mark also requiring an opaque entry (AC-07), the drop handler not moving (AC-10), `read_gpl` accepting a file without the header (AC-15), `MovePaletteEntry` not checking `to` (AC-18), `swapColors` not swapping the alphas (AC-20), the hex field accepting 2–6 digits (AC-21), the slider storing `255 − value` (AC-22) and the background pref not restored (AC-23). No code contradicted an AC.
 

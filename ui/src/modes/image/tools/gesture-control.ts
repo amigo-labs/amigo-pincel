@@ -5,4 +5,9 @@
  * was. A module of its own so the tab store can use it without importing
  * the pointer code (which imports the controller, which imports the tabs).
  */
-export const gestureControl = { cancel: (): boolean => false };
+export const gestureControl = {
+  cancel: (): boolean => false,
+  /** Drops a live-object handle drag in progress (Undo during the drag,
+   *  docs/specs/image-live-objects-ui.md AC-11); `false` when none is. */
+  cancelLiveDrag: (): boolean => false,
+};

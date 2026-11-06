@@ -22,6 +22,9 @@ use std::any::Any;
 pub struct SetPixels {
     /// Edits not written yet: layer, region and its new pixels.
     pending: Vec<(usize, Rect, ImageBuffer)>,
+    /// Edits the document already holds, with the pixels before them
+    /// (layer, region, before): the first undo writes these back.
+    prior: Vec<(usize, Rect, ImageBuffer)>,
     /// Per changed layer, the tiles that are not in the document right now.
     saved: Vec<(usize, LayerTiles)>,
     /// Every region written, for [`Command::damage`].
@@ -35,6 +38,7 @@ impl SetPixels {
     pub fn new(layer_index: usize, region: Rect, after: ImageBuffer) -> Self {
         Self {
             pending: vec![(layer_index, region, after)],
+            prior: Vec::new(),
             saved: Vec::new(),
             regions: vec![region],
             label: "Edit Pixels".to_string(),
@@ -84,6 +88,38 @@ impl SetPixels {
         }
         Ok(())
     }
+
+    /// An already-applied edit whose prior pixels are known: undo pastes
+    /// `before`, redo pastes `after` (a committed live object).
+    pub(crate) fn applied(
+        layer_index: usize,
+        region: Rect,
+        before: ImageBuffer,
+        label: impl Into<String>,
+    ) -> Self {
+        // The document holds the new pixels already; only the first undo
+        // needs `before`, and saves the tiles it replaces for redo.
+        Self {
+            pending: Vec::new(),
+            prior: vec![(layer_index, region, before)],
+            saved: Vec::new(),
+            regions: vec![region],
+            label: label.into(),
+            stroke_id: None,
+        }
+    }
+
+    /// The region and new pixels of a single-edit command, as a tool's
+    /// `draw` builds it; `None` for a merged multi-edit stroke or a
+    /// command already applied.
+    pub(crate) fn into_single(self) -> Option<(Rect, ImageBuffer)> {
+        let mut pending = self.pending;
+        if pending.len() != 1 || !self.saved.is_empty() || !self.prior.is_empty() {
+            return None;
+        }
+        let (_, region, after) = pending.pop()?;
+        Some((region, after))
+    }
 }
 
 impl Command for SetPixels {
@@ -121,6 +157,22 @@ impl Command for SetPixels {
         if !self.pending.is_empty() {
             return Err(DocumentError::RegionOutOfBounds);
         }
+        if !self.prior.is_empty() {
+            // First undo of an edit recorded as applied: write the pixels
+            // before it, saving the tiles it replaces for redo.
+            let len = doc.layers.len();
+            for (layer, _, _) in &self.prior {
+                if *layer >= len {
+                    return Err(DocumentError::LayerIndexOutOfBounds { index: *layer, len });
+                }
+            }
+            for (layer, region, before) in std::mem::take(&mut self.prior) {
+                let mut tiles = std::mem::take(self.tiles_of(layer));
+                tiles.write(&mut doc.layers[layer].pixels, region, &before);
+                *self.tiles_of(layer) = tiles;
+            }
+            return Ok(());
+        }
         self.swap(doc)
     }
 
@@ -139,7 +191,9 @@ impl Command for SetPixels {
                 if self.stroke_id.is_some()
                     && self.stroke_id == other.stroke_id
                     && self.pending.is_empty()
-                    && other.pending.is_empty() =>
+                    && other.pending.is_empty()
+                    && self.prior.is_empty()
+                    && other.prior.is_empty() =>
             {
                 for (layer, tiles) in &other.saved {
                     self.tiles_of(*layer).absorb(tiles);
@@ -164,7 +218,8 @@ impl Command for SetPixels {
         let pending: usize = self
             .pending
             .iter()
-            .map(|(_, _, after)| after.data().len())
+            .chain(&self.prior)
+            .map(|(_, _, pixels)| pixels.data().len())
             .sum();
         saved + pending
     }

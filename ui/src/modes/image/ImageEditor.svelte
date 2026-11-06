@@ -1,9 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { hexToRgb, toHex } from '../../lib/color';
+  import { loadColorPref, loadRecent, saveColorPref } from '../../lib/colors/recent.svelte';
+  import { onMount, untrack } from 'svelte';
+  import { dropWandLink, relinkWand } from './tools/wand-link';
   import type { EditorProps } from '../../lib/shell/types';
   import {
     clampCanvasSize,
     editor,
+    isShapeTool,
+    live,
+    shapeOf,
     tabs,
     tool,
     ui,
@@ -14,6 +20,7 @@
     viewCommands,
     type ToolKind,
   } from './stores/editor.svelte';
+  import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import {
     addGroup,
     addLayer,
@@ -108,6 +115,7 @@
     hint,
     isStageTarget,
     isTypingTarget,
+    NEW_DOCUMENT_KEY,
     nativeMenuOwns,
     opacityPercent,
     toolGroupForKey,
@@ -310,7 +318,13 @@
     editor.notice = null;
   }
 
-  function runPaste(handle: number, bytes: Uint8Array, x: number, y: number, expand: boolean): void {
+  function runPaste(
+    handle: number,
+    bytes: Uint8Array,
+    x: number,
+    y: number,
+    expand: boolean,
+  ): void {
     pasteDialog = null;
     if (editor.handle !== handle) return;
     try {
@@ -342,7 +356,8 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen()) return;
+    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen())
+      return;
     if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
     // `ui.modalOpen`; a paste from inside any dialog is not for the canvas.
@@ -370,7 +385,9 @@
       jpegDialogOpen = true;
       return;
     }
-    exportImage(format, quality).catch((e) => (loadError = t('img.exportFailed', { error: String(e) })));
+    exportImage(format, quality).catch(
+      (e) => (loadError = t('img.exportFailed', { error: String(e) })),
+    );
   }
 
   // Tool rail (spec §9.2): same groups, order and keys as Pixel mode
@@ -480,6 +497,7 @@
    * serves. No frames in Image mode, so no frame keys and no sheet export.
    */
   const IMAGE_ACTIONS: readonly ShortcutAction[] = [
+    ...(NEW_DOCUMENT_KEY ? (['newDocument'] as const) : []),
     'open',
     'save',
     'saveAs',
@@ -556,6 +574,20 @@
   // File ▸ Open Recent. `null` keeps the entry out of the menu where the
   // registry cannot work at all; an empty array shows it disabled.
   let recents = $state<RecentFile[]>([]);
+
+  // The Magic Wand link (docs/specs/image-editing.md AC-33, AC-34): every
+  // value the settings take recomputes the linked click; choosing another
+  // tool ends the link, even if the wand is chosen again later.
+  $effect(() => {
+    void tool.tolerance;
+    void tool.contiguous;
+    void tool.wandSample;
+    untrack(relinkWand);
+  });
+  $effect(() => {
+    void tool.kind;
+    untrack(dropWandLink);
+  });
 
   // Keep the native Open Recent submenu in step with the recents, as the
   // shell and the Pixel editor do (desktop-app.md AC-19). Only entries
@@ -654,7 +686,27 @@
     attachTab(tab, { docId: meta.docId, recovered: true });
   }
 
+  const FG_PREF = 'lastColor:image';
+  const BG_PREF = 'lastBgColor:image';
+  // The last foreground / background colors and the recent colors, per
+  // mode in IndexedDB (color-picker AC-15); saving starts once they loaded,
+  // so a slow store cannot overwrite them with the defaults.
+  let colorPrefsLoaded = $state(false);
+  $effect(() => {
+    const fg = { ...hexToRgb(tool.foreground), a: tool.foregroundAlpha };
+    const bg = { ...hexToRgb(tool.background), a: tool.backgroundAlpha };
+    if (!colorPrefsLoaded) return;
+    saveColorPref(FG_PREF, fg);
+    saveColorPref(BG_PREF, bg);
+  });
+
   onMount(() => {
+    void loadRecent('image');
+    void Promise.all([loadColorPref(FG_PREF), loadColorPref(BG_PREF)]).then(([fg, bg]) => {
+      if (fg) [tool.foreground, tool.foregroundAlpha] = [toHex(fg), fg.a];
+      if (bg) [tool.background, tool.backgroundAlpha] = [toHex(bg), bg.a];
+      colorPrefsLoaded = true;
+    });
     bindTabHooks({
       registerDocument,
       confirmClose,
@@ -720,6 +772,22 @@
     if (!active) gestureControl.cancel();
   });
 
+  // Another tool commits a live object; another box shape converts a live
+  // box shape (image-live-objects-ui AC-08, AC-09).
+  $effect(() => {
+    const kind = tool.kind;
+    untrack(() => {
+      const own = liveToolOf();
+      if (own === null || own === kind) return;
+      const shape = shapeOf(kind);
+      if (shape !== null && shape !== 'line' && isShapeTool(own) && own !== 'line') {
+        editLive({ shape });
+      } else {
+        commitLive();
+      }
+    });
+  });
+
   const dirty = $derived(isDirty(tabs.active));
 
   // The window title follows the active tab (document-tabs AC-04), as in
@@ -737,7 +805,20 @@
     // dialog owns the keyboard.
     // A key the other editor already handled is not handled again: a tab
     // switch it made shows this editor before the event reaches it.
-    if (!active || e.defaultPrevented || ui.modalOpen || helpDialogOpen() || isTypingTarget(e.target)) {
+    if (
+      !active ||
+      e.defaultPrevented ||
+      ui.modalOpen ||
+      helpDialogOpen() ||
+      isTypingTarget(e.target)
+    ) {
+      return;
+    }
+    // Enter commits a live object (image-live-objects-ui AC-09); Image
+    // mode has no Play for the key to mean otherwise.
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.object !== null) {
+      e.preventDefault();
+      commitLive();
       return;
     }
     const action = actionFor(e);
@@ -752,10 +833,11 @@
       if (runShortcut(action)) e.preventDefault();
       return;
     }
-    // Escape drops a gesture in progress; with none, it deselects
+    // Escape drops a gesture in progress; with none it cancels a live
+    // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && editor.hasSelection) deselect();
+      if (!gestureControl.cancel() && !cancelLive() && editor.hasSelection) deselect();
       return;
     }
     const group = toolGroupForKey(e);
@@ -769,6 +851,9 @@
   /** Runs a shared shortcut; false when Image mode has no such action. */
   function runShortcut(action: ReturnType<typeof actionFor>): boolean {
     switch (action) {
+      case 'newDocument':
+        onRequestNew();
+        return true;
       case 'open':
         onRequestOpen();
         return true;
@@ -1030,7 +1115,7 @@
       id: 'file',
       label: t('menu.file'),
       items: tidy([
-        { label: t('menu.new'), run: onRequestNew },
+        { label: t('menu.new'), shortcut: hint('newDocument'), run: onRequestNew },
         { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
         ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
         droppedImagesMenu(),

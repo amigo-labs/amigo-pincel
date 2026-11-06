@@ -53,11 +53,13 @@ export const en = {
   'mode.image': 'Image',
 
   // Start screen
-  'start.tagline': 'Pixel-art sprites and everyday image editing, one app. Drop a file here to open it.',
+  'start.tagline':
+    'Pixel-art sprites and everyday image editing, one app. Drop a file here to open it.',
   'start.newPixel': 'New pixel sprite',
   'start.newPixelHint': 'Frames, palettes, tilemaps, slices. Saves as .aseprite.',
   'start.newImage': 'New image',
-  'start.newImageHint': 'Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.',
+  'start.newImageHint':
+    'Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.',
   'start.open': 'Open…',
   'start.openHint':
     '.aseprite opens in Pixel mode; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF and PSD open in Image mode.',
@@ -94,8 +96,10 @@ export const en = {
   'fileAssoc.win2': 'Search for “.aseprite” and pick Pincel from the list.',
   'fileAssoc.win3': 'Repeat for “.ase” and any image types you want Pincel to open.',
   'fileAssoc.linux1': 'Run {command}.',
-  'fileAssoc.linux2': 'If your distro doesn’t pick up new MIME types automatically, run {command} afterward.',
-  'fileAssoc.other': 'Steps depend on your OS — consult its documentation for setting default file handlers.',
+  'fileAssoc.linux2':
+    'If your distro doesn’t pick up new MIME types automatically, run {command} afterward.',
+  'fileAssoc.other':
+    'Steps depend on your OS — consult its documentation for setting default file handlers.',
   'fileAssoc.dontShow': 'Don’t show this again',
   'fileAssoc.gotIt': 'Got it',
 
@@ -140,6 +144,20 @@ export const en = {
   'color.hex': 'Hex',
   'color.hexLabel': 'Foreground color hex value',
   'color.alpha': 'Foreground alpha',
+  'color.pickerFg': 'Foreground color picker',
+  'color.pickerBg': 'Background color picker',
+  'color.closePicker': 'Close color picker',
+  'color.satValue': 'Saturation and value',
+  'color.satValueText': 'Saturation {s} %, value {v} %',
+  'color.hue': 'Hue',
+  'color.alphaSlider': 'Alpha',
+  'color.hexField': 'Hex color',
+  'color.red': 'Red',
+  'color.green': 'Green',
+  'color.blue': 'Blue',
+  'color.alphaChannel': 'Alpha value',
+  'color.recent': 'Recent colors',
+  'color.palette': 'Color palette',
 
   // Language menu
   'menu.language': 'Language',
@@ -209,7 +227,8 @@ export const en = {
   'pressure.opacity': 'Opacity',
   'pressure.hint': 'What a stylus’s pressure varies (mouse and touch paint at full pressure)',
   'tilt.angle': 'Tilt turns the nib',
-  'tilt.hint': 'A flat nib follows the direction the stylus leans in (styluses without tilt use the angle)',
+  'tilt.hint':
+    'A flat nib follows the direction the stylus leans in (styluses without tilt use the angle)',
 
   // Menus
   'menu.file': 'File',
@@ -276,8 +295,10 @@ export const en = {
   'copy.failed': 'Could not copy: {error}',
   'cut.imageLayersOnly': 'Cut works on image layers only',
   'paste.largerTitle': 'Paste larger image',
-  'paste.larger': 'The image being pasted ({w} × {h}) is larger than the canvas. Expand the canvas to fit it?',
-  'paste.tooLarge': 'The image being pasted ({w} × {h}) is larger than the canvas and too large to expand it to. It will be cropped.',
+  'paste.larger':
+    'The image being pasted ({w} × {h}) is larger than the canvas. Expand the canvas to fit it?',
+  'paste.tooLarge':
+    'The image being pasted ({w} × {h}) is larger than the canvas and too large to expand it to. It will be cropped.',
   'paste.expand': 'Expand canvas',
   'paste.keep': 'Keep canvas size',
   'paste.newImageName': 'Pasted image.png',
@@ -565,6 +586,7 @@ export const en = {
   'effectDlg.picking': 'Click the canvas to set the {label}',
   'effectDlg.reseed': 'Reseed',
   'effectDlg.link': 'Link {a} and {b}',
+  'effectDlg.move': 'Move dialog',
   'effectDlg.reset': 'Reset',
   'effectDlg.hex': '{label} hex',
   'effectDlg.hexInvalid': 'Use #RRGGBB or #RRGGBBAA',
@@ -814,7 +836,8 @@ export const en = {
   'anim.timesSuffix': 'times',
   'anim.estimate': 'Frames: {n} · size: {w}×{h} px',
   'anim.gifApproximated': 'Some frames have more than 256 colours: the GIF will approximate them.',
-  'anim.gifAlpha': 'GIF transparency is on/off only: semi-transparent pixels become opaque or transparent.',
+  'anim.gifAlpha':
+    'GIF transparency is on/off only: semi-transparent pixels become opaque or transparent.',
   'tiles.add': 'Add tileset',
   'tiles.w': 'Tile W',
   'tiles.h': 'Tile H',
@@ -828,7 +851,8 @@ export const en = {
   'palette.delete': 'Delete entry',
   'tiles.editor': 'Tile editor',
   'common.done': 'Done',
-  'tiles.editorHint': 'Click or drag to paint with the current color. Undo / Redo restores prior pixels.',
+  'tiles.editorHint':
+    'Click or drag to paint with the current color. Undo / Redo restores prior pixels.',
 
   // Pixel editor
   'act.stamp': 'Stamp',
@@ -959,8 +983,7 @@ export const en = {
   'psd.fallback.compressed':
     'the layers are ZIP-compressed, which Pincel cannot read; opened the flattened image',
   'psd.fallback.unreadable': 'the layer data cannot be read; opened the flattened image',
-  'psd.fallback.unrepresentable':
-    'no layer Pincel can show is left; opened the flattened image',
+  'psd.fallback.unrepresentable': 'no layer Pincel can show is left; opened the flattened image',
   'resize.constrain': 'Constrain proportions',
   'resize.resampling': 'Resampling',
   'resize.nearestShort': 'Nearest',

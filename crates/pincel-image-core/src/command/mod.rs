@@ -7,6 +7,8 @@
 mod batch;
 mod damage;
 mod layers;
+mod live;
+pub mod live_spec;
 mod merge;
 mod paste;
 mod pixels;
@@ -21,6 +23,9 @@ mod transform;
 pub(crate) use batch::Batch;
 pub use damage::Damage;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
+pub use live::{
+    BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
+};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::SetPixels;
@@ -166,7 +171,9 @@ impl UndoStack {
     ///
     /// First tries to merge into the top command; otherwise pushes it. Any new
     /// command discards the redo branch (spec §7.2). Enforces the capacity by
-    /// dropping the oldest command.
+    /// dropping the oldest command — unless it begins the live object, whose
+    /// steps are never dropped: then its oldest edit folds into the begin
+    /// step (docs/specs/image-live-objects.md AC-14).
     pub fn push(&mut self, cmd: Box<dyn Command>) {
         for dropped in self.redo.drain(..) {
             self.bytes -= dropped.undo_bytes();
@@ -182,10 +189,32 @@ impl UndoStack {
         self.bytes += cmd.undo_bytes();
         self.undo.push(cmd);
         if self.undo.len() > self.capacity {
-            let dropped = self.undo.remove(0);
-            self.bytes -= dropped.undo_bytes();
+            self.drop_oldest();
         }
         self.enforce_byte_cap();
+    }
+
+    /// Drops the oldest undo step, keeping the byte count — unless it begins
+    /// the live object: then its oldest edit folds into the begin step
+    /// (docs/specs/image-live-objects.md AC-14).
+    fn drop_oldest(&mut self) {
+        let folded = match self.undo.as_slice() {
+            [first, second, ..] => live::LiveStep::fold(first.as_ref(), second.as_ref()),
+            _ => None,
+        };
+        match folded {
+            Some(step) => {
+                for gone in self.undo.drain(..2) {
+                    self.bytes -= gone.undo_bytes();
+                }
+                self.bytes += step.undo_bytes();
+                self.undo.insert(0, step);
+            }
+            None => {
+                let dropped = self.undo.remove(0);
+                self.bytes -= dropped.undo_bytes();
+            }
+        }
     }
 
     /// Drops the oldest undo steps until the held data fits the byte cap;
@@ -193,8 +222,25 @@ impl UndoStack {
     /// AC-05). Redo steps never count here: a push has discarded them.
     fn enforce_byte_cap(&mut self) {
         while self.bytes > self.byte_cap && self.undo.len() > 1 {
-            let dropped = self.undo.remove(0);
-            self.bytes -= dropped.undo_bytes();
+            self.drop_oldest();
+        }
+    }
+
+    /// Takes the newest undo step off the stack, keeping the byte count.
+    pub(crate) fn pop_undo(&mut self) -> Option<Box<dyn Command>> {
+        let step = self.undo.pop()?;
+        self.bytes -= step.undo_bytes();
+        Some(step)
+    }
+
+    /// Drops every undo step above the oldest `keep` and the redo branch,
+    /// keeping the byte count.
+    pub(crate) fn truncate_undo(&mut self, keep: usize) {
+        for gone in self.undo.drain(keep.min(self.undo.len())..) {
+            self.bytes -= gone.undo_bytes();
+        }
+        for gone in self.redo.drain(..) {
+            self.bytes -= gone.undo_bytes();
         }
     }
 
@@ -262,6 +308,9 @@ pub struct CommandBus {
     /// What the commands applied, undone or redone since the last
     /// [`take_damage`](CommandBus::take_damage) changed in the composite.
     damage: Damage,
+    /// What the next live-object edit may merge with
+    /// (docs/specs/image-live-objects.md AC-03).
+    live_merge: Option<live::MergeKey>,
 }
 
 impl CommandBus {
@@ -271,11 +320,14 @@ impl CommandBus {
             document,
             history: UndoStack::new(),
             damage: Damage::Full,
+            live_merge: None,
         }
     }
 
-    /// Applies `cmd` to the document and records it in history.
+    /// Applies `cmd` to the document and records it in history. A live
+    /// object is committed first (docs/specs/image-live-objects.md AC-08).
     pub fn apply(&mut self, mut cmd: Box<dyn Command>) -> Result<(), DocumentError> {
+        self.commit_if_live()?;
         let applied = cmd.apply(&mut self.document);
         // A failed command may have changed part of the document.
         self.damage.add(match applied {
@@ -289,6 +341,7 @@ impl CommandBus {
 
     /// Undoes the last command. Returns `false` if nothing to undo.
     pub fn undo(&mut self) -> Result<bool, DocumentError> {
+        self.live_merge = None;
         let damage = self.history.next_undo_damage();
         let undone = self.history.undo(&mut self.document);
         self.record(damage, undone.is_ok());
@@ -297,6 +350,7 @@ impl CommandBus {
 
     /// Redoes the last undone command. Returns `false` if nothing to redo.
     pub fn redo(&mut self) -> Result<bool, DocumentError> {
+        self.live_merge = None;
         let damage = self.history.next_redo_damage();
         let redone = self.history.redo(&mut self.document);
         self.record(damage, redone.is_ok());

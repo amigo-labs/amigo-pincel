@@ -152,41 +152,41 @@ Today `Doc::paint_target` refuses an explicit tilemap layer with "is not an imag
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
-| AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
-| AC-29 |      | open   |        |
-| AC-30 |      | open   |        |
-| AC-31 |      | open   |        |
-| AC-32 |      | open   |        |
-| AC-33 |      | open   |        |
-| AC-34 |      | open   |        |
-| AC-35 |      | open   |        |
+| AC-01 | `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built  |        |
+| AC-02 | `asset_tools_on_an_image_document_fail_naming_the_mode` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-03 | `naming_a_missing_asset_fails_with_argument_and_value` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-04 | `slice_add_list_and_remove_like_the_editor` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-05 | `slice_add_list_and_remove_like_the_editor` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-06 | `slice_add_with_bad_arguments_adds_nothing` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-07 | `slice_add_list_and_remove_like_the_editor` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-08 | `slice_set_key_upserts_by_frame_and_inherits_fields` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-09 | `slice_set_key_upserts_by_frame_and_inherits_fields` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-10 | `slice_set_key_with_bad_arguments_leaves_the_slice` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-11 | `tileset_tools_list_add_and_grow` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-12 | `tileset_tools_list_add_and_grow` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-13 | `tileset_add_with_bad_arguments_adds_nothing` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-14 | `tileset_tools_list_add_and_grow` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-15 | `tile_read_and_set_pixels_reach_every_cel_that_shows_the_tile` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-16 | `tile_read_pixels_refuses_outside_or_large_regions` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-17 | `tile_read_and_set_pixels_reach_every_cel_that_shows_the_tile` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-18 | `tile_set_pixels_bad_entries_leave_the_tileset` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-19 | `layer_add_tilemap_binds_the_tileset_with_an_empty_grid` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-20 | `layer_add_tileset_and_kind_tilemap_go_together` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-21 | `layer_add_tilemap_binds_the_tileset_with_an_empty_grid` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-22 | `tilemap_get_and_place_read_and_write_cells` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-23 | `tilemap_get_and_place_read_and_write_cells` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-24 | `tilemap_place_bad_entries_name_position_field_and_limit` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-25 | `tilemap_place_respects_locks_while_tile_edits_do_not` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-26 | `drawing_on_a_tilemap_layer_points_to_the_tile_tools` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-27 | `read_pixels_of_a_tilemap_layer_shows_its_tiles` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-28 | `grid_set_is_reported_and_saved` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-29 | `grid_set_out_of_range_leaves_the_grid` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-30 | `doc_info_reports_slice_and_tileset_counts_and_grid`, `grid_set_is_reported_and_saved` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-31 | `asset_edits_record_one_undo_step_and_none_without_a_change` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-32 | `read_resource_guide_covers_workflow_and_both_modes` (`crates/pincel-agent/src/resources.rs`) | built  |        |
+| AC-33 | `tilemap_get_refuses_other_layers_and_large_grids` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-34 | `a_tilemap_active_layer_leaves_drawing_on_the_lowest_image_layer` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
+| AC-35 | `tile_set_pixels_bad_entries_leave_the_tileset`, `tilemap_place_bad_entries_name_position_field_and_limit` (`crates/pincel-agent/src/tests/assets.rs`) | built  |        |
 
 ## Decisions
 
@@ -201,3 +201,5 @@ Today `Doc::paint_target` refuses an explicit tilemap layer with "is not an imag
 - 2026-11-05: `tilemap.get` reports tile ids as space-separated decimal rows and lists only the flipped or rotated cells separately — the rows stay as compact as `doc.read_pixels`' text rows, and flags are rare (only opened files carry them).
 - 2026-11-05 (clarification pass): a `tilemap.place` call that only places tile 0 on a frame without a grid creates no grid and records no step (AC-23) — a missing grid already reads as empty (AC-22), so creating it would change nothing visible and break "no change, no undo step" (AC-31).
 - 2026-11-05: Tool areas `slice.*`, `tileset.*`, `tile.*`, `tilemap.*` and `grid.*` — each names the object the verb acts on, as `layer.*` and `tag.*` do.
+- 2026-11-05 (spec-build): A tilemap layer added by `layer.add` becomes the agent's active layer, while `doc.info`'s `active_layer` keeps reporting the paint target (the editor's paint-target rule, AC-34), so drawing tools still land on an image layer.
+- 2026-11-05 (spec-build): `tile.set_pixels` and `tilemap.place` batches are checked entry by entry before anything runs and committed as one `CommandBatch` through the dry-run rule of `mcp-parity-structure`, so an unchanged batch records no step (AC-31).

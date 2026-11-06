@@ -7,7 +7,7 @@
 
 use pincel_core::{
     AddEmptyCel, AnyCommand, Cel, CelData, CelMap, ClearRegion, Command, DrawEllipse, DrawLine,
-    DrawRectangle, FillRegion, PatchCel, Rect, Rgba, SetPixel, Sprite,
+    DrawRectangle, FillRegion, PatchCel, PutCel, Rgba, SetPixel, Sprite,
 };
 use pincel_effects::{EffectImage, EffectSpec};
 use serde_json::{Map, Value, json};
@@ -20,7 +20,7 @@ use crate::{AgentError, Ctx, Tool, ToolOutput};
 
 /// Run `edit` on a scratch copy of the target cel and commit the result as
 /// one undo step (nothing when the cel did not change).
-fn paint(
+pub(super) fn paint(
     ctx: &mut Ctx<'_>,
     args: &Args,
     edit: impl FnOnce(&Doc, &mut Cel) -> Result<(), AgentError>,
@@ -31,6 +31,17 @@ fn paint(
     let original = doc.cel_or_empty(layer, frame);
     let mut cel = original.clone();
     edit(doc, &mut cel)?;
+    if grew(&original, &cel) {
+        // A stroke beyond a smaller cel grows it, as in the editor: commit
+        // the whole new cel.
+        doc.commit(vec![PutCel::new(cel).into()])?;
+        return Ok(ToolOutput::json(json!({
+            "doc": id,
+            "layer": layer.0,
+            "frame": frame.0,
+            "changed": true,
+        })));
+    }
     let patch = diff_patch(&original, &cel)?;
     let changed = patch.is_some();
     if let Some(patch) = patch {
@@ -47,6 +58,28 @@ fn paint(
         "frame": frame.0,
         "changed": changed,
     })))
+}
+
+/// `draw.line`, `draw.rect` and `draw.ellipse` are Pixel tools; on an
+/// Image document the mode error points to `draw.shape`
+/// (mcp-parity-drawing AC-23).
+fn refuse_on_image(ctx: &Ctx<'_>, args: &Args, shape: &str) -> Result<(), AgentError> {
+    if ctx.ws.is_image(args)? {
+        let id = ctx.ws.resolve(args)?;
+        return Err(AgentError::tool(format!(
+            "document `{id}` is an Image document; this tool works on Pixel documents only. Use draw.shape with `shape: \"{shape}\"` on Image documents"
+        )));
+    }
+    Ok(())
+}
+
+/// Whether an edit changed the cel's position or size.
+fn grew(before: &Cel, after: &Cel) -> bool {
+    let size = |c: &Cel| match &c.data {
+        CelData::Image(b) => Some((b.width, b.height)),
+        _ => None,
+    };
+    before.position != after.position || size(before) != size(after)
 }
 
 /// The changed rectangle between two same-sized image cels.
@@ -106,7 +139,11 @@ fn diff_patch(before: &Cel, after: &Cel) -> Result<Option<Patch>, AgentError> {
 }
 
 /// Apply an editor command to `cel` alone.
-fn run_core<C: Command>(sprite: &Sprite, cel: &mut Cel, mut cmd: C) -> Result<(), AgentError> {
+pub(super) fn run_core<C: Command>(
+    sprite: &Sprite,
+    cel: &mut Cel,
+    mut cmd: C,
+) -> Result<(), AgentError> {
     let mut scratch = sprite.clone();
     let mut cels = CelMap::new();
     let key = (cel.layer, cel.frame);
@@ -240,6 +277,7 @@ pub(super) const LINE: Tool = Tool {
     description: "Draw a 1-px line from (x0, y0) to (x1, y1), like the editor's Line tool. Parts outside the canvas are clipped.",
     schema: || shape_schema(false),
     run: |ctx, args| {
+        refuse_on_image(ctx, args, "line")?;
         paint(ctx, args, |doc, cel| {
             let ((x0, y0), (x1, y1)) = corners(args)?;
             let color = color_arg(doc, args)?;
@@ -257,6 +295,7 @@ pub(super) const RECT: Tool = Tool {
     description: "Draw a rectangle with corners (x0, y0) and (x1, y1) (inclusive), outline or `filled`, like the editor's Rectangle tool. Clipped to the canvas.",
     schema: || shape_schema(true),
     run: |ctx, args| {
+        refuse_on_image(ctx, args, "rect")?;
         paint(ctx, args, |doc, cel| {
             let (a, b) = corners(args)?;
             let color = color_arg(doc, args)?;
@@ -275,6 +314,7 @@ pub(super) const ELLIPSE: Tool = Tool {
     description: "Draw the ellipse inscribed in the box with corners (x0, y0) and (x1, y1), outline or `filled`, like the editor's Ellipse tool. Clipped to the canvas.",
     schema: || shape_schema(true),
     run: |ctx, args| {
+        refuse_on_image(ctx, args, "ellipse")?;
         paint(ctx, args, |doc, cel| {
             let (a, b) = corners(args)?;
             let color = color_arg(doc, args)?;
@@ -300,6 +340,7 @@ pub(super) const FILL: Tool = Tool {
                 "contiguous": { "type": "boolean", "description": "Only the connected area; default true" },
                 "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Image documents: color distance still filled; default 32" },
                 "opacity": { "type": "number", "minimum": 0, "maximum": 100, "description": "Image documents: fill opacity in %; default 100" },
+                "sample": { "type": "string", "enum": ["current_layer", "all_layers"], "description": "Image documents: match colors on the target layer (default) or on the composed image" },
             }),
             &["x", "y", "color"],
         )
@@ -308,10 +349,11 @@ pub(super) const FILL: Tool = Tool {
         if ctx.ws.is_image(args)? {
             return crate::image::draw::fill(ctx, args);
         }
-        for key in ["tolerance", "opacity"] {
+        for key in ["tolerance", "opacity", "sample"] {
             if args.get(key).is_some() {
+                let id = ctx.ws.resolve(args)?;
                 return Err(AgentError::tool(format!(
-                    "`{key}` of draw.fill applies to Image documents; Pixel fills match the seed color exactly"
+                    "argument `{key}` of draw.fill works on Image documents only; document `{id}` is a Pixel document, whose fills match the seed color exactly"
                 )));
             }
         }
@@ -385,48 +427,6 @@ pub(super) const CLEAR: Tool = Tool {
     },
 };
 
-pub(super) const SELECTION_SET_RECT: Tool = Tool {
-    name: "selection.set_rect",
-    description: "Select a rectangle. While a selection exists, draw.fill and effect.apply change only pixels inside it. The selection belongs to the document (all layers and frames) and is not an undo step.",
-    schema: || {
-        target_schema(
-            json!({
-                "x": int("Left"),
-                "y": int("Top"),
-                "width": { "type": "integer", "minimum": 1 },
-                "height": { "type": "integer", "minimum": 1 },
-            }),
-            &["x", "y", "width", "height"],
-        )
-    },
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc_mut(args)?;
-        doc.frame_arg(args)?;
-        let r = Rect::new(
-            args.req_i32("x")?,
-            args.req_i32("y")?,
-            args.req_u32("width")?,
-            args.req_u32("height")?,
-        );
-        doc.sprite.set_selection(r);
-        Ok(ToolOutput::json(json!({
-            "doc": id,
-            "selection": { "x": r.x, "y": r.y, "width": r.width, "height": r.height },
-        })))
-    },
-};
-
-pub(super) const SELECTION_CLEAR: Tool = Tool {
-    name: "selection.clear",
-    description: "Drop the selection; draw.fill and effect.apply act on the whole cel again.",
-    schema: || target_schema(json!({}), &[]),
-    run: |ctx, args| {
-        let (id, doc) = ctx.ws.doc_mut(args)?;
-        doc.sprite.clear_selection();
-        Ok(ToolOutput::json(json!({ "doc": id, "selection": null })))
-    },
-};
-
 pub(super) const EFFECT_APPLY: Tool = Tool {
     name: "effect.apply",
     description: "Apply an effect or adjustment from the pincel-effects catalog to the target cel, exactly as the editor's Effects / Adjust menus do. Respects the selection. `params` maps parameter names to values; omitted ones use their defaults.",
@@ -458,7 +458,7 @@ pub(crate) fn apply_effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput,
         .get("params")
         .and_then(Value::as_object)
         .unwrap_or(&empty);
-    let wire = wire_params(effect, params)?;
+    let wire = wire_params(effect, params, false)?;
     let spec =
         EffectSpec::from_params(effect, &wire).map_err(|e| AgentError::tool(e.to_string()))?;
     paint(ctx, args, |doc, cel| {

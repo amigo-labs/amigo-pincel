@@ -3,7 +3,7 @@
 // and Image mode; each editor binds the actions it supports. Menus and
 // tooltips print their hints from here, so labels never drift from keys.
 
-import { hasNativeMenu, isMac, isTauri } from '../platform';
+import { hasNativeMenu, isInstalledWindow, isMac, isTauri } from '../platform';
 import { keymapState, type KeymapId } from './keymap-state.svelte';
 
 /**
@@ -33,6 +33,7 @@ export interface Chord {
 
 /** Editor actions with a shortcut. */
 export type ShortcutAction =
+  | 'newDocument'
   | 'open'
   | 'save'
   | 'saveAs'
@@ -161,8 +162,18 @@ function shiftDigit(percent: number): Chord {
  */
 const DESKTOP = isTauri();
 
+/**
+ * Ctrl/⌘+N opens the New dialog only where the page gets the chord: the
+ * desktop app and an installed app window. A browser tab keeps it for a new
+ * window, so there it has no binding and no hint (power-user-shortcuts-coverage
+ * AC-14, AC-20).
+ */
+export const NEW_DOCUMENT_KEY: boolean = DESKTOP || isInstalledWindow();
+
 /** Primary chord per action, plus alternates matched but not displayed. */
 export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
+  // The macOS desktop app's native File ▸ New owns ⌘N (`menu:new`).
+  newDocument: NEW_DOCUMENT_KEY ? [{ key: 'n', mod: true, menu: true }] : [],
   open: [{ key: 'o', mod: true }],
   save: [{ key: 's', mod: true }],
   saveAs: [{ key: 's', mod: true, shift: true }],

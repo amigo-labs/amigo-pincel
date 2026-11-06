@@ -9,6 +9,7 @@ use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::{
     to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
+use pincel_image_core::command::live_spec::live_object_spec;
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
@@ -390,10 +391,20 @@ pub fn pick_color(
 
 /// Selects the active layer by `index`. Layer selection is UI state, not an
 /// undoable edit, so this is a setter rather than a command (spec §5, §7.3).
+/// A change to another layer commits the live object first
+/// (docs/specs/image-live-objects.md AC-08).
 #[wasm_bindgen]
 pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
-    with_bus(handle, |bus| {
-        bus.document.set_active_layer(index).map_err(to_js)
+    with_bus(handle, |bus| bus.set_active_layer(index).map_err(to_js))
+}
+
+/// The live object (docs/specs/image-live-objects.md) as a
+/// `LiveObjectSpec` JS object, or `null` when nothing is live.
+#[wasm_bindgen]
+pub fn live_object(handle: u32) -> Result<JsValue, JsError> {
+    with_bus(handle, |bus| match live_object_spec(bus) {
+        Some(spec) => serde_wasm_bindgen::to_value(&spec).map_err(|e| JsError::new(&e.to_string())),
+        None => Ok(JsValue::NULL),
     })
 }
 
@@ -801,6 +812,7 @@ fn to_js(e: pincel_image_core::DocumentError) -> JsError {
 #[cfg(test)]
 mod ts_bindings {
     use super::CommandSpec;
+    use pincel_image_core::command::live_spec::LiveObjectSpec;
     use ts_rs::{Config, TS};
 
     /// Regenerates the TypeScript mirror of `CommandSpec` (Fineliner
@@ -815,6 +827,7 @@ mod ts_bindings {
             .with_large_int("number")
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
+        LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
     }
 }
 
@@ -1571,6 +1584,76 @@ mod effect_handle_tests {
             "half selected"
         );
         assert_eq!(layer_pixel(handle, 0, 0), Color::TRANSPARENT, "unselected");
+    }
+}
+
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+
+    const BEGIN: &str = r#"{"type":"begin_live_shape","layer":1,"shape":"rectangle",
+        "points":[[1,1],[6,5]],"mode":"fill","fill_color":[255,0,0,255]}"#;
+
+    /// A document with a live rectangle on its top layer.
+    fn live_doc() -> u32 {
+        let mut doc = Document::new(8, 8).expect("doc");
+        doc.add_layer("Top").expect("layer");
+        let handle = insert(CommandBus::new(doc));
+        apply_command(handle, BEGIN).expect("begin");
+        handle
+    }
+
+    fn is_live(handle: u32) -> bool {
+        with_bus(handle, |bus| Ok(bus.live_object().is_some())).expect("bus")
+    }
+
+    fn depth(handle: u32) -> usize {
+        with_bus(handle, |bus| Ok(bus.history.undo_depth())).expect("bus")
+    }
+
+    /// An editor action run on a document handle, given PNG bytes to paste.
+    type Action = fn(u32, &[u8]);
+
+    #[test]
+    fn paths_beside_apply_command_commit_the_live_object_first() {
+        let png = pincel_image_core::codec::to_png_bytes(&ImageBuffer::new_transparent(2, 2), 1)
+            .expect("png");
+        let actions: [(&str, Action); 4] = [
+            ("effect", |h, _| {
+                apply_effect(h, 1, "invert", &[]).expect("effect");
+            }),
+            ("paste", |h, png| {
+                paste_layer(h, png, 0, 0, false).expect("paste")
+            }),
+            ("cut", |h, _| {
+                cut_selection(h).expect("cut");
+            }),
+            ("active layer", |h, _| {
+                set_active_layer(h, 0).expect("active")
+            }),
+        ];
+        for (name, action) in actions {
+            let handle = live_doc();
+            assert!(is_live(handle), "{name}");
+            action(handle, &png);
+            assert!(!is_live(handle), "{name} commits");
+            let committed = with_bus(handle, |bus| {
+                Ok(bus.history.undo_depth() >= 1 && !bus.history.can_redo())
+            })
+            .expect("bus");
+            assert!(committed, "{name}");
+        }
+    }
+
+    #[test]
+    fn save_and_export_while_live_do_not_commit() {
+        let handle = live_doc();
+        save_project(handle, 1).expect("save");
+        export_png(handle, 1).expect("export");
+        copy_selection(handle, true).expect("copy");
+        composite(handle).expect("composite");
+        assert!(is_live(handle));
+        assert_eq!(depth(handle), 1);
     }
 }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu } from './helpers';
+import { colorOf, createDocument, drag, imageCanvas, menu, setColor } from './helpers';
 
 /** The tool-rail button that is currently pressed. */
 function activeTool(page: Page) {
@@ -231,19 +231,18 @@ async function probe(page: Page, at: [number, number]): Promise<string> {
   await page.keyboard.press('i');
   const [x, y] = await canvasPoint(page, at);
   await page.mouse.click(x, y);
-  return page.getByLabel('Foreground color', { exact: true }).inputValue();
+  return colorOf(page, 'fg');
 }
 
-/** Sets the foreground and background swatches. */
+/** Sets the foreground and background swatches, opaque (the Eyedropper
+ *  of `probe` also takes over the sampled alpha). */
 async function setColors(page: Page, fg: string, bg: string): Promise<void> {
-  await page.getByLabel('Foreground color', { exact: true }).fill(fg);
-  await page.getByLabel('Background color', { exact: true }).fill(bg);
+  await setColor(page, 'fg', `${fg}ff`);
+  await setColor(page, 'bg', `${bg}ff`);
 }
 
 test('image mode: the right button paints and samples the background color', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
-  const fg = page.getByLabel('Foreground color', { exact: true });
-  const bg = page.getByLabel('Background color', { exact: true });
 
   // Paint Bucket, right click: the uniform layer takes the background color.
   await setColors(page, '#ff0000', '#00ff00');
@@ -271,8 +270,8 @@ test('image mode: the right button paints and samples the background color', asy
   await page.keyboard.press('i');
   const [gx, gy] = await canvasPoint(page, [0.5, 0.2]);
   await page.mouse.click(gx, gy, { button: 'right' });
-  await expect(bg).toHaveValue('#00ff00');
-  await expect(fg).toHaveValue('#ff0000');
+  await expect.poll(() => colorOf(page, 'bg')).toBe('#00ff00');
+  await expect.poll(() => colorOf(page, 'fg')).toBe('#ff0000');
 });
 
 test('image mode: Shift squares a shape and snaps a line to 45°', async ({ page }) => {

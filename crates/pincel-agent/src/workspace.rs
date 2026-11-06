@@ -79,6 +79,33 @@ impl Doc {
         Ok(())
     }
 
+    /// Run the commands `build` makes as one undo step, but only when they
+    /// change the document: a dry run on a copy decides, so a call that
+    /// changes nothing records no undo step (mcp-parity-structure AC-25).
+    /// Returns whether a step was recorded; a failing command leaves the
+    /// document unchanged.
+    pub fn commit_if_changed(
+        &mut self,
+        build: impl Fn() -> Vec<AnyCommand>,
+    ) -> Result<bool, AgentError> {
+        let mut sprite = self.sprite.clone();
+        let mut cels = self.cels.clone();
+        let mut cmds = build();
+        let cmd = match cmds.len() {
+            0 => return Ok(false),
+            1 => cmds.remove(0),
+            _ => CommandBatch::new(cmds).into(),
+        };
+        Bus::new()
+            .execute(cmd, &mut sprite, &mut cels)
+            .map_err(|e| AgentError::tool(e.to_string()))?;
+        if sprite == self.sprite && cels == self.cels {
+            return Ok(false);
+        }
+        self.commit(build())?;
+        Ok(true)
+    }
+
     /// Keep the active frame in range and drop an active layer that no
     /// longer exists (after a removal or an undo).
     pub fn clamp_active(&mut self) {
@@ -100,13 +127,22 @@ impl Doc {
         let layer = match args.u32("layer")? {
             Some(id) => {
                 let id = LayerId::new(id);
-                let layer = self
-                    .sprite
-                    .layer(id)
-                    .ok_or_else(|| AgentError::tool(format!("no layer with id {}", id.0)))?;
-                if !matches!(layer.kind, LayerKind::Image) {
+                let layer = self.sprite.layer(id).ok_or_else(|| {
+                    AgentError::tool(format!("argument `layer`: no layer with id {}", id.0))
+                })?;
+                let kind = match layer.kind {
+                    LayerKind::Image => None,
+                    LayerKind::Group => Some("a group"),
+                    LayerKind::Tilemap { .. } => Some("a tilemap layer"),
+                };
+                if let Some(kind) = kind {
+                    let hint = if kind == "a tilemap layer" {
+                        "; edit its tiles with tile.set_pixels and its cells with tilemap.place"
+                    } else {
+                        ""
+                    };
                     return Err(AgentError::tool(format!(
-                        "layer {} ({:?}) is not an image layer; pixel tools need an image layer",
+                        "layer {} ({:?}) is {kind}, not an image layer; pixel tools need an image layer{hint}",
                         id.0, layer.name
                     )));
                 }
@@ -164,6 +200,8 @@ impl Doc {
 
     /// Summary reported by `doc.info` / `doc.list`.
     pub fn info(&self, id: &str) -> Value {
+        let g = self.sprite.metadata.grid_or_default();
+        let grid = json!({ "x": g.x, "y": g.y, "width": g.width, "height": g.height });
         json!({
             "doc": id,
             "mode": "pixel",
@@ -173,6 +211,11 @@ impl Doc {
             "frames": self.sprite.frames.len(),
             "tags": self.sprite.tags.len(),
             "palette_size": self.sprite.palette.len(),
+            "color_mode": color_mode_name(self.sprite.color_mode),
+            "slices": self.sprite.slices.len(),
+            "tilesets": self.sprite.tilesets.len(),
+            "grid": grid,
+            "selection": self.selection_bounds(),
             "active_layer": self.sprite.paint_target_layer(self.active_layer).map(|l| l.0),
             "active_frame": self.active_frame.0,
             "dirty": self.dirty,
@@ -180,6 +223,36 @@ impl Doc {
             "undo_depth": self.bus.undo_depth(),
             "redo_depth": self.bus.redo_depth(),
         })
+    }
+}
+
+impl Doc {
+    /// The bounding box of the selected pixels, clipped to the canvas, as
+    /// `{x, y, w, h}`; `null` without a selection (mcp-parity-structure
+    /// AC-24).
+    pub fn selection_bounds(&self) -> Value {
+        let s = &self.sprite;
+        let bounds = match &s.selection_mask {
+            Some(mask) => mask.bounds(),
+            None => s.selection.filter(|r| !r.is_empty()),
+        };
+        let clipped = bounds.and_then(|r| {
+            let x0 = i64::from(r.x).max(0);
+            let y0 = i64::from(r.y).max(0);
+            let x1 = (i64::from(r.x) + i64::from(r.width)).min(i64::from(s.width));
+            let y1 = (i64::from(r.y) + i64::from(r.height)).min(i64::from(s.height));
+            (x1 > x0 && y1 > y0).then(|| json!({ "x": x0, "y": y0, "w": x1 - x0, "h": y1 - y0 }))
+        });
+        clipped.unwrap_or(Value::Null)
+    }
+}
+
+/// The wire name of a Pixel color mode.
+pub(crate) fn color_mode_name(mode: ColorMode) -> &'static str {
+    match mode {
+        ColorMode::Rgba => "rgba",
+        ColorMode::Indexed { .. } => "indexed",
+        ColorMode::Grayscale => "grayscale",
     }
 }
 
@@ -267,6 +340,14 @@ impl Workspace {
     #[cfg(test)]
     pub(crate) fn get(&self, id: &str) -> Option<&Doc> {
         match self.entry(id)? {
+            Entry::Pixel(d) => Some(d),
+            Entry::Image(_) => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_mut(&mut self, id: &str) -> Option<&mut Doc> {
+        match self.entry_mut(id)? {
             Entry::Pixel(d) => Some(d),
             Entry::Image(_) => None,
         }

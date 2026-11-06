@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import {
     editor,
+    live,
     tool,
     ui,
     view,
@@ -19,6 +20,7 @@
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
+  import LiveHandles from './LiveHandles.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
   // store-free element covering the document inside the transformed stage
@@ -154,20 +156,22 @@
     // tool dispatcher (spec §9.2 tool rail). The floating ZoomControl is a
     // child of the viewport, so its buttons would otherwise never see their
     // own clicks: with Zoom selected, "Zoom out" would zoom in.
-    if (e.button === 0 && editor.handle !== null && !onInteractiveTarget(e)) {
-      if (tool.kind === 'hand') {
+    if (editor.handle !== null && !onInteractiveTarget(e)) {
+      if (tool.kind === 'hand' && e.button === 0) {
         e.stopPropagation();
         e.preventDefault();
         startPan(e);
         return;
       }
-      if (tool.kind === 'zoom') {
+      // The right button zooms out one notch, click or drag, as Alt+click
+      // does (docs/specs/image-editing.md AC-35).
+      if (tool.kind === 'zoom' && (e.button === 0 || e.button === 2)) {
         e.stopPropagation();
         e.preventDefault();
         const rect = viewport.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        zoomBox = { x0: x, y0: y, x1: x, y1: y };
+        zoomBox = { x0: x, y0: y, x1: x, y1: y, out: e.button === 2 };
         viewport.setPointerCapture(e.pointerId);
         return;
       }
@@ -268,7 +272,13 @@
   // touch device can zoom out without a keyboard).
   const ZOOM_STEP = 1.6;
   const ZOOM_DRAG_MIN = 8;
-  let zoomBox = $state<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  let zoomBox = $state<{
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+    out: boolean;
+  } | null>(null);
 
   function commitZoom(e: PointerEvent): void {
     const box = zoomBox;
@@ -278,8 +288,9 @@
     const h = Math.abs(box.y1 - box.y0);
     const cx = (box.x0 + box.x1) / 2;
     const cy = (box.y0 + box.y1) / 2;
-    if (w < ZOOM_DRAG_MIN || h < ZOOM_DRAG_MIN) {
-      zoomAround(view.zoom * (altHeld(e) ? 1 / ZOOM_STEP : ZOOM_STEP), box.x0, box.y0);
+    if (box.out || w < ZOOM_DRAG_MIN || h < ZOOM_DRAG_MIN) {
+      const out = box.out || altHeld(e);
+      zoomAround(view.zoom * (out ? 1 / ZOOM_STEP : ZOOM_STEP), box.x0, box.y0);
       return;
     }
     const z = view.zoom * Math.min(viewport.clientWidth / w, viewport.clientHeight / h);
@@ -390,10 +401,11 @@
         ? 'grab'
         : canvasPick.handler !== null
           ? 'crosshair'
-          : (toolCursors[tool.kind] ?? 'default'),
+          : (live.cursor ?? toolCursors[tool.kind] ?? 'default'),
   );
+  // A right-button drag zooms out, so it frames no box.
   const zoomRect = $derived(
-    zoomBox === null
+    zoomBox === null || zoomBox.out
       ? null
       : {
           left: Math.min(zoomBox.x0, zoomBox.x1),
@@ -457,6 +469,7 @@
 <div
   bind:this={viewport}
   class="relative h-full w-full touch-none overflow-hidden bg-pc-bg select-none"
+  style={live.cursor ? `cursor: ${live.cursor}` : undefined}
   onwheel={onWheel}
   onpointerdowncapture={onPointerDownCapture}
   onpointermovecapture={onPointerMoveCapture}
@@ -512,6 +525,7 @@
   </div>
 
   <CanvasOverlay />
+  <LiveHandles />
 
   {#if zoomRect}
     <div

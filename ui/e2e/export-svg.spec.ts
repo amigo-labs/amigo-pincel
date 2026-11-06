@@ -8,6 +8,7 @@ import {
   imageCanvas,
   menu,
   pixelCanvas,
+  setColor,
   waitForEditor,
 } from './helpers';
 
@@ -46,7 +47,7 @@ async function exportDownload(page: Page): Promise<{ name: string; text: string 
 
 async function paintPixel(page: Page): Promise<void> {
   await page.getByTitle('Pencil (B)').click();
-  await page.getByLabel('Foreground color', { exact: true }).fill('#ff0000');
+  await setColor(page, 'fg', '#ff0000');
   await pixelCanvas(page).click();
   await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
 }
