@@ -60,6 +60,18 @@ fn recolor_and_smudge_are_listed_and_stroke_takes_brush_or_eraser() {
         stroke.input_schema["properties"]["tool"]["enum"],
         json!(["brush", "eraser"])
     );
+    // Another tool's name fails naming `tool` and its values, and points
+    // to the tool that has it.
+    let mut s = S::new();
+    let id = painted(&mut s);
+    let before = layers(&s, &id);
+    for (value, other) in [("recolor", "draw.recolor"), ("smudge", "draw.smudge")] {
+        let e = s.err("draw.stroke", json!({ "points": [[1, 1]], "tool": value }));
+        for needle in ["tool", "brush", "eraser", other] {
+            assert!(e.contains(needle), "{value}: {needle} in {e}");
+        }
+        assert_eq!(layers(&s, &id), before);
+    }
 }
 
 #[test]
@@ -88,6 +100,21 @@ fn draw_recolor_equals_the_editors_recolor_tool() {
         json!({ "points": [[2, 8], [20, 8]], "from": "#0000ff" }),
     );
     assert_eq!(layers(&s, &id), want);
+    // The brush arguments of draw.stroke: hardness, opacity and shape.
+    let mut spec = stroke_base("recolor_stroke");
+    spec["from"] = json!([0, 0, 0, 255]);
+    spec["to"] = json!([255, 255, 0, 255]);
+    spec["tolerance"] = json!(255);
+    spec["hardness"] = json!(0.4);
+    spec["opacity"] = json!(0.7);
+    spec["shape"] = json!("soft_round");
+    spec["stroke_id"] = json!(3);
+    let want = editor(&s, &id, spec);
+    s.ok(
+        "draw.recolor",
+        json!({ "points": [[2, 8], [20, 8]], "from": "#000000", "color": "#ffff00", "tolerance": 255, "hardness": 40, "opacity": 70, "shape": "soft_round" }),
+    );
+    assert_eq!(layers(&s, &id), want, "hardness, opacity, shape");
 }
 
 #[test]
@@ -106,10 +133,15 @@ fn draw_recolor_with_a_bad_color_fails_naming_it() {
             json!({ "points": [[1, 1]], "from": "#ff0000", "color": "#12" }),
             "color",
         ),
+        (
+            json!({ "points": [[1, 1]], "from": "#ff0000", "color": { "index": 2 } }),
+            "color",
+        ),
     ] {
         let e = s.err("draw.recolor", args.clone());
+        // The argument and both accepted forms, a missing `from` included.
         assert!(
-            e.contains(&format!("`{arg}`")) && (e.contains("#RRGGBB") || e.contains("missing")),
+            e.contains(&format!("`{arg}`")) && e.contains("#RRGGBB\"") && e.contains("#RRGGBBAA\""),
             "{args}: {e}"
         );
         assert_eq!(layers(&s, &id), before);
@@ -135,6 +167,36 @@ fn draw_smudge_equals_the_editors_smudge_tool() {
         json!({ "points": [[2, 8], [20, 8]], "strength": 25, "shape": "soft_round" }),
     );
     assert_eq!(layers(&s, &id), want);
+    // The other brush arguments, a fractional strength and one point.
+    let mut spec = stroke_base("smudge_stroke");
+    spec["strength"] = json!(0.375);
+    spec["size"] = json!(5);
+    spec["hardness"] = json!(0.5);
+    spec["opacity"] = json!(0.8);
+    spec["points"] = json!([[3.0, 2.0], [14.0, 12.0]]);
+    spec["stroke_id"] = json!(3);
+    let want = editor(&s, &id, spec);
+    s.ok(
+        "draw.smudge",
+        json!({ "points": [[3, 2], [14, 12]], "strength": 37.5, "size": 5, "hardness": 50, "opacity": 80 }),
+    );
+    assert_eq!(layers(&s, &id), want, "size, hardness, opacity");
+    // One point is one click of the Smudge tool.
+    let mut spec = stroke_base("smudge_stroke");
+    spec["strength"] = json!(0.6);
+    spec["points"] = json!([[9.0, 8.0]]);
+    spec["stroke_id"] = json!(4);
+    let want = editor(&s, &id, spec);
+    s.ok("draw.smudge", json!({ "points": [[9, 8]] }));
+    assert_eq!(layers(&s, &id), want, "one point");
+    // Smudge paints no color of its own: `color` is an unknown argument.
+    let before = layers(&s, &id);
+    let e = s.err(
+        "draw.smudge",
+        json!({ "points": [[9, 8]], "color": "#ff0000" }),
+    );
+    assert!(e.contains("unknown argument `color`"), "{e}");
+    assert_eq!(layers(&s, &id), before);
 }
 
 #[test]
@@ -160,6 +222,16 @@ fn eraser_to_background_equals_the_editors_eraser() {
         json!({ "points": [[2, 2], [20, 2]], "tool": "eraser", "eraser_mode": "to_background" }),
     );
     assert_eq!(layers(&s, &id), want, "default background white");
+    let mut spec = stroke_base("eraser_stroke");
+    spec["mode"] = json!("to_background");
+    spec["background"] = json!([0, 0, 0, 0]);
+    spec["points"] = json!([[2.0, 5.0], [20.0, 5.0]]);
+    let want = editor(&s, &id, spec);
+    s.ok(
+        "draw.stroke",
+        json!({ "points": [[2, 5], [20, 5]], "tool": "eraser", "eraser_mode": "to_background", "background": "#00000000" }),
+    );
+    assert_eq!(layers(&s, &id), want, "transparent background swatch");
     let mut spec = stroke_base("eraser_stroke");
     spec["mode"] = json!("to_transparent");
     spec["points"] = json!([[2.0, 13.0], [20.0, 13.0]]);
@@ -201,6 +273,30 @@ fn the_nib_angle_reaches_every_image_stroke() {
         }
         s.ok(tool, args);
         assert_eq!(layers(&s, &id), want, "{tool}");
+        // Without `angle` a flat tip lies at 45 degrees; fractional
+        // angles are accepted.
+        for (angle, wire) in [(None, 45.0), (Some(22.5), 22.5)] {
+            let mut spec = stroke_base(kind);
+            spec["shape"] = json!("flat");
+            spec["angle"] = json!(wire);
+            spec["points"] = json!([[2.0, 3.0], [20.0, 12.0]]);
+            spec["stroke_id"] = json!(2);
+            for (k, v) in extra.as_object().expect("obj") {
+                spec[k] = v.clone();
+            }
+            let mut probe = S::new();
+            let pid = painted(&mut probe);
+            let want = editor(&probe, &pid, spec);
+            let mut args = json!({ "points": [[2, 3], [20, 12]], "shape": "flat" });
+            if let Some(a) = angle {
+                args["angle"] = json!(a);
+            }
+            if tool == "draw.recolor" {
+                args["from"] = json!("#ff0000");
+            }
+            probe.ok(tool, args);
+            assert_eq!(layers(&probe, &pid), want, "{tool} angle {angle:?}");
+        }
     }
     // A round tip ignores the angle.
     let mut a = S::new();
@@ -232,12 +328,22 @@ fn draw_fill_sample_all_layers_equals_the_editors_bucket() {
     assert_eq!(layers(&s, &id), want);
     s.ok("doc.undo", json!({}));
     spec["sample"] = json!("current_layer");
-    let want = editor(&s, &id, spec);
+    let want = editor(&s, &id, spec.clone());
     s.ok(
         "draw.fill",
         json!({ "x": 6, "y": 6, "color": "#00ff00", "sample": "current_layer" }),
     );
     assert_eq!(layers(&s, &id), want);
+    s.ok("doc.undo", json!({}));
+    // With the lower layer hidden, as the editor's Bucket samples it.
+    s.ok("layer.set", json!({ "layer": 0, "visible": false }));
+    spec["sample"] = json!("all_layers");
+    let want = editor(&s, &id, spec);
+    s.ok(
+        "draw.fill",
+        json!({ "x": 6, "y": 6, "color": "#00ff00", "sample": "all_layers", "layer": 1 }),
+    );
+    assert_eq!(layers(&s, &id), want, "hidden layer");
 }
 
 #[test]
@@ -521,6 +627,31 @@ fn image_effect_defaults_follow_the_image_editor() {
         s.image(&id).document().layers()[0].pixels.data(),
         want.as_slice()
     );
+    // A given value wins over the mode default, and only the omitted
+    // parameters take Image defaults.
+    for (effect, params, wire) in [
+        ("pixelate", json!({ "color": "centre" }), vec![8.0, 1.0]),
+        (
+            "drop_shadow",
+            json!({ "opacity": 80 }),
+            vec![4.0, 4.0, 4.0, f64::from(0x0000_00FF_u32), 80.0],
+        ),
+        (
+            "drop_shadow",
+            json!({ "blur": 1 }),
+            vec![4.0, 4.0, 1.0, f64::from(0x0000_00FF_u32), 50.0],
+        ),
+    ] {
+        let mut s = S::new();
+        let id = painted(&mut s);
+        let want = editor_effect(&s, &id, effect, &wire);
+        s.ok("effect.apply", json!({ "id": effect, "params": params }));
+        assert_eq!(
+            s.image(&id).document().layers()[0].pixels.data(),
+            want.as_slice(),
+            "{effect} {params}"
+        );
+    }
 }
 
 #[test]
@@ -573,6 +704,30 @@ fn effects_resource_lists_per_mode_defaults() {
     assert!(color.get("default").is_none());
     let blur = find("drop_shadow", "blur");
     assert_eq!(blur["defaults"], json!({ "pixel": 0.0, "image": 4.0 }));
+    assert!(blur.get("default").is_none());
+    // Every other parameter keeps exactly one `default`.
+    for e in v["effects"].as_array().expect("effects") {
+        for p in e["params"].as_array().into_iter().flatten() {
+            let per_mode = [("pixelate", "color"), ("drop_shadow", "blur")].contains(&(
+                e["id"].as_str().unwrap_or(""),
+                p["name"].as_str().unwrap_or(""),
+            ));
+            assert_eq!(
+                p.get("defaults").is_some(),
+                per_mode,
+                "{} {}",
+                e["id"],
+                p["name"]
+            );
+            assert_eq!(
+                p.get("default").is_some(),
+                !per_mode,
+                "{} {}",
+                e["id"],
+                p["name"]
+            );
+        }
+    }
     let size = find("pixelate", "cell_size");
     assert_eq!(size["default"], 8.0);
     assert!(size.get("defaults").is_none());

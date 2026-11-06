@@ -326,6 +326,19 @@ mod tests {
         ] {
             assert!(guide.contains(fact), "missing {fact}");
         }
+        // The same section with its line breaks folded: each tool's
+        // arguments, values and defaults.
+        let flat = guide.split_whitespace().collect::<Vec<_>>().join(" ");
+        for fact in [
+            "`draw.recolor` (the Recolor tool: `from`, the replacement `color`, `tolerance` default 32)",
+            "`draw.smudge` (`strength` 1–100, default 60) take the brush arguments of `draw.stroke`",
+            "`eraser_mode` `to_transparent` (default) or `to_background` with `background` (default `#FFFFFF`)",
+            "flat-nib `angle` 0–180 (default 45)",
+            "`sample` `current_layer` (default) or `all_layers`",
+            "`pincel://effects` lists `defaults` per mode where they differ",
+        ] {
+            assert!(flat.contains(fact), "missing {fact}");
+        }
         // mcp-parity-drawing AC-22.
         for fact in [
             "`size`\n  1–8 (default 1)",
