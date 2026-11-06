@@ -178,6 +178,29 @@ test('a tab switch under a resting mouse: position and markers follow the new ta
   await expectUnderMouse(page, 800, sx, sy);
 });
 
+test('rulers off on a fresh profile: the status bar still shows the position, no marker (AC-10, AC-24)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', DOC);
+  await expect(page.getByTestId('ruler-h')).toHaveCount(0);
+  for (const [x, y, text] of [
+    [37.5, 12.5, '37, 12 px'],
+    [-3.5, -2.5, '-4, -3 px'],
+    [200.5, 100.5, '200, 100 px'],
+    [199.5, 99.5, '199, 99 px'],
+    [0.5, 103.5, '0, 103 px'],
+  ] as const) {
+    const [sx, sy] = await at(page, x, y);
+    await page.mouse.move(sx, sy);
+    await expect(pointerStatus(page)).toHaveText(text);
+    await expect(marker(page, 'h')).toHaveCount(0);
+    await expect(marker(page, 'v')).toHaveCount(0);
+  }
+  const bar = await box(page.getByRole('menubar'));
+  await page.mouse.move(bar.x + bar.width / 2, bar.y + bar.height / 2);
+  await expectHidden(page);
+});
+
 test.describe('desktop', () => {
   test.use({
     userAgent:
@@ -303,6 +326,20 @@ test.describe('touch', () => {
     // The second contact pinches the view; the position stays the pixel
     // under the first contact through the view as it is now.
     await expectUnderMouse(page, DOC.width, first[0], first[1]);
+    await touch(cdp, 'touchEnd', []);
+    await expectHidden(page);
+    await cdp.detach();
+  });
+
+  test('rulers off: a touch shows the position while down, no marker (AC-10, AC-24)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'image', DOC);
+    const cdp = await page.context().newCDPSession(page);
+    const p = await at(page, -2.5, 30.5);
+    await touch(cdp, 'touchStart', [p]);
+    await expect(pointerStatus(page)).toHaveText('-3, 30 px');
+    await expect(marker(page, 'h')).toHaveCount(0);
     await touch(cdp, 'touchEnd', []);
     await expectHidden(page);
     await cdp.detach();
