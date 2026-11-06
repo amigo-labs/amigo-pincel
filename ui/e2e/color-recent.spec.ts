@@ -136,6 +136,29 @@ for (const mode of ['pixel', 'image'] as const) {
   });
 }
 
+test('pixel: a right-button filled and outlined shape adds the foreground first too (AC-24)', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  await setColor(page, 'fg', '#ff0000ff');
+  await setColor(page, 'bg', '#0000ffff');
+  await page.keyboard.press('u');
+  await page
+    .getByRole('radiogroup', { name: 'Shapes variant' })
+    .getByRole('radio', { name: 'Rectangle', exact: true })
+    .click();
+  await page.getByLabel('Shape mode').selectOption('fill_outline');
+  // The right button outlines with the background and fills with the
+  // foreground; the foreground still comes first.
+  const box = await pixelCanvas(page).boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.2);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.8, { steps: 4 });
+  await page.mouse.up({ button: 'right' });
+  expect(await recent(page)).toEqual(['#ff0000', '#0000ff']);
+});
+
 for (const mode of ['pixel', 'image'] as const) {
   test(`${mode}: placed text adds the foreground (AC-24)`, async ({ page }) => {
     await createDocument(page, mode, { width: 48, height: 48 });
@@ -213,7 +236,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.keyboard.press('b');
 
     // A locked layer changes no pixel. (A hidden one does: both modes
-    // paint on it, see the spec's open questions.)
+    // paint on it, see the spec's Decisions.)
     await layers.getByRole('button', { name: /^Lock / }).first().click();
     await stroke(page, canvas, 0.5);
     await layers.getByRole('button', { name: /^Unlock / }).first().click();
@@ -373,29 +396,47 @@ function indexedAseprite(): Buffer {
   return Buffer.concat([header, frame, body]);
 }
 
-test('the 13th color drops the oldest; the same RGB with another alpha is another color (AC-12)', async ({
-  page,
-}) => {
-  await createDocument(page, 'image', { width: 16, height: 16 });
-  const names = () => panelRecent(page);
-  const canvas = imageCanvas(page);
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas is not visible');
-  await page.keyboard.press('b');
-  const colors = Array.from(
-    { length: 13 },
-    (_, i) => `#0000${(i * 16).toString(16).padStart(2, '0')}`,
-  );
-  for (const c of colors) {
-    await setColor(page, 'fg', `${c}ff`);
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  }
-  await expect.poll(names).toEqual(colors.slice(1).reverse());
-  // Same RGB, alpha 128: a new entry, the opaque one stays.
-  await setColor(page, 'fg', `${colors[12]}80`);
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect.poll(names).toEqual([`${colors[12]}80`, ...colors.slice(2).reverse()]);
-});
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: the 13th color drops the oldest; the same RGB with another alpha is another color (AC-12)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    // Image mode shows the row in its Colors panel, Pixel mode in the picker.
+    const names = () => (mode === 'image' ? panelRecent(page) : recent(page));
+    const box = await canvasOf(page, mode).boundingBox();
+    if (!box) throw new Error('canvas is not visible');
+    /** A click on its own pixel, so every click alters one. */
+    const paintAt = (i: number, row: number) =>
+      page.mouse.click(box.x + (box.width * (i + 1.5)) / 16, box.y + (box.height * row) / 16);
+    await page.keyboard.press('b');
+    const colors = Array.from(
+      { length: 13 },
+      (_, i) => `#0000${(i * 16).toString(16).padStart(2, '0')}`,
+    );
+    for (const [i, c] of colors.entries()) {
+      await setColor(page, 'fg', `${c}ff`);
+      await paintAt(i, 8.5);
+    }
+    await expect.poll(names).toEqual(colors.slice(1).reverse());
+    // Same RGB, alpha 128: a new entry, the opaque one stays.
+    await setColor(page, 'fg', `${colors[12]}80`);
+    await paintAt(0, 3.5);
+    await expect.poll(names).toEqual([`${colors[12]}80`, ...colors.slice(2).reverse()]);
+  });
+}
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: a right-click Paint Bucket adds the background color (AC-24)`, async ({ page }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    await setColor(page, 'fg', '#ff0000ff');
+    await setColor(page, 'bg', '#00ff00ff');
+    await page.keyboard.press('g');
+    const box = await canvasOf(page, mode).boundingBox();
+    if (!box) throw new Error('canvas is not visible');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+    await expect.poll(() => recent(page)).toEqual(['#00ff00']);
+  });
+}
 
 test('a recent color sets the edited color, alpha included (AC-13)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
@@ -434,6 +475,34 @@ test('each mode keeps its own recent colors (AC-14)', async ({ page }) => {
   expect(await recent(page)).toEqual(['#123456']);
   await createDocument(page, 'image', { width: 16, height: 16 });
   expect(await recent(page)).toEqual([]);
+});
+
+test('each mode keeps its own recent colors within one page load (AC-14)', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await setColor(page, 'fg', '#123456ff');
+  await page.keyboard.press('b');
+  await stroke(page, pixelCanvas(page), 0.5);
+  expect(await recent(page)).toEqual(['#123456']);
+  // File ▸ New… opens an Image tab beside the Pixel one, no reload.
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  await dialog.getByRole('radio', { name: /^Image/ }).click();
+  await dialog.getByLabel('Width').fill('16');
+  await dialog.getByLabel('Height').fill('16');
+  await dialog.getByRole('button', { name: 'Create' }).click();
+  await waitForEditor(page, 'image');
+  expect(await recent(page)).toEqual([]);
+  expect(await panelRecent(page)).toEqual([]);
+  await setColor(page, 'fg', '#abcdefff');
+  await page.keyboard.press('b');
+  await stroke(page, imageCanvas(page), 0.5);
+  expect(await recent(page)).toEqual(['#abcdef']);
+  await expect.poll(() => panelRecent(page)).toEqual(['#abcdef']);
+  // Back in the Pixel tab: its row lacks the Image color.
+  const tabs = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
+  await tabs.first().click();
+  await expect(pixelCanvas(page)).toBeVisible();
+  expect(await recent(page)).toEqual(['#123456']);
 });
 
 test('recent colors and the last colors survive a reload, per mode (AC-15)', async ({ page }) => {

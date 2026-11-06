@@ -423,12 +423,25 @@ for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
     expect(await rgba(picker)).toEqual([255, 255, 255, 255]);
     await page.keyboard.press('Escape');
 
-    await page.getByRole('button', { name: 'Reset to default colors' }).click();
-    picker = await openPicker(page, 'fg');
-    expect(await rgba(picker)).toEqual([0, 0, 0, 255]);
-    await page.keyboard.press('Escape');
-    picker = await openPicker(page, 'bg');
-    expect(await rgba(picker)).toEqual([255, 255, 255, 255]);
+    // Both colors translucent: reset makes both opaque, by button and by D.
+    for (const reset of [
+      () => page.getByRole('button', { name: 'Reset to default colors' }).click(),
+      () => page.keyboard.press('d'),
+    ]) {
+      picker = await openPicker(page, 'fg');
+      await commitHex(picker, '#44556640');
+      await page.keyboard.press('Escape');
+      picker = await openPicker(page, 'bg');
+      await commitHex(picker, '#11223380');
+      await page.keyboard.press('Escape');
+      await reset();
+      picker = await openPicker(page, 'fg');
+      expect(await rgba(picker)).toEqual([0, 0, 0, 255]);
+      await page.keyboard.press('Escape');
+      picker = await openPicker(page, 'bg');
+      expect(await rgba(picker)).toEqual([255, 255, 255, 255]);
+      await page.keyboard.press('Escape');
+    }
   });
 }
 
