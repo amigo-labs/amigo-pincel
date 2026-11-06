@@ -546,6 +546,8 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 - **Element boxes saturate at 2²⁰ px.** Chromium clamps `getBoundingClientRect()` (and so Playwright's `boundingBox()`) at 1 048 576 CSS px: a 20000 px wide image at 6400 % reads 1048576 px wide, and a zoom read from that width stops changing. Read the zoom from the short side of the image, or from the zoom readout (`ui/e2e/image-view-aids.spec.ts`).
 - **An Image-mode Save ignores the next one until its tail is done.** `saveTab` (`ui/src/modes/image/core/tab-session.ts`) drops a Save / Save As while the previous one still runs, and that run outlives the download or the cancelled picker: it still writes the autosave snapshot and the recents. An e2e spec that opens Save As right after a save can hit that tail under load and wait forever for a dialog that never comes. Open it through a retrying helper (`openSaveAs` in `ui/e2e/save-original.spec.ts`).
 
+- **Harness specs can race Vite's dependency optimizer on Windows.** `ui/e2e/tool-flyout-harness.spec.ts` starts a Vite dev server; in a full parallel run on Windows the optimizer's rename `node_modules/.vite/deps_temp_* → deps` can fail with `EPERM` (a file still held open), and the spec fails before any assertion. It is not a code failure: rerun that spec alone before chasing it.
+
 ---
 
 *Last updated: 2026-10-29. Amend in place via PR. Significant changes get a Decision Log entry in `docs/specs/pincel.md` §15.*
