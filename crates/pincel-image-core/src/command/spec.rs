@@ -1712,14 +1712,17 @@ mod tests {
             CommandBus::new(doc)
         }
 
-        const PIXEL_EDITS: [&str; 6] = [
+        /// Edits that write a layer's own pixels: refused on a group.
+        const PIXEL_ONLY_EDITS: [&str; 5] = [
             r#"{"type":"pencil_stroke","layer":L,"size":1,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
             r#"{"type":"fill_bucket","layer":L,"x":1,"y":1,"color":[0,0,0,255],"opacity":1,"tolerance":0,"contiguous":true}"#,
             r#"{"type":"translate_selection","layer":L,"dx":1,"dy":0}"#,
             r#"{"type":"delete_selection","layer":L}"#,
             r#"{"type":"fill_selection","layer":L,"color":[0,0,0,255]}"#,
-            r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#,
         ];
+
+        /// Move (layer): allowed on a group, where it moves the descendants.
+        const TRANSLATE_LAYER: &str = r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#;
 
         fn edit(json: &str, layer: usize) -> CommandSpec {
             parse(&json.replace(":L", &format!(":{layer}")))
@@ -1731,14 +1734,14 @@ mod tests {
             bus.document.layers[1].locked = true;
             for layer in [2, 4] {
                 assert!(layer_locked(&bus.document, layer), "{layer}");
-                for json in PIXEL_EDITS {
+                for json in PIXEL_ONLY_EDITS.into_iter().chain([TRANSLATE_LAYER]) {
                     assert!(
                         edit(json, layer).refused(&bus.document),
                         "{json} on {layer}"
                     );
                 }
             }
-            assert!(!edit(PIXEL_EDITS[0], 0).refused(&bus.document));
+            assert!(!edit(PIXEL_ONLY_EDITS[0], 0).refused(&bus.document));
             assert!(
                 !bus.document.layers[2].locked,
                 "the child's own flag is untouched"
@@ -1749,11 +1752,11 @@ mod tests {
         fn pixel_edits_on_a_group_are_refused() {
             let bus = bus();
             assert!(layer_locked(&bus.document, 1));
-            for json in &PIXEL_EDITS[..5] {
+            for json in PIXEL_ONLY_EDITS {
                 assert!(edit(json, 1).refused(&bus.document), "{json}");
             }
             // Move (layer) on a group is allowed: it moves its content.
-            assert!(!edit(PIXEL_EDITS[5], 1).refused(&bus.document));
+            assert!(!edit(TRANSLATE_LAYER, 1).refused(&bus.document));
         }
 
         #[test]
@@ -1818,8 +1821,12 @@ mod tests {
         #[test]
         fn move_on_a_group_with_a_locked_descendant_is_refused() {
             let mut bus = bus();
+            assert!(
+                !edit(TRANSLATE_LAYER, 1).refused(&bus.document),
+                "allowed while nothing below is locked"
+            );
             bus.document.layers[4].locked = true;
-            assert!(edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+            assert!(edit(TRANSLATE_LAYER, 1).refused(&bus.document));
         }
     }
 
