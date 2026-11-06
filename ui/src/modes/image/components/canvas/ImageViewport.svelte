@@ -27,10 +27,15 @@
 
   function track(e: PointerEvent): void {
     const rect = area.getBoundingClientRect();
-    viewAids.pointer = {
-      x: (e.clientX - rect.left - view.panX) / view.zoom,
-      y: (e.clientY - rect.top - view.panY) / view.zoom,
-    };
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    // A tool's pointer capture keeps the moves of a pressed pointer coming
+    // after it left the area and holds back its pointerleave.
+    if (sx < 0 || sy < 0 || sx >= rect.width || sy >= rect.height) {
+      viewAids.pointer = null;
+      return;
+    }
+    viewAids.pointer = { x: (sx - view.panX) / view.zoom, y: (sy - view.panY) / view.zoom };
   }
 
   function onDown(e: PointerEvent): void {
