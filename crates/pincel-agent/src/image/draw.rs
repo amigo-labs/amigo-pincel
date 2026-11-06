@@ -3,8 +3,8 @@
 //! builds the [`CommandSpec`] the editor's tool sends, so the pixels match.
 
 use pincel_effects::{EffectImage, EffectSpec};
-use pincel_image_core::command::SetPixels;
 use pincel_image_core::command::spec::CommandSpec;
+use pincel_image_core::command::{HistoryKind, SetPixels};
 use pincel_image_core::{DEFAULT_BRUSH_ANGLE, ImageBuffer, masked_region};
 use serde_json::{Map, Value, json};
 
@@ -617,6 +617,8 @@ fn effect_spec(args: &Args) -> Result<EffectSpec, AgentError> {
 /// selection by coverage, commit as one `SetPixels`.
 pub(crate) fn effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let spec = effect_spec(args)?;
+    let kind = HistoryKind::effect(args.req_str("id")?)
+        .ok_or_else(|| AgentError::tool("unknown effect"))?;
     let (id, doc) = ctx.ws.image_mut(args)?;
     let layer = doc.target(args)?;
     let document = doc.document();
@@ -629,7 +631,7 @@ pub(crate) fn effect(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
     let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(core_err)?;
     let changed = match masked_region(before, &after, selection) {
         Some((rect, pixels)) => {
-            let cmd = SetPixels::new(layer, rect, pixels).with_label(spec.label());
+            let cmd = SetPixels::new(layer, rect, pixels).with_kind(kind);
             doc.apply(vec![Box::new(cmd)])?
         }
         None => false,

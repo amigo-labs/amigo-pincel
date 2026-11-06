@@ -3,9 +3,9 @@
 //! layer commands. See docs/specs/mcp-parity-structure.md.
 
 use pincel_image_core::command::{
-    AddGroup, AddLayer, Command, DuplicateLayer, FlattenImage, MergeDown, MergeGroup, MergeVisible,
-    MoveLayerTo, RemoveLayer, RenameLayer, SetLayerBlendMode, SetLayerLocked, SetLayerOpacity,
-    SetLayerVisible,
+    AddGroup, AddLayer, Command, DuplicateLayer, FlattenImage, HistoryKind, MergeDown, MergeGroup,
+    MergeVisible, MoveLayerTo, RemoveLayer, RenameLayer, SetLayerBlendMode, SetLayerLocked,
+    SetLayerOpacity, SetLayerVisible,
 };
 use pincel_image_core::{BlendMode, LayerPlacement};
 use serde_json::{Value, json};
@@ -232,7 +232,10 @@ pub(crate) fn set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentErr
         check_placement(doc, Some(index), g, Place::Into)?;
         cmds.push(Box::new(MoveLayerTo::new(index, g, LayerPlacement::Into)));
     }
-    doc.apply(cmds)?;
+    match cmds.len() {
+        1 => doc.apply(cmds)?,
+        _ => doc.apply_as(HistoryKind::LayerProperties, cmds)?,
+    };
     Ok(ToolOutput::json(
         json!({ "doc": id, "layers": layers_json(doc) }),
     ))
