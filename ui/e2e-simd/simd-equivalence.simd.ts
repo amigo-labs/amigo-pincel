@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import { defaultValues, EFFECTS, forMode, toParams, type EffectMode } from '../src/lib/effects/catalog';
+import type { BlendMode } from '../src/modes/image/core/wasm';
 
 // docs/specs/performance-build-simd.md AC-02: the wasm SIMD build and the
 // scalar build of both cores compose and run every effect to the same bytes.
@@ -96,6 +97,7 @@ interface ImageCore {
   paste_layer(handle: number, data: Uint8Array, x: number, y: number, expand: boolean): void;
   apply_command(handle: number, command: string): void;
   composite(handle: number): Uint8ClampedArray;
+  get_document_info(handle: number): { layers: { blend_mode: string }[] };
   preview_effect(handle: number, layer: number, name: string, params: Float64Array): Uint8ClampedArray;
   close_document(handle: number): void;
 }
@@ -120,7 +122,24 @@ interface PixelCore {
   Document: { openPng(bytes: Uint8Array): PixelDocument };
 }
 
-const IMAGE_BLENDS = ['multiply', 'screen', 'overlay', 'soft_light', 'color_dodge', 'difference'];
+/** Every non-normal Image blend mode. The `satisfies` makes svelte-check
+ *  fail when `BlendMode` gains or loses a mode, so none is left out; the
+ *  battery reads each mode back, so a name the core does not know (it falls
+ *  back to normal) fails the run. */
+const IMAGE_BLEND_SET = {
+  multiply: true,
+  screen: true,
+  overlay: true,
+  darken: true,
+  lighten: true,
+  color_dodge: true,
+  color_burn: true,
+  hard_light: true,
+  soft_light: true,
+  difference: true,
+  exclusion: true,
+} as const satisfies Record<Exclude<BlendMode, 'normal'>, true>;
+const IMAGE_BLENDS = Object.keys(IMAGE_BLEND_SET);
 
 async function load<T>(dir: string, name: string): Promise<T> {
   const js = join(dir, `${name}.js`);
@@ -144,7 +163,8 @@ async function imageBattery(dir: string): Promise<Output[]> {
     for (const [i, mode] of IMAGE_BLENDS.entries()) {
       const index = 1 + (i % rest.length);
       core.apply_command(doc, JSON.stringify({ type: 'set_layer_blend_mode', index, mode }));
-      core.apply_command(doc, JSON.stringify({ type: 'set_layer_opacity', index, opacity: 0.4 + 0.1 * i }));
+      core.apply_command(doc, JSON.stringify({ type: 'set_layer_opacity', index, opacity: 0.4 + 0.05 * i }));
+      expect(core.get_document_info(doc).layers[index]?.blend_mode, `layer ${index}`).toBe(mode);
       blends.push({ label: `image compose (${mode})`, bytes: Uint8Array.from(core.composite(doc)) });
     }
     const fx = effects('image').map(({ name, params }) => ({
