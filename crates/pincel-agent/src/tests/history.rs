@@ -152,6 +152,11 @@ fn image_calls_name_their_step_after_the_editor_action() {
         ("layer.duplicate", json!({ "layer": 1 }), "duplicate_layer"),
         ("select.all", json!({}), "select_all"),
         (
+            "select.fill",
+            json!({ "layer": 0, "color": "#123456" }),
+            "fill_selection",
+        ),
+        (
             "image.flip",
             json!({ "direction": "vertical" }),
             "flip_canvas_vertical",

@@ -20,6 +20,21 @@ pub(crate) fn object(properties: Value, required: &[&str]) -> Value {
     })
 }
 
+/// Characters of an unknown argument's value quoted in its error.
+const QUOTE_MAX: usize = 60;
+
+/// `v` as JSON, cut to [`QUOTE_MAX`] characters plus `…` when longer, so a
+/// large value (a pixel array) does not bloat the error.
+fn quoted(v: &Value) -> String {
+    let text = v.to_string();
+    if text.chars().count() <= QUOTE_MAX {
+        return text;
+    }
+    let mut short: String = text.chars().take(QUOTE_MAX).collect();
+    short.push('…');
+    short
+}
+
 /// Validate `value` against `schema`; the error names the offending
 /// argument path (e.g. `pixels[2].x`) and what was expected.
 pub(crate) fn validate(schema: &Value, value: &Value) -> Result<(), String> {
@@ -208,8 +223,9 @@ fn check_object(
             None if closed => {
                 let known: Vec<&str> = props.keys().map(String::as_str).collect();
                 return Err(format!(
-                    "unknown argument `{}` (got {v}; accepted: {})",
+                    "unknown argument `{}` (got {}; accepted: {})",
                     child(path, key),
+                    quoted(v),
                     known.join(", ")
                 ));
             }
@@ -279,6 +295,21 @@ mod tests {
                 .unwrap_err()
                 .starts_with("unknown argument `bogus` (got 1;")
         );
+    }
+
+    #[test]
+    fn validate_unknown_argument_quotes_a_long_value_shortened() {
+        let pixels: Vec<Value> = (0..500).map(|i| json!({ "x": i, "y": i })).collect();
+        let e = validate(&schema(), &json!({ "width": 1, "bogus": pixels })).unwrap_err();
+        let got = e
+            .split("(got ")
+            .nth(1)
+            .and_then(|r| r.split("; accepted").next())
+            .expect("quoted value");
+        assert!(got.ends_with('…'), "{got}");
+        assert_eq!(got.chars().count(), QUOTE_MAX + 1, "{got}");
+        assert!(got.starts_with(r#"[{"x":0,"y":0}"#), "{got}");
+        assert!(e.len() < 200, "{e}");
     }
 
     #[test]

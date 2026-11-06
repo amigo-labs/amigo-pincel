@@ -228,6 +228,72 @@ test('Fill Selection on a locked layer or a group shows the locked notice and ch
   await expect(groupNotice).toBeVisible();
 });
 
+/** The panel row of layer `name`. */
+function layerRow(page: Page, name: string) {
+  return page.getByRole('list', { name: 'Layer list' }).locator('li', {
+    has: page.getByRole('button', { name: `Drag to reorder ${name}`, exact: true }),
+  });
+}
+
+/** Makes layer `name` active through its name button. */
+async function activate(page: Page, name: string): Promise<void> {
+  await layerRow(page, name)
+    .getByRole('button', { name: new RegExp(`^${name}`) })
+    .click();
+}
+
+/** The whole of layer `name`, read through Copy while it is active. */
+async function layerPixels(page: Page, name: string): Promise<ClipImage> {
+  await activate(page, name);
+  return copy(page);
+}
+
+/** Hides the active layer `name` and sets its opacity to `percent`. */
+async function hideAndFade(page: Page, name: string, percent: number): Promise<void> {
+  await page.getByRole('button', { name: `Hide ${name}`, exact: true }).click();
+  await page.getByLabel('Layer opacity').fill(String(percent));
+}
+
+test('Fill Selection fills only the active layer, also hidden and translucent (AC-02, AC-04, AC-09)', async ({
+  page,
+}) => {
+  await redImage(page);
+  await page.keyboard.press('Shift+N');
+  const list = page.getByRole('list', { name: 'Layer list' });
+  await expect(list.getByRole('button', { name: /^Drag to reorder / })).toHaveCount(2);
+  const top = 'Layer 2';
+  const bottom = 'Layer 1';
+
+  // The upper layer active, hidden at 50 %: its selection is filled.
+  await hideAndFade(page, top, 50);
+  await select(page, 8, 4, 6, 3);
+  await setColor(page, 'fg', '#0000ff');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('ControlOrMeta+d');
+  let upper = await layerPixels(page, top);
+  expect(pixelOf(upper, 8, 4)).toEqual(BLUE);
+  expect(pixelOf(upper, 13, 6)).toEqual(BLUE);
+  expect(pixelOf(upper, 7, 4)).toEqual(CLEAR);
+  expect(all(await layerPixels(page, bottom), RED), 'lower layer unchanged').toBe(true);
+  await expect(page.getByRole('button', { name: `Show ${top}`, exact: true })).toBeVisible();
+
+  // The lower layer active, hidden at 40 %: the whole of it is filled.
+  await activate(page, bottom);
+  await hideAndFade(page, bottom, 40);
+  await setColor(page, 'fg', '#00ff00');
+  await menu(page, 'Edit', 'Fill Selection');
+  expect(all(await layerPixels(page, bottom), [0, 255, 0, 255])).toBe(true);
+  upper = await layerPixels(page, top);
+  expect(pixelOf(upper, 8, 4), 'upper layer unchanged').toEqual(BLUE);
+  expect(pixelOf(upper, 0, 0)).toEqual(CLEAR);
+  // Both layers keep their visibility and opacity.
+  await expect(page.getByRole('button', { name: `Show ${top}`, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: `Show ${bottom}`, exact: true })).toBeVisible();
+  await expect(page.getByLabel('Layer opacity')).toHaveValue('50');
+  await activate(page, bottom);
+  await expect(page.getByLabel('Layer opacity')).toHaveValue('40');
+});
+
 test('Delete runs Delete Selection; in Pixel mode Backspace does nothing (AC-14)', async ({
   page,
 }) => {
@@ -246,8 +312,14 @@ test('Delete runs Delete Selection; in Pixel mode Backspace does nothing (AC-14)
   await page.mouse.down();
   await page.mouse.move(...(await point(page, 5.5, 5.5, PX)), { steps: 5 });
   await page.mouse.up();
+  // A blue foreground: a fill would show on the marquee's empty pixels.
+  await setColor(page, 'fg', '#0000ff');
   await page.keyboard.press('Backspace');
-  expect(pixelOf(await copy(page), 1, 1), 'Backspace leaves the marquee').toEqual(RED);
+  const marquee = await copy(page);
+  expect([marquee.width, marquee.height]).toEqual([3, 3]);
+  expect(pixelOf(marquee, 1, 1), 'Backspace leaves the marquee').toEqual(RED);
+  expect(pixelOf(marquee, 0, 0), 'and fills nothing').toEqual(CLEAR);
+  expect(pixelOf(marquee, 2, 2)).toEqual(CLEAR);
   await page.keyboard.press('Delete');
   expect(pixelOf(await copy(page), 1, 1), 'Delete clears it').toEqual(CLEAR);
 });
