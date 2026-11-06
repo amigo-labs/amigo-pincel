@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
 import { createDocument, drag, imageCanvas, menu } from './helpers';
 
 // Heavy jobs off the main thread (docs/specs/performance-background-jobs.md):
@@ -53,7 +53,10 @@ for (const [label, item] of EXPORTS) {
     page.on('worker', (w) => workers.push(w.url()));
     await paintedDocument(page);
     const fromWorker = await download(page, exportIt(page));
-    expect(workers.some((u) => /\/assets\/worker-/.test(u)), 'a job worker ran').toBe(true);
+    expect(
+      workers.some((u) => /\/assets\/worker-/.test(u)),
+      'a job worker ran',
+    ).toBe(true);
     expect(logged).toEqual([]);
     // With the worker unable to start, the job is retried once and then
     // encoded on the main thread, and the failure is logged.
@@ -94,7 +97,10 @@ async function countSnapshotWrites(page: Page): Promise<void> {
     const w = window as unknown as { snapshotWrites: number };
     w.snapshotWrites = 0;
     const put = IDBObjectStore.prototype.put;
-    IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    IDBObjectStore.prototype.put = function (
+      this: IDBObjectStore,
+      ...args: Parameters<typeof put>
+    ) {
       if (this.name === 'autosave_snapshots') w.snapshotWrites += 1;
       return put.apply(this, args);
     };
@@ -161,6 +167,78 @@ test('the job worker reuses the page’s compiled core instead of fetching it ag
   page.on('worker', (w) => workers.push(w.url()));
   await paintedDocument(page);
   await download(page, () => menu(page, 'File', 'Export', 'PNG'));
-  expect(workers.some((u) => /\/assets\/worker-/.test(u)), 'a job worker ran').toBe(true);
+  expect(
+    workers.some((u) => /\/assets\/worker-/.test(u)),
+    'a job worker ran',
+  ).toBe(true);
   expect(wasmFetches, 'the Image core is fetched once').toHaveLength(1);
+});
+
+/** Opens the Gaussian blur panel with `radius`. */
+async function gaussianPanel(page: Page, radius: string) {
+  await menu(page, 'Effects', 'Blurs', 'Gaussian Blur…');
+  const panel = page.getByRole('dialog', { name: 'Gaussian Blur' });
+  await panel.getByLabel('Radius value', { exact: true }).fill(radius);
+  return panel;
+}
+
+/** A painted document blurred through the panel and exported as PNG, and
+ *  the console errors logged up to the export. */
+async function blurredExport(page: Page): Promise<{ png: Buffer; logged: string[] }> {
+  const logged: string[] = [];
+  const onConsole = (m: ConsoleMessage) => {
+    if (m.type() === 'error') logged.push(m.text());
+  };
+  page.on('console', onConsole);
+  await paintedDocument(page);
+  const panel = await gaussianPanel(page, '3');
+  await panel.getByRole('button', { name: 'OK' }).click();
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByText(/failed/i)).toHaveCount(0);
+  page.off('console', onConsole);
+  return { png: await download(page, () => menu(page, 'File', 'Export', 'PNG')), logged };
+}
+
+test('an effect applied in the worker is byte-identical to the main-thread apply (AC-07, AC-09)', async ({
+  page,
+}) => {
+  const workers: string[] = [];
+  page.on('worker', (w) => workers.push(w.url()));
+  const fromWorker = await blurredExport(page);
+  expect(
+    workers.some((u) => /\/assets\/worker-/.test(u)),
+    'a job worker ran',
+  ).toBe(true);
+  expect(fromWorker.logged).toEqual([]);
+
+  // Without a worker the effect is retried, then applied on the main
+  // thread with a console log and no message to the user.
+  const other = await page.context().newPage();
+  await other.addInitScript(() => {
+    const w = window as { showSaveFilePicker?: unknown; showOpenFilePicker?: unknown };
+    delete w.showSaveFilePicker;
+    delete w.showOpenFilePicker;
+  });
+  await breakWorker(other);
+  const fromMain = await blurredExport(other);
+  expect(
+    fromMain.logged.some((m) => m.includes('worker job failed twice')),
+    'the effect fallback is logged',
+  ).toBe(true);
+  expect(fromWorker.png.equals(fromMain.png)).toBe(true);
+});
+
+test('cancelling the panel while a preview computes leaves the document unchanged (AC-08)', async ({
+  page,
+}) => {
+  await paintedDocument(page);
+  const before = await download(page, () => menu(page, 'File', 'Export', 'PNG'));
+  const panel = await gaussianPanel(page, '40');
+  await panel.getByLabel('Radius value', { exact: true }).fill('60');
+  await panel.getByRole('button', { name: 'Cancel' }).click();
+  await expect(panel).toHaveCount(0);
+  // A preview that finishes after the cancel is discarded.
+  await page.waitForTimeout(500);
+  const after = await download(page, () => menu(page, 'File', 'Export', 'PNG'));
+  expect(after.equals(before)).toBe(true);
 });

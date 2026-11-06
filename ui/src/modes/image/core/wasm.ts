@@ -20,6 +20,8 @@ import initWasm, {
   composite_region,
   apply_command,
   apply_effect,
+  apply_effect_region,
+  effect_region_bytes,
   preview_effect,
   pick_color,
   set_active_layer,
@@ -539,6 +541,20 @@ export const core = {
    *  as one undoable step. `false`: the selection is empty, nothing changed. */
   applyEffect: (handle: number, layer: number, name: string, params: number[]): boolean =>
     apply_effect(handle, layer, name, Float64Array.from(params)),
+  /** The region effect `name` / `params` would change on `layer` (empty:
+   *  nothing, the selection is empty), computed but not committed: the
+   *  job worker's half of `applyEffect`. */
+  effectRegionBytes: (handle: number, layer: number, name: string, params: number[]): Uint8Array =>
+    effect_region_bytes(handle, layer, name, Float64Array.from(params)),
+  /** Commits `effectRegionBytes` of the same effect as the undo step
+   *  `applyEffect` makes; `false`: the region is empty, nothing changed. */
+  applyEffectRegion: (
+    handle: number,
+    layer: number,
+    name: string,
+    params: number[],
+    region: Uint8Array,
+  ): boolean => apply_effect_region(handle, layer, name, Float64Array.from(params), region),
   /** Composites the document with the effect previewed on `layer`; no mutation. */
   previewEffect: (
     handle: number,

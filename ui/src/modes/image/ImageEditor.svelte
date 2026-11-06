@@ -17,7 +17,7 @@
   import {
     addGroup,
     addLayer,
-    applyEffect,
+    applyEffectRegion,
     clearEffectPreview,
     cropToSelection,
     deleteLayer,
@@ -28,7 +28,8 @@
     mergeGroup,
     renameLayer,
     mergeVisible,
-    previewEffect,
+    effectJobFor,
+    showEffectPreview,
     resizeCanvas,
     rotateCanvas,
     rotateLayer90,
@@ -100,6 +101,7 @@
   import { effectMenus } from '../../lib/effects/menu';
   import { rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
+  import { effectRun, type EffectRun } from './jobs';
   import {
     OPACITY_ACTIONS,
     actionFor,
@@ -918,7 +920,10 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
-    if (effectOpen) clearEffectPreview();
+    if (effectOpen) {
+      endEffectRun();
+      clearEffectPreview();
+    }
     // Colour parameters start at the current colours (outline-effect AC-01).
     effectOpen = new EffectSession(def, {
       foreground: rgbaOf(tool.foreground),
@@ -927,29 +932,78 @@
   }
 
   function closeEffect(): void {
+    endEffectRun();
     clearEffectPreview();
     effectOpen = null;
+  }
+
+  // The open panel's jobs in the job worker
+  // (docs/specs/performance-background-jobs.md); started at its first
+  // preview or apply.
+  let fxRun: EffectRun | null = null;
+
+  function effectRunFor(): EffectRun | null {
+    if (editor.handle === null) return null;
+    fxRun ??= effectRun(
+      editor.handle,
+      (composite) => {
+        effectSucceeded();
+        showEffectPreview(composite);
+      },
+      (err) => effectFailed(err, t('act.preview')),
+    );
+    return fxRun;
+  }
+
+  function endEffectRun(): void {
+    fxRun?.close();
+    fxRun = null;
   }
 
   // The notice of the last failed effect run, cleared by the next success.
   let effectFailure: string | null = null;
 
-  /** Runs a preview or apply; on failure shows the error in the notice line
-   *  and returns `null` — the document is unchanged (effect-panel AC-16). */
-  function runEffect<T>(run: () => T, action: string): T | null {
+  function effectSucceeded(): void {
+    if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
+    effectFailure = null;
+  }
+
+  /** Shows a failed preview or apply in the notice line; the document is
+   *  unchanged (effect-panel AC-16). */
+  function effectFailed(err: unknown, action: string): void {
+    effectFailure = t('status.failed', {
+      action,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    editor.notice = effectFailure;
+  }
+
+  /** Applies the open effect once the worker has computed it; a panel
+   *  cancelled or replaced meanwhile changes nothing (AC-08). */
+  async function applyOpenEffect(session: EffectSession, params: number[]): Promise<void> {
+    const run = effectRunFor();
+    if (!run) return;
+    const label = effectLabel(session.def);
+    let region: Uint8Array;
     try {
-      const result = run();
-      if (effectFailure !== null && editor.notice === effectFailure) editor.notice = null;
-      effectFailure = null;
-      return result;
+      region = await run.region(effectJobFor(session.def.id, params));
     } catch (err) {
-      effectFailure = t('status.failed', {
-        action,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      editor.notice = effectFailure;
-      return null;
+      // A failed effect keeps the panel open with its values (AC-16).
+      if (effectOpen === session) effectFailed(err, label);
+      return;
     }
+    if (effectOpen !== session) return;
+    let changed: boolean;
+    try {
+      changed = applyEffectRegion(session.def.id, params, region);
+    } catch (err) {
+      effectFailed(err, label);
+      return;
+    }
+    effectSucceeded();
+    if (!changed) editor.notice = t('fx.selectionEmpty', { effect: label });
+    endEffectRun();
+    effectOpen = null;
   }
 
   // The preview is not part of the document (AC-17): the shell cancels the
@@ -1248,18 +1302,14 @@
         hasSelection={editor.hasSelection}
         onPreview={(params) => {
           // `null` means "preview off": show the real composite.
-          if (params === null) clearEffectPreview();
-          else runEffect(() => previewEffect(session.def.id, params), t('act.preview'));
-        }}
-        onApply={(params) => {
-          const changed = runEffect(() => applyEffect(session.def.id, params), effectLabel(session.def));
-          // A failed effect keeps the panel open with its values (AC-16).
-          if (changed === null) return;
-          if (!changed) {
-            editor.notice = t('fx.selectionEmpty', { effect: effectLabel(session.def) });
+          if (params === null) {
+            fxRun?.stopPreview();
+            clearEffectPreview();
+          } else {
+            effectRunFor()?.preview(effectJobFor(session.def.id, params));
           }
-          effectOpen = null;
         }}
+        onApply={(params) => void applyOpenEffect(session, params)}
         onCancel={closeEffect}
       />
     {/key}

@@ -21,14 +21,26 @@ export type JobResponse<Res> =
   | { readonly id: number; readonly ok: true; readonly res: Res }
   | { readonly id: number; readonly ok: false; readonly error: string };
 
+/** State a job needs in its worker (e.g. a document copy), loaded once per
+ *  worker: `req` is run in a worker that has not loaded `key` yet, ahead
+ *  of the job. A restarted worker loads it again. */
+export interface JobSetup<Req> {
+  readonly key: string;
+  readonly req: () => Req;
+}
+
 /** Runs jobs in a worker, with retry and main-thread fallback. */
 export interface JobRunner<Req, Res> {
   /**
-   * Runs `req` in the worker. If the worker fails, it is restarted and the
-   * job tried once more; if that fails too, `fallback` runs on the main
-   * thread and its result (or error) is the job's.
+   * Runs `req` in the worker, after `setup` if the worker lacks it. If the
+   * worker fails, it is restarted and the job tried once more; if that
+   * fails too, `fallback` runs on the main thread and its result (or
+   * error) is the job's.
    */
-  run(req: Req, fallback: () => Res | Promise<Res>): Promise<Res>;
+  run(req: Req, fallback: () => Res | Promise<Res>, setup?: JobSetup<Req>): Promise<Res>;
+  /** Sends `req` (which should free setup `key`) to the worker if it has
+   *  loaded `key`; nothing waits for it. */
+  release(key: string, req: Req): void;
 }
 
 interface Pending<Res> {
@@ -48,11 +60,14 @@ export function jobRunner<Req, Res, Init = never>(
   let worker: Worker | null = null;
   let nextId = 1;
   const pending = new Map<number, Pending<Res>>();
+  // Setups the current worker has loaded or is loading.
+  const loaded = new Map<string, Promise<Res>>();
 
   /** Drop the worker and fail what it still owed. */
   const fail = (reason: string): void => {
     worker?.terminate();
     worker = null;
+    loaded.clear();
     const owed = [...pending.values()];
     pending.clear();
     for (const p of owed) p.reject(new Error(reason));
@@ -82,7 +97,7 @@ export function jobRunner<Req, Res, Init = never>(
     return w;
   };
 
-  const attempt = (req: Req): Promise<Res> =>
+  const send = (req: Req): Promise<Res> =>
     new Promise<Res>((resolve, reject) => {
       let w: Worker;
       try {
@@ -97,21 +112,37 @@ export function jobRunner<Req, Res, Init = never>(
       w.postMessage(msg);
     });
 
+  const attempt = async (req: Req, setup: JobSetup<Req> | undefined): Promise<Res> => {
+    if (setup) {
+      let load = loaded.get(setup.key);
+      if (!load) {
+        load = send(setup.req());
+        loaded.set(setup.key, load);
+      }
+      await load;
+    }
+    return send(req);
+  };
+
   return {
-    async run(req, fallback) {
+    async run(req, fallback, setup) {
       try {
-        return await attempt(req);
+        return await attempt(req, setup);
       } catch (first) {
         // A worker that failed a job may be broken: start a fresh one.
         fail('restarting the job worker');
         try {
-          return await attempt(req);
+          return await attempt(req, setup);
         } catch (second) {
           fail('the job worker failed twice');
           console.error(`${label}: worker job failed twice, running it here`, first, second);
           return fallback();
         }
       }
+    },
+    release(key, req) {
+      if (!loaded.delete(key)) return;
+      send(req).catch(() => undefined);
     },
   };
 }

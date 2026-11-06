@@ -38,7 +38,7 @@ import {
 import { blankFile, docFormat, fileStem, markSaved, openedFile, type DocFormat } from './document-file';
 import { psdNotice, takePsd } from './psd-open';
 import { openTab } from './tabs.svelte';
-import { encodeInBackground } from '../jobs';
+import { encodeInBackground, type EffectJob } from '../jobs';
 
 /** Parses a #RRGGBB string into RGB bytes, defaulting to black on bad input. */
 function hexToRgb(hex: string): [number, number, number] {
@@ -398,26 +398,32 @@ export function cropToSelection(): void {
   applyTransform({ type: 'crop_to_selection' });
 }
 
-/** Applies an effect to the active layer as one undoable step (spec §11). */
-/** Applies an effect to the active layer, inside the selection. Returns
- *  `false` when the selection is empty and nothing changed. */
-export function applyEffect(name: string, params: number[]): boolean {
+/** Effect `name` / `params` on the active layer, as a job
+ *  (docs/specs/performance-background-jobs.md). */
+export function effectJobFor(name: string, params: number[]): EffectJob {
+  return { layer: editor.activeLayer, name, params };
+}
+
+/** Applies an effect to the active layer, inside the selection, as one
+ *  undoable step (spec §11): commits the `region` the job worker computed
+ *  for it. Returns `false` when the selection is empty and nothing changed. */
+export function applyEffectRegion(name: string, params: number[], region: Uint8Array): boolean {
   if (editor.handle === null) {
     return false;
   }
-  const changed = core.applyEffect(editor.handle, editor.activeLayer, name, params);
+  const changed = core.applyEffectRegion(editor.handle, editor.activeLayer, name, params, region);
   editor.previewComposite = null;
   syncInfo();
   return changed;
 }
 
-/** Sets the live effect preview over the canvas without mutating the document
- * (spec §11 live preview). Call from an open effect dialog. */
-export function previewEffect(name: string, params: number[]): void {
+/** Shows a computed effect preview over the canvas without mutating the
+ *  document (spec §11 live preview). Call from an open effect dialog. */
+export function showEffectPreview(composite: Uint8ClampedArray<ArrayBuffer>): void {
   if (editor.handle === null) {
     return;
   }
-  editor.previewComposite = core.previewEffect(editor.handle, editor.activeLayer, name, params);
+  editor.previewComposite = composite;
   editor.revision += 1;
 }
 
