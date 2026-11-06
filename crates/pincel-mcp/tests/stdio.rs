@@ -401,6 +401,158 @@ fn file_tools_refuse_read_only_and_escaping_paths() {
     }
 }
 
+/// The text of a tool result, asserting it is an error.
+fn error_text(r: &Value, what: &str) -> String {
+    assert_eq!(r["isError"], true, "{what}: {r}");
+    r["content"][0]["text"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// Names of the files directly in `dir`, sorted.
+fn file_names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .expect("dir")
+        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().into_owned()))
+        .collect();
+    names.sort();
+    names
+}
+
+const SAMPLE_PSD: &[u8] = include_bytes!("../../pincel-image-core/tests/fixtures/sample.psd");
+
+#[test]
+fn read_only_refuses_every_save_format_and_keeps_opening() {
+    // mcp-parity-export AC-03: the same refusal as export.png, for every
+    // format doc.save writes (also back to an opened file); doc.open of a
+    // PSD and with `mode` keeps working.
+    let root = temp_workspace("export-ro-all");
+    let png = pincel_core::encode_png(&[9, 9, 9, 255], 1, 1).expect("png");
+    std::fs::write(root.join("p.png"), &png).expect("seed");
+    std::fs::write(root.join("art.psd"), SAMPLE_PSD).expect("seed");
+    let refusal = "the workspace is read-only (--read-only); nothing was written";
+    let mut c = Client::spawn(&["--read-only"], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "pixel", "width": 2, "height": 2 }),
+    );
+    let png_refusal = error_text(
+        &c.tool("export.png", json!({ "path": "x.png" })),
+        "export.png",
+    );
+    assert!(png_refusal.contains(refusal), "{png_refusal}");
+    for (name, args) in [
+        ("export.svg", json!({ "path": "a.svg" })),
+        ("export.apng", json!({ "path": "a.png" })),
+        ("export.gif", json!({ "path": "a.gif" })),
+        ("doc.save", json!({ "path": "a.aseprite" })),
+    ] {
+        let e = error_text(&c.tool(name, args.clone()), name);
+        assert!(e.contains(refusal), "{name} {args}: {e}");
+    }
+    let r = c.tool("doc.open", json!({ "path": "p.png" }));
+    assert_eq!(r["structuredContent"]["mode"], "image", "{r}");
+    let e = error_text(&c.tool("doc.save", json!({})), "doc.save back to p.png");
+    assert!(e.contains(refusal), "{e}");
+    for path in [
+        "a.png", "a.jpg", "a.jpeg", "a.webp", "a.bmp", "a.tif", "a.tiff", "a.ora",
+    ] {
+        let e = error_text(&c.tool("doc.save", json!({ "path": path })), path);
+        assert!(e.contains(refusal), "{path}: {e}");
+    }
+    for (name, path) in [
+        ("export.svg", "i.svg"),
+        ("export.bmp", "i.bmp"),
+        ("export.tiff", "i.tif"),
+    ] {
+        let e = error_text(&c.tool(name, json!({ "path": path })), name);
+        assert!(e.contains(refusal), "{name}: {e}");
+    }
+    let r = c.tool("doc.open", json!({ "path": "art.psd" }));
+    assert_eq!(r["isError"], false, "{r}");
+    assert_eq!(
+        r["structuredContent"]["notices"].as_array().map(Vec::len),
+        Some(3)
+    );
+    let r = c.tool("doc.open", json!({ "path": "p.png", "mode": "pixel" }));
+    assert_eq!(r["structuredContent"]["mode"], "pixel", "{r}");
+    drop(c);
+    assert_eq!(
+        file_names(&root),
+        ["art.psd", "p.png"],
+        "nothing is written"
+    );
+    assert_eq!(std::fs::read(root.join("p.png")).expect("p.png"), png);
+}
+
+#[test]
+fn every_path_argument_outside_the_workspace_is_refused() {
+    // mcp-parity-export AC-04: E007 for each tool of the spec, nothing
+    // written outside, and an existing file outside is never read.
+    let root = temp_workspace("export-escape");
+    let outside = root.parent().expect("parent").to_owned();
+    let tag = format!("pincel-it-escape-{}", std::process::id());
+    let png = pincel_core::encode_png(&[9, 9, 9, 255], 1, 1).expect("png");
+    let readable = format!("{tag}-in.png");
+    std::fs::write(outside.join(&readable), &png).expect("seed outside");
+    let mut c = Client::spawn(&[], &root);
+    c.initialize();
+    c.tool(
+        "doc.new",
+        json!({ "mode": "pixel", "width": 2, "height": 2 }),
+    );
+    let mut written = Vec::new();
+    for (name, ext) in [
+        ("export.svg", "svg"),
+        ("export.apng", "png"),
+        ("export.gif", "gif"),
+    ] {
+        let path = format!("{tag}-{name}.{ext}");
+        let e = error_text(&c.tool(name, json!({ "path": format!("../{path}") })), name);
+        assert!(e.contains("E007: path outside workspace"), "{name}: {e}");
+        written.push(path);
+    }
+    c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 2, "height": 2 }),
+    );
+    for (name, ext) in [
+        ("export.svg", "svg"),
+        ("export.bmp", "bmp"),
+        ("export.tiff", "tif"),
+        ("doc.save", "png"),
+        ("doc.save", "ora"),
+    ] {
+        let path = format!("{tag}-{name}-image.{ext}");
+        let e = error_text(&c.tool(name, json!({ "path": format!("../{path}") })), name);
+        assert!(e.contains("E007: path outside workspace"), "{name}: {e}");
+        written.push(path);
+    }
+    let docs = c.tool("doc.list", json!({}))["structuredContent"].clone();
+    assert_eq!(docs["documents"].as_array().map(Vec::len), Some(2));
+    for args in [
+        json!({ "path": format!("../{readable}") }),
+        json!({ "path": format!("../{readable}"), "mode": "pixel" }),
+        json!({ "path": format!("../{readable}"), "mode": "image" }),
+    ] {
+        let e = error_text(&c.tool("doc.open", args.clone()), "doc.open");
+        assert!(e.contains("E007: path outside workspace"), "{args}: {e}");
+    }
+    assert_eq!(
+        c.tool("doc.list", json!({}))["structuredContent"],
+        docs,
+        "nothing is read"
+    );
+    drop(c);
+    for path in written {
+        assert!(!outside.join(&path).exists(), "{path} was written");
+    }
+    assert!(file_names(&root).is_empty(), "nothing is written inside");
+    let _ = std::fs::remove_file(outside.join(readable));
+}
+
 #[test]
 fn workspace_option_and_read_only_mode() {
     let root = temp_workspace("ro");
