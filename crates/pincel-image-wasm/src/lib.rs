@@ -27,6 +27,9 @@ use wasm_bindgen::prelude::*;
 
 mod vectorize;
 
+#[cfg(test)]
+mod rotate_zoom_tests;
+
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
 
 thread_local! {
@@ -430,7 +433,8 @@ pub fn live_object(handle: u32) -> Result<JsValue, JsError> {
 /// `pincel_effects::EffectSpec` wire format, also used by Pixel mode — see
 /// `EFFECT_NAMES` and `ui/src/lib/effects/catalog.ts`) on the layer at
 /// `layer`, limited to the selection, and commits it as one undoable
-/// `SetPixels`. Returns `false` (no undo step) when the selection is empty.
+/// `SetPixels`. Returns `false` (no undo step) when the selection is empty
+/// or the effect changes no pixel.
 #[wasm_bindgen]
 pub fn apply_effect(
     handle: u32,
@@ -449,7 +453,8 @@ pub fn apply_effect(
 }
 
 /// Commits an effect's region as one undoable `SetPixels` labelled like
-/// the effect; `false` (no undo step) for `None`.
+/// the effect; `false` (no undo step) for `None` or a region the layer
+/// already holds (docs/specs/image-transform-handles-rotate-zoom.md AC-05).
 fn commit_region(
     bus: &mut CommandBus,
     layer: usize,
@@ -459,6 +464,15 @@ fn commit_region(
     let Some((region, after)) = region else {
         return Ok(false);
     };
+    let unchanged = bus
+        .document
+        .layers()
+        .get(layer)
+        .and_then(|l| l.pixels.copy_region(region).ok())
+        .is_some_and(|now| now.data() == after.data());
+    if unchanged {
+        return Ok(false);
+    }
     let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
     bus.apply(Box::new(cmd)).map_err(to_js)?;
     Ok(true)
@@ -487,7 +501,7 @@ pub fn effect_region_bytes(
 /// Commits `region` (bytes from [`effect_region_bytes`] for the same
 /// effect, layer and document state) to the layer at `layer` as the one
 /// undoable step [`apply_effect`] makes. Returns `false` (no undo step)
-/// for an empty region.
+/// for an empty region or one that changes no pixel.
 #[wasm_bindgen]
 pub fn apply_effect_region(
     handle: u32,
@@ -1649,13 +1663,14 @@ mod effect_region_tests {
     use super::*;
 
     /// A 6 × 5 document with a pattern on its single layer and a 3 × 2
-    /// selection, open twice.
+    /// selection, open twice. The pattern is not linear, so a blur changes
+    /// it (an effect that changes nothing adds no step).
     fn twins() -> (u32, u32) {
         let make = || {
             let mut doc = Document::new(6, 5).expect("doc");
             for y in 0..5 {
                 for x in 0..6 {
-                    let v = (x * 40 + y * 13) as u8;
+                    let v = (x * x * 9 + y * 13) as u8;
                     doc.active_layer_mut().pixels.set_pixel(
                         x,
                         y,
