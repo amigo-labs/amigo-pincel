@@ -405,6 +405,36 @@ test('Save As asks format, JPEG quality and merging in one dialog, then only the
   await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('40');
 });
 
+test('Save As remembers the JPEG quality only once the file is written (AC-15)', async ({ page }) => {
+  await openFile(page, 'screenshot.png', 'png');
+  await paint(page);
+  // A save picker the user cancels.
+  await page.evaluate(() => {
+    (window as unknown as { showSaveFilePicker: () => Promise<never> }).showSaveFilePicker =
+      async () => {
+        throw new DOMException('The user aborted a request.', 'AbortError');
+      };
+  });
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+
+  await menu(page, 'File', 'Save As…');
+  const dialog = saveAsDialog(page);
+  await dialog.getByLabel('Format').selectOption('jpeg');
+  const quality = dialog.getByLabel('Quality');
+  await expect(quality).toHaveAttribute('min', '1');
+  await expect(quality).toHaveAttribute('max', '100');
+  await setRange(quality, 40);
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTitle('screenshot.png — unsaved changes')).toBeVisible();
+  expect(downloads).toBe(0);
+
+  await menu(page, 'File', 'Save As…');
+  await saveAsDialog(page).getByLabel('Format').selectOption('jpeg');
+  await expect(saveAsDialog(page).getByLabel('Quality')).toHaveValue('90');
+});
+
 test('the Save As merge checkbox keeps its state and hides for .ora (AC-16)', async ({ page }) => {
   await openLayered(page);
   await menu(page, 'File', 'Save As…');
