@@ -11,6 +11,7 @@ mod export_anim;
 mod export_open;
 mod export_svg;
 mod image;
+mod image_brush_parity;
 mod image_brushes;
 mod image_draw;
 mod layers;

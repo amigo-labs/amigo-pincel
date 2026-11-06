@@ -17,19 +17,19 @@ fn undo_depth(s: &mut S) -> u64 {
 }
 
 /// The layers after the editor runs `spec` (JSON) on a copy.
-fn editor(s: &S, id: &str, spec: Value) -> Vec<Layer> {
+pub(super) fn editor(s: &S, id: &str, spec: Value) -> Vec<Layer> {
     let spec: CommandSpec = serde_json::from_value(spec).expect("spec");
     let mut bus = CommandBus::new(s.image(id).document().clone());
     run_command(&mut bus, spec, &mut StrokeScratch::default(), &[]).expect("editor");
     bus.document.layers().to_vec()
 }
 
-fn layers(s: &S, id: &str) -> Vec<Layer> {
+pub(super) fn layers(s: &S, id: &str) -> Vec<Layer> {
     s.image(id).document().layers().to_vec()
 }
 
 /// A 24×16 Image document: a red block on blue.
-fn painted(s: &mut S) -> String {
+pub(super) fn painted(s: &mut S) -> String {
     let id = s.new_image(24, 16);
     s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#0000ff" }));
     s.ok(
@@ -39,7 +39,7 @@ fn painted(s: &mut S) -> String {
     id
 }
 
-fn stroke_base(kind: &str) -> Value {
+pub(super) fn stroke_base(kind: &str) -> Value {
     json!({
         "type": kind, "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0,
         "points": [[2.0, 8.0], [20.0, 8.0]], "angle": 45.0, "stroke_id": 1,
