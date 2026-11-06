@@ -56,7 +56,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| D1 | [clone-stamp](clone-stamp.md) | Image | L | — | Clone Stamp (key C) plus MCP draw.clone |
 | D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
 | D3 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
@@ -137,6 +136,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
+- [clone-stamp](clone-stamp.md)
 - [color-picker](color-picker.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
