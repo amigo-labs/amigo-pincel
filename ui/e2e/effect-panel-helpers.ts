@@ -1,7 +1,9 @@
 import type { Locator, Page } from '@playwright/test';
+import { imageCanvas, pixelCanvas } from './helpers';
 
 // Shared steps of the effect-panel specs: the dialog and its title bar, the
-// stored `layout:<mode>` pref, region brightness and box geometry.
+// stored `layout:<mode>` pref, region brightness, box geometry and the
+// canvas centre.
 
 export type Mode = 'pixel' | 'image';
 
@@ -120,4 +122,26 @@ export async function phoneMenu(page: Page, ...path: string[]): Promise<void> {
       .or(sheet.getByRole('menuitemcheckbox', { name: label, exact: true }))
       .click();
   }
+}
+
+/** The editor canvas of `mode`. */
+export function canvasOf(page: Page, mode: Mode): Locator {
+  return mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
+}
+
+/** A 6 × 6 px screenshot around the canvas centre. */
+export async function centre(page: Page, mode: Mode): Promise<Buffer> {
+  const box = await canvasOf(page, mode).boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  return page.screenshot({
+    clip: { x: box.x + box.width / 2 - 3, y: box.y + box.height / 2 - 3, width: 6, height: 6 },
+  });
+}
+
+/** Fills the active layer with the foreground colour (opaque black). */
+export async function fill(page: Page, mode: Mode): Promise<void> {
+  await page.keyboard.press('g');
+  const box = await canvasOf(page, mode).boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }

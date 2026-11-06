@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 // A mocked Tauri bridge for e2e specs of the desktop paths: an init script
 // sets `__TAURI_INTERNALS__`, which answers the IPC calls the UI makes
@@ -260,4 +260,30 @@ export async function releaseClipboardRead(page: Page, index: number): Promise<v
 /** The window gains focus (switched to, or restored from minimised). */
 export async function focusWindow(page: Page): Promise<void> {
   await emit(page, 'tauri://focus');
+}
+
+/** Opens the app past the first-launch note (the mock makes it desktop). */
+export async function launchDesktop(page: Page): Promise<void> {
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Got it' }).click();
+}
+
+/** The bytes at `path` on the virtual disk, or `null`. */
+export async function diskFile(page: Page, path: string): Promise<Buffer | null> {
+  const bytes = await page.evaluate(
+    (p) => (window as unknown as MockWindow).__mock.disk[p] ?? null,
+    path,
+  );
+  return bytes === null ? null : Buffer.from(bytes);
+}
+
+/** Native File ▸ Save of a document whose target is `path` (or the save
+ *  dialog's answer): waits until it wrote `path` and returns the bytes. */
+export async function nativeSave(page: Page, path: string): Promise<Buffer> {
+  await putFile(page, path, null);
+  await emit(page, 'menu', 'menu:save');
+  await expect.poll(async () => (await diskFile(page, path)) !== null).toBe(true);
+  const bytes = await diskFile(page, path);
+  if (!bytes) throw new Error(`${path} was not written`);
+  return bytes;
 }
