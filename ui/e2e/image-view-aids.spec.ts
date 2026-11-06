@@ -459,6 +459,11 @@ function expectCleanChords(rows: readonly Row[], labels: readonly string[], web 
       l,
     ).toBe(true);
   }
+  // The Pixel Grid entry lists its own chord (AC-18).
+  expect(
+    rows.some((r) => r.label === 'Show Pixel Grid' && r.chords.includes("Ctrl+Shift+'")),
+    JSON.stringify(rows),
+  ).toBe(true);
   const all = rows.flatMap((r) => r.chords);
   expect(new Set(all).size).toBe(all.length);
   if (!web) return;
