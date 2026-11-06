@@ -11,6 +11,7 @@ import {
   waitForEditor,
 } from './helpers';
 import { effectPanel } from './effect-panel-helpers';
+import { dropFiles, tabNames } from './tab-helpers';
 import { closeWindow, destroyed, installTauriMock, launchDesktop } from './tauri-mock';
 
 // Recent colors (color-picker AC-12 – AC-15, AC-24, AC-30): a color joins
@@ -246,6 +247,130 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(panel).toHaveCount(0);
     expect(await recent(page)).toEqual(['#00ff00']);
   });
+}
+
+test('pixel: a fill that changes no pixel adds nothing (AC-24)', async ({ page }) => {
+  // The fill reaches the core, which adds no undo step for it: the
+  // recent row records changes that altered pixels only.
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  const canvas = pixelCanvas(page);
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error('canvas is not visible');
+  const bucketAt = (y: number) => page.mouse.click(box.x + box.width * 0.5, box.y + box.height * y);
+  await setColor(page, 'fg', '#ff0000ff');
+  await page.keyboard.press('g');
+  await bucketAt(0.9);
+  await setColor(page, 'fg', '#0000ffff');
+  await page.keyboard.press('b');
+  await stroke(page, canvas, 0.2);
+  expect(await recent(page)).toEqual(['#0000ff', '#ff0000']);
+
+  // Red into the area that is red already.
+  await setColor(page, 'fg', '#ff0000ff');
+  await page.keyboard.press('g');
+  await bucketAt(0.9);
+  expect(await recent(page)).toEqual(['#0000ff', '#ff0000']);
+});
+
+test('image: the Eraser to the background adds nothing (AC-24)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  const canvas = imageCanvas(page);
+  await setColor(page, 'fg', '#ff0000ff');
+  await page.keyboard.press('b');
+  await stroke(page, canvas, 0.5);
+  expect(await recent(page)).toEqual(['#ff0000']);
+
+  // A background no tool painted with yet, erased onto the red stroke.
+  await setColor(page, 'bg', '#00ff00ff');
+  await page.keyboard.press('e');
+  await page.getByRole('combobox', { name: 'Mode', exact: true }).selectOption('to_background');
+  await stroke(page, canvas, 0.5);
+  expect(await recent(page)).toEqual(['#ff0000']);
+});
+
+for (const mode of ['pixel', 'image'] as const) {
+  test(`${mode}: an effect whose colors start at the foreground and background adds nothing (AC-24)`, async ({
+    page,
+  }) => {
+    await createDocument(page, mode, { width: 16, height: 16 });
+    // Clouds paints with Color 1 = foreground and Color 2 = background.
+    await setColor(page, 'fg', '#ff0000ff');
+    await setColor(page, 'bg', '#0000ffff');
+    await menu(page, 'Effects', 'Render', 'Clouds…');
+    const panel = effectPanel(page, 'Clouds');
+    await panel.getByRole('button', { name: 'OK' }).click();
+    await expect(panel).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+    expect(await recent(page)).toEqual([]);
+  });
+}
+
+test('pixel: an indexed document is refused, so nothing is painted in one (AC-24)', async ({
+  page,
+}) => {
+  // Indexed painting and reading are Phase 2 (pincel.md §15, 2026-10-29):
+  // Pixel mode opens no indexed document, and the recent row stays.
+  await createDocument(page, 'pixel', { width: 16, height: 16 });
+  await setColor(page, 'fg', '#ff0000ff');
+  await page.keyboard.press('b');
+  await stroke(page, pixelCanvas(page), 0.5);
+  await dropFiles(page, [{ name: 'indexed.aseprite', bytes: indexedAseprite() }]);
+  await expect(page.getByRole('contentinfo')).toContainText(
+    'Open failed: failed to open Aseprite: unsupported aseprite color mode',
+  );
+  expect(await tabNames(page)).toEqual(['pincel.aseprite']);
+  await page.keyboard.press('b');
+  await stroke(page, pixelCanvas(page), 0.7);
+  expect(await recent(page)).toEqual(['#ff0000']);
+});
+
+/** A valid 2 × 2 indexed (8 bpp) `.aseprite`: one layer, a two-color
+ *  palette and one raw cel (ase-file-specs.md). */
+function indexedAseprite(): Buffer {
+  const chunk = (type: number, body: Buffer): Buffer => {
+    const head = Buffer.alloc(6);
+    head.writeUInt32LE(6 + body.length, 0);
+    head.writeUInt16LE(type, 4);
+    return Buffer.concat([head, body]);
+  };
+  const name = Buffer.from('Layer 1');
+  const layer = Buffer.alloc(18 + name.length);
+  layer.writeUInt16LE(3, 0); // visible, editable
+  layer.writeUInt8(255, 12); // opacity
+  layer.writeUInt16LE(name.length, 16);
+  name.copy(layer, 18);
+  const palette = Buffer.alloc(20 + 2 * 6);
+  palette.writeUInt32LE(2, 0);
+  palette.writeUInt32LE(1, 8); // last index
+  palette.set([0, 0, 0, 0, 0, 0, 0, 0, 255, 0, 0, 255], 20);
+  const cel = Buffer.alloc(16 + 4 + 4);
+  cel.writeUInt8(255, 6); // opacity
+  cel.writeUInt16LE(2, 16);
+  cel.writeUInt16LE(2, 18);
+  cel.set([1, 0, 0, 1], 20);
+  const chunks = [chunk(0x2004, layer), chunk(0x2019, palette), chunk(0x2005, cel)];
+  const body = Buffer.concat(chunks);
+  const frame = Buffer.alloc(16);
+  frame.writeUInt32LE(16 + body.length, 0);
+  frame.writeUInt16LE(0xf1fa, 4);
+  frame.writeUInt16LE(chunks.length, 6);
+  frame.writeUInt16LE(100, 8);
+  frame.writeUInt32LE(chunks.length, 12);
+  const header = Buffer.alloc(128);
+  header.writeUInt32LE(128 + 16 + body.length, 0);
+  header.writeUInt16LE(0xa5e0, 4);
+  header.writeUInt16LE(1, 6); // frames
+  header.writeUInt16LE(2, 8);
+  header.writeUInt16LE(2, 10);
+  header.writeUInt16LE(8, 12); // color depth: indexed
+  header.writeUInt32LE(1, 14);
+  header.writeUInt16LE(100, 18);
+  header.writeUInt16LE(2, 32); // colors
+  header.writeUInt8(1, 34);
+  header.writeUInt8(1, 35);
+  header.writeUInt16LE(16, 40);
+  header.writeUInt16LE(16, 42);
+  return Buffer.concat([header, frame, body]);
 }
 
 test('the 13th color drops the oldest; the same RGB with another alpha is another color (AC-12)', async ({
