@@ -412,6 +412,45 @@ test('a jump writes no file and leaves the dirty state of as many undos (AC-14)'
   expect(await picker(page)).toEqual({ calls: 0, written: [] });
 });
 
+/** Rows in the app's `autosave_meta` store. */
+async function autosaveRows(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open('pincel');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const count = open.result
+            .transaction('autosave_meta')
+            .objectStore('autosave_meta')
+            .count();
+          count.onsuccess = () => {
+            open.result.close();
+            resolve(count.result);
+          };
+          count.onerror = () => reject(count.error);
+        };
+      }),
+  );
+}
+
+test('a jump autosaves as the same undos and redos would (AC-14)', async ({ page }) => {
+  await page.clock.install();
+  await pixelDoc(page);
+  await pixelStroke(page, 0.3);
+  // Back at the state the document was created in: clean, nothing to keep.
+  await historyRows(page).first().click();
+  await expectCurrent(page, 0);
+  await page.clock.fastForward(31_000);
+  await page.waitForTimeout(500);
+  expect(await autosaveRows(page)).toBe(0);
+  // Forward again: unsaved work, snapshotted like after a Redo.
+  await historyRows(page).nth(1).click();
+  await expectCurrent(page, 1);
+  await page.clock.fastForward(31_000);
+  await expect.poll(() => autosaveRows(page)).toBe(1);
+});
+
 test('Space on a focused row jumps and starts no Space-pan (AC-18)', async ({ page }) => {
   await pixelDoc(page);
   await pixelStroke(page, 0.5);
