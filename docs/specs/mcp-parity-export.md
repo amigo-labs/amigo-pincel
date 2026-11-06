@@ -177,7 +177,7 @@ Every capability exists already; grep for the names, line numbers drift.
 | AC-16 | `a_lossy_flatten_needs_flatten_true_and_names_every_cause` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-17 | `doc_save_with_a_path_picks_the_format_by_extension` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-18 | `jpeg_quality_is_remembered_per_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
-| AC-19 | `unwritable_formats_are_refused_listing_the_extensions` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
+| AC-19 | `unwritable_formats_are_refused_listing_the_extensions`, `doc_save_of_a_psd_source_or_layered_document_suggests_ora_first` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-20 | `export_bmp_and_tiff_write_the_composite_and_leave_the_document` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-21 | `doc_open_of_a_psd_opens_the_editors_layers_and_notices` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
 | AC-22 | `doc_open_of_a_bad_psd_names_the_file_and_reason` (`crates/pincel-agent/src/tests/export.rs`) | built  |        |
@@ -201,3 +201,5 @@ Every capability exists already; grep for the names, line numbers drift.
 - 2026-11-05 (spec-build): A flat `doc.save` makes the written file the document's save target (`source`) and drops a previous `.ora` path, so a later `doc.save` without `path` writes the last saved file in its format, as the editor's Save does.
 - 2026-11-05 (spec-build): `export.svg` builds the dialog's flat option vector and traces through `TraceOptions::from_wire`, the path both wasm `Vectorizer`s take, so the file is the dialog's by construction; the tool checks the ranges first so an agent learns which value was refused. `pincel-agent` depends on `pincel-trace` (Decision Log 2026-11-01 names the agent tools among its users; no new external crate).
 - 2026-11-05 (spec-build): The stdio test `image_document_open_edit_save_and_export_over_stdio` now expects `doc.save` without `path` to write an opened PNG back (AC-14 supersedes `mcp-headless-image` AC-20).
+- 2026-11-06 (spec-build): A Pixel document opened from a PNG with `mode: "pixel"` keeps the PNG's path as `source_name` (not as its file), and `doc.save` without `path` suggests that path with its extension replaced by `.aseprite`, in the same directory (`shot.png` → `shot.aseprite`, `art/hero.v2.png` → `art/hero.v2.aseprite`) — the acceptance check found the message always suggested `sprite.aseprite` (AC-23); the test was red before the fix.
+- 2026-11-06 (spec-build): `doc_save_of_a_psd_source_or_layered_document_suggests_ora_first` (AC-19) was green at once, because the behavior existed; it went red against a temporary break (the PSD clause removed from the `.ora`-first hint in `crates/pincel-agent/src/image/doc.rs`: "a PSD source, even one layer: … pass a path ending in .ora, …"), which was reverted.

@@ -225,6 +225,49 @@ fn unwritable_formats_are_refused_listing_the_extensions() {
     assert_eq!(s.host.files.len(), 1);
 }
 
+/// Where a `.ora` path is suggested ahead of the extension list, as the
+/// editor's Save As preselects `.ora` (AC-19).
+fn suggests_ora_first(e: &str) -> bool {
+    match (e.find("`.ora` path"), e.find("a path ending in")) {
+        (Some(ora), Some(list)) => ora < list,
+        _ => false,
+    }
+}
+
+#[test]
+fn doc_save_of_a_psd_source_or_layered_document_suggests_ora_first() {
+    let mut s = S::new();
+    opened(&mut s, "art.psd", SAMPLE_PSD.to_vec());
+    s.ok("layer.flatten", json!({}));
+    assert_eq!(s.ok("doc.info", json!({}))["layers"], 1);
+    let e = s.err("doc.save", json!({}));
+    assert!(
+        e.contains("PSD file `art.psd`") && e.contains("cannot write"),
+        "{e}"
+    );
+    assert!(
+        e.contains(".ora, .png, .jpg / .jpeg, .webp, .bmp, .tif / .tiff"),
+        "{e}"
+    );
+    assert!(suggests_ora_first(&e), "a PSD source, even one layer: {e}");
+
+    let gif = {
+        let img = image::RgbaImage::from_raw(6, 4, pattern().data().to_vec()).expect("img");
+        let mut out = Vec::new();
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Gif)
+            .expect("gif");
+        out
+    };
+    opened(&mut s, "a.gif", gif);
+    let e = s.err("doc.save", json!({}));
+    assert!(!suggests_ora_first(&e), "one layer from a GIF: {e}");
+    s.ok("layer.add", json!({}));
+    let e = s.err("doc.save", json!({}));
+    assert!(suggests_ora_first(&e), "more than one layer: {e}");
+    assert_eq!(s.host.files.len(), 2, "nothing is written");
+}
+
 #[test]
 fn export_bmp_and_tiff_write_the_composite_and_leave_the_document() {
     let mut s = S::new();
