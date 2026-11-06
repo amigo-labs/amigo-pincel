@@ -22,7 +22,7 @@ use crate::{
     Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil, Point,
     PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode,
     Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle,
-    apply_mode, delete_selection, magic_wand,
+    apply_mode, delete_selection, fill_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -417,6 +417,10 @@ pub enum CommandSpec {
     /// Erase the selected pixels of `layer` to transparent; the whole layer
     /// when no selection is active (Edit ▸ Clear / Delete key).
     DeleteSelection { layer: usize },
+    /// Fill the selected pixels of `layer` with `color` (RGBA), partial
+    /// coverage moving a pixel toward it; the whole layer when no selection
+    /// is active (Edit ▸ Fill Selection). No undo step when nothing changes.
+    FillSelection { layer: usize, color: [u8; 4] },
     /// Add a transparent layer above `active`.
     AddLayer { active: usize },
     /// Remove the layer at `index`.
@@ -792,6 +796,7 @@ impl CommandSpec {
             | Self::RecolorStroke { layer, .. }
             | Self::SmudgeStroke { layer, .. }
             | Self::DeleteSelection { layer }
+            | Self::FillSelection { layer, .. }
             | Self::TransformLayer { layer, .. }
             | Self::RotateLayer90 { layer, .. }
             | Self::DrawShape { layer, .. }
@@ -1109,6 +1114,13 @@ pub fn run_command(
             match delete_selection(layer, &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()), // empty selection or invalid layer — no-op
+            }
+        }
+        CommandSpec::FillSelection { layer, color } => {
+            let [r, g, b, a] = color;
+            match fill_selection(layer, Color::rgba(r, g, b, a), &bus.document) {
+                Some(cmd) => bus.apply(Box::new(cmd)),
+                None => Ok(()), // nothing would change, or an invalid layer
             }
         }
         CommandSpec::AddLayer { active } => bus.apply(Box::new(AddLayer::above(active))),
@@ -1641,11 +1653,12 @@ mod tests {
             CommandBus::new(doc)
         }
 
-        const PIXEL_EDITS: [&str; 5] = [
+        const PIXEL_EDITS: [&str; 6] = [
             r#"{"type":"pencil_stroke","layer":L,"size":1,"color":[0,0,0,255],"opacity":1,"points":[[1,1]],"stroke_id":1}"#,
             r#"{"type":"fill_bucket","layer":L,"x":1,"y":1,"color":[0,0,0,255],"opacity":1,"tolerance":0,"contiguous":true}"#,
             r#"{"type":"translate_selection","layer":L,"dx":1,"dy":0}"#,
             r#"{"type":"delete_selection","layer":L}"#,
+            r#"{"type":"fill_selection","layer":L,"color":[0,0,0,255]}"#,
             r#"{"type":"translate_layer","layer":L,"dx":1,"dy":0}"#,
         ];
 
@@ -1677,11 +1690,11 @@ mod tests {
         fn pixel_edits_on_a_group_are_refused() {
             let bus = bus();
             assert!(layer_locked(&bus.document, 1));
-            for json in &PIXEL_EDITS[..4] {
+            for json in &PIXEL_EDITS[..5] {
                 assert!(edit(json, 1).refused(&bus.document), "{json}");
             }
             // Move (layer) on a group is allowed: it moves its content.
-            assert!(!edit(PIXEL_EDITS[4], 1).refused(&bus.document));
+            assert!(!edit(PIXEL_EDITS[5], 1).refused(&bus.document));
         }
 
         #[test]
@@ -1781,6 +1794,7 @@ mod tests {
             r#"{"type":"translate_layer","layer":2,"dx":1,"dy":0}"#,
             r#"{"type":"translate_selection","layer":2,"dx":1,"dy":0}"#,
             r#"{"type":"delete_selection","layer":2}"#,
+            r#"{"type":"fill_selection","layer":2,"color":[0,0,0,255]}"#,
             r#"{"type":"transform_layer","layer":2,"op":"flip_h"}"#,
             r#"{"type":"rotate_layer_90","layer":2,"ccw":false}"#,
             r#"{"type":"draw_shape","layer":2,"shape":"line","points":[[0,0],[3,3]]}"#,
