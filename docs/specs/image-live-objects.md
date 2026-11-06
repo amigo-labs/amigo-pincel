@@ -116,6 +116,7 @@ Hints, not contracts, verified 2026-11-05; grep for the names, line numbers drif
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
+- Live-edit speed vs the proposed budgets (AC-17's note: 8 ms ellipse, 16 ms gradient): measured 2026-11-05 natively, one edit is 200 ms (ellipse, 4096², 5 layers) and 767 ms (gradient, 2048², 5 layers); without the region compose it is 69 ms and 351 ms. Both halves are today's costs — the immediate draw (`Shapes::draw` evaluates the SDF for every pixel of the box, `Gradient::draw` clones and ramps the whole layer) and `compose_region` in linear light — not the live-object layer, so meeting the budgets is a performance spec (span-based shape fill, a cheaper gradient pass, a faster compose), not this one. Owner: should the budgets join `performance-benchmarks` as pending and get their own spec?
 
 ## Evidence
 

@@ -30,7 +30,7 @@ pub enum TextAlign {
 const ITALIC_SHEAR: f32 = 0.21;
 
 /// Styling for a [`Text`] commit (spec §9.2 Text "Options").
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TextStyle {
     /// Font size in pixels, clamped to 1–2000.
     pub size: f32,
@@ -44,6 +44,10 @@ pub struct TextStyle {
     pub anti_alias: bool,
     /// Per-line horizontal alignment about the placement point.
     pub align: TextAlign,
+    /// A stroke below each line's baseline (docs/specs/image-live-text.md AC-10).
+    pub underline: bool,
+    /// A stroke through each line's lowercase letters.
+    pub strikethrough: bool,
 }
 
 impl Default for TextStyle {
@@ -55,6 +59,8 @@ impl Default for TextStyle {
             italic: false,
             anti_alias: true,
             align: TextAlign::Left,
+            underline: false,
+            strikethrough: false,
         }
     }
 }
@@ -74,6 +80,48 @@ pub struct Text {
     pub position: Point,
     /// Styling.
     pub style: TextStyle,
+}
+
+/// Underline top below the baseline, in em (Liberation Sans, Arial metrics).
+const UNDERLINE_TOP: f32 = 0.106;
+/// Underline thickness, in em.
+const UNDERLINE_THICKNESS: f32 = 0.073;
+/// Strikethrough centre above the baseline, in em.
+const STRIKE_CENTER: f32 = 0.259;
+/// Strikethrough thickness, in em.
+const STRIKE_THICKNESS: f32 = 0.049;
+
+/// Where a text's lines and caret positions lie (docs/specs/image-live-text.md
+/// AC-22): the layout [`Text::render`] paints with.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct TextLayout {
+    /// One entry per `\n`-separated line, top to bottom.
+    pub lines: Vec<LineLayout>,
+    /// Distance between consecutive lines' tops.
+    pub line_height: f32,
+    /// Width of the widest line (the text box width).
+    pub width: f32,
+}
+
+/// One laid-out line of a [`TextLayout`], in canvas coordinates.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct LineLayout {
+    /// Top of the line's em box.
+    pub top: f32,
+    /// The baseline the glyphs sit on.
+    pub baseline: f32,
+    /// Pen x where the line starts (after alignment).
+    pub left: f32,
+    /// Advance width of the line, kerning included.
+    pub width: f32,
+    /// Pen x of every character boundary: before the first character, then
+    /// after each character (where the next glyph is drawn, kerning included).
+    pub carets: Vec<f32>,
+    /// Advance end of the last non-whitespace character; `left` for a line of
+    /// only whitespace. Underline and strikethrough run to here.
+    pub ink_end: f32,
 }
 
 /// One laid-out glyph outline plus the baseline it sits on (for shear).
@@ -120,9 +168,18 @@ impl Text {
         if placed.is_empty() {
             return None;
         }
+        let strokes = self.decorations(&self.lines(&scaled), size, bold_dx);
 
-        let region = self.region(&placed, shear, bold_dx, &doc.canvas)?;
-        let cov = rasterize_coverage(&placed, region, shear, bold_dx, self.style.anti_alias);
+        let region = self.region(&placed, &strokes, shear, bold_dx, &doc.canvas)?;
+        let mut cov = rasterize_coverage(&placed, region, shear, bold_dx, true);
+        for stroke in &strokes {
+            stroke.cover(region, &mut cov);
+        }
+        if !self.style.anti_alias {
+            for v in cov.iter_mut() {
+                *v = if *v >= 0.5 { 1.0 } else { 0.0 };
+            }
+        }
 
         // Composite the coverage with the fill color over a copy of the region.
         let selection = doc.selection.as_ref();
@@ -149,6 +206,95 @@ impl Text {
         }
 
         Some(SetPixels::new(layer_index, region, after).with_label("Text"))
+    }
+
+    /// The line boxes and caret positions of this text with `font_bytes`;
+    /// `None` when the font fails to parse.
+    pub fn layout_lines(&self, font_bytes: &[u8]) -> Option<TextLayout> {
+        let font = FontVec::try_from_vec(font_bytes.to_vec()).ok()?;
+        let size = self.style.size.clamp(1.0, 2000.0);
+        let scaled = font.as_scaled(PxScale::from(size));
+        let lines = self.lines(&scaled);
+        let width = lines.iter().map(|l| l.width).fold(0.0, f32::max);
+        Some(TextLayout {
+            lines,
+            line_height: scaled.ascent() - scaled.descent() + scaled.line_gap(),
+            width,
+        })
+    }
+
+    /// Lays out each line: alignment, kerning, caret positions.
+    fn lines<F: Font, SF: ScaleFont<F>>(&self, scaled: &SF) -> Vec<LineLayout> {
+        let line_height = scaled.ascent() - scaled.descent() + scaled.line_gap();
+        self.content
+            .split('\n')
+            .enumerate()
+            .map(|(li, line)| {
+                let top = self.position.y + li as f32 * line_height;
+                let width = line_width(scaled, line);
+                let left = match self.style.align {
+                    TextAlign::Left => self.position.x,
+                    TextAlign::Center => self.position.x - width / 2.0,
+                    TextAlign::Right => self.position.x - width,
+                };
+                let mut carets = vec![left];
+                let mut pen = left;
+                let mut ink_end = left;
+                let mut prev: Option<GlyphId> = None;
+                for c in line.chars() {
+                    let id = scaled.glyph_id(c);
+                    if let Some(p) = prev {
+                        pen += scaled.kern(p, id);
+                        if let Some(last) = carets.last_mut() {
+                            *last = pen;
+                        }
+                    }
+                    pen += scaled.h_advance(id);
+                    if !c.is_whitespace() {
+                        ink_end = pen;
+                    }
+                    carets.push(pen);
+                    prev = Some(id);
+                }
+                LineLayout {
+                    top,
+                    baseline: top + scaled.ascent(),
+                    left,
+                    width,
+                    carets,
+                    ink_end,
+                }
+            })
+            .collect()
+    }
+
+    /// The underline and strikethrough rects of `lines`; a whitespace-only
+    /// line gets none.
+    fn decorations(&self, lines: &[LineLayout], size: f32, bold_dx: i32) -> Vec<Stroke> {
+        let mut out = Vec::new();
+        let thicken = bold_dx as f32;
+        for line in lines.iter().filter(|l| l.ink_end > l.left) {
+            if self.style.underline {
+                let h = (UNDERLINE_THICKNESS * size).max(1.0) + thicken;
+                out.push(Stroke {
+                    x0: line.left,
+                    x1: line.ink_end,
+                    y0: line.baseline + UNDERLINE_TOP * size,
+                    y1: line.baseline + UNDERLINE_TOP * size + h,
+                });
+            }
+            if self.style.strikethrough {
+                let h = (STRIKE_THICKNESS * size).max(1.0) + thicken;
+                let center = line.baseline - STRIKE_CENTER * size;
+                out.push(Stroke {
+                    x0: line.left,
+                    x1: line.ink_end,
+                    y0: center - h / 2.0,
+                    y1: center + h / 2.0,
+                });
+            }
+        }
+        out
     }
 
     /// Lays out every glyph: splits lines on `\n`, applies alignment and
@@ -188,6 +334,7 @@ impl Text {
     fn region(
         &self,
         placed: &[Placed],
+        strokes: &[Stroke],
         shear: f32,
         bold_dx: i32,
         canvas: &crate::document::CanvasSize,
@@ -208,6 +355,12 @@ impl Text {
             min_y = min_y.min(b.min.y);
             max_y = max_y.max(b.max.y);
         }
+        for st in strokes {
+            min_x = min_x.min(st.x0);
+            max_x = max_x.max(st.x1);
+            min_y = min_y.min(st.y0);
+            max_y = max_y.max(st.y1);
+        }
         let pad = 1.0 + bold_dx as f32;
         let x0 = (min_x - pad).floor().clamp(0.0, cw) as i32;
         let y0 = (min_y - 1.0).floor().clamp(0.0, ch) as i32;
@@ -217,6 +370,38 @@ impl Text {
             return None;
         }
         Some(Rect::new(x0, y0, (x1 - x0) as u32, (y1 - y0) as u32))
+    }
+}
+
+/// A solid underline or strikethrough rect, in canvas coordinates.
+struct Stroke {
+    x0: f32,
+    x1: f32,
+    y0: f32,
+    y1: f32,
+}
+
+impl Stroke {
+    /// Adds the rect's area coverage to a region-sized coverage buffer
+    /// (combined by max, like overlapping glyphs).
+    fn cover(&self, region: Rect, cov: &mut [f32]) {
+        let rw = region.w as usize;
+        let overlap = |a0: f32, a1: f32, b0: f32, b1: f32| (a1.min(b1) - a0.max(b0)).max(0.0);
+        for ly in 0..region.h {
+            let y = (region.y + ly as i32) as f32;
+            let cy = overlap(y, y + 1.0, self.y0, self.y1);
+            if cy <= 0.0 {
+                continue;
+            }
+            for lx in 0..region.w {
+                let x = (region.x + lx as i32) as f32;
+                let c = cy * overlap(x, x + 1.0, self.x0, self.x1);
+                let idx = ly as usize * rw + lx as usize;
+                if c > cov[idx] {
+                    cov[idx] = c;
+                }
+            }
+        }
     }
 }
 
@@ -439,5 +624,166 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Rows `y` where every pixel in `x0..x1` is painted, and the painted
+    /// columns of row `y`.
+    fn painted_row(doc: &Document, y: u32, x0: u32, x1: u32) -> bool {
+        (x0..x1).all(|x| doc.layers[0].pixels.get_pixel(x, y).map(|c| c.a) == Some(255))
+    }
+
+    fn render_into(doc: &mut Document, text: &str, at: Point, style: TextStyle) {
+        let mut cmd = Text::new(text, at, style).render(0, doc, FONT).unwrap();
+        cmd.apply(doc).unwrap();
+    }
+
+    fn decorated(underline: bool, strikethrough: bool) -> TextStyle {
+        TextStyle {
+            underline,
+            strikethrough,
+            anti_alias: false,
+            ..style(40.0)
+        }
+    }
+
+    #[test]
+    fn underline_runs_below_the_baseline_to_the_last_ink() {
+        let mut doc = Document::new(300, 100).unwrap();
+        render_into(
+            &mut doc,
+            "ab   ",
+            Point::new(10.0, 10.0),
+            decorated(true, false),
+        );
+        let layout = Text::new("ab   ", Point::new(10.0, 10.0), decorated(true, false))
+            .layout_lines(FONT)
+            .unwrap();
+        let line = &layout.lines[0];
+        // A fully painted row a few pixels below the baseline ...
+        let base = line.baseline as u32;
+        let row = (base + 2..base + 10)
+            .find(|&y| painted_row(&doc, y, line.left as u32 + 1, line.ink_end as u32 - 1))
+            .expect("an underline row");
+        // ... that stops at the last letter, not at the trailing spaces.
+        let past = line.ink_end.ceil() as u32 + 2;
+        assert_eq!(
+            doc.layers[0].pixels.get_pixel(past, row).map(|c| c.a),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn strikethrough_crosses_the_lowercase_letters() {
+        let mut plain = Document::new(300, 100).unwrap();
+        render_into(
+            &mut plain,
+            "nn",
+            Point::new(10.0, 10.0),
+            decorated(false, false),
+        );
+        let mut struck = Document::new(300, 100).unwrap();
+        render_into(
+            &mut struck,
+            "nn",
+            Point::new(10.0, 10.0),
+            decorated(false, true),
+        );
+        let layout = Text::new("nn", Point::new(10.0, 10.0), decorated(false, true))
+            .layout_lines(FONT)
+            .unwrap();
+        let line = &layout.lines[0];
+        // Mid x-height: the gap between the two n's is painted only when struck.
+        let y = (line.baseline - 0.259 * 40.0) as u32;
+        let (x0, x1) = (line.left as u32 + 1, line.ink_end as u32 - 1);
+        assert!(painted_row(&struck, y, x0, x1));
+        assert!(!painted_row(&plain, y, x0, x1));
+    }
+
+    #[test]
+    fn a_whitespace_only_text_gets_no_decoration() {
+        let doc = Document::new(100, 40).unwrap();
+        let text = Text::new("  \n ", Point::new(5.0, 5.0), decorated(true, true));
+        assert!(text.render(0, &doc, FONT).is_none());
+    }
+
+    #[test]
+    fn decorations_combine_with_bold_italic_and_alignment() {
+        for align in [TextAlign::Left, TextAlign::Center, TextAlign::Right] {
+            let mut doc = Document::new(300, 120).unwrap();
+            let s = TextStyle {
+                bold: true,
+                italic: true,
+                align,
+                ..decorated(true, true)
+            };
+            render_into(&mut doc, "ab\nc", Point::new(150.0, 10.0), s.clone());
+            let layout = Text::new("ab\nc", Point::new(150.0, 10.0), s)
+                .layout_lines(FONT)
+                .unwrap();
+            for line in &layout.lines {
+                let base = line.baseline as u32;
+                assert!(
+                    (base + 2..base + 10).any(|y| painted_row(
+                        &doc,
+                        y,
+                        line.left as u32 + 1,
+                        line.ink_end as u32 - 1
+                    )),
+                    "{align:?}: underline under every line"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn layout_carets_split_a_line_without_changing_its_pixels() {
+        let s = TextStyle {
+            anti_alias: false,
+            ..style(32.0)
+        };
+        let at = Point::new(12.0, 8.0);
+        let mut whole = Document::new(260, 60).unwrap();
+        render_into(&mut whole, "HI LT", at, s.clone());
+        let layout = Text::new("HI LT", at, s.clone())
+            .layout_lines(FONT)
+            .unwrap();
+        let line = &layout.lines[0];
+        assert_eq!(line.carets.len(), 6, "one caret per character boundary");
+        for split in [1, 2, 3, 4] {
+            let mut parts = Document::new(260, 60).unwrap();
+            let (left, right) = "HI LT".split_at(split);
+            render_into(&mut parts, left, Point::new(line.left, at.y), s.clone());
+            if !right.trim().is_empty() {
+                render_into(
+                    &mut parts,
+                    right,
+                    Point::new(line.carets[split], at.y),
+                    s.clone(),
+                );
+            }
+            assert_eq!(
+                parts.layers[0].pixels, whole.layers[0].pixels,
+                "split at {split}"
+            );
+        }
+    }
+
+    #[test]
+    fn layout_reports_aligned_lines_inside_one_box() {
+        let s = TextStyle {
+            align: TextAlign::Right,
+            ..style(30.0)
+        };
+        let layout = Text::new("wide line\nab", Point::new(200.0, 5.0), s)
+            .layout_lines(FONT)
+            .unwrap();
+        let [first, second] = &layout.lines[..] else {
+            panic!("two lines")
+        };
+        assert!((first.left + first.width - 200.0).abs() < 1e-3);
+        assert!((second.left + second.width - 200.0).abs() < 1e-3);
+        assert!((layout.width - first.width).abs() < 1e-3);
+        assert!(second.top > first.top);
+        assert!((second.top - first.top - layout.line_height).abs() < 1e-3);
     }
 }

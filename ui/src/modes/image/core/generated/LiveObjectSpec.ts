@@ -16,7 +16,11 @@ shape: string,
 /**
  * Endpoints or opposite box corners.
  */
-points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, } | { "type": "gradient", 
+points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, } | { "type": "text", 
+/**
+ * The layer it is drawn into.
+ */
+layer: number, text: string, font_id: number, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, } | { "type": "gradient", 
 /**
  * The layer it is drawn into.
  */

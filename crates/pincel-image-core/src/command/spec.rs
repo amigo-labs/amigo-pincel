@@ -684,6 +684,56 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         opacity: Option<f32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        text: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        size: Option<f32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        color: Option<[u8; 4]>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        bold: Option<bool>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        italic: Option<bool>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        underline: Option<bool>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        strikethrough: Option<bool>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        align: Option<String>,
+    },
+    /// Begin a live text (docs/specs/image-live-text.md): `(x, y)` is the
+    /// top-left of its box for every alignment, `font_id` a `register_font`
+    /// id. An empty text, or an unknown font, begins nothing.
+    BeginLiveText {
+        layer: usize,
+        font_id: u32,
+        text: String,
+        x: f32,
+        y: f32,
+        #[serde(default = "default_text_size")]
+        size: f32,
+        #[serde(default)]
+        color: [u8; 4],
+        #[serde(default)]
+        bold: bool,
+        #[serde(default)]
+        italic: bool,
+        #[serde(default)]
+        anti_alias: bool,
+        #[serde(default = "default_text_align")]
+        align: String,
+        #[serde(default)]
+        underline: bool,
+        #[serde(default)]
+        strikethrough: bool,
     },
     /// Commit the live object: its steps become one (or none, if it changes
     /// no pixel).
@@ -714,6 +764,12 @@ pub enum CommandSpec {
         anti_alias: bool,
         #[serde(default = "default_text_align")]
         align: String,
+        /// A stroke below each line (docs/specs/image-live-text.md AC-10).
+        #[serde(default)]
+        underline: bool,
+        /// A stroke through each line's lowercase letters.
+        #[serde(default)]
+        strikethrough: bool,
     },
 }
 
@@ -737,6 +793,7 @@ impl CommandSpec {
             | Self::DrawShape { layer, .. }
             | Self::BeginLiveShape { layer, .. }
             | Self::BeginLiveGradient { layer, .. }
+            | Self::BeginLiveText { layer, .. }
             | Self::DrawText { layer, .. } => Some(*layer),
             _ => None,
         }
@@ -1384,6 +1441,14 @@ pub fn run_command(
             from,
             to,
             opacity,
+            text,
+            size,
+            color,
+            bold,
+            italic,
+            underline,
+            strikethrough,
+            align,
         } => {
             let shape = match shape {
                 Some(s) => Some(
@@ -1408,8 +1473,55 @@ pub fn run_command(
                 gradient_from: from.map(rgba),
                 gradient_to: to.map(rgba),
                 gradient_opacity: opacity,
+                text,
+                text_size: size,
+                text_color: color.map(rgba),
+                bold,
+                italic,
+                underline,
+                strikethrough,
+                align: align.as_deref().map(parse_text_align),
             };
             bus.edit_live(&edit, gesture)
+        }
+        CommandSpec::BeginLiveText {
+            layer,
+            font_id,
+            text,
+            x,
+            y,
+            size,
+            color,
+            bold,
+            italic,
+            anti_alias,
+            align,
+            underline,
+            strikethrough,
+        } => {
+            let Some(bytes) = fonts.get(font_id as usize) else {
+                return Ok(()); // unknown font: a no-op, as for draw_text
+            };
+            let params = super::LiveParams::Text(super::LiveText {
+                text,
+                left: x,
+                top: y,
+                style: TextStyle {
+                    size,
+                    color: rgba(color),
+                    bold,
+                    italic,
+                    anti_alias,
+                    align: parse_text_align(&align),
+                    underline,
+                    strikethrough,
+                },
+                font: super::LiveFont {
+                    id: font_id,
+                    bytes: std::sync::Arc::from(*bytes),
+                },
+            });
+            bus.begin_live(layer, params).map(|_| ())
         }
         CommandSpec::CommitLive => bus.commit_live(),
         CommandSpec::CancelLive => bus.cancel_live(),
@@ -1426,6 +1538,8 @@ pub fn run_command(
             italic,
             anti_alias,
             align,
+            underline,
+            strikethrough,
         } => {
             let style = TextStyle {
                 size,
@@ -1434,6 +1548,8 @@ pub fn run_command(
                 italic,
                 anti_alias,
                 align: parse_text_align(&align),
+                underline,
+                strikethrough,
             };
             let cmd = fonts.get(font_id as usize).and_then(|bytes| {
                 Text::new(text, Point::new(x, y), style).render(layer, &bus.document, bytes)

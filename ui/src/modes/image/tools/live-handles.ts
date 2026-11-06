@@ -4,6 +4,10 @@
 // code agree and Undo / MCP changes move the handles.
 import type { LiveObjectSpec, PointPair } from '../core/wasm';
 
+/** A live object with points and handles: a Line, box shape or Gradient
+ *  (a live text has its own box, caret and handle). */
+export type ShapeObject = Exclude<LiveObjectSpec, { type: 'text' }>;
+
 /** A point in canvas (document) space. */
 export type Pt = [number, number];
 
@@ -26,7 +30,7 @@ export const GRIP_OFFSET = 16;
 export const SEGMENT_REACH = 8;
 
 /** Whether the object is a box shape (not a Line, not a Gradient). */
-export function isBox(obj: LiveObjectSpec): boolean {
+export function isBox(obj: ShapeObject): boolean {
   return obj.type === 'shape' && obj.shape !== 'line';
 }
 
@@ -70,7 +74,7 @@ export function gripOf(points: PointPair, zoom: number): Pt {
 }
 
 /** Every handle of `obj` with its id, in canvas space (for drawing). */
-export function handlesOf(obj: LiveObjectSpec, zoom: number): Array<{ hit: LiveHit; at: Pt }> {
+export function handlesOf(obj: ShapeObject, zoom: number): Array<{ hit: LiveHit; at: Pt }> {
   if (isBox(obj)) {
     return boxHandles(obj.points).map(([handle, at]) => ({ hit: { kind: 'box', handle }, at }));
   }
@@ -97,7 +101,7 @@ function segmentDistance(p: Pt, a: Pt, b: Pt): number {
  * (beside the object: a commit). `zoom` is CSS px per canvas px; `touch` is
  * a touch or pen press. The nearest handle in reach wins; corners win ties.
  */
-export function hitLive(obj: LiveObjectSpec, p: Pt, zoom: number, touch: boolean): LiveHit | null {
+export function hitLive(obj: ShapeObject, p: Pt, zoom: number, touch: boolean): LiveHit | null {
   const reach = (touch ? HANDLE_REACH.touch : HANDLE_REACH.mouse) / zoom;
   let best: { hit: LiveHit; d: number } | null = null;
   for (const h of handlesOf(obj, zoom)) {

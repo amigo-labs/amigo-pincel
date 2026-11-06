@@ -197,6 +197,40 @@ fn draw_text_matches_the_text_tool() {
 }
 
 #[test]
+fn draw_text_underline_and_strikethrough_match_the_text_tool() {
+    let mut s = S::new();
+    let id = s.new_image(160, 60);
+    let want = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false,
+            "underline": true, "strikethrough": true
+        })],
+    );
+    let plain = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag\nline", "x": 150, "y": 4,
+            "size": 20, "color": [0, 0, 0, 255], "align": "right", "anti_alias": false
+        })],
+    );
+    s.ok(
+        "draw.text",
+        json!({ "text": "Ag\nline", "x": 150, "y": 4, "size": 20, "align": "right",
+                "anti_alias": false, "underline": true, "strikethrough": true }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+    assert_ne!(
+        pixels(&plain, 0),
+        pixels(&want, 0),
+        "the strokes were drawn"
+    );
+}
+
+#[test]
 fn draw_fill_and_gradient_match_bucket_and_gradient_tools() {
     let mut s = S::new();
     let id = s.new_image(16, 12);

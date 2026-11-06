@@ -21,6 +21,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { installLiveSync } from './core/live-sync.svelte';
   import {
     addGroup,
     addLayer,
@@ -218,6 +219,8 @@
   function runCopy(kind: 'copy' | 'merged' | 'cut'): void {
     const handle = editor.handle;
     if (handle === null) return;
+    // Copy reads the final pixels: commit a live object first (AC-09).
+    commitLive();
     let copied: { png: Uint8Array; x: number; y: number } | null;
     try {
       copied = copyImage(kind);
@@ -370,6 +373,7 @@
 
   function openSvgExport(): void {
     if (editor.handle === null) return;
+    commitLive();
     closeSvgExport();
     svgOpen = true;
   }
@@ -380,6 +384,7 @@
   }
 
   function runExport(format: ExportFormat, quality?: number): void {
+    commitLive();
     // JPEG is lossy: ask for the quality first (spec §13.2).
     if (format === 'jpeg' && quality === undefined) {
       jpegDialogOpen = true;
@@ -769,8 +774,14 @@
   // this too. Leaving for another mode's tab drops a gesture in flight.
   $effect.pre(() => {
     ui.active = active;
-    if (!active) gestureControl.cancel();
+    if (!active) {
+      gestureControl.cancel();
+      untrack(commitLive);
+    }
   });
+
+  // Option and color changes reach the live object (AC-06, AC-07).
+  installLiveSync();
 
   // Another tool commits a live object; another box shape converts a live
   // box shape (image-live-objects-ui AC-08, AC-09).
@@ -1005,6 +1016,8 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
+    // The effect previews and applies to the committed pixels (AC-09).
+    commitLive();
     if (effectOpen) {
       endEffectRun();
       clearEffectPreview();

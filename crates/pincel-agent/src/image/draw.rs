@@ -473,7 +473,7 @@ pub(crate) const SHAPE: Tool = Tool {
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` (default left). color default #000000, bold, italic. Image documents: size 1–999 px (default 48), anti_alias default true. Pixel documents: integer x, y, size 1–2000 (default 12), anti_alias default false; the text is clipped to the selection.",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` (default left). color default #000000, bold, italic. Image documents: underline, strikethrough (default false); size 1–999 px (default 48), anti_alias default true. Pixel documents: integer x, y, size 1–2000 (default 12), anti_alias default false; the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
@@ -486,6 +486,8 @@ pub(crate) const TEXT: Tool = Tool {
                 "bold": { "type": "boolean" },
                 "italic": { "type": "boolean" },
                 "anti_alias": { "type": "boolean", "description": "Smooth glyph edges; default true (Image) / false (Pixel)" },
+                "underline": { "type": "boolean", "description": "Image: a stroke below each line; default false" },
+                "strikethrough": { "type": "boolean", "description": "Image: a stroke through each line; default false" },
                 "frame": crate::pixel::frame_prop(),
             }),
             &["text", "x", "y"],
@@ -519,6 +521,8 @@ pub(crate) const TEXT: Tool = Tool {
                 italic: args.bool("italic").unwrap_or(false),
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 align: str_or(args, "align", "left").to_owned(),
+                underline: args.bool("underline").unwrap_or(false),
+                strikethrough: args.bool("strikethrough").unwrap_or(false),
             })
         })
     },

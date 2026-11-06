@@ -9,7 +9,9 @@ use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
 use pincel_image_core::codec::{
     to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
 };
-use pincel_image_core::command::live_spec::live_object_spec;
+use pincel_image_core::command::live_spec::{
+    TextLayoutRequest, live_object_spec, text_layout as layout_text,
+};
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
@@ -396,6 +398,24 @@ pub fn pick_color(
 #[wasm_bindgen]
 pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
     with_bus(handle, |bus| bus.set_active_layer(index).map_err(to_js))
+}
+
+/// Lays out a text with the registered font `font_id` as a live text with
+/// these settings is drawn (docs/specs/image-live-text.md AC-22): `request`
+/// is a JSON `TextLayoutRequest`; returns a `TextLayout` object (line boxes,
+/// caret x per character boundary).
+#[wasm_bindgen]
+pub fn text_layout(font_id: u32, request: &str) -> Result<JsValue, JsError> {
+    let req: TextLayoutRequest =
+        serde_json::from_str(request).map_err(|e| JsError::new(&e.to_string()))?;
+    let layout = FONTS.with(|fonts| {
+        let fonts = fonts.borrow();
+        let bytes = fonts
+            .get(font_id as usize)
+            .ok_or_else(|| JsError::new("unknown font id"))?;
+        layout_text(&req, bytes).ok_or_else(|| JsError::new("the font could not be read"))
+    })?;
+    serde_wasm_bindgen::to_value(&layout).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// The live object (docs/specs/image-live-objects.md) as a
@@ -812,7 +832,8 @@ fn to_js(e: pincel_image_core::DocumentError) -> JsError {
 #[cfg(test)]
 mod ts_bindings {
     use super::CommandSpec;
-    use pincel_image_core::command::live_spec::LiveObjectSpec;
+    use pincel_image_core::TextLayout;
+    use pincel_image_core::command::live_spec::{LiveObjectSpec, TextLayoutRequest};
     use ts_rs::{Config, TS};
 
     /// Regenerates the TypeScript mirror of `CommandSpec` (Fineliner
@@ -828,6 +849,8 @@ mod ts_bindings {
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
         LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
+        TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
+        TextLayout::export_all(&cfg).expect("export TextLayout bindings");
     }
 }
 

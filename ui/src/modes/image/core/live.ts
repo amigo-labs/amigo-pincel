@@ -13,6 +13,7 @@ import {
   syncInfo,
 } from './controller';
 import { editor, live, tool, type ToolKind } from '../stores/editor.svelte';
+import { gestureControl } from '../tools/gesture-control';
 
 /** Sends a live command; `false` when the core refused it (no object live
  *  any more, AC-19): the editor then shows the core's state, silently. */
@@ -90,6 +91,10 @@ export function cancelLive(): boolean {
   return true;
 }
 
+// The tab store and the save flow commit through the gesture hooks, which
+// avoid an import cycle with the controller.
+gestureControl.commitLive = () => commitLive();
+
 /** Drops the step of the handle drag `gesture`, without a redo step
  *  (AC-11: Escape or Undo during a drag). */
 export function cancelLiveGesture(gesture: number): void {
@@ -101,6 +106,7 @@ export function liveToolOf(): ToolKind | null {
   const obj = live.object;
   if (obj === null) return null;
   if (obj.type === 'gradient') return 'gradient';
+  if (obj.type === 'text') return 'text';
   switch (obj.shape) {
     case 'line':
       return 'line';

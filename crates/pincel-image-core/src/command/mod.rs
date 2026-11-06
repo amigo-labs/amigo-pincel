@@ -9,6 +9,7 @@ mod damage;
 mod layers;
 mod live;
 pub mod live_spec;
+mod live_text;
 mod merge;
 mod paste;
 mod pixels;
@@ -26,6 +27,7 @@ pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, Rem
 pub use live::{
     BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
 };
+pub use live_text::{LiveFont, LiveText, text_box};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::SetPixels;
