@@ -28,7 +28,6 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| A3 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
 | A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
 
 ### B — Image live objects
@@ -167,6 +166,7 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 - [mcp-parity-export](mcp-parity-export.md)
 - [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md)
 - [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
+- [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md)
 - [mcp-parity-structure](mcp-parity-structure.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
